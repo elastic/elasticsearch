@@ -7,14 +7,10 @@
  */
 package org.elasticsearch.search;
 
-import com.carrotsearch.hppc.IntArrayList;
-
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
@@ -43,8 +39,6 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.TimeValue;
@@ -54,7 +48,6 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -75,7 +68,7 @@ import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
-import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
@@ -363,7 +356,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                             result
                         );
                         SearchPhaseResult searchPhaseResult = result.get();
-                        IntArrayList intCursors = new IntArrayList(1);
+                        List<Integer> intCursors = new ArrayList<>(1);
                         intCursors.add(0);
                         ShardFetchRequest req = new ShardFetchRequest(searchPhaseResult.getContextId(), intCursors, null/* not a scroll */);
                         PlainActionFuture<FetchSearchResult> listener = new PlainActionFuture<>();
@@ -807,7 +800,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         }
     }
 
-    public static class FailOnRewriteQueryBuilder extends AbstractQueryBuilder<FailOnRewriteQueryBuilder> {
+    public static class FailOnRewriteQueryBuilder extends DummyQueryBuilder {
 
         public FailOnRewriteQueryBuilder(StreamInput in) throws IOException {
             super(in);
@@ -821,32 +814,6 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 throw new IllegalStateException("Fail on rewrite phase");
             }
             return this;
-        }
-
-        @Override
-        protected void doWriteTo(StreamOutput out) {}
-
-        @Override
-        protected void doXContent(XContentBuilder builder, Params params) {}
-
-        @Override
-        protected Query doToQuery(SearchExecutionContext context) {
-            return null;
-        }
-
-        @Override
-        protected boolean doEquals(FailOnRewriteQueryBuilder other) {
-            return false;
-        }
-
-        @Override
-        protected int doHashCode() {
-            return 0;
-        }
-
-        @Override
-        public String getWriteableName() {
-            return null;
         }
     }
 
@@ -1167,10 +1134,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         mapping.endObject().endObject();
 
         createIndex("test", Settings.EMPTY, mapping);
-        withAggregationContext(
-            "test",
-            context -> assertThat(context.query(), equalTo(new ConstantScoreQuery(Queries.newNonNestedFilter())))
-        );
+        withAggregationContext("test", context -> assertThat(context.query(), equalTo(new MatchAllDocsQuery())));
     }
 
     /**
@@ -1241,16 +1205,19 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
 
     public void testCreateReduceContext() {
         SearchService service = getInstanceFromNode(SearchService.class);
-        InternalAggregation.ReduceContextBuilder reduceContextBuilder = service.aggReduceContextBuilder(() -> false, new SearchRequest());
+        AggregationReduceContext.Builder reduceContextBuilder = service.aggReduceContextBuilder(
+            () -> false,
+            new SearchRequest().source(new SearchSourceBuilder())
+        );
         {
-            InternalAggregation.ReduceContext reduceContext = reduceContextBuilder.forFinalReduction();
+            AggregationReduceContext reduceContext = reduceContextBuilder.forFinalReduction();
             expectThrows(
                 MultiBucketConsumerService.TooManyBucketsException.class,
                 () -> reduceContext.consumeBucketsAndMaybeBreak(MultiBucketConsumerService.DEFAULT_MAX_BUCKETS + 1)
             );
         }
         {
-            InternalAggregation.ReduceContext reduceContext = reduceContextBuilder.forPartialReduction();
+            AggregationReduceContext reduceContext = reduceContextBuilder.forPartialReduction();
             reduceContext.consumeBucketsAndMaybeBreak(MultiBucketConsumerService.DEFAULT_MAX_BUCKETS + 1);
         }
     }

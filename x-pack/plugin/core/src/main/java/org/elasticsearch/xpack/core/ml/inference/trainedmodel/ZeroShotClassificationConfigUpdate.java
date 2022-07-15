@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -152,7 +153,7 @@ public class ZeroShotClassificationConfigUpdate extends NlpConfigUpdate implemen
     }
 
     boolean isNoop(ZeroShotClassificationConfig originalConfig) {
-        return (labels == null || labels.equals(originalConfig.getClassificationLabels()))
+        return (labels == null || labels.equals(originalConfig.getLabels()))
             && (isMultiLabel == null || isMultiLabel.equals(originalConfig.isMultiLabel()))
             && (resultsField == null || resultsField.equals(originalConfig.getResultsField()))
             && super.isNoop();
@@ -235,8 +236,14 @@ public class ZeroShotClassificationConfigUpdate extends NlpConfigUpdate implemen
             return this;
         }
 
+        @Override
         public ZeroShotClassificationConfigUpdate build() {
             return new ZeroShotClassificationConfigUpdate(labels, isMultiLabel, resultsField, tokenizationUpdate);
         }
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_8_0_0;
     }
 }

@@ -21,6 +21,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
+import org.elasticsearch.index.mapper.LongFieldScriptTests;
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
@@ -29,6 +31,8 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -46,6 +50,7 @@ import static org.elasticsearch.xcontent.ObjectPath.eval;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.hasSize;
 
 public class FieldFetcherTests extends MapperServiceTestCase {
 
@@ -272,6 +277,30 @@ public class FieldFetcherTests extends MapperServiceTestCase {
 
         Map<String, DocumentField> fields = fetchFields(mapperService, source, "*");
         assertThat(fields.size(), equalTo(2));
+    }
+
+    public void testEmptyFetch() throws IOException {
+        MapperService mapperService = createMapperService();
+        XContentBuilder source = XContentFactory.jsonBuilder().startObject().field("field", "value").endObject();
+        SourceLookup sourceLookup = new SourceLookup();
+        sourceLookup.setSource(BytesReference.bytes(source));
+        {
+            // make sure that an empty fetch don't deserialize the document
+            FieldFetcher fieldFetcher = FieldFetcher.create(newSearchExecutionContext(mapperService), List.of());
+            Map<String, DocumentField> fields = fieldFetcher.fetch(sourceLookup);
+            assertThat(fields.size(), equalTo(0));
+            assertThat(sourceLookup.hasSourceAsMap(), equalTo(false));
+        }
+        {
+            // but a non-empty fetch deserialize the document
+            FieldFetcher fieldFetcher = FieldFetcher.create(
+                newSearchExecutionContext(mapperService),
+                fieldAndFormatList("field", null, false)
+            );
+            Map<String, DocumentField> fields = fieldFetcher.fetch(sourceLookup);
+            assertThat(fields.size(), equalTo(1));
+            assertThat(sourceLookup.hasSourceAsMap(), equalTo(true));
+        }
     }
 
     public void testNestedArrays() throws IOException {
@@ -718,7 +747,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             .endObject();
 
         Map<String, DocumentField> fields = fetchFields(mapperService, source, fieldAndFormatList("*", null, false));
-        assertEquals(2, fields.size());
+        assertThat(fields.values(), hasSize(2));
         assertThat(fields.keySet(), containsInAnyOrder("f1", "obj"));
         assertEquals("value1", fields.get("f1").getValue());
         List<Object> obj = fields.get("obj").getValues();
@@ -1002,6 +1031,33 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         assertThat(fields.get("date_field").getValues().get(1), equalTo("12"));
     }
 
+    public void testNestedPrefix() throws IOException {
+        String mapping = """
+            {
+              "_doc": {
+                "properties" : {
+                  "foo" : {
+                    "type" : "nested",
+                    "properties" : {
+                      "nested_field" : {
+                        "type" : "keyword"
+                      }
+                    }
+                  },
+                  "foo_bar" : {
+                    "type" : "double"
+                  }
+                }
+              }
+            }
+            """;
+        MapperService mapperService = createMapperService(mapping);
+        XContentBuilder source = XContentFactory.jsonBuilder().startObject().field("foo_bar", 3.1).endObject();
+        // the field should be returned
+        Map<String, DocumentField> fields = fetchFields(mapperService, source, "foo_bar");
+        assertThat(fields.get("foo_bar").getValues().size(), equalTo(1));
+    }
+
     /**
      * Field patterns retrieved with "include_unmapped" use an automaton with a maximal allowed size internally.
      * This test checks we have a bound in place to avoid misuse of this with exceptionally large field patterns
@@ -1018,6 +1074,103 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         expectThrows(TooComplexToDeterminizeException.class, () -> fetchFields(mapperService, source, fieldAndFormatList));
     }
 
+    public void testFetchFromSourceWithSourceDisabled() throws IOException {
+        XContentBuilder mapping = XContentFactory.jsonBuilder();
+        mapping.startObject();
+        {
+            mapping.startObject("_doc");
+            {
+                mapping.startObject("_source").field("enabled", false).endObject();
+                mapping.startObject("properties");
+                {
+                    mapping.startObject("field").field("type", "keyword").endObject();
+                    mapping.startObject("location").field("type", "geo_point").endObject();
+                }
+                mapping.endObject();
+            }
+            mapping.endObject();
+        }
+        mapping.endObject();
+
+        MapperService mapperService = createMapperService(mapping);
+        {
+            Map<String, DocumentField> fields = fetchFields(mapperService, null, "field");
+            assertEquals(0, fields.size());
+        }
+        {
+            Map<String, DocumentField> fields = fetchFields(mapperService, null, "location");
+            assertEquals(0, fields.size());
+        }
+    }
+
+    public void testFetchRuntimeFieldWithSourceDisabled() throws IOException {
+        XContentBuilder mapping = XContentFactory.jsonBuilder();
+        mapping.startObject();
+        {
+            mapping.startObject("_doc");
+            {
+                mapping.startObject("_source").field("enabled", false).endObject();
+                mapping.startObject("runtime");
+                {
+                    mapping.startObject("runtime_field").field("type", "long").field("script", "emit(1);").endObject();
+                }
+                mapping.endObject();
+            }
+            mapping.endObject();
+        }
+        mapping.endObject();
+
+        MapperService mapperService = createMapperService(mapping);
+        SearchExecutionContext searchExecutionContext = newSearchExecutionContext(
+            mapperService,
+            (ft, index, sl) -> fieldDataLookup().apply(ft, sl)
+        );
+        withLuceneIndex(mapperService, iw -> iw.addDocument(new LuceneDocument()), iw -> {
+            FieldFetcher fieldFetcher = FieldFetcher.create(searchExecutionContext, fieldAndFormatList("runtime_field", null, false));
+            IndexSearcher searcher = newSearcher(iw);
+            LeafReaderContext readerContext = searcher.getIndexReader().leaves().get(0);
+            fieldFetcher.setNextReader(readerContext);
+            Map<String, DocumentField> fields = fieldFetcher.fetch(new SourceLookup());
+            assertEquals(1, fields.size());
+            DocumentField field = fields.get("runtime_field");
+            assertEquals(1L, (long) field.getValue());
+        });
+    }
+
+    public void testFetchMetadataFieldWithSourceDisabled() throws IOException {
+        XContentBuilder mapping = XContentFactory.jsonBuilder();
+        mapping.startObject();
+        {
+            mapping.startObject("_doc");
+            {
+                mapping.startObject("_source").field("enabled", false).endObject();
+            }
+            mapping.endObject();
+        }
+        mapping.endObject();
+
+        MapperService mapperService = createMapperService(mapping);
+        SearchExecutionContext searchExecutionContext = newSearchExecutionContext(
+            mapperService,
+            (ft, index, sl) -> fieldDataLookup().apply(ft, sl)
+        );
+        withLuceneIndex(mapperService, iw -> {
+            ParsedDocument parsedDocument = mapperService.documentMapper().parse(source("{}"));
+            iw.addDocument(parsedDocument.rootDoc());
+        }, iw -> {
+            FieldFetcher fieldFetcher = FieldFetcher.create(searchExecutionContext, fieldAndFormatList("_id", null, false));
+            IndexSearcher searcher = newSearcher(iw);
+            LeafReaderContext readerContext = searcher.getIndexReader().leaves().get(0);
+            fieldFetcher.setNextReader(readerContext);
+            SourceLookup sourceLookup = new SourceLookup();
+            sourceLookup.setSegmentAndDocument(readerContext, 0);
+            Map<String, DocumentField> fields = fieldFetcher.fetch(sourceLookup);
+            assertEquals(1, fields.size());
+            DocumentField field = fields.get("_id");
+            assertEquals("1", field.getValue());
+        });
+    }
+
     private List<FieldAndFormat> fieldAndFormatList(String name, String format, boolean includeUnmapped) {
         return Collections.singletonList(new FieldAndFormat(name, format, includeUnmapped));
     }
@@ -1029,10 +1182,11 @@ public class FieldFetcherTests extends MapperServiceTestCase {
 
     private static Map<String, DocumentField> fetchFields(MapperService mapperService, XContentBuilder source, List<FieldAndFormat> fields)
         throws IOException {
-
-        SourceLookup sourceLookup = new SourceLookup();
-        sourceLookup.setSource(BytesReference.bytes(source));
-
+        SourceLookup sourceLookup = null;
+        if (source != null) {
+            sourceLookup = new SourceLookup();
+            sourceLookup.setSource(BytesReference.bytes(source));
+        }
         FieldFetcher fieldFetcher = FieldFetcher.create(newSearchExecutionContext(mapperService), fields);
         return fieldFetcher.fetch(sourceLookup);
     }
@@ -1116,5 +1270,11 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             null,
             emptyMap()
         );
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    protected <T> T compileScript(Script script, ScriptContext<T> context) {
+        return (T) LongFieldScriptTests.DUMMY;
     }
 }

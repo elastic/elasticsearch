@@ -15,6 +15,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.sql.client.StringUtils.repeatString;
+
 public final class UriUtils {
     private UriUtils() {
 
@@ -109,7 +111,7 @@ public final class UriUtils {
             int attrIdx = string.toLowerCase(Locale.ROOT).indexOf(needle); // note: won't catch "valid" `=password[%20]+=` cases
             if (attrIdx >= 0) { // ex: `...=[value]password=foo...`
                 int attrEndIdx = attrIdx + needle.length();
-                return string.substring(0, attrEndIdx) + String.valueOf(replacement).repeat(string.length() - attrEndIdx);
+                return string.substring(0, attrEndIdx) + repeatString(String.valueOf(replacement), string.length() - attrEndIdx);
             }
             return string;
         }
@@ -124,7 +126,7 @@ public final class UriUtils {
             for (String k : similar) {
                 for (Map.Entry<String, String> e : attrs) {
                     if (e.getKey().equals(k)) {
-                        e.setValue(String.valueOf(replacement).repeat(e.getValue().length()));
+                        e.setValue(repeatString(String.valueOf(replacement), e.getValue().length()));
                     }
                 }
             }
@@ -178,7 +180,7 @@ public final class UriUtils {
                 sb.append("://");
             }
             if (uri.getRawUserInfo() != null) {
-                sb.append("\0".repeat(uri.getRawUserInfo().length()));
+                sb.append(repeatString("\0", uri.getRawUserInfo().length()));
                 if (uri.getHost() != null) {
                     sb.append('@');
                 }

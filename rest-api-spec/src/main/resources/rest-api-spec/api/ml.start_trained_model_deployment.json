@@ -28,6 +28,24 @@
       ]
     },
     "params":{
+      "number_of_allocations":{
+        "type":"int",
+        "description": "The number of model allocations on each node where the model is deployed.",
+        "required": false,
+        "default": 1
+      },
+      "threads_per_allocation":{
+        "type":"int",
+        "description": "The number of threads used by each model allocation during inference.",
+        "required": false,
+        "default": 1
+      },
+      "queue_capacity":{
+        "type":"int",
+        "description": "Controls how many inference requests are allowed in the queue at a time.",
+        "required": false,
+        "default": 1024
+      },
       "timeout":{
         "type":"time",
         "required":false,

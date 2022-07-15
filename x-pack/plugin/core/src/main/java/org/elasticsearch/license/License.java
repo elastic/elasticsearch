@@ -15,7 +15,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.protocol.xpack.license.LicenseStatus;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -88,30 +87,19 @@ public class License implements ToXContentObject {
          * Backward compatible license type parsing for older license models
          */
         static LicenseType resolve(String name) {
-            switch (name.toLowerCase(Locale.ROOT)) {
-                case "missing":
-                    return null;
-                case "trial":
-                case "none": // bwc for 1.x subscription_type field
-                case "dev": // bwc for 1.x subscription_type field
-                case "development": // bwc for 1.x subscription_type field
-                    return TRIAL;
-                case "basic":
-                    return BASIC;
-                case "standard":
-                    return STANDARD;
-                case "silver":
-                case "gold":
-                    return GOLD;
-                case "platinum":
-                case "cloud_internal":
-                case "internal": // bwc for 1.x subscription_type field
-                    return PLATINUM;
-                case "enterprise":
-                    return ENTERPRISE;
-                default:
-                    throw new IllegalArgumentException("unknown license type [" + name + "]");
-            }
+            return switch (name.toLowerCase(Locale.ROOT)) {
+                case "missing" -> null; // bwc for 1.x subscription_type field
+                // bwc for 1.x subscription_type field
+                case "trial", "none", "dev", "development" -> // bwc for 1.x subscription_type field
+                    TRIAL;
+                case "basic" -> BASIC;
+                case "standard" -> STANDARD;
+                case "silver", "gold" -> GOLD;
+                case "platinum", "cloud_internal", "internal" -> // bwc for 1.x subscription_type field
+                    PLATINUM;
+                case "enterprise" -> ENTERPRISE;
+                default -> throw new IllegalArgumentException("unknown license type [" + name + "]");
+            };
         }
 
         static boolean isBasic(String typeName) {
@@ -215,22 +203,14 @@ public class License implements ToXContentObject {
             if (type == null) {
                 return MISSING;
             }
-            switch (type) {
-                case BASIC:
-                    return BASIC;
-                case STANDARD:
-                    return STANDARD;
-                case GOLD:
-                    return GOLD;
-                case PLATINUM:
-                    return PLATINUM;
-                case ENTERPRISE:
-                    return ENTERPRISE;
-                case TRIAL:
-                    return TRIAL;
-                default:
-                    throw new IllegalArgumentException("unsupported license type [" + type.getTypeName() + "]");
-            }
+            return switch (type) {
+                case BASIC -> BASIC;
+                case STANDARD -> STANDARD;
+                case GOLD -> GOLD;
+                case PLATINUM -> PLATINUM;
+                case ENTERPRISE -> ENTERPRISE;
+                case TRIAL -> TRIAL;
+            };
         }
 
         /**
@@ -333,6 +313,9 @@ public class License implements ToXContentObject {
     }
 
     /**
+     * The expiration date as it appears in the license. For most uses, prefer {@link LicenseService#getExpiryDate(License)}, as in
+     * rare cases the effective expiration date may differ from the expiration date specified in the license.
+     *
      * @return the expiry date in milliseconds
      */
     public long expiryDate() {
@@ -411,19 +394,6 @@ public class License implements ToXContentObject {
      */
     public synchronized void removeOperationModeFileWatcher() {
         this.operationModeFileWatcher = null;
-    }
-
-    /**
-     * @return the current license's status
-     */
-    public LicenseStatus status() {
-        long now = System.currentTimeMillis();
-        if (issueDate > now) {
-            return LicenseStatus.INVALID;
-        } else if (expiryDate < now) {
-            return LicenseStatus.EXPIRED;
-        }
-        return LicenseStatus.ACTIVE;
     }
 
     private void validate() {
@@ -582,7 +552,7 @@ public class License implements ToXContentObject {
             licenseVersion = this.version;
         }
         if (restViewMode) {
-            builder.field(Fields.STATUS, status().label());
+            builder.field(Fields.STATUS, LicenseService.status(this).label());
         }
         builder.field(Fields.UID, uid);
         final String bwcType = hideEnterprise && LicenseType.isEnterprise(type) ? LicenseType.PLATINUM.getTypeName() : type;

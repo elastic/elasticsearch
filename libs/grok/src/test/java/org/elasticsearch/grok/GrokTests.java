@@ -654,9 +654,10 @@ public class GrokTests extends ESTestCase {
         Tuple<Map.Entry<String, GrokCaptureType>, Object> verb,
         List<Tuple<Map.Entry<String, GrokCaptureType>, Object>> additionalFields
     ) {
-        String logLine = "31.184.238.164 - - [24/Jul/2014:05:35:37 +0530] \"GET /logs/access.log HTTP/1.0\" 200 69849 "
-            + "\"http://8rursodiol.enjin.com\" \"Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) "
-            + "Chrome/30.0.1599.12785 YaBrowser/13.12.1599.12785 Safari/537.36\" \"www.dlwindianrailways.com\"";
+        String logLine = """
+            31.184.238.164 - - [24/Jul/2014:05:35:37 +0530] "GET /logs/access.log HTTP/1.0" 200 69849 "http://8rursodiol.enjin.com" \
+            "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/30.0.1599.12785 YaBrowser/13.12.1599.12785 \
+            Safari/537.36" "www.dlwindianrailways.com\"""";
         Grok grok = new Grok(Grok.getBuiltinPatterns(ecsCompatibility), "%{COMBINEDAPACHELOG}", logger::warn);
 
         Map<String, GrokCaptureType> captureTypes = new HashMap<>();
@@ -739,12 +740,13 @@ public class GrokTests extends ESTestCase {
         bank.put("DATA", ".*?");
         bank.put("QS", "(?>(?<!\\\\)(?>\"(?>\\\\.|[^\\\\\"]+)+\"|\"\"|(?>'(?>\\\\.|[^\\\\']+)+')|''|(?>`(?>\\\\.|[^\\\\`]+)+`)|``))");
 
-        String text = "83.149.9.216 - - [19/Jul/2015:08:13:42 +0000] \"GET /presentations/logstash-monitorama-2013/images/"
-            + "kibana-dashboard3.png HTTP/1.1\" 200 171717 \"http://semicomplete.com/presentations/logstash-monitorama-2013/\" "
-            + "\"Mozilla"
-            + "/5.0 (Macintosh; Intel Mac OS X 10_9_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/32.0.1700.77 Safari/537.36\"";
-        String pattern = "%{IPORHOST:clientip} %{USER:ident} %{USER:auth} \\[%{HTTPDATE:timestamp}\\] \"%{WORD:verb} %{DATA:request} "
-            + "HTTP/%{NUMBER:httpversion}\" %{NUMBER:response:int} (?:-|%{NUMBER:bytes:int}) %{QS:referrer} %{QS:agent}";
+        String text = """
+            83.149.9.216 - - [19/Jul/2015:08:13:42 +0000] "GET /presentations/logstash-monitorama-2013/images/kibana-dashboard3.png \
+            HTTP/1.1" 200 171717 "http://semicomplete.com/presentations/logstash-monitorama-2013/" "Mozilla/5.0 (Macintosh; Intel Mac \
+            OS X 10_9_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/32.0.1700.77 Safari/537.36\"""";
+        String pattern = """
+            %{IPORHOST:clientip} %{USER:ident} %{USER:auth} \\[%{HTTPDATE:timestamp}\\] "%{WORD:verb} %{DATA:request} \
+            HTTP/%{NUMBER:httpversion}" %{NUMBER:response:int} (?:-|%{NUMBER:bytes:int}) %{QS:referrer} %{QS:agent}""";
 
         Grok grok = new Grok(bank, pattern, logger::warn);
         assertCaptureConfig(

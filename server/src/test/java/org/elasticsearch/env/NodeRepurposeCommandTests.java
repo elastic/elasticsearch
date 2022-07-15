@@ -21,7 +21,6 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.gateway.PersistedClusterStateService;
@@ -53,24 +52,23 @@ public class NodeRepurposeCommandTests extends ESTestCase {
     private static final Index INDEX = new Index("testIndex", "testUUID");
     private Settings dataMasterSettings;
     private Environment environment;
-    private Path[] nodePaths;
+    private Path[] dataPaths;
     private Settings dataNoMasterSettings;
     private Settings noDataNoMasterSettings;
     private Settings noDataMasterSettings;
 
     @Before
-    public void createNodePaths() throws IOException {
+    public void createDataPaths() throws IOException {
         dataMasterSettings = buildEnvSettings(Settings.EMPTY);
         environment = TestEnvironment.newEnvironment(dataMasterSettings);
         try (NodeEnvironment nodeEnvironment = new NodeEnvironment(dataMasterSettings, environment)) {
-            nodePaths = nodeEnvironment.nodeDataPaths();
+            dataPaths = nodeEnvironment.nodeDataPaths();
             final String nodeId = randomAlphaOfLength(10);
             try (
                 PersistedClusterStateService.Writer writer = new PersistedClusterStateService(
-                    nodePaths,
+                    dataPaths,
                     nodeId,
                     xContentRegistry(),
-                    BigArrays.NON_RECYCLING_INSTANCE,
                     new ClusterSettings(dataMasterSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                     () -> 0L
                 ).createWriter()
@@ -202,7 +200,7 @@ public class NodeRepurposeCommandTests extends ESTestCase {
 
     private static void withTerminal(boolean verbose, Matcher<String> outputMatcher, CheckedConsumer<MockTerminal, Exception> consumer)
         throws Exception {
-        MockTerminal terminal = new MockTerminal();
+        MockTerminal terminal = MockTerminal.create();
         if (verbose) {
             terminal.setVerbosity(Terminal.Verbosity.VERBOSE);
         }

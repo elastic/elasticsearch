@@ -12,6 +12,7 @@ import com.tdunning.math.stats.Centroid;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
@@ -174,9 +175,8 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
     private final TDigestState state;
 
     InternalBoxplot(String name, TDigestState state, DocValueFormat formatter, Map<String, Object> metadata) {
-        super(name, metadata);
+        super(name, formatter, metadata);
         this.state = state;
-        this.format = formatter;
     }
 
     /**
@@ -184,7 +184,6 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
      */
     public InternalBoxplot(StreamInput in) throws IOException {
         super(in);
-        format = in.readNamedWriteable(DocValueFormat.class);
         state = TDigestState.read(in);
     }
 
@@ -270,7 +269,7 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
     }
 
     @Override
-    public InternalBoxplot reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalBoxplot reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
         TDigestState merged = null;
         for (InternalAggregation aggregation : aggregations) {
             final InternalBoxplot percentiles = (InternalBoxplot) aggregation;

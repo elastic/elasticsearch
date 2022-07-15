@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
@@ -98,15 +99,19 @@ public final class ApplicationPermission {
      * @param checkForPrivilegeNames check permission grants for the set of privilege names
      * @param storedPrivileges stored {@link ApplicationPrivilegeDescriptor} for an application against which the access checks are
      *        performed
-     * @return an instance of {@link ResourcePrivilegesMap}
+     * @param resourcePrivilegesMapBuilder out-parameter for returning the details on which privilege over which resource is granted or not.
+     *                                     Can be {@code null} when no such details are needed so the method can return early, after
+     *                                     encountering the first privilege that is not granted over some resource.
+     * @return {@code true} when all the privileges are granted over all the resources, or {@code false} otherwise
      */
-    public ResourcePrivilegesMap checkResourcePrivileges(
+    public boolean checkResourcePrivileges(
         final String applicationName,
         Set<String> checkForResources,
         Set<String> checkForPrivilegeNames,
-        Collection<ApplicationPrivilegeDescriptor> storedPrivileges
+        Collection<ApplicationPrivilegeDescriptor> storedPrivileges,
+        @Nullable ResourcePrivilegesMap.Builder resourcePrivilegesMapBuilder
     ) {
-        final ResourcePrivilegesMap.Builder resourcePrivilegesMapBuilder = ResourcePrivilegesMap.builder();
+        boolean allMatch = true;
         for (String checkResource : checkForResources) {
             for (String checkPrivilegeName : checkForPrivilegeNames) {
                 final Set<String> nameSet = Collections.singleton(checkPrivilegeName);
@@ -116,16 +121,22 @@ public final class ApplicationPermission {
                     assert Automatons.predicate(applicationName).test(checkPrivilege.getApplication())
                         : "Privilege " + checkPrivilege + " should have application " + applicationName;
                     assert checkPrivilege.name().equals(nameSet) : "Privilege " + checkPrivilege + " should have name " + nameSet;
-
                     if (grants(checkPrivilege, checkResource)) {
-                        resourcePrivilegesMapBuilder.addResourcePrivilege(checkResource, checkPrivilegeName, Boolean.TRUE);
+                        if (resourcePrivilegesMapBuilder != null) {
+                            resourcePrivilegesMapBuilder.addResourcePrivilege(checkResource, checkPrivilegeName, Boolean.TRUE);
+                        }
                     } else {
-                        resourcePrivilegesMapBuilder.addResourcePrivilege(checkResource, checkPrivilegeName, Boolean.FALSE);
+                        if (resourcePrivilegesMapBuilder != null) {
+                            resourcePrivilegesMapBuilder.addResourcePrivilege(checkResource, checkPrivilegeName, Boolean.FALSE);
+                            allMatch = false;
+                        } else {
+                            return false;
+                        }
                     }
                 }
             }
         }
-        return resourcePrivilegesMapBuilder.build();
+        return allMatch;
     }
 
     @Override

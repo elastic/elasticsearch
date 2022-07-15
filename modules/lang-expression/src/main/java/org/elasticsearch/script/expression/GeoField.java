@@ -29,28 +29,24 @@ final class GeoField {
     static final String GETLON_METHOD = "getLon";
 
     static DoubleValuesSource getVariable(IndexFieldData<?> fieldData, String fieldName, String variable) {
-        switch (variable) {
-            case EMPTY_VARIABLE:
-                return new GeoEmptyValueSource(fieldData);
-            case LAT_VARIABLE:
-                return new GeoLatitudeValueSource(fieldData);
-            case LON_VARIABLE:
-                return new GeoLongitudeValueSource(fieldData);
-            default:
-                throw new IllegalArgumentException("Member variable [" + variable + "] does not exist for geo field [" + fieldName + "].");
-        }
+        return switch (variable) {
+            case EMPTY_VARIABLE -> new GeoEmptyValueSource(fieldData);
+            case LAT_VARIABLE -> new GeoLatitudeValueSource(fieldData);
+            case LON_VARIABLE -> new GeoLongitudeValueSource(fieldData);
+            default -> throw new IllegalArgumentException(
+                "Member variable [" + variable + "] does not exist for geo field [" + fieldName + "]."
+            );
+        };
     }
 
     static DoubleValuesSource getMethod(IndexFieldData<?> fieldData, String fieldName, String method) {
-        switch (method) {
-            case ISEMPTY_METHOD:
-                return new GeoEmptyValueSource(fieldData);
-            case GETLAT_METHOD:
-                return new GeoLatitudeValueSource(fieldData);
-            case GETLON_METHOD:
-                return new GeoLongitudeValueSource(fieldData);
-            default:
-                throw new IllegalArgumentException("Member method [" + method + "] does not exist for geo field [" + fieldName + "].");
-        }
+        return switch (method) {
+            case ISEMPTY_METHOD -> new GeoEmptyValueSource(fieldData);
+            case GETLAT_METHOD -> new GeoLatitudeValueSource(fieldData);
+            case GETLON_METHOD -> new GeoLongitudeValueSource(fieldData);
+            default -> throw new IllegalArgumentException(
+                "Member method [" + method + "] does not exist for geo field [" + fieldName + "]."
+            );
+        };
     }
 }

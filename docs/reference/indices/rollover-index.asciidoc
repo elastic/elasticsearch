@@ -79,7 +79,7 @@ If you use an index alias for time series data, you can use
 date. For example, you can create an alias that points to an index named
 `<my-index-{now/d}-000001>`. If you create the index on May 6, 2099, the index's
 name is `my-index-2099.05.06-000001`. If you roll over the alias on May 7, 2099,
-the new index's name is `my-index-2099.05.07-000002`. For an example, see 
+the new index's name is `my-index-2099.05.07-000002`. For an example, see
 <<roll-over-index-alias-with-write-index>>.
 ****
 
@@ -233,7 +233,8 @@ POST my-data-stream/_rollover
   "conditions": {
     "max_age": "7d",
     "max_docs": 1000,
-    "max_primary_shard_size": "50gb"
+    "max_primary_shard_size": "50gb",
+    "max_primary_shard_docs": "2000"
   }
 }
 ----
@@ -255,7 +256,8 @@ The API returns:
   "conditions": {
     "[max_age: 7d]": false,
     "[max_docs: 1000]": true,
-    "[max_primary_shard_size: 50gb]": false
+    "[max_primary_shard_size: 50gb]": false,
+    "[max_primary_shard_docs: 2000]": false
   }
 }
 ----
@@ -302,7 +304,8 @@ POST my-alias/_rollover
   "conditions": {
     "max_age": "7d",
     "max_docs": 1000,
-    "max_primary_shard_size": "50gb"
+    "max_primary_shard_size": "50gb",
+    "max_primary_shard_docs": "2000"
   }
 }
 ----
@@ -324,7 +327,8 @@ The API returns:
   "conditions": {
     "[max_age: 7d]": false,
     "[max_docs: 1000]": true,
-    "[max_primary_shard_size: 50gb]": false
+    "[max_primary_shard_size: 50gb]": false,
+    "[max_primary_shard_docs: 2000]": false
   }
 }
 ----
@@ -371,7 +375,8 @@ POST my-write-alias/_rollover
   "conditions": {
     "max_age": "7d",
     "max_docs": 1000,
-    "max_primary_shard_size": "50gb"
+    "max_primary_shard_size": "50gb",
+    "max_primary_shard_docs": "2000"
   }
 }
 ----
@@ -393,7 +398,8 @@ The API returns:
   "conditions": {
     "[max_age: 7d]": false,
     "[max_docs: 1000]": true,
-    "[max_primary_shard_size: 50gb]": false
+    "[max_primary_shard_size: 50gb]": false,
+    "[max_primary_shard_docs: 2000]": false
   }
 }
 ----

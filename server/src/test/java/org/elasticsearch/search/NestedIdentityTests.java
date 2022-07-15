@@ -61,10 +61,13 @@ public class NestedIdentityTests extends ESTestCase {
         builder.startObject();
         nestedIdentity.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
-        assertEquals(
-            "{\n" + "  \"_nested\" : {\n" + "    \"field\" : \"foo\",\n" + "    \"offset\" : 5\n" + "  }\n" + "}",
-            Strings.toString(builder)
-        );
+        assertEquals("""
+            {
+              "_nested" : {
+                "field" : "foo",
+                "offset" : 5
+              }
+            }""", Strings.toString(builder));
 
         nestedIdentity = new NestedIdentity("foo", 5, new NestedIdentity("bar", 3, null));
         builder = JsonXContent.contentBuilder();
@@ -72,19 +75,17 @@ public class NestedIdentityTests extends ESTestCase {
         builder.startObject();
         nestedIdentity.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
-        assertEquals(
-            "{\n"
-                + "  \"_nested\" : {\n"
-                + "    \"field\" : \"foo\",\n"
-                + "    \"offset\" : 5,\n"
-                + "    \"_nested\" : {\n"
-                + "      \"field\" : \"bar\",\n"
-                + "      \"offset\" : 3\n"
-                + "    }\n"
-                + "  }\n"
-                + "}",
-            Strings.toString(builder)
-        );
+        assertEquals("""
+            {
+              "_nested" : {
+                "field" : "foo",
+                "offset" : 5,
+                "_nested" : {
+                  "field" : "bar",
+                  "offset" : 3
+                }
+              }
+            }""", Strings.toString(builder));
     }
 
     /**

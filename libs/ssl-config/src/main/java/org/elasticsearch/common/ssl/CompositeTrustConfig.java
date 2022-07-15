@@ -63,10 +63,7 @@ public class CompositeTrustConfig implements SslTrustConfig {
 
     @Override
     public Collection<? extends StoredCertificate> getConfiguredCertificates() {
-        return configs.stream()
-            .map(SslTrustConfig::getConfiguredCertificates)
-            .flatMap(Collection::stream)
-            .collect(Collectors.toUnmodifiableList());
+        return configs.stream().map(SslTrustConfig::getConfiguredCertificates).flatMap(Collection::stream).toList();
     }
 
     @Override

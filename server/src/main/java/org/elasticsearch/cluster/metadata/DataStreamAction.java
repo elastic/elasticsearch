@@ -53,14 +53,11 @@ public class DataStreamAction implements Writeable, ToXContentObject {
         }
 
         public static Type fromValue(byte value) {
-            switch (value) {
-                case 0:
-                    return ADD_BACKING_INDEX;
-                case 1:
-                    return REMOVE_BACKING_INDEX;
-                default:
-                    throw new IllegalArgumentException("no data stream action type for [" + value + "]");
-            }
+            return switch (value) {
+                case 0 -> ADD_BACKING_INDEX;
+                case 1 -> REMOVE_BACKING_INDEX;
+                default -> throw new IllegalArgumentException("no data stream action type for [" + value + "]");
+            };
         }
     }
 

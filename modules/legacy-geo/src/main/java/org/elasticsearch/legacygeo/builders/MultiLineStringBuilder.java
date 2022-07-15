@@ -49,10 +49,7 @@ public class MultiLineStringBuilder extends ShapeBuilder<JtsGeometry, org.elasti
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(lines.size());
-        for (LineStringBuilder line : lines) {
-            line.writeTo(out);
-        }
+        out.writeList(lines);
     }
 
     public MultiLineStringBuilder linestring(LineStringBuilder line) {

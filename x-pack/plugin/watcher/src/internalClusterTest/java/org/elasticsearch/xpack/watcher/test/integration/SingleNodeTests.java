@@ -64,7 +64,7 @@ public class SingleNodeTests extends AbstractWatcherIntegrationTestCase {
             client().admin().indices().prepareRefresh(".watcher-history*");
             SearchResponse searchResponse = client().prepareSearch(".watcher-history*").setSize(0).get();
             assertThat(searchResponse.getHits().getTotalHits().value, is(greaterThanOrEqualTo(1L)));
-        }, 5, TimeUnit.SECONDS);
+        }, 30, TimeUnit.SECONDS);
     }
 
 }

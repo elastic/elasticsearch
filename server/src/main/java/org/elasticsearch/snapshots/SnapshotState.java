@@ -79,19 +79,13 @@ public enum SnapshotState {
      * @return state
      */
     public static SnapshotState fromValue(byte value) {
-        switch (value) {
-            case 0:
-                return IN_PROGRESS;
-            case 1:
-                return SUCCESS;
-            case 2:
-                return FAILED;
-            case 3:
-                return PARTIAL;
-            case 4:
-                return INCOMPATIBLE;
-            default:
-                throw new IllegalArgumentException("No snapshot state for value [" + value + "]");
-        }
+        return switch (value) {
+            case 0 -> IN_PROGRESS;
+            case 1 -> SUCCESS;
+            case 2 -> FAILED;
+            case 3 -> PARTIAL;
+            case 4 -> INCOMPATIBLE;
+            default -> throw new IllegalArgumentException("No snapshot state for value [" + value + "]");
+        };
     }
 }

@@ -9,7 +9,7 @@
 package org.elasticsearch.action.termvectors;
 
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.xcontent.XContentBuilder;
 

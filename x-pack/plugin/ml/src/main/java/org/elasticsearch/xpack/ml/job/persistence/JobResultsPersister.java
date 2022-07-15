@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.job.persistence;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse.Result;
@@ -22,7 +21,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.IdsQueryBuilder;
@@ -55,6 +54,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -132,7 +132,10 @@ public class JobResultsPersister {
             return this;
         }
 
-        private void persistBucketInfluencersStandalone(String jobId, List<BucketInfluencer> bucketInfluencers) {
+        private void persistBucketInfluencersStandalone(
+            @SuppressWarnings("HiddenField") String jobId,
+            List<BucketInfluencer> bucketInfluencers
+        ) {
             if (bucketInfluencers != null && bucketInfluencers.isEmpty() == false) {
                 for (BucketInfluencer bucketInfluencer : bucketInfluencers) {
                     String id = bucketInfluencer.getId();
@@ -231,7 +234,7 @@ public class JobResultsPersister {
             try (XContentBuilder content = toXContentBuilder(resultDoc, params)) {
                 bulkRequest.add(new IndexRequest(indexName).id(id).source(content));
             } catch (IOException e) {
-                logger.error(new ParameterizedMessage("[{}] Error serialising {}", jobId, resultType), e);
+                logger.error(() -> format("[%s] Error serialising %s", jobId, resultType), e);
             }
 
             if (bulkRequest.numberOfActions() >= JobRenormalizedResultsPersister.BULK_LIMIT) {
@@ -338,6 +341,7 @@ public class JobResultsPersister {
         return new SearchRequest(AnomalyDetectorsIndex.jobStateIndexPattern()).allowPartialSearchResults(false)
             .source(
                 new SearchSourceBuilder().size(1)
+                    .fetchSource(false)
                     .trackTotalHits(false)
                     .query(new BoolQueryBuilder().filter(new IdsQueryBuilder().addIds(quantilesDocId)))
             );
@@ -508,7 +512,7 @@ public class JobResultsPersister {
         }
 
         BulkResponse persist(Supplier<Boolean> shouldRetry, boolean requireAlias) {
-            logCall(indexName);
+            logCall();
             try {
                 return resultsPersisterService.indexWithRetry(
                     jobId,
@@ -522,7 +526,7 @@ public class JobResultsPersister {
                     retryMessage -> logger.debug("[{}] {} {}", jobId, id, retryMessage)
                 );
             } catch (IOException e) {
-                logger.error(new ParameterizedMessage("[{}] Error writing [{}]", jobId, (id == null) ? "auto-generated ID" : id), e);
+                logger.error(() -> format("[%s] Error writing [%s]", jobId, (id == null) ? "auto-generated ID" : id), e);
                 IndexResponse.Builder notCreatedResponse = new IndexResponse.Builder();
                 notCreatedResponse.setResult(Result.NOOP);
                 return new BulkResponse(
@@ -533,7 +537,7 @@ public class JobResultsPersister {
         }
 
         void persist(ActionListener<IndexResponse> listener, boolean requireAlias) {
-            logCall(indexName);
+            logCall();
 
             try (XContentBuilder content = toXContentBuilder(object, params)) {
                 IndexRequest indexRequest = new IndexRequest(indexName).id(id)
@@ -542,14 +546,14 @@ public class JobResultsPersister {
                     .setRequireAlias(requireAlias);
                 executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, indexRequest, listener, client::index);
             } catch (IOException e) {
-                logger.error(new ParameterizedMessage("[{}] Error writing [{}]", jobId, (id == null) ? "auto-generated ID" : id), e);
+                logger.error(() -> format("[%s] Error writing [%s]", jobId, (id == null) ? "auto-generated ID" : id), e);
                 IndexResponse.Builder notCreatedResponse = new IndexResponse.Builder();
                 notCreatedResponse.setResult(Result.NOOP);
                 listener.onResponse(notCreatedResponse.build());
             }
         }
 
-        private void logCall(String indexName) {
+        private void logCall() {
             if (logger.isTraceEnabled()) {
                 if (id != null) {
                     logger.trace("[{}] ES API CALL: to index {} with ID [{}]", jobId, indexName, id);

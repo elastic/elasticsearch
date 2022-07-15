@@ -10,6 +10,7 @@ package org.elasticsearch.search.profile.aggregation;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.search.profile.ProfileResultTests;
@@ -76,31 +77,45 @@ public class AggregationProfileShardResultTests extends AbstractSerializingTestC
         profileResults.add(profileResult);
         AggregationProfileShardResult aggProfileResults = new AggregationProfileShardResult(profileResults);
         BytesReference xContent = toXContent(aggProfileResults, XContentType.JSON, false);
-        assertEquals(
-            "{\"aggregations\":["
-                + "{\"type\":\"someType\","
-                + "\"description\":\"someDescription\","
-                + "\"time_in_nanos\":6000,"
-                + "\"breakdown\":{\"timing1\":2000,\"timing2\":4000},"
-                + "\"debug\":{\"stuff\":\"stuff\",\"other_stuff\":[\"foo\",\"bar\"]}"
-                + "}"
-                + "]}",
-            xContent.utf8ToString()
-        );
+        assertEquals(XContentHelper.stripWhitespace("""
+            {
+              "aggregations": [
+                {
+                  "type": "someType",
+                  "description": "someDescription",
+                  "time_in_nanos": 6000,
+                  "breakdown": {
+                    "timing1": 2000,
+                    "timing2": 4000
+                  },
+                  "debug": {
+                    "stuff": "stuff",
+                    "other_stuff": [ "foo", "bar" ]
+                  }
+                }
+              ]
+            }"""), xContent.utf8ToString());
 
         xContent = toXContent(aggProfileResults, XContentType.JSON, true);
-        assertEquals(
-            "{\"aggregations\":["
-                + "{\"type\":\"someType\","
-                + "\"description\":\"someDescription\","
-                + "\"time\":\"6micros\","
-                + "\"time_in_nanos\":6000,"
-                + "\"breakdown\":{\"timing1\":2000,\"timing2\":4000},"
-                + "\"debug\":{\"stuff\":\"stuff\",\"other_stuff\":[\"foo\",\"bar\"]}"
-                + "}"
-                + "]}",
-            xContent.utf8ToString()
-        );
+        assertEquals(XContentHelper.stripWhitespace("""
+            {
+              "aggregations": [
+                {
+                  "type": "someType",
+                  "description": "someDescription",
+                  "time": "6micros",
+                  "time_in_nanos": 6000,
+                  "breakdown": {
+                    "timing1": 2000,
+                    "timing2": 4000
+                  },
+                  "debug": {
+                    "stuff": "stuff",
+                    "other_stuff": [ "foo", "bar" ]
+                  }
+                }
+              ]
+            }"""), xContent.utf8ToString());
     }
 
 }

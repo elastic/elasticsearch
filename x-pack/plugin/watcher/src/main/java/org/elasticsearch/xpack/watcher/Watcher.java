@@ -17,8 +17,8 @@ import org.elasticsearch.action.bulk.BulkProcessor;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.bootstrap.BootstrapCheck;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
@@ -35,8 +35,8 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
@@ -772,6 +772,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
                 .setSettings(getWatchesIndexSettings())
                 .setVersionMetaKey("version")
                 .setOrigin(WATCHER_ORIGIN)
+                .setIndexFormat(6)
                 .build(),
             SystemIndexDescriptor.builder()
                 .setIndexPattern(TriggeredWatchStoreField.INDEX_NAME + "*")
@@ -781,6 +782,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
                 .setSettings(getTriggeredWatchesIndexSettings())
                 .setVersionMetaKey("version")
                 .setOrigin(WATCHER_ORIGIN)
+                .setIndexFormat(6)
                 .build()
         );
     }

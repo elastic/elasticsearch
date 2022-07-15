@@ -80,8 +80,6 @@ public abstract class GeoPointFieldScript extends AbstractLongFieldScript {
         GeoPointFieldScript newInstance(LeafReaderContext ctx);
     }
 
-    private final GeoPoint scratch = new GeoPoint();
-
     public GeoPointFieldScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
         super(fieldName, params, searchLookup, ctx);
     }
@@ -119,8 +117,7 @@ public abstract class GeoPointFieldScript extends AbstractLongFieldScript {
 
     @Override
     protected void emitFromObject(Object value) {
-        if (value instanceof List<?>) {
-            List<?> values = (List<?>) value;
+        if (value instanceof List<?> values) {
             if (values.size() > 0 && values.get(0) instanceof Number) {
                 emitPoint(value);
             } else {
@@ -136,18 +133,18 @@ public abstract class GeoPointFieldScript extends AbstractLongFieldScript {
     private void emitPoint(Object point) {
         if (point != null) {
             try {
-                GeoUtils.parseGeoPoint(point, scratch, true);
+                GeoPoint geoPoint = GeoUtils.parseGeoPoint(point, true);
+                emit(geoPoint.lat(), geoPoint.lon());
             } catch (Exception e) {
-                // ignore
+                emit(0, 0);
             }
-            emit(scratch.lat(), scratch.lon());
         }
     }
 
     protected final void emit(double lat, double lon) {
         int latitudeEncoded = encodeLatitude(lat);
         int longitudeEncoded = encodeLongitude(lon);
-        emit(Long.valueOf((((long) latitudeEncoded) << 32) | (longitudeEncoded & 0xFFFFFFFFL)));
+        emit((((long) latitudeEncoded) << 32) | (longitudeEncoded & 0xFFFFFFFFL));
     }
 
     public static class Emit {
@@ -158,6 +155,7 @@ public abstract class GeoPointFieldScript extends AbstractLongFieldScript {
         }
 
         public void emit(double lat, double lon) {
+            script.checkMaxSize(script.count());
             script.emit(lat, lon);
         }
     }

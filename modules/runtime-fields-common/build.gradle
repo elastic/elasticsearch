@@ -21,6 +21,3 @@ dependencies {
   api project(':libs:elasticsearch-grok')
   api project(':libs:elasticsearch-dissect')
 }
-
-//this plugin is here only for the painless extension, there are no unit tests
-tasks.named("testingConventions").configure { enabled = false }

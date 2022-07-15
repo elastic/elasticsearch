@@ -8,8 +8,6 @@
 
 package org.elasticsearch.snapshots;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.repositories.IndexId;
@@ -50,10 +48,10 @@ public final class InFlightShardSnapshotStates {
         assert snapshots.stream().map(SnapshotsInProgress.Entry::repository).distinct().count() == 1
             : "snapshots must either be an empty list or all belong to the same repository but saw " + snapshots;
         for (SnapshotsInProgress.Entry runningSnapshot : snapshots) {
-            for (ObjectObjectCursor<RepositoryShardId, SnapshotsInProgress.ShardSnapshotStatus> shard : runningSnapshot
-                .shardsByRepoShardId()) {
-                final RepositoryShardId sid = shard.key;
-                addStateInformation(generations, busyIds, shard.value, sid.shardId(), sid.indexName());
+            for (Map.Entry<RepositoryShardId, SnapshotsInProgress.ShardSnapshotStatus> shard : runningSnapshot.shardsByRepoShardId()
+                .entrySet()) {
+                final RepositoryShardId sid = shard.getKey();
+                addStateInformation(generations, busyIds, shard.getValue(), sid.shardId(), sid.indexName());
             }
         }
         return new InFlightShardSnapshotStates(generations, busyIds);

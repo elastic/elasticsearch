@@ -19,8 +19,8 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.search.SearchScrollRequest;
-import org.elasticsearch.client.ParentTaskAssigningClient;
-import org.elasticsearch.client.support.AbstractClient;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
+import org.elasticsearch.client.internal.support.AbstractClient;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -47,7 +47,7 @@ import java.util.function.Function;
 import java.util.stream.IntStream;
 
 import static java.util.Collections.emptyMap;
-import static org.apache.lucene.util.TestUtil.randomSimpleString;
+import static org.apache.lucene.tests.util.TestUtil.randomSimpleString;
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.hamcrest.Matchers.instanceOf;
 

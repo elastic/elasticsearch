@@ -15,7 +15,9 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.Converter;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.sql.util.DateUtils;
+import org.elasticsearch.xpack.versionfield.Version;
 
+import java.math.BigInteger;
 import java.time.OffsetTime;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -33,7 +35,9 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
 import static org.elasticsearch.xpack.ql.type.DataTypes.SHORT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
+import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSUPPORTED;
+import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypeConverter.commonType;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypeConverter.converterFor;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.DATE;
@@ -152,6 +156,16 @@ public class SqlDataTypeConverterTests extends ESTestCase {
             assertEquals("[" + Double.MAX_VALUE + "] out of [long] range", e.getMessage());
         }
         {
+            Converter conversion = converterFor(UNSIGNED_LONG, to);
+            assertNull(conversion.convert(null));
+            BigInteger bi = BigInteger.valueOf(randomNonNegativeLong());
+            assertEquals(date(bi.longValue()), conversion.convert(bi));
+
+            BigInteger tooLarge = bi.add(BigInteger.valueOf(Long.MAX_VALUE));
+            Exception e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert(tooLarge));
+            assertEquals("[" + tooLarge + "] out of [long] range", e.getMessage());
+        }
+        {
             Converter conversion = converterFor(INTEGER, to);
             assertNull(conversion.convert(null));
             assertEquals(date(10L), conversion.convert(10));
@@ -222,6 +236,16 @@ public class SqlDataTypeConverterTests extends ESTestCase {
             assertEquals(time(11L), conversion.convert(10.6));
             Exception e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert(Double.MAX_VALUE));
             assertEquals("[" + Double.MAX_VALUE + "] out of [long] range", e.getMessage());
+        }
+        {
+            Converter conversion = converterFor(UNSIGNED_LONG, to);
+            assertNull(conversion.convert(null));
+            BigInteger bi = BigInteger.valueOf(randomNonNegativeLong());
+            assertEquals(time(bi.longValue()), conversion.convert(bi));
+
+            BigInteger tooLarge = bi.add(BigInteger.valueOf(Long.MAX_VALUE));
+            Exception e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert(tooLarge));
+            assertEquals("[" + tooLarge + "] out of [long] range", e.getMessage());
         }
         {
             Converter conversion = converterFor(INTEGER, to);
@@ -513,6 +537,30 @@ public class SqlDataTypeConverterTests extends ESTestCase {
         }
     }
 
+    public void testConversionToUnsignedLong() {
+        DataType to = UNSIGNED_LONG;
+        {
+            Converter conversion = converterFor(DATE, to);
+            assertNull(conversion.convert(null));
+
+            long l = randomNonNegativeLong();
+            ZonedDateTime zdt = asDateOnly(l);
+            assertEquals(BigInteger.valueOf(zdt.toEpochSecond() * 1000), conversion.convert(zdt));
+
+            ZonedDateTime zdtn = asDateOnly(-l);
+            Exception e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert(zdtn));
+            assertEquals("[" + zdtn.toEpochSecond() * 1000 + "] out of [unsigned_long] range", e.getMessage());
+        }
+        {
+            Converter conversion = converterFor(TIME, to);
+            assertNull(conversion.convert(null));
+
+            long l = randomLong();
+            OffsetTime ot = asTimeOnly(l);
+            assertEquals(BigInteger.valueOf(ot.atDate(DateUtils.EPOCH).toInstant().toEpochMilli()), conversion.convert(ot));
+        }
+    }
+
     public void testConversionToInt() {
         DataType to = INTEGER;
         {
@@ -726,6 +774,27 @@ public class SqlDataTypeConverterTests extends ESTestCase {
         assertEquals("10.0.0.1", ipToString.convert(new Literal(s, "10.0.0.1", IP)));
         Converter stringToIp = converterFor(KEYWORD, IP);
         assertEquals("10.0.0.1", ipToString.convert(stringToIp.convert(new Literal(s, "10.0.0.1", KEYWORD))));
+    }
+
+    public void testStringToVersion() {
+        Converter conversion = converterFor(randomFrom(KEYWORD, TEXT), VERSION);
+        assertNull(conversion.convert(null));
+        assertEquals(new Version("2.1.4").toString(), conversion.convert("2.1.4").toString());
+        assertEquals(new Version("2.1.4").toBytesRef(), ((Version) conversion.convert("2.1.4")).toBytesRef());
+        assertEquals(new Version("2.1.4-SNAPSHOT").toString(), conversion.convert("2.1.4-SNAPSHOT").toString());
+        assertEquals(new Version("2.1.4-SNAPSHOT").toBytesRef(), ((Version) conversion.convert("2.1.4-SNAPSHOT")).toBytesRef());
+    }
+
+    public void testVersionToString() {
+        Source s = new Source(Location.EMPTY, "2.1.4");
+        Source s2 = new Source(Location.EMPTY, "2.1.4-SNAPSHOT");
+        final DataType stringType = randomFrom(KEYWORD, TEXT);
+        Converter versionToString = converterFor(VERSION, stringType);
+        assertEquals("2.1.4", versionToString.convert(new Literal(s, "2.1.4", VERSION)));
+        assertEquals("2.1.4-SNAPSHOT", versionToString.convert(new Literal(s2, "2.1.4-SNAPSHOT", VERSION)));
+        Converter stringToVersion = converterFor(stringType, VERSION);
+        assertEquals("2.1.4", versionToString.convert(stringToVersion.convert(new Literal(s, "2.1.4", stringType))));
+        assertEquals("2.1.4-SNAPSHOT", versionToString.convert(stringToVersion.convert(new Literal(s2, "2.1.4-SNAPSHOT", stringType))));
     }
 
     private DataType randomInterval() {

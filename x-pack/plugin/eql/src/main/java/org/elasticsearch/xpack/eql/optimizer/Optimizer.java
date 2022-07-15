@@ -149,8 +149,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         private static boolean isWildcard(Expression expr) {
             if (expr instanceof Literal) {
                 Object value = expr.fold();
-                if (value instanceof String) {
-                    String string = (String) value;
+                if (value instanceof String string) {
                     return string.contains("*") || string.contains("?");
                 }
             }
@@ -438,8 +437,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         protected LogicalPlan rule(LimitWithOffset limit) {
             if (limit.limit().foldable()) {
                 LogicalPlan child = limit.child();
-                if (child instanceof OrderBy) {
-                    OrderBy ob = (OrderBy) child;
+                if (child instanceof OrderBy ob) {
                     if (PushDownOrderBy.isDefaultOrderBy(ob)) {
                         int l = (Integer) limit.limit().fold();
                         OrderDirection direction = Integer.signum(l) > 0 ? OrderDirection.ASC : OrderDirection.DESC;
@@ -470,8 +468,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 // but if the order is descending, apply that only to the first query
                 // which is used to discover the window for which matching is being applied.
                 //
-                if (child instanceof Join) {
-                    Join join = (Join) child;
+                if (child instanceof Join join) {
                     List<KeyedFilter> queries = join.queries();
 
                     // the main reason DESC is used is the lack of search_before (which is emulated through search_after + ASC)

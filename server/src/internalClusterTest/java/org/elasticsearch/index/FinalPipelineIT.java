@@ -18,7 +18,7 @@ import org.elasticsearch.action.ingest.GetPipelineResponse;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -79,7 +79,8 @@ public class FinalPipelineIT extends ESIntegTestCase {
         final Settings settings = Settings.builder().put(IndexSettings.FINAL_PIPELINE.getKey(), "final_pipeline").build();
         createIndex("index", settings);
 
-        final BytesReference finalPipelineBody = new BytesArray("{\"processors\": [{\"changing_dest\": {}}]}");
+        final BytesReference finalPipelineBody = new BytesArray("""
+            {"processors": [{"changing_dest": {}}]}""");
         client().admin().cluster().putPipeline(new PutPipelineRequest("final_pipeline", finalPipelineBody, XContentType.JSON)).actionGet();
 
         final IllegalStateException e = expectThrows(
@@ -96,13 +97,15 @@ public class FinalPipelineIT extends ESIntegTestCase {
             .build();
         createIndex("index", settings);
 
-        BytesReference defaultPipelineBody = new BytesArray("{\"processors\": [{\"changing_dest\": {}}]}");
+        BytesReference defaultPipelineBody = new BytesArray("""
+            {"processors": [{"changing_dest": {}}]}""");
         client().admin()
             .cluster()
             .putPipeline(new PutPipelineRequest("default_pipeline", defaultPipelineBody, XContentType.JSON))
             .actionGet();
 
-        BytesReference finalPipelineBody = new BytesArray("{\"processors\": [{\"final\": {\"exists\":\"no_such_field\"}}]}");
+        BytesReference finalPipelineBody = new BytesArray("""
+            {"processors": [{"final": {"exists":"no_such_field"}}]}""");
         client().admin().cluster().putPipeline(new PutPipelineRequest("final_pipeline", finalPipelineBody, XContentType.JSON)).actionGet();
 
         IndexResponse indexResponse = client().prepareIndex("index")
@@ -123,13 +126,15 @@ public class FinalPipelineIT extends ESIntegTestCase {
         settings = Settings.builder().put(IndexSettings.FINAL_PIPELINE.getKey(), "final_pipeline").build();
         createIndex("target", settings);
 
-        BytesReference defaultPipelineBody = new BytesArray("{\"processors\": [{\"changing_dest\": {}}]}");
+        BytesReference defaultPipelineBody = new BytesArray("""
+            {"processors": [{"changing_dest": {}}]}""");
         client().admin()
             .cluster()
             .putPipeline(new PutPipelineRequest("default_pipeline", defaultPipelineBody, XContentType.JSON))
             .actionGet();
 
-        BytesReference finalPipelineBody = new BytesArray("{\"processors\": [{\"final\": {}}]}");
+        BytesReference finalPipelineBody = new BytesArray("""
+            {"processors": [{"final": {}}]}""");
         client().admin().cluster().putPipeline(new PutPipelineRequest("final_pipeline", finalPipelineBody, XContentType.JSON)).actionGet();
 
         IndexResponse indexResponse = client().prepareIndex("index")
@@ -150,13 +155,15 @@ public class FinalPipelineIT extends ESIntegTestCase {
         settings = Settings.builder().put(IndexSettings.DEFAULT_PIPELINE.getKey(), "target_default_pipeline").build();
         createIndex("target", settings);
 
-        BytesReference defaultPipelineBody = new BytesArray("{\"processors\": [{\"changing_dest\": {}}]}");
+        BytesReference defaultPipelineBody = new BytesArray("""
+            {"processors": [{"changing_dest": {}}]}""");
         client().admin()
             .cluster()
             .putPipeline(new PutPipelineRequest("default_pipeline", defaultPipelineBody, XContentType.JSON))
             .actionGet();
 
-        BytesReference targetPipeline = new BytesArray("{\"processors\": [{\"final\": {}}]}");
+        BytesReference targetPipeline = new BytesArray("""
+            {"processors": [{"final": {}}]}""");
         client().admin()
             .cluster()
             .putPipeline(new PutPipelineRequest("target_default_pipeline", targetPipeline, XContentType.JSON))
@@ -186,12 +193,14 @@ public class FinalPipelineIT extends ESIntegTestCase {
     }
 
     public void testRequestPipelineAndFinalPipeline() {
-        final BytesReference requestPipelineBody = new BytesArray("{\"processors\": [{\"request\": {}}]}");
+        final BytesReference requestPipelineBody = new BytesArray("""
+            {"processors": [{"request": {}}]}""");
         client().admin()
             .cluster()
             .putPipeline(new PutPipelineRequest("request_pipeline", requestPipelineBody, XContentType.JSON))
             .actionGet();
-        final BytesReference finalPipelineBody = new BytesArray("{\"processors\": [{\"final\": {\"exists\":\"request\"}}]}");
+        final BytesReference finalPipelineBody = new BytesArray("""
+            {"processors": [{"final": {"exists":"request"}}]}""");
         client().admin().cluster().putPipeline(new PutPipelineRequest("final_pipeline", finalPipelineBody, XContentType.JSON)).actionGet();
         final Settings settings = Settings.builder().put(IndexSettings.FINAL_PIPELINE.getKey(), "final_pipeline").build();
         createIndex("index", settings);
@@ -212,12 +221,14 @@ public class FinalPipelineIT extends ESIntegTestCase {
     }
 
     public void testDefaultAndFinalPipeline() {
-        final BytesReference defaultPipelineBody = new BytesArray("{\"processors\": [{\"default\": {}}]}");
+        final BytesReference defaultPipelineBody = new BytesArray("""
+            {"processors": [{"default": {}}]}""");
         client().admin()
             .cluster()
             .putPipeline(new PutPipelineRequest("default_pipeline", defaultPipelineBody, XContentType.JSON))
             .actionGet();
-        final BytesReference finalPipelineBody = new BytesArray("{\"processors\": [{\"final\": {\"exists\":\"default\"}}]}");
+        final BytesReference finalPipelineBody = new BytesArray("""
+            {"processors": [{"final": {"exists":"default"}}]}""");
         client().admin().cluster().putPipeline(new PutPipelineRequest("final_pipeline", finalPipelineBody, XContentType.JSON)).actionGet();
         final Settings settings = Settings.builder()
             .put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default_pipeline")
@@ -240,12 +251,14 @@ public class FinalPipelineIT extends ESIntegTestCase {
     }
 
     public void testDefaultAndFinalPipelineFromTemplates() {
-        final BytesReference defaultPipelineBody = new BytesArray("{\"processors\": [{\"default\": {}}]}");
+        final BytesReference defaultPipelineBody = new BytesArray("""
+            {"processors": [{"default": {}}]}""");
         client().admin()
             .cluster()
             .putPipeline(new PutPipelineRequest("default_pipeline", defaultPipelineBody, XContentType.JSON))
             .actionGet();
-        final BytesReference finalPipelineBody = new BytesArray("{\"processors\": [{\"final\": {\"exists\":\"default\"}}]}");
+        final BytesReference finalPipelineBody = new BytesArray("""
+            {"processors": [{"final": {"exists":"default"}}]}""");
         client().admin().cluster().putPipeline(new PutPipelineRequest("final_pipeline", finalPipelineBody, XContentType.JSON)).actionGet();
         final int lowOrder = randomIntBetween(0, Integer.MAX_VALUE - 1);
         final int highOrder = randomIntBetween(lowOrder + 1, Integer.MAX_VALUE);
@@ -340,72 +353,139 @@ public class FinalPipelineIT extends ESIntegTestCase {
 
         @Override
         public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
-            return Map.of("default", (factories, tag, description, config) -> new AbstractProcessor(tag, description) {
+            return Map.of(
+                "default",
+                getDefault(parameters, randomBoolean()),
+                "final",
+                getFinal(parameters, randomBoolean()),
+                "request",
+                (processorFactories, tag, description, config) -> new AbstractProcessor(tag, description) {
+                    @Override
+                    public IngestDocument execute(final IngestDocument ingestDocument) throws Exception {
+                        ingestDocument.setFieldValue("request", true);
+                        return ingestDocument;
+                    }
+
+                    @Override
+                    public String getType() {
+                        return "request";
+                    }
+                },
+                "changing_dest",
+                (processorFactories, tag, description, config) -> new AbstractProcessor(tag, description) {
+                    @Override
+                    public IngestDocument execute(final IngestDocument ingestDocument) throws Exception {
+                        ingestDocument.setFieldValue(IngestDocument.Metadata.INDEX.getFieldName(), "target");
+                        return ingestDocument;
+                    }
+
+                    @Override
+                    public String getType() {
+                        return "changing_dest";
+                    }
+
+                }
+            );
+        }
+
+        private static Processor.Factory getDefault(Processor.Parameters parameters, boolean async) {
+            return (factories, tag, description, config) -> new AbstractProcessor(tag, description) {
 
                 @Override
                 public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
-                    // randomize over sync and async execution
-                    randomFrom(parameters.genericExecutor, Runnable::run).accept(() -> {
-                        ingestDocument.setFieldValue("default", true);
-                        handler.accept(ingestDocument, null);
-                    });
+                    if (async) {
+                        // randomize over sync and async execution
+                        randomFrom(parameters.genericExecutor, Runnable::run).accept(() -> {
+                            ingestDocument.setFieldValue("default", true);
+                            handler.accept(ingestDocument, null);
+                        });
+                    } else {
+                        throw new AssertionError("should not be called");
+                    }
                 }
 
                 @Override
                 public IngestDocument execute(IngestDocument ingestDocument) {
-                    throw new AssertionError("should not be called");
+                    if (async) {
+                        throw new AssertionError("should not be called");
+                    } else {
+                        ingestDocument.setFieldValue("default", true);
+                        return ingestDocument;
+                    }
                 }
 
                 @Override
                 public String getType() {
                     return "default";
                 }
-            }, "final", (processorFactories, tag, description, config) -> {
+
+                @Override
+                public boolean isAsync() {
+                    return async;
+                }
+            };
+        }
+
+        private static Processor.Factory getFinal(Processor.Parameters parameters, boolean async) {
+            return (processorFactories, tag, description, config) -> {
                 final String exists = (String) config.remove("exists");
                 return new AbstractProcessor(tag, description) {
+
+                    @Override
+                    public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
+                        if (async) {
+                            // randomize over sync and async execution
+                            randomFrom(parameters.genericExecutor, Runnable::run).accept(() -> {
+                                if (exists != null) {
+                                    if (ingestDocument.getSourceAndMetadata().containsKey(exists) == false) {
+                                        handler.accept(
+                                            null,
+                                            new IllegalStateException(
+                                                "expected document to contain ["
+                                                    + exists
+                                                    + "] but was ["
+                                                    + ingestDocument.getSourceAndMetadata()
+                                            )
+                                        );
+                                    }
+                                }
+                                ingestDocument.setFieldValue("final", true);
+                                handler.accept(ingestDocument, null);
+                            });
+                        } else {
+                            throw new AssertionError("should not be called");
+                        }
+                    }
+
                     @Override
                     public IngestDocument execute(final IngestDocument ingestDocument) throws Exception {
-                        // this asserts that this pipeline is the final pipeline executed
-                        if (exists != null) {
-                            if (ingestDocument.getSourceAndMetadata().containsKey(exists) == false) {
-                                throw new AssertionError(
-                                    "expected document to contain [" + exists + "] but was [" + ingestDocument.getSourceAndMetadata()
-                                );
+                        if (async) {
+                            throw new AssertionError("should not be called");
+                        } else {
+                            // this asserts that this pipeline is the final pipeline executed
+                            if (exists != null) {
+                                if (ingestDocument.getSourceAndMetadata().containsKey(exists) == false) {
+                                    throw new AssertionError(
+                                        "expected document to contain [" + exists + "] but was [" + ingestDocument.getSourceAndMetadata()
+                                    );
+                                }
                             }
+                            ingestDocument.setFieldValue("final", true);
+                            return ingestDocument;
                         }
-                        ingestDocument.setFieldValue("final", true);
-                        return ingestDocument;
                     }
 
                     @Override
                     public String getType() {
                         return "final";
                     }
+
+                    @Override
+                    public boolean isAsync() {
+                        return async;
+                    }
                 };
-            }, "request", (processorFactories, tag, description, config) -> new AbstractProcessor(tag, description) {
-                @Override
-                public IngestDocument execute(final IngestDocument ingestDocument) throws Exception {
-                    ingestDocument.setFieldValue("request", true);
-                    return ingestDocument;
-                }
-
-                @Override
-                public String getType() {
-                    return "request";
-                }
-            }, "changing_dest", (processorFactories, tag, description, config) -> new AbstractProcessor(tag, description) {
-                @Override
-                public IngestDocument execute(final IngestDocument ingestDocument) throws Exception {
-                    ingestDocument.setFieldValue(IngestDocument.Metadata.INDEX.getFieldName(), "target");
-                    return ingestDocument;
-                }
-
-                @Override
-                public String getType() {
-                    return "changing_dest";
-                }
-
-            });
+            };
         }
     }
 

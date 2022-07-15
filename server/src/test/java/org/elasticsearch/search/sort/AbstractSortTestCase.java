@@ -23,9 +23,9 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -53,6 +53,7 @@ import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -195,6 +196,9 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             IndexFieldData.Builder builder = fieldType.fielddataBuilder(fieldIndexName, searchLookup);
             return builder.build(new IndexFieldDataCache.None(), null);
         };
+        NestedLookup nestedLookup = NestedLookup.build(
+            List.of(new NestedObjectMapper.Builder("path", Version.CURRENT).build(MapperBuilderContext.ROOT))
+        );
         return new SearchExecutionContext(
             0,
             0,
@@ -205,7 +209,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             null,
             null,
             scriptService,
-            xContentRegistry(),
+            parserConfig(),
             namedWriteableRegistry,
             null,
             searcher,
@@ -223,8 +227,8 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             }
 
             @Override
-            public ObjectMapper getObjectMapper(String name) {
-                return new NestedObjectMapper.Builder(name, Version.CURRENT).build(MapperBuilderContext.ROOT);
+            public NestedLookup nestedLookup() {
+                return nestedLookup;
             }
         };
     }
@@ -248,16 +252,12 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
 
     protected static QueryBuilder randomNestedFilter() {
         int id = randomIntBetween(0, 2);
-        switch (id) {
-            case 0:
-                return (new MatchAllQueryBuilder()).boost(randomFloat());
-            case 1:
-                return (new IdsQueryBuilder()).boost(randomFloat());
-            case 2:
-                return (new TermQueryBuilder(randomAlphaOfLengthBetween(1, 10), randomDouble()).boost(randomFloat()));
-            default:
-                throw new IllegalStateException("Only three query builders supported for testing sort");
-        }
+        return switch (id) {
+            case 0 -> (new MatchAllQueryBuilder()).boost(randomFloat());
+            case 1 -> (new IdsQueryBuilder()).boost(randomFloat());
+            case 2 -> (new TermQueryBuilder(randomAlphaOfLengthBetween(1, 10), randomDouble()).boost(randomFloat()));
+            default -> throw new IllegalStateException("Only three query builders supported for testing sort");
+        };
     }
 
     @SuppressWarnings("unchecked")

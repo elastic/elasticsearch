@@ -8,15 +8,14 @@
 package org.elasticsearch.search;
 
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.util.CharsRefBuilder;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.CommonTermsQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -26,16 +25,17 @@ import org.elasticsearch.index.query.TypeQueryV7Builder;
 import org.elasticsearch.index.query.functionscore.GaussDecayFunctionBuilder;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.BaseAggregationBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.ChiSquare;
 import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.DerivativePipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.InternalDerivative;
+import org.elasticsearch.search.aggregations.pipeline.MovAvgPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -438,6 +438,7 @@ public class SearchModuleTests extends ESTestCase {
         "geo_bounding_box",
         "geo_distance",
         "geo_shape",
+        "knn",
         "ids",
         "intervals",
         "match",
@@ -478,6 +479,8 @@ public class SearchModuleTests extends ESTestCase {
     private static final String[] REST_COMPATIBLE_QUERIES = new String[] {
         TypeQueryV7Builder.NAME_V7.getPreferredName(),
         CommonTermsQueryBuilder.NAME_V7.getPreferredName() };
+    private static final String[] REST_COMPATIBLE_AGGREGATIONS = new String[] {
+        MovAvgPipelineAggregationBuilder.NAME_V7.getPreferredName() };
 
     /**
      * Dummy test {@link AggregationBuilder} used to test registering aggregation builders.
@@ -540,6 +543,11 @@ public class SearchModuleTests extends ESTestCase {
         private static TestAggregationBuilder fromXContent(String name, XContentParser p) {
             return null;
         }
+
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.V_EMPTY;
+        }
     }
 
     /**
@@ -577,6 +585,11 @@ public class SearchModuleTests extends ESTestCase {
 
         @Override
         protected void validate(ValidationContext context) {}
+
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.V_EMPTY;
+        }
     }
 
     /**
@@ -588,7 +601,7 @@ public class SearchModuleTests extends ESTestCase {
         }
 
         @Override
-        public InternalAggregation reduce(InternalAggregation aggregation, ReduceContext reduceContext) {
+        public InternalAggregation reduce(InternalAggregation aggregation, AggregationReduceContext reduceContext) {
             return null;
         }
     }
@@ -621,6 +634,11 @@ public class SearchModuleTests extends ESTestCase {
         @Override
         public RescoreContext innerBuildContext(int windowSize, SearchExecutionContext context) throws IOException {
             return null;
+        }
+
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.V_EMPTY;
         }
     }
 
@@ -685,6 +703,11 @@ public class SearchModuleTests extends ESTestCase {
         public String getWriteableName() {
             return "test";
         }
+
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.V_EMPTY;
+        }
     }
 
     @SuppressWarnings("rawtypes")
@@ -704,40 +727,15 @@ public class SearchModuleTests extends ESTestCase {
         }
     }
 
-    static class CompatQueryBuilder extends AbstractQueryBuilder<CompatQueryBuilder> {
+    static class CompatQueryBuilder extends DummyQueryBuilder {
         public static final String NAME = "compat_name";
         public static final ParseField NAME_OLD = new ParseField(NAME).forRestApiVersion(
             RestApiVersion.equalTo(RestApiVersion.minimumSupported())
         );
 
-        public static CompatQueryBuilder fromXContent(XContentParser parser) throws IOException {
-            return null;
-        }
-
         @Override
         public String getWriteableName() {
             return NAME;
-        }
-
-        @Override
-        protected void doWriteTo(StreamOutput out) throws IOException {}
-
-        @Override
-        protected void doXContent(XContentBuilder builder, Params params) throws IOException {}
-
-        @Override
-        protected Query doToQuery(SearchExecutionContext context) throws IOException {
-            return null;
-        }
-
-        @Override
-        protected boolean doEquals(CompatQueryBuilder other) {
-            return false;
-        }
-
-        @Override
-        protected int doHashCode() {
-            return 0;
         }
     }
 
@@ -765,7 +763,7 @@ public class SearchModuleTests extends ESTestCase {
             .filter(e -> RestApiVersion.current().matches(e.restApiCompatibility))
             .collect(toSet()),
             // -1 because of the registered in the test
-            hasSize(searchModule.getNamedXContents().size() - REST_COMPATIBLE_QUERIES.length - 1)
+            hasSize(searchModule.getNamedXContents().size() - REST_COMPATIBLE_QUERIES.length - REST_COMPATIBLE_AGGREGATIONS.length - 1)
         );
 
         final List<NamedXContentRegistry.Entry> compatEntry = searchModule.getNamedXContents()

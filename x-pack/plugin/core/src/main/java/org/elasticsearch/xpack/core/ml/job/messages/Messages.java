@@ -115,7 +115,7 @@ public final class Messages {
         "Configuration [{0}] requires minimum node version [{1}] (current minimum node version [{2}]";
     public static final String MODEL_DEFINITION_NOT_FOUND = "Could not find trained model definition [{0}]";
     public static final String MODEL_METADATA_NOT_FOUND = "Could not find trained model metadata {0}";
-    public static final String VOCABULARY_NOT_FOUND = "[{0}] Could not find vocabulary document [{1}] for model ";
+    public static final String VOCABULARY_NOT_FOUND = "Could not find vocabulary document [{1}] for trained model [{0}]";
     public static final String INFERENCE_CANNOT_DELETE_ML_MANAGED_MODEL =
         "Unable to delete model [{0}] as it is required by machine learning";
     public static final String MODEL_DEFINITION_TRUNCATED =
@@ -129,6 +129,9 @@ public final class Messages {
         + "hyphens or underscores, must start and end with alphanumeric, and must be less than {1} characters.";
     public static final String INFERENCE_TAGS_AND_MODEL_IDS_UNIQUE = "The provided tags {0} must not match existing model_ids.";
     public static final String INFERENCE_MODEL_ID_AND_TAGS_UNIQUE = "The provided model_id {0} must not match existing tags.";
+    public static final String INFERENCE_DEPLOYMENT_STARTED = "Started deployment";
+    public static final String INFERENCE_DEPLOYMENT_STOPPED = "Stopped deployment";
+    public static final String INFERENCE_DEPLOYMENT_REBALANCED = "Rebalanced trained model allocations because [{0}]";
 
     public static final String INVALID_MODEL_ALIAS = "Invalid model_alias; ''{0}'' can contain lowercase alphanumeric (a-z and 0-9), "
         + "hyphens or underscores; must start with alphanumeric and cannot end with numbers";
@@ -175,7 +178,7 @@ public final class Messages {
         + "analysis_limits.model_memory_limit setting to ensure all data is analyzed";
 
     public static final String JOB_AUDIT_REQUIRES_MORE_MEMORY_TO_RUN = "Job requires at least [{0}] free memory "
-        + "on a machine learning capable node to run; [{1}] are available. "
+        + "on a machine learning node to run; [{1}] are available. "
         + "The current total capacity for ML [total: {2}, largest node: {3}].";
 
     public static final String JOB_CONFIG_CATEGORIZATION_FILTERS_CONTAINS_DUPLICATES = "categorization_filters contain duplicates";

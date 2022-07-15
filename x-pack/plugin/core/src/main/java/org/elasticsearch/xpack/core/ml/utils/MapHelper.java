@@ -7,10 +7,10 @@
 package org.elasticsearch.xpack.core.ml.utils;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Stack;
 
@@ -94,8 +94,7 @@ public final class MapHelper {
      * @return A fully collapsed map
      */
     public static Map<String, Object> dotCollapse(Map<String, Object> map, Collection<String> pathsToCollapse) {
-        // default load factor is 0.75 (3/4).
-        Map<String, Object> collapsed = new HashMap<>(((pathsToCollapse.size() * 4) / 3) + 1);
+        Map<String, Object> collapsed = Maps.newMapWithExpectedSize(pathsToCollapse.size());
         for (String path : pathsToCollapse) {
             Object dug = dig(path, map);
             if (dug != null) {

@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ml.datafeed;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -96,7 +96,8 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         clusterService = new ClusterService(
             Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "test_node").build(),
             clusterSettings,
-            threadPool
+            threadPool,
+            null
         );
         clusterService.getClusterApplierService()
             .setInitialState(

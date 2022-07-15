@@ -7,10 +7,7 @@
  */
 package org.elasticsearch.gateway;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -40,6 +37,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * Allows to asynchronously fetch shard related data from other nodes for allocation, without blocking
@@ -237,12 +235,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
                             nodeEntry.restartFetching();
                         } else {
                             logger.warn(
-                                () -> new ParameterizedMessage(
-                                    "{}: failed to list shard for {} on node [{}]",
-                                    shardId,
-                                    type,
-                                    failure.nodeId()
-                                ),
+                                () -> format("%s: failed to list shard for %s on node [%s]", shardId, type, failure.nodeId()),
                                 failure
                             );
                             nodeEntry.doneFetching(failure.getCause());
@@ -272,8 +265,8 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
      */
     private void fillShardCacheWithDataNodes(Map<String, NodeEntry<T>> shardCache, DiscoveryNodes nodes) {
         // verify that all current data nodes are there
-        for (ObjectObjectCursor<String, DiscoveryNode> cursor : nodes.getDataNodes()) {
-            DiscoveryNode node = cursor.value;
+        for (Map.Entry<String, DiscoveryNode> cursor : nodes.getDataNodes().entrySet()) {
+            DiscoveryNode node = cursor.getValue();
             if (shardCache.containsKey(node.getId()) == false) {
                 shardCache.put(node.getId(), new NodeEntry<T>(node.getId()));
             }

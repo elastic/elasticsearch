@@ -11,11 +11,10 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.DeleteResult;
-import org.elasticsearch.common.blobstore.support.PlainBlobMetadata;
+import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -261,7 +260,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             public Map<String, BlobMetadata> onList(Map<String, BlobMetadata> actualListing) {
                 if (isDeleted) {
                     assertThat(actualListing, anEmptyMap());
-                    return Collections.singletonMap("leftover", new PlainBlobMetadata("leftover", 1));
+                    return Collections.singletonMap("leftover", new BlobMetadata("leftover", 1));
                 } else {
                     return actualListing;
                 }
@@ -523,7 +522,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             return disruption.onList(
                 blobs.entrySet()
                     .stream()
-                    .collect(Collectors.toMap(Map.Entry::getKey, e -> new PlainBlobMetadata(e.getKey(), e.getValue().length)))
+                    .collect(Collectors.toMap(Map.Entry::getKey, e -> new BlobMetadata(e.getKey(), e.getValue().length)))
             );
         }
 

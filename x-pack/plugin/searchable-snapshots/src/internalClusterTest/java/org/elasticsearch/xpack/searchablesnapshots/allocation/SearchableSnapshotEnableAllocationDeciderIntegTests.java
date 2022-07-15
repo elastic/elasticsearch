@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.searchablesnapshots.allocation;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.client.Requests;
+import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;

@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.sql.proto.Mode;
 
 import java.util.Locale;
 
-import static org.elasticsearch.xpack.sql.proto.Protocol.URL_PARAM_FORMAT;
+import static org.elasticsearch.xpack.sql.action.Protocol.URL_PARAM_FORMAT;
 
 public class SqlMediaTypeParser {
     public static final MediaTypeRegistry<? extends MediaType> MEDIA_TYPE_REGISTRY = new MediaTypeRegistry<>().register(

@@ -94,8 +94,8 @@ public class EvalQueryQuality implements ToXContentFragment, Writeable {
         builder.startArray(UNRATED_DOCS_FIELD.getPreferredName());
         for (DocumentKey key : EvaluationMetric.filterUnratedDocuments(ratedHits)) {
             builder.startObject();
-            builder.field(RatedDocument.INDEX_FIELD.getPreferredName(), key.getIndex());
-            builder.field(RatedDocument.DOC_ID_FIELD.getPreferredName(), key.getDocId());
+            builder.field(RatedDocument.INDEX_FIELD.getPreferredName(), key.index());
+            builder.field(RatedDocument.DOC_ID_FIELD.getPreferredName(), key.docId());
             builder.endObject();
         }
         builder.endArray();

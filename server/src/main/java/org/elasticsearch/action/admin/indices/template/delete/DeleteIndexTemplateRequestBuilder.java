@@ -9,7 +9,7 @@ package org.elasticsearch.action.admin.indices.template.delete;
 
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 
 public class DeleteIndexTemplateRequestBuilder extends MasterNodeOperationRequestBuilder<
     DeleteIndexTemplateRequest,

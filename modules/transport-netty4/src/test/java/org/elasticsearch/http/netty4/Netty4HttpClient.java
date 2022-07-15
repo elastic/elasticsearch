@@ -68,7 +68,7 @@ class Netty4HttpClient implements Closeable {
     static Collection<String> returnOpaqueIds(Collection<FullHttpResponse> responses) {
         List<String> list = new ArrayList<>(responses.size());
         for (HttpResponse response : responses) {
-            list.add(response.headers().get(Task.X_OPAQUE_ID));
+            list.add(response.headers().get(Task.X_OPAQUE_ID_HTTP_HEADER));
         }
         return list;
     }

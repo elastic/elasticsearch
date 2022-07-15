@@ -7,8 +7,6 @@
  */
 package org.elasticsearch.snapshots;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
@@ -50,6 +48,8 @@ import java.util.Objects;
 public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentFragment, Writeable {
 
     public static final String INDEX_DETAILS_XCONTENT_PARAM = "index_details";
+
+    public static final String INDEX_NAMES_XCONTENT_PARAM = "index_names";
     public static final String INCLUDE_REPOSITORY_XCONTENT_PARAM = "include_repository";
 
     private static final DateFormatter DATE_TIME_FORMATTER = DateFormatter.forPattern("strict_date_optional_time");
@@ -375,11 +375,11 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
     public static SnapshotInfo inProgress(SnapshotsInProgress.Entry entry) {
         int successfulShards = 0;
         List<SnapshotShardFailure> shardFailures = new ArrayList<>();
-        for (ObjectObjectCursor<RepositoryShardId, SnapshotsInProgress.ShardSnapshotStatus> c : entry.shardsByRepoShardId()) {
-            if (c.value.state() == SnapshotsInProgress.ShardState.SUCCESS) {
+        for (Map.Entry<RepositoryShardId, SnapshotsInProgress.ShardSnapshotStatus> c : entry.shardsByRepoShardId().entrySet()) {
+            if (c.getValue().state() == SnapshotsInProgress.ShardState.SUCCESS) {
                 successfulShards++;
-            } else if (c.value.state().failed() && c.value.state().completed()) {
-                shardFailures.add(new SnapshotShardFailure(c.value.nodeId(), entry.shardId(c.key), c.value.reason()));
+            } else if (c.getValue().state().failed() && c.getValue().state().completed()) {
+                shardFailures.add(new SnapshotShardFailure(c.getValue().nodeId(), entry.shardId(c.getKey()), c.getValue().reason()));
             }
         }
         int totalShards = entry.shardsByRepoShardId().size();
@@ -467,6 +467,29 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
         this.includeGlobalState = includeGlobalState;
         this.userMetadata = userMetadata == null ? null : Map.copyOf(userMetadata);
         this.indexSnapshotDetails = Map.copyOf(indexSnapshotDetails);
+    }
+
+    public SnapshotInfo withoutIndices() {
+        if (indices.isEmpty()) {
+            return this;
+        }
+        return new SnapshotInfo(
+            snapshot,
+            List.of(),
+            dataStreams,
+            featureStates,
+            reason,
+            version,
+            startTime,
+            endTime,
+            totalShards,
+            successfulShards,
+            shardFailures,
+            includeGlobalState,
+            userMetadata,
+            state,
+            indexSnapshotDetails
+        );
     }
 
     /**
@@ -750,11 +773,10 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
             builder.field(VERSION_ID, version.id);
             builder.field(VERSION, version.toString());
         }
-        builder.startArray(INDICES);
-        for (String index : indices) {
-            builder.value(index);
+
+        if (params.paramAsBoolean(INDEX_NAMES_XCONTENT_PARAM, true)) {
+            builder.stringListField(INDICES, indices);
         }
-        builder.endArray();
 
         if (params.paramAsBoolean(INDEX_DETAILS_XCONTENT_PARAM, false) && indexSnapshotDetails.isEmpty() == false) {
             builder.startObject(INDEX_DETAILS);
@@ -1019,7 +1041,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
             out.writeBoolean(false);
         }
         out.writeOptionalBoolean(includeGlobalState);
-        out.writeMap(userMetadata);
+        out.writeGenericMap(userMetadata);
         out.writeStringCollection(dataStreams);
         out.writeList(featureStates);
 

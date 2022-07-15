@@ -365,20 +365,19 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
         Request request = new Request("GET", "/200");
         Response esResponse = RestClientSingleHostTests.performRequestSyncOrAsync(restClient, request);
         String header = esResponse.getHeader(RestClientBuilder.META_HEADER_NAME);
-        assertTrue(header.matches("^es=[^,]*,jv=[^,]+,t=[^,]*,hc=.*"));
+        assertTrue(header.matches("^es=[0-9]+\\.[0-9]+\\.[0-9]+p?,jv=[^,]+,t=[^,]*,hc=.*"));
 
         // Also check user-agent
         header = esResponse.getHeader("User-Agent");
         assertTrue(header.matches("elasticsearch-java/[^ ]+ \\(Java/[^)].*\\)"));
 
-        // Meta header should not be overriden, test custom UA
+        // Test custom UA and meta header
         request.setOptions(
-            RequestOptions.DEFAULT.toBuilder().addHeader(RestClientBuilder.META_HEADER_NAME, "foobar").addHeader("User-Agent", "baz")
+            RequestOptions.DEFAULT.toBuilder().addHeader(RestClientBuilder.META_HEADER_NAME, "foo").addHeader("User-Agent", "bar")
         );
         esResponse = RestClientSingleHostTests.performRequestSyncOrAsync(restClient, request);
-        header = esResponse.getHeader(RestClientBuilder.META_HEADER_NAME);
-        assertTrue(header.matches("^es=[^,]*,jv=[^,]+,t=[^,]*,hc=.*"));
-        assertEquals("baz", esResponse.getHeader("User-Agent"));
+        assertEquals("foo", esResponse.getHeader(RestClientBuilder.META_HEADER_NAME));
+        assertEquals("bar", esResponse.getHeader("User-Agent"));
 
         // Create a new client and disable meta header
         RestClient newClient = createRestClient(true, true, false);
@@ -386,8 +385,8 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
         esResponse = RestClientSingleHostTests.performRequestSyncOrAsync(newClient, request);
         assertNull(esResponse.getHeader(RestClientBuilder.META_HEADER_NAME));
 
-        // Should not be overriden
-        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader(RestClientBuilder.META_HEADER_NAME, "foobar"));
+        // Meta header should not be present even if overriden
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader(RestClientBuilder.META_HEADER_NAME, "foo"));
         esResponse = RestClientSingleHostTests.performRequestSyncOrAsync(newClient, request);
         assertNull(esResponse.getHeader(RestClientBuilder.META_HEADER_NAME));
 

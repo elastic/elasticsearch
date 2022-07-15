@@ -14,6 +14,7 @@ import org.apache.lucene.search.join.ToChildBlockJoinQuery;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
@@ -35,7 +36,6 @@ import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static org.apache.lucene.search.BooleanClause.Occur.FILTER;
 import static org.apache.lucene.search.BooleanClause.Occur.SHOULD;
@@ -150,10 +150,10 @@ public final class DocumentPermissions implements CacheKey {
 
     private void evaluateQueries(DlsQueryEvaluationContext context) {
         if (queries != null && evaluatedQueries == null) {
-            evaluatedQueries = queries.stream().map(context::evaluate).collect(Collectors.toUnmodifiableList());
+            evaluatedQueries = queries.stream().map(context::evaluate).toList();
         }
         if (limitedByQueries != null && evaluatedLimitedByQueries == null) {
-            evaluatedLimitedByQueries = limitedByQueries.stream().map(context::evaluate).collect(Collectors.toUnmodifiableList());
+            evaluatedLimitedByQueries = limitedByQueries.stream().map(context::evaluate).toList();
         }
     }
 
@@ -170,8 +170,9 @@ public final class DocumentPermissions implements CacheKey {
                 failIfQueryUsesClient(queryBuilder, context);
                 Query roleQuery = context.toQuery(queryBuilder).query();
                 filter.add(roleQuery, SHOULD);
-                if (context.hasNested()) {
-                    NestedHelper nestedHelper = new NestedHelper(context::getObjectMapper, context::isFieldMapped);
+                NestedLookup nestedLookup = context.nestedLookup();
+                if (nestedLookup != NestedLookup.EMPTY) {
+                    NestedHelper nestedHelper = new NestedHelper(nestedLookup, context::isFieldMapped);
                     if (nestedHelper.mightMatchNestedDocs(roleQuery)) {
                         roleQuery = new BooleanQuery.Builder().add(roleQuery, FILTER).add(Queries.newNonNestedFilter(), FILTER).build();
                     }

@@ -10,7 +10,7 @@ package org.elasticsearch.action.admin.indices.mapping.get;
 
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.util.ArrayUtils;
 
 /** A helper class to build {@link GetFieldMappingsRequest} objects */

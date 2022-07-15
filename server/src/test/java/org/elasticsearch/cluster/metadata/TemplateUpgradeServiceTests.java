@@ -13,9 +13,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.AdminClient;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.client.internal.AdminClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.IndicesAdminClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -24,8 +24,9 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -36,8 +37,6 @@ import org.junit.Before;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -45,7 +44,6 @@ import java.util.Set;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static java.util.Collections.emptyMap;
@@ -185,13 +183,15 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
             return null;
         }).when(mockIndicesAdminClient).deleteTemplate(any(DeleteIndexTemplateRequest.class), any(ActionListener.class));
 
-        Set<String> deletions = new HashSet<>(deletionsCount);
+        Set<String> deletions = Sets.newHashSetWithExpectedSize(deletionsCount);
         for (int i = 0; i < deletionsCount; i++) {
             deletions.add("remove_template_" + i);
         }
-        Map<String, BytesReference> additions = new HashMap<>(additionsCount);
+        Map<String, BytesReference> additions = Maps.newMapWithExpectedSize(additionsCount);
         for (int i = 0; i < additionsCount; i++) {
-            additions.put("add_template_" + i, new BytesArray("{\"index_patterns\" : \"*\", \"order\" : " + i + "}"));
+            additions.put("add_template_" + i, new BytesArray("""
+                {"index_patterns" : "*", "order" : %s}
+                """.formatted(i)));
         }
 
         final TemplateUpgradeService service = new TemplateUpgradeService(mockClient, clusterService, threadPool, Collections.emptyList());
@@ -315,7 +315,7 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
 
             @Override
             Optional<Tuple<Map<String, BytesReference>, Set<String>>> calculateTemplateChanges(
-                ImmutableOpenMap<String, IndexTemplateMetadata> templates
+                Map<String, IndexTemplateMetadata> templates
             ) {
                 final Optional<Tuple<Map<String, BytesReference>, Set<String>>> ans = super.calculateTemplateChanges(templates);
                 calculateInvocation.release();
@@ -423,6 +423,6 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
     }
 
     List<String> randomIndexPatterns() {
-        return IntStream.range(0, between(1, 10)).mapToObj(n -> randomUnicodeOfCodepointLengthBetween(1, 100)).collect(Collectors.toList());
+        return IntStream.range(0, between(1, 10)).mapToObj(n -> randomUnicodeOfCodepointLengthBetween(1, 100)).toList();
     }
 }

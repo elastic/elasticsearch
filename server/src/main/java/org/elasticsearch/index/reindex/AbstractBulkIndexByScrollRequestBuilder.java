@@ -10,7 +10,7 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.search.SearchRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.script.Script;
 
 public abstract class AbstractBulkIndexByScrollRequestBuilder<

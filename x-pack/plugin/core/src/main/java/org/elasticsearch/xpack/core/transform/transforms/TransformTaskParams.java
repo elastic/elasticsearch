@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.core.transform.transforms;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.AbstractDiffable;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.core.transform.TransformField;
 import java.io.IOException;
 import java.util.Objects;
 
-public class TransformTaskParams extends AbstractDiffable<TransformTaskParams> implements PersistentTaskParams {
+public class TransformTaskParams implements SimpleDiffable<TransformTaskParams>, PersistentTaskParams {
 
     public static final String NAME = TransformField.TASK_NAME;
     public static final ParseField FREQUENCY = TransformField.FREQUENCY;

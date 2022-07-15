@@ -67,7 +67,9 @@ index settings, which in turn defaults to `*`. `*` extracts all fields in the ma
 are eligible to term queries and filters the metadata fields. All extracted fields are then
 combined to build a query.
 
+:query-type: multi-match
 include::combined-fields-query.asciidoc[tag=max-clause-limit]
+:query-type!:
 
 [[multi-match-types]]
 [discrete]

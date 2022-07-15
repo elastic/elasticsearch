@@ -8,13 +8,12 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.ParentTaskAssigningClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -138,8 +137,8 @@ public class TransportDeleteDataFrameAnalyticsAction extends AcknowledgedTranspo
                     StopDataFrameAnalyticsAction.INSTANCE,
                     stopRequest,
                     ActionListener.wrap(listener::onResponse, forceStopFailure -> {
-                        logger.error(new ParameterizedMessage("[{}] Failed to stop normally", request.getId()), normalStopFailure);
-                        logger.error(new ParameterizedMessage("[{}] Failed to stop forcefully", request.getId()), forceStopFailure);
+                        logger.error(() -> "[" + request.getId() + "] Failed to stop normally", normalStopFailure);
+                        logger.error(() -> "[" + request.getId() + "] Failed to stop forcefully", forceStopFailure);
                         listener.onFailure(forceStopFailure);
                     })
                 );

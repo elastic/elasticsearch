@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.cluster.ClusterStateChanges;
@@ -48,23 +49,19 @@ public class AutoExpandReplicasTests extends ESTestCase {
         AutoExpandReplicas autoExpandReplicas = AutoExpandReplicas.SETTING.get(
             Settings.builder().put("index.auto_expand_replicas", "0-5").build()
         );
-        assertEquals(0, autoExpandReplicas.getMinReplicas());
-        assertEquals(5, autoExpandReplicas.getMaxReplicas(8));
-        assertEquals(2, autoExpandReplicas.getMaxReplicas(3));
+        assertEquals(0, autoExpandReplicas.minReplicas());
+        assertEquals(5, autoExpandReplicas.maxReplicas());
         assertFalse(autoExpandReplicas.expandToAllNodes());
 
         autoExpandReplicas = AutoExpandReplicas.SETTING.get(Settings.builder().put("index.auto_expand_replicas", "0-all").build());
-        assertEquals(0, autoExpandReplicas.getMinReplicas());
-        assertEquals(5, autoExpandReplicas.getMaxReplicas(6));
-        assertEquals(2, autoExpandReplicas.getMaxReplicas(3));
+        assertEquals(0, autoExpandReplicas.minReplicas());
+        assertEquals(Integer.MAX_VALUE, autoExpandReplicas.maxReplicas());
         assertTrue(autoExpandReplicas.expandToAllNodes());
 
         autoExpandReplicas = AutoExpandReplicas.SETTING.get(Settings.builder().put("index.auto_expand_replicas", "1-all").build());
-        assertEquals(1, autoExpandReplicas.getMinReplicas());
-        assertEquals(5, autoExpandReplicas.getMaxReplicas(6));
-        assertEquals(2, autoExpandReplicas.getMaxReplicas(3));
+        assertEquals(1, autoExpandReplicas.minReplicas());
+        assertEquals(Integer.MAX_VALUE, autoExpandReplicas.maxReplicas());
         assertTrue(autoExpandReplicas.expandToAllNodes());
-
     }
 
     public void testInvalidValues() {
@@ -187,7 +184,7 @@ public class AutoExpandReplicasTests extends ESTestCase {
                             n.getVersion()
                         )
                     )
-                    .collect(Collectors.toList());
+                    .collect(Collectors.toCollection(ArrayList::new));
 
                 if (randomBoolean()) {
                     nodesToAdd.add(createNode(DiscoveryNodeRole.DATA_ROLE));
@@ -197,15 +194,14 @@ public class AutoExpandReplicasTests extends ESTestCase {
                 postTable = state.routingTable().index("index").shard(0);
             }
 
-            Set<String> unchangedAllocationIds = preTable.getShards()
-                .stream()
+            Set<String> unchangedAllocationIds = RoutingNodesHelper.asStream(preTable)
                 .filter(shr -> unchangedNodeIds.contains(shr.currentNodeId()))
                 .map(shr -> shr.allocationId().getId())
                 .collect(Collectors.toSet());
 
             assertThat(postTable.toString(), unchangedAllocationIds, everyItem(is(in(postTable.getAllAllocationIds()))));
 
-            postTable.getShards().forEach(shardRouting -> {
+            RoutingNodesHelper.asStream(postTable).forEach(shardRouting -> {
                 if (shardRouting.assignedToNode() && unchangedAllocationIds.contains(shardRouting.allocationId().getId())) {
                     assertTrue("Shard should be active: " + shardRouting, shardRouting.active());
                 }
@@ -221,13 +217,18 @@ public class AutoExpandReplicasTests extends ESTestCase {
 
         try {
             List<DiscoveryNode> allNodes = new ArrayList<>();
-            DiscoveryNode oldNode = createNode(
+            DiscoveryNode localNode = createNode(
                 VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_5_1),
                 DiscoveryNodeRole.MASTER_ROLE,
                 DiscoveryNodeRole.DATA_ROLE
             ); // local node is the master
+            DiscoveryNode oldNode = createNode(
+                VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_5_1),
+                DiscoveryNodeRole.DATA_ROLE
+            ); // local node is the master
+            allNodes.add(localNode);
             allNodes.add(oldNode);
-            ClusterState state = ClusterStateCreationUtils.state(oldNode, oldNode, allNodes.toArray(new DiscoveryNode[0]));
+            ClusterState state = ClusterStateCreationUtils.state(localNode, localNode, allNodes.toArray(new DiscoveryNode[0]));
 
             CreateIndexRequest request = new CreateIndexRequest(
                 "index",
@@ -248,7 +249,7 @@ public class AutoExpandReplicasTests extends ESTestCase {
                                                                                                                              // is the
                                                                                                                              // master
 
-            state = cluster.addNodes(state, Collections.singletonList(newNode));
+            state = cluster.addNode(state, newNode);
 
             // use allocation filtering
             state = cluster.updateSettings(
@@ -268,13 +269,26 @@ public class AutoExpandReplicasTests extends ESTestCase {
             }
 
             // check that presence of old node means that auto-expansion does not take allocation filtering into account
-            assertThat(state.routingTable().index("index").shard(0).size(), equalTo(2));
+            assertThat(state.routingTable().index("index").shard(0).size(), equalTo(3));
 
             // remove old node and check that auto-expansion takes allocation filtering into account
             state = cluster.removeNodes(state, Collections.singletonList(oldNode));
-            assertThat(state.routingTable().index("index").shard(0).size(), equalTo(1));
+            assertThat(state.routingTable().index("index").shard(0).size(), equalTo(2));
         } finally {
             terminate(threadPool);
         }
+    }
+
+    public void testCalculateDesiredNumberOfReplicas() {
+        int lowerBound = between(0, 9);
+        int upperBound = between(lowerBound + 1, 10);
+        String settingValue = lowerBound + "-" + randomFrom(upperBound, "all");
+        AutoExpandReplicas autoExpandReplicas = AutoExpandReplicas.SETTING.get(
+            Settings.builder().put(SETTING_AUTO_EXPAND_REPLICAS, settingValue).build()
+        );
+        int max = autoExpandReplicas.maxReplicas();
+        int matchingNodes = between(0, max);
+        assertThat(autoExpandReplicas.calculateDesiredNumberOfReplicas(matchingNodes), equalTo(Math.max(lowerBound, matchingNodes - 1)));
+        assertThat(autoExpandReplicas.calculateDesiredNumberOfReplicas(max + 1), equalTo(max));
     }
 }

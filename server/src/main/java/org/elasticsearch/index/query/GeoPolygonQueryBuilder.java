@@ -14,6 +14,7 @@ import org.apache.lucene.geo.Polygon;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -104,10 +105,7 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeString(fieldName);
-        out.writeVInt(shell.size());
-        for (GeoPoint point : shell) {
-            out.writeGeoPoint(point);
-        }
+        out.writeCollection(shell, StreamOutput::writeGeoPoint);
         validationMethod.writeTo(out);
         out.writeBoolean(ignoreUnmapped);
     }
@@ -327,5 +325,10 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
     @Override
     public String getWriteableName() {
         return NAME;
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
     }
 }

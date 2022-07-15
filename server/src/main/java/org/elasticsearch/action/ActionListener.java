@@ -34,6 +34,32 @@ public interface ActionListener<Response> {
      */
     void onFailure(Exception e);
 
+    @SuppressWarnings("rawtypes")
+    ActionListener NOOP = new ActionListener() {
+        @Override
+        public void onResponse(Object o) {
+
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+
+        }
+
+        @Override
+        public String toString() {
+            return "NoopActionListener";
+        }
+    };
+
+    /**
+     * @return a listener that does nothing
+     */
+    @SuppressWarnings("unchecked")
+    static <T> ActionListener<T> noop() {
+        return (ActionListener<T>) NOOP;
+    }
+
     /**
      * Creates a listener that wraps this listener, mapping response values via the given mapping function and passing along
      * exceptions to this instance.

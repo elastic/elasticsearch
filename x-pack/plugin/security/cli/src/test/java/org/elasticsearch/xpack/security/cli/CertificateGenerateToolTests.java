@@ -29,9 +29,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.PemUtils;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
@@ -48,7 +49,6 @@ import java.io.InputStream;
 import java.io.Reader;
 import java.net.InetAddress;
 import java.net.URI;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
@@ -116,7 +116,7 @@ public class CertificateGenerateToolTests extends ESTestCase {
     public void testOutputDirectory() throws Exception {
         Path outputDir = createTempDir();
         Path outputFile = outputDir.resolve("certs.zip");
-        MockTerminal terminal = new MockTerminal();
+        MockTerminal terminal = MockTerminal.create();
 
         // test with a user provided dir
         Path resolvedOutputFile = CertificateGenerateTool.getOutputFile(terminal, outputFile.toString(), null);
@@ -142,7 +142,7 @@ public class CertificateGenerateToolTests extends ESTestCase {
 
     public void testPromptingForInstanceInformation() throws Exception {
         final int numberOfInstances = scaledRandomIntBetween(1, 12);
-        Map<String, Map<String, String>> instanceInput = new HashMap<>(numberOfInstances);
+        Map<String, Map<String, String>> instanceInput = Maps.newMapWithExpectedSize(numberOfInstances);
         for (int i = 0; i < numberOfInstances; i++) {
             final String name;
             while (true) {
@@ -160,7 +160,7 @@ public class CertificateGenerateToolTests extends ESTestCase {
         }
 
         int count = 0;
-        MockTerminal terminal = new MockTerminal();
+        MockTerminal terminal = MockTerminal.create();
         for (Entry<String, Map<String, String>> entry : instanceInput.entrySet()) {
             terminal.addTextInput(entry.getKey());
             terminal.addTextInput("");
@@ -371,7 +371,7 @@ public class CertificateGenerateToolTests extends ESTestCase {
         Path testNodeCertPath = getDataPath("/org/elasticsearch/xpack/security/cli/testnode.crt");
         Path testNodeKeyPath = getDataPath("/org/elasticsearch/xpack/security/cli/testnode.pem");
         final boolean passwordPrompt = randomBoolean();
-        MockTerminal terminal = new MockTerminal();
+        MockTerminal terminal = MockTerminal.create();
         if (passwordPrompt) {
             terminal.addSecretInput("testnode");
         }
@@ -541,26 +541,25 @@ public class CertificateGenerateToolTests extends ESTestCase {
      * Writes the description of instances to a given {@link Path}
      */
     private Path writeInstancesTo(Path path) throws IOException {
-        Iterable<String> instances = Arrays.asList(
-            "instances:",
-            "  - name: \"node1\"",
-            "    ip:",
-            "      - \"127.0.0.1\"",
-            "    dns: \"localhost\"",
-            "  - name: \"node2\"",
-            "    filename: \"node2\"",
-            "    ip: \"::1\"",
-            "    cn:",
-            "      - \"node2.elasticsearch\"",
-            "  - name: \"node3\"",
-            "    filename: \"node3\"",
-            "  - name: \"CN=different value\"",
-            "    filename: \"different file\"",
-            "    dns:",
-            "      - \"node4.mydomain.com\""
-        );
-
-        return Files.write(path, instances, StandardCharsets.UTF_8);
+        String instances = """
+            instances:
+              - name: "node1"
+                ip:
+                  - "127.0.0.1"
+                dns: "localhost"
+              - name: "node2"
+                filename: "node2"
+                ip: "::1"
+                cn:
+                  - "node2.elasticsearch"
+              - name: "node3"
+                filename: "node3"
+              - name: "CN=different value"
+                filename: "different file"
+                dns:
+                  - "node4.mydomain.com"
+            """;
+        return Files.writeString(path, instances);
     }
 
     @SuppressForbidden(reason = "resolve paths against CWD for a CLI tool")

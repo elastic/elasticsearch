@@ -14,11 +14,10 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.update.UpdateResponse;
-import org.elasticsearch.client.Requests;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.Requests;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -107,7 +106,7 @@ public class RestNoopBulkAction extends BaseRestHandler {
             }
             builder.endArray();
             builder.endObject();
-            return new BytesRestResponse(OK, builder);
+            return new RestResponse(OK, builder);
         }
     }
 

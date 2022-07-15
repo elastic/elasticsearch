@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.cluster.storedscripts;
 
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.script.ScriptContextInfo.ScriptMethodInfo;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
@@ -61,26 +62,23 @@ public class ScriptMethodInfoSerializingTests extends AbstractSerializingTestCas
     }
 
     static ScriptMethodInfo randomInstance(NameType type) {
-        switch (type) {
-            case EXECUTE:
-                return new ScriptMethodInfo(
-                    EXECUTE,
-                    randomAlphaOfLengthBetween(MIN_LENGTH, MAX_LENGTH),
-                    ScriptParameterInfoSerializingTests.randomInstances()
-                );
-            case GETTER:
-                return new ScriptMethodInfo(
-                    GET_PREFIX + randomAlphaOfLengthBetween(MIN_LENGTH, MAX_LENGTH),
-                    randomAlphaOfLengthBetween(MIN_LENGTH, MAX_LENGTH),
-                    Collections.unmodifiableList(new ArrayList<>())
-                );
-            default:
-                return new ScriptMethodInfo(
-                    randomAlphaOfLengthBetween(MIN_LENGTH, MAX_LENGTH),
-                    randomAlphaOfLengthBetween(MIN_LENGTH, MAX_LENGTH),
-                    ScriptParameterInfoSerializingTests.randomInstances()
-                );
-        }
+        return switch (type) {
+            case EXECUTE -> new ScriptMethodInfo(
+                EXECUTE,
+                randomAlphaOfLengthBetween(MIN_LENGTH, MAX_LENGTH),
+                ScriptParameterInfoSerializingTests.randomInstances()
+            );
+            case GETTER -> new ScriptMethodInfo(
+                GET_PREFIX + randomAlphaOfLengthBetween(MIN_LENGTH, MAX_LENGTH),
+                randomAlphaOfLengthBetween(MIN_LENGTH, MAX_LENGTH),
+                Collections.unmodifiableList(new ArrayList<>())
+            );
+            default -> new ScriptMethodInfo(
+                randomAlphaOfLengthBetween(MIN_LENGTH, MAX_LENGTH),
+                randomAlphaOfLengthBetween(MIN_LENGTH, MAX_LENGTH),
+                ScriptParameterInfoSerializingTests.randomInstances()
+            );
+        };
     }
 
     static ScriptMethodInfo mutate(ScriptMethodInfo instance) {
@@ -105,26 +103,23 @@ public class ScriptMethodInfoSerializingTests extends AbstractSerializingTestCas
                     instance.parameters
                 );
             default:
-                switch (randomIntBetween(0, 2)) {
-                    case 0:
-                        return new ScriptMethodInfo(
-                            instance.name + randomAlphaOfLengthBetween(MIN_LENGTH, MAX_LENGTH),
-                            instance.returnType,
-                            instance.parameters
-                        );
-                    case 1:
-                        return new ScriptMethodInfo(
-                            instance.name,
-                            instance.returnType + randomAlphaOfLengthBetween(MIN_LENGTH, MAX_LENGTH),
-                            instance.parameters
-                        );
-                    default:
-                        return new ScriptMethodInfo(
-                            instance.name,
-                            instance.returnType,
-                            ScriptParameterInfoSerializingTests.mutateOne(instance.parameters)
-                        );
-                }
+                return switch (randomIntBetween(0, 2)) {
+                    case 0 -> new ScriptMethodInfo(
+                        instance.name + randomAlphaOfLengthBetween(MIN_LENGTH, MAX_LENGTH),
+                        instance.returnType,
+                        instance.parameters
+                    );
+                    case 1 -> new ScriptMethodInfo(
+                        instance.name,
+                        instance.returnType + randomAlphaOfLengthBetween(MIN_LENGTH, MAX_LENGTH),
+                        instance.parameters
+                    );
+                    default -> new ScriptMethodInfo(
+                        instance.name,
+                        instance.returnType,
+                        ScriptParameterInfoSerializingTests.mutateOne(instance.parameters)
+                    );
+                };
         }
     }
 
@@ -141,7 +136,7 @@ public class ScriptMethodInfoSerializingTests extends AbstractSerializingTestCas
     static Set<ScriptMethodInfo> randomGetterInstances() {
         Set<String> suffixes = new HashSet<>();
         int numGetters = randomIntBetween(0, MAX_LENGTH);
-        Set<ScriptMethodInfo> getters = new HashSet<>(numGetters);
+        Set<ScriptMethodInfo> getters = Sets.newHashSetWithExpectedSize(numGetters);
         for (int i = 0; i < numGetters; i++) {
             String suffix = randomValueOtherThanMany(suffixes::contains, () -> randomAlphaOfLengthBetween(MIN_LENGTH, MAX_LENGTH));
             suffixes.add(suffix);

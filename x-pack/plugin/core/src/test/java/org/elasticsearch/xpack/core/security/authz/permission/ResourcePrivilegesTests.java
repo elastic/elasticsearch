@@ -60,14 +60,11 @@ public class ResourcePrivilegesTests extends ESTestCase {
     }
 
     private static ResourcePrivileges mutateTestItem(ResourcePrivileges original) {
-        switch (randomIntBetween(0, 1)) {
-            case 0:
-                return ResourcePrivileges.builder(randomAlphaOfLength(6)).addPrivileges(original.getPrivileges()).build();
-            case 1:
-                return ResourcePrivileges.builder(original.getResource()).addPrivileges(Collections.emptyMap()).build();
-            default:
-                return ResourcePrivileges.builder(randomAlphaOfLength(6)).addPrivileges(Collections.emptyMap()).build();
-        }
+        return switch (randomIntBetween(0, 1)) {
+            case 0 -> ResourcePrivileges.builder(randomAlphaOfLength(6)).addPrivileges(original.getPrivileges()).build();
+            case 1 -> ResourcePrivileges.builder(original.getResource()).addPrivileges(Collections.emptyMap()).build();
+            default -> ResourcePrivileges.builder(randomAlphaOfLength(6)).addPrivileges(Collections.emptyMap()).build();
+        };
     }
 
     private static MapBuilder<String, Boolean> mapBuilder() {

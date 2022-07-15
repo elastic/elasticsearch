@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.ml.action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
@@ -41,7 +41,7 @@ public class TransportGetRecordsAction extends HandledTransportAction<GetRecords
     @Override
     protected void doExecute(Task task, GetRecordsAction.Request request, ActionListener<GetRecordsAction.Response> listener) {
 
-        jobManager.jobExists(request.getJobId(), ActionListener.wrap(jobExists -> {
+        jobManager.jobExists(request.getJobId(), null, ActionListener.wrap(jobExists -> {
             RecordsQueryBuilder query = new RecordsQueryBuilder().includeInterim(request.isExcludeInterim() == false)
                 .epochStart(request.getStart())
                 .epochEnd(request.getEnd())

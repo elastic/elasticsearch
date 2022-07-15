@@ -11,8 +11,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.support.AbstractClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.support.AbstractClient;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ilm.Step;
 

@@ -14,29 +14,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public class PainlessClassBinding {
-
-    public final Constructor<?> javaConstructor;
-    public final Method javaMethod;
-
-    public final Class<?> returnType;
-    public final List<Class<?>> typeParameters;
-    public final Map<Class<?>, Object> annotations;
-
-    PainlessClassBinding(
-        Constructor<?> javaConstructor,
-        Method javaMethod,
-        Class<?> returnType,
-        List<Class<?>> typeParameters,
-        Map<Class<?>, Object> annotations
-    ) {
-        this.javaConstructor = javaConstructor;
-        this.javaMethod = javaMethod;
-
-        this.returnType = returnType;
-        this.typeParameters = typeParameters;
-        this.annotations = annotations;
-    }
+public record PainlessClassBinding(
+    Constructor<?> javaConstructor,
+    Method javaMethod,
+    Class<?> returnType,
+    List<Class<?>> typeParameters,
+    Map<Class<?>, Object> annotations
+) {
 
     @Override
     public boolean equals(Object object) {
@@ -49,7 +33,6 @@ public class PainlessClassBinding {
         }
 
         PainlessClassBinding that = (PainlessClassBinding) object;
-
         return Objects.equals(javaConstructor, that.javaConstructor)
             && Objects.equals(javaMethod, that.javaMethod)
             && Objects.equals(returnType, that.returnType)

@@ -23,12 +23,12 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
@@ -164,9 +164,9 @@ public class DocumentSubsetReaderTests extends ESTestCase {
         IndexWriterConfig iwc = new IndexWriterConfig(null);
         IndexWriter iw = new IndexWriter(dir, iwc);
         iw.close();
-        DirectoryReader directoryReader = DocumentSubsetReader.wrap(DirectoryReader.open(dir), bitsetCache, new MatchAllDocsQuery());
+        DirectoryReader dirReader = DocumentSubsetReader.wrap(DirectoryReader.open(dir), bitsetCache, new MatchAllDocsQuery());
         try {
-            DocumentSubsetReader.wrap(directoryReader, bitsetCache, new MatchAllDocsQuery());
+            DocumentSubsetReader.wrap(dirReader, bitsetCache, new MatchAllDocsQuery());
             fail("shouldn't be able to wrap DocumentSubsetDirectoryReader twice");
         } catch (IllegalArgumentException e) {
             assertThat(
@@ -179,7 +179,7 @@ public class DocumentSubsetReaderTests extends ESTestCase {
         }
 
         bitsetCache.close();
-        directoryReader.close();
+        dirReader.close();
         dir.close();
     }
 

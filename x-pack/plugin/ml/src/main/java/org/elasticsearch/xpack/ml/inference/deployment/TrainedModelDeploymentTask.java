@@ -10,10 +10,13 @@ package org.elasticsearch.xpack.ml.inference.deployment;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -23,20 +26,22 @@ import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.ml.inference.allocation.TrainedModelAllocationNodeService;
+import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentNodeService;
 
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 public class TrainedModelDeploymentTask extends CancellableTask implements StartTrainedModelDeploymentAction.TaskMatcher {
 
     private static final Logger logger = LogManager.getLogger(TrainedModelDeploymentTask.class);
 
-    private final TaskParams params;
-    private final TrainedModelAllocationNodeService trainedModelAllocationNodeService;
+    private volatile TaskParams params;
+    private final TrainedModelAssignmentNodeService trainedModelAssignmentNodeService;
     private volatile boolean stopped;
-    private final SetOnce<String> stoppedReason = new SetOnce<>();
-    private final SetOnce<InferenceConfig> inferenceConfig = new SetOnce<>();
+    private volatile boolean failed;
+    private final SetOnce<String> stoppedReasonHolder = new SetOnce<>();
+    private final SetOnce<InferenceConfig> inferenceConfigHolder = new SetOnce<>();
     private final XPackLicenseState licenseState;
     private final LicensedFeature.Persistent licensedFeature;
 
@@ -47,23 +52,34 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
         TaskId parentTask,
         Map<String, String> headers,
         TaskParams taskParams,
-        TrainedModelAllocationNodeService trainedModelAllocationNodeService,
+        TrainedModelAssignmentNodeService trainedModelAssignmentNodeService,
         XPackLicenseState licenseState,
         LicensedFeature.Persistent licensedFeature
     ) {
-        super(id, type, action, MlTasks.trainedModelAllocationTaskDescription(taskParams.getModelId()), parentTask, headers);
-        this.params = taskParams;
-        this.trainedModelAllocationNodeService = ExceptionsHelper.requireNonNull(
-            trainedModelAllocationNodeService,
-            "trainedModelAllocationNodeService"
+        super(id, type, action, MlTasks.trainedModelAssignmentTaskDescription(taskParams.getModelId()), parentTask, headers);
+        this.params = Objects.requireNonNull(taskParams);
+        this.trainedModelAssignmentNodeService = ExceptionsHelper.requireNonNull(
+            trainedModelAssignmentNodeService,
+            "trainedModelAssignmentNodeService"
         );
         this.licenseState = licenseState;
         this.licensedFeature = licensedFeature;
     }
 
     void init(InferenceConfig inferenceConfig) {
-        this.inferenceConfig.set(inferenceConfig);
-        licensedFeature.startTracking(licenseState, "model-" + params.getModelId());
+        if (this.inferenceConfigHolder.trySet(inferenceConfig)) {
+            licensedFeature.startTracking(licenseState, "model-" + params.getModelId());
+        }
+    }
+
+    public void updateNumberOfAllocations(int numberOfAllocations) {
+        params = new TaskParams(
+            params.getModelId(),
+            params.getModelBytes(),
+            numberOfAllocations,
+            params.getThreadsPerAllocation(),
+            params.getQueueCapacity()
+        );
     }
 
     public String getModelId() {
@@ -78,18 +94,14 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
         return params;
     }
 
-    public void stop(String reason) {
-        logger.debug("[{}] Stopping due to reason [{}]", getModelId(), reason);
-        licensedFeature.stopTracking(licenseState, "model-" + params.getModelId());
-        stopped = true;
-        stoppedReason.trySet(reason);
-        trainedModelAllocationNodeService.stopDeploymentAndNotify(this, reason);
+    public void stop(String reason, ActionListener<AcknowledgedResponse> listener) {
+        trainedModelAssignmentNodeService.stopDeploymentAndNotify(this, reason, listener);
     }
 
-    public void stopWithoutNotification(String reason) {
+    public void markAsStopped(String reason) {
         licensedFeature.stopTracking(licenseState, "model-" + params.getModelId());
         logger.debug("[{}] Stopping due to reason [{}]", getModelId(), reason);
-        stoppedReason.trySet(reason);
+        stoppedReasonHolder.trySet(reason);
         stopped = true;
     }
 
@@ -98,41 +110,58 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
     }
 
     public Optional<String> stoppedReason() {
-        return Optional.ofNullable(stoppedReason.get());
+        return Optional.ofNullable(stoppedReasonHolder.get());
     }
 
     @Override
     protected void onCancelled() {
         String reason = getReasonCancelled();
-        stop(reason);
+        logger.info("[{}] task cancelled due to reason [{}]", getModelId(), reason);
+        stop(
+            reason,
+            ActionListener.wrap(
+                acknowledgedResponse -> {},
+                e -> logger.error(() -> "[" + getModelId() + "] error stopping the model after task cancellation", e)
+            )
+        );
     }
 
-    public void infer(Map<String, Object> doc, InferenceConfigUpdate update, TimeValue timeout, ActionListener<InferenceResults> listener) {
-        if (inferenceConfig.get() == null) {
-            listener.onFailure(
-                ExceptionsHelper.badRequestException("[{}] inference not possible against uninitialized model", params.getModelId())
-            );
+    public void infer(
+        Map<String, Object> doc,
+        InferenceConfigUpdate update,
+        boolean skipQueue,
+        TimeValue timeout,
+        ActionListener<InferenceResults> listener
+    ) {
+        if (inferenceConfigHolder.get() == null) {
+            listener.onFailure(ExceptionsHelper.conflictStatusException("Trained model [{}] is not initialized", params.getModelId()));
             return;
         }
-        if (update.isSupported(inferenceConfig.get()) == false) {
+        if (update.isSupported(inferenceConfigHolder.get()) == false) {
             listener.onFailure(
-                ExceptionsHelper.badRequestException(
-                    "[{}] inference not possible. Task is configured with [{}] but received update of type [{}]",
+                new ElasticsearchStatusException(
+                    "Trained model [{}] is configured for task [{}] but called with task [{}]",
+                    RestStatus.FORBIDDEN,
                     params.getModelId(),
-                    inferenceConfig.get().getName(),
+                    inferenceConfigHolder.get().getName(),
                     update.getName()
                 )
             );
             return;
         }
-        trainedModelAllocationNodeService.infer(this, update.apply(inferenceConfig.get()), doc, timeout, listener);
+        trainedModelAssignmentNodeService.infer(this, update.apply(inferenceConfigHolder.get()), doc, skipQueue, timeout, listener);
     }
 
     public Optional<ModelStats> modelStats() {
-        return trainedModelAllocationNodeService.modelStats(this);
+        return trainedModelAssignmentNodeService.modelStats(this);
     }
 
     public void setFailed(String reason) {
-        trainedModelAllocationNodeService.failAllocation(this, reason);
+        failed = true;
+        trainedModelAssignmentNodeService.failAssignment(this, reason);
+    }
+
+    public boolean isFailed() {
+        return failed;
     }
 }

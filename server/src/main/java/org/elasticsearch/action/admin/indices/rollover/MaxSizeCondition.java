@@ -36,7 +36,7 @@ public class MaxSizeCondition extends Condition<ByteSizeValue> {
 
     @Override
     public Result evaluate(Stats stats) {
-        return new Result(this, stats.indexSize.getBytes() >= value.getBytes());
+        return new Result(this, stats.indexSize().getBytes() >= value.getBytes());
     }
 
     @Override

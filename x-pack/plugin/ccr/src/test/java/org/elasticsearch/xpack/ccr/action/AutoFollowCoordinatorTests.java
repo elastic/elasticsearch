@@ -6,12 +6,10 @@
  */
 package org.elasticsearch.xpack.ccr.action;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -28,12 +26,14 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.ccr.Ccr;
@@ -339,7 +339,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
     public void testAutoFollowerWithNoActivePatternsDoesNotStart() {
         final String remoteCluster = randomAlphaOfLength(5);
 
-        final Map<String, AutoFollowPattern> autoFollowPatterns = new HashMap<>(2);
+        final Map<String, AutoFollowPattern> autoFollowPatterns = Maps.newMapWithExpectedSize(2);
         autoFollowPatterns.put(
             "pattern_1",
             new AutoFollowPattern(
@@ -383,11 +383,11 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             )
         );
 
-        final Map<String, List<String>> followedLeaderIndexUUIDs = new HashMap<>(2);
+        final Map<String, List<String>> followedLeaderIndexUUIDs = Maps.newMapWithExpectedSize(2);
         followedLeaderIndexUUIDs.put("pattern_1", List.of("uuid1", "uuid2"));
         followedLeaderIndexUUIDs.put("pattern_2", Collections.emptyList());
 
-        final Map<String, Map<String, String>> headers = new HashMap<>(2);
+        final Map<String, Map<String, String>> headers = Maps.newMapWithExpectedSize(2);
         headers.put("pattern_1", singletonMap("header", "value"));
         headers.put("pattern_2", emptyMap());
 
@@ -714,10 +714,14 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             Settings.Builder builder = Settings.builder()
                 .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(IndexMetadata.SETTING_INDEX_UUID, indexName);
-            imdBuilder.put(IndexMetadata.builder("metrics-" + i).settings(builder).numberOfShards(1).numberOfReplicas(0));
+            imdBuilder.put(IndexMetadata.builder(indexName).settings(builder).numberOfShards(1).numberOfReplicas(0));
 
-            ShardRouting shardRouting = TestShardRouting.newShardRouting(indexName, 0, "1", true, ShardRoutingState.INITIALIZING)
-                .moveToStarted();
+            ShardRouting shardRouting = TestShardRouting.newShardRouting(
+                new ShardId(imdBuilder.get(indexName).getIndex(), 0),
+                "1",
+                true,
+                ShardRoutingState.INITIALIZING
+            ).moveToStarted();
             IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(imdBuilder.get(indexName).getIndex())
                 .addShard(shardRouting)
                 .build();
@@ -1147,25 +1151,43 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         assertThat(removedAutoFollower2.removed, is(true));
     }
 
+    public void testUpdateAutoFollowersRevertMetadata() {
+        // given coordinator with some initial patterns
+        var autoFollowCoordinator = createAutoFollowCoordinator();
+
+        // with some initial patterns
+        var pattern1 = createAutoFollowPattern("remote1", "logs-*");
+        var pattern2 = createAutoFollowPattern("remote2", "logs-*");
+        var pattern3 = createAutoFollowPattern("remote2", "metrics-*");// same remote
+        autoFollowCoordinator.updateAutoFollowers(
+            createClusterStateWith(Map.of("pattern1", pattern1, "pattern2", pattern2, "pattern3", pattern3))
+        );
+        var initialAutoFollowers = autoFollowCoordinator.getAutoFollowers();
+
+        // when resetting the state
+        autoFollowCoordinator.updateAutoFollowers(createClusterStateWith(null));
+        var newAutoFollowers = autoFollowCoordinator.getAutoFollowers();
+
+        // then auto-followers are removed
+        assertThat(newAutoFollowers.entrySet(), empty());
+        // and auto-followers are stopped
+        assertThat(initialAutoFollowers.get("remote1").removed, equalTo(true));
+        assertThat(initialAutoFollowers.get("remote2").removed, equalTo(true));
+    }
+
     public void testUpdateAutoFollowersNoPatterns() {
-        AutoFollowCoordinator autoFollowCoordinator = createAutoFollowCoordinator();
-        ClusterState clusterState = ClusterState.builder(new ClusterName("remote"))
-            .metadata(
-                Metadata.builder()
-                    .putCustom(
-                        AutoFollowMetadata.TYPE,
-                        new AutoFollowMetadata(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap())
-                    )
-            )
-            .build();
-        autoFollowCoordinator.updateAutoFollowers(clusterState);
+        var autoFollowCoordinator = createAutoFollowCoordinator();
+        autoFollowCoordinator.updateAutoFollowers(createClusterStateWith(Map.of()));
+
+        assertThat(autoFollowCoordinator.getAutoFollowers().keySet(), empty());
         assertThat(autoFollowCoordinator.getStats().getAutoFollowedClusters().size(), equalTo(0));
     }
 
     public void testUpdateAutoFollowersNoAutoFollowMetadata() {
-        AutoFollowCoordinator autoFollowCoordinator = createAutoFollowCoordinator();
-        ClusterState clusterState = ClusterState.builder(new ClusterName("remote")).build();
-        autoFollowCoordinator.updateAutoFollowers(clusterState);
+        var autoFollowCoordinator = createAutoFollowCoordinator();
+        autoFollowCoordinator.updateAutoFollowers(createClusterStateWith(null));
+
+        assertThat(autoFollowCoordinator.getAutoFollowers().keySet(), empty());
         assertThat(autoFollowCoordinator.getStats().getAutoFollowedClusters().size(), equalTo(0));
     }
 
@@ -1767,10 +1789,10 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         assertThat(results, notNullValue());
         assertThat(results.size(), equalTo(1));
 
-        for (ObjectObjectCursor<String, IndexMetadata> index : remoteState.metadata().indices()) {
-            boolean expect = index.value.getState() == IndexMetadata.State.OPEN;
-            assertThat(results.get(0).autoFollowExecutionResults.containsKey(index.value.getIndex()), is(expect));
-            assertThat(followedIndices.contains(index.key), is(expect));
+        for (var index : remoteState.metadata().indices().entrySet()) {
+            boolean expect = index.getValue().getState() == IndexMetadata.State.OPEN;
+            assertThat(results.get(0).autoFollowExecutionResults.containsKey(index.getValue().getIndex()), is(expect));
+            assertThat(followedIndices.contains(index.getKey()), is(expect));
         }
     }
 
@@ -1874,11 +1896,11 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         final List<String> autoFollowedIndices = autoFollowMetadata.getFollowedLeaderIndexUUIDs().get(pattern);
         assertThat(autoFollowedIndices.size(), equalTo(nbLeaderIndices));
 
-        for (ObjectObjectCursor<String, IndexMetadata> index : remoteState.metadata().indices()) {
-            final Index remoteIndex = index.value.getIndex();
+        for (var index : remoteState.metadata().indices().entrySet()) {
+            final Index remoteIndex = index.getValue().getIndex();
             boolean followed = remoteIndex.getName().startsWith("docs-excluded") == false;
-            assertThat(results.get(0).autoFollowExecutionResults.containsKey(index.value.getIndex()), is(followed));
-            assertThat(followedIndices.contains(index.key), is(followed));
+            assertThat(results.get(0).autoFollowExecutionResults.containsKey(index.getValue().getIndex()), is(followed));
+            assertThat(followedIndices.contains(index.getKey()), is(followed));
             assertThat(autoFollowedIndices.contains(remoteIndex.getUUID()), equalTo(followed));
         }
     }
@@ -2044,9 +2066,11 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
     }
 
     private ClusterState createClusterStateWith(Map<String, AutoFollowPattern> patterns) {
-        return ClusterState.builder(new ClusterName("remote"))
-            .metadata(Metadata.builder().putCustom(AutoFollowMetadata.TYPE, new AutoFollowMetadata(patterns, Map.of(), Map.of())))
-            .build();
+        var builder = ClusterState.builder(new ClusterName("remote"));
+        if (patterns != null) {
+            builder.metadata(Metadata.builder().putCustom(AutoFollowMetadata.TYPE, new AutoFollowMetadata(patterns, Map.of(), Map.of())));
+        }
+        return builder.build();
     }
 
     private AutoFollowPattern createAutoFollowPattern(String remoteCluster, String pattern) {
@@ -2170,8 +2194,12 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("remote"))
             .metadata(Metadata.builder().put(indexMetadata, true).version(metadataVersion));
 
-        ShardRouting shardRouting = TestShardRouting.newShardRouting(indexName, 0, "1", true, ShardRoutingState.INITIALIZING)
-            .moveToStarted();
+        ShardRouting shardRouting = TestShardRouting.newShardRouting(
+            new ShardId(indexMetadata.getIndex(), 0),
+            "1",
+            true,
+            ShardRoutingState.INITIALIZING
+        ).moveToStarted();
         IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex()).addShard(shardRouting).build();
         return csBuilder.routingTable(RoutingTable.builder().add(indexRoutingTable).build()).build();
     }
@@ -2196,7 +2224,14 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             metadataBuilder.put(indexMetadata, true);
             routingTableBuilder.add(
                 IndexRoutingTable.builder(indexMetadata.getIndex())
-                    .addShard(TestShardRouting.newShardRouting(indexName, 0, "1", true, ShardRoutingState.INITIALIZING).moveToStarted())
+                    .addShard(
+                        TestShardRouting.newShardRouting(
+                            new ShardId(indexMetadata.getIndex(), 0),
+                            "1",
+                            true,
+                            ShardRoutingState.INITIALIZING
+                        ).moveToStarted()
+                    )
                     .build()
             );
         }
@@ -2253,20 +2288,24 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             .build();
         DataStream dataStream = new DataStream(
             dataStreamName,
-            new DataStream.TimestampField("@timestamp"),
             List.of(indexMetadata.getIndex()),
             1,
             null,
             false,
             false,
             system,
-            false
+            false,
+            null
         );
         ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("remote"))
             .metadata(Metadata.builder().put(indexMetadata, true).put(dataStream).version(0L));
 
-        ShardRouting shardRouting = TestShardRouting.newShardRouting(dataStreamName, 0, "1", true, ShardRoutingState.INITIALIZING)
-            .moveToStarted();
+        ShardRouting shardRouting = TestShardRouting.newShardRouting(
+            new ShardId(indexMetadata.getIndex(), 0),
+            "1",
+            true,
+            ShardRoutingState.INITIALIZING
+        ).moveToStarted();
         IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex()).addShard(shardRouting).build();
         return csBuilder.routingTable(RoutingTable.builder().add(indexRoutingTable).build()).build();
     }

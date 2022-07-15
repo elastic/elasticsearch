@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.rollup;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -21,6 +21,7 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
@@ -28,7 +29,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
-import org.elasticsearch.rollup.RollupV2;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
@@ -119,7 +119,7 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
 
     @Override
     public List<RestHandler> getRestHandlers(
-        Settings settings,
+        Settings unused,
         RestController restController,
         ClusterSettings clusterSettings,
         IndexScopedSettings indexScopedSettings,
@@ -140,7 +140,8 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
             )
         );
 
-        if (RollupV2.isEnabled()) {
+        // TSDB Downsampling / Rollup
+        if (IndexSettings.isTimeSeriesModeEnabled()) {
             handlers.add(new RestRollupAction());
         }
 
@@ -164,7 +165,7 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
             )
         );
 
-        if (RollupV2.isEnabled()) {
+        if (IndexSettings.isTimeSeriesModeEnabled()) {
             actions.add(new ActionHandler<>(RollupIndexerAction.INSTANCE, TransportRollupIndexerAction.class));
             actions.add(new ActionHandler<>(RollupAction.INSTANCE, TransportRollupAction.class));
         }
@@ -173,9 +174,9 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
     }
 
     @Override
-    public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
+    public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settingsToUse) {
         FixedExecutorBuilder indexing = new FixedExecutorBuilder(
-            settings,
+            settingsToUse,
             Rollup.TASK_THREAD_POOL_NAME,
             1,
             -1,

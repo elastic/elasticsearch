@@ -11,12 +11,12 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.util.Comparators;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.search.aggregations.Aggregator.BucketComparator;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.search.sort.SortValue;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -74,9 +74,10 @@ public abstract class InternalOrder extends BucketOrder {
         @Override
         public Comparator<Bucket> comparator() {
             return (lhs, rhs) -> {
-                double l = path.resolveValue(((InternalAggregations) lhs.getAggregations()));
-                double r = path.resolveValue(((InternalAggregations) rhs.getAggregations()));
-                return Comparators.compareDiscardNaN(l, r, order == SortOrder.ASC);
+                final SortValue l = path.resolveValue(((InternalAggregations) lhs.getAggregations()));
+                final SortValue r = path.resolveValue(((InternalAggregations) rhs.getAggregations()));
+                int compareResult = l.compareTo(r);
+                return order == SortOrder.ASC ? compareResult : -compareResult;
             };
         }
 
@@ -514,16 +515,11 @@ public abstract class InternalOrder extends BucketOrder {
          */
         public static void writeOrder(BucketOrder order, StreamOutput out) throws IOException {
             out.writeByte(order.id());
-            if (order instanceof Aggregation) {
-                Aggregation aggregationOrder = (Aggregation) order;
+            if (order instanceof Aggregation aggregationOrder) {
                 out.writeBoolean(aggregationOrder.order == SortOrder.ASC);
                 out.writeString(aggregationOrder.path().toString());
-            } else if (order instanceof CompoundOrder) {
-                CompoundOrder compoundOrder = (CompoundOrder) order;
-                out.writeVInt(compoundOrder.orderElements.size());
-                for (BucketOrder innerOrder : compoundOrder.orderElements) {
-                    innerOrder.writeTo(out);
-                }
+            } else if (order instanceof CompoundOrder compoundOrder) {
+                out.writeCollection(compoundOrder.orderElements);
             }
         }
 
@@ -584,14 +580,12 @@ public abstract class InternalOrder extends BucketOrder {
                 );
                 return orderAsc ? KEY_ASC : KEY_DESC;
             }
-            switch (orderKey) {
-                case "_key":
-                    return orderAsc ? KEY_ASC : KEY_DESC;
-                case "_count":
-                    return orderAsc ? COUNT_ASC : COUNT_DESC;
-                default: // assume all other orders are sorting on a sub-aggregation. Validation occurs later.
-                    return aggregation(orderKey, orderAsc);
-            }
+            return switch (orderKey) {
+                case "_key" -> orderAsc ? KEY_ASC : KEY_DESC;
+                case "_count" -> orderAsc ? COUNT_ASC : COUNT_DESC;
+                default -> // assume all other orders are sorting on a sub-aggregation. Validation occurs later.
+                    aggregation(orderKey, orderAsc);
+            };
         }
     }
 }

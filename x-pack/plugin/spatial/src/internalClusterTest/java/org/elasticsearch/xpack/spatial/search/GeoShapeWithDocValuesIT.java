@@ -26,11 +26,6 @@ import static org.hamcrest.Matchers.containsString;
 public class GeoShapeWithDocValuesIT extends GeoShapeIntegTestCase {
 
     @Override
-    protected boolean addMockGeoShapeFieldMapper() {
-        return false;
-    }
-
-    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singleton(LocalStateSpatialPlugin.class);
     }
@@ -63,14 +58,15 @@ public class GeoShapeWithDocValuesIT extends GeoShapeIntegTestCase {
         );
         ensureGreen();
 
-        String update = "{\n"
-            + "  \"properties\": {\n"
-            + "    \"shape\": {\n"
-            + "      \"type\": \"geo_shape\","
-            + "      \"strategy\": \"recursive\""
-            + "    }\n"
-            + "  }\n"
-            + "}";
+        String update = """
+            {
+              "properties": {
+                "shape": {
+                  "type": "geo_shape",
+                  "strategy": "recursive"
+                }
+              }
+            }""";
 
         if (version.before(Version.V_8_0_0)) {
             IllegalArgumentException e = expectThrows(

@@ -86,6 +86,7 @@ public class TransportClearRealmCacheAction extends TransportNodesAction<
             for (Realm realm : realms) {
                 clearCache(realm, nodeRequest.getUsernames());
             }
+            clearAuthenticationServiceCache(nodeRequest.getUsernames());
             return new ClearRealmCacheResponse.Node(clusterService.localNode());
         }
 
@@ -113,7 +114,7 @@ public class TransportClearRealmCacheAction extends TransportNodesAction<
         }
     }
 
-    private void clearCache(Realm realm, String[] usernames) {
+    private static void clearCache(Realm realm, String[] usernames) {
         if ((realm instanceof CachingRealm) == false) {
             return;
         }

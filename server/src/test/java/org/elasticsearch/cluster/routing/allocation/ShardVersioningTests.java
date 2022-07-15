@@ -56,14 +56,14 @@ public class ShardVersioningTests extends ESAllocationTestCase {
         routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
-        for (int i = 0; i < routingTable.index("test1").shards().size(); i++) {
-            assertThat(routingTable.index("test1").shard(i).shards().size(), equalTo(2));
+        for (int i = 0; i < routingTable.index("test1").size(); i++) {
+            assertThat(routingTable.index("test1").shard(i).size(), equalTo(2));
             assertThat(routingTable.index("test1").shard(i).primaryShard().state(), equalTo(INITIALIZING));
             assertThat(routingTable.index("test1").shard(i).replicaShards().get(0).state(), equalTo(UNASSIGNED));
         }
 
-        for (int i = 0; i < routingTable.index("test2").shards().size(); i++) {
-            assertThat(routingTable.index("test2").shard(i).shards().size(), equalTo(2));
+        for (int i = 0; i < routingTable.index("test2").size(); i++) {
+            assertThat(routingTable.index("test2").shard(i).size(), equalTo(2));
             assertThat(routingTable.index("test2").shard(i).primaryShard().state(), equalTo(INITIALIZING));
             assertThat(routingTable.index("test2").shard(i).replicaShards().get(0).state(), equalTo(UNASSIGNED));
         }
@@ -71,14 +71,14 @@ public class ShardVersioningTests extends ESAllocationTestCase {
         logger.info("start all the primary shards for test1, replicas will start initializing");
         routingTable = startInitializingShardsAndReroute(strategy, clusterState, "test1").routingTable();
 
-        for (int i = 0; i < routingTable.index("test1").shards().size(); i++) {
-            assertThat(routingTable.index("test1").shard(i).shards().size(), equalTo(2));
+        for (int i = 0; i < routingTable.index("test1").size(); i++) {
+            assertThat(routingTable.index("test1").shard(i).size(), equalTo(2));
             assertThat(routingTable.index("test1").shard(i).primaryShard().state(), equalTo(STARTED));
             assertThat(routingTable.index("test1").shard(i).replicaShards().get(0).state(), equalTo(INITIALIZING));
         }
 
-        for (int i = 0; i < routingTable.index("test2").shards().size(); i++) {
-            assertThat(routingTable.index("test2").shard(i).shards().size(), equalTo(2));
+        for (int i = 0; i < routingTable.index("test2").size(); i++) {
+            assertThat(routingTable.index("test2").shard(i).size(), equalTo(2));
             assertThat(routingTable.index("test2").shard(i).primaryShard().state(), equalTo(INITIALIZING));
             assertThat(routingTable.index("test2").shard(i).replicaShards().get(0).state(), equalTo(UNASSIGNED));
         }

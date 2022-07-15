@@ -573,11 +573,11 @@ POST _transform/_preview
                 all_docs.add(span); 
               }
             }
-            all_docs.sort((HashMap o1, HashMap o2)->o1['@timestamp'].millis.compareTo(o2['@timestamp'].millis)); 
+            all_docs.sort((HashMap o1, HashMap o2)->o1['@timestamp'].toEpochMilli()compareTo(o2['@timestamp']-toEpochMilli())); 
             def size = all_docs.size();
             def min_time = all_docs[0]['@timestamp'];
             def max_time = all_docs[size-1]['@timestamp'];
-            def duration = max_time.millis - min_time.millis;
+            def duration = max_time.toEpochMilli() - min_time.toEpochMilli();
             def entry_page = all_docs[0]['url'];
             def exit_path = all_docs[size-1]['url'];
             def first_referrer = all_docs[0]['referrer'];
@@ -619,7 +619,7 @@ The API call results in a similar response:
 {
   "num_pages_viewed" : 2.0,
   "session_details" : {
-    "duration" : 131374,
+    "duration" : 100300001,
     "first_referrer" : "https://www.bing.com/",
     "entry_page" : "http://www.leroymerlin.fr/v3/p/produits/materiaux-menuiserie/porte-coulissante-porte-interieure-escalier-et-rambarde/barriere-de-securite-l1308218463",
     "first_time" : "2017-01-10T21:22:52.982Z",
@@ -632,7 +632,7 @@ The API call results in a similar response:
 {
   "num_pages_viewed" : 10.0,
   "session_details" : {
-    "duration" : 343112,
+    "duration" : 343100405,
     "first_referrer" : "https://www.google.fr/",
     "entry_page" : "http://www.leroymerlin.fr/",
     "first_time" : "2017-01-10T16:57:39.937Z",

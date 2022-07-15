@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.sql.jdbc;
 
 import org.elasticsearch.SpecialPermission;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.client.SslConfig;
 import org.elasticsearch.xpack.sql.client.SuppressForbidden;
@@ -19,7 +20,6 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.sql.DriverManager;
 import java.sql.SQLException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
 import java.util.stream.Collectors;
@@ -275,13 +275,13 @@ public class JdbcConfigurationTests extends ESTestCase {
     }
 
     public void testSSLPropertiesInUrlAndProperties() throws Exception {
-        Map<String, String> urlPropMap = new HashMap<>(4);
+        Map<String, String> urlPropMap = Maps.newMapWithExpectedSize(4);
         urlPropMap.put("ssl", "false");
         urlPropMap.put("ssl.protocol", "SSLv3");
         urlPropMap.put("ssl.keystore.location", "/abc/xyz");
         urlPropMap.put("ssl.keystore.pass", "mypass");
 
-        Map<String, String> propMap = new HashMap<>(4);
+        Map<String, String> propMap = Maps.newMapWithExpectedSize(4);
         propMap.put("ssl.keystore.type", "PKCS12");
         propMap.put("ssl.truststore.location", "/foo/bar");
         propMap.put("ssl.truststore.pass", "anotherpass");
@@ -299,7 +299,7 @@ public class JdbcConfigurationTests extends ESTestCase {
 
     public void testSSLPropertiesOverride() throws Exception {
         Map<String, String> urlPropMap = sslProperties();
-        Map<String, String> propMap = new HashMap<>(8);
+        Map<String, String> propMap = Maps.newMapWithExpectedSize(8);
         propMap.put("ssl", "false");
         propMap.put("ssl.protocol", "TLS");
         propMap.put("ssl.keystore.location", "/xyz");
@@ -360,7 +360,7 @@ public class JdbcConfigurationTests extends ESTestCase {
     }
 
     static Map<String, String> sslProperties() {
-        Map<String, String> sslPropertiesMap = new HashMap<>(8);
+        Map<String, String> sslPropertiesMap = Maps.newMapWithExpectedSize(8);
         // always using "false" so that the SSLContext doesn't actually start verifying the keystore and trustore
         // locations, as we don't have file permissions to access them.
         sslPropertiesMap.put("ssl", "false");

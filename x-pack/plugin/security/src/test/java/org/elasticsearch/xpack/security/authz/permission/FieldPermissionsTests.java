@@ -24,50 +24,101 @@ import static org.hamcrest.Matchers.containsString;
 public class FieldPermissionsTests extends ESTestCase {
 
     public void testParseFieldPermissions() throws Exception {
-        String q = "{\"indices\": [ {\"names\": \"idx2\", \"privileges\": [\"p3\"], "
-            + "\"field_security\": {"
-            + "\"grant\": [\"f1\", \"f2\", \"f3\", \"f4\"],"
-            + "\"except\": [\"f3\",\"f4\"]"
-            + "}}]}";
+        String q = """
+            {
+              "indices": [
+                {
+                  "names": "idx2",
+                  "privileges": [ "p3" ],
+                  "field_security": {
+                    "grant": [ "f1", "f2", "f3", "f4" ],
+                    "except": [ "f3", "f4" ]
+                  }
+                }
+              ]
+            }""";
         RoleDescriptor rd = RoleDescriptor.parse("test", new BytesArray(q), false, XContentType.JSON);
         assertArrayEquals(rd.getIndicesPrivileges()[0].getGrantedFields(), new String[] { "f1", "f2", "f3", "f4" });
         assertArrayEquals(rd.getIndicesPrivileges()[0].getDeniedFields(), new String[] { "f3", "f4" });
 
-        q = "{\"indices\": [ {\"names\": \"idx2\", \"privileges\": [\"p3\"], "
-            + "\"field_security\": {"
-            + "\"except\": [\"f3\",\"f4\"],"
-            + "\"grant\": [\"f1\", \"f2\", \"f3\", \"f4\"]"
-            + "}}]}";
+        q = """
+            {
+              "indices": [
+                {
+                  "names": "idx2",
+                  "privileges": [ "p3" ],
+                  "field_security": {
+                    "except": [ "f3", "f4" ],
+                    "grant": [ "f1", "f2", "f3", "f4" ]
+                  }
+                }
+              ]
+            }""";
         rd = RoleDescriptor.parse("test", new BytesArray(q), false, XContentType.JSON);
         assertArrayEquals(rd.getIndicesPrivileges()[0].getGrantedFields(), new String[] { "f1", "f2", "f3", "f4" });
         assertArrayEquals(rd.getIndicesPrivileges()[0].getDeniedFields(), new String[] { "f3", "f4" });
 
-        q = "{\"indices\": [ {\"names\": \"idx2\", \"privileges\": [\"p3\"], "
-            + "\"field_security\": {"
-            + "\"grant\": [\"f1\", \"f2\"]"
-            + "}}]}";
+        q = """
+            {
+              "indices": [
+                {
+                  "names": "idx2",
+                  "privileges": [ "p3" ],
+                  "field_security": {
+                    "grant": [ "f1", "f2" ]
+                  }
+                }
+              ]
+            }""";
         rd = RoleDescriptor.parse("test", new BytesArray(q), false, XContentType.JSON);
         assertArrayEquals(rd.getIndicesPrivileges()[0].getGrantedFields(), new String[] { "f1", "f2" });
         assertNull(rd.getIndicesPrivileges()[0].getDeniedFields());
 
-        q = "{\"indices\": [ {\"names\": \"idx2\", \"privileges\": [\"p3\"], " + "\"field_security\": {" + "\"grant\": []" + "}}]}";
+        q = """
+            {
+              "indices": [
+                {
+                  "names": "idx2",
+                  "privileges": [ "p3" ],
+                  "field_security": {
+                    "grant": []
+                  }
+                }
+              ]
+            }""";
         rd = RoleDescriptor.parse("test", new BytesArray(q), false, XContentType.JSON);
         assertArrayEquals(rd.getIndicesPrivileges()[0].getGrantedFields(), new String[] {});
         assertNull(rd.getIndicesPrivileges()[0].getDeniedFields());
 
-        q = "{\"indices\": [ {\"names\": \"idx2\", \"privileges\": [\"p3\"], "
-            + "\"field_security\": {"
-            + "\"except\": [],"
-            + "\"grant\": []"
-            + "}}]}";
+        q = """
+            {
+              "indices": [
+                {
+                  "names": "idx2",
+                  "privileges": [ "p3" ],
+                  "field_security": {
+                    "except": [],
+                    "grant": []
+                  }
+                }
+              ]
+            }""";
         rd = RoleDescriptor.parse("test", new BytesArray(q), false, XContentType.JSON);
         assertArrayEquals(rd.getIndicesPrivileges()[0].getGrantedFields(), new String[] {});
         assertArrayEquals(rd.getIndicesPrivileges()[0].getDeniedFields(), new String[] {});
 
-        final String exceptWithoutGrant = "{\"indices\": [ {\"names\": \"idx2\", \"privileges\":"
-            + " [\"p3\"], \"field_security\": {"
-            + "\"except\": [\"f1\"]"
-            + "}}]}";
+        final String exceptWithoutGrant = """
+            {
+              "indices": [
+                {
+                  "names": "idx2",
+                  "privileges": [ "p3" ],
+                  "field_security": {
+                    "except": [ "f1" ]
+                  }
+                }
+              ]
+            }""";
         ElasticsearchParseException e = expectThrows(
             ElasticsearchParseException.class,
             () -> RoleDescriptor.parse("test", new BytesArray(exceptWithoutGrant), false, XContentType.JSON)
@@ -77,10 +128,8 @@ public class FieldPermissionsTests extends ESTestCase {
             containsString("failed to parse indices privileges for role [test]. field_security" + " requires grant if except is given")
         );
 
-        final String grantNull = "{\"indices\": [ {\"names\": \"idx2\", \"privileges\": [\"p3\"],"
-            + " \"field_security\": {"
-            + "\"grant\": null"
-            + "}}]}";
+        final String grantNull = """
+            {"indices": [ {"names": "idx2", "privileges": ["p3"], "field_security": {"grant": null}}]}""";
         e = expectThrows(
             ElasticsearchParseException.class,
             () -> RoleDescriptor.parse("test", new BytesArray(grantNull), false, XContentType.JSON)
@@ -90,11 +139,8 @@ public class FieldPermissionsTests extends ESTestCase {
             containsString("failed to parse indices privileges for" + " role [test]. grant must not be null.")
         );
 
-        final String exceptNull = "{\"indices\": [ {\"names\": \"idx2\", \"privileges\": "
-            + "[\"p3\"], \"field_security\": {"
-            + "\"grant\": [\"*\"],"
-            + "\"except\": null"
-            + "}}]}";
+        final String exceptNull = """
+            {"indices": [ {"names": "idx2", "privileges": ["p3"], "field_security": {"grant": ["*"],"except": null}}]}""";
         e = expectThrows(
             ElasticsearchParseException.class,
             () -> RoleDescriptor.parse("test", new BytesArray(exceptNull), false, XContentType.JSON)
@@ -104,11 +150,8 @@ public class FieldPermissionsTests extends ESTestCase {
             containsString("failed to parse indices privileges for role [test]. except must" + " not be null.")
         );
 
-        final String exceptGrantNull = "{\"indices\": [ {\"names\": \"idx2\", \"privileges\": "
-            + "[\"p3\"], \"field_security\": {"
-            + "\"grant\": null,"
-            + "\"except\": null"
-            + "}}]}";
+        final String exceptGrantNull = """
+            {"indices": [ {"names": "idx2", "privileges": ["p3"], "field_security": {"grant": null,"except": null}}]}""";
         e = expectThrows(
             ElasticsearchParseException.class,
             () -> RoleDescriptor.parse("test", new BytesArray(exceptGrantNull), false, XContentType.JSON)
@@ -118,9 +161,8 @@ public class FieldPermissionsTests extends ESTestCase {
             containsString("failed to parse indices privileges " + "for role [test]. grant must not be null.")
         );
 
-        final String bothFieldsMissing = "{\"indices\": [ {\"names\": \"idx2\", \"privileges\": "
-            + "[\"p3\"], \"field_security\": {"
-            + "}}]}";
+        final String bothFieldsMissing = """
+            {"indices": [ {"names": "idx2", "privileges": ["p3"], "field_security": {}}]}""";
         e = expectThrows(
             ElasticsearchParseException.class,
             () -> RoleDescriptor.parse("test", new BytesArray(bothFieldsMissing), false, XContentType.JSON)
@@ -131,15 +173,26 @@ public class FieldPermissionsTests extends ESTestCase {
         );
 
         // try with two indices and mix order a little
-        q = "{\"indices\": [ {\"names\": \"idx2\", \"privileges\": [\"p3\"], "
-            + "\"field_security\": {"
-            + "\"grant\": []"
-            + "}},"
-            + "{\"names\": \"idx3\",\n"
-            + " \"field_security\": {\n"
-            + " \"grant\": [\"*\"], \n"
-            + " \"except\": [\"f2\"]},"
-            + "\"privileges\": [\"p3\"]}]}";
+        q = """
+            {
+              "indices": [
+                {
+                  "names": "idx2",
+                  "privileges": [ "p3" ],
+                  "field_security": {
+                    "grant": []
+                  }
+                },
+                {
+                  "names": "idx3",
+                  "field_security": {
+                    "grant": [ "*" ],
+                    "except": [ "f2" ]
+                  },
+                  "privileges": [ "p3" ]
+                }
+              ]
+            }""";
         rd = RoleDescriptor.parse("test", new BytesArray(q), false, XContentType.JSON);
         assertArrayEquals(rd.getIndicesPrivileges()[0].getGrantedFields(), new String[] {});
         assertNull(rd.getIndicesPrivileges()[0].getDeniedFields());
@@ -149,7 +202,8 @@ public class FieldPermissionsTests extends ESTestCase {
 
     // test old syntax for field permissions
     public void testBWCFieldPermissions() throws Exception {
-        String q = "{\"indices\": [ {\"names\": \"idx2\", \"privileges\": [\"p3\"], " + "\"fields\": [\"f1\", \"f2\"]" + "}]}";
+        String q = """
+            {"indices": [ {"names": "idx2", "privileges": ["p3"], "fields": ["f1", "f2"]}]}""";
         RoleDescriptor rd = RoleDescriptor.parse("test", new BytesArray(q), true, XContentType.JSON);
         assertArrayEquals(rd.getIndicesPrivileges()[0].getGrantedFields(), new String[] { "f1", "f2" });
         assertNull(rd.getIndicesPrivileges()[0].getDeniedFields());
@@ -159,16 +213,12 @@ public class FieldPermissionsTests extends ESTestCase {
             ElasticsearchParseException.class,
             () -> RoleDescriptor.parse("test", new BytesArray(failingQuery), false, XContentType.JSON)
         );
-        assertThat(
-            e.getDetailedMessage(),
-            containsString(
-                "[\"fields\": [...]] format has "
-                    + "changed for field permissions in role [test]"
-                    + ", use [\"field_security\": {\"grant\":[...],\"except\":[...]}] instead"
-            )
-        );
+        assertThat(e.getDetailedMessage(), containsString("""
+            ["fields": [...]] format has changed for field permissions in role [test], \
+            use ["field_security": {"grant":[...],"except":[...]}] instead"""));
 
-        q = "{\"indices\": [ {\"names\": \"idx2\", \"privileges\": [\"p3\"], " + "\"fields\": []" + "}]}";
+        q = """
+            {"indices": [ {"names": "idx2", "privileges": ["p3"], "fields": []}]}""";
         rd = RoleDescriptor.parse("test", new BytesArray(q), true, XContentType.JSON);
         assertArrayEquals(rd.getIndicesPrivileges()[0].getGrantedFields(), new String[] {});
         assertNull(rd.getIndicesPrivileges()[0].getDeniedFields());
@@ -177,16 +227,12 @@ public class FieldPermissionsTests extends ESTestCase {
             ElasticsearchParseException.class,
             () -> RoleDescriptor.parse("test", new BytesArray(failingQuery2), false, XContentType.JSON)
         );
-        assertThat(
-            e.getDetailedMessage(),
-            containsString(
-                "[\"fields\": [...]] format has "
-                    + "changed for field permissions in role [test]"
-                    + ", use [\"field_security\": {\"grant\":[...],\"except\":[...]}] instead"
-            )
-        );
+        assertThat(e.getDetailedMessage(), containsString("""
+            ["fields": [...]] format has changed for field permissions in role [test], \
+            use ["field_security": {"grant":[...],"except":[...]}] instead"""));
 
-        q = "{\"indices\": [ {\"names\": \"idx2\", \"privileges\": [\"p3\"], " + "\"fields\": null" + "}]}";
+        q = """
+            {"indices": [ {"names": "idx2", "privileges": ["p3"], "fields": null}]}""";
         rd = RoleDescriptor.parse("test", new BytesArray(q), true, XContentType.JSON);
         assertNull(rd.getIndicesPrivileges()[0].getGrantedFields());
         assertNull(rd.getIndicesPrivileges()[0].getDeniedFields());
@@ -195,14 +241,9 @@ public class FieldPermissionsTests extends ESTestCase {
             ElasticsearchParseException.class,
             () -> RoleDescriptor.parse("test", new BytesArray(failingQuery3), false, XContentType.JSON)
         );
-        assertThat(
-            e.getDetailedMessage(),
-            containsString(
-                "[\"fields\": [...]] format has "
-                    + "changed for field permissions in role [test]"
-                    + ", use [\"field_security\": {\"grant\":[...],\"except\":[...]}] instead"
-            )
-        );
+        assertThat(e.getDetailedMessage(), containsString("""
+            ["fields": [...]] format has changed for field permissions in role [test], \
+            use ["field_security": {"grant":[...],"except":[...]}] instead"""));
     }
 
     public void testFieldPermissionsHashCodeThreadSafe() throws Exception {

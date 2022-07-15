@@ -17,9 +17,9 @@ import static org.hamcrest.Matchers.hasItem;
 public class HtmlSanitizerTests extends ESTestCase {
 
     public void testDefaultOnClickDisallowed() {
-        String badHtml = "<button type=\"button\""
-            + "onclick=\"document.getElementById('demo').innerHTML = Date()\">"
-            + "Click me to display Date and Time.</button>";
+        String badHtml = """
+            <button type="button"onclick="document.getElementById('demo').innerHTML = Date()">Click me to display Date and Time.\
+            </button>""";
         HtmlSanitizer sanitizer = new HtmlSanitizer(Settings.EMPTY);
         String sanitizedHtml = sanitizer.sanitize(badHtml);
         assertThat(sanitizedHtml, equalTo("Click me to display Date and Time."));
@@ -40,38 +40,40 @@ public class HtmlSanitizerTests extends ESTestCase {
     }
 
     public void testDefaultTablesAllowed() {
-        String html = "<table border=\"1\" cellpadding=\"6\">"
-            + "<caption>caption</caption>"
-            + "<colgroup>"
-            + "<col span=\"2\" />"
-            + "<col />"
-            + "</colgroup>"
-            + "<thead>"
-            + "<tr>"
-            + "<th colspan=\"2\">header1</th>"
-            + "<th>header2</th>"
-            + "</tr>"
-            + "</thead>"
-            + "<tfoot>"
-            + "<tr>"
-            + "<td>Sum</td>"
-            + "<td>$180</td>"
-            + "</tr>"
-            + "</tfoot>"
-            + "<tbody>"
-            + "<tr>"
-            + "<td>cost</td>"
-            + "<td>180</td>"
-            + "</tr>"
-            + "</tbody>"
-            + "</table>";
+        String html = """
+            <table border="1" cellpadding="6">
+                <caption>caption</caption>
+                <colgroup>
+                    <col span="2" />
+                    <col />
+                </colgroup>
+                <thead>
+                    <tr>
+                        <th colspan="2">header1</th>
+                        <th>header2</th>
+                    </tr>
+                </thead>
+                <tfoot>
+                    <tr>
+                        <td>Sum</td>
+                        <td>$180</td>
+                    </tr>
+                </tfoot>
+                <tbody>
+                    <tr>
+                        <td>cost</td>
+                        <td>180</td>
+                    </tr>
+                </tbody>
+            </table>""";
         HtmlSanitizer sanitizer = new HtmlSanitizer(Settings.EMPTY);
         String sanitizedHtml = sanitizer.sanitize(html);
-        assertThat(sanitizedHtml, equalTo(html));
+        assertThat(sanitizedHtml, equalTo(html.replaceAll("\\R", "").replaceAll("> +<", "><").replaceAll(" +", " ")));
     }
 
     public void testAllowStyles() {
-        String html = "<table border=\"1\" cellpadding=\"6\" style=\"color:red\"></table>";
+        String html = """
+            <table border="1" cellpadding="6" style="color:red"></table>""";
         Settings settings = Settings.builder().putList("xpack.notification.email.html.sanitization.allow", "_tables", "_styles").build();
         HtmlSanitizer sanitizer = new HtmlSanitizer(settings);
         String sanitizedHtml = sanitizer.sanitize(html);

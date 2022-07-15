@@ -8,9 +8,9 @@
 
 package org.elasticsearch.transport;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
@@ -39,6 +39,7 @@ final class OutboundHandler {
     private final ThreadPool threadPool;
     private final Recycler<BytesRef> recycler;
     private final HandlingTimeTracker handlingTimeTracker;
+    private final boolean rstOnClose;
 
     private volatile long slowLogThresholdMs = Long.MAX_VALUE;
 
@@ -50,7 +51,8 @@ final class OutboundHandler {
         StatsTracker statsTracker,
         ThreadPool threadPool,
         Recycler<BytesRef> recycler,
-        HandlingTimeTracker handlingTimeTracker
+        HandlingTimeTracker handlingTimeTracker,
+        boolean rstOnClose
     ) {
         this.nodeName = nodeName;
         this.version = version;
@@ -58,6 +60,7 @@ final class OutboundHandler {
         this.threadPool = threadPool;
         this.recycler = recycler;
         this.handlingTimeTracker = handlingTimeTracker;
+        this.rstOnClose = rstOnClose;
     }
 
     void setSlowLogThreshold(TimeValue slowLogThreshold) {
@@ -165,7 +168,7 @@ final class OutboundHandler {
         try {
             message = networkMessage.serialize(byteStreamOutput);
         } catch (Exception e) {
-            logger.warn(() -> new ParameterizedMessage("failed to serialize outbound message [{}]", networkMessage), e);
+            logger.warn(() -> "failed to serialize outbound message [" + networkMessage + "]", e);
             wrappedListener.onFailure(e);
             throw e;
         }
@@ -194,10 +197,13 @@ final class OutboundHandler {
 
                 @Override
                 public void onFailure(Exception e) {
-                    if (NetworkExceptionHelper.isCloseConnectionException(e)) {
-                        logger.debug(() -> new ParameterizedMessage("send message failed [channel: {}]", channel), e);
+                    final Level closeConnectionExceptionLevel = NetworkExceptionHelper.getCloseConnectionExceptionLevel(e, rstOnClose);
+                    if (closeConnectionExceptionLevel == Level.OFF) {
+                        logger.warn(() -> "send message failed [channel: " + channel + "]", e);
+                    } else if (closeConnectionExceptionLevel == Level.INFO && logger.isDebugEnabled() == false) {
+                        logger.info("send message failed [channel: {}]: {}", channel, e.getMessage());
                     } else {
-                        logger.warn(() -> new ParameterizedMessage("send message failed [channel: {}]", channel), e);
+                        logger.log(closeConnectionExceptionLevel, () -> "send message failed [channel: " + channel + "]", e);
                     }
                     listener.onFailure(e);
                     maybeLogSlowMessage(false);
@@ -236,6 +242,10 @@ final class OutboundHandler {
         } else {
             throw new IllegalStateException("Cannot set message listener twice");
         }
+    }
+
+    public boolean rstOnClose() {
+        return rstOnClose;
     }
 
 }

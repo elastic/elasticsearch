@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster.routing;
 
-import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.elasticsearch.Version;
@@ -39,6 +38,7 @@ import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -210,7 +210,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
                             Version.CURRENT,
                             new IndexId("test", UUIDs.randomBase64UUID(random()))
                         ),
-                        new IntHashSet()
+                        new HashSet<>()
                     )
                     .build()
             )
@@ -283,8 +283,9 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         // starting primaries
         clusterState = startInitializingShardsAndReroute(allocation, clusterState);
         IndexRoutingTable.Builder builder = IndexRoutingTable.builder(index);
-        for (IndexShardRoutingTable indexShardRoutingTable : clusterState.routingTable().index(index)) {
-            builder.addIndexShard(indexShardRoutingTable);
+        final IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(index);
+        for (int i = 0; i < indexRoutingTable.size(); i++) {
+            builder.addIndexShard(new IndexShardRoutingTable.Builder(indexRoutingTable.shard(i)));
         }
         builder.addReplica();
         clusterState = ClusterState.builder(clusterState)

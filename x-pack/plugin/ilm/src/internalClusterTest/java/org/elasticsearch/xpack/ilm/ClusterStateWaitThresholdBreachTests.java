@@ -144,7 +144,7 @@ public class ClusterStateWaitThresholdBreachTests extends ESIntegTestCase {
         // an old timestamp so the `1h` wait threshold we configured using LIFECYCLE_STEP_WAIT_TIME_THRESHOLD is breached and a new
         // shrink cycle is started
         LongSupplier nowWayBackInThePastSupplier = () -> 1234L;
-        clusterService.submitStateUpdateTask("testing-move-to-step-to-manipulate-step-time", new ClusterStateUpdateTask() {
+        clusterService.submitUnbatchedStateUpdateTask("testing-move-to-step-to-manipulate-step-time", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
                 return new MoveToNextStepUpdateTask(
@@ -159,7 +159,7 @@ public class ClusterStateWaitThresholdBreachTests extends ESIntegTestCase {
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 throw new AssertionError(e);
             }
         });

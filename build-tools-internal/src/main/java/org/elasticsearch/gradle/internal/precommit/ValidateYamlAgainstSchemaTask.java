@@ -12,7 +12,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 
 /**
- * Incremental task to validate a set of YAML files against against a schema.
+ * Incremental task to validate a set of YAML files against a schema.
  */
 public class ValidateYamlAgainstSchemaTask extends ValidateJsonAgainstSchemaTask {
     @Override

@@ -4,6 +4,13 @@
 <titleabbrev>cat snapshots</titleabbrev>
 ++++
 
+[IMPORTANT]
+====
+cat APIs are only intended for human consumption using the command line or {kib} 
+console. They are _not_ intended for use by applications. For application 
+consumption, use the <<get-snapshot-api,get snapshot API>>.
+====
+
 Returns information about the <<modules-snapshots,snapshots>> stored in one or
 more repositories. A snapshot is a backup of an index or running {es} cluster.
 

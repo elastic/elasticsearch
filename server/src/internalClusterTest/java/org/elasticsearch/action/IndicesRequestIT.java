@@ -66,7 +66,7 @@ import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
-import org.elasticsearch.client.Requests;
+import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -650,13 +650,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
     }
 
     static IndicesRequest convertRequest(TransportRequest request) {
-        final IndicesRequest indicesRequest;
-        if (request instanceof IndicesRequest) {
-            indicesRequest = (IndicesRequest) request;
-        } else {
-            indicesRequest = TransportReplicationActionTests.resolveRequest(request);
-        }
-        return indicesRequest;
+        return request instanceof IndicesRequest indicesRequest ? indicesRequest : TransportReplicationActionTests.resolveRequest(request);
     }
 
     private String randomIndexOrAlias() {

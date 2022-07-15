@@ -53,17 +53,10 @@ public class SwapAliasesAndDeleteSourceIndexStepTests extends AbstractStepTestCa
         StepKey nextKey = instance.getNextStepKey();
         String restoredIndexPrefix = instance.getTargetIndexPrefix();
         switch (between(0, 2)) {
-            case 0:
-                key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-                break;
-            case 1:
-                nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-                break;
-            case 2:
-                restoredIndexPrefix += randomAlphaOfLength(5);
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            case 0 -> key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+            case 1 -> nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+            case 2 -> restoredIndexPrefix += randomAlphaOfLength(5);
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new SwapAliasesAndDeleteSourceIndexStep(key, nextKey, instance.getClient(), restoredIndexPrefix);
     }
@@ -119,13 +112,7 @@ public class SwapAliasesAndDeleteSourceIndexStepTests extends AbstractStepTestCa
                 .metadata(Metadata.builder().put(sourceIndexMetadata, true).put(targetIndexMetadataBuilder).build())
                 .build();
 
-            step.performAction(sourceIndexMetadata, clusterState, null, new ActionListener<>() {
-                @Override
-                public void onResponse(Void complete) {}
-
-                @Override
-                public void onFailure(Exception e) {}
-            });
+            step.performAction(sourceIndexMetadata, clusterState, null, ActionListener.noop());
         }
     }
 

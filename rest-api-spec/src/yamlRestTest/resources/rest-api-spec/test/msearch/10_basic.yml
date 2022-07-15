@@ -4,25 +4,25 @@ setup:
   - do:
       index:
           index:  index_1
-          id:     1
+          id:     "1"
           body:   { foo: bar }
 
   - do:
       index:
           index:  index_1
-          id:     2
+          id:     "2"
           body:   { foo: baz }
 
   - do:
       index:
           index:  index_1
-          id:     3
+          id:     "3"
           body:   { foo: foo }
 
   - do:
       index:
           index:  index_2
-          id:     1
+          id:     "1"
           body:   { foo: foo }
 
   - do:

@@ -117,7 +117,7 @@ public abstract class ArrayValuesSourceAggregationBuilder<AB extends ArrayValues
         out.writeGenericValue(fields);
         out.writeOptionalWriteable(userValueTypeHint);
         out.writeOptionalString(format);
-        out.writeMap(missingMap);
+        out.writeGenericMap(missingMap);
         innerWriteTo(out);
     }
 

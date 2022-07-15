@@ -45,7 +45,8 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
                 .indices()
                 .prepareCreate(indexName)
                 .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards).build())
-                .setMapping("{\"properties\":{\"created_date\":{\"type\": \"date\", \"format\": \"yyyy-MM-dd\"}}}")
+                .setMapping("""
+                    {"properties":{"created_date":{"type": "date", "format": "yyyy-MM-dd"}}}""")
         );
         final List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
         final int docCount = between(0, 100);
@@ -113,7 +114,8 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
                 .indices()
                 .prepareCreate(indexName)
                 .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)).build())
-                .setMapping("{\"properties\":{\"created_date\":{\"type\": \"date\", \"format\": \"yyyy-MM-dd\"}}}")
+                .setMapping("""
+                    {"properties":{"created_date":{"type": "date", "format": "yyyy-MM-dd"}}}""")
         );
         final List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
         final int docCount = between(0, 100);

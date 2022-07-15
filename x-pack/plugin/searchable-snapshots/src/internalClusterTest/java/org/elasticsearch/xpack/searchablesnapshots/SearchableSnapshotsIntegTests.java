@@ -700,6 +700,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         final int numShards = between(1, 3);
 
+        boolean indexed = randomBoolean();
         final String dateType = randomFrom("date", "date_nanos");
         assertAcked(
             client().admin()
@@ -711,6 +712,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                         .startObject("properties")
                         .startObject(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD)
                         .field("type", dateType)
+                        .field("index", indexed)
                         .field("format", "strict_date_optional_time_nanos")
                         .endObject()
                         .endObject()
@@ -768,16 +770,21 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             .getTimestampRange();
 
         assertTrue(timestampRange.isComplete());
-        assertThat(timestampRange, not(sameInstance(IndexLongFieldRange.UNKNOWN)));
-        if (docCount == 0) {
-            assertThat(timestampRange, sameInstance(IndexLongFieldRange.EMPTY));
+
+        if (indexed) {
+            assertThat(timestampRange, not(sameInstance(IndexLongFieldRange.UNKNOWN)));
+            if (docCount == 0) {
+                assertThat(timestampRange, sameInstance(IndexLongFieldRange.EMPTY));
+            } else {
+                assertThat(timestampRange, not(sameInstance(IndexLongFieldRange.EMPTY)));
+                DateFieldMapper.Resolution resolution = dateType.equals("date")
+                    ? DateFieldMapper.Resolution.MILLISECONDS
+                    : DateFieldMapper.Resolution.NANOSECONDS;
+                assertThat(timestampRange.getMin(), greaterThanOrEqualTo(resolution.convert(Instant.parse("2020-11-26T00:00:00Z"))));
+                assertThat(timestampRange.getMin(), lessThanOrEqualTo(resolution.convert(Instant.parse("2020-11-27T00:00:00Z"))));
+            }
         } else {
-            assertThat(timestampRange, not(sameInstance(IndexLongFieldRange.EMPTY)));
-            DateFieldMapper.Resolution resolution = dateType.equals("date")
-                ? DateFieldMapper.Resolution.MILLISECONDS
-                : DateFieldMapper.Resolution.NANOSECONDS;
-            assertThat(timestampRange.getMin(), greaterThanOrEqualTo(resolution.convert(Instant.parse("2020-11-26T00:00:00Z"))));
-            assertThat(timestampRange.getMin(), lessThanOrEqualTo(resolution.convert(Instant.parse("2020-11-27T00:00:00Z"))));
+            assertThat(timestampRange, sameInstance(IndexLongFieldRange.UNKNOWN));
         }
     }
 

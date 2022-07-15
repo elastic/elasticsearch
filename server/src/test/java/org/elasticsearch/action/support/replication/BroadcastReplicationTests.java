@@ -30,8 +30,8 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -41,8 +41,10 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.nio.MockNioTransport;
+import org.elasticsearch.transport.netty4.Netty4Transport;
+import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -84,14 +86,15 @@ public class BroadcastReplicationTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        MockNioTransport transport = new MockNioTransport(
+        TcpTransport transport = new Netty4Transport(
             Settings.EMPTY,
             Version.CURRENT,
             threadPool,
             new NetworkService(Collections.emptyList()),
             PageCacheRecycler.NON_RECYCLING_INSTANCE,
             new NamedWriteableRegistry(Collections.emptyList()),
-            circuitBreakerService
+            circuitBreakerService,
+            new SharedGroupFactory(Settings.EMPTY)
         );
         clusterService = createClusterService(threadPool);
         transportService = new TransportService(

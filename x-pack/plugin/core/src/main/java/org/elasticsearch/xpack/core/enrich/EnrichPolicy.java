@@ -169,6 +169,32 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
         return ENRICH_INDEX_NAME_BASE + policyName;
     }
 
+    /**
+     * Given a policy name and a timestamp, return the enrich index name that should be used.
+     *
+     * @param policyName the name of the policy
+     * @param nowTimestamp the current time
+     * @return an enrich index name
+     */
+    public static String getIndexName(String policyName, long nowTimestamp) {
+        Objects.nonNull(policyName);
+        return EnrichPolicy.getBaseName(policyName) + "-" + nowTimestamp;
+    }
+
+    /**
+     * Tests whether the named policy is associated with the named index according to the naming
+     * pattern that exists between policy names and index names.
+     *
+     * @param policyName the policy name
+     * @param indexName the index name
+     * @return true if and only if the named policy is associated with the named index
+     */
+    public static boolean isPolicyForIndex(String policyName, String indexName) {
+        Objects.nonNull(policyName);
+        Objects.nonNull(indexName);
+        return indexName.matches(EnrichPolicy.getBaseName(policyName) + "-" + "\\d+");
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(type);

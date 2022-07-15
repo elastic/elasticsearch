@@ -146,7 +146,8 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
         IndexMetadata indexMetadata = IndexMetadata.builder(shardId.getIndexName())
             .settings(indexSettings)
             .primaryTerm(shardId.id(), primary.getOperationPrimaryTerm())
-            .putMapping("{ \"properties\": { \"value\":  { \"type\": \"short\"}}}")
+            .putMapping("""
+                { "properties": { "value":  { "type": "short"}}}""")
             .build();
         state.metadata(Metadata.builder().put(indexMetadata, false).generateClusterUuidIfNeeded());
 
@@ -154,7 +155,7 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
         recoverReplica(replica, primary, true);
 
         IndexRoutingTable.Builder routing = IndexRoutingTable.builder(indexMetadata.getIndex());
-        routing.addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(primary.routingEntry()).build());
+        routing.addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(primary.routingEntry()));
         state.routingTable(RoutingTable.builder().add(routing.build()).build());
 
         setState(clusterService, state.build());

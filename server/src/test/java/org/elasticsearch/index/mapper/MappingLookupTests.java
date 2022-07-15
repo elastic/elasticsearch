@@ -39,9 +39,9 @@ public class MappingLookupTests extends ESTestCase {
         List<ObjectMapper> objectMappers,
         List<RuntimeField> runtimeFields
     ) {
-        RootObjectMapper.Builder builder = new RootObjectMapper.Builder("_doc");
+        RootObjectMapper.Builder builder = new RootObjectMapper.Builder("_doc", ObjectMapper.Defaults.SUBOBJECTS);
         Map<String, RuntimeField> runtimeFieldTypes = runtimeFields.stream().collect(Collectors.toMap(RuntimeField::name, r -> r));
-        builder.setRuntime(runtimeFieldTypes);
+        builder.addRuntimeFields(runtimeFieldTypes);
         Mapping mapping = new Mapping(builder.build(MapperBuilderContext.ROOT), new MetadataFieldMapper[0], Collections.emptyMap());
         return MappingLookup.fromMappers(mapping, fieldMappers, objectMappers, emptyList());
     }
@@ -76,7 +76,8 @@ public class MappingLookupTests extends ESTestCase {
         ObjectMapper objectMapper = new ObjectMapper(
             "object",
             "object",
-            new Explicit<>(true, true),
+            Explicit.EXPLICIT_TRUE,
+            Explicit.IMPLICIT_TRUE,
             ObjectMapper.Dynamic.TRUE,
             Collections.singletonMap("object.subfield", fieldMapper)
         );
@@ -250,14 +251,13 @@ public class MappingLookupTests extends ESTestCase {
         final String indexedValue;
 
         FakeFieldMapper(FakeFieldType fieldType, String indexedValue) {
-            super(
-                fieldType.name(),
-                fieldType,
-                new NamedAnalyzer("fake", AnalyzerScope.INDEX, new FakeAnalyzer(indexedValue)),
-                MultiFields.empty(),
-                CopyTo.empty()
-            );
+            super(fieldType.name(), fieldType, MultiFields.empty(), CopyTo.empty());
             this.indexedValue = indexedValue;
+        }
+
+        @Override
+        public Map<String, NamedAnalyzer> indexAnalyzers() {
+            return Map.of(mappedFieldType.name(), new NamedAnalyzer("fake", AnalyzerScope.INDEX, new FakeAnalyzer(indexedValue)));
         }
 
         @Override

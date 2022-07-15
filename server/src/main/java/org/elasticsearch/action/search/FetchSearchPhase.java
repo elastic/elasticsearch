@@ -7,10 +7,7 @@
  */
 package org.elasticsearch.action.search;
 
-import com.carrotsearch.hppc.IntArrayList;
-
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -36,7 +33,6 @@ import java.util.function.BiFunction;
  */
 final class FetchSearchPhase extends SearchPhase {
     private final ArraySearchPhaseResults<FetchSearchResult> fetchResults;
-    private final SearchPhaseController searchPhaseController;
     private final AtomicArray<SearchPhaseResult> queryResults;
     private final BiFunction<InternalSearchResponse, AtomicArray<SearchPhaseResult>, SearchPhase> nextPhaseFactory;
     private final SearchPhaseContext context;
@@ -45,24 +41,21 @@ final class FetchSearchPhase extends SearchPhase {
     private final SearchProgressListener progressListener;
     private final AggregatedDfs aggregatedDfs;
 
-    FetchSearchPhase(
-        SearchPhaseResults<SearchPhaseResult> resultConsumer,
-        SearchPhaseController searchPhaseController,
-        AggregatedDfs aggregatedDfs,
-        SearchPhaseContext context
-    ) {
+    FetchSearchPhase(SearchPhaseResults<SearchPhaseResult> resultConsumer, AggregatedDfs aggregatedDfs, SearchPhaseContext context) {
         this(
             resultConsumer,
-            searchPhaseController,
             aggregatedDfs,
             context,
-            (response, queryPhaseResults) -> new ExpandSearchPhase(context, response, queryPhaseResults)
+            (response, queryPhaseResults) -> new ExpandSearchPhase(
+                context,
+                response,
+                () -> new FetchLookupFieldsPhase(context, response, queryPhaseResults)
+            )
         );
     }
 
     FetchSearchPhase(
         SearchPhaseResults<SearchPhaseResult> resultConsumer,
-        SearchPhaseController searchPhaseController,
         AggregatedDfs aggregatedDfs,
         SearchPhaseContext context,
         BiFunction<InternalSearchResponse, AtomicArray<SearchPhaseResult>, SearchPhase> nextPhaseFactory
@@ -77,7 +70,6 @@ final class FetchSearchPhase extends SearchPhase {
             );
         }
         this.fetchResults = new ArraySearchPhaseResults<>(resultConsumer.getNumShards());
-        this.searchPhaseController = searchPhaseController;
         this.queryResults = resultConsumer.getAtomicArray();
         this.aggregatedDfs = aggregatedDfs;
         this.nextPhaseFactory = nextPhaseFactory;
@@ -112,7 +104,6 @@ final class FetchSearchPhase extends SearchPhase {
         final SearchPhaseController.ReducedQueryPhase reducedQueryPhase = resultConsumer.reduce();
         final boolean queryAndFetchOptimization = queryResults.length() == 1;
         final Runnable finishPhase = () -> moveToNextPhase(
-            searchPhaseController,
             queryResults,
             reducedQueryPhase,
             queryAndFetchOptimization ? queryResults : fetchResults.getAtomicArray()
@@ -123,8 +114,8 @@ final class FetchSearchPhase extends SearchPhase {
             // query AND fetch optimization
             finishPhase.run();
         } else {
-            ScoreDoc[] scoreDocs = reducedQueryPhase.sortedTopDocs.scoreDocs;
-            final IntArrayList[] docIdsToLoad = searchPhaseController.fillDocIdsToLoad(numShards, scoreDocs);
+            ScoreDoc[] scoreDocs = reducedQueryPhase.sortedTopDocs().scoreDocs();
+            final List<Integer>[] docIdsToLoad = SearchPhaseController.fillDocIdsToLoad(numShards, scoreDocs);
             // no docs to fetch -- sidestep everything and return
             if (scoreDocs.length == 0) {
                 // we have to release contexts here to free up resources
@@ -132,7 +123,7 @@ final class FetchSearchPhase extends SearchPhase {
                 finishPhase.run();
             } else {
                 final ScoreDoc[] lastEmittedDocPerShard = isScrollSearch
-                    ? searchPhaseController.getLastEmittedDocPerShard(reducedQueryPhase, numShards)
+                    ? SearchPhaseController.getLastEmittedDocPerShard(reducedQueryPhase, numShards)
                     : null;
                 final CountedCollector<FetchSearchResult> counter = new CountedCollector<>(
                     fetchResults,
@@ -141,7 +132,7 @@ final class FetchSearchPhase extends SearchPhase {
                     context
                 );
                 for (int i = 0; i < docIdsToLoad.length; i++) {
-                    IntArrayList entry = docIdsToLoad[i];
+                    List<Integer> entry = docIdsToLoad[i];
                     SearchPhaseResult queryResult = queryResults.get(i);
                     if (entry == null) { // no results for this shard ID
                         if (queryResult != null) {
@@ -182,7 +173,7 @@ final class FetchSearchPhase extends SearchPhase {
     protected ShardFetchSearchRequest createFetchRequest(
         ShardSearchContextId contextId,
         int index,
-        IntArrayList entry,
+        List<Integer> entry,
         ScoreDoc[] lastEmittedDocPerShard,
         OriginalIndices originalIndices,
         ShardSearchRequest shardSearchRequest,
@@ -227,10 +218,7 @@ final class FetchSearchPhase extends SearchPhase {
                     @Override
                     public void onFailure(Exception e) {
                         try {
-                            logger.debug(
-                                () -> new ParameterizedMessage("[{}] Failed to execute fetch phase", fetchSearchRequest.contextId()),
-                                e
-                            );
+                            logger.debug(() -> "[" + fetchSearchRequest.contextId() + "] Failed to execute fetch phase", e);
                             progressListener.notifyFetchFailure(shardIndex, shardTarget, e);
                             counter.onFailure(shardIndex, shardTarget, e);
                         } finally {
@@ -268,12 +256,11 @@ final class FetchSearchPhase extends SearchPhase {
     }
 
     private void moveToNextPhase(
-        SearchPhaseController searchPhaseController,
         AtomicArray<SearchPhaseResult> queryPhaseResults,
         SearchPhaseController.ReducedQueryPhase reducedQueryPhase,
         AtomicArray<? extends SearchPhaseResult> fetchResultsArr
     ) {
-        final InternalSearchResponse internalResponse = searchPhaseController.merge(
+        final InternalSearchResponse internalResponse = SearchPhaseController.merge(
             context.getRequest().scroll() != null,
             reducedQueryPhase,
             fetchResultsArr.asList(),

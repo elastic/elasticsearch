@@ -15,7 +15,7 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
@@ -31,6 +31,7 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentParserContext;
@@ -44,7 +45,6 @@ import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.support.QueryParsers;
-import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -63,7 +63,6 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 import static org.elasticsearch.xpack.versionfield.VersionEncoder.encodeVersion;
-import static org.elasticsearch.xpack.versionfield.VersionScriptDocValues.VersionScriptSupplier;
 
 /**
  * A {@link FieldMapper} for indexing fields with version strings.
@@ -115,8 +114,8 @@ public class VersionStringFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected List<Parameter<?>> getParameters() {
-            return List.of(meta);
+        protected Parameter<?>[] getParameters() {
+            return new Parameter<?>[] { meta };
         }
     }
 
@@ -140,7 +139,7 @@ public class VersionStringFieldMapper extends FieldMapper {
 
         @Override
         public Query existsQuery(SearchExecutionContext context) {
-            return new DocValuesFieldExistsQuery(name());
+            return new FieldExistsQuery(name());
         }
 
         @Override
@@ -281,11 +280,7 @@ public class VersionStringFieldMapper extends FieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-            return new SortedSetOrdinalsIndexFieldData.Builder(
-                name(),
-                CoreValuesSourceType.KEYWORD,
-                (dv, n) -> new DelegateDocValuesField(new VersionScriptDocValues(new VersionScriptSupplier(dv)), n)
-            );
+            return new SortedSetOrdinalsIndexFieldData.Builder(name(), CoreValuesSourceType.KEYWORD, VersionStringDocValuesField::new);
         }
 
         @Override
@@ -326,8 +321,13 @@ public class VersionStringFieldMapper extends FieldMapper {
         MultiFields multiFields,
         CopyTo copyTo
     ) {
-        super(simpleName, mappedFieldType, Lucene.KEYWORD_ANALYZER, multiFields, copyTo);
+        super(simpleName, mappedFieldType, multiFields, copyTo);
         this.fieldType = fieldType;
+    }
+
+    @Override
+    public Map<String, NamedAnalyzer> indexAnalyzers() {
+        return Map.of(mappedFieldType.name(), Lucene.KEYWORD_ANALYZER);
     }
 
     @Override
@@ -384,8 +384,8 @@ public class VersionStringFieldMapper extends FieldMapper {
         }
 
         @Override
-        public BytesRef parseBytesRef(String value) {
-            return VersionEncoder.encodeVersion(value).bytesRef;
+        public BytesRef parseBytesRef(Object value) {
+            return VersionEncoder.encodeVersion(value.toString()).bytesRef;
         }
 
         @Override

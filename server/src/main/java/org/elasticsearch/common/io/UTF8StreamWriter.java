@@ -244,27 +244,6 @@ public final class UTF8StreamWriter extends Writer {
     }
 
     /**
-     * Writes the specified character sequence.
-     *
-     * @param csq the character sequence.
-     * @throws IOException if an I/O error occurs
-     */
-    public void write(CharSequence csq) throws IOException {
-        final int length = csq.length();
-        for (int i = 0; i < length;) {
-            char c = csq.charAt(i++);
-            if (c < 0x80) {
-                _bytes[_index] = (byte) c;
-                if (++_index >= _bytes.length) {
-                    flushBuffer();
-                }
-            } else {
-                write(c);
-            }
-        }
-    }
-
-    /**
      * Flushes the stream.  If the stream has saved any characters from the
      * various write() methods in a buffer, write them immediately to their
      * intended destination.  Then, if that destination is another character or

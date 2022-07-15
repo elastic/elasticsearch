@@ -8,8 +8,6 @@
 
 package org.elasticsearch.gateway;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -29,13 +27,12 @@ import org.elasticsearch.cluster.metadata.Manifest;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.MetadataUpgrader;
@@ -113,8 +110,8 @@ public class GatewayMetaState implements Closeable {
                     final Tuple<Manifest, Metadata> legacyState = metaStateService.loadFullState();
                     if (legacyState.v1().isEmpty() == false) {
                         metadata = legacyState.v2();
-                        lastAcceptedVersion = legacyState.v1().getClusterStateVersion();
-                        currentTerm = legacyState.v1().getCurrentTerm();
+                        lastAcceptedVersion = legacyState.v1().clusterStateVersion();
+                        currentTerm = legacyState.v1().currentTerm();
                     }
                 }
 
@@ -145,7 +142,11 @@ public class GatewayMetaState implements Closeable {
                     }
                     // write legacy node metadata to prevent accidental downgrades from spawning empty cluster state
                     NodeMetadata.FORMAT.writeAndCleanup(
-                        new NodeMetadata(persistedClusterStateService.getNodeId(), Version.CURRENT),
+                        new NodeMetadata(
+                            persistedClusterStateService.getNodeId(),
+                            Version.CURRENT,
+                            clusterState.metadata().oldestIndexVersion()
+                        ),
                         persistedClusterStateService.getDataPaths()
                     );
                     success = true;
@@ -179,7 +180,11 @@ public class GatewayMetaState implements Closeable {
                     metaStateService.deleteAll();
                     // write legacy node metadata to prevent downgrades from spawning empty cluster state
                     NodeMetadata.FORMAT.writeAndCleanup(
-                        new NodeMetadata(persistedClusterStateService.getNodeId(), Version.CURRENT),
+                        new NodeMetadata(
+                            persistedClusterStateService.getNodeId(),
+                            Version.CURRENT,
+                            clusterState.metadata().oldestIndexVersion()
+                        ),
                         persistedClusterStateService.getDataPaths()
                     );
                 } catch (IOException e) {
@@ -237,15 +242,15 @@ public class GatewayMetaState implements Closeable {
     }
 
     private static boolean applyPluginUpgraders(
-        ImmutableOpenMap<String, IndexTemplateMetadata> existingData,
+        Map<String, IndexTemplateMetadata> existingData,
         UnaryOperator<Map<String, IndexTemplateMetadata>> upgrader,
         Consumer<String> removeData,
         BiConsumer<String, IndexTemplateMetadata> putData
     ) {
         // collect current data
         Map<String, IndexTemplateMetadata> existingMap = new HashMap<>();
-        for (ObjectObjectCursor<String, IndexTemplateMetadata> customCursor : existingData) {
-            existingMap.put(customCursor.key, customCursor.value);
+        for (Map.Entry<String, IndexTemplateMetadata> customCursor : existingData.entrySet()) {
+            existingMap.put(customCursor.getKey(), customCursor.getValue());
         }
         // upgrade global custom meta data
         Map<String, IndexTemplateMetadata> upgradedCustoms = upgrader.apply(existingMap);
@@ -391,7 +396,7 @@ public class GatewayMetaState implements Closeable {
                 .lastCommittedConfiguration(staleStateConfiguration)
                 .build();
             return ClusterState.builder(clusterState)
-                .metadata(Metadata.builder(clusterState.metadata()).coordinationMetadata(newCoordinationMetadata).build())
+                .metadata(clusterState.metadata().withCoordinationMetadata(newCoordinationMetadata))
                 .build();
         }
 
@@ -470,7 +475,11 @@ public class GatewayMetaState implements Closeable {
                     getWriterSafe().writeFullStateAndCommit(currentTerm, lastAcceptedState);
                 } else {
                     writeNextStateFully = true; // in case of failure; this flag is cleared on success
-                    getWriterSafe().writeIncrementalTermUpdateAndCommit(currentTerm, lastAcceptedState.version());
+                    getWriterSafe().writeIncrementalTermUpdateAndCommit(
+                        currentTerm,
+                        lastAcceptedState.version(),
+                        lastAcceptedState.metadata().oldestIndexVersion()
+                    );
                 }
             } catch (IOException e) {
                 throw new ElasticsearchException(e);

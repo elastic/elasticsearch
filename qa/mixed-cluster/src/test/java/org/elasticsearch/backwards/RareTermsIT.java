@@ -30,8 +30,10 @@ public class RareTermsIT extends ESRestTestCase {
         final Request request = new Request("POST", "/_bulk");
         final StringBuilder builder = new StringBuilder();
         for (int i = 0; i < numDocs; ++i) {
-            builder.append("{ \"index\" : { \"_index\" : \"" + index + "\", \"_id\": \"" + id++ + "\" } }\n");
-            builder.append("{\"str_value\" : \"s" + i + "\"}\n");
+            builder.append("""
+                { "index" : { "_index" : "%s", "_id": "%s" } }
+                {"str_value" : "s%s"}
+                """.formatted(index, id++, i));
         }
         request.setJsonEntity(builder.toString());
         assertOK(client().performRequest(request));
@@ -60,9 +62,17 @@ public class RareTermsIT extends ESRestTestCase {
 
     private void assertNumRareTerms(int maxDocs, int rareTerms) throws IOException {
         final Request request = new Request("POST", index + "/_search");
-        request.setJsonEntity(
-            "{\"aggs\" : {\"rareTerms\" : {\"rare_terms\" : {\"field\" : \"str_value.keyword\", \"max_doc_count\" : " + maxDocs + "}}}}"
-        );
+        request.setJsonEntity("""
+            {
+              "aggs": {
+                "rareTerms": {
+                  "rare_terms": {
+                    "field": "str_value.keyword",
+                    "max_doc_count": %s
+                  }
+                }
+              }
+            }""".formatted(maxDocs));
         final Response response = client().performRequest(request);
         assertOK(response);
         final Object o = XContentMapValues.extractValue("aggregations.rareTerms.buckets", responseAsMap(response));

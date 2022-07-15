@@ -13,11 +13,12 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.test.rest.yaml.ObjectPath;
+import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
@@ -60,7 +61,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -317,10 +317,10 @@ public final class TestUtils {
 
     public static Map<String, Object> randomRuntimeMappings() {
         int count = between(1, 100);
-        Map<String, Object> runtimeFields = new HashMap<>(count);
+        Map<String, Object> runtimeFields = Maps.newMapWithExpectedSize(count);
         while (runtimeFields.size() < count) {
             int size = between(1, 10);
-            Map<String, Object> config = new HashMap<>(size);
+            Map<String, Object> config = Maps.newMapWithExpectedSize(size);
             while (config.size() < size) {
                 config.put(randomAlphaOfLength(5), randomAlphaOfLength(5));
             }
@@ -387,16 +387,11 @@ public final class TestUtils {
                             String matcherType = matcherAndExpectation[0];
                             String expectation = matcherAndExpectation[1];
                             switch (matcherType.toUpperCase(Locale.ROOT)) {
-                                case MATCHER_TYPE_CONTAINS:
-                                    matchers.add(containsString(expectation));
-                                    break;
-                                case MATCHER_TYPE_REGEX:
-                                    matchers.add(containsRegex(expectation));
-                                    break;
-                                default:
-                                    throw new IllegalArgumentException(
-                                        "unsupported matcher on line " + testFileName + ":" + lineNumber + ": " + matcherType
-                                    );
+                                case MATCHER_TYPE_CONTAINS -> matchers.add(containsString(expectation));
+                                case MATCHER_TYPE_REGEX -> matchers.add(containsRegex(expectation));
+                                default -> throw new IllegalArgumentException(
+                                    "unsupported matcher on line " + testFileName + ":" + lineNumber + ": " + matcherType
+                                );
                             }
                         }
                     }

@@ -83,7 +83,7 @@ public final class UserToken implements Writeable, ToXContentObject {
         authentication.writeTo(out);
         out.writeLong(expirationTime.getEpochSecond());
         out.writeInt(expirationTime.getNano());
-        out.writeMap(metadata);
+        out.writeGenericMap(metadata);
     }
 
     /**

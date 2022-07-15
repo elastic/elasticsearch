@@ -55,4 +55,4 @@ fails and returns an error. Defaults to `30s`.
 `indices`::
 (Required, string)
 A comma-separated list of indices to include in the snapshot.
-<<multi-index,Multi-index syntax>> is supported.
+<<multi-index,multi-target syntax>> is supported.

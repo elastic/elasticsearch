@@ -79,8 +79,8 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
             if (source.length() == 0) {
                 source = null;
             }
-            documentFields = readFields(in);
-            metaFields = readFields(in);
+            documentFields = in.readMapValues(DocumentField::new, DocumentField::getName);
+            metaFields = in.readMapValues(DocumentField::new, DocumentField::getName);
         } else {
             metaFields = Collections.emptyMap();
             documentFields = Collections.emptyMap();
@@ -383,21 +383,6 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
         return fromXContentEmbedded(parser);
     }
 
-    private Map<String, DocumentField> readFields(StreamInput in) throws IOException {
-        Map<String, DocumentField> fields;
-        int size = in.readVInt();
-        if (size == 0) {
-            fields = emptyMap();
-        } else {
-            fields = new HashMap<>(size);
-            for (int i = 0; i < size; i++) {
-                DocumentField field = new DocumentField(in);
-                fields.put(field.getName(), field);
-            }
-        }
-        return fields;
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(index);
@@ -411,19 +396,8 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
         out.writeBoolean(exists);
         if (exists) {
             out.writeBytesReference(source);
-            writeFields(out, documentFields);
-            writeFields(out, metaFields);
-        }
-    }
-
-    private void writeFields(StreamOutput out, Map<String, DocumentField> fields) throws IOException {
-        if (fields == null) {
-            out.writeVInt(0);
-        } else {
-            out.writeVInt(fields.size());
-            for (DocumentField field : fields.values()) {
-                field.writeTo(out);
-            }
+            out.writeMapValues(documentFields);
+            out.writeMapValues(metaFields);
         }
     }
 

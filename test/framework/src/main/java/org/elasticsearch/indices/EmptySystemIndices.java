@@ -8,7 +8,7 @@
 
 package org.elasticsearch.indices;
 
-import java.util.Map;
+import java.util.List;
 
 /**
  * A test class which contains a singleton instance of the {@link SystemIndices} class that has been created with no
@@ -19,6 +19,6 @@ public class EmptySystemIndices extends SystemIndices {
     public static final SystemIndices INSTANCE = new EmptySystemIndices();
 
     private EmptySystemIndices() {
-        super(Map.of());
+        super(List.of());
     }
 }

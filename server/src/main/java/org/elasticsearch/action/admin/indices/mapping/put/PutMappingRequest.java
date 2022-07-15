@@ -8,8 +8,6 @@
 
 package org.elasticsearch.action.admin.indices.mapping.put;
 
-import com.carrotsearch.hppc.ObjectHashSet;
-
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -35,23 +33,24 @@ import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  * Puts mapping definition into one or more indices. Best created with
- * {@link org.elasticsearch.client.Requests#putMappingRequest(String...)}.
+ * {@link org.elasticsearch.client.internal.Requests#putMappingRequest(String...)}.
  * <p>
  * If the mappings already exists, the new mappings will be merged with the new one. If there are elements
  * that can't be merged are detected, the request will be rejected.
  *
- * @see org.elasticsearch.client.Requests#putMappingRequest(String...)
- * @see org.elasticsearch.client.IndicesAdminClient#putMapping(PutMappingRequest)
+ * @see org.elasticsearch.client.internal.Requests#putMappingRequest(String...)
+ * @see org.elasticsearch.client.internal.IndicesAdminClient#putMapping(PutMappingRequest)
  * @see AcknowledgedResponse
  */
 public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> implements IndicesRequest.Replaceable {
 
-    private static ObjectHashSet<String> RESERVED_FIELDS = ObjectHashSet.from(
+    private static Set<String> RESERVED_FIELDS = Set.of(
         "_uid",
         "_id",
         "_type",

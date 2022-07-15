@@ -10,7 +10,7 @@ package org.elasticsearch.rest.action.document;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.update.UpdateResponse;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.VersionType;
@@ -52,7 +52,12 @@ public class RestUpdateActionTests extends RestActionTestCase {
         } else {
             params.put("version_type", randomFrom(VersionType.values()).name());
         }
-        String content = "{\n" + "    \"doc\" : {\n" + "        \"name\" : \"new_name\"\n" + "    }\n" + "}";
+        String content = """
+            {
+                "doc" : {
+                    "name" : "new_name"
+                }
+            }""";
         FakeRestRequest updateRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
             .withPath("test/_update/1")
             .withParams(params)

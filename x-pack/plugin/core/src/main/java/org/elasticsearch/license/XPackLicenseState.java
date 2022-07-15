@@ -106,14 +106,14 @@ public class XPackLicenseState {
             case BASIC:
                 switch (currentMode) {
                     case STANDARD:
-                        return Strings.EMPTY_ARRAY;
+                        return new String[] { "Security tokens will not be supported." };
                     case TRIAL:
                     case GOLD:
                     case PLATINUM:
                     case ENTERPRISE:
                         return new String[] {
                             "Authentication will be limited to the native and file realms.",
-                            "Security tokens and API keys will not be supported.",
+                            "Security tokens will not be supported.",
                             "IP filtering and auditing will be disabled.",
                             "Field and document level access control will be disabled.",
                             "Custom realms will be ignored.",
@@ -180,10 +180,11 @@ public class XPackLicenseState {
                     case ENTERPRISE:
                         return new String[] {
                             LoggerMessageFormat.format(
-                                "Multi-cluster support is disabled for clusters with [{}] license. If you are\n"
-                                    + "running multiple clusters, users won't be able to access the clusters with\n"
-                                    + "[{}] licenses from within a single X-Pack Kibana instance. You will have to deploy a\n"
-                                    + "separate and dedicated X-pack Kibana instance for each [{}] cluster you wish to monitor.",
+                                """
+                                    Multi-cluster support is disabled for clusters with [{}] license. If you are
+                                    running multiple clusters, users won't be able to access the clusters with
+                                    [{}] licenses from within a single X-Pack Kibana instance. You will have to deploy a
+                                    separate and dedicated X-pack Kibana instance for each [{}] cluster you wish to monitor.""",
                                 newMode,
                                 newMode,
                                 newMode

@@ -232,18 +232,13 @@ public abstract class Attachment extends BodyPartSource {
         }
 
         static String mimeType(XContentType type) {
-            switch (type) {
-                case JSON:
-                    return "application/json";
-                case YAML:
-                    return "application/yaml";
-                case SMILE:
-                    return "application/smile";
-                case CBOR:
-                    return "application/cbor";
-                default:
-                    throw new IllegalArgumentException("unsupported xcontent attachment type [" + type.name() + "]");
-            }
+            return switch (type) {
+                case JSON -> "application/json";
+                case YAML -> "application/yaml";
+                case SMILE -> "application/smile";
+                case CBOR -> "application/cbor";
+                default -> throw new IllegalArgumentException("unsupported xcontent attachment type [" + type.name() + "]");
+            };
         }
 
         static byte[] bytes(String name, ToXContent content, XContentType type) {

@@ -367,6 +367,22 @@ POST my-index-000001/_update_by_query?scroll_size=100
 --------------------------------------------------
 // TEST[setup:my_index]
 
+Update a document using a unique attribute:
+
+[source,console]
+--------------------------------------------------
+POST my-index-000001/_update_by_query
+{
+  "query": {
+    "term": {
+      "user.id": "kimchy"
+    }
+  },
+  "max_docs": 1
+}
+--------------------------------------------------
+// TEST[setup:my_index]
+
 [[docs-update-by-query-api-source]]
 ===== Update the document source
 

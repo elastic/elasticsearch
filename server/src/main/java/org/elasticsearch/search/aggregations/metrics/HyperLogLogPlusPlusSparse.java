@@ -82,7 +82,6 @@ final class HyperLogLogPlusPlusSparse extends AbstractHyperLogLogPlusPlus implem
     private static class LinearCounting extends AbstractLinearCounting implements Releasable {
 
         private final BigArrays bigArrays;
-        private final LinearCountingIterator iterator;
         // We are actually using HyperLogLog's runLens array but interpreting it as a hash set for linear counting.
         // Number of elements stored.
         private ObjectArray<IntArray> values;
@@ -105,7 +104,6 @@ final class HyperLogLogPlusPlusSparse extends AbstractHyperLogLogPlusPlus implem
             }
             this.values = values;
             this.sizes = sizes;
-            iterator = new LinearCountingIterator();
         }
 
         @Override
@@ -138,8 +136,7 @@ final class HyperLogLogPlusPlusSparse extends AbstractHyperLogLogPlusPlus implem
 
         @Override
         protected HashesIterator values(long bucketOrd) {
-            iterator.reset(values.get(bucketOrd), size(bucketOrd));
-            return iterator;
+            return new LinearCountingIterator(values.get(bucketOrd), size(bucketOrd));
         }
 
         private int set(long bucketOrd, int value) {
@@ -176,16 +173,14 @@ final class HyperLogLogPlusPlusSparse extends AbstractHyperLogLogPlusPlus implem
 
     private static class LinearCountingIterator implements AbstractLinearCounting.HashesIterator {
 
-        IntArray values;
-        int size, value;
+        private final IntArray values;
+        private final int size;
+        private int value;
         private long pos;
 
-        LinearCountingIterator() {}
-
-        void reset(IntArray values, int size) {
+        LinearCountingIterator(IntArray values, int size) {
             this.values = values;
             this.size = size;
-            this.pos = 0;
         }
 
         @Override

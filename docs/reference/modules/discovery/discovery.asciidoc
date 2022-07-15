@@ -1,4 +1,4 @@
-[[modules-discovery-hosts-providers]]
+[[discovery-hosts-providers]]
 === Discovery
 
 Discovery is the process by which the cluster formation module finds other
@@ -26,6 +26,15 @@ it has either discovered an elected master node or else it has discovered
 enough masterless master-eligible nodes to complete an election. If neither of
 these occur quickly enough then the node will retry after
 `discovery.find_peers_interval` which defaults to `1s`.
+
+Once a master is elected, it will normally remain as the elected master until
+it is deliberately stopped. It may also stop acting as the master if
+<<cluster-fault-detection,fault detection>> determines the cluster to be
+faulty. When a node stops being the elected master, it begins the discovery
+process again.
+
+Refer to <<discovery-troubleshooting,Troubleshooting discovery>> for 
+troubleshooting issues with discovery.
 
 [[built-in-hosts-providers]]
 ==== Seed hosts providers

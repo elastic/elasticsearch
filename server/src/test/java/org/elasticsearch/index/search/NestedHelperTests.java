@@ -8,94 +8,69 @@
 
 package org.elasticsearch.index.search;
 
-import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.join.ScoreMode;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
-import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.Collections;
 
-import static java.util.Collections.emptyMap;
+import static org.mockito.Mockito.mock;
 
-public class NestedHelperTests extends ESSingleNodeTestCase {
+public class NestedHelperTests extends MapperServiceTestCase {
 
-    IndexService indexService;
     MapperService mapperService;
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        XContentBuilder mapping = XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("_doc")
-            .startObject("properties")
-            .startObject("foo")
-            .field("type", "keyword")
-            .endObject()
-            .startObject("foo2")
-            .field("type", "long")
-            .endObject()
-            .startObject("nested1")
-            .field("type", "nested")
-            .startObject("properties")
-            .startObject("foo")
-            .field("type", "keyword")
-            .endObject()
-            .startObject("foo2")
-            .field("type", "long")
-            .endObject()
-            .endObject()
-            .endObject()
-            .startObject("nested2")
-            .field("type", "nested")
-            .field("include_in_parent", true)
-            .startObject("properties")
-            .startObject("foo")
-            .field("type", "keyword")
-            .endObject()
-            .startObject("foo2")
-            .field("type", "long")
-            .endObject()
-            .endObject()
-            .endObject()
-            .startObject("nested3")
-            .field("type", "nested")
-            .field("include_in_root", true)
-            .startObject("properties")
-            .startObject("foo")
-            .field("type", "keyword")
-            .endObject()
-            .startObject("foo2")
-            .field("type", "long")
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject();
-        indexService = createIndex("index", Settings.EMPTY, mapping);
-        mapperService = indexService.mapperService();
+        String mapping = """
+            { "_doc" : {
+              "properties" : {
+                "foo" : { "type" : "keyword" },
+                "foo2" : { "type" : "long" },
+                "nested1" : {
+                  "type" : "nested",
+                  "properties" : {
+                    "foo" : { "type" : "keyword" },
+                    "foo2" : { "type" : "long" }
+                  }
+                },
+                "nested2" : {
+                  "type" : "nested",
+                  "include_in_parent" : true,
+                  "properties": {
+                    "foo" : { "type" : "keyword" },
+                    "foo2" : { "type" : "long" }
+                  }
+                },
+                "nested3" : {
+                  "type" : "nested",
+                  "include_in_root" : true,
+                  "properties": {
+                    "foo" : { "type" : "keyword" },
+                    "foo2" : { "type" : "long" }
+                  }
+                }
+              }
+            } }
+            """;
+        mapperService = createMapperService(mapping);
     }
 
     private static NestedHelper buildNestedHelper(MapperService mapperService) {
-        return new NestedHelper(mapperService.mappingLookup().objectMappers()::get, field -> mapperService.fieldType(field) != null);
+        return new NestedHelper(mapperService.mappingLookup().nestedLookup(), field -> mapperService.fieldType(field) != null);
     }
 
     public void testMatchAll() {
@@ -175,7 +150,7 @@ public class NestedHelperTests extends ESSingleNodeTestCase {
     }
 
     public void testRangeQuery() {
-        SearchExecutionContext context = createSearchContext(indexService).getSearchExecutionContext();
+        SearchExecutionContext context = mock(SearchExecutionContext.class);
         Query rangeQuery = mapperService.fieldType("foo2").rangeQuery(2, 5, true, true, null, null, null, context);
         assertFalse(buildNestedHelper(mapperService).mightMatchNestedDocs(rangeQuery));
         assertTrue(buildNestedHelper(mapperService).mightMatchNonNestedDocs(rangeQuery, "nested1"));
@@ -302,14 +277,7 @@ public class NestedHelperTests extends ESSingleNodeTestCase {
     }
 
     public void testNested() throws IOException {
-        SearchExecutionContext context = indexService.newSearchExecutionContext(
-            0,
-            0,
-            new IndexSearcher(new MultiReader()),
-            () -> 0,
-            null,
-            emptyMap()
-        );
+        SearchExecutionContext context = createSearchExecutionContext(mapperService);
         NestedQueryBuilder queryBuilder = new NestedQueryBuilder("nested1", new MatchAllQueryBuilder(), ScoreMode.Avg);
         ESToParentBlockJoinQuery query = (ESToParentBlockJoinQuery) queryBuilder.toQuery(context);
 

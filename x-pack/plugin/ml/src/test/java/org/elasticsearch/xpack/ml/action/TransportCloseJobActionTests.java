@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.ml.action;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -363,11 +363,11 @@ public class TransportCloseJobActionTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     private void mockJobConfigProviderExpandIds(Set<String> expandedIds) {
         doAnswer(invocation -> {
-            ActionListener<Set<String>> listener = (ActionListener<Set<String>>) invocation.getArguments()[5];
+            ActionListener<Set<String>> listener = (ActionListener<Set<String>>) invocation.getArguments()[6];
             listener.onResponse(expandedIds);
 
             return null;
-        }).when(jobConfigProvider).expandJobsIds(any(), anyBoolean(), anyBoolean(), any(), anyBoolean(), any(ActionListener.class));
+        }).when(jobConfigProvider).expandJobsIds(any(), anyBoolean(), anyBoolean(), any(), anyBoolean(), any(), any(ActionListener.class));
     }
 
     @SuppressWarnings("unchecked")

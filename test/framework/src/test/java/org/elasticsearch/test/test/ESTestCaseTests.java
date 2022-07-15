@@ -10,6 +10,7 @@ package org.elasticsearch.test.test;
 
 import junit.framework.AssertionFailedError;
 
+import org.apache.lucene.util.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.test.ESTestCase;
@@ -17,6 +18,7 @@ import org.elasticsearch.test.RandomObjects;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
+import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -30,6 +32,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
@@ -157,6 +160,11 @@ public class ESTestCaseTests extends ESTestCase {
         assertThat(randomUnique(() -> randomAlphaOfLengthBetween(1, 20), 10), hasSize(greaterThan(0)));
     }
 
+    public void testRandomNonEmptySubsetOfThrowsOnEmptyCollection() {
+        final var ex = expectThrows(IllegalArgumentException.class, () -> randomNonEmptySubsetOf(Collections.emptySet()));
+        assertThat(ex.getMessage(), equalTo("Can't pick non-empty subset of an empty collection"));
+    }
+
     public void testRandomValueOtherThan() {
         // "normal" way of calling where the value is not null
         int bad = randomInt();
@@ -180,12 +188,12 @@ public class ESTestCaseTests extends ESTestCase {
     public void testBasePortGradle() {
         assumeTrue("requires running tests with Gradle", System.getProperty("tests.gradle") != null);
         // Gradle worker IDs are 1 based
-        assertNotEquals(10300, ESTestCase.getBasePort());
+        assertNotEquals(ESTestCase.MIN_PRIVATE_PORT, ESTestCase.getWorkerBasePort());
     }
 
     public void testBasePortIDE() {
         assumeTrue("requires running tests without Gradle", System.getProperty("tests.gradle") == null);
-        assertEquals(10300, ESTestCase.getBasePort());
+        assertEquals(ESTestCase.MIN_PRIVATE_PORT, ESTestCase.getWorkerBasePort());
     }
 
     public void testRandomDateFormatterPattern() {
@@ -202,5 +210,21 @@ public class ESTestCaseTests extends ESTestCase {
         String formatted = formatter.formatMillis(randomLongBetween(0, 2_000_000_000_000L));
         String formattedAgain = formatter.formatMillis(formatter.parseMillis(formatted));
         assertThat(formattedAgain, equalTo(formatted));
+    }
+
+    public void testSkipTestWaitingForLuceneFix() {
+        // skip test when Lucene fix has not been integrated yet
+        AssumptionViolatedException ave = expectThrows(
+            AssumptionViolatedException.class,
+            () -> skipTestWaitingForLuceneFix(Version.fromBits(99, 0, 0), "extra message")
+        );
+        assertThat(ave.getMessage(), containsString("Skipping test as it is waiting on a Lucene fix: extra message"));
+
+        // fail test when it still calls skipTestWaitingForLuceneFix() after Lucene fix has been integrated
+        AssertionError ae = expectThrows(
+            AssertionError.class,
+            () -> skipTestWaitingForLuceneFix(Version.fromBits(1, 0, 0), "extra message")
+        );
+        assertThat(ae.getMessage(), containsString("Remove call of skipTestWaitingForLuceneFix"));
     }
 }

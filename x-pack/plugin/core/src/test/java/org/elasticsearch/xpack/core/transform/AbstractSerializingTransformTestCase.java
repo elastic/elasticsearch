@@ -23,6 +23,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContent.Params;
+import org.elasticsearch.xpack.core.transform.transforms.NullRetentionPolicyConfig;
 import org.elasticsearch.xpack.core.transform.transforms.RetentionPolicyConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TimeRetentionPolicyConfig;
@@ -69,6 +70,13 @@ public abstract class AbstractSerializingTransformTestCase<T extends ToXContent 
                 TimeRetentionPolicyConfig::new
             )
         );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                RetentionPolicyConfig.class,
+                NullRetentionPolicyConfig.NAME.getPreferredName(),
+                in -> NullRetentionPolicyConfig.INSTANCE
+            )
+        );
 
         List<NamedXContentRegistry.Entry> namedXContents = searchModule.getNamedXContents();
         namedXContents.add(
@@ -104,7 +112,7 @@ public abstract class AbstractSerializingTransformTestCase<T extends ToXContent 
 
     protected <X extends Writeable, Y extends Writeable> Y writeAndReadBWCObject(
         X original,
-        NamedWriteableRegistry namedWriteableRegistry,
+        NamedWriteableRegistry registry,
         Writeable.Writer<X> writer,
         Writeable.Reader<Y> reader,
         Version version

@@ -3,7 +3,7 @@
   - do:
       index:
         index:        src
-        id:           1
+        id:           "1"
         body:         { "company": "cat" }
   - do:
       indices.refresh: {}
@@ -21,7 +21,7 @@
   - do:
       get:
         index:   dest
-        id:      1
+        id:      "1"
         routing: cat
   - match: { _routing: cat }
 
@@ -30,7 +30,7 @@
   - do:
       index:
         index:        src
-        id:           1
+        id:           "1"
         body:         { "company": "cat" }
         routing:      null
   - do:
@@ -49,5 +49,5 @@
   - do:
       get:
         index:   dest
-        id:      1
+        id:      "1"
   - is_false: _routing

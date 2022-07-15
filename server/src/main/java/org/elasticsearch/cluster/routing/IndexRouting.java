@@ -8,11 +8,17 @@
 
 package org.elasticsearch.cluster.routing;
 
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.StringHelper;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.RoutingMissingException;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xcontent.XContentParser;
@@ -22,9 +28,11 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collections;
-import java.util.Comparator;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.IntConsumer;
 
@@ -56,6 +64,8 @@ public abstract class IndexRouting {
         this.routingNumShards = metadata.getRoutingNumShards();
         this.routingFactor = metadata.getRoutingFactor();
     }
+
+    public abstract void process(IndexRequest indexRequest);
 
     /**
      * Called when indexing a document to generate the shard id that should contain
@@ -128,7 +138,22 @@ public abstract class IndexRouting {
         protected abstract int shardId(String id, @Nullable String routing);
 
         @Override
+        public void process(IndexRequest indexRequest) {
+            if ("".equals(indexRequest.id())) {
+                throw new IllegalArgumentException("if _id is specified it must not be empty");
+            }
+
+            // generate id if not already provided
+            if (indexRequest.id() == null) {
+                indexRequest.autoGenerateId();
+            }
+        }
+
+        @Override
         public int indexShard(String id, @Nullable String routing, XContentType sourceType, BytesReference source) {
+            if (id == null) {
+                throw new IllegalStateException("id is required and should have been set by process");
+            }
             checkRoutingRequired(id, routing);
             return shardId(id, routing);
         }
@@ -206,7 +231,8 @@ public abstract class IndexRouting {
         }
     }
 
-    private static class ExtractFromSource extends IndexRouting {
+    public static class ExtractFromSource extends IndexRouting {
+        private final List<String> routingPaths;
         private final XContentParserConfiguration parserConfig;
 
         ExtractFromSource(IndexMetadata metadata) {
@@ -214,76 +240,118 @@ public abstract class IndexRouting {
             if (metadata.isRoutingPartitionedIndex()) {
                 throw new IllegalArgumentException("routing_partition_size is incompatible with routing_path");
             }
-            this.parserConfig = XContentParserConfiguration.EMPTY.withFiltering(Set.copyOf(metadata.getRoutingPaths()), null);
+            this.routingPaths = metadata.getRoutingPaths();
+            this.parserConfig = XContentParserConfiguration.EMPTY.withFiltering(Set.copyOf(routingPaths), null, true);
         }
 
         @Override
-        public int indexShard(String id, @Nullable String routing, XContentType sourceType, BytesReference source) {
-            if (routing != null) {
-                throw new IllegalArgumentException(error("indexing with a specified routing"));
-            }
-            assert Transports.assertNotTransportThread("parsing the _source can get slow");
+        public void process(IndexRequest indexRequest) {}
 
+        @Override
+        public int indexShard(String id, @Nullable String routing, XContentType sourceType, BytesReference source) {
+            assert Transports.assertNotTransportThread("parsing the _source can get slow");
+            checkNoRouting(routing);
+            return hashToShardId(hashSource(sourceType, source));
+        }
+
+        public String createId(XContentType sourceType, BytesReference source, byte[] suffix) {
+            return createId(hashSource(sourceType, source), suffix);
+        }
+
+        public String createId(Map<String, Object> flat, byte[] suffix) {
+            return createId(hashSource(flat), suffix);
+        }
+
+        private static String createId(int routingHash, byte[] suffix) {
+            byte[] idBytes = new byte[4 + suffix.length];
+            ByteUtils.writeIntLE(routingHash, idBytes, 0);
+            System.arraycopy(suffix, 0, idBytes, 4, suffix.length);
+            return Base64.getUrlEncoder().withoutPadding().encodeToString(idBytes);
+        }
+
+        private int hashSource(XContentType sourceType, BytesReference source) {
+            List<NameAndHash> hashes = new ArrayList<>();
             try {
                 try (XContentParser parser = sourceType.xContent().createParser(parserConfig, source.streamInput())) {
                     parser.nextToken(); // Move to first token
                     if (parser.currentToken() == null) {
                         throw new IllegalArgumentException("Error extracting routing: source didn't contain any routing fields");
                     }
-                    int hash = extractObject(parser);
+                    parser.nextToken();
+                    extractObject(hashes, null, parser);
                     ensureExpectedToken(null, parser.nextToken(), parser);
-                    return hashToShardId(hash);
                 }
             } catch (IOException | ParsingException e) {
                 throw new IllegalArgumentException("Error extracting routing: " + e.getMessage(), e);
             }
+            return hashesToHash(hashes);
         }
 
-        private static int extractObject(XContentParser source) throws IOException {
-            ensureExpectedToken(Token.FIELD_NAME, source.nextToken(), source);
-            String firstFieldName = source.currentName();
-            source.nextToken();
-            int firstHash = extractItem(source);
-            if (source.currentToken() == Token.END_OBJECT) {
-                // Just one routing key in this object
-                // Use ^ like Map.Entry's hashcode
-                return Murmur3HashFunction.hash(firstFieldName) ^ firstHash;
-            }
-            List<NameAndHash> hashes = new ArrayList<>();
-            hashes.add(new NameAndHash(firstFieldName, firstHash));
-            do {
+        private static void extractObject(List<NameAndHash> hashes, @Nullable String path, XContentParser source) throws IOException {
+            while (source.currentToken() != Token.END_OBJECT) {
                 ensureExpectedToken(Token.FIELD_NAME, source.currentToken(), source);
                 String fieldName = source.currentName();
+                String subPath = path == null ? fieldName : path + "." + fieldName;
                 source.nextToken();
-                hashes.add(new NameAndHash(fieldName, extractItem(source)));
-            } while (source.currentToken() != Token.END_OBJECT);
-            Collections.sort(hashes, Comparator.comparing(nameAndHash -> nameAndHash.name));
-            /*
-             * This is the same as Arrays.hash(Map.Entry<fieldName, hash>) but we're
-             * writing it out so for extra paranoia. Changing this will change how
-             * documents are routed and we don't want a jdk update that modifies Arrays
-             * or Map.Entry to sneak up on us.
-             */
-            int hash = 0;
-            for (NameAndHash nameAndHash : hashes) {
-                int thisHash = Murmur3HashFunction.hash(nameAndHash.name) ^ nameAndHash.hash;
-                hash = 31 * hash + thisHash;
+                extractItem(hashes, subPath, source);
             }
-            return hash;
         }
 
-        private static int extractItem(XContentParser source) throws IOException {
-            if (source.currentToken() == Token.START_OBJECT) {
-                int hash = extractObject(source);
-                source.nextToken();
-                return hash;
+        private static void extractItem(List<NameAndHash> hashes, String path, XContentParser source) throws IOException {
+            switch (source.currentToken()) {
+                case START_OBJECT:
+                    source.nextToken();
+                    extractObject(hashes, path, source);
+                    source.nextToken();
+                    break;
+                case VALUE_STRING:
+                    hashes.add(new NameAndHash(new BytesRef(path), hash(new BytesRef(source.text()))));
+                    source.nextToken();
+                    break;
+                case VALUE_NULL:
+                    source.nextToken();
+                    break;
+                default:
+                    throw new ParsingException(
+                        source.getTokenLocation(),
+                        "Routing values must be strings but found [{}]",
+                        source.currentToken()
+                    );
             }
-            if (source.currentToken() == Token.VALUE_STRING) {
-                int hash = Murmur3HashFunction.hash(source.text());
-                source.nextToken();
-                return hash;
+        }
+
+        private int hashSource(Map<String, Object> flat) {
+            List<NameAndHash> hashes = new ArrayList<>();
+            for (Map.Entry<String, Object> e : flat.entrySet()) {
+                if (Regex.simpleMatch(routingPaths, e.getKey())) {
+                    hashes.add(new NameAndHash(new BytesRef(e.getKey()), hash(new BytesRef(e.getValue().toString()))));
+                }
             }
-            throw new ParsingException(source.getTokenLocation(), "Routing values must be strings but found [{}]", source.currentToken());
+            return hashesToHash(hashes);
+        }
+
+        private static int hash(BytesRef ref) {
+            return StringHelper.murmurhash3_x86_32(ref, 0);
+        }
+
+        private static int hashesToHash(List<NameAndHash> hashes) {
+            Collections.sort(hashes);
+            Iterator<NameAndHash> itr = hashes.iterator();
+            if (itr.hasNext() == false) {
+                throw new IllegalArgumentException("Error extracting routing: source didn't contain any routing fields");
+            }
+            NameAndHash prev = itr.next();
+            int hash = hash(prev.name) ^ prev.hash;
+            while (itr.hasNext()) {
+                NameAndHash next = itr.next();
+                if (prev.name.equals(next.name)) {
+                    throw new IllegalArgumentException("Duplicate routing dimension for [" + next.name + "]");
+                }
+                int thisHash = hash(next.name) ^ next.hash;
+                hash = 31 * hash + thisHash;
+                prev = next;
+            }
+            return hash;
         }
 
         @Override
@@ -293,12 +361,33 @@ public abstract class IndexRouting {
 
         @Override
         public int deleteShard(String id, @Nullable String routing) {
-            throw new IllegalArgumentException(error("delete"));
+            checkNoRouting(routing);
+            return idToHash(id);
         }
 
         @Override
         public int getShard(String id, @Nullable String routing) {
-            throw new IllegalArgumentException(error("get"));
+            checkNoRouting(routing);
+            return idToHash(id);
+        }
+
+        private void checkNoRouting(@Nullable String routing) {
+            if (routing != null) {
+                throw new IllegalArgumentException(error("specifying routing"));
+            }
+        }
+
+        private int idToHash(String id) {
+            byte[] idBytes;
+            try {
+                idBytes = Base64.getUrlDecoder().decode(id);
+            } catch (IllegalArgumentException e) {
+                throw new ResourceNotFoundException("invalid id [{}] for index [{}] in time series mode", id, indexName);
+            }
+            if (idBytes.length < 4) {
+                throw new ResourceNotFoundException("invalid id [{}] for index [{}] in time series mode", id, indexName);
+            }
+            return hashToShardId(ByteUtils.readIntLE(idBytes, 0));
         }
 
         @Override
@@ -316,13 +405,10 @@ public abstract class IndexRouting {
         }
     }
 
-    private static class NameAndHash {
-        private final String name;
-        private final int hash;
-
-        NameAndHash(String name, int hash) {
-            this.name = name;
-            this.hash = hash;
+    private record NameAndHash(BytesRef name, int hash) implements Comparable<NameAndHash> {
+        @Override
+        public int compareTo(NameAndHash o) {
+            return name.compareTo(o.name);
         }
     }
 }

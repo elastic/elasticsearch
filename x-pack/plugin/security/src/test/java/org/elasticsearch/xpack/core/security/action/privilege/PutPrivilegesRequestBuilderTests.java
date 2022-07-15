@@ -25,23 +25,43 @@ public class PutPrivilegesRequestBuilderTests extends ESTestCase {
 
     public void testBuildRequestWithMultipleElements() throws Exception {
         final PutPrivilegesRequestBuilder builder = new PutPrivilegesRequestBuilder(null);
-        builder.source(
-            new BytesArray(
-                "{ "
-                    + "\"foo\":{"
-                    + "  \"read\":{ \"application\":\"foo\", \"name\":\"read\", \"actions\":[ \"data:/read/*\", \"admin:/read/*\" ] },"
-                    + "  \"write\":{ \"application\":\"foo\", \"name\":\"write\", \"actions\":[ \"data:/write/*\", \"admin:*\" ] },"
-                    + "  \"all\":{ \"application\":\"foo\", \"name\":\"all\", \"actions\":[ \"*\" ] }"
-                    + " }, "
-                    + "\"bar\":{"
-                    + "  \"read\":{ \"application\":\"bar\", \"name\":\"read\", \"actions\":[ \"read/*\" ] },"
-                    + "  \"write\":{ \"application\":\"bar\", \"name\":\"write\", \"actions\":[ \"write/*\" ] },"
-                    + "  \"all\":{ \"application\":\"bar\", \"name\":\"all\", \"actions\":[ \"*\" ] }"
-                    + " } "
-                    + "}"
-            ),
-            XContentType.JSON
-        );
+        builder.source(new BytesArray("""
+            {
+              "foo": {
+                "read": {
+                  "application": "foo",
+                  "name": "read",
+                  "actions": [ "data:/read/*", "admin:/read/*" ]
+                },
+                "write": {
+                  "application": "foo",
+                  "name": "write",
+                  "actions": [ "data:/write/*", "admin:*" ]
+                },
+                "all": {
+                  "application": "foo",
+                  "name": "all",
+                  "actions": [ "*" ]
+                }
+              },
+              "bar": {
+                "read": {
+                  "application": "bar",
+                  "name": "read",
+                  "actions": [ "read/*" ]
+                },
+                "write": {
+                  "application": "bar",
+                  "name": "write",
+                  "actions": [ "write/*" ]
+                },
+                "all": {
+                  "application": "bar",
+                  "name": "all",
+                  "actions": [ "*" ]
+                }
+              }
+            }"""), XContentType.JSON);
         final List<ApplicationPrivilegeDescriptor> privileges = builder.request().getPrivileges();
         assertThat(privileges, iterableWithSize(6));
         assertThat(
@@ -63,53 +83,67 @@ public class PutPrivilegesRequestBuilderTests extends ESTestCase {
 
     public void testPrivilegeNameValidationOfMultipleElement() throws Exception {
         final PutPrivilegesRequestBuilder builder = new PutPrivilegesRequestBuilder(null);
-        final IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> builder.source(
-                new BytesArray(
-                    "{ \"foo\":{"
-                        + "\"write\":{ \"application\":\"foo\", \"name\":\"read\", \"actions\":[\"data:/read/*\",\"admin:/read/*\"] },"
-                        + "\"all\":{ \"application\":\"foo\", \"name\":\"all\", \"actions\":[ \"/*\" ] }"
-                        + "} }"
-                ),
-                XContentType.JSON
-            )
-        );
+        final IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> builder.source(new BytesArray("""
+            {
+              "foo": {
+                "write": {
+                  "application": "foo",
+                  "name": "read",
+                  "actions": [ "data:/read/*", "admin:/read/*" ]
+                },
+                "all": {
+                  "application": "foo",
+                  "name": "all",
+                  "actions": [ "/*" ]
+                }
+              }
+            }"""), XContentType.JSON));
         assertThat(exception.getMessage(), containsString("write"));
         assertThat(exception.getMessage(), containsString("read"));
     }
 
     public void testApplicationNameValidationOfMultipleElement() throws Exception {
         final PutPrivilegesRequestBuilder builder = new PutPrivilegesRequestBuilder(null);
-        final IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> builder.source(
-                new BytesArray(
-                    "{ \"bar\":{"
-                        + "\"read\":{ \"application\":\"foo\", \"name\":\"read\", \"actions\":[ \"data:/read/*\", \"admin:/read/*\" ] },"
-                        + "\"write\":{ \"application\":\"foo\", \"name\":\"write\", \"actions\":[ \"data:/write/*\", \"admin:/*\" ] },"
-                        + "\"all\":{ \"application\":\"foo\", \"name\":\"all\", \"actions\":[ \"/*\" ] }"
-                        + "} }"
-                ),
-                XContentType.JSON
-            )
-        );
+        final IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> builder.source(new BytesArray("""
+            {
+              "bar": {
+                "read": {
+                  "application": "foo",
+                  "name": "read",
+                  "actions": [ "data:/read/*", "admin:/read/*" ]
+                },
+                "write": {
+                  "application": "foo",
+                  "name": "write",
+                  "actions": [ "data:/write/*", "admin:/*" ]
+                },
+                "all": {
+                  "application": "foo",
+                  "name": "all",
+                  "actions": [ "/*" ]
+                }
+              }
+            }"""), XContentType.JSON));
         assertThat(exception.getMessage(), containsString("bar"));
         assertThat(exception.getMessage(), containsString("foo"));
     }
 
     public void testInferApplicationNameAndPrivilegeName() throws Exception {
         final PutPrivilegesRequestBuilder builder = new PutPrivilegesRequestBuilder(null);
-        builder.source(
-            new BytesArray(
-                "{ \"foo\":{"
-                    + "\"read\":{ \"actions\":[ \"data:/read/*\", \"admin:/read/*\" ] },"
-                    + "\"write\":{ \"actions\":[ \"data:/write/*\", \"admin:/*\" ] },"
-                    + "\"all\":{ \"actions\":[ \"*\" ] }"
-                    + "} }"
-            ),
-            XContentType.JSON
-        );
+        builder.source(new BytesArray("""
+            {
+              "foo": {
+                "read": {
+                  "actions": [ "data:/read/*", "admin:/read/*" ]
+                },
+                "write": {
+                  "actions": [ "data:/write/*", "admin:/*" ]
+                },
+                "all": {
+                  "actions": [ "*" ]
+                }
+              }
+            }"""), XContentType.JSON);
         assertThat(builder.request().getPrivileges(), iterableWithSize(3));
         for (ApplicationPrivilegeDescriptor p : builder.request().getPrivileges()) {
             assertThat(p.getApplication(), equalTo("foo"));

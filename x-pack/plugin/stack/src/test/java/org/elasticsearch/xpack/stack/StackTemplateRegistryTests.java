@@ -182,7 +182,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
                 // Ignore this, it's verified in another test
                 return AcknowledgedResponse.TRUE;
             } else if (action instanceof PutLifecycleAction) {
-                fail("if the policy already exists it should be re-put");
+                fail("if the policy already exists it should not be re-put");
             } else {
                 fail("client called with unexpected request: " + request.toString());
             }
@@ -208,7 +208,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
                 // Ignore this, it's verified in another test
                 return AcknowledgedResponse.TRUE;
             } else if (action instanceof PutLifecycleAction) {
-                fail("if the policy already exists it should be re-put");
+                fail("if the policy already exists it should not be re-put");
             } else {
                 fail("client called with unexpected request: " + request.toString());
             }

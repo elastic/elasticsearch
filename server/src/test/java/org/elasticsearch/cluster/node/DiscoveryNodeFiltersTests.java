@@ -282,7 +282,7 @@ public class DiscoveryNodeFiltersTests extends ESTestCase {
             "",
             "",
             "",
-            "",
+            "192.168.0.1",
             new TransportAddress(InetAddresses.forString("fdbd:dc00:111:222::333"), 9300),
             emptyMap(),
             emptySet(),
@@ -295,7 +295,17 @@ public class DiscoveryNodeFiltersTests extends ESTestCase {
         Settings settings = shuffleSettings(Settings.builder().put("xxx._name", "fdbd:dc00:111:222:0:0:0:333").build());
         DiscoveryNodeFilters filters = buildFromSettings(OR, "xxx.", settings);
 
-        DiscoveryNode node = new DiscoveryNode("", "", "", "fdbd:dc00:111:222::333", "", localAddress, emptyMap(), emptySet(), null);
+        DiscoveryNode node = new DiscoveryNode(
+            "",
+            "",
+            "",
+            "fdbd:dc00:111:222::333",
+            "192.168.0.1",
+            localAddress,
+            emptyMap(),
+            emptySet(),
+            null
+        );
         assertThat(filters.match(node), equalTo(false));
     }
 

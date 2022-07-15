@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.searchablesnapshots;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -51,8 +51,7 @@ public class SearchableSnapshotsSystemIndicesIntegTests extends BaseFrozenSearch
     }
 
     private void executeTest(final String indexName, final String featureName, final Client client) throws Exception {
-        final boolean isHidden = randomBoolean();
-        createAndPopulateIndex(indexName, Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, isHidden));
+        createAndPopulateIndex(indexName, Settings.builder());
 
         final String repositoryName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createRepository(repositoryName, "fs");

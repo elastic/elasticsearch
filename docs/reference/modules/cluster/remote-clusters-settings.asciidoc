@@ -76,6 +76,7 @@ mode are described separately.
   The number of gateway nodes to connect to for this remote cluster. The default
   is `3`.
 
+[[cluster-remote-node-attr]]
 `cluster.remote.node.attr`::
 
   A node attribute to filter out nodes that are eligible as a gateway node in

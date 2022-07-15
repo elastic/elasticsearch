@@ -13,7 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.client.support.AbstractClient;
+import org.elasticsearch.client.internal.support.AbstractClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -24,7 +24,7 @@ import java.util.concurrent.TimeUnit;
  * Client that always responds with {@code null} to every request. Override {@link #doExecute(ActionType, ActionRequest, ActionListener)}
  * for testing.
  *
- * See also {@link NoOpNodeClient} if you need to mock a {@link org.elasticsearch.client.node.NodeClient}.
+ * See also {@link NoOpNodeClient} if you need to mock a {@link org.elasticsearch.client.internal.node.NodeClient}.
  */
 public class NoOpClient extends AbstractClient {
     /**

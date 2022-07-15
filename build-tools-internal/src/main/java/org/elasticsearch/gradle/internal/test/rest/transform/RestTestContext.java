@@ -11,15 +11,4 @@ package org.elasticsearch.gradle.internal.test.rest.transform;
 /**
  * A place to stash information about a test that is being transformed.
  */
-public class RestTestContext {
-
-    private final String testName;
-
-    public RestTestContext(String testName) {
-        this.testName = testName;
-    }
-
-    public String getTestName() {
-        return testName;
-    }
-}
+public record RestTestContext(String testName) {}

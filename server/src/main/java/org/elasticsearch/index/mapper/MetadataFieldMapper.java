@@ -10,7 +10,6 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -22,9 +21,8 @@ import java.util.function.Function;
  */
 public abstract class MetadataFieldMapper extends FieldMapper {
 
-    public interface TypeParser extends Mapper.TypeParser {
+    public interface TypeParser {
 
-        @Override
         MetadataFieldMapper.Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext)
             throws MapperParsingException;
 
@@ -52,14 +50,15 @@ public abstract class MetadataFieldMapper extends FieldMapper {
         Function<FieldMapper, Explicit<Boolean>> initializer,
         boolean defaultValue
     ) {
-        Explicit<Boolean> defaultExplicit = new Explicit<>(defaultValue, false);
         return new Parameter<>(
             name,
             true,
-            () -> defaultExplicit,
-            (n, c, o) -> new Explicit<>(XContentMapValues.nodeBooleanValue(o), true),
-            initializer
-        ).setSerializer((b, n, v) -> b.field(n, v.value()), v -> Boolean.toString(v.value()));
+            defaultValue ? () -> Explicit.IMPLICIT_TRUE : () -> Explicit.IMPLICIT_FALSE,
+            (n, c, o) -> Explicit.explicitBoolean(XContentMapValues.nodeBooleanValue(o)),
+            initializer,
+            (b, n, v) -> b.field(n, v.value()),
+            v -> Boolean.toString(v.value())
+        );
     }
 
     /**
@@ -134,11 +133,7 @@ public abstract class MetadataFieldMapper extends FieldMapper {
     }
 
     protected MetadataFieldMapper(MappedFieldType mappedFieldType) {
-        super(mappedFieldType.name(), mappedFieldType, MultiFields.empty(), CopyTo.empty());
-    }
-
-    protected MetadataFieldMapper(MappedFieldType mappedFieldType, NamedAnalyzer indexAnalyzer) {
-        super(mappedFieldType.name(), mappedFieldType, indexAnalyzer, MultiFields.empty(), CopyTo.empty());
+        super(mappedFieldType.name(), mappedFieldType, MultiFields.empty(), CopyTo.empty(), false, null);
     }
 
     @Override

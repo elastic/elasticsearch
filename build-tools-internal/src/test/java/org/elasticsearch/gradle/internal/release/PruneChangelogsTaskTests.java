@@ -55,7 +55,7 @@ public class PruneChangelogsTaskTests extends GradleUnitTestCase {
     @Test
     public void findAndDeleteFiles_withNoFiles_doesNothing() {
         // when:
-        findAndDeleteFiles(gitWrapper, deleteHelper, null, Set.of(), false, Path.of("rootDir"));
+        findAndDeleteFiles(gitWrapper, deleteHelper, null, Set.of(), Path.of("rootDir"));
 
         // then:
         verify(gitWrapper, never()).listVersions(anyString());
@@ -68,7 +68,7 @@ public class PruneChangelogsTaskTests extends GradleUnitTestCase {
     @Test
     public void findAndDeleteFiles_withNoPriorVersions_deletesNothing() {
         // given:
-        when(gitWrapper.listVersions(anyString())).thenReturn(Stream.of());
+        when(gitWrapper.listVersions(anyString())).thenAnswer(args -> Stream.of());
 
         // when:
         findAndDeleteFiles(
@@ -76,12 +76,10 @@ public class PruneChangelogsTaskTests extends GradleUnitTestCase {
             deleteHelper,
             QualifiedVersion.of("7.16.0"),
             Set.of(new File("rootDir/docs/changelog/1234.yml")),
-            false,
             Path.of("rootDir")
         );
 
         // then:
-        verify(gitWrapper).listVersions("v7.*");
         verify(gitWrapper, never()).listFiles(anyString(), anyString());
     }
 
@@ -92,7 +90,8 @@ public class PruneChangelogsTaskTests extends GradleUnitTestCase {
     @Test
     public void findAndDeleteFiles_withFilesButNoHistoricalFiles_deletesNothing() {
         // given:
-        when(gitWrapper.listVersions(anyString())).thenReturn(Stream.of(QualifiedVersion.of("7.14.0"), QualifiedVersion.of("7.15.0")));
+        when(gitWrapper.listVersions("v6.*")).thenReturn(Stream.of(QualifiedVersion.of("6.14.0"), QualifiedVersion.of("6.15.0")));
+        when(gitWrapper.listVersions("v7.*")).thenReturn(Stream.of(QualifiedVersion.of("7.14.0"), QualifiedVersion.of("7.15.0")));
         when(gitWrapper.listFiles(anyString(), anyString())).thenAnswer(args -> Stream.of());
 
         // when:
@@ -101,45 +100,11 @@ public class PruneChangelogsTaskTests extends GradleUnitTestCase {
             deleteHelper,
             QualifiedVersion.of("7.16.0"),
             Set.of(new File("rootDir/docs/changelog/1234.yml")),
-            false,
             Path.of("rootDir")
         );
 
         // then:
-        verify(gitWrapper).listVersions("v7.*");
-        verify(gitWrapper, times(2)).listFiles(anyString(), anyString());
-    }
-
-    /**
-     * Check that if there are files to delete, but the user has supplied the `--dry-run` CLI option,
-     * then no files are deleted.
-     */
-    @Test
-    public void findAndDeleteFiles_withFilesToDelete_respectDryRun() {
-        // given:
-        when(gitWrapper.listVersions(anyString())).thenReturn(Stream.of(QualifiedVersion.of("7.14.0"), QualifiedVersion.of("7.15.0")));
-        when(gitWrapper.listFiles(anyString(), anyString())).thenAnswer(
-            args -> Stream.of("docs/changelog/1234.yml", "docs/changelog/5678.yml")
-        );
-
-        // when:
-        findAndDeleteFiles(
-            gitWrapper,
-            deleteHelper,
-            QualifiedVersion.of("7.16.0"),
-            Set.of(
-                new File("rootDir/docs/changelog/1234.yml"),
-                new File("rootDir/docs/changelog/5678.yml"),
-                new File("rootDir/docs/changelog/9123.yml")
-            ),
-            true,
-            Path.of("rootDir")
-        );
-
-        // then:
-        verify(gitWrapper).listVersions("v7.*");
-        verify(gitWrapper, times(2)).listFiles(anyString(), anyString());
-        verify(deleteHelper, never()).deleteFiles(any());
+        verify(gitWrapper, times(4)).listFiles(anyString(), anyString());
     }
 
     /**
@@ -148,7 +113,8 @@ public class PruneChangelogsTaskTests extends GradleUnitTestCase {
     @Test
     public void findAndDeleteFiles_withFilesToDelete_deletesFiles() {
         // given:
-        when(gitWrapper.listVersions(anyString())).thenReturn(Stream.of(QualifiedVersion.of("7.14.0"), QualifiedVersion.of("7.15.0")));
+        when(gitWrapper.listVersions("v6.*")).thenReturn(Stream.of(QualifiedVersion.of("6.14.0"), QualifiedVersion.of("6.15.0")));
+        when(gitWrapper.listVersions("v7.*")).thenReturn(Stream.of(QualifiedVersion.of("7.14.0"), QualifiedVersion.of("7.15.0")));
         when(gitWrapper.listFiles(anyString(), anyString())).thenAnswer(
             args -> Stream.of("docs/changelog/1234.yml", "docs/changelog/5678.yml")
         );
@@ -163,13 +129,11 @@ public class PruneChangelogsTaskTests extends GradleUnitTestCase {
                 new File("rootDir/docs/changelog/5678.yml"),
                 new File("rootDir/docs/changelog/9123.yml")
             ),
-            false,
             Path.of("rootDir")
         );
 
         // then:
-        verify(gitWrapper).listVersions("v7.*");
-        verify(gitWrapper, times(2)).listFiles(anyString(), anyString());
+        verify(gitWrapper, times(4)).listFiles(anyString(), anyString());
         verify(deleteHelper).deleteFiles(Set.of(new File("rootDir/docs/changelog/1234.yml"), new File("rootDir/docs/changelog/5678.yml")));
     }
 
@@ -179,7 +143,8 @@ public class PruneChangelogsTaskTests extends GradleUnitTestCase {
     @Test
     public void findAndDeleteFiles_withFilesToDeleteButDeleteFails_throwsException() {
         // given:
-        when(gitWrapper.listVersions(anyString())).thenReturn(Stream.of(QualifiedVersion.of("7.14.0"), QualifiedVersion.of("7.15.0")));
+        when(gitWrapper.listVersions("v6.*")).thenReturn(Stream.of(QualifiedVersion.of("6.14.0"), QualifiedVersion.of("6.15.0")));
+        when(gitWrapper.listVersions("v7.*")).thenReturn(Stream.of(QualifiedVersion.of("7.14.0"), QualifiedVersion.of("7.15.0")));
         when(gitWrapper.listFiles(anyString(), anyString())).thenAnswer(
             args -> Stream.of("docs/changelog/1234.yml", "docs/changelog/5678.yml")
         );
@@ -198,7 +163,6 @@ public class PruneChangelogsTaskTests extends GradleUnitTestCase {
                     new File("rootDir/docs/changelog/5678.yml"),
                     new File("rootDir/docs/changelog/9123.yml")
                 ),
-                false,
                 Path.of("rootDir")
             )
         );
@@ -213,27 +177,9 @@ public class PruneChangelogsTaskTests extends GradleUnitTestCase {
      * the previous major series are returned.
      */
     @Test
-    public void findPreviousVersion_withStartOfMajorSeries_inspectsPriorMajorSeries() {
-        // given:
-        when(gitWrapper.listVersions("v7.*")).thenReturn(
-            Stream.of(QualifiedVersion.of("v7.0.0"), QualifiedVersion.of("v7.0.1"), QualifiedVersion.of("v7.1.0"))
-        );
-
-        // when:
-        final QualifiedVersion version = QualifiedVersion.of("8.0.0-SNAPSHOT");
-        final List<QualifiedVersion> versions = findPreviousVersion(gitWrapper, version).collect(Collectors.toList());
-
-        // then:
-        assertThat(versions, contains(QualifiedVersion.of("v7.0.0"), QualifiedVersion.of("v7.0.1"), QualifiedVersion.of("v7.1.0")));
-    }
-
-    /**
-     * Check that when list versions and the current version is at the start of a major series, then the versions for
-     * the previous major series are returned.
-     */
-    @Test
     public void findPreviousVersion_afterStartOfMajorSeries_inspectsCurrentMajorSeries() {
         // given:
+        when(gitWrapper.listVersions("v6.*")).thenReturn(Stream.of());
         when(gitWrapper.listVersions("v7.*")).thenReturn(
             Stream.of(
                 QualifiedVersion.of("v7.0.0"),

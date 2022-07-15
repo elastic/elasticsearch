@@ -46,12 +46,12 @@ import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
 
 /**
- * A request to create an index. Best created with {@link org.elasticsearch.client.Requests#createIndexRequest(String)}.
+ * A request to create an index. Best created with {@link org.elasticsearch.client.internal.Requests#createIndexRequest(String)}.
  * <p>
  * The index created can optionally be created with {@link #settings(org.elasticsearch.common.settings.Settings)}.
  *
- * @see org.elasticsearch.client.IndicesAdminClient#create(CreateIndexRequest)
- * @see org.elasticsearch.client.Requests#createIndexRequest(String)
+ * @see org.elasticsearch.client.internal.IndicesAdminClient#create(CreateIndexRequest)
+ * @see org.elasticsearch.client.internal.Requests#createIndexRequest(String)
  * @see CreateIndexResponse
  */
 public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> implements IndicesRequest {
@@ -465,10 +465,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         } else {
             out.writeString(mappings);
         }
-        out.writeVInt(aliases.size());
-        for (Alias alias : aliases) {
-            alias.writeTo(out);
-        }
+        out.writeCollection(aliases);
         waitForActiveShards.writeTo(out);
         if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
             out.writeString(origin);

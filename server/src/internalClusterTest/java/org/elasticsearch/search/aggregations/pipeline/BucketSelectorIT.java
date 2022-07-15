@@ -198,10 +198,10 @@ public class BucketSelectorIT extends ESIntegTestCase {
             Histogram.Bucket bucket = buckets.get(i);
             Sum field2Sum = bucket.getAggregations().get("field2Sum");
             assertThat(field2Sum, notNullValue());
-            double field2SumValue = field2Sum.getValue();
+            double field2SumValue = field2Sum.value();
             Sum field3Sum = bucket.getAggregations().get("field3Sum");
             assertThat(field3Sum, notNullValue());
-            double field3SumValue = field3Sum.getValue();
+            double field3SumValue = field3Sum.value();
             assertThat(field2SumValue + field3SumValue, greaterThan(100.0));
         }
     }
@@ -235,10 +235,10 @@ public class BucketSelectorIT extends ESIntegTestCase {
             Histogram.Bucket bucket = buckets.get(i);
             Sum field2Sum = bucket.getAggregations().get("field2Sum");
             assertThat(field2Sum, notNullValue());
-            double field2SumValue = field2Sum.getValue();
+            double field2SumValue = field2Sum.value();
             Sum field3Sum = bucket.getAggregations().get("field3Sum");
             assertThat(field3Sum, notNullValue());
-            double field3SumValue = field3Sum.getValue();
+            double field3SumValue = field3Sum.value();
             assertThat(field2SumValue + field3SumValue, lessThan(10000.0));
         }
     }
@@ -299,10 +299,10 @@ public class BucketSelectorIT extends ESIntegTestCase {
             Histogram.Bucket bucket = buckets.get(i);
             Sum field2Sum = bucket.getAggregations().get("field2Sum");
             assertThat(field2Sum, notNullValue());
-            double field2SumValue = field2Sum.getValue();
+            double field2SumValue = field2Sum.value();
             Sum field3Sum = bucket.getAggregations().get("field3Sum");
             assertThat(field3Sum, notNullValue());
-            double field3SumValue = field3Sum.getValue();
+            double field3SumValue = field3Sum.value();
             assertThat(field3SumValue - field2SumValue, greaterThan(0.0));
         }
     }
@@ -335,7 +335,7 @@ public class BucketSelectorIT extends ESIntegTestCase {
             Histogram.Bucket bucket = buckets.get(i);
             Sum field2Sum = bucket.getAggregations().get("field2Sum");
             assertThat(field2Sum, notNullValue());
-            double field2SumValue = field2Sum.getValue();
+            double field2SumValue = field2Sum.value();
             assertThat(field2SumValue, greaterThan(100.0));
         }
     }
@@ -373,10 +373,10 @@ public class BucketSelectorIT extends ESIntegTestCase {
             Histogram.Bucket bucket = buckets.get(i);
             Sum field2Sum = bucket.getAggregations().get("field2Sum");
             assertThat(field2Sum, notNullValue());
-            double field2SumValue = field2Sum.getValue();
+            double field2SumValue = field2Sum.value();
             Sum field3Sum = bucket.getAggregations().get("field3Sum");
             assertThat(field3Sum, notNullValue());
-            double field3SumValue = field3Sum.getValue();
+            double field3SumValue = field3Sum.value();
             assertThat(field2SumValue + field3SumValue, greaterThan(100.0));
         }
     }
@@ -410,10 +410,10 @@ public class BucketSelectorIT extends ESIntegTestCase {
             Histogram.Bucket bucket = buckets.get(i);
             Sum field2Sum = bucket.getAggregations().get("field2Sum");
             assertThat(field2Sum, notNullValue());
-            double field2SumValue = field2Sum.getValue();
+            double field2SumValue = field2Sum.value();
             Sum field3Sum = bucket.getAggregations().get("field3Sum");
             assertThat(field3Sum, notNullValue());
-            double field3SumValue = field3Sum.getValue();
+            double field3SumValue = field3Sum.value();
             assertThat(field2SumValue + field3SumValue, greaterThan(100.0));
         }
     }
@@ -442,10 +442,10 @@ public class BucketSelectorIT extends ESIntegTestCase {
             Histogram.Bucket bucket = buckets.get(i);
             Sum field2Sum = bucket.getAggregations().get("field2Sum");
             assertThat(field2Sum, notNullValue());
-            double field2SumValue = field2Sum.getValue();
+            double field2SumValue = field2Sum.value();
             Sum field3Sum = bucket.getAggregations().get("field3Sum");
             assertThat(field3Sum, notNullValue());
-            double field3SumValue = field3Sum.getValue();
+            double field3SumValue = field3Sum.value();
             assertThat(field2SumValue + field3SumValue, greaterThan(100.0));
         }
     }
@@ -457,15 +457,13 @@ public class BucketSelectorIT extends ESIntegTestCase {
                 .preparePutStoredScript()
                 .setId("my_script")
                 // Source is not interpreted but my_script is defined in CustomScriptPlugin
-                .setContent(
-                    new BytesArray(
-                        "{ \"script\": { \"lang\": \""
-                            + CustomScriptPlugin.NAME
-                            + "\", "
-                            + "\"source\": \"Double.isNaN(_value0) ? false : (_value0 + _value1 > 100)\" } }"
-                    ),
-                    XContentType.JSON
-                )
+                .setContent(new BytesArray("""
+                    {
+                      "script": {
+                        "lang": "%s",
+                        "source": "Double.isNaN(_value0) ? false : (_value0 + _value1 > 100)"
+                      }
+                    }""".formatted(CustomScriptPlugin.NAME)), XContentType.JSON)
         );
 
         Script script = new Script(ScriptType.STORED, null, "my_script", Collections.emptyMap());
@@ -491,10 +489,10 @@ public class BucketSelectorIT extends ESIntegTestCase {
             Histogram.Bucket bucket = buckets.get(i);
             Sum field2Sum = bucket.getAggregations().get("field2Sum");
             assertThat(field2Sum, notNullValue());
-            double field2SumValue = field2Sum.getValue();
+            double field2SumValue = field2Sum.value();
             Sum field3Sum = bucket.getAggregations().get("field3Sum");
             assertThat(field3Sum, notNullValue());
-            double field3SumValue = field3Sum.getValue();
+            double field3SumValue = field3Sum.value();
             assertThat(field2SumValue + field3SumValue, greaterThan(100.0));
         }
     }
@@ -554,10 +552,10 @@ public class BucketSelectorIT extends ESIntegTestCase {
             Histogram.Bucket bucket = buckets.get(i);
             Sum field2Sum = bucket.getAggregations().get("field2Sum");
             assertThat(field2Sum, notNullValue());
-            double field2SumValue = field2Sum.getValue();
+            double field2SumValue = field2Sum.value();
             Sum field3Sum = bucket.getAggregations().get("field3Sum");
             assertThat(field3Sum, notNullValue());
-            double field3SumValue = field3Sum.getValue();
+            double field3SumValue = field3Sum.value();
             assertThat(field2SumValue + field3SumValue, greaterThan(100.0));
         }
     }

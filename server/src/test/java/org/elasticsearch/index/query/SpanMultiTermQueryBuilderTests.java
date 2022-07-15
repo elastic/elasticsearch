@@ -12,7 +12,6 @@ import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.spans.FieldMaskingSpanQuery;
 import org.apache.lucene.queries.spans.SpanMultiTermQueryWrapper;
@@ -27,6 +26,8 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopTermsRewrite;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -90,8 +91,7 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
             return;
         }
         assertThat(query, either(instanceOf(SpanMultiTermQueryWrapper.class)).or(instanceOf(FieldMaskingSpanQuery.class)));
-        if (query instanceof SpanMultiTermQueryWrapper) {
-            SpanMultiTermQueryWrapper<?> wrapper = (SpanMultiTermQueryWrapper<?>) query;
+        if (query instanceof SpanMultiTermQueryWrapper<?> wrapper) {
             Query innerQuery = queryBuilder.innerQuery().toQuery(context);
             if (queryBuilder.innerQuery().boost() != AbstractQueryBuilder.DEFAULT_BOOST) {
                 assertThat(innerQuery, instanceOf(BoostQuery.class));
@@ -105,8 +105,7 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
             } else {
                 assertThat(wrapper.getRewriteMethod(), instanceOf(SpanBooleanQueryRewriteWithMaxClause.class));
             }
-        } else if (query instanceof FieldMaskingSpanQuery) {
-            FieldMaskingSpanQuery mask = (FieldMaskingSpanQuery) query;
+        } else if (query instanceof FieldMaskingSpanQuery mask) {
             assertThat(mask.getMaskedQuery(), instanceOf(TermQuery.class));
         }
     }
@@ -165,6 +164,11 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
         public String fieldName() {
             return "foo";
         }
+
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.V_EMPTY;
+        }
     }
 
     /**
@@ -220,19 +224,19 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
     }
 
     public void testFromJson() throws IOException {
-        String json = "{\n"
-            + "  \"span_multi\" : {\n"
-            + "    \"match\" : {\n"
-            + "      \"prefix\" : {\n"
-            + "        \"user\" : {\n"
-            + "          \"value\" : \"ki\",\n"
-            + "          \"boost\" : 1.08\n"
-            + "        }\n"
-            + "      }\n"
-            + "    },\n"
-            + "    \"boost\" : 1.0\n"
-            + "  }\n"
-            + "}";
+        String json = """
+            {
+              "span_multi" : {
+                "match" : {
+                  "prefix" : {
+                    "user" : {
+                      "value" : "ki",
+                      "boost" : 1.08
+                    }
+                  }
+                }
+              }
+            }""";
 
         SpanMultiTermQueryBuilder parsed = (SpanMultiTermQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);

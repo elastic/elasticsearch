@@ -31,8 +31,8 @@ public class FieldExtractorRegistry {
     }
 
     private FieldExtraction createFieldExtractionFor(Expression expression) {
-        if (expression instanceof FieldAttribute) {
-            FieldAttribute fa = ((FieldAttribute) expression).exactAttribute();
+        if (expression instanceof FieldAttribute fieldAttribute) {
+            FieldAttribute fa = fieldAttribute.exactAttribute();
             if (fa.isNested()) {
                 throw new UnsupportedOperationException("Nested not yet supported");
             }

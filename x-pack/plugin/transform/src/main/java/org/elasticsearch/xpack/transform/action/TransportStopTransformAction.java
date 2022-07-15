@@ -19,7 +19,7 @@ import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -224,7 +224,7 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
     }
 
     @Override
-    protected void taskOperation(Request request, TransformTask transformTask, ActionListener<Response> listener) {
+    protected void taskOperation(Task actionTask, Request request, TransformTask transformTask, ActionListener<Response> listener) {
 
         Set<String> ids = request.getExpandedIds();
         if (ids == null) {
@@ -234,7 +234,7 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
 
         if (ids.contains(transformTask.getTransformId())) {
             // move the call to the generic thread pool, so we do not block the network thread
-            threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
+            threadPool.generic().execute(() -> {
                 transformTask.setShouldStopAtCheckpoint(request.isWaitForCheckpoint(), ActionListener.wrap(r -> {
                     try {
                         transformTask.stop(request.isForce(), request.isWaitForCheckpoint());

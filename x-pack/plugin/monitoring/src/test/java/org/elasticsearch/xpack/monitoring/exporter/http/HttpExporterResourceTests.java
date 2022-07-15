@@ -66,7 +66,7 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
     private final boolean validLicense = randomBoolean();
 
     /**
-     * kibana, logstash, and beats
+     * kibana, logstash, beats and enterprise search
      */
     private final int EXPECTED_TEMPLATES = TEMPLATE_NAMES.length;
     private final int EXPECTED_WATCHES = ClusterAlertsUtil.WATCH_IDS.length;
@@ -397,9 +397,9 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
 
         assertWarnings(
             "[xpack.monitoring.migration.decommission_alerts] setting was deprecated in Elasticsearch and will be "
-                + "removed in a future release! See the breaking changes documentation for the next major version.",
+                + "removed in a future release.",
             "[xpack.monitoring.exporters._http.cluster_alerts.management.enabled] setting was deprecated in Elasticsearch and "
-                + "will be removed in a future release! See the breaking changes documentation for the next major version."
+                + "will be removed in a future release."
         );
     }
 
@@ -445,23 +445,23 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
      * If the node is not the elected master node, then it should never check Watcher or send Watches (Cluster Alerts).
      */
     public void testSuccessfulChecksIfNotElectedMasterNode() {
-        final ClusterState state = mockClusterState(false);
-        final ClusterService clusterService = mockClusterService(state);
+        final ClusterState mockState = mockClusterState(false);
+        final ClusterService mockClusterService = mockClusterService(mockState);
 
-        final MultiHttpResource resources = HttpExporter.createResources(
-            new Exporter.Config("_http", "http", exporterSettings, clusterService, licenseState)
+        final MultiHttpResource allResources = HttpExporter.createResources(
+            new Exporter.Config("_http", "http", exporterSettings, mockClusterService, licenseState)
         ).allResources;
 
         whenValidVersionResponse();
         whenGetTemplates(EXPECTED_TEMPLATES);
 
-        assertTrue(resources.isDirty());
+        assertTrue(allResources.isDirty());
 
         // it should be able to proceed! (note: we are not using the instance "resources" here)
-        resources.checkAndPublish(client, wrapMockListener(publishListener));
+        allResources.checkAndPublish(client, wrapMockListener(publishListener));
 
         verifyPublishListener(ResourcePublishResult.ready());
-        assertFalse(resources.isDirty());
+        assertFalse(allResources.isDirty());
 
         verifyVersionCheck();
         verifyGetTemplates(EXPECTED_TEMPLATES);
@@ -469,7 +469,7 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
 
         assertWarnings(
             "[xpack.monitoring.exporters._http.cluster_alerts.management.enabled] setting was deprecated in Elasticsearch "
-                + "and will be removed in a future release! See the breaking changes documentation for the next major version."
+                + "and will be removed in a future release."
         );
     }
 
@@ -628,13 +628,13 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
         whenPerformRequestAsyncWith(client, new RequestMatcher(is("GET"), startsWith("/_template/")), gets);
     }
 
-    private void whenWatcherCanBeUsed(final boolean validLicense) {
+    private void whenWatcherCanBeUsed(final boolean validLicenseToReturn) {
         final Metadata metadata = mock(Metadata.class);
 
         when(state.metadata()).thenReturn(metadata);
         when(metadata.clusterUUID()).thenReturn("the_clusters_uuid");
 
-        when(licenseState.isAllowed(Monitoring.MONITORING_CLUSTER_ALERTS_FEATURE)).thenReturn(validLicense);
+        when(licenseState.isAllowed(Monitoring.MONITORING_CLUSTER_ALERTS_FEATURE)).thenReturn(validLicenseToReturn);
 
         final HttpEntity entity = new StringEntity(
             "{\"features\":{\"watcher\":{\"enabled\":true,\"available\":true}}}",
@@ -649,8 +649,10 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
         final Response response;
         if (randomBoolean()) {
             final HttpEntity entity = randomFrom(
-                new StringEntity("{\"features\":{\"watcher\":{\"enabled\":false,\"available\":true}}}", ContentType.APPLICATION_JSON),
-                new StringEntity("{\"features\":{\"watcher\":{\"enabled\":true,\"available\":false}}}", ContentType.APPLICATION_JSON),
+                new StringEntity("""
+                    {"features":{"watcher":{"enabled":false,"available":true}}}""", ContentType.APPLICATION_JSON),
+                new StringEntity("""
+                    {"features":{"watcher":{"enabled":true,"available":false}}}""", ContentType.APPLICATION_JSON),
                 new StringEntity("{}", ContentType.APPLICATION_JSON)
             );
 
@@ -725,22 +727,22 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
         );
     }
 
-    private ClusterService mockClusterService(final ClusterState state) {
-        final ClusterService clusterService = mock(ClusterService.class);
+    private ClusterService mockClusterService(final ClusterState clusterState) {
+        final ClusterService mockClusterService = mock(ClusterService.class);
 
-        when(clusterService.state()).thenReturn(state);
+        when(mockClusterService.state()).thenReturn(clusterState);
 
-        return clusterService;
+        return mockClusterService;
     }
 
     private ClusterState mockClusterState(final boolean electedMaster) {
-        final ClusterState state = mock(ClusterState.class);
+        final ClusterState mockState = mock(ClusterState.class);
         final DiscoveryNodes nodes = mock(DiscoveryNodes.class);
 
-        when(state.nodes()).thenReturn(nodes);
+        when(mockState.nodes()).thenReturn(nodes);
         when(nodes.isLocalNodeElectedMaster()).thenReturn(electedMaster);
 
-        return state;
+        return mockState;
     }
 
     private static class RequestMatcher extends TypeSafeMatcher<Request> {

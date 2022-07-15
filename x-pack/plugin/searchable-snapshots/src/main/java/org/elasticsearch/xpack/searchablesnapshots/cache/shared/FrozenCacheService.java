@@ -372,13 +372,13 @@ public class FrozenCacheService implements Releasable {
     }
 
     public CacheFileRegion get(CacheKey cacheKey, long fileLength, int region) {
-        final long regionSize = getRegionSize(fileLength, region);
+        final long effectiveRegionSize = getRegionSize(fileLength, region);
         try (Releasable ignore = keyedLock.acquire(cacheKey)) {
             final RegionKey regionKey = new RegionKey(cacheKey, region);
             final long now = currentTimeSupplier.getAsLong();
             final Entry<CacheFileRegion> entry = keyMapping.computeIfAbsent(
                 regionKey,
-                key -> new Entry<>(new CacheFileRegion(regionKey, regionSize), now)
+                key -> new Entry<>(new CacheFileRegion(regionKey, effectiveRegionSize), now)
             );
             if (entry.chunk.sharedBytesPos == -1) {
                 // new item
@@ -732,7 +732,7 @@ public class FrozenCacheService implements Releasable {
             }
         }
 
-        private void throwAlreadyEvicted() {
+        private static void throwAlreadyEvicted() {
             throw new AlreadyClosedException("File chunk is evicted");
         }
 
@@ -824,7 +824,7 @@ public class FrozenCacheService implements Releasable {
             }, listener::onFailure);
         }
 
-        private void releaseAndFail(ActionListener<Integer> listener, Releasable decrementRef, Exception e) {
+        private static void releaseAndFail(ActionListener<Integer> listener, Releasable decrementRef, Exception e) {
             try {
                 Releasables.close(decrementRef);
             } catch (Exception ex) {
@@ -885,15 +885,15 @@ public class FrozenCacheService implements Releasable {
                 final StepListener<Integer> lis = fileRegion.populateAndRead(
                     subRangeToWrite,
                     subRangeToRead,
-                    (channel, channelPos, relativePos, length) -> {
+                    (channel, channelPos, relativePos, len) -> {
                         assert regionOwners[fileRegion.sharedBytesPos].get() == fileRegion;
-                        assert channelPos >= fileRegion.physicalStartOffset() && channelPos + length <= fileRegion.physicalEndOffset();
-                        return reader.onRangeAvailable(channel, channelPos, relativePos - readOffset, length);
+                        assert channelPos >= fileRegion.physicalStartOffset() && channelPos + len <= fileRegion.physicalEndOffset();
+                        return reader.onRangeAvailable(channel, channelPos, relativePos - readOffset, len);
                     },
-                    (channel, channelPos, relativePos, length, progressUpdater) -> {
+                    (channel, channelPos, relativePos, len, progressUpdater) -> {
                         assert regionOwners[fileRegion.sharedBytesPos].get() == fileRegion;
-                        assert channelPos >= fileRegion.physicalStartOffset() && channelPos + length <= fileRegion.physicalEndOffset();
-                        writer.fillCacheRange(channel, channelPos, relativePos - writeOffset, length, progressUpdater);
+                        assert channelPos >= fileRegion.physicalStartOffset() && channelPos + len <= fileRegion.physicalEndOffset();
+                        writer.fillCacheRange(channel, channelPos, relativePos - writeOffset, len, progressUpdater);
                     },
                     executor
                 );

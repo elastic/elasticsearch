@@ -8,8 +8,6 @@
 
 package org.elasticsearch.search.slice;
 
-import com.carrotsearch.hppc.BitMixer;
-
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
@@ -21,6 +19,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.util.hppc.BitMixer;
 
 import java.io.IOException;
 

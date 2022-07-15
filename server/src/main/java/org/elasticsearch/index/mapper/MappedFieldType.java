@@ -21,13 +21,13 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.MultiTermQuery;
-import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.geo.ShapeRelation;
@@ -51,6 +51,8 @@ import java.util.Objects;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
+
 /**
  * This defines the core properties and functions to operate on a field.
  */
@@ -71,7 +73,7 @@ public abstract class MappedFieldType {
         TextSearchInfo textSearchInfo,
         Map<String, String> meta
     ) {
-        this.name = Objects.requireNonNull(name);
+        this.name = Mapper.internFieldName(name);
         this.isIndexed = isIndexed;
         this.isStored = isStored;
         this.docValues = hasDocValues;
@@ -141,9 +143,16 @@ public abstract class MappedFieldType {
     }
 
     /**
+     * Returns true if the field is indexed.
+     */
+    public final boolean isIndexed() {
+        return isIndexed;
+    }
+
+    /**
      * Returns true if the field is stored separately.
      */
-    public boolean isStored() {
+    public final boolean isStored() {
         return isStored;
     }
 
@@ -308,10 +317,8 @@ public abstract class MappedFieldType {
     }
 
     public Query existsQuery(SearchExecutionContext context) {
-        if (hasDocValues()) {
-            return new DocValuesFieldExistsQuery(name());
-        } else if (getTextSearchInfo().hasNorms()) {
-            return new NormsFieldExistsQuery(name());
+        if (hasDocValues() || getTextSearchInfo().hasNorms()) {
+            return new FieldExistsQuery(name());
         } else {
             return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
         }
@@ -446,11 +453,43 @@ public abstract class MappedFieldType {
         }
     }
 
+    protected final void failIfNotIndexedNorDocValuesFallback(SearchExecutionContext context) {
+        if (docValues == false && context.indexVersionCreated().isLegacyIndexVersion()) {
+            throw new IllegalArgumentException(
+                "Cannot search on field [" + name() + "] of legacy index since it does not have doc values."
+            );
+        } else if (isIndexed == false && docValues == false) {
+            // we throw an IAE rather than an ISE so that it translates to a 4xx code rather than 5xx code on the http layer
+            throw new IllegalArgumentException("Cannot search on field [" + name() + "] since it is not indexed nor has doc values.");
+        } else if (isIndexed == false && docValues && context.allowExpensiveQueries() == false) {
+            // if query can only run using doc values, ensure running expensive queries are allowed
+            throw new ElasticsearchException(
+                "Cannot search on field ["
+                    + name()
+                    + "] since it is not indexed and '"
+                    + ALLOW_EXPENSIVE_QUERIES.getKey()
+                    + "' is set to false."
+            );
+        }
+    }
+
     /**
      * @return if this field type should load global ordinals eagerly
      */
     public boolean eagerGlobalOrdinals() {
         return false;
+    }
+
+    /**
+     * @return if the field may have values in the underlying index
+     *
+     * Note that this should only return {@code false} if it is not possible for it to
+     * match on a term query.
+     *
+     * @see org.elasticsearch.index.search.QueryParserHelper
+     */
+    public boolean mayExistInIndex(SearchExecutionContext context) {
+        return true;
     }
 
     /**
@@ -490,8 +529,7 @@ public abstract class MappedFieldType {
         while (termQuery instanceof BoostQuery) {
             termQuery = ((BoostQuery) termQuery).getQuery();
         }
-        if (termQuery instanceof TermInSetQuery) {
-            TermInSetQuery tisQuery = (TermInSetQuery) termQuery;
+        if (termQuery instanceof TermInSetQuery tisQuery) {
             PrefixCodedTerms terms = tisQuery.getTermData();
             if (terms.size() == 1) {
                 TermIterator it = terms.iterator();

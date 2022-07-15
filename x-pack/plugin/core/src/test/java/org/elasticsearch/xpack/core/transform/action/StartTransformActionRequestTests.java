@@ -31,14 +31,9 @@ public class StartTransformActionRequestTests extends AbstractWireSerializingTes
         TimeValue timeout = instance.timeout();
 
         switch (between(0, 1)) {
-            case 0:
-                id += randomAlphaOfLengthBetween(1, 5);
-                break;
-            case 1:
-                timeout = new TimeValue(timeout.duration() + randomLongBetween(1, 5), timeout.timeUnit());
-                break;
-            default:
-                throw new AssertionError("Illegal randomization branch");
+            case 0 -> id += randomAlphaOfLengthBetween(1, 5);
+            case 1 -> timeout = new TimeValue(timeout.duration() + randomLongBetween(1, 5), timeout.timeUnit());
+            default -> throw new AssertionError("Illegal randomization branch");
         }
 
         return new Request(id, timeout);

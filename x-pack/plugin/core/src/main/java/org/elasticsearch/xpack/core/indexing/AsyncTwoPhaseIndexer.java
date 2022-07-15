@@ -66,7 +66,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
     /**
      * Task wrapper for throttled execution, we need this wrapper in order to cancel and re-issue scheduled searches
      */
-    class ScheduledRunnable {
+    static class ScheduledRunnable {
         private final ThreadPool threadPool;
         private final Runnable command;
         private Scheduler.ScheduledCancellable scheduled;
@@ -205,9 +205,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
         synchronized (lock) {
             final IndexerState currentState = state.get();
             switch (currentState) {
-                case INDEXING:
-                case STOPPING:
-                case ABORTING:
+                case INDEXING, STOPPING, ABORTING -> {
                     logger.warn(
                         "Schedule was triggered for job ["
                             + getJobId()
@@ -217,15 +215,14 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
                             + "]"
                     );
                     return false;
-
-                case STOPPED:
+                }
+                case STOPPED -> {
                     logger.debug("Schedule was triggered for job [" + getJobId() + "] but job is stopped.  Ignoring trigger.");
                     return false;
-
-                case STARTED:
+                }
+                case STARTED -> {
                     logger.debug("Schedule was triggered for job [" + getJobId() + "], state: [" + currentState + "]");
                     stats.incrementNumInvocations(1);
-
                     if (state.compareAndSet(IndexerState.STARTED, IndexerState.INDEXING)) {
                         // fire off the search. Note this is async, the method will return from here
                         threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
@@ -253,10 +250,11 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
                         logger.debug("Could not move from STARTED to INDEXING state because current state is [" + state.get() + "]");
                         return false;
                     }
-
-                default:
+                }
+                default -> {
                     logger.warn("Encountered unexpected state [" + currentState + "] while indexing");
                     throw new IllegalStateException("Job encountered an illegal state [" + currentState + "]");
+                }
             }
         }
     }

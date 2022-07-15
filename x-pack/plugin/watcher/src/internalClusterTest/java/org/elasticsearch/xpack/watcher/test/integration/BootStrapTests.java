@@ -203,6 +203,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
         });
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/82420")
     public void testMixedTriggeredWatchLoading() throws Exception {
         createIndex("output");
         client().prepareIndex()
@@ -259,6 +260,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
     }
 
     public void testTriggeredWatchLoading() throws Exception {
+        cluster().wipeIndices(TriggeredWatchStoreField.INDEX_NAME);
         createIndex("output");
         client().prepareIndex()
             .setIndex("my-index")

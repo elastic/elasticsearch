@@ -61,7 +61,7 @@ enum DateFormat {
             return date -> Instant.ofEpochMilli(parseMillis(date)).atZone(timezone);
         }
 
-        private long parseMillis(String date) {
+        private static long parseMillis(String date) {
             if (date.startsWith("@")) {
                 date = date.substring(1);
             }
@@ -118,17 +118,12 @@ enum DateFormat {
     abstract Function<String, ZonedDateTime> getFunction(String format, ZoneId timezone, Locale locale);
 
     static DateFormat fromString(String format) {
-        switch (format) {
-            case "ISO8601":
-                return Iso8601;
-            case "UNIX":
-                return Unix;
-            case "UNIX_MS":
-                return UnixMs;
-            case "TAI64N":
-                return Tai64n;
-            default:
-                return Java;
-        }
+        return switch (format) {
+            case "ISO8601" -> Iso8601;
+            case "UNIX" -> Unix;
+            case "UNIX_MS" -> UnixMs;
+            case "TAI64N" -> Tai64n;
+            default -> Java;
+        };
     }
 }

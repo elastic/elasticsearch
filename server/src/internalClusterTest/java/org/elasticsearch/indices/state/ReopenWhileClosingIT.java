@@ -135,8 +135,8 @@ public class ReopenWhileClosingIT extends ESIntegTestCase {
                 internalCluster().getInstance(TransportService.class, node.getName()),
                 (connection, requestId, action, request, options) -> {
                     if (action.startsWith(TransportVerifyShardBeforeCloseAction.NAME)) {
-                        if (request instanceof TransportVerifyShardBeforeCloseAction.ShardRequest) {
-                            final String index = ((TransportVerifyShardBeforeCloseAction.ShardRequest) request).shardId().getIndexName();
+                        if (request instanceof TransportVerifyShardBeforeCloseAction.ShardRequest shardRequest) {
+                            final String index = shardRequest.shardId().getIndexName();
                             if (Glob.globMatch(indexPattern, index)) {
                                 logger.info("request {} intercepted for index {}", requestId, index);
                                 onIntercept.run();

@@ -10,7 +10,6 @@ package org.elasticsearch.indices.recovery.plan;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
@@ -24,7 +23,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.get.shard.GetShardSnapsh
 import org.elasticsearch.action.admin.cluster.snapshots.get.shard.GetShardSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.shard.GetShardSnapshotResponse;
 import org.elasticsearch.action.support.ThreadedActionListener;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -51,6 +50,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.indices.recovery.RecoverySettings.SNAPSHOT_RECOVERIES_SUPPORTED_VERSION;
 
 public class ShardSnapshotsService {
@@ -85,7 +85,7 @@ public class ShardSnapshotsService {
             .stream()
             .filter(repositoryMetadata -> BlobStoreRepository.USE_FOR_PEER_RECOVERY_SETTING.get(repositoryMetadata.settings()))
             .map(RepositoryMetadata::name)
-            .collect(Collectors.toList());
+            .toList();
 
         if (repositories.isEmpty() || masterSupportsFetchingLatestSnapshots() == false) {
             logger.debug(
@@ -109,7 +109,7 @@ public class ShardSnapshotsService {
     }
 
     private Optional<ShardSnapshot> fetchSnapshotFiles(GetShardSnapshotResponse shardSnapshotResponse) {
-        assert Thread.currentThread().getName().contains(ThreadPool.Names.GENERIC);
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
 
         final Optional<ShardSnapshotInfo> latestShardSnapshotOpt = shardSnapshotResponse.getLatestShardSnapshot();
         if (latestShardSnapshotOpt.isEmpty()) {
@@ -166,7 +166,7 @@ public class ShardSnapshotsService {
                 new ShardSnapshot(latestShardSnapshot, blobStoreIndexShardSnapshot.indexFiles(), userData, commitLuceneVersion)
             );
         } catch (Exception e) {
-            logger.warn(new ParameterizedMessage("Unable to fetch shard snapshot files for {}", latestShardSnapshot), e);
+            logger.warn(() -> format("Unable to fetch shard snapshot files for %s", latestShardSnapshot), e);
             return Optional.empty();
         }
     }

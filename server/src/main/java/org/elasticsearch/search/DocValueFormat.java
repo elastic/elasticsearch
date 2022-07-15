@@ -22,6 +22,7 @@ import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
+import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper.TimeSeriesIdBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 
 import java.io.IOException;
@@ -35,6 +36,7 @@ import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.LongSupplier;
 
@@ -78,7 +80,7 @@ public interface DocValueFormat extends NamedWriteable {
 
     /** Parse a value that was formatted with {@link #format(BytesRef)} back
      *  to the original BytesRef. */
-    default BytesRef parseBytesRef(String value) {
+    default BytesRef parseBytesRef(Object value) {
         throw new UnsupportedOperationException();
     }
 
@@ -155,8 +157,8 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         @Override
-        public BytesRef parseBytesRef(String value) {
-            return new BytesRef(value);
+        public BytesRef parseBytesRef(Object value) {
+            return new BytesRef(value.toString());
         }
 
         @Override
@@ -190,14 +192,13 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         @Override
-        public BytesRef parseBytesRef(String value) {
-            return new BytesRef(Base64.getDecoder().decode(value));
+        public BytesRef parseBytesRef(Object value) {
+            return new BytesRef(Base64.getDecoder().decode(value.toString()));
         }
     };
 
     static DocValueFormat withNanosecondResolution(final DocValueFormat format) {
-        if (format instanceof DateTime) {
-            DateTime dateTime = (DateTime) format;
+        if (format instanceof DateTime dateTime) {
             return new DateTime(dateTime.formatter, dateTime.timeZone, DateFieldMapper.Resolution.NANOSECONDS, dateTime.formatSortValues);
         } else {
             throw new IllegalArgumentException("trying to convert a known date time formatter to a nanosecond one, wrong field used?");
@@ -205,8 +206,7 @@ public interface DocValueFormat extends NamedWriteable {
     }
 
     static DocValueFormat enableFormatSortValues(DocValueFormat format) {
-        if (format instanceof DateTime) {
-            DateTime dateTime = (DateTime) format;
+        if (format instanceof DateTime dateTime) {
             return new DateTime(dateTime.formatter, dateTime.timeZone, dateTime.resolution, true);
         }
         throw new IllegalArgumentException("require a date_time formatter; got [" + format.getWriteableName() + "]");
@@ -445,14 +445,14 @@ public interface DocValueFormat extends NamedWriteable {
         }
     };
 
-    DocValueFormat IP = IpDocValueFormat.INSTANCE;
+    IpDocValueFormat IP = IpDocValueFormat.INSTANCE;
 
     /**
      * Stateless, singleton formatter for IP address data
      */
     class IpDocValueFormat implements DocValueFormat {
 
-        public static final DocValueFormat INSTANCE = new IpDocValueFormat();
+        public static final IpDocValueFormat INSTANCE = new IpDocValueFormat();
 
         private IpDocValueFormat() {}
 
@@ -479,8 +479,8 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         @Override
-        public BytesRef parseBytesRef(String value) {
-            return new BytesRef(InetAddressPoint.encode(InetAddresses.forString(value)));
+        public BytesRef parseBytesRef(Object value) {
+            return new BytesRef(InetAddressPoint.encode(InetAddresses.forString(value.toString())));
         }
 
         @Override
@@ -695,6 +695,46 @@ public interface DocValueFormat extends NamedWriteable {
         @Override
         public Object format(BytesRef value) {
             return TimeSeriesIdFieldMapper.decodeTsid(new BytesArray(value).streamInput());
+        }
+
+        @Override
+        public BytesRef parseBytesRef(Object value) {
+            if (value instanceof Map<?, ?> == false) {
+                throw new IllegalArgumentException("Cannot parse tsid object [" + value + "]");
+            }
+
+            Map<?, ?> m = (Map<?, ?>) value;
+            TimeSeriesIdBuilder builder = new TimeSeriesIdBuilder();
+            for (Map.Entry<?, ?> entry : m.entrySet()) {
+                String f = entry.getKey().toString();
+                Object v = entry.getValue();
+
+                if (v instanceof String s) {
+                    builder.addString(f, s);
+                } else if (v instanceof Long || v instanceof Integer) {
+                    Long l = Long.valueOf(v.toString());
+                    // For a long encoded number, we must check if the number can be the encoded value
+                    // of an unsigned_long.
+                    Number ul = (Number) UNSIGNED_LONG_SHIFTED.format(l);
+                    if (l == ul) {
+                        builder.addLong(f, l);
+                    } else {
+                        long ll = UNSIGNED_LONG_SHIFTED.parseLong(String.valueOf(l), false, () -> 0L);
+                        builder.addUnsignedLong(f, ll);
+                    }
+                } else if (v instanceof BigInteger ul) {
+                    long ll = UNSIGNED_LONG_SHIFTED.parseLong(ul.toString(), false, () -> 0L);
+                    builder.addUnsignedLong(f, ll);
+                } else {
+                    throw new IllegalArgumentException("Unexpected value in tsid object [" + v + "]");
+                }
+            }
+
+            try {
+                return builder.build().toBytesRef();
+            } catch (IOException e) {
+                throw new IllegalArgumentException(e);
+            }
         }
     };
 }

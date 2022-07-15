@@ -8,8 +8,6 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
@@ -29,7 +27,6 @@ import org.elasticsearch.core.Nullable;
  * on, a node which is shutting down for restart.
  */
 public class NodeShutdownAllocationDecider extends AllocationDecider {
-    private static final Logger logger = LogManager.getLogger(NodeShutdownAllocationDecider.class);
 
     private static final String NAME = "node_shutdown";
 
@@ -45,29 +42,20 @@ public class NodeShutdownAllocationDecider extends AllocationDecider {
             return allocation.decision(Decision.YES, NAME, "this node is not currently shutting down");
         }
 
-        switch (thisNodeShutdownMetadata.getType()) {
-            case REPLACE:
-            case REMOVE:
-                return allocation.decision(Decision.NO, NAME, "node [%s] is preparing to be removed from the cluster", node.nodeId());
-            case RESTART:
-                return allocation.decision(
-                    Decision.YES,
-                    NAME,
-                    "node [%s] is preparing to restart, but will remain in the cluster",
-                    node.nodeId()
-                );
-            default:
-                logger.debug(
-                    "found unrecognized node shutdown type [{}] while deciding allocation for [{}] shard [{}][{}] on node [{}]",
-                    thisNodeShutdownMetadata.getType(),
-                    shardRouting.primary() ? "primary" : "replica",
-                    shardRouting.getIndexName(),
-                    shardRouting.getId(),
-                    node.nodeId()
-                );
-                assert false : "node shutdown type not recognized: " + thisNodeShutdownMetadata.getType();
-                return Decision.YES;
-        }
+        return switch (thisNodeShutdownMetadata.getType()) {
+            case REPLACE, REMOVE -> allocation.decision(
+                Decision.NO,
+                NAME,
+                "node [%s] is preparing to be removed from the cluster",
+                node.nodeId()
+            );
+            case RESTART -> allocation.decision(
+                Decision.YES,
+                NAME,
+                "node [%s] is preparing to restart, but will remain in the cluster",
+                node.nodeId()
+            );
+        };
     }
 
     /**
@@ -75,7 +63,7 @@ public class NodeShutdownAllocationDecider extends AllocationDecider {
      * determine if shards can remain on their current node.
      */
     @Override
-    public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+    public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         return this.canAllocate(shardRouting, node, allocation);
     }
 
@@ -88,30 +76,23 @@ public class NodeShutdownAllocationDecider extends AllocationDecider {
         SingleNodeShutdownMetadata thisNodeShutdownMetadata = getNodeShutdownMetadata(allocation.metadata(), node.getId());
 
         if (thisNodeShutdownMetadata == null) {
-            return allocation.decision(Decision.YES, NAME, "node [%s] is not preparing for removal from the cluster");
+            return allocation.decision(Decision.YES, NAME, "node [%s] is not preparing for removal from the cluster", node.getId());
         }
 
-        switch (thisNodeShutdownMetadata.getType()) {
-            case RESTART:
-                return allocation.decision(
-                    Decision.NO,
-                    NAME,
-                    "node [%s] is preparing to restart, auto-expansion waiting until it is complete",
-                    node.getId()
-                );
-            case REPLACE:
-            case REMOVE:
-                return allocation.decision(Decision.NO, NAME, "node [%s] is preparing for removal from the cluster", node.getId());
-            default:
-                logger.debug(
-                    "found unrecognized node shutdown type [{}] while deciding auto-expansion for index [{}] on node [{}]",
-                    thisNodeShutdownMetadata.getType(),
-                    indexMetadata.getIndex().getName(),
-                    node.getId()
-                );
-                assert false : "node shutdown type not recognized: " + thisNodeShutdownMetadata.getType();
-                return Decision.YES;
-        }
+        return switch (thisNodeShutdownMetadata.getType()) {
+            case RESTART -> allocation.decision(
+                Decision.YES,
+                NAME,
+                "node [%s] is not preparing for removal from the cluster (is " + "restarting)",
+                node.getId()
+            );
+            case REPLACE, REMOVE -> allocation.decision(
+                Decision.NO,
+                NAME,
+                "node [%s] is preparing for removal from the cluster",
+                node.getId()
+            );
+        };
     }
 
     @Nullable

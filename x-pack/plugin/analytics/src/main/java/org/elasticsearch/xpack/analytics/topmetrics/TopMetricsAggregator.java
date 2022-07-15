@@ -23,6 +23,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -120,10 +121,10 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
         assert sub.isNoop() : "Expected noop but was " + sub.toString();
 
-        BucketedSort.Leaf leafSort = sort.forLeaf(ctx);
+        BucketedSort.Leaf leafSort = sort.forLeaf(aggCtx.getLeafReaderContext());
 
         return new LeafBucketCollector() {
             @Override
@@ -293,6 +294,9 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
 
         @Override
         public double doubleValue(long index) {
+            if (index < 0 || index >= values.size()) {
+                return Double.NaN;
+            }
             return values.get(index);
         }
 
@@ -357,7 +361,7 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
 
         @Override
         public double doubleValue(long index) {
-            if (empty.isEmpty(index)) {
+            if (empty.isEmpty(index) || index < 0 || index >= values.size()) {
                 return Double.NaN;
             }
             return values.get(index);

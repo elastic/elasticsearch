@@ -10,12 +10,15 @@ package org.elasticsearch.ingest.geoip;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.Setting;
@@ -34,9 +37,8 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -64,9 +66,15 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
         Property.Dynamic,
         Property.NodeScope
     );
+
+    // for overriding in tests
+    private static final String DEFAULT_ENDPOINT = System.getProperty(
+        "ingest.geoip.downloader.endpoint.default",
+        "https://geoip.elastic.co/v1/database"
+    );
     public static final Setting<String> ENDPOINT_SETTING = Setting.simpleString(
         "ingest.geoip.downloader.endpoint",
-        "https://geoip.elastic.co/v1/database",
+        DEFAULT_ENDPOINT,
         Property.NodeScope
     );
 
@@ -119,7 +127,19 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
 
     // visible for testing
     void updateDatabases() throws IOException {
-        logger.info("updating geoip databases");
+        var clusterState = clusterService.state();
+        var geoipIndex = clusterState.getMetadata().getIndicesLookup().get(GeoIpDownloader.DATABASES_INDEX);
+        if (geoipIndex != null) {
+            if (clusterState.getRoutingTable().index(geoipIndex.getWriteIndex()).allPrimaryShardsActive() == false) {
+                throw new ElasticsearchException("not all primary shards of [" + DATABASES_INDEX + "] index are active");
+            }
+            var blockException = clusterState.blocks().indexBlockedException(ClusterBlockLevel.WRITE, geoipIndex.getWriteIndex().getName());
+            if (blockException != null) {
+                throw blockException;
+            }
+        }
+
+        logger.debug("updating geoip databases");
         List<Map<String, Object>> response = fetchDatabasesOverview();
         for (Map<String, Object> res : response) {
             if (res.get("name").toString().endsWith(".tgz")) {
@@ -131,12 +151,9 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
     @SuppressWarnings("unchecked")
     private <T> List<T> fetchDatabasesOverview() throws IOException {
         String url = endpoint + "?elastic_geoip_service_tos=agree";
-        logger.info("fetching geoip databases overview from [" + url + "]");
+        logger.debug("fetching geoip databases overview from [{}]", url);
         byte[] data = httpClient.getBytes(url);
-        try (
-            XContentParser parser = XContentType.JSON.xContent()
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, data)
-        ) {
+        try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, data)) {
             return (List<T>) parser.list();
         }
     }
@@ -145,11 +162,11 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
     void processDatabase(Map<String, Object> databaseInfo) {
         String name = databaseInfo.get("name").toString().replace(".tgz", "") + ".mmdb";
         String md5 = (String) databaseInfo.get("md5_hash");
-        if (state.contains(name) && Objects.equals(md5, state.get(name).getMd5())) {
+        if (state.contains(name) && Objects.equals(md5, state.get(name).md5())) {
             updateTimestamp(name, state.get(name));
             return;
         }
-        logger.info("updating geoip database [" + name + "]");
+        logger.debug("downloading geoip database [{}]", name);
         String url = databaseInfo.get("url").toString();
         if (url.startsWith("http") == false) {
             // relative url, add it after last slash (i.e resolve sibling) or at the end if there's no slash after http[s]://
@@ -158,18 +175,18 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
         }
         long start = System.currentTimeMillis();
         try (InputStream is = httpClient.get(url)) {
-            int firstChunk = state.contains(name) ? state.get(name).getLastChunk() + 1 : 0;
+            int firstChunk = state.contains(name) ? state.get(name).lastChunk() + 1 : 0;
             int lastChunk = indexChunks(name, is, firstChunk, md5, start);
             if (lastChunk > firstChunk) {
                 state = state.put(name, new Metadata(start, firstChunk, lastChunk - 1, md5, start));
                 updateTaskState();
                 stats = stats.successfulDownload(System.currentTimeMillis() - start).databasesCount(state.getDatabases().size());
-                logger.info("updated geoip database [" + name + "]");
+                logger.info("successfully downloaded geoip database [{}]", name);
                 deleteOldChunks(name, firstChunk);
             }
         } catch (Exception e) {
             stats = stats.failedDownload();
-            logger.error("error updating geoip database [" + name + "]", e);
+            logger.error((Supplier<?>) () -> "error downloading geoip database [" + name + "]", e);
         }
     }
 
@@ -189,11 +206,8 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
 
     // visible for testing
     protected void updateTimestamp(String name, Metadata old) {
-        logger.info("geoip database [" + name + "] is up to date, updated timestamp");
-        state = state.put(
-            name,
-            new Metadata(old.getLastUpdate(), old.getFirstChunk(), old.getLastChunk(), old.getMd5(), System.currentTimeMillis())
-        );
+        logger.debug("geoip database [{}] is up to date, updated timestamp", name);
+        state = state.put(name, new Metadata(old.lastUpdate(), old.firstChunk(), old.lastChunk(), old.md5(), System.currentTimeMillis()));
         stats = stats.skippedDownload();
         updateTaskState();
     }
@@ -259,6 +273,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
         try {
             updateDatabases();
         } catch (Exception e) {
+            stats = stats.failedDownload();
             logger.error("exception during geoip databases update", e);
         }
         try {
@@ -277,10 +292,10 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
             .peek(e -> {
                 String name = e.getKey();
                 Metadata meta = e.getValue();
-                deleteOldChunks(name, meta.getLastChunk() + 1);
+                deleteOldChunks(name, meta.lastChunk() + 1);
                 state = state.put(
                     name,
-                    new Metadata(meta.getLastUpdate(), meta.getFirstChunk(), meta.getLastChunk(), meta.getMd5(), meta.getLastCheck() - 1)
+                    new Metadata(meta.lastUpdate(), meta.firstChunk(), meta.lastChunk(), meta.md5(), meta.lastCheck() - 1)
                 );
                 updateTaskState();
             })
@@ -293,6 +308,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
         if (scheduled != null) {
             scheduled.cancel();
         }
+        markAsCompleted();
     }
 
     @Override

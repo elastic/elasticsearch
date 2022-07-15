@@ -6,9 +6,6 @@
  */
 package org.elasticsearch.xpack.ccr.action;
 
-import com.carrotsearch.hppc.LongHashSet;
-import com.carrotsearch.hppc.LongSet;
-
 import org.apache.lucene.store.IOContext;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -68,6 +65,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -574,7 +572,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
 
         BiConsumer<TimeValue, Runnable> scheduler = (delay, task) -> threadPool.schedule(task, delay, ThreadPool.Names.GENERIC);
         AtomicBoolean stopped = new AtomicBoolean(false);
-        LongSet fetchOperations = new LongHashSet();
+        Set<Long> fetchOperations = new HashSet<>();
         return new ShardFollowNodeTask(
             1L,
             "type",
@@ -739,7 +737,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
         boolean assertMaxSeqNoOfUpdatesOrDeletes
     ) throws Exception {
         final List<Tuple<String, Long>> docAndSeqNosOnLeader = getDocIdAndSeqNos(leader.getPrimary()).stream()
-            .map(d -> Tuple.tuple(d.getId(), d.getSeqNo()))
+            .map(d -> Tuple.tuple(d.id(), d.seqNo()))
             .collect(Collectors.toList());
         final Map<Long, Translog.Operation> operationsOnLeader = new HashMap<>();
         try (
@@ -759,7 +757,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                 );
             }
             List<Tuple<String, Long>> docAndSeqNosOnFollower = getDocIdAndSeqNos(followingShard).stream()
-                .map(d -> Tuple.tuple(d.getId(), d.getSeqNo()))
+                .map(d -> Tuple.tuple(d.id(), d.seqNo()))
                 .collect(Collectors.toList());
             assertThat(docAndSeqNosOnFollower, equalTo(docAndSeqNosOnLeader));
             try (

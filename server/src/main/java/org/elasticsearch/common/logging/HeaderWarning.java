@@ -302,12 +302,22 @@ public class HeaderWarning {
         }
     }
 
+    public static String getProductOrigin() {
+        return getSingleValue(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER);
+    }
+
     public static String getXOpaqueId() {
-        return THREAD_CONTEXT.stream()
-            .filter(t -> t.getHeader(Task.X_OPAQUE_ID) != null)
-            .findFirst()
-            .map(t -> t.getHeader(Task.X_OPAQUE_ID))
-            .orElse("");
+        return getSingleValue(Task.X_OPAQUE_ID_HTTP_HEADER);
+    }
+
+    private static String getSingleValue(String headerName) {
+        for (ThreadContext threadContext : THREAD_CONTEXT) {
+            final String header = threadContext.getHeader(headerName);
+            if (header != null) {
+                return header;
+            }
+        }
+        return "";
     }
 
     public static void addWarning(String message, Object... params) {

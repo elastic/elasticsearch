@@ -16,7 +16,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.bootstrap.BootstrapCheck;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
@@ -40,6 +40,7 @@ import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
@@ -64,6 +65,7 @@ import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
+import org.elasticsearch.plugins.interceptor.RestInterceptorActionPlugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
@@ -78,7 +80,6 @@ import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.netty4.SharedGroupFactory;
-import org.elasticsearch.transport.nio.NioGroupFactory;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.XPackField;
@@ -91,12 +92,13 @@ import org.elasticsearch.xpack.core.security.SecurityExtension;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.SecuritySettings;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheAction;
-import org.elasticsearch.xpack.core.security.action.CreateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationAction;
-import org.elasticsearch.xpack.core.security.action.GetApiKeyAction;
-import org.elasticsearch.xpack.core.security.action.GrantApiKeyAction;
-import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.enrollment.KibanaEnrollmentAction;
 import org.elasticsearch.xpack.core.security.action.enrollment.NodeEnrollmentAction;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectAuthenticateAction;
@@ -107,6 +109,11 @@ import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesAc
 import org.elasticsearch.xpack.core.security.action.privilege.GetBuiltinPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesAction;
+import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileAction;
+import org.elasticsearch.xpack.core.security.action.profile.GetProfileAction;
+import org.elasticsearch.xpack.core.security.action.profile.SetProfileEnabledAction;
+import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesAction;
+import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataAction;
 import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheAction;
 import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheAction;
 import org.elasticsearch.xpack.core.security.action.role.DeleteRoleAction;
@@ -135,6 +142,7 @@ import org.elasticsearch.xpack.core.security.action.user.DeleteUserAction;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.GetUsersAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
+import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.SetEnabledAction;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
@@ -144,14 +152,17 @@ import org.elasticsearch.xpack.core.security.authc.InternalRealmsSettings;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
+import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmsServiceSettings;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
+import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.DocumentSubsetBitsetCache;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.SecurityIndexReaderWrapper;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
+import org.elasticsearch.xpack.core.security.authz.permission.SimpleRole;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.core.security.support.Automatons;
@@ -163,12 +174,13 @@ import org.elasticsearch.xpack.core.ssl.action.GetCertificateInfoAction;
 import org.elasticsearch.xpack.core.ssl.action.TransportGetCertificateInfoAction;
 import org.elasticsearch.xpack.core.ssl.rest.RestGetCertificateInfoAction;
 import org.elasticsearch.xpack.security.action.TransportClearSecurityCacheAction;
-import org.elasticsearch.xpack.security.action.TransportCreateApiKeyAction;
 import org.elasticsearch.xpack.security.action.TransportDelegatePkiAuthenticationAction;
-import org.elasticsearch.xpack.security.action.TransportGetApiKeyAction;
-import org.elasticsearch.xpack.security.action.TransportGrantApiKeyAction;
-import org.elasticsearch.xpack.security.action.TransportInvalidateApiKeyAction;
+import org.elasticsearch.xpack.security.action.apikey.TransportCreateApiKeyAction;
+import org.elasticsearch.xpack.security.action.apikey.TransportGetApiKeyAction;
+import org.elasticsearch.xpack.security.action.apikey.TransportGrantApiKeyAction;
+import org.elasticsearch.xpack.security.action.apikey.TransportInvalidateApiKeyAction;
 import org.elasticsearch.xpack.security.action.apikey.TransportQueryApiKeyAction;
+import org.elasticsearch.xpack.security.action.apikey.TransportUpdateApiKeyAction;
 import org.elasticsearch.xpack.security.action.enrollment.TransportKibanaEnrollmentAction;
 import org.elasticsearch.xpack.security.action.enrollment.TransportNodeEnrollmentAction;
 import org.elasticsearch.xpack.security.action.filter.SecurityActionFilter;
@@ -180,6 +192,12 @@ import org.elasticsearch.xpack.security.action.privilege.TransportDeletePrivileg
 import org.elasticsearch.xpack.security.action.privilege.TransportGetBuiltinPrivilegesAction;
 import org.elasticsearch.xpack.security.action.privilege.TransportGetPrivilegesAction;
 import org.elasticsearch.xpack.security.action.privilege.TransportPutPrivilegesAction;
+import org.elasticsearch.xpack.security.action.profile.TransportActivateProfileAction;
+import org.elasticsearch.xpack.security.action.profile.TransportGetProfileAction;
+import org.elasticsearch.xpack.security.action.profile.TransportProfileHasPrivilegesAction;
+import org.elasticsearch.xpack.security.action.profile.TransportSetProfileEnabledAction;
+import org.elasticsearch.xpack.security.action.profile.TransportSuggestProfilesAction;
+import org.elasticsearch.xpack.security.action.profile.TransportUpdateProfileDataAction;
 import org.elasticsearch.xpack.security.action.realm.TransportClearRealmCacheAction;
 import org.elasticsearch.xpack.security.action.role.TransportClearRolesCacheAction;
 import org.elasticsearch.xpack.security.action.role.TransportDeleteRoleAction;
@@ -220,6 +238,7 @@ import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
+import org.elasticsearch.xpack.security.authc.jwt.JwtRealm;
 import org.elasticsearch.xpack.security.authc.service.CachingServiceAccountTokenStore;
 import org.elasticsearch.xpack.security.authc.service.FileServiceAccountTokenStore;
 import org.elasticsearch.xpack.security.authc.service.IndexServiceAccountTokenStore;
@@ -249,6 +268,7 @@ import org.elasticsearch.xpack.security.operator.FileOperatorUsersStore;
 import org.elasticsearch.xpack.security.operator.OperatorOnlyRegistry;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges.OperatorPrivilegesService;
+import org.elasticsearch.xpack.security.profile.ProfileService;
 import org.elasticsearch.xpack.security.rest.SecurityRestFilter;
 import org.elasticsearch.xpack.security.rest.action.RestAuthenticateAction;
 import org.elasticsearch.xpack.security.rest.action.RestDelegatePkiAuthenticationAction;
@@ -258,6 +278,7 @@ import org.elasticsearch.xpack.security.rest.action.apikey.RestGetApiKeyAction;
 import org.elasticsearch.xpack.security.rest.action.apikey.RestGrantApiKeyAction;
 import org.elasticsearch.xpack.security.rest.action.apikey.RestInvalidateApiKeyAction;
 import org.elasticsearch.xpack.security.rest.action.apikey.RestQueryApiKeyAction;
+import org.elasticsearch.xpack.security.rest.action.apikey.RestUpdateApiKeyAction;
 import org.elasticsearch.xpack.security.rest.action.enrollment.RestKibanaEnrollAction;
 import org.elasticsearch.xpack.security.rest.action.enrollment.RestNodeEnrollmentAction;
 import org.elasticsearch.xpack.security.rest.action.oauth2.RestGetTokenAction;
@@ -270,6 +291,12 @@ import org.elasticsearch.xpack.security.rest.action.privilege.RestDeletePrivileg
 import org.elasticsearch.xpack.security.rest.action.privilege.RestGetBuiltinPrivilegesAction;
 import org.elasticsearch.xpack.security.rest.action.privilege.RestGetPrivilegesAction;
 import org.elasticsearch.xpack.security.rest.action.privilege.RestPutPrivilegesAction;
+import org.elasticsearch.xpack.security.rest.action.profile.RestActivateProfileAction;
+import org.elasticsearch.xpack.security.rest.action.profile.RestDisableProfileAction;
+import org.elasticsearch.xpack.security.rest.action.profile.RestEnableProfileAction;
+import org.elasticsearch.xpack.security.rest.action.profile.RestGetProfileAction;
+import org.elasticsearch.xpack.security.rest.action.profile.RestSuggestProfilesAction;
+import org.elasticsearch.xpack.security.rest.action.profile.RestUpdateProfileDataAction;
 import org.elasticsearch.xpack.security.rest.action.realm.RestClearRealmCacheAction;
 import org.elasticsearch.xpack.security.rest.action.role.RestClearRolesCacheAction;
 import org.elasticsearch.xpack.security.rest.action.role.RestDeleteRoleAction;
@@ -294,6 +321,7 @@ import org.elasticsearch.xpack.security.rest.action.user.RestDeleteUserAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestGetUserPrivilegesAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestGetUsersAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestHasPrivilegesAction;
+import org.elasticsearch.xpack.security.rest.action.user.RestProfileHasPrivilegesAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestPutUserAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestSetEnabledAction;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
@@ -304,11 +332,8 @@ import org.elasticsearch.xpack.security.transport.SecurityServerTransportInterce
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.elasticsearch.xpack.security.transport.netty4.SecurityNetty4HttpServerTransport;
 import org.elasticsearch.xpack.security.transport.netty4.SecurityNetty4ServerTransport;
-import org.elasticsearch.xpack.security.transport.nio.SecurityNioHttpServerTransport;
-import org.elasticsearch.xpack.security.transport.nio.SecurityNioTransport;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -327,6 +352,7 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -345,7 +371,8 @@ public class Security extends Plugin
         DiscoveryPlugin,
         MapperPlugin,
         ExtensiblePlugin,
-        SearchPlugin {
+        SearchPlugin,
+        RestInterceptorActionPlugin {
 
     public static final String SECURITY_CRYPTO_THREAD_POOL_NAME = XPackField.SECURITY + "-crypto";
 
@@ -395,6 +422,11 @@ public class Security extends Plugin
         "oidc",
         License.OperationMode.PLATINUM
     );
+    public static final LicensedFeature.Persistent JWT_REALM_FEATURE = LicensedFeature.persistent(
+        REALMS_FEATURE_FAMILY,
+        "jwt",
+        License.OperationMode.PLATINUM
+    );
     public static final LicensedFeature.Persistent KERBEROS_REALM_FEATURE = LicensedFeature.persistent(
         REALMS_FEATURE_FAMILY,
         "kerberos",
@@ -436,6 +468,7 @@ public class Security extends Plugin
     private final Settings settings;
     private final boolean enabled;
     private final SecuritySystemIndices systemIndices;
+    private final ListenableFuture<Void> nodeStartedListenable;
 
     /* what a PITA that we need an extra indirection to initialize this. Yet, once we got rid of guice we can thing about how
      * to fix this or make it simpler. Today we need several service that are created in createComponents but we need to register
@@ -451,23 +484,23 @@ public class Security extends Plugin
     private final SetOnce<SecurityActionFilter> securityActionFilter = new SetOnce<>();
 
     private final SetOnce<SharedGroupFactory> sharedGroupFactory = new SetOnce<>();
-    private final SetOnce<NioGroupFactory> nioGroupFactory = new SetOnce<>();
     private final SetOnce<DocumentSubsetBitsetCache> dlsBitsetCache = new SetOnce<>();
     private final SetOnce<List<BootstrapCheck>> bootstrapChecks = new SetOnce<>();
     private final List<SecurityExtension> securityExtensions = new ArrayList<>();
     private final SetOnce<Transport> transportReference = new SetOnce<>();
     private final SetOnce<ScriptService> scriptServiceReference = new SetOnce<>();
 
-    public Security(Settings settings, final Path configPath) {
-        this(settings, configPath, Collections.emptyList());
+    public Security(Settings settings) {
+        this(settings, Collections.emptyList());
     }
 
-    Security(Settings settings, final Path configPath, List<SecurityExtension> extensions) {
+    Security(Settings settings, List<SecurityExtension> extensions) {
         // TODO This is wrong. Settings can change after this. We should use the settings from createComponents
         this.settings = settings;
         // TODO this is wrong, we should only use the environment that is provided to createComponents
         this.enabled = XPackSettings.SECURITY_ENABLED.get(settings);
         this.systemIndices = new SecuritySystemIndices();
+        this.nodeStartedListenable = new ListenableFuture<>();
         if (enabled) {
             runStartupChecks(settings);
             Automatons.updateConfiguration(settings);
@@ -567,6 +600,8 @@ public class Security extends Plugin
         securityContext.set(new SecurityContext(settings, threadPool.getThreadContext()));
         components.add(securityContext.get());
 
+        final RestrictedIndices restrictedIndices = new RestrictedIndices(expressionResolver);
+
         // audit trail service construction
         final List<AuditTrail> auditTrails = XPackSettings.AUDIT_ENABLED.get(settings)
             ? Collections.singletonList(new LoggingAuditTrail(settings, clusterService, threadPool))
@@ -609,6 +644,7 @@ public class Security extends Plugin
         Map<String, Realm.Factory> realmFactories = new HashMap<>(
             InternalRealms.getFactories(
                 threadPool,
+                settings,
                 resourceWatcherService,
                 getSslService(),
                 nativeUsersStore,
@@ -734,10 +770,21 @@ public class Security extends Plugin
             apiKeyService,
             serviceAccountService,
             dlsBitsetCache.get(),
-            expressionResolver,
+            restrictedIndices,
             new DeprecationRoleDescriptorConsumer(clusterService, threadPool)
         );
         systemIndices.getMainIndexManager().addStateListener(allRolesStore::onSecurityIndexStateChange);
+
+        final ProfileService profileService = new ProfileService(
+            settings,
+            getClock(),
+            client,
+            systemIndices.getProfileIndexManager(),
+            clusterService,
+            realms::getDomainConfig,
+            threadPool
+        );
+        components.add(profileService);
 
         // We use the value of the {@code ENROLLMENT_ENABLED} setting to determine if the node is starting up with auto-generated
         // certificates (which have been generated by pre-startup scripts). In this case, and further if the node forms a new cluster by
@@ -749,7 +796,9 @@ public class Security extends Plugin
             systemIndices.getMainIndexManager(),
             getSslService(),
             client,
-            environment
+            environment,
+            (runnable -> nodeStartedListenable.addListener(ActionListener.wrap(runnable))),
+            threadPool
         );
 
         // to keep things simple, just invalidate all cached entries on license change. this happens so rarely that the impact should be
@@ -815,7 +864,8 @@ public class Security extends Plugin
             requestInterceptors,
             getLicenseState(),
             expressionResolver,
-            operatorPrivilegesService
+            operatorPrivilegesService,
+            restrictedIndices
         );
 
         components.add(nativeRolesStore); // used by roles actions
@@ -838,8 +888,7 @@ public class Security extends Plugin
                 authzService,
                 getSslService(),
                 securityContext.get(),
-                destructiveOperations,
-                clusterService
+                destructiveOperations
             )
         );
 
@@ -964,15 +1013,14 @@ public class Security extends Plugin
 
             if (NetworkModule.HTTP_TYPE_SETTING.exists(settings)) {
                 final String httpType = NetworkModule.HTTP_TYPE_SETTING.get(settings);
-                if (httpType.equals(SecurityField.NAME4) || httpType.equals(SecurityField.NIO)) {
+                if (httpType.equals(SecurityField.NAME4)) {
                     SecurityHttpSettings.overrideSettings(builder, settings);
                 } else {
                     final String message = String.format(
                         Locale.ROOT,
-                        "http type setting [%s] must be [%s] or [%s] but is [%s]",
+                        "http type setting [%s] must be [%s] but is [%s]",
                         NetworkModule.HTTP_TYPE_KEY,
                         SecurityField.NAME4,
-                        SecurityField.NIO,
                         httpType
                     );
                     throw new IllegalArgumentException(message);
@@ -1013,6 +1061,7 @@ public class Security extends Plugin
         // authentication and authorization settings
         AnonymousUser.addSettings(settingsList);
         settingsList.addAll(InternalRealmsSettings.getSettings());
+        settingsList.addAll(JwtRealmsServiceSettings.getSettings());
         ReservedRealm.addSettings(settingsList);
         AuthenticationService.addSettings(settingsList);
         AuthorizationService.addSettings(settingsList);
@@ -1037,6 +1086,7 @@ public class Security extends Plugin
         settingsList.add(CachingServiceAccountTokenStore.CACHE_TTL_SETTING);
         settingsList.add(CachingServiceAccountTokenStore.CACHE_HASH_ALGO_SETTING);
         settingsList.add(CachingServiceAccountTokenStore.CACHE_MAX_TOKENS_SETTING);
+        settingsList.add(SimpleRole.CACHE_SIZE_SETTING);
 
         // hide settings
         settingsList.add(
@@ -1062,6 +1112,7 @@ public class Security extends Plugin
         if (AuthenticationServiceField.RUN_AS_ENABLED.get(settings)) {
             headers.add(new RestHeaderDefinition(AuthenticationServiceField.RUN_AS_USER_HEADER, false));
         }
+        headers.add(new RestHeaderDefinition(JwtRealm.HEADER_CLIENT_AUTHENTICATION, false));
         return headers;
     }
 
@@ -1112,11 +1163,9 @@ public class Security extends Plugin
                  * implementation disables the query cache if field level security is used for a particular request. We have to forcefully
                  * overwrite the query cache implementation to prevent data leakage to unauthorized users.
                  */
-                module.forceQueryCacheProvider((indexSettings, cache) -> {
-                    final OptOutQueryCache queryCache = new OptOutQueryCache(indexSettings, cache, threadContext.get());
-
-                    return queryCache;
-                });
+                module.forceQueryCacheProvider(
+                    (indexSettings, cache) -> new OptOutQueryCache(indexSettings.getIndex(), cache, threadContext.get())
+                );
             }
 
             // in order to prevent scroll ids from being maliciously crafted and/or guessed, a listener is added that
@@ -1133,6 +1182,7 @@ public class Security extends Plugin
         if (enabled == false) {
             return Arrays.asList(usageAction, infoAction);
         }
+
         return Arrays.asList(
             new ActionHandler<>(ClearRealmCacheAction.INSTANCE, TransportClearRealmCacheAction.class),
             new ActionHandler<>(ClearRolesCacheAction.INSTANCE, TransportClearRolesCacheAction.class),
@@ -1174,6 +1224,7 @@ public class Security extends Plugin
             new ActionHandler<>(InvalidateApiKeyAction.INSTANCE, TransportInvalidateApiKeyAction.class),
             new ActionHandler<>(GetApiKeyAction.INSTANCE, TransportGetApiKeyAction.class),
             new ActionHandler<>(QueryApiKeyAction.INSTANCE, TransportQueryApiKeyAction.class),
+            new ActionHandler<>(UpdateApiKeyAction.INSTANCE, TransportUpdateApiKeyAction.class),
             new ActionHandler<>(DelegatePkiAuthenticationAction.INSTANCE, TransportDelegatePkiAuthenticationAction.class),
             new ActionHandler<>(CreateServiceAccountTokenAction.INSTANCE, TransportCreateServiceAccountTokenAction.class),
             new ActionHandler<>(DeleteServiceAccountTokenAction.INSTANCE, TransportDeleteServiceAccountTokenAction.class),
@@ -1182,6 +1233,12 @@ public class Security extends Plugin
             new ActionHandler<>(GetServiceAccountAction.INSTANCE, TransportGetServiceAccountAction.class),
             new ActionHandler<>(KibanaEnrollmentAction.INSTANCE, TransportKibanaEnrollmentAction.class),
             new ActionHandler<>(NodeEnrollmentAction.INSTANCE, TransportNodeEnrollmentAction.class),
+            new ActionHandler<>(ProfileHasPrivilegesAction.INSTANCE, TransportProfileHasPrivilegesAction.class),
+            new ActionHandler<>(GetProfileAction.INSTANCE, TransportGetProfileAction.class),
+            new ActionHandler<>(ActivateProfileAction.INSTANCE, TransportActivateProfileAction.class),
+            new ActionHandler<>(UpdateProfileDataAction.INSTANCE, TransportUpdateProfileDataAction.class),
+            new ActionHandler<>(SuggestProfilesAction.INSTANCE, TransportSuggestProfilesAction.class),
+            new ActionHandler<>(SetProfileEnabledAction.INSTANCE, TransportSetProfileEnabledAction.class),
             usageAction,
             infoAction
         );
@@ -1245,6 +1302,7 @@ public class Security extends Plugin
             new RestPutPrivilegesAction(settings, getLicenseState()),
             new RestDeletePrivilegesAction(settings, getLicenseState()),
             new RestCreateApiKeyAction(settings, getLicenseState()),
+            new RestUpdateApiKeyAction(settings, getLicenseState()),
             new RestGrantApiKeyAction(settings, getLicenseState()),
             new RestInvalidateApiKeyAction(settings, getLicenseState()),
             new RestGetApiKeyAction(settings, getLicenseState()),
@@ -1255,7 +1313,14 @@ public class Security extends Plugin
             new RestGetServiceAccountCredentialsAction(settings, getLicenseState()),
             new RestGetServiceAccountAction(settings, getLicenseState()),
             new RestKibanaEnrollAction(settings, getLicenseState()),
-            new RestNodeEnrollmentAction(settings, getLicenseState())
+            new RestNodeEnrollmentAction(settings, getLicenseState()),
+            new RestProfileHasPrivilegesAction(settings, securityContext.get(), getLicenseState()),
+            new RestGetProfileAction(settings, getLicenseState()),
+            new RestActivateProfileAction(settings, getLicenseState()),
+            new RestUpdateProfileDataAction(settings, getLicenseState()),
+            new RestSuggestProfilesAction(settings, getLicenseState()),
+            new RestEnableProfileAction(settings, getLicenseState()),
+            new RestDisableProfileAction(settings, getLicenseState())
         );
     }
 
@@ -1265,6 +1330,11 @@ public class Security extends Plugin
             SetSecurityUserProcessor.TYPE,
             new SetSecurityUserProcessor.Factory(securityContext::get, settings)
         );
+    }
+
+    @Override
+    public void onNodeStarted() {
+        this.nodeStartedListenable.onResponse(null);
     }
 
     /**
@@ -1330,12 +1400,37 @@ public class Security extends Plugin
         final String selectedAlgorithm = XPackSettings.PASSWORD_HASHING_ALGORITHM.get(settings);
         if (selectedAlgorithm.toLowerCase(Locale.ROOT).startsWith("pbkdf2") == false) {
             validationErrors.add(
-                "Only PBKDF2 is allowed for password hashing in a FIPS 140 JVM. Please set the "
+                "Only PBKDF2 is allowed for stored credential hashing in a FIPS 140 JVM. Please set the "
                     + "appropriate value for [ "
                     + XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey()
                     + " ] setting."
             );
         }
+        Stream.of(ApiKeyService.PASSWORD_HASHING_ALGORITHM, XPackSettings.SERVICE_TOKEN_HASHING_ALGORITHM).forEach((setting) -> {
+            final var storedHashAlgo = setting.get(settings);
+            if (storedHashAlgo.toLowerCase(Locale.ROOT).startsWith("pbkdf2") == false) {
+                // log instead of validation error for backwards compatibility
+                logger.warn(
+                    "Only PBKDF2 is allowed for stored credential hashing in a FIPS 140 JVM. "
+                        + "Please set the appropriate value for [{}] setting.",
+                    setting.getKey()
+                );
+            }
+        });
+        final var cacheHashAlgoSettings = settings.filter(k -> k.endsWith(".cache.hash_algo"));
+        cacheHashAlgoSettings.keySet().forEach((key) -> {
+            final var setting = cacheHashAlgoSettings.get(key);
+            assert setting != null;
+            final var hashAlgoName = setting.toLowerCase(Locale.ROOT);
+            if (hashAlgoName.equals("ssha256") == false && hashAlgoName.startsWith("pbkdf2") == false) {
+                logger.warn(
+                    "[{}] is not recommended for in-memory credential hashing in a FIPS 140 JVM. "
+                        + "The recommended hasher for [{}] is SSHA256.",
+                    setting,
+                    key
+                );
+            }
+        });
 
         if (validationErrors.isEmpty() == false) {
             final StringBuilder sb = new StringBuilder();
@@ -1406,25 +1501,6 @@ public class Security extends Plugin
                     )
                 );
                 return transportReference.get();
-            },
-            // security based on NIO
-            SecurityField.NIO,
-            () -> {
-                transportReference.set(
-                    new SecurityNioTransport(
-                        settings,
-                        Version.CURRENT,
-                        threadPool,
-                        networkService,
-                        pageCacheRecycler,
-                        namedWriteableRegistry,
-                        circuitBreakerService,
-                        ipFilter,
-                        getSslService(),
-                        getNioGroupFactory(settings)
-                    )
-                );
-                return transportReference.get();
             }
         );
     }
@@ -1451,7 +1527,7 @@ public class Security extends Plugin
             () -> new SecurityNetty4HttpServerTransport(
                 settings,
                 networkService,
-                bigArrays,
+                pageCacheRecycler,
                 ipFilter.get(),
                 getSslService(),
                 threadPool,
@@ -1461,32 +1537,16 @@ public class Security extends Plugin
                 getNettySharedGroupFactory(settings)
             )
         );
-        httpTransports.put(
-            SecurityField.NIO,
-            () -> new SecurityNioHttpServerTransport(
-                settings,
-                networkService,
-                bigArrays,
-                pageCacheRecycler,
-                threadPool,
-                xContentRegistry,
-                dispatcher,
-                ipFilter.get(),
-                getSslService(),
-                getNioGroupFactory(settings),
-                clusterSettings
-            )
-        );
 
         return httpTransports;
     }
 
     @Override
-    public UnaryOperator<RestHandler> getRestHandlerWrapper(ThreadContext threadContext) {
+    public UnaryOperator<RestHandler> getRestHandlerInterceptor(ThreadContext threadContext) {
         final boolean extractClientCertificate;
         if (enabled && HTTP_SSL_ENABLED.get(settings)) {
             final SslConfiguration httpSSLConfig = getSslService().getHttpTransportSSLConfiguration();
-            extractClientCertificate = getSslService().isSSLClientAuthEnabled(httpSSLConfig);
+            extractClientCertificate = SSLService.isSSLClientAuthEnabled(httpSSLConfig);
         } else {
             extractClientCertificate = false;
         }
@@ -1595,16 +1655,6 @@ public class Security extends Plugin
     @Override
     public void loadExtensions(ExtensionLoader loader) {
         securityExtensions.addAll(loader.loadExtensions(SecurityExtension.class));
-    }
-
-    private synchronized NioGroupFactory getNioGroupFactory(Settings settings) {
-        if (nioGroupFactory.get() != null) {
-            assert nioGroupFactory.get().getSettings().equals(settings) : "Different settings than originally provided";
-            return nioGroupFactory.get();
-        } else {
-            nioGroupFactory.set(new NioGroupFactory(settings, logger));
-            return nioGroupFactory.get();
-        }
     }
 
     private synchronized SharedGroupFactory getNettySharedGroupFactory(Settings settings) {

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.search;
 
-import org.apache.lucene.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -19,6 +18,7 @@ import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.tests.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -65,28 +65,30 @@ public class MultiMatchQueryParserTests extends ESSingleNodeTestCase {
         Settings settings = Settings.builder().build();
         IndexService indexService = createIndex("test", settings);
         MapperService mapperService = indexService.mapperService();
-        String mapping = "{\n"
-            + "    \"person\":{\n"
-            + "        \"properties\":{\n"
-            + "            \"name\":{\n"
-            + "                  \"properties\":{\n"
-            + "                        \"first\": {\n"
-            + "                            \"type\":\"text\",\n"
-            + "                            \"analyzer\":\"standard\"\n"
-            + "                        },"
-            + "                        \"last\": {\n"
-            + "                            \"type\":\"text\",\n"
-            + "                            \"analyzer\":\"standard\"\n"
-            + "                        },"
-            + "                        \"nickname\": {\n"
-            + "                            \"type\":\"text\",\n"
-            + "                            \"analyzer\":\"whitespace\"\n"
-            + "                        }"
-            + "                   }"
-            + "            }\n"
-            + "        }\n"
-            + "    }\n"
-            + "}";
+        String mapping = """
+            {
+                "person": {
+                    "properties": {
+                        "name": {
+                            "properties": {
+                                "first": {
+                                    "type": "text",
+                                    "analyzer": "standard"
+                                },
+                                "last": {
+                                    "type": "text",
+                                    "analyzer": "standard"
+                                },
+                                "nickname": {
+                                    "type": "text",
+                                    "analyzer": "whitespace"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            """;
         mapperService.merge("person", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
         this.indexService = indexService;
     }

@@ -16,7 +16,6 @@ import org.apache.http.message.BasicHeader;
 import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.RestClient;
@@ -36,7 +35,6 @@ import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
@@ -61,7 +59,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 import javax.net.ssl.SSLContext;
 
@@ -86,7 +83,7 @@ public class HttpExporter extends Exporter {
 
     public static final String TYPE = "http";
 
-    private static Setting.AffixSettingDependency HTTP_TYPE_DEPENDENCY = new Setting.AffixSettingDependency() {
+    private static final Setting.AffixSettingDependency HTTP_TYPE_DEPENDENCY = new Setting.AffixSettingDependency() {
         @Override
         public Setting.AffixSetting<String> getSetting() {
             return Exporter.TYPE_SETTING;
@@ -305,7 +302,7 @@ public class HttpExporter extends Exporter {
      * <p>
      * Headers are blacklisted if they have the opportunity to break things and we won't be guaranteed to overwrite them.
      */
-    public static final Set<String> BLACKLISTED_HEADERS = Collections.unmodifiableSet(Sets.newHashSet("Content-Length", "Content-Type"));
+    public static final Set<String> BLACKLISTED_HEADERS = Set.of("Content-Length", "Content-Type");
     /**
      * ES level timeout used when checking and writing templates (used to speed up tests)
      */
@@ -550,7 +547,7 @@ public class HttpExporter extends Exporter {
             .getSecureSettingsInUse(settings)
             .stream()
             .map(Setting::getKey)
-            .collect(Collectors.toList());
+            .toList();
         if (secureSettings.isEmpty() == false) {
             throw new IllegalStateException(
                 "Cannot dynamically update SSL settings for the exporter ["
@@ -911,18 +908,12 @@ public class HttpExporter extends Exporter {
             if (result.isSuccess()) {
                 status = ExporterResourceStatus.ready(name(), TYPE);
             } else {
-                switch (result.getResourceState()) {
-                    case CLEAN:
-                        status = ExporterResourceStatus.ready(name(), TYPE);
-                        break;
-                    case CHECKING:
-                    case DIRTY:
+                status = switch (result.getResourceState()) {
+                    case CLEAN -> ExporterResourceStatus.ready(name(), TYPE);
+                    case CHECKING, DIRTY ->
                         // CHECKING should be unlikely, but in case of that, we mark it as not ready
-                        status = ExporterResourceStatus.notReady(name(), TYPE, result.getReason());
-                        break;
-                    default:
-                        throw new ElasticsearchException("Illegal exporter resource status state [{}]", result.getResourceState());
-                }
+                        ExporterResourceStatus.notReady(name(), TYPE, result.getReason());
+                };
             }
             listener.accept(status);
         }, (exception) -> listener.accept(ExporterResourceStatus.notReady(name(), TYPE, exception))));

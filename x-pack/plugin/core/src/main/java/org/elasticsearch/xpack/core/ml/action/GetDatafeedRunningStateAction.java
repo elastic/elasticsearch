@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
@@ -13,10 +14,14 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.MlTasks;
+import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
 
 import java.io.IOException;
 import java.util.List;
@@ -25,6 +30,8 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * Internal only action to get the current running state of a datafeed
@@ -65,6 +72,11 @@ public class GetDatafeedRunningStateAction extends ActionType<GetDatafeedRunning
         public boolean match(Task task) {
             return task instanceof StartDatafeedAction.DatafeedTaskMatcher && datafeedTaskIds.contains(task.getDescription());
         }
+
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, format("get_datafeed_running_state[%s]", datafeedTaskIds), parentTaskId, headers);
+        }
     }
 
     public static class Response extends BaseTasksResponse {
@@ -76,14 +88,24 @@ public class GetDatafeedRunningStateAction extends ActionType<GetDatafeedRunning
             // Has the look back finished and are we now running on "real-time" data
             private final boolean realTimeRunning;
 
-            public RunningState(boolean realTimeConfigured, boolean realTimeRunning) {
+            // The current time interval that datafeed is searching
+            @Nullable
+            private final SearchInterval searchInterval;
+
+            public RunningState(boolean realTimeConfigured, boolean realTimeRunning, @Nullable SearchInterval searchInterval) {
                 this.realTimeConfigured = realTimeConfigured;
                 this.realTimeRunning = realTimeRunning;
+                this.searchInterval = searchInterval;
             }
 
             public RunningState(StreamInput in) throws IOException {
                 this.realTimeConfigured = in.readBoolean();
                 this.realTimeRunning = in.readBoolean();
+                if (in.getVersion().onOrAfter(Version.V_8_1_0)) {
+                    this.searchInterval = in.readOptionalWriteable(SearchInterval::new);
+                } else {
+                    this.searchInterval = null;
+                }
             }
 
             @Override
@@ -91,18 +113,23 @@ public class GetDatafeedRunningStateAction extends ActionType<GetDatafeedRunning
                 if (this == o) return true;
                 if (o == null || getClass() != o.getClass()) return false;
                 RunningState that = (RunningState) o;
-                return realTimeConfigured == that.realTimeConfigured && realTimeRunning == that.realTimeRunning;
+                return realTimeConfigured == that.realTimeConfigured
+                    && realTimeRunning == that.realTimeRunning
+                    && Objects.equals(searchInterval, that.searchInterval);
             }
 
             @Override
             public int hashCode() {
-                return Objects.hash(realTimeConfigured, realTimeRunning);
+                return Objects.hash(realTimeConfigured, realTimeRunning, searchInterval);
             }
 
             @Override
             public void writeTo(StreamOutput out) throws IOException {
                 out.writeBoolean(realTimeConfigured);
                 out.writeBoolean(realTimeRunning);
+                if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
+                    out.writeOptionalWriteable(searchInterval);
+                }
             }
 
             @Override
@@ -110,6 +137,9 @@ public class GetDatafeedRunningStateAction extends ActionType<GetDatafeedRunning
                 builder.startObject();
                 builder.field("real_time_configured", realTimeConfigured);
                 builder.field("real_time_running", realTimeRunning);
+                if (searchInterval != null) {
+                    builder.field("search_interval", searchInterval);
+                }
                 builder.endObject();
                 return builder;
             }

@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.security.action.oidc;
 
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 
 /**
  * Request builder for populating a {@link OpenIdConnectAuthenticateRequest}

@@ -178,7 +178,7 @@ public final class Script implements ToXContentObject, Writeable {
         /**
          * Helper method to throw an exception if more than one type of {@link Script} is specified.
          */
-        private void throwOnlyOneOfType() {
+        private static void throwOnlyOneOfType() {
             throw new IllegalArgumentException(
                 "must only use one of ["
                     + ScriptType.INLINE.getParseField().getPreferredName()
@@ -569,8 +569,8 @@ public final class Script implements ToXContentObject, Writeable {
         out.writeString(idOrCode);
         @SuppressWarnings("unchecked")
         Map<String, Object> options = (Map<String, Object>) (Map) this.options;
-        out.writeMap(options);
-        out.writeMap(params);
+        out.writeMapWithConsistentOrder(options);
+        out.writeMapWithConsistentOrder(params);
     }
 
     /**

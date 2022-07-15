@@ -97,4 +97,19 @@ public class EnrichPolicyTests extends AbstractSerializingTestCase<EnrichPolicy>
         assertThat(newInstance.getMatchField(), equalTo(expectedInstance.getMatchField()));
         assertThat(newInstance.getEnrichFields(), equalTo(expectedInstance.getEnrichFields()));
     }
+
+    public void testIsPolicyForIndex() {
+        String policy1 = "policy-1";
+        String policy2 = "policy-10"; // the first policy is a prefix of the second policy!
+
+        String index1 = EnrichPolicy.getIndexName(policy1, 1000);
+        String index2 = EnrichPolicy.getIndexName(policy2, 2000);
+
+        assertTrue(EnrichPolicy.isPolicyForIndex(policy1, index1));
+        assertTrue(EnrichPolicy.isPolicyForIndex(policy2, index2));
+
+        assertFalse(EnrichPolicy.isPolicyForIndex(policy1, index2));
+        assertFalse(EnrichPolicy.isPolicyForIndex(policy2, index1));
+    }
+
 }

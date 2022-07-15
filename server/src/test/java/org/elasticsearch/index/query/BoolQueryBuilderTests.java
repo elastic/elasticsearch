@@ -123,7 +123,10 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         Map<String, BoolQueryBuilder> alternateVersions = new HashMap<>();
         BoolQueryBuilder tempQueryBuilder = createTestQueryBuilder();
         BoolQueryBuilder expectedQuery = new BoolQueryBuilder();
-        String contentString = "{\n" + "    \"bool\" : {\n";
+        String contentString = """
+            {
+                "bool" : {
+            """;
         if (tempQueryBuilder.must().size() > 0) {
             QueryBuilder must = tempQueryBuilder.must().get(0);
             contentString += "\"must\": " + must.toString() + ",";
@@ -213,26 +216,22 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
             + "  \"must\" : [ {"
             + "    \"term\" : {"
             + "      \"user\" : {"
-            + "        \"value\" : \"kimchy\","
-            + "        \"boost\" : 1.0"
+            + "        \"value\" : \"kimchy\""
             + "      }"
             + "    }"
             + "  } ],"
             + "  \"filter\" : [ {"
             + "    \"term\" : {"
             + "      \"tag\" : {"
-            + "        \"value\" : \"tech\","
-            + "        \"boost\" : 1.0"
+            + "        \"value\" : \"tech\""
             + "      }"
             + "    }"
             + "  } ],"
             + "  \"must_not\" : [ {"
             + "    \"range\" : {"
             + "      \"age\" : {"
-            + "        \"from\" : 10,"
-            + "        \"to\" : 20,"
-            + "        \"include_lower\" : true,"
-            + "        \"include_upper\" : true,"
+            + "        \"gte\" : 10,"
+            + "        \"lte\" : 20,"
             + "        \"boost\" : 1.0"
             + "      }"
             + "    }"
@@ -240,15 +239,13 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
             + "  \"should\" : [ {"
             + "    \"term\" : {"
             + "      \"tag\" : {"
-            + "        \"value\" : \"wow\","
-            + "        \"boost\" : 1.0"
+            + "        \"value\" : \"wow\""
             + "      }"
             + "    }"
             + "  }, {"
             + "    \"term\" : {"
             + "      \"tag\" : {"
-            + "        \"value\" : \"elasticsearch\","
-            + "        \"boost\" : 1.0"
+            + "        \"value\" : \"elasticsearch\""
             + "      }"
             + "    }"
             + "  } ],"
@@ -266,13 +263,15 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
     }
 
     public void testMinimumShouldMatchNumber() throws IOException {
-        String query = "{\"bool\" : {\"must\" : { \"term\" : { \"field\" : \"value\" } }, \"minimum_should_match\" : 1 } }";
+        String query = """
+            {"bool" : {"must" : { "term" : { "field" : "value" } }, "minimum_should_match" : 1 } }""";
         BoolQueryBuilder builder = (BoolQueryBuilder) parseQuery(query);
         assertEquals("1", builder.minimumShouldMatch());
     }
 
     public void testMinimumShouldMatchNull() throws IOException {
-        String query = "{\"bool\" : {\"must\" : { \"term\" : { \"field\" : \"value\" } }, \"minimum_should_match\" : null } }";
+        String query = """
+            {"bool" : {"must" : { "term" : { "field" : "value" } }, "minimum_should_match" : null } }""";
         BoolQueryBuilder builder = (BoolQueryBuilder) parseQuery(query);
         assertEquals(null, builder.minimumShouldMatch());
     }
@@ -422,6 +421,12 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         boolQueryBuilder = new BoolQueryBuilder();
         rewritten = Rewriteable.rewrite(boolQueryBuilder, createSearchExecutionContext());
         assertNotEquals(new MatchNoneQueryBuilder(), rewritten);
+
+        boolQueryBuilder = new BoolQueryBuilder();
+        boolQueryBuilder.filter(new TermQueryBuilder(TEXT_FIELD_NAME, "bar"));
+        boolQueryBuilder.mustNot(new WrapperQueryBuilder(new WrapperQueryBuilder(new MatchAllQueryBuilder().toString()).toString()));
+        rewritten = boolQueryBuilder.rewrite(createSearchExecutionContext());
+        assertEquals(new MatchNoneQueryBuilder(), rewritten);
     }
 
     @Override

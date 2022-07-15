@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.transform.rest.action;
 
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;

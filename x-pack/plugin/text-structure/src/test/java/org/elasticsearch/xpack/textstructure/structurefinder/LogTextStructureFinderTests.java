@@ -23,13 +23,15 @@ public class LogTextStructureFinderTests extends TextStructureTestCase {
 
     public void testCreateConfigsGivenLowLineMergeSizeLimit() {
 
-        String sample = "2019-05-16 16:56:14 line 1 abcdefghijklmnopqrstuvwxyz\n"
-            + "2019-05-16 16:56:14 line 2 abcdefghijklmnopqrstuvwxyz\n"
-            + "continuation line 2.1\n"
-            + "continuation line 2.2\n"
-            + "continuation line 2.3\n"
-            + "continuation line 2.4\n"
-            + "2019-05-16 16:56:14 line 3 abcdefghijklmnopqrstuvwxyz\n";
+        String sample = """
+            2019-05-16 16:56:14 line 1 abcdefghijklmnopqrstuvwxyz
+            2019-05-16 16:56:14 line 2 abcdefghijklmnopqrstuvwxyz
+            continuation line 2.1
+            continuation line 2.2
+            continuation line 2.3
+            continuation line 2.4
+            2019-05-16 16:56:14 line 3 abcdefghijklmnopqrstuvwxyz
+            """;
 
         assertTrue(factory.canCreateFromSample(explanation, sample, 0.0));
 
@@ -99,10 +101,12 @@ public class LogTextStructureFinderTests extends TextStructureTestCase {
 
     public void testCreateConfigsGivenElasticsearchLogAndTimestampFormatOverride() throws Exception {
 
-        String sample = "12/31/2018 1:40PM INFO foo\n"
-            + "1/31/2019 11:40AM DEBUG bar\n"
-            + "2/1/2019 11:00PM INFO foo\n"
-            + "2/2/2019 1:23AM DEBUG bar\n";
+        String sample = """
+            12/31/2018 1:40PM INFO foo
+            1/31/2019 11:40AM DEBUG bar
+            2/1/2019 11:00PM INFO foo
+            2/2/2019 1:23AM DEBUG bar
+            """;
 
         TextStructureOverrides overrides = TextStructureOverrides.builder().setTimestampFormat("M/d/yyyy h:mma").build();
 
@@ -310,11 +314,13 @@ public class LogTextStructureFinderTests extends TextStructureTestCase {
 
         // This sample causes problems because the (very weird) primary timestamp format
         // is not detected but a secondary format that only occurs in one line is detected
-        String sample = "Day 21 Month 1 Year 2019 11:04 INFO [localhost] - starting\n"
-            + "Day 21 Month 1 Year 2019 11:04 INFO [localhost] - startup date [Mon Jan 21 11:04:19 CET 2019]\n"
-            + "Day 21 Month 1 Year 2019 11:04 DEBUG [localhost] - details\n"
-            + "Day 21 Month 1 Year 2019 11:04 DEBUG [localhost] - more details\n"
-            + "Day 21 Month 1 Year 2019 11:04 WARN [localhost] - something went wrong\n";
+        String sample = """
+            Day 21 Month 1 Year 2019 11:04 INFO [localhost] - starting
+            Day 21 Month 1 Year 2019 11:04 INFO [localhost] - startup date [Mon Jan 21 11:04:19 CET 2019]
+            Day 21 Month 1 Year 2019 11:04 DEBUG [localhost] - details
+            Day 21 Month 1 Year 2019 11:04 DEBUG [localhost] - more details
+            Day 21 Month 1 Year 2019 11:04 WARN [localhost] - something went wrong
+            """;
 
         String charset = randomFrom(POSSIBLE_CHARSETS);
         Boolean hasByteOrderMarker = randomHasByteOrderMarker(charset);

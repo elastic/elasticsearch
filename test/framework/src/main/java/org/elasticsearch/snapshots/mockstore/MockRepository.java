@@ -17,11 +17,11 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
+import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Iterators;
@@ -43,7 +43,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.io.UnsupportedEncodingException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -269,7 +269,7 @@ public class MockRepository extends FsRepository {
         blockAndFailOnWriteSnapFile = true;
     }
 
-    public void setBlockAndOnWriteShardLevelSnapFiles(String indexId) {
+    public void setBlockOnShardLevelSnapFiles(String indexId) {
         blockedIndexId = indexId;
     }
 
@@ -402,10 +402,10 @@ public class MockRepository extends FsRepository {
             private int hashCode(String path) {
                 try {
                     MessageDigest digest = MessageDigest.getInstance("MD5");
-                    byte[] bytes = digest.digest(path.getBytes("UTF-8"));
+                    byte[] bytes = digest.digest(path.getBytes(StandardCharsets.UTF_8));
                     int i = 0;
                     return ((bytes[i++] & 0xFF) << 24) | ((bytes[i++] & 0xFF) << 16) | ((bytes[i++] & 0xFF) << 8) | (bytes[i++] & 0xFF);
-                } catch (NoSuchAlgorithmException | UnsupportedEncodingException ex) {
+                } catch (NoSuchAlgorithmException ex) {
                     throw new ElasticsearchException("cannot calculate hashcode", ex);
                 }
             }

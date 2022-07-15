@@ -19,43 +19,51 @@ Instantiates a {transform}.
 
 Requires the following privileges:
 
-* cluster: `manage_transform` (the `transform_admin` built-in role grants this 
+* cluster: `manage_transform` (the `transform_admin` built-in role grants this
   privilege)
 * source indices: `read`, `view_index_metadata`
-* destination index: `read`, `create_index`, `index`.
+* destination index: `read`, `create_index`, `index`. If a `retention_policy` is configured, the `delete` privilege is
+  also required.
 
 [[put-transform-desc]]
 == {api-description-title}
 
-This API defines a {transform}, which copies data from source indices, 
+This API defines a {transform}, which copies data from source indices,
 transforms it, and persists it into an entity-centric destination index. If you
 choose to use the pivot method for your {transform}, the entities are defined by
 the set of `group_by` fields in the `pivot` object. If you choose to use the
 latest method, the entities are defined by the `unique_key` field values in the
 `latest` object.
 
-You can also think of the destination index as a two-dimensional tabular data 
-structure (known as a {dataframe}). The ID for each document in the {dataframe} 
-is generated from a hash of the entity, so there is a unique row per entity. For 
+You can also think of the destination index as a two-dimensional tabular data
+structure (known as a {dataframe}). The ID for each document in the {dataframe}
+is generated from a hash of the entity, so there is a unique row per entity. For
 more information, see <<transforms>>.
 
-When the {transform} is created, a series of validations occur to ensure its 
-success. For example, there is a check for the existence of the source indices 
-and a check that the destination index is not part of the source index pattern. 
+When the {transform} is created, a series of validations occur to ensure its
+success. For example, there is a check for the existence of the source indices
+and a check that the destination index is not part of the source index pattern.
 You can use the `defer_validation` parameter to skip these checks.
 
-Deferred validations are always run when the {transform} is started, with the 
-exception of privilege checks. When {es} {security-features} are enabled, the 
-{transform} remembers which roles the user that created it had at the time of 
-creation and uses those same roles. If those roles do not have the required 
-privileges on the source and destination indices, the {transform} fails when it 
-attempts unauthorized operations.
+Deferred validations are always run when the {transform} is started, with the
+exception of privilege checks.
 
-IMPORTANT: You must use {kib} or this API to create a {transform}. Do not add a
+[IMPORTANT]
+====
+
+* The {transform} remembers which roles the user that created it had at the time
+of creation and uses those same roles. If those roles do not have the required
+privileges on the source and destination indices, the {transform} fails when it
+attempts unauthorized operations. If you provide
+<<http-clients-secondary-authorization,secondary authorization headers>>, those
+credentials are used instead.
+* You must use {kib} or this API to create a {transform}. Do not add a
 {transform} directly into any `.transform-internal*` indices using the {es}
 index API. If {es} {security-features} are enabled, do not give users any
 privileges on `.transform-internal*` indices. If you used {transforms} prior to
 7.5, also do not give users any privileges on `.data-frame-internal*` indices.
+
+====
 
 You must choose either the latest or pivot method for your {transform}; you
 cannot use both in a single {transform}.
@@ -201,9 +209,15 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-doc
 `align_checkpoints`:::
 (Optional, boolean)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-align-checkpoints]
+`deduce_mappings`:::
+(Optional, boolean)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-deduce-mappings]
 `max_page_search_size`:::
 (Optional, integer)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-max-page-search-size]
+`num_failure_retries`:::
+(Optional, integer)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-num-failure-retries]
 ====
 //End settings
 
@@ -257,7 +271,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=sync-time-delay]
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=sync-time-field]
 +
 --
-TIP: In general, it’s a good idea to use a field that contains the
+TIP: It is strongly recommended to use a field that contains the
 <<access-ingest-metadata,ingest timestamp>>. If you use a different field,
 you might need to set the `delay` such that it accounts for data transmission
 delays.

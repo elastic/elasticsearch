@@ -20,6 +20,8 @@ import java.util.function.BiConsumer;
  */
 public class CompletableContext<T> {
 
+    public CompletableContext() {}
+
     private final CompletableFuture<T> completableFuture = new CompletableFuture<>();
 
     public void addListener(BiConsumer<T, ? super Exception> listener) {

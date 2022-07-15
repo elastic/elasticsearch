@@ -62,7 +62,8 @@ public class RecallTests extends AbstractSerializingTestCase<Recall> {
         Recall recall = new Recall(Arrays.asList(0.25, 0.5, 0.75));
         EvaluationMetricResult result = recall.evaluate(aggs);
 
-        String expected = "{\"0.25\":0.2,\"0.5\":0.75,\"0.75\":1.0}";
+        String expected = """
+            {"0.25":0.2,"0.5":0.75,"0.75":1.0}""";
         assertThat(Strings.toString(result), equalTo(expected));
     }
 

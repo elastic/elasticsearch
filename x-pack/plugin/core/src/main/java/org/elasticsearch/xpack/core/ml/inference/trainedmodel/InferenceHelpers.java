@@ -102,11 +102,11 @@ public final class InferenceHelpers {
     }
 
     public static Double toDouble(Object value) {
-        if (value instanceof Number) {
-            return ((Number) value).doubleValue();
+        if (value instanceof Number number) {
+            return number.doubleValue();
         }
-        if (value instanceof String) {
-            return stringToDouble((String) value);
+        if (value instanceof String str) {
+            return stringToDouble(str);
         }
         return null;
     }

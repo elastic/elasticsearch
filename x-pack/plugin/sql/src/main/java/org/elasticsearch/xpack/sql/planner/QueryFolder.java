@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.ql.querydsl.container.Sort.Missing;
 import org.elasticsearch.xpack.ql.querydsl.query.Query;
 import org.elasticsearch.xpack.ql.rule.Rule;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
+import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.function.Score;
@@ -95,6 +96,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
 import static org.elasticsearch.xpack.sql.expression.function.grouping.Histogram.DAY_INTERVAL;
 import static org.elasticsearch.xpack.sql.expression.function.grouping.Histogram.MONTH_INTERVAL;
@@ -136,8 +138,9 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
 
         @Override
         protected PhysicalPlan rule(ProjectExec project) {
-            if (project.child() instanceof EsQueryExec) {
-                EsQueryExec exec = (EsQueryExec) project.child();
+            // tag::noformat - https://bugs.eclipse.org/bugs/show_bug.cgi?id=574437
+            if (project.child() instanceof EsQueryExec exec) {
+                // end::noformat
                 QueryContainer queryC = exec.queryContainer();
 
                 AttributeMap.Builder<Expression> aliases = AttributeMap.<Expression>builder().putAll(queryC.aliases());
@@ -191,7 +194,8 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                     queryC.limit(),
                     queryC.shouldTrackHits(),
                     queryC.shouldIncludeFrozen(),
-                    queryC.minPageSize()
+                    queryC.minPageSize(),
+                    queryC.allowPartialSearchResults()
                 );
                 return new EsQueryExec(exec.source(), exec.index(), project.output(), clone);
             }
@@ -202,9 +206,9 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
     private static class FoldFilter extends FoldingRule<FilterExec> {
         @Override
         protected PhysicalPlan rule(FilterExec plan) {
-
-            if (plan.child() instanceof EsQueryExec) {
-                EsQueryExec exec = (EsQueryExec) plan.child();
+            // tag::noformat - https://bugs.eclipse.org/bugs/show_bug.cgi?id=574437
+            if (plan.child() instanceof EsQueryExec exec) {
+                // end::noformat
                 QueryContainer qContainer = exec.queryContainer();
 
                 QueryTranslation qt = toQuery(plan.condition(), plan.isHaving());
@@ -226,7 +230,8 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                     qContainer.limit(),
                     qContainer.shouldTrackHits(),
                     qContainer.shouldIncludeFrozen(),
-                    qContainer.minPageSize()
+                    qContainer.minPageSize(),
+                    qContainer.allowPartialSearchResults()
                 );
 
                 return exec.with(qContainer);
@@ -311,16 +316,14 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                 String aggId = Expressions.id(exp);
 
                 // change analyzed to non non-analyzed attributes
-                if (exp instanceof FieldAttribute) {
-                    FieldAttribute field = (FieldAttribute) exp;
+                if (exp instanceof FieldAttribute field) {
                     field = field.exactAttribute();
                     key = new GroupByValue(aggId, field.name());
                 }
                 // handle functions
                 else if (exp instanceof Function) {
                     // dates are handled differently because of date histograms
-                    if (exp instanceof DateTimeHistogramFunction) {
-                        DateTimeHistogramFunction dthf = (DateTimeHistogramFunction) exp;
+                    if (exp instanceof DateTimeHistogramFunction dthf) {
 
                         Expression field = dthf.field();
                         if (field instanceof FieldAttribute) {
@@ -341,14 +344,12 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                         }
                     }
                     // all other scalar functions become a script
-                    else if (exp instanceof ScalarFunction) {
-                        ScalarFunction sf = (ScalarFunction) exp;
+                    else if (exp instanceof ScalarFunction sf) {
                         key = new GroupByValue(aggId, sf.asScript());
                     }
                     // histogram
                     else if (exp instanceof GroupingFunction) {
-                        if (exp instanceof Histogram) {
-                            Histogram h = (Histogram) exp;
+                        if (exp instanceof Histogram h) {
                             Expression field = h.field();
 
                             // date histogram
@@ -437,10 +438,11 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
 
         @Override
         protected PhysicalPlan rule(AggregateExec a) {
-            if (a.child() instanceof EsQueryExec) {
-                EsQueryExec exec = (EsQueryExec) a.child();
+            // tag::noformat - https://bugs.eclipse.org/bugs/show_bug.cgi?id=574437
+            if (a.child() instanceof EsQueryExec exec) {
                 return fold(a, exec);
             }
+            // end::noformat
             return a;
         }
 
@@ -520,8 +522,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                     // ABS(AVG(salary)) ... GROUP BY salary
                     // )
 
-                    if (target instanceof ScalarFunction) {
-                        ScalarFunction f = (ScalarFunction) target;
+                    if (target instanceof ScalarFunction f) {
                         Pipe proc = f.asPipe();
 
                         final AtomicReference<QueryContainer> qC = new AtomicReference<>(queryC);
@@ -557,7 +558,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                             if (matchingGroup != null) {
                                 if (exp instanceof Attribute || exp instanceof ScalarFunction || exp instanceof GroupingFunction) {
                                     Processor action = null;
-                                    boolean isDateBased = isDateBased(exp.dataType());
+                                    DataType dataType = exp.dataType();
                                     /*
                                      * special handling of dates since aggs return the typed Date object which needs
                                      * extraction instead of handling this in the scroller, the folder handles this
@@ -565,14 +566,9 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                                      */
                                     if (exp instanceof DateTimeHistogramFunction) {
                                         action = ((UnaryPipe) p).action();
-                                        isDateBased = true;
+                                        dataType = DATETIME;
                                     }
-                                    return new AggPathInput(
-                                        exp.source(),
-                                        exp,
-                                        new GroupByRef(matchingGroup.id(), null, isDateBased),
-                                        action
-                                    );
+                                    return new AggPathInput(exp.source(), exp, new GroupByRef(matchingGroup.id(), null, dataType), action);
                                 }
                             }
                             // or found an aggregate expression (which has to work on an attribute used for grouping)
@@ -610,19 +606,11 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                         // attributes can only refer to declared groups
                         if (target instanceof Attribute) {
                             Check.notNull(matchingGroup, "Cannot find group [{}]", Expressions.name(target));
-                            queryC = queryC.addColumn(
-                                new GroupByRef(matchingGroup.id(), null, isDateBased(target.dataType())),
-                                id,
-                                ne.toAttribute()
-                            );
+                            queryC = queryC.addColumn(new GroupByRef(matchingGroup.id(), null, target.dataType()), id, ne.toAttribute());
                         }
                         // handle histogram
                         else if (target instanceof GroupingFunction) {
-                            queryC = queryC.addColumn(
-                                new GroupByRef(matchingGroup.id(), null, isDateBased(target.dataType())),
-                                id,
-                                ne.toAttribute()
-                            );
+                            queryC = queryC.addColumn(new GroupByRef(matchingGroup.id(), null, target.dataType()), id, ne.toAttribute());
                         }
                         // handle literal
                         else if (target.foldable()) {
@@ -653,11 +641,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                         matchingGroup = groupingContext.groupFor(target);
                         Check.notNull(matchingGroup, "Cannot find group [{}]", Expressions.name(ne));
 
-                        queryC = queryC.addColumn(
-                            new GroupByRef(matchingGroup.id(), null, isDateBased(ne.dataType())),
-                            id,
-                            ne.toAttribute()
-                        );
+                        queryC = queryC.addColumn(new GroupByRef(matchingGroup.id(), null, ne.dataType()), id, ne.toAttribute());
                     }
                     // fallback
                     else {
@@ -670,7 +654,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
             if (a.aggregates().stream().allMatch(e -> e.anyMatch(Expression::foldable))) {
                 for (Expression grouping : a.groupings()) {
                     GroupByKey matchingGroup = groupingContext.groupFor(grouping);
-                    queryC = queryC.addColumn(new GroupByRef(matchingGroup.id(), null, false), id, null);
+                    queryC = queryC.addColumn(new GroupByRef(matchingGroup.id(), null, grouping.dataType()), id, null);
                 }
             }
             return new EsQueryExec(exec.source(), exec.index(), a.output(), queryC);
@@ -685,8 +669,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
 
             String functionId = Expressions.id(f);
             // handle count as a special case agg
-            if (f instanceof Count) {
-                Count c = (Count) f;
+            if (f instanceof Count c) {
                 // COUNT(*) or COUNT(<literal>)
                 if (c.field().foldable()) {
                     AggRef ref = null;
@@ -696,7 +679,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                         // if the count points to the total track hits, enable accurate count retrieval
                         queryC = queryC.withTrackHits();
                     } else {
-                        ref = new GroupByRef(groupingAgg.id(), Property.COUNT, false);
+                        ref = new GroupByRef(groupingAgg.id(), Property.COUNT, c.dataType());
                     }
 
                     Map<String, GroupByKey> pseudoFunctions = new LinkedHashMap<>(queryC.pseudoFunctions());
@@ -714,8 +697,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
 
             AggPathInput aggInput = null;
 
-            if (f instanceof InnerAggregate) {
-                InnerAggregate ia = (InnerAggregate) f;
+            if (f instanceof InnerAggregate ia) {
                 CompoundNumericAggregate outer = (CompoundNumericAggregate) ia.outer();
                 String cAggPath = compoundAggMap.get(outer);
 
@@ -756,8 +738,9 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
     private static class FoldOrderBy extends FoldingRule<OrderExec> {
         @Override
         protected PhysicalPlan rule(OrderExec plan) {
-            if (plan.child() instanceof EsQueryExec) {
-                EsQueryExec exec = (EsQueryExec) plan.child();
+            // tag::noformat - https://bugs.eclipse.org/bugs/show_bug.cgi?id=574437
+            if (plan.child() instanceof EsQueryExec exec) {
+                // end::noformat
                 QueryContainer qContainer = exec.queryContainer();
 
                 // Reverse traversal together with the upwards fold direction ensures that sort clauses are added in reverse order of
@@ -793,8 +776,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                         );
                     }
                     // scalar functions typically require script ordering
-                    else if (orderExpression instanceof ScalarFunction) {
-                        ScalarFunction sf = (ScalarFunction) orderExpression;
+                    else if (orderExpression instanceof ScalarFunction sf) {
                         // nope, use scripted sorting
                         qContainer = qContainer.prependSort(lookup, new ScriptSort(sf.asScript(), direction, missing));
                     }
@@ -829,13 +811,14 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
 
         @Override
         protected PhysicalPlan rule(LimitExec plan) {
-            if (plan.child() instanceof EsQueryExec) {
-                EsQueryExec exec = (EsQueryExec) plan.child();
+            // tag::noformat - https://bugs.eclipse.org/bugs/show_bug.cgi?id=574437
+            if (plan.child() instanceof EsQueryExec exec) {
                 int limit = (Integer) SqlDataTypeConverter.convert(Foldables.valueOf(plan.limit()), DataTypes.INTEGER);
                 int currentSize = exec.queryContainer().limit();
                 int newSize = currentSize < 0 ? limit : Math.min(currentSize, limit);
                 return exec.with(exec.queryContainer().withLimit(newSize));
             }
+            // end::noformat
             return plan;
         }
     }
@@ -863,8 +846,9 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
 
         @Override
         protected PhysicalPlan rule(PivotExec plan) {
-            if (plan.child() instanceof EsQueryExec) {
-                EsQueryExec exec = (EsQueryExec) plan.child();
+            // tag::noformat - https://bugs.eclipse.org/bugs/show_bug.cgi?id=574437
+            if (plan.child() instanceof EsQueryExec exec) {
+                // end::noformat
                 Pivot p = plan.pivot();
                 EsQueryExec fold = FoldAggregate.fold(
                     new AggregateExec(plan.source(), exec, new ArrayList<>(p.groupingSet()), combine(p.groupingSet(), p.aggregates())),
@@ -908,7 +892,8 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                         query.limit(),
                         query.shouldTrackHits(),
                         query.shouldIncludeFrozen(),
-                        values.size()
+                        values.size(),
+                        query.allowPartialSearchResults()
                     )
                 );
             }

@@ -59,16 +59,6 @@ public class SettingsTests extends ESTestCase {
         assertThat(settings.get("setting1"), equalTo(value));
     }
 
-    public void testReplacePropertiesPlaceholderSystemPropertyList() {
-        final String hostname = randomAlphaOfLength(16);
-        final String hostip = randomAlphaOfLength(16);
-        final Settings settings = Settings.builder()
-            .putList("setting1", "${HOSTNAME}", "${HOSTIP}")
-            .replacePropertyPlaceholders(name -> name.equals("HOSTNAME") ? hostname : name.equals("HOSTIP") ? hostip : null)
-            .build();
-        assertThat(settings.getAsList("setting1"), contains(hostname, hostip));
-    }
-
     public void testReplacePropertiesPlaceholderSystemVariablesHaveNoEffect() {
         final String value = System.getProperty("java.home");
         assertNotNull(value);
@@ -77,15 +67,6 @@ public class SettingsTests extends ESTestCase {
             () -> Settings.builder().put("setting1", "${java.home}").replacePropertyPlaceholders().build()
         );
         assertThat(e, hasToString(containsString("Could not resolve placeholder 'java.home'")));
-    }
-
-    public void testReplacePropertiesPlaceholderByEnvironmentVariables() {
-        final String hostname = randomAlphaOfLength(16);
-        final Settings implicitEnvSettings = Settings.builder()
-            .put("setting1", "${HOSTNAME}")
-            .replacePropertyPlaceholders(name -> "HOSTNAME".equals(name) ? hostname : null)
-            .build();
-        assertThat(implicitEnvSettings.get("setting1"), equalTo(hostname));
     }
 
     public void testGetAsSettings() {
@@ -528,20 +509,23 @@ public class SettingsTests extends ESTestCase {
         builder.startObject();
         test.toXContent(builder, new ToXContent.MapParams(Collections.emptyMap()));
         builder.endObject();
-        assertEquals("{\"foo\":{\"bar.baz\":\"test\",\"bar\":[\"1\",\"2\",\"3\"]}}", Strings.toString(builder));
+        assertEquals("""
+            {"foo":{"bar.baz":"test","bar":["1","2","3"]}}""", Strings.toString(builder));
 
         test = Settings.builder().putList("foo.bar", "1", "2", "3").build();
         builder = XContentBuilder.builder(XContentType.JSON.xContent());
         builder.startObject();
         test.toXContent(builder, new ToXContent.MapParams(Collections.emptyMap()));
         builder.endObject();
-        assertEquals("{\"foo\":{\"bar\":[\"1\",\"2\",\"3\"]}}", Strings.toString(builder));
+        assertEquals("""
+            {"foo":{"bar":["1","2","3"]}}""", Strings.toString(builder));
 
         builder = XContentBuilder.builder(XContentType.JSON.xContent());
         builder.startObject();
         test.toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("flat_settings", "true")));
         builder.endObject();
-        assertEquals("{\"foo.bar\":[\"1\",\"2\",\"3\"]}", Strings.toString(builder));
+        assertEquals("""
+            {"foo.bar":["1","2","3"]}""", Strings.toString(builder));
     }
 
     public void testLoadEmptyStream() throws IOException {
@@ -690,14 +674,16 @@ public class SettingsTests extends ESTestCase {
         builder.startObject();
         test.toXContent(builder, new ToXContent.MapParams(Collections.emptyMap()));
         builder.endObject();
-        assertEquals("{\"ant.bee\":{\"cat\":\"value2\"},\"ant\":\"value1\",\"bee\":{\"cat\":\"value3\"}}", Strings.toString(builder));
+        assertEquals("""
+            {"ant.bee":{"cat":"value2"},"ant":"value1","bee":{"cat":"value3"}}""", Strings.toString(builder));
 
         test = Settings.builder().put("ant", "value1").put("ant.bee.cat", "value2").put("ant.bee.cat.dog.ewe", "value3").build();
         builder = XContentBuilder.builder(XContentType.JSON.xContent());
         builder.startObject();
         test.toXContent(builder, new ToXContent.MapParams(Collections.emptyMap()));
         builder.endObject();
-        assertEquals("{\"ant.bee\":{\"cat.dog\":{\"ewe\":\"value3\"},\"cat\":\"value2\"},\"ant\":\"value1\"}", Strings.toString(builder));
+        assertEquals("""
+            {"ant.bee":{"cat.dog":{"ewe":"value3"},"cat":"value2"},"ant":"value1"}""", Strings.toString(builder));
     }
 
 }

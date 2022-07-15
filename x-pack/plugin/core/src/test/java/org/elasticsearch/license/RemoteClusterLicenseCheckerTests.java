@@ -10,7 +10,7 @@ package org.elasticsearch.license;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
@@ -292,10 +292,7 @@ public final class RemoteClusterLicenseCheckerTests extends ESTestCase {
             final RemoteClusterLicenseChecker licenseChecker = new RemoteClusterLicenseChecker(client, feature);
 
             final List<String> remoteClusterAliases = Collections.singletonList("valid");
-            licenseChecker.checkRemoteClusterLicenses(
-                remoteClusterAliases,
-                doubleInvocationProtectingListener(ActionListener.wrap(() -> {}))
-            );
+            licenseChecker.checkRemoteClusterLicenses(remoteClusterAliases, doubleInvocationProtectingListener(ActionListener.noop()));
 
             verify(client, times(1)).execute(same(XPackInfoAction.INSTANCE), any(), any());
         } finally {

@@ -9,12 +9,11 @@ package org.elasticsearch.xpack.ql.async;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ListenerTimeouts;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -40,6 +39,8 @@ import org.elasticsearch.xpack.core.async.StoredAsyncTask;
 import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * Service for managing EQL requests
@@ -107,13 +108,16 @@ public class AsyncTaskManagementService<
         }
 
         @Override
-        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-            Map<String, String> originHeaders = ClientHelper.filterSecurityHeaders(threadPool.getThreadContext().getHeaders());
+        public Task createTask(long id, String type, String actionName, TaskId parentTaskId, Map<String, String> headers) {
+            Map<String, String> originHeaders = ClientHelper.getPersistableSafeSecurityHeaders(
+                threadPool.getThreadContext(),
+                clusterService.state()
+            );
             return operation.createTask(
                 request,
                 id,
                 type,
-                action,
+                actionName,
                 parentTaskId,
                 headers,
                 originHeaders,
@@ -256,9 +260,7 @@ public class AsyncTaskManagementService<
                 ActionListener.wrap(
                     // We should only unregister after the result is saved
                     resp -> {
-                        logger.trace(
-                            () -> new ParameterizedMessage("stored eql search results for [{}]", searchTask.getExecutionId().getEncoded())
-                        );
+                        logger.trace(() -> "stored eql search results for [" + searchTask.getExecutionId().getEncoded() + "]");
                         taskManager.unregister(searchTask);
                         if (storedResponse.getException() != null) {
                             searchTask.onFailure(storedResponse.getException());
@@ -276,10 +278,7 @@ public class AsyncTaskManagementService<
                         if (cause instanceof DocumentMissingException == false
                             && cause instanceof VersionConflictEngineException == false) {
                             logger.error(
-                                () -> new ParameterizedMessage(
-                                    "failed to store eql search results for [{}]",
-                                    searchTask.getExecutionId().getEncoded()
-                                ),
+                                () -> format("failed to store eql search results for [%s]", searchTask.getExecutionId().getEncoded()),
                                 exc
                             );
                         }
@@ -292,10 +291,7 @@ public class AsyncTaskManagementService<
         } catch (Exception exc) {
             taskManager.unregister(searchTask);
             searchTask.onFailure(exc);
-            logger.error(
-                () -> new ParameterizedMessage("failed to store eql search results for [{}]", searchTask.getExecutionId().getEncoded()),
-                exc
-            );
+            logger.error(() -> "failed to store eql search results for [" + searchTask.getExecutionId().getEncoded() + "]", exc);
         }
     }
 

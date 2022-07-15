@@ -34,7 +34,7 @@ public class MaxDocsCondition extends Condition<Long> {
 
     @Override
     public Result evaluate(final Stats stats) {
-        return new Result(this, this.value <= stats.numDocs);
+        return new Result(this, this.value <= stats.numDocs());
     }
 
     @Override

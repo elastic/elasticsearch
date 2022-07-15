@@ -31,7 +31,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.AbstractQueryTestCase;
-import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -60,7 +59,7 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Arrays.asList(ParentJoinPlugin.class, TestGeoShapeFieldMapperPlugin.class);
+        return Arrays.asList(ParentJoinPlugin.class);
     }
 
     @Override
@@ -187,26 +186,60 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
     }
 
     public void testFromJson() throws IOException {
-        String json = "{\n"
-            + "  \"has_parent\" : {\n"
-            + "    \"query\" : {\n"
-            + "      \"term\" : {\n"
-            + "        \"tag\" : {\n"
-            + "          \"value\" : \"something\",\n"
-            + "          \"boost\" : 1.0\n"
-            + "        }\n"
-            + "      }\n"
-            + "    },\n"
-            + "    \"parent_type\" : \"blog\",\n"
-            + "    \"score\" : true,\n"
-            + "    \"ignore_unmapped\" : false,\n"
-            + "    \"boost\" : 1.0\n"
-            + "  }\n"
-            + "}";
+        String json = """
+            {
+              "has_parent" : {
+                "query" : {
+                  "term" : {
+                    "tag" : {
+                      "value" : "something"
+                    }
+                  }
+                },
+                "parent_type" : "blog",
+                "score" : true,
+                "ignore_unmapped" : true,
+                "boost" : 2.0
+              }
+            }""";
         HasParentQueryBuilder parsed = (HasParentQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);
         assertEquals(json, "blog", parsed.type());
         assertEquals(json, "something", ((TermQueryBuilder) parsed.query()).value());
+        assertEquals(json, true, parsed.ignoreUnmapped());
+    }
+
+    public void testParseDefaultsRemoved() throws IOException {
+        String json = """
+            {
+              "has_parent" : {
+                "query" : {
+                  "term" : {
+                    "tag" : {
+                      "value" : "something"
+                    }
+                  }
+                },
+                "parent_type" : "blog",
+                "score" : false,
+                "ignore_unmapped" : false,
+                "boost" : 1.0
+              }
+            }""";
+        checkGeneratedJson("""
+            {
+              "has_parent" : {
+                "query" : {
+                  "term" : {
+                    "tag" : {
+                      "value" : "something"
+                    }
+                  }
+                },
+                "parent_type" : "blog"
+              }
+            }""", parseQuery(json));
+
     }
 
     public void testIgnoreUnmapped() throws IOException {

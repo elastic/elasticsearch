@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.search.aggregations.matrix.stats;
 
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -19,7 +20,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 
 final class MatrixStatsAggregatorFactory extends ArrayValuesSourceAggregatorFactory {
@@ -51,7 +51,7 @@ final class MatrixStatsAggregatorFactory extends ArrayValuesSourceAggregatorFact
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        Map<String, ValuesSource.Numeric> typedValuesSources = new HashMap<>(valuesSources.size());
+        Map<String, ValuesSource.Numeric> typedValuesSources = Maps.newMapWithExpectedSize(valuesSources.size());
         for (Map.Entry<String, ValuesSource> entry : valuesSources.entrySet()) {
             if (entry.getValue() instanceof ValuesSource.Numeric == false) {
                 throw new AggregationExecutionException(

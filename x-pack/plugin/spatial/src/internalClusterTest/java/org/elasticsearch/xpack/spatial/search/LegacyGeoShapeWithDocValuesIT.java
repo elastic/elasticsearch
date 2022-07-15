@@ -30,11 +30,6 @@ import static org.hamcrest.Matchers.equalTo;
 public class LegacyGeoShapeWithDocValuesIT extends GeoShapeIntegTestCase {
 
     @Override
-    protected boolean addMockGeoShapeFieldMapper() {
-        return false;
-    }
-
-    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singleton(LocalStateSpatialPlugin.class);
     }
@@ -68,13 +63,14 @@ public class LegacyGeoShapeWithDocValuesIT extends GeoShapeIntegTestCase {
         );
         ensureGreen();
 
-        String update = "{\n"
-            + "  \"properties\": {\n"
-            + "    \"shape\": {\n"
-            + "      \"type\": \"geo_shape\""
-            + "    }\n"
-            + "  }\n"
-            + "}";
+        String update = """
+            {
+              "properties": {
+                "shape": {
+                  "type": "geo_shape"
+                }
+              }
+            }""";
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,

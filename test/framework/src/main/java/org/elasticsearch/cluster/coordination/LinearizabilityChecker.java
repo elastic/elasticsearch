@@ -7,12 +7,11 @@
  */
 package org.elasticsearch.cluster.coordination;
 
-import com.carrotsearch.hppc.LongObjectHashMap;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
 
 import java.util.ArrayList;
@@ -401,22 +400,7 @@ public class LinearizabilityChecker {
         RESPONSE
     }
 
-    public static class Event {
-        public final EventType type;
-        public final Object value;
-        public final int id;
-
-        public Event(EventType type, Object value, int id) {
-            this.type = type;
-            this.value = value;
-            this.id = id;
-        }
-
-        @Override
-        public String toString() {
-            return "Event{" + "type=" + type + ", value=" + value + ", id=" + id + '}';
-        }
-    }
+    public record Event(EventType type, Object value, int id) {}
 
     static class Entry {
         final Event event;
@@ -475,7 +459,7 @@ public class LinearizabilityChecker {
      */
     private static class Cache {
         private final Map<Object, Set<FixedBitSet>> largeMap = new HashMap<>();
-        private final LongObjectHashMap<Set<Object>> smallMap = new LongObjectHashMap<>();
+        private final Map<Long, Set<Object>> smallMap = new HashMap<>();
         private final Map<Object, Object> internalizeStateMap = new HashMap<>();
         private final Map<Set<Object>, Set<Object>> statePermutations = new HashMap<>();
 
@@ -494,14 +478,13 @@ public class LinearizabilityChecker {
         }
 
         private boolean addSmall(Object state, long bits) {
-            int index = smallMap.indexOf(bits);
-            Set<Object> states;
-            if (index < 0) {
-                states = Collections.singleton(state);
+            Set<Object> states = smallMap.get(bits);
+            if (states == null) {
+                states = Set.of(state);
             } else {
-                Set<Object> oldStates = smallMap.indexGet(index);
+                Set<Object> oldStates = states;
                 if (oldStates.contains(state)) return false;
-                states = new HashSet<>(oldStates.size() + 1);
+                states = Sets.newHashSetWithExpectedSize(oldStates.size() + 1);
                 states.addAll(oldStates);
                 states.add(state);
             }
@@ -510,11 +493,7 @@ public class LinearizabilityChecker {
             // We thus avoid the overhead of the set data structure.
             states = statePermutations.computeIfAbsent(states, k -> k);
 
-            if (index < 0) {
-                smallMap.indexInsert(index, bits, states);
-            } else {
-                smallMap.indexReplace(index, states);
-            }
+            smallMap.put(bits, states);
 
             return true;
         }

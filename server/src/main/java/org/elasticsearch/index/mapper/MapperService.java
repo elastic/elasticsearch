@@ -11,7 +11,6 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.settings.Setting;
@@ -34,7 +33,6 @@ import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
@@ -50,7 +48,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 public class MapperService extends AbstractIndexComponent implements Closeable {
 
@@ -136,7 +133,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     public MapperService(
         IndexSettings indexSettings,
         IndexAnalyzers indexAnalyzers,
-        NamedXContentRegistry xContentRegistry,
+        XContentParserConfiguration parserConfiguration,
         SimilarityService similarityService,
         MapperRegistry mapperRegistry,
         Supplier<SearchExecutionContext> searchExecutionContextSupplier,
@@ -149,7 +146,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         this.mapperRegistry = mapperRegistry;
         Function<DateFormatter, MappingParserContext> parserContextFunction = dateFormatter -> new MappingParserContext(
             similarityService::getSimilarity,
-            mapperRegistry.getMapperParsers()::get,
+            type -> mapperRegistry.getMapperParser(type, indexVersionCreated),
             mapperRegistry.getRuntimeFieldParsers()::get,
             indexVersionCreated,
             searchExecutionContextSupplier,
@@ -160,7 +157,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             idFieldMapper
         );
         this.documentParser = new DocumentParser(
-            xContentRegistry,
+            parserConfiguration,
             dateFormatter -> new MappingParserContext.DynamicTemplateParserContext(parserContextFunction.apply(dateFormatter)),
             indexSettings,
             indexAnalyzers
@@ -178,7 +175,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     public boolean hasNested() {
-        return mappingLookup().hasNested();
+        return mappingLookup().nestedLookup() != NestedLookup.EMPTY;
     }
 
     public IndexAnalyzers getIndexAnalyzers() {
@@ -224,10 +221,11 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      * Parses the mappings (formatted as JSON) into a map
      */
     public static Map<String, Object> parseMapping(NamedXContentRegistry xContentRegistry, String mappingSource) throws IOException {
-        try (
-            XContentParser parser = XContentType.JSON.xContent()
-                .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, mappingSource)
-        ) {
+        if ("{}".equals(mappingSource)) {
+            // empty JSON is a common default value so it makes sense to optimize for it a little
+            return Map.of();
+        }
+        try (XContentParser parser = XContentType.JSON.xContent().createParser(parserConfig(xContentRegistry), mappingSource)) {
             return parser.map();
         }
     }
@@ -239,15 +237,14 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         throws IOException {
         try (
             InputStream in = CompressorFactory.COMPRESSOR.threadLocalInputStream(mappingSource.compressedReference().streamInput());
-            XContentParser parser = XContentType.JSON.xContent()
-                .createParser(
-                    XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry)
-                        .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE),
-                    in
-                )
+            XContentParser parser = XContentType.JSON.xContent().createParser(parserConfig(xContentRegistry), in)
         ) {
             return parser.map();
         }
+    }
+
+    private static XContentParserConfiguration parserConfig(NamedXContentRegistry xContentRegistry) {
+        return XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry).withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
     }
 
     /**
@@ -271,7 +268,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             synchronized (this) {
                 previousMapper = this.mapper;
                 assert assertRefreshIsNotNeeded(previousMapper, type, incomingMapping);
-                this.mapper = newDocumentMapper(incomingMapping, MergeReason.MAPPING_RECOVERY);
+                this.mapper = newDocumentMapper(incomingMapping, MergeReason.MAPPING_RECOVERY, incomingMappingSource);
             }
             String op = previousMapper != null ? "updated" : "added";
             if (logger.isDebugEnabled() && incomingMappingSource.compressed().length < 512) {
@@ -333,32 +330,25 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return true;
     }
 
-    public void merge(String type, Map<String, Object> mappings, MergeReason reason) throws IOException {
-        CompressedXContent content = new CompressedXContent(Strings.toString(XContentFactory.jsonBuilder().map(mappings)));
-        mergeAndApplyMappings(type, content, reason);
-    }
-
     public void merge(IndexMetadata indexMetadata, MergeReason reason) {
         assert reason != MergeReason.MAPPING_UPDATE_PREFLIGHT;
         MappingMetadata mappingMetadata = indexMetadata.mapping();
         if (mappingMetadata != null) {
-            mergeAndApplyMappings(mappingMetadata.type(), mappingMetadata.source(), reason);
+            merge(mappingMetadata.type(), mappingMetadata.source(), reason);
         }
     }
 
     public DocumentMapper merge(String type, CompressedXContent mappingSource, MergeReason reason) {
-        return mergeAndApplyMappings(type, mappingSource, reason);
-    }
-
-    private DocumentMapper mergeAndApplyMappings(String mappingType, CompressedXContent mappingSource, MergeReason reason) {
         final DocumentMapper currentMapper = this.mapper;
         if (currentMapper != null && currentMapper.mappingSource().equals(mappingSource)) {
             return currentMapper;
         }
         synchronized (this) {
-            Mapping incomingMapping = parseMapping(mappingType, mappingSource);
+            Mapping incomingMapping = parseMapping(type, mappingSource);
             Mapping mapping = mergeMappings(this.mapper, incomingMapping, reason);
-            DocumentMapper newMapper = newDocumentMapper(mapping, reason);
+            // TODO: In many cases the source here is equal to mappingSource so we need not serialize again.
+            // We should identify these cases reliably and save expensive serialization here
+            DocumentMapper newMapper = newDocumentMapper(mapping, reason, mapping.toCompressedXContent());
             if (reason == MergeReason.MAPPING_UPDATE_PREFLIGHT) {
                 return newMapper;
             }
@@ -368,8 +358,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
     }
 
-    private DocumentMapper newDocumentMapper(Mapping mapping, MergeReason reason) {
-        DocumentMapper newMapper = new DocumentMapper(documentParser, mapping);
+    private DocumentMapper newDocumentMapper(Mapping mapping, MergeReason reason, CompressedXContent mappingSource) {
+        DocumentMapper newMapper = new DocumentMapper(documentParser, mapping, mappingSource);
         newMapper.mapping().getRoot().fixRedundantIncludes();
         newMapper.validate(indexSettings, reason != MergeReason.MAPPING_RECOVERY);
         return newMapper;
@@ -398,7 +388,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         final CompressedXContent mappingSource = mapper.mappingSource();
         Mapping newMapping = parseMapping(mapper.type(), mappingSource);
         if (newMapping.toCompressedXContent().equals(mappingSource) == false) {
-            throw new IllegalStateException(
+            throw new AssertionError(
                 "Mapping serialization result is different from source. \n--> Source ["
                     + mappingSource
                     + "]\n--> Result ["
@@ -461,7 +451,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     /**
-     * Returns all mapped field types.
+     * Returns field types that have eager global ordinals.
      */
     public Iterable<MappedFieldType> getEagerGlobalOrdinalsFields() {
         DocumentMapper mapper = this.mapper;
@@ -473,7 +463,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             .stream()
             .map(mappingLookup::getFieldType)
             .filter(MappedFieldType::eagerGlobalOrdinals)
-            .collect(Collectors.toList());
+            .toList();
     }
 
     /**
@@ -515,6 +505,13 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return mapperRegistry.getMetadataMapperParsers(indexVersionCreated).containsKey(field);
     }
 
+    /**
+     * @return If this field is defined as a multifield of another field
+     */
+    public boolean isMultiField(String field) {
+        return mappingLookup().isMultiField(field);
+    }
+
     public synchronized List<String> reloadSearchAnalyzers(AnalysisRegistry registry) throws IOException {
         logger.info("reloading search analyzers");
         // refresh indexAnalyzers and search analyzers
@@ -524,8 +521,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         final Map<String, Settings> settings = indexSettings.getSettings().getGroups("index.analysis.analyzer");
         final List<String> reloadedAnalyzers = new ArrayList<>();
         for (NamedAnalyzer namedAnalyzer : indexAnalyzers.getAnalyzers().values()) {
-            if (namedAnalyzer.analyzer() instanceof ReloadableCustomAnalyzer) {
-                ReloadableCustomAnalyzer analyzer = (ReloadableCustomAnalyzer) namedAnalyzer.analyzer();
+            if (namedAnalyzer.analyzer()instanceof ReloadableCustomAnalyzer analyzer) {
                 String analyzerName = namedAnalyzer.name();
                 Settings analyzerSettings = settings.get(analyzerName);
                 analyzer.reload(analyzerName, analyzerSettings, tokenizerFactories, charFilterFactories, tokenFilterFactories);

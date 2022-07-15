@@ -11,7 +11,7 @@ package org.elasticsearch.ingest.geoip;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -305,7 +305,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         }
 
         final Map<String, Object> field = Collections.singletonMap("_field", "1.1.1.1");
-        final IngestDocument document = new IngestDocument("index", "id", "routing", 1L, VersionType.EXTERNAL, field);
+        final IngestDocument document = new IngestDocument("index", "id", 1L, "routing", VersionType.EXTERNAL, field);
 
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
@@ -368,7 +368,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         }
 
         final Map<String, Object> field = Collections.singletonMap("_field", "1.1.1.1");
-        final IngestDocument document = new IngestDocument("index", "id", "routing", 1L, VersionType.EXTERNAL, field);
+        final IngestDocument document = new IngestDocument("index", "id", 1L, "routing", VersionType.EXTERNAL, field);
 
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");

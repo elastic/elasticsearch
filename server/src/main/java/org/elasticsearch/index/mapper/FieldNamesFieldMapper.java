@@ -19,7 +19,6 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.Collections;
-import java.util.List;
 
 /**
  * A mapper that indexes the field names of a document under <code>_field_names</code>. This mapper is typically useful in order
@@ -37,13 +36,13 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(indexVersionCreated).init(this);
+        return new Builder(createdOnOrAfterV8).init(this);
     }
 
     public static class Defaults {
         public static final String NAME = FieldNamesFieldMapper.NAME;
 
-        public static final Explicit<Boolean> ENABLED = new Explicit<>(true, false);
+        public static final Explicit<Boolean> ENABLED = Explicit.IMPLICIT_TRUE;
         public static final FieldType FIELD_TYPE = new FieldType();
 
         static {
@@ -71,22 +70,26 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
             Defaults.ENABLED.value()
         );
 
-        private final Version indexVersionCreated;
+        private final boolean createdOnOrAfterV8;
 
         Builder(Version indexVersionCreated) {
+            this(indexVersionCreated.onOrAfter(Version.V_8_0_0));
+        }
+
+        Builder(boolean createdOnOrAfterV8) {
             super(Defaults.NAME);
-            this.indexVersionCreated = indexVersionCreated;
+            this.createdOnOrAfterV8 = createdOnOrAfterV8;
         }
 
         @Override
-        protected List<Parameter<?>> getParameters() {
-            return List.of(enabled);
+        protected Parameter<?>[] getParameters() {
+            return new Parameter<?>[] { enabled };
         }
 
         @Override
         public FieldNamesFieldMapper build() {
             if (enabled.getValue().explicit()) {
-                if (indexVersionCreated.onOrAfter(Version.V_8_0_0)) {
+                if (createdOnOrAfterV8) {
                     throw new MapperParsingException(
                         "The `enabled` setting for the `_field_names` field has been deprecated and "
                             + "removed. Please remove it from your mappings and templates."
@@ -95,12 +98,19 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
                     deprecationLogger.warn(DeprecationCategory.TEMPLATES, "field_names_enabled_parameter", ENABLED_DEPRECATION_MESSAGE);
                 }
             }
-            return new FieldNamesFieldMapper(enabled.getValue(), indexVersionCreated);
+            if (Defaults.ENABLED.equals(enabled.getValue())) {
+                return createdOnOrAfterV8 ? DEFAULT : DEFAULT_OLD;
+            }
+            return new FieldNamesFieldMapper(enabled.getValue(), createdOnOrAfterV8);
         }
     }
 
+    private static final FieldNamesFieldMapper DEFAULT = new FieldNamesFieldMapper(Defaults.ENABLED, true);
+
+    private static final FieldNamesFieldMapper DEFAULT_OLD = new FieldNamesFieldMapper(Defaults.ENABLED, false);
+
     public static final TypeParser PARSER = new ConfigurableTypeParser(
-        c -> new FieldNamesFieldMapper(Defaults.ENABLED, c.indexVersionCreated()),
+        c -> c.indexVersionCreated().onOrAfter(Version.V_8_0_0) ? DEFAULT : DEFAULT_OLD,
         c -> new Builder(c.indexVersionCreated())
     );
 
@@ -155,12 +165,12 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
     }
 
     private final Explicit<Boolean> enabled;
-    private final Version indexVersionCreated;
+    private final boolean createdOnOrAfterV8;
 
-    private FieldNamesFieldMapper(Explicit<Boolean> enabled, Version indexVersionCreated) {
+    private FieldNamesFieldMapper(Explicit<Boolean> enabled, boolean createdOnOrAfterV8) {
         super(FieldNamesFieldType.get(enabled.value()));
         this.enabled = enabled;
-        this.indexVersionCreated = indexVersionCreated;
+        this.createdOnOrAfterV8 = createdOnOrAfterV8;
     }
 
     @Override

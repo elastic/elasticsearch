@@ -196,23 +196,19 @@ public class ExpectedReciprocalRankTests extends ESTestCase {
     }
 
     private static ExpectedReciprocalRank mutateTestItem(ExpectedReciprocalRank original) {
-        switch (randomIntBetween(0, 2)) {
-            case 0:
-                return new ExpectedReciprocalRank(original.getMaxRelevance() + 1, original.getUnknownDocRating(), original.getK());
-            case 1:
-                return new ExpectedReciprocalRank(
-                    original.getMaxRelevance(),
-                    randomValueOtherThan(original.getUnknownDocRating(), () -> randomIntBetween(0, 10)),
-                    original.getK()
-                );
-            case 2:
-                return new ExpectedReciprocalRank(
-                    original.getMaxRelevance(),
-                    original.getUnknownDocRating(),
-                    randomValueOtherThan(original.getK(), () -> randomIntBetween(1, 10))
-                );
-            default:
-                throw new IllegalArgumentException("mutation variant not allowed");
-        }
+        return switch (randomIntBetween(0, 2)) {
+            case 0 -> new ExpectedReciprocalRank(original.getMaxRelevance() + 1, original.getUnknownDocRating(), original.getK());
+            case 1 -> new ExpectedReciprocalRank(
+                original.getMaxRelevance(),
+                randomValueOtherThan(original.getUnknownDocRating(), () -> randomIntBetween(0, 10)),
+                original.getK()
+            );
+            case 2 -> new ExpectedReciprocalRank(
+                original.getMaxRelevance(),
+                original.getUnknownDocRating(),
+                randomValueOtherThan(original.getK(), () -> randomIntBetween(1, 10))
+            );
+            default -> throw new IllegalArgumentException("mutation variant not allowed");
+        };
     }
 }

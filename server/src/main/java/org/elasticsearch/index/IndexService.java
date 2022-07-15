@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.IndexSearcher;
@@ -17,7 +16,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.Assertions;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -32,9 +31,9 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractAsyncTask;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.env.ShardLockObtainFailedException;
@@ -74,7 +73,7 @@ import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -97,7 +96,7 @@ import java.util.function.LongUnaryOperator;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
-import static java.util.Collections.unmodifiableMap;
+import static org.elasticsearch.core.Strings.format;
 
 public class IndexService extends AbstractIndexComponent implements IndicesClusterStateService.AllocatedIndex<IndexShard> {
 
@@ -113,12 +112,12 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper;
     private final IndexCache indexCache;
     private final MapperService mapperService;
-    private final NamedXContentRegistry xContentRegistry;
+    private final XContentParserConfiguration parserConfiguration;
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final SimilarityService similarityService;
     private final EngineFactory engineFactory;
     private final IndexWarmer warmer;
-    private volatile Map<Integer, IndexShard> shards = emptyMap();
+    private volatile Map<Integer, IndexShard> shards = Map.of();
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final AtomicBoolean deleted = new AtomicBoolean(false);
     private final IndexSettings indexSettings;
@@ -148,7 +147,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         IndexSettings indexSettings,
         IndexCreationContext indexCreationContext,
         NodeEnvironment nodeEnv,
-        NamedXContentRegistry xContentRegistry,
+        XContentParserConfiguration parserConfiguration,
         SimilarityService similarityService,
         ShardStoreDeleter shardStoreDeleter,
         IndexAnalyzers indexAnalyzers,
@@ -179,7 +178,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         super(indexSettings);
         this.allowExpensiveQueries = allowExpensiveQueries;
         this.indexSettings = indexSettings;
-        this.xContentRegistry = xContentRegistry;
+        this.parserConfiguration = parserConfiguration;
         this.similarityService = similarityService;
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.circuitBreakerService = circuitBreakerService;
@@ -191,7 +190,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             this.mapperService = new MapperService(
                 indexSettings,
                 indexAnalyzers,
-                xContentRegistry,
+                parserConfiguration,
                 similarityService,
                 mapperRegistry,
                 // we parse all percolator queries as they would be parsed on shard 0
@@ -214,7 +213,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             indexFieldData.setListener(new FieldDataCacheListener(this));
             this.bitsetFilterCache = new BitsetFilterCache(indexSettings, new BitsetCacheListener(this));
             this.warmer = new IndexWarmer(threadPool, indexFieldData, bitsetFilterCache.createListener(threadPool));
-            this.indexCache = new IndexCache(indexSettings, queryCache, bitsetFilterCache);
+            this.indexCache = new IndexCache(queryCache, bitsetFilterCache);
         } else {
             assert indexAnalyzers == null;
             this.mapperService = null;
@@ -312,10 +311,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         return mapperService;
     }
 
-    public NamedXContentRegistry xContentRegistry() {
-        return xContentRegistry;
-    }
-
     public SimilarityService similarityService() {
         return similarityService;
     }
@@ -360,7 +355,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         try {
             IndexMetadata.FORMAT.writeAndCleanup(getMetadata(), nodeEnv.indexPaths(index()));
         } catch (WriteStateException e) {
-            logger.warn(() -> new ParameterizedMessage("failed to write dangling indices state for index {}", index()), e);
+            logger.warn(() -> format("failed to write dangling indices state for index %s", index()), e);
         }
     }
 
@@ -372,7 +367,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         try {
             MetadataStateFormat.deleteMetaState(nodeEnv.indexPaths(index()));
         } catch (IOException e) {
-            logger.warn(() -> new ParameterizedMessage("failed to delete dangling indices state for index {}", index()), e);
+            logger.warn(() -> format("failed to delete dangling indices state for index %s", index()), e);
         }
     }
 
@@ -527,16 +522,13 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
     @Override
     public synchronized void removeShard(int shardId, String reason) {
-        final ShardId sId = new ShardId(index(), shardId);
-        final IndexShard indexShard;
-        if (shards.containsKey(shardId) == false) {
+        final IndexShard indexShard = shards.get(shardId);
+        if (indexShard == null) {
             return;
         }
         logger.debug("[{}] closing... (reason: [{}])", shardId, reason);
-        HashMap<Integer, IndexShard> newShards = new HashMap<>(shards);
-        indexShard = newShards.remove(shardId);
-        shards = unmodifiableMap(newShards);
-        closeShard(reason, sId, indexShard, indexShard.store(), indexShard.getIndexEventListener());
+        shards = Maps.copyMapWithRemovedEntry(shards, shardId);
+        closeShard(reason, indexShard.shardId(), indexShard, indexShard.store(), indexShard.getIndexEventListener());
         logger.debug("[{}] closed (reason: [{}])", shardId, reason);
     }
 
@@ -558,7 +550,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                         final boolean flushEngine = deleted.get() == false && closed.get();
                         indexShard.close(reason, flushEngine);
                     } catch (Exception e) {
-                        logger.debug(() -> new ParameterizedMessage("[{}] failed to close index shard", shardId), e);
+                        logger.debug(() -> "[" + shardId + "] failed to close index shard", e);
                         // ignore
                     }
                 }
@@ -573,10 +565,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     logger.trace("[{}] store not initialized prior to closing shard, nothing to close", shardId);
                 }
             } catch (Exception e) {
-                logger.warn(
-                    () -> new ParameterizedMessage("[{}] failed to close store on shard removal (reason: [{}])", shardId, reason),
-                    e
-                );
+                logger.warn(() -> format("[%s] failed to close store on shard removal (reason: [%s])", shardId, reason), e);
             }
         }
     }
@@ -592,10 +581,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 }
             } catch (IOException e) {
                 shardStoreDeleter.addPendingDelete(lock.getShardId(), indexSettings);
-                logger.debug(
-                    () -> new ParameterizedMessage("[{}] failed to delete shard content - scheduled a retry", lock.getShardId().id()),
-                    e
-                );
+                logger.debug(() -> "[" + lock.getShardId().id() + "] failed to delete shard content - scheduled a retry", e);
             }
         }
     }
@@ -639,7 +625,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             mapperService().mappingLookup(),
             similarityService(),
             scriptService,
-            xContentRegistry,
+            parserConfiguration,
             namedWriteableRegistry,
             client,
             searcher,
@@ -788,9 +774,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             final long currentSettingsVersion = currentIndexMetadata.getSettingsVersion();
             final long newSettingsVersion = newIndexMetadata.getSettingsVersion();
             if (currentSettingsVersion == newSettingsVersion) {
-                assert updateIndexSettings == false;
+                assert updateIndexSettings == false : "No index updates are expected as index settings version has not changed";
             } else {
-                assert updateIndexSettings;
+                assert updateIndexSettings : "Index updates are expected as index settings version has changed";
                 assert currentSettingsVersion < newSettingsVersion
                     : "expected current settings version ["
                         + currentSettingsVersion
@@ -806,10 +792,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 try {
                     shard.onSettingsChanged();
                 } catch (Exception e) {
-                    logger.warn(
-                        () -> new ParameterizedMessage("[{}] failed to notify shard about setting change", shard.shardId().id()),
-                        e
-                    );
+                    logger.warn(() -> "[" + shard.shardId().id() + "] failed to notify shard about setting change", e);
                 }
             }
             if (refreshTask.getInterval().equals(indexSettings.getRefreshInterval()) == false) {
@@ -866,12 +849,12 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         }
     }
 
-    public Function<String, String> dateMathExpressionResolverAt() {
-        return expression -> expressionResolver.resolveDateMathExpression(expression, System.currentTimeMillis());
+    public static Function<String, String> dateMathExpressionResolverAt() {
+        return expression -> IndexNameExpressionResolver.resolveDateMathExpression(expression, System.currentTimeMillis());
     }
 
-    public Function<String, String> dateMathExpressionResolverAt(long instant) {
-        return expression -> expressionResolver.resolveDateMathExpression(expression, instant);
+    public static Function<String, String> dateMathExpressionResolverAt(long instant) {
+        return expression -> IndexNameExpressionResolver.resolveDateMathExpression(expression, instant);
     }
 
     public interface ShardStoreDeleter {
@@ -966,7 +949,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                                 if (e instanceof AlreadyClosedException == false
                                     && e instanceof IndexShardClosedException == false
                                     && e instanceof ShardNotInPrimaryModeException == false) {
-                                    logger.warn(new ParameterizedMessage("{} failed to execute {} sync", shard.shardId(), source), e);
+                                    logger.warn(() -> format("%s failed to execute %s sync", shard.shardId(), source), e);
                                 }
                             }, ThreadPool.Names.SAME, source + " sync");
                         } catch (final AlreadyClosedException | IndexShardClosedException e) {

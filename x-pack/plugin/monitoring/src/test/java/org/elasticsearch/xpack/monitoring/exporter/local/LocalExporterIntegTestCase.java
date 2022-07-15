@@ -76,17 +76,17 @@ public abstract class LocalExporterIntegTestCase extends MonitoringIntegTestCase
      *
      * @return Never {@code null}.
      */
-    protected LocalExporter createLocalExporter(String exporterName, Settings exporterSettings) {
-        return createLocalExporter(exporterName, exporterSettings, new MonitoringMigrationCoordinator());
+    protected LocalExporter createLocalExporter(String localExporterName, Settings exporterSettings) {
+        return createLocalExporter(localExporterName, exporterSettings, new MonitoringMigrationCoordinator());
     }
 
     protected LocalExporter createLocalExporter(
-        String exporterName,
+        String localExporterName,
         Settings exporterSettings,
         MonitoringMigrationCoordinator coordinator
     ) {
         final XPackLicenseState licenseState = TestUtils.newTestLicenseState();
-        final Exporter.Config config = new Exporter.Config(exporterName, "local", exporterSettings, clusterService(), licenseState);
+        final Exporter.Config config = new Exporter.Config(localExporterName, "local", exporterSettings, clusterService(), licenseState);
         final CleanerService cleanerService = new CleanerService(
             exporterSettings,
             clusterService().getClusterSettings(),

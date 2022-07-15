@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.security.rest.action.saml;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;

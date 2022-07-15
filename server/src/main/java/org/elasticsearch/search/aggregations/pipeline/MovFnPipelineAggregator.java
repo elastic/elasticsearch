@@ -10,6 +10,7 @@ package org.elasticsearch.search.aggregations.pipeline;
 
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
@@ -70,7 +71,7 @@ public class MovFnPipelineAggregator extends PipelineAggregator {
     }
 
     @Override
-    public InternalAggregation reduce(InternalAggregation aggregation, InternalAggregation.ReduceContext reduceContext) {
+    public InternalAggregation reduce(InternalAggregation aggregation, AggregationReduceContext reduceContext) {
         @SuppressWarnings("rawtypes")
         InternalMultiBucketAggregation<
             ? extends InternalMultiBucketAggregation,
@@ -94,7 +95,7 @@ public class MovFnPipelineAggregator extends PipelineAggregator {
         List<Double> values = buckets.stream()
             .map(b -> resolveBucketValue(histo, b, bucketsPaths()[0], gapPolicy))
             .filter(v -> v != null && v.isNaN() == false)
-            .collect(Collectors.toList());
+            .toList();
 
         int index = 0;
         for (InternalMultiBucketAggregation.InternalBucket bucket : buckets) {
@@ -117,7 +118,7 @@ public class MovFnPipelineAggregator extends PipelineAggregator {
 
                 List<InternalAggregation> aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false)
                     .map(InternalAggregation.class::cast)
-                    .collect(Collectors.toList());
+                    .collect(Collectors.toCollection(ArrayList::new));
                 aggs.add(new InternalSimpleValue(name(), movavg, formatter, metadata()));
                 newBucket = factory.createBucket(factory.getKey(bucket), bucket.getDocCount(), InternalAggregations.from(aggs));
                 index++;
@@ -128,7 +129,7 @@ public class MovFnPipelineAggregator extends PipelineAggregator {
         return factory.createAggregation(newBuckets);
     }
 
-    private int clamp(int index, List<Double> list) {
+    private static int clamp(int index, List<Double> list) {
         if (index < 0) {
             return 0;
         }

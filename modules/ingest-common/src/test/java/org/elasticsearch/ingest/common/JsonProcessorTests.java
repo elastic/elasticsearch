@@ -192,7 +192,8 @@ public class JsonProcessorTests extends ESTestCase {
         JsonProcessor jsonProcessor = new JsonProcessor(processorTag, null, "json", null, true, MERGE, false);
 
         Map<String, Object> document = new HashMap<>();
-        String json = "{\"foo\": {\"bar\": \"baz\"}}";
+        String json = """
+            {"foo": {"bar": "baz"}}""";
         document.put("json", json);
         Map<String, Object> inner = new HashMap<>();
         inner.put("bar", "override_me");
@@ -211,7 +212,8 @@ public class JsonProcessorTests extends ESTestCase {
         JsonProcessor jsonProcessor = new JsonProcessor(processorTag, null, "json", null, true, REPLACE, false);
 
         Map<String, Object> document = new HashMap<>();
-        String json = "{\"foo\": {\"bar\": \"baz\"}}";
+        String json = """
+            {"foo": {"bar": "baz"}}""";
         document.put("json", json);
         Map<String, Object> inner = new HashMap<>();
         inner.put("bar", "override_me");

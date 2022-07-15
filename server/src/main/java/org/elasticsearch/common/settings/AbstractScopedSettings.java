@@ -10,11 +10,12 @@ package org.elasticsearch.common.settings;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
 
 import java.util.ArrayList;
@@ -134,10 +135,6 @@ public abstract class AbstractScopedSettings {
         return AFFIX_KEY_PATTERN.matcher(key).matches();
     }
 
-    public Setting.Property getScope() {
-        return this.scope;
-    }
-
     /**
      * Validates the given settings by running it through all update listeners without applying it. This
      * method will not change any settings but will fail if any of the settings can't be applied.
@@ -153,7 +150,7 @@ public abstract class AbstractScopedSettings {
                 settingUpdater.getValue(current, previous);
             } catch (RuntimeException ex) {
                 exceptions.add(ex);
-                logger.debug(() -> new ParameterizedMessage("failed to prepareCommit settings for [{}]", settingUpdater), ex);
+                logger.debug(() -> "failed to prepareCommit settings for [" + settingUpdater + "]", ex);
             }
         }
         // here we are exhaustive and record all settings that failed.
@@ -181,7 +178,7 @@ public abstract class AbstractScopedSettings {
                 try {
                     applyRunnables.add(settingUpdater.updater(current, previous));
                 } catch (Exception ex) {
-                    logger.warn(() -> new ParameterizedMessage("failed to prepareCommit settings for [{}]", settingUpdater), ex);
+                    logger.warn(() -> "failed to prepareCommit settings for [" + settingUpdater + "]", ex);
                     throw ex;
                 }
             }
@@ -347,9 +344,9 @@ public abstract class AbstractScopedSettings {
                     SettingUpdater affixUpdaterA = setting.newAffixUpdater((k, v) -> namespaces.add(k), logger, (a, b) -> {});
                     affixUpdaterA.apply(current, previous);
                 }
-                Map<String, Settings> namespaceToSettings = new HashMap<>(namespaces.size());
+                Map<String, Settings> namespaceToSettings = Maps.newMapWithExpectedSize(namespaces.size());
                 for (String namespace : namespaces) {
-                    Set<String> concreteSettings = new HashSet<>(settings.size());
+                    Set<String> concreteSettings = Sets.newHashSetWithExpectedSize(settings.size());
                     for (Setting.AffixSetting<?> setting : settings) {
                         concreteSettings.add(setting.getConcreteSettingForNamespace(namespace).getKey());
                     }
@@ -552,7 +549,7 @@ public abstract class AbstractScopedSettings {
                 msgPrefix = "unknown secure setting";
             }
             String msg = msgPrefix + " [" + key + "]";
-            List<String> keys = scoredKeys.stream().map((a) -> a.v2()).collect(Collectors.toList());
+            List<String> keys = scoredKeys.stream().map((a) -> a.v2()).toList();
             if (keys.isEmpty() == false) {
                 msg += " did you mean " + (keys.size() == 1 ? "[" + keys.get(0) + "]" : "any of " + keys.toString()) + "?";
             } else {
@@ -959,15 +956,7 @@ public abstract class AbstractScopedSettings {
         }
     }
 
-    private static final class Entry implements Map.Entry<String, String> {
-
-        private final String key;
-        private final Settings settings;
-
-        private Entry(String key, Settings settings) {
-            this.key = key;
-            this.settings = settings;
-        }
+    private record Entry(String key, Settings settings) implements Map.Entry<String, String> {
 
         @Override
         public String getKey() {

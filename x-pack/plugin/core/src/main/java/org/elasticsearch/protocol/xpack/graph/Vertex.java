@@ -168,7 +168,7 @@ public class Vertex implements ToXContentFragment {
         this.weight = weight;
     }
 
-    // @formatter:off
+    // tag::noformat
     /**
      * If the {@link GraphExploreRequest#useSignificance(boolean)} is true (the default)
      * this statistic is available.
@@ -177,12 +177,12 @@ public class Vertex implements ToXContentFragment {
      * href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-bucket-significantterms-aggregation.html"
      * >the significant_terms aggregation</a>)
      */
-    // @formatter:on
+    // end::noformat
     public long getBg() {
         return bg;
     }
 
-    // @formatter:off
+    // tag::noformat
     /**
      * If the {@link GraphExploreRequest#useSignificance(boolean)} is true (the default)
      * this statistic is available.
@@ -192,7 +192,7 @@ public class Vertex implements ToXContentFragment {
      * href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-bucket-significantterms-aggregation.html"
      * >the significant_terms aggregation</a>)
      */
-    // @formatter:on
+    // end::noformat
     public long getFg() {
         return fg;
     }

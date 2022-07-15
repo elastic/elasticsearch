@@ -12,8 +12,10 @@ import org.elasticsearch.ingest.IngestStats;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsStatsAction.Response;
-import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationStatsTests;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentStats;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentStatsTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStatsTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModelSizeStatsTests;
 
 import java.util.List;
 import java.util.function.Function;
@@ -32,10 +34,11 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
             .map(
                 id -> new Response.TrainedModelStats(
                     id,
+                    randomBoolean() ? TrainedModelSizeStatsTests.createRandom() : null,
                     randomBoolean() ? randomIngestStats() : null,
                     randomIntBetween(0, 10),
                     randomBoolean() ? InferenceStatsTests.createTestInstance(id, null) : null,
-                    randomBoolean() ? AllocationStatsTests.randomDeploymentStats() : null
+                    randomBoolean() ? AssignmentStatsTests.randomDeploymentStats() : null
                 )
             )
             .collect(Collectors.toList());
@@ -80,10 +83,115 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                         .map(
                             stats -> new Response.TrainedModelStats(
                                 stats.getModelId(),
+                                null,
                                 stats.getIngestStats(),
                                 stats.getPipelineCount(),
                                 stats.getInferenceStats(),
                                 null
+                            )
+                        )
+                        .collect(Collectors.toList()),
+                    instance.getResources().count(),
+                    RESULTS_FIELD
+                )
+            );
+        } else if (version.before(Version.V_8_1_0)) {
+            return new Response(
+                new QueryPage<>(
+                    instance.getResources()
+                        .results()
+                        .stream()
+                        .map(
+                            stats -> new Response.TrainedModelStats(
+                                stats.getModelId(),
+                                stats.getModelSizeStats(),
+                                stats.getIngestStats(),
+                                stats.getPipelineCount(),
+                                stats.getInferenceStats(),
+                                stats.getDeploymentStats() == null
+                                    ? null
+                                    : new AssignmentStats(
+                                        stats.getDeploymentStats().getModelId(),
+                                        stats.getDeploymentStats().getThreadsPerAllocation(),
+                                        stats.getDeploymentStats().getNumberOfAllocations(),
+                                        stats.getDeploymentStats().getQueueCapacity(),
+                                        stats.getDeploymentStats().getStartTime(),
+                                        stats.getDeploymentStats()
+                                            .getNodeStats()
+                                            .stream()
+                                            .map(
+                                                nodeStats -> new AssignmentStats.NodeStats(
+                                                    nodeStats.getNode(),
+                                                    nodeStats.getInferenceCount().orElse(null),
+                                                    nodeStats.getAvgInferenceTime().orElse(null),
+                                                    nodeStats.getLastAccess(),
+                                                    nodeStats.getPendingCount(),
+                                                    0,
+                                                    0,
+                                                    0,
+                                                    nodeStats.getRoutingState(),
+                                                    nodeStats.getStartTime(),
+                                                    null,
+                                                    null,
+                                                    0L,
+                                                    0L,
+                                                    null
+                                                )
+                                            )
+                                            .toList()
+                                    )
+                            )
+                        )
+                        .collect(Collectors.toList()),
+                    instance.getResources().count(),
+                    RESULTS_FIELD
+                )
+            );
+        } else if (version.before(Version.V_8_2_0)) {
+            return new Response(
+                new QueryPage<>(
+                    instance.getResources()
+                        .results()
+                        .stream()
+                        .map(
+                            stats -> new Response.TrainedModelStats(
+                                stats.getModelId(),
+                                stats.getModelSizeStats(),
+                                stats.getIngestStats(),
+                                stats.getPipelineCount(),
+                                stats.getInferenceStats(),
+                                stats.getDeploymentStats() == null
+                                    ? null
+                                    : new AssignmentStats(
+                                        stats.getDeploymentStats().getModelId(),
+                                        stats.getDeploymentStats().getThreadsPerAllocation(),
+                                        stats.getDeploymentStats().getNumberOfAllocations(),
+                                        stats.getDeploymentStats().getQueueCapacity(),
+                                        stats.getDeploymentStats().getStartTime(),
+                                        stats.getDeploymentStats()
+                                            .getNodeStats()
+                                            .stream()
+                                            .map(
+                                                nodeStats -> new AssignmentStats.NodeStats(
+                                                    nodeStats.getNode(),
+                                                    nodeStats.getInferenceCount().orElse(null),
+                                                    nodeStats.getAvgInferenceTime().orElse(null),
+                                                    nodeStats.getLastAccess(),
+                                                    nodeStats.getPendingCount(),
+                                                    nodeStats.getErrorCount(),
+                                                    nodeStats.getRejectedExecutionCount(),
+                                                    nodeStats.getTimeoutCount(),
+                                                    nodeStats.getRoutingState(),
+                                                    nodeStats.getStartTime(),
+                                                    nodeStats.getThreadsPerAllocation(),
+                                                    nodeStats.getNumberOfAllocations(),
+                                                    0L,
+                                                    0L,
+                                                    null
+                                                )
+                                            )
+                                            .toList()
+                                    )
                             )
                         )
                         .collect(Collectors.toList()),

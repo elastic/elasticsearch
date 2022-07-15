@@ -7,7 +7,7 @@ setup:
   - do:
       index:
         index: idx
-        id: 1
+        id: "1"
         body: >
           {
             "date" : "2015-01-01T00:00:00",
@@ -16,7 +16,7 @@ setup:
   - do:
       index:
         index: idx
-        id: 2
+        id: "2"
         body: >
           {
             "date" : "2015-01-02T00:00:00",
@@ -25,7 +25,7 @@ setup:
   - do:
       index:
         index: idx
-        id: 3
+        id: "3"
         body: >
           {
             "date" : "2015-01-03T00:00:00",
@@ -34,7 +34,7 @@ setup:
   - do:
       index:
         index: idx
-        id: 4
+        id: "4"
         body: >
           {
             "date" : "2015-01-04T00:00:00",

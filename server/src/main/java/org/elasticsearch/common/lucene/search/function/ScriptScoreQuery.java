@@ -22,6 +22,7 @@ import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.Version;
@@ -182,10 +183,7 @@ public class ScriptScoreQuery extends Query {
 
     @Override
     public String toString(String field) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("script_score (").append(subQuery.toString(field)).append(", script: ");
-        sb.append("{" + script.toString() + "}");
-        return sb.toString();
+        return "script_score (" + subQuery.toString(field) + ", script: " + "{" + script.toString() + "}";
     }
 
     @Override
@@ -259,6 +257,11 @@ public class ScriptScoreQuery extends Query {
         }
 
         @Override
+        public TwoPhaseIterator twoPhaseIterator() {
+            return subQueryScorer.twoPhaseIterator();
+        }
+
+        @Override
         public float getMaxScore(int upTo) {
             return Float.MAX_VALUE; // TODO: what would be a good upper bound?
         }
@@ -269,29 +272,21 @@ public class ScriptScoreQuery extends Query {
         private final ScoreScript scoreScript;
         private final Scorable subQueryScorer;
         private final float boost;
-        private final ExplanationHolder explanation;
 
-        ScriptScorable(
-            ScoreScript scoreScript,
-            Scorable subQueryScorer,
-            ScoreMode subQueryScoreMode,
-            float boost,
-            ExplanationHolder explanation
-        ) {
+        ScriptScorable(ScoreScript scoreScript, Scorable subQueryScorer, ScoreMode subQueryScoreMode, float boost) {
             this.scoreScript = scoreScript;
             if (subQueryScoreMode == ScoreMode.COMPLETE) {
                 scoreScript.setScorer(subQueryScorer);
             }
             this.subQueryScorer = subQueryScorer;
             this.boost = boost;
-            this.explanation = explanation;
         }
 
         @Override
         public float score() throws IOException {
             int docId = docID();
             scoreScript.setDocument(docId);
-            float score = (float) scoreScript.execute(explanation);
+            float score = (float) scoreScript.execute(null);
             if (score < 0f || Float.isNaN(score)) {
                 throw new IllegalArgumentException(
                     "script_score script returned an invalid score ["
@@ -337,7 +332,7 @@ public class ScriptScoreQuery extends Query {
             return new FilterLeafCollector(collector) {
                 @Override
                 public void setScorer(Scorable scorer) throws IOException {
-                    in.setScorer(new ScriptScorable(scoreScript, scorer, subQueryScoreMode, boost, null));
+                    in.setScorer(new ScriptScorable(scoreScript, scorer, subQueryScoreMode, boost));
                 }
             };
         }

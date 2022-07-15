@@ -91,6 +91,7 @@ public class ValidateQueryResponseTests extends AbstractBroadcastResponseTestCas
     public void testToXContent() {
         ValidateQueryResponse response = createTestInstance(10, 10, 0, new ArrayList<>());
         String output = Strings.toString(response);
-        assertEquals("{\"_shards\":{\"total\":10,\"successful\":10,\"failed\":0},\"valid\":true}", output);
+        assertEquals("""
+            {"_shards":{"total":10,"successful":10,"failed":0},"valid":true}""", output);
     }
 }

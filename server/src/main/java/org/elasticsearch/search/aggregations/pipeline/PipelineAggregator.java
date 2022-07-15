@@ -8,8 +8,8 @@
 
 package org.elasticsearch.search.aggregations.pipeline;
 
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
@@ -114,5 +114,5 @@ public abstract class PipelineAggregator {
         return metadata;
     }
 
-    public abstract InternalAggregation reduce(InternalAggregation aggregation, ReduceContext reduceContext);
+    public abstract InternalAggregation reduce(InternalAggregation aggregation, AggregationReduceContext reduceContext);
 }

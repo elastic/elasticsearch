@@ -22,8 +22,8 @@ import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.action.support.tasks.TasksRequestBuilder;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -41,6 +41,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -562,7 +563,7 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
         }
 
         @Override
-        protected void taskOperation(TestTasksRequest request, TestTask task, ActionListener<TestTaskResponse> listener) {
+        protected void taskOperation(Task actionTask, TestTasksRequest request, TestTask task, ActionListener<TestTaskResponse> listener) {
             task.setOperation(request.operation);
             listener.onResponse(new TestTaskResponse());
         }

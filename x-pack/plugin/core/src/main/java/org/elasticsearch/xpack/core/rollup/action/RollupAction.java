@@ -13,7 +13,7 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.tasks.Task;
@@ -25,6 +25,8 @@ import org.elasticsearch.xpack.core.rollup.RollupActionConfig;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public class RollupAction extends ActionType<AcknowledgedResponse> {
     public static final RollupAction INSTANCE = new RollupAction();
@@ -91,7 +93,17 @@ public class RollupAction extends ActionType<AcknowledgedResponse> {
 
         @Override
         public ActionRequestValidationException validate() {
-            return null;
+            ActionRequestValidationException validationException = null;
+            if (sourceIndex == null) {
+                validationException = addValidationError("source index is missing", validationException);
+            }
+            if (rollupIndex == null) {
+                validationException = addValidationError("rollup index name is missing", validationException);
+            }
+            if (rollupConfig == null) {
+                validationException = addValidationError("rollup configuration is missing", validationException);
+            }
+            return validationException;
         }
 
         @Override

@@ -9,6 +9,7 @@
 package org.elasticsearch.index.query.functionscore;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -128,6 +129,11 @@ public class FieldValueFactorFunctionBuilder extends ScoreFunctionBuilder<FieldV
     @Override
     protected int doHashCode() {
         return Objects.hash(this.field, this.factor, this.missing, this.modifier);
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
     }
 
     @Override

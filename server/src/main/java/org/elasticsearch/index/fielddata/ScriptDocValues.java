@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.fielddata;
 
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
@@ -16,7 +15,7 @@ import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.geometry.utils.Geohash;
-import org.elasticsearch.script.field.DocValuesField;
+import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 
 import java.io.IOException;
 import java.time.ZonedDateTime;
@@ -36,10 +35,10 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
     /**
      * Supplies values to different ScriptDocValues as we
-     * convert them to wrappers around {@link DocValuesField}.
-     * This allows for different {@link DocValuesField} to implement
+     * convert them to wrappers around {@link DocValuesScriptFieldFactory}.
+     * This allows for different {@link DocValuesScriptFieldFactory} to implement
      * this supplier class in many-to-one relationship since
-     * {@link DocValuesField} are more specific where
+     * {@link DocValuesScriptFieldFactory} are more specific where
      * ({byte, short, int, long, _version, murmur3, etc.} -> {long})
      */
     public interface Supplier<T> {
@@ -91,48 +90,6 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
             throw new IllegalStateException(
                 "A document doesn't have a value for a field! " + "Use doc[<field>].size()==0 to check if a document is missing a field!"
             );
-        }
-    }
-
-    public static class LongsSupplier implements Supplier<Long> {
-
-        private final SortedNumericDocValues in;
-        private long[] values = new long[0];
-        private int count;
-
-        public LongsSupplier(SortedNumericDocValues in) {
-            this.in = in;
-        }
-
-        @Override
-        public void setNextDocId(int docId) throws IOException {
-            if (in.advanceExact(docId)) {
-                resize(in.docValueCount());
-                for (int i = 0; i < count; i++) {
-                    values[i] = in.nextValue();
-                }
-            } else {
-                resize(0);
-            }
-        }
-
-        /**
-         * Set the {@link #size()} and ensure that the {@link #values} array can
-         * store at least that many entries.
-         */
-        private void resize(int newSize) {
-            count = newSize;
-            values = ArrayUtil.grow(values, count);
-        }
-
-        @Override
-        public Long getInternal(int index) {
-            return values[index];
-        }
-
-        @Override
-        public int size() {
-            return count;
         }
     }
 
@@ -275,6 +232,9 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         /** Returns the bounding box of this geometry  */
         public abstract GeoBoundingBox getBoundingBox();
 
+        /** Returns the suggested label position  */
+        public abstract GeoPoint getLabelPosition();
+
         /** Returns the centroid of this geometry  */
         public abstract GeoPoint getCentroid();
 
@@ -287,101 +247,11 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
     public interface GeometrySupplier<T> extends Supplier<T> {
 
-        GeoPoint getCentroid();
+        GeoPoint getInternalCentroid();
 
-        GeoBoundingBox getBoundingBox();
-    }
+        GeoBoundingBox getInternalBoundingBox();
 
-    public static class GeoPointsSupplier implements GeometrySupplier<GeoPoint> {
-
-        private final MultiGeoPointValues in;
-        private GeoPoint[] values = new GeoPoint[0];
-        private final GeoPoint centroid = new GeoPoint();
-        private final GeoBoundingBox boundingBox = new GeoBoundingBox(new GeoPoint(), new GeoPoint());
-        private int count;
-
-        public GeoPointsSupplier(MultiGeoPointValues in) {
-            this.in = in;
-        }
-
-        @Override
-        public void setNextDocId(int docId) throws IOException {
-            if (in.advanceExact(docId)) {
-                resize(in.docValueCount());
-                if (count == 1) {
-                    setSingleValue();
-                } else {
-                    setMultiValue();
-                }
-            } else {
-                resize(0);
-            }
-        }
-
-        private void setSingleValue() throws IOException {
-            GeoPoint point = in.nextValue();
-            values[0].reset(point.lat(), point.lon());
-            centroid.reset(point.lat(), point.lon());
-            boundingBox.topLeft().reset(point.lat(), point.lon());
-            boundingBox.bottomRight().reset(point.lat(), point.lon());
-        }
-
-        private void setMultiValue() throws IOException {
-            double centroidLat = 0;
-            double centroidLon = 0;
-            double maxLon = Double.NEGATIVE_INFINITY;
-            double minLon = Double.POSITIVE_INFINITY;
-            double maxLat = Double.NEGATIVE_INFINITY;
-            double minLat = Double.POSITIVE_INFINITY;
-            for (int i = 0; i < count; i++) {
-                GeoPoint point = in.nextValue();
-                values[i].reset(point.lat(), point.lon());
-                centroidLat += point.getLat();
-                centroidLon += point.getLon();
-                maxLon = Math.max(maxLon, values[i].getLon());
-                minLon = Math.min(minLon, values[i].getLon());
-                maxLat = Math.max(maxLat, values[i].getLat());
-                minLat = Math.min(minLat, values[i].getLat());
-            }
-            centroid.reset(centroidLat / count, centroidLon / count);
-            boundingBox.topLeft().reset(maxLat, minLon);
-            boundingBox.bottomRight().reset(minLat, maxLon);
-        }
-
-        /**
-         * Set the {@link #size()} and ensure that the {@link #values} array can
-         * store at least that many entries.
-         */
-        private void resize(int newSize) {
-            count = newSize;
-            if (newSize > values.length) {
-                int oldLength = values.length;
-                values = ArrayUtil.grow(values, count);
-                for (int i = oldLength; i < values.length; ++i) {
-                    values[i] = new GeoPoint();
-                }
-            }
-        }
-
-        @Override
-        public GeoPoint getInternal(int index) {
-            return values[index];
-        }
-
-        @Override
-        public GeoPoint getCentroid() {
-            return centroid;
-        }
-
-        @Override
-        public GeoBoundingBox getBoundingBox() {
-            return boundingBox;
-        }
-
-        @Override
-        public int size() {
-            return count;
-        }
+        GeoPoint getInternalLabelPosition();
     }
 
     public static class GeoPoints extends Geometry<GeoPoint> {
@@ -481,7 +351,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
         @Override
         public GeoPoint getCentroid() {
-            return size() == 0 ? null : geometrySupplier.getCentroid();
+            return size() == 0 ? null : geometrySupplier.getInternalCentroid();
         }
 
         @Override
@@ -496,7 +366,12 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
         @Override
         public GeoBoundingBox getBoundingBox() {
-            return size() == 0 ? null : geometrySupplier.getBoundingBox();
+            return size() == 0 ? null : geometrySupplier.getInternalBoundingBox();
+        }
+
+        @Override
+        public GeoPoint getLabelPosition() {
+            return size() == 0 ? null : geometrySupplier.getInternalLabelPosition();
         }
     }
 
@@ -563,7 +438,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
             }
         }
 
-        protected String bytesToString(BytesRef bytesRef) {
+        protected static String bytesToString(BytesRef bytesRef) {
             return bytesRef.utf8ToString();
         }
 

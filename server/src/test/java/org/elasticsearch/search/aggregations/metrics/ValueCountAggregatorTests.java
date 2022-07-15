@@ -17,10 +17,10 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
-import org.apache.lucene.index.RandomIndexWriter;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
@@ -152,7 +152,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
     }
 
     public void testSomeMatchesSortedNumericDocValues() throws IOException {
-        testAggregation(new DocValuesFieldExistsQuery(FIELD_NAME), ValueType.NUMERIC, iw -> {
+        testAggregation(new FieldExistsQuery(FIELD_NAME), ValueType.NUMERIC, iw -> {
             iw.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 7)));
             iw.addDocument(singleton(new SortedNumericDocValuesField(FIELD_NAME, 7)));
             iw.addDocument(singleton(new SortedNumericDocValuesField(FIELD_NAME, 1)));
@@ -163,7 +163,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
     }
 
     public void testSomeMatchesNumericDocValues() throws IOException {
-        testAggregation(new DocValuesFieldExistsQuery(FIELD_NAME), ValueType.NUMBER, iw -> {
+        testAggregation(new FieldExistsQuery(FIELD_NAME), ValueType.NUMBER, iw -> {
             iw.addDocument(singleton(new NumericDocValuesField(FIELD_NAME, 7)));
             iw.addDocument(singleton(new NumericDocValuesField(FIELD_NAME, 1)));
         }, count -> {
@@ -386,27 +386,15 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
     }
 
     private static MappedFieldType createMappedFieldType(String name, ValueType valueType) {
-        switch (valueType) {
-            case BOOLEAN:
-                return new BooleanFieldMapper.BooleanFieldType(name);
-            case STRING:
-                return new KeywordFieldMapper.KeywordFieldType(name);
-            case DOUBLE:
-                return new NumberFieldMapper.NumberFieldType(name, NumberFieldMapper.NumberType.DOUBLE);
-            case NUMBER:
-            case NUMERIC:
-            case LONG:
-                return new NumberFieldMapper.NumberFieldType(name, NumberFieldMapper.NumberType.LONG);
-            case DATE:
-                return new DateFieldMapper.DateFieldType(name);
-            case IP:
-                return new IpFieldMapper.IpFieldType(name);
-            case GEOPOINT:
-                return new GeoPointFieldMapper.GeoPointFieldType(name);
-            case RANGE:
-                return new RangeFieldMapper.RangeFieldType(name, RangeType.DOUBLE);
-            default:
-                throw new IllegalArgumentException("Test does not support value type [" + valueType + "]");
-        }
+        return switch (valueType) {
+            case BOOLEAN -> new BooleanFieldMapper.BooleanFieldType(name);
+            case STRING -> new KeywordFieldMapper.KeywordFieldType(name);
+            case DOUBLE -> new NumberFieldMapper.NumberFieldType(name, NumberFieldMapper.NumberType.DOUBLE);
+            case NUMBER, NUMERIC, LONG -> new NumberFieldMapper.NumberFieldType(name, NumberFieldMapper.NumberType.LONG);
+            case DATE -> new DateFieldMapper.DateFieldType(name);
+            case IP -> new IpFieldMapper.IpFieldType(name);
+            case GEOPOINT -> new GeoPointFieldMapper.GeoPointFieldType(name);
+            case RANGE -> new RangeFieldMapper.RangeFieldType(name, RangeType.DOUBLE);
+        };
     }
 }

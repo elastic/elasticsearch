@@ -106,11 +106,12 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
      */
     public static void configureCompile(Project project) {
         project.getExtensions().getExtraProperties().set("compactProfile", "full");
-
         JavaPluginExtension java = project.getExtensions().getByType(JavaPluginExtension.class);
+        if (BuildParams.getJavaToolChainSpec().isPresent()) {
+            java.toolchain(BuildParams.getJavaToolChainSpec().get());
+        }
         java.setSourceCompatibility(BuildParams.getMinimumRuntimeVersion());
         java.setTargetCompatibility(BuildParams.getMinimumRuntimeVersion());
-
         project.getTasks().withType(JavaCompile.class).configureEach(compileTask -> {
             CompileOptions compileOptions = compileTask.getOptions();
             /*
@@ -123,7 +124,7 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
             // TODO Discuss moving compileOptions.getCompilerArgs() to use provider api with Gradle team.
             List<String> compilerArgs = compileOptions.getCompilerArgs();
             compilerArgs.add("-Werror");
-            compilerArgs.add("-Xlint:all,-path,-serial,-options,-deprecation,-try");
+            compilerArgs.add("-Xlint:all,-path,-serial,-options,-deprecation,-try,-removal");
             compilerArgs.add("-Xdoclint:all");
             compilerArgs.add("-Xdoclint:-missing");
             compileOptions.setEncoding("UTF-8");

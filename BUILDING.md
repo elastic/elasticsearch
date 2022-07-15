@@ -48,6 +48,16 @@ in our build logic to resolve this.
 
 **The Elasticsearch build will fail if any deprecated Gradle API is used.**
 
+### Follow Gradle best practices
+
+Tony Robalik has compiled a good list of rules that aligns with ours when it comes to writing and maintaining elasticsearch
+gradle build logic at http://autonomousapps.com/blog/rules-for-gradle-plugin-authors.html.
+Our current build does not yet tick off all those rules everywhere but the ultimate goal is to follow these principles.
+The reasons for following those rules besides better readability or maintenance are also the goal to support newer gradle
+features that we will benefit from in terms of performance and reliability.
+E.g. [configuration-cache support](https://github.com/elastic/elasticsearch/issues/57918), [Project Isolation]([https://gradle.github.io/configuration-cache/#project_isolation) or
+[predictive test selection](https://gradle.com/gradle-enterprise-solutions/predictive-test-selection/)
+
 ### Make a change in the build
 
 There are a few guidelines to follow that should make your life easier to make changes to the elasticsearch build.
@@ -190,7 +200,7 @@ by JitPack in the background before we can resolve the adhoc built dependency.
 
 **NOTE**
 
-You should only use that approach locally or on a developer branch for for production dependencies as we do
+You should only use that approach locally or on a developer branch for production dependencies as we do
 not want to ship unreleased libraries into our releases.
 ---
 
@@ -229,5 +239,5 @@ As Gradle prefers to use modules whose descriptor has been created from real met
 flat directory repositories cannot be used to override artifacts with real meta-data from other repositories declared in the build.
 For example, if Gradle finds only `jmxri-1.2.1.jar` in a flat directory repository, but `jmxri-1.2.1.pom` in another repository
 that supports meta-data, it will use the second repository to provide the module.
-Therefore it is recommended to declare a version that is not resolveable from public repositories we use (e.g. maven central)
+Therefore, it is recommended to declare a version that is not resolvable from public repositories we use (e.g. maven central)
 ---

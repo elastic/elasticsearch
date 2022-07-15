@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.rollup.v2;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
@@ -196,19 +195,19 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         assertThat(exception.getMessage(), containsString("rollup configuration is missing"));
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "TODO: Fix this")
     public void testRollupSparseMetrics() throws IOException {
         RollupActionConfig config = new RollupActionConfig(randomInterval());
+        String ts = randomDateForInterval(config.getInterval());
         SourceSupplier sourceSupplier = () -> {
             XContentBuilder builder = XContentFactory.jsonBuilder()
                 .startObject()
-                .field(FIELD_TIMESTAMP, randomDateForInterval(config.getInterval()))
+                .field(FIELD_TIMESTAMP, ts)
                 .field(FIELD_DIMENSION_1, randomFrom(dimensionValues));
             if (randomBoolean()) {
                 builder.field(FIELD_NUMERIC_1, randomInt());
             }
             if (randomBoolean()) {
-                builder.field(FIELD_NUMERIC_2, randomDouble());
+                builder.field(FIELD_NUMERIC_2, DATE_FORMATTER.parseMillis(ts));
             }
             return builder.endObject();
         };

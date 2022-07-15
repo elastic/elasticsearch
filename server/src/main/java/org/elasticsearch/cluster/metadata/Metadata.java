@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata;
 import org.elasticsearch.cluster.metadata.IndexAbstraction.ConcreteIndex;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -381,6 +382,47 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             totalNumberOfShards,
             totalOpenIndexShards,
             indices,
+            aliasedIndices,
+            templates,
+            customs,
+            allIndices,
+            visibleIndices,
+            allOpenIndices,
+            visibleOpenIndices,
+            allClosedIndices,
+            visibleClosedIndices,
+            indicesLookup,
+            mappingsByHash,
+            oldestIndexVersion,
+            reservedStateMetadata
+        );
+    }
+
+    /**
+     * Creates a copy of this instance updated with the given {@link IndexMetadata} that must only contain changes to primary terms
+     * and in-sync allocation ids relative to the existing entries. This method is only used by
+     * {@link org.elasticsearch.cluster.routing.allocation.IndexMetadataUpdater#applyChanges(Metadata, RoutingTable)}.
+     * @param updates map of index name to {@link IndexMetadata}.
+     * @return updated metadata instance
+     */
+    public Metadata withAllocationAndTermUpdatesOnly(Map<String, IndexMetadata> updates) {
+        if (updates.isEmpty()) {
+            return this;
+        }
+        final var updatedIndicesBuilder = ImmutableOpenMap.builder(indices);
+        updatedIndicesBuilder.putAllFromMap(updates);
+        return new Metadata(
+            clusterUUID,
+            clusterUUIDCommitted,
+            version,
+            coordinationMetadata,
+            transientSettings,
+            persistentSettings,
+            settings,
+            hashesOfConsistentSettings,
+            totalNumberOfShards,
+            totalOpenIndexShards,
+            updatedIndicesBuilder.build(),
             aliasedIndices,
             templates,
             customs,
@@ -1392,7 +1434,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                     return this;
                 }
                 // if we put a new index metadata, increment its version
-                indexMetadata = IndexMetadata.builder(indexMetadata).version(indexMetadata.getVersion() + 1).build();
+                indexMetadata = indexMetadata.withIncrementedVersion();
                 previous = indices.put(name, indexMetadata);
             } else {
                 previous = indices.put(name, indexMetadata);
@@ -1853,7 +1895,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             return build(false);
         }
 
-        private Metadata build(boolean skipNameCollisionChecks) {
+        public Metadata build(boolean skipNameCollisionChecks) {
             // TODO: We should move these datastructures to IndexNameExpressionResolver, this will give the following benefits:
             // 1) The datastructures will be rebuilt only when needed. Now during serializing we rebuild these datastructures
             // while these datastructures aren't even used.

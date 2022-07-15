@@ -463,6 +463,11 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
             assertThat(obj.toString(), startsWith("p.Foo"));
             assertThat(c.getSuperclass().getName(), is("q.Bar"));
             assertThat(c.getSuperclass().getSuperclass().getName(), is("r.Baz"));
+
+            // assert CNFE from unknown class in a package known to the loader
+            expectThrows(CNFE, () -> loader.loadClass("p.Unknown"));
+            expectThrows(CNFE, () -> loader.loadClass("q.Unknown"));
+            expectThrows(CNFE, () -> loader.loadClass("r.Unknown"));
         } finally {
             PrivilegedOperations.closeURLClassLoader(parent);
         }

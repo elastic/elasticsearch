@@ -200,7 +200,8 @@ checkstyle = "com.puppycrawl.tools:checkstyle:10.3"
                   from(files("build.versions.toml"))
                 }
               }
-            }'''
+            }
+            '''
 
     }
 

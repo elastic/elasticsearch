@@ -713,14 +713,12 @@ public interface DocValueFormat extends NamedWriteable {
                     builder.addString(f, s);
                 } else if (v instanceof Long || v instanceof Integer) {
                     Long l = Long.valueOf(v.toString());
-                    // For a long encoded number, we must check if the number can be the encoded value
-                    // of an unsigned_long.
-                    Number ul = (Number) UNSIGNED_LONG_SHIFTED.format(l);
-                    if (l == ul) {
+                    if (l > 0) {
                         builder.addLong(f, l);
                     } else {
-                        long ll = UNSIGNED_LONG_SHIFTED.parseLong(String.valueOf(l), false, () -> 0L);
-                        builder.addUnsignedLong(f, ll);
+                        // TODO we can't check if the value is long or unsigned_long
+                        // so, if the value <= 0, we add the value to long, if the real value is unsigned_long, the result is error
+                        builder.addLong(f, l);
                     }
                 } else if (v instanceof BigInteger ul) {
                     long ll = UNSIGNED_LONG_SHIFTED.parseLong(ul.toString(), false, () -> 0L);

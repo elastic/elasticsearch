@@ -18,13 +18,18 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
+import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
+import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper.TimeSeriesIdBuilder;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.longEncode;
 import static org.hamcrest.Matchers.containsString;
@@ -384,5 +389,16 @@ public class DocValueFormatTests extends ESTestCase {
             () -> { throw new UnsupportedOperationException("don't use now"); }
         );
         assertEquals(expected, actualMillis);
+    }
+
+    public void testParseTsid() throws IOException {
+        TimeSeriesIdBuilder timeSeriesIdBuilder = new TimeSeriesIdBuilder();
+        timeSeriesIdBuilder.addString("string", randomAlphaOfLength(10));
+        timeSeriesIdBuilder.addLong("long", randomLong());
+        timeSeriesIdBuilder.addUnsignedLong("ulong", randomNonNegativeLong());
+        BytesRef tsidBytes = timeSeriesIdBuilder.build().toBytesRef();
+        Object tsidFormat = DocValueFormat.TIME_SERIES_ID.format(tsidBytes);
+        BytesRef tsidParse = DocValueFormat.TIME_SERIES_ID.parseBytesRef(tsidFormat);
+        assertEquals(tsidBytes, tsidParse);
     }
 }

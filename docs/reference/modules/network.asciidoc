@@ -206,7 +206,7 @@ setting. Defaults to `true`.
 
 `network.tcp.keep_alive`::
 (<<static-cluster-setting,Static>>)
-Configures the `SO_KEEPALIVE` option for this socket, which
+Configures the boolean `SO_KEEPALIVE` option for this socket, which
 determines whether it sends TCP keepalive probes.
 
 `network.tcp.keep_idle`::

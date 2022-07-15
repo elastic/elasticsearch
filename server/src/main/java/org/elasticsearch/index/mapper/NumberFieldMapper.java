@@ -15,6 +15,7 @@ import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
@@ -63,6 +64,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiFunction;
@@ -1578,12 +1580,18 @@ public class NumberFieldMapper extends FieldMapper {
             context.getDimensions().addLong(fieldType().name(), numericValue.longValue());
         }
 
-        if (singleValue) {
-            // Add the first field by key so that we can validate if it has been added
-            // context.doc().addWithKey(fieldType().name(), fields.get(0));
-            fieldType().type.addFields(context.doc(), fieldType().name(), numericValue, indexed, hasDocValues, stored);
-        } else {
-            fieldType().type.addFields(context.doc(), fieldType().name(), numericValue, indexed, hasDocValues, stored);
+        fieldType().type.addFields(context.doc(), fieldType().name(), numericValue, indexed, hasDocValues, stored);
+
+        if (singleValue && (indexed || hasDocValues || stored)) {
+            // the last field is the current field, Add to the key map, so that we can validate if it has been added
+            List<IndexableField> fields = context.doc().getFields();
+            IndexableField last = fields.get(fields.size() - 1);
+            assert last.name().equals(fieldType().name()) : "last field name ["
+                + last.name()
+                + "] mis match field name ["
+                + fieldType().name()
+                + "]";
+            context.doc().addWithKey(fieldType().name(), fields.get(fields.size() - 1));
         }
 
         if (hasDocValues == false && (stored || indexed)) {

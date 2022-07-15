@@ -712,17 +712,10 @@ public interface DocValueFormat extends NamedWriteable {
                 if (v instanceof String s) {
                     builder.addString(f, s);
                 } else if (v instanceof Long || v instanceof Integer) {
-                    Long l = Long.valueOf(v.toString());
-                    if (l > 0) {
-                        builder.addLong(f, l);
-                    } else {
-                        // TODO we can't check if the value is long or unsigned_long
-                        // so, if the value <= 0, we add the value to long, if the real value is unsigned_long, the result is error
-                        builder.addLong(f, l);
-                    }
+                    builder.addLong(f, (Long) v);
                 } else if (v instanceof BigInteger ul) {
-                    long ll = UNSIGNED_LONG_SHIFTED.parseLong(ul.toString(), false, () -> 0L);
-                    builder.addUnsignedLong(f, ll);
+                    long l = ul.longValue();
+                    builder.addUnsignedLong(f, l);
                 } else {
                     throw new IllegalArgumentException("Unexpected value in tsid object [" + v + "]");
                 }

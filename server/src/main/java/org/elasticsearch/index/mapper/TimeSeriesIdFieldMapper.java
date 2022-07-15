@@ -29,6 +29,7 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.net.InetAddress;
 import java.time.ZoneId;
 import java.util.Collections;
@@ -172,8 +173,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
                     case (byte) 'l' -> // parse a long
                         result.put(name, in.readLong());
                     case (byte) 'u' -> { // parse an unsigned_long
-                        Object ul = DocValueFormat.UNSIGNED_LONG_SHIFTED.format(in.readLong());
-                        result.put(name, ul);
+                        result.put(name, BigInteger.valueOf(in.readLong()));
                     }
                     default -> throw new IllegalArgumentException("Cannot parse [" + name + "]: Unknown type [" + type + "]");
                 }

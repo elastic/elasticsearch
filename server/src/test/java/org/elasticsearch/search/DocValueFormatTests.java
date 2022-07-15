@@ -395,7 +395,7 @@ public class DocValueFormatTests extends ESTestCase {
         TimeSeriesIdBuilder timeSeriesIdBuilder = new TimeSeriesIdBuilder();
         timeSeriesIdBuilder.addString("string", randomAlphaOfLength(10));
         timeSeriesIdBuilder.addLong("long", randomLong());
-        timeSeriesIdBuilder.addUnsignedLong("ulong", randomNonNegativeLong());
+        timeSeriesIdBuilder.addUnsignedLong("ulong", randomLong());
         BytesRef tsidBytes = timeSeriesIdBuilder.build().toBytesRef();
         Object tsidFormat = DocValueFormat.TIME_SERIES_ID.format(tsidBytes);
         BytesRef tsidParse = DocValueFormat.TIME_SERIES_ID.parseBytesRef(tsidFormat);

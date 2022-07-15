@@ -140,26 +140,21 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
     }
 
     // Retrieves a class resource from this loader's jars, or null.
-    private Resource privilegedGetClassResourceOrNull(String name) {
+    private Resource privilegedGetClassResourceOrNull(JarMeta jarMeta, String pkg, String filepath) {
         return AccessController.doPrivileged((PrivilegedAction<Resource>) () -> {
-            String filepath = name.replace('.', '/').concat(".class");
-            String pkg = toPackageName(filepath);
-            JarMeta jarMeta = packageToJarMeta.get(pkg);
-            if (jarMeta != null) {
-                List<Integer> releaseVersions = jarMeta.pkgToVersions().get(pkg);
-                if (jarMeta.isMultiRelease() && releaseVersions != null) {
-                    for (int releaseVersion : releaseVersions) {
-                        String fullName = jarMeta.prefix() + "/" + MRJAR_VERSION_PREFIX + releaseVersion + "/" + filepath;
-                        InputStream is = parent.getResourceAsStream(fullName);
-                        if (is != null) {
-                            return new Resource(is, prefixToCodeBase.get(jarMeta.prefix()));
-                        }
+            List<Integer> releaseVersions = jarMeta.pkgToVersions().get(pkg);
+            if (jarMeta.isMultiRelease() && releaseVersions != null) {
+                for (int releaseVersion : releaseVersions) {
+                    String fullName = jarMeta.prefix() + "/" + MRJAR_VERSION_PREFIX + releaseVersion + "/" + filepath;
+                    InputStream is = parent.getResourceAsStream(fullName);
+                    if (is != null) {
+                        return new Resource(is, prefixToCodeBase.get(jarMeta.prefix()));
                     }
                 }
-                InputStream is = parent.getResourceAsStream(jarMeta.prefix() + "/" + filepath);
-                if (is != null) {
-                    return new Resource(is, prefixToCodeBase.get(jarMeta.prefix()));
-                }
+            }
+            InputStream is = parent.getResourceAsStream(jarMeta.prefix() + "/" + filepath);
+            if (is != null) {
+                return new Resource(is, prefixToCodeBase.get(jarMeta.prefix()));
             }
             return null;
         });
@@ -167,16 +162,23 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
 
     @Override
     public Class<?> findClass(String name) throws ClassNotFoundException {
-        Resource res = privilegedGetClassResourceOrNull(name);
-        if (res != null) {
-            try (InputStream in = res.inputStream()) {
-                byte[] bytes = in.readAllBytes();
-                return defineClass(name, bytes, 0, bytes.length, res.codeSource());
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
+        String filepath = name.replace('.', '/').concat(".class");
+        String pkg = toPackageName(filepath);
+        JarMeta jarMeta = packageToJarMeta.get(pkg);
+        if (jarMeta != null) {
+            Resource res = privilegedGetClassResourceOrNull(jarMeta, pkg, filepath);
+            if (res != null) {
+                try (InputStream in = res.inputStream()) {
+                    byte[] bytes = in.readAllBytes();
+                    return defineClass(name, bytes, 0, bytes.length, res.codeSource());
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
             }
+            throw new ClassNotFoundException(name);
+        } else {
+            return parent.loadClass(name);
         }
-        return parent.loadClass(name);
     }
 
     @Override

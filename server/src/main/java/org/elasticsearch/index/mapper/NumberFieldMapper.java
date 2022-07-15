@@ -236,8 +236,7 @@ public class NumberFieldMapper extends FieldMapper {
                 meta,
                 dimension,
                 metric,
-                singleValue
-            };
+                singleValue };
         }
 
         @Override
@@ -1579,18 +1578,14 @@ public class NumberFieldMapper extends FieldMapper {
         if (dimension && numericValue != null) {
             context.getDimensions().addLong(fieldType().name(), numericValue.longValue());
         }
-
         fieldType().type.addFields(context.doc(), fieldType().name(), numericValue, indexed, hasDocValues, stored);
 
         if (singleValue && (indexed || hasDocValues || stored)) {
             // the last field is the current field, Add to the key map, so that we can validate if it has been added
             List<IndexableField> fields = context.doc().getFields();
             IndexableField last = fields.get(fields.size() - 1);
-            assert last.name().equals(fieldType().name()) : "last field name ["
-                + last.name()
-                + "] mis match field name ["
-                + fieldType().name()
-                + "]";
+            assert last.name().equals(fieldType().name())
+                : "last field name [" + last.name() + "] mis match field name [" + fieldType().name() + "]";
             context.doc().addWithKey(fieldType().name(), fields.get(fields.size() - 1));
         }
 
@@ -1613,9 +1608,7 @@ public class NumberFieldMapper extends FieldMapper {
     public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), type, scriptCompiler, ignoreMalformedByDefault, coerceByDefault, indexCreatedVersion).dimension(
             dimension
-        ).metric(metricType)
-        .singleValue(singleValue)
-        .init(this);
+        ).metric(metricType).singleValue(singleValue).init(this);
     }
 
     @Override

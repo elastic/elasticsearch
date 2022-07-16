@@ -12,8 +12,6 @@ import org.gradle.api.InvalidUserDataException;
 import org.junit.Rule;
 import org.junit.rules.ExpectedException;
 
-import static org.elasticsearch.gradle.internal.doc.RestTestsFromSnippetsTask.replaceBlockQuote;
-
 public class RestTestFromSnippetsTaskTests extends GradleUnitTestCase {
     @Rule
     public ExpectedException expectedEx = ExpectedException.none();
@@ -39,6 +37,10 @@ public class RestTestFromSnippetsTaskTests extends GradleUnitTestCase {
     public void testEscapingInBlockQuote() {
         assertEquals("\"foo\": \"bort\\\" baz\"", replaceBlockQuote("\"foo\": \"\"\"bort\" baz\"\"\""));
         assertEquals("\"foo\": \"bort\\n baz\"", replaceBlockQuote("\"foo\": \"\"\"bort\n baz\"\"\""));
+    }
+
+    private Object replaceBlockQuote(String string) {
+        return null;
     }
 
     public void testIsDocWriteRequest() {

@@ -7,12 +7,13 @@
  */
 package org.elasticsearch.gradle.internal.doc;
 
+import org.elasticsearch.gradle.internal.doc.SnippetsTask.Source;
 import org.elasticsearch.gradle.internal.test.GradleUnitTestCase;
 
 public class SnippetsTaskTests extends GradleUnitTestCase {
 
     public void testMatchSource() {
-        SnippetsTask.Source source = SnippetsTask.matchSource("[source,console]");
+        SnippetsTask.Source source = (Source) SnippetsTask.matchSource("[source,console]");
         assertTrue(source.getMatches());
         assertEquals("console", source.getLanguage());
         assertNull(source.getName());

@@ -237,6 +237,7 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
                         stat.getThreadsPerAllocation(),
                         stat.getNumberOfAllocations(),
                         stat.getQueueCapacity(),
+                        stat.getCacheSize(),
                         stat.getStartTime(),
                         updatedNodeStats
                     )
@@ -267,7 +268,7 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
 
                 nodeStats.sort(Comparator.comparing(n -> n.getNode().getId()));
 
-                updatedAssignmentStats.add(new AssignmentStats(modelId, null, null, null, assignment.getStartTime(), nodeStats));
+                updatedAssignmentStats.add(new AssignmentStats(modelId, null, null, null, null, assignment.getStartTime(), nodeStats));
             }
         }
 
@@ -327,6 +328,7 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
                 task.getParams().getThreadsPerAllocation(),
                 assignment == null ? task.getParams().getNumberOfAllocations() : assignment.getTaskParams().getNumberOfAllocations(),
                 task.getParams().getQueueCapacity(),
+                task.getParams().getCacheSize().orElse(null),
                 TrainedModelAssignmentMetadata.fromState(clusterService.state()).getModelAssignment(task.getModelId()).getStartTime(),
                 nodeStats
             )

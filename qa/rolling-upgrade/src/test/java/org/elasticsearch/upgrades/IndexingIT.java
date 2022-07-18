@@ -361,7 +361,7 @@ public class IndexingIT extends AbstractRollingTestCase {
     }
 
     public void testSyntheticSource() throws IOException {
-        assumeTrue("added in 8.3.0", UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_3_0));
+        assumeTrue("added in 8.4.0", UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_4_0));
 
         switch (CLUSTER_TYPE) {
             case OLD -> {
@@ -369,7 +369,7 @@ public class IndexingIT extends AbstractRollingTestCase {
                 XContentBuilder indexSpec = XContentBuilder.builder(XContentType.JSON.xContent()).startObject();
                 indexSpec.startObject("mappings");
                 {
-                    indexSpec.startObject("_source").field("synthetic", true).endObject();
+                    indexSpec.startObject("_source").field("mode", "synthetic").endObject();
                     indexSpec.startObject("properties").startObject("kwd").field("type", "keyword").endObject().endObject();
                 }
                 indexSpec.endObject();

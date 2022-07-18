@@ -12,7 +12,14 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasable;
 
 /**
- * Represents a distributed tracing system that keeps track of the start and end of various activities in the cluster.
+ * Represents a distributed tracing system that keeps track of the start and end of various activities in the cluster. Traces are composed
+ * of "spans", each of which represents some piece of work with a duration. Spans are nested to create a parent-child hierarchy.
+ * <p>
+ * You can open a span using {@link #onTraceStarted(ThreadContext, Traceable)}, and stop it using {@link #onTraceStopped(Traceable)},
+ * at which point the tracing system will queue the data to be sent somewhere for processing and storage.
+ * <p>
+ * You can add additional data to a span using the {@code setAttribute(Traceable, ...)} methods, e.g.
+ * {@link #setAttribute(Traceable, String, String)}. This allows you to attach data that is not available when the span is opened.
  */
 public interface Tracer {
 

@@ -73,7 +73,7 @@ public class NodeReplacementAllocationDecider extends AllocationDecider {
     }
 
     @Override
-    public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+    public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         if (replacementOngoing(allocation) == false) {
             return NO_REPLACEMENTS;
         } else if (isReplacementSource(allocation, node.nodeId())) {

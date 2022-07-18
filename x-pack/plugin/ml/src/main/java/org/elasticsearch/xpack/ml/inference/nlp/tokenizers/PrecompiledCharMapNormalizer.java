@@ -144,7 +144,7 @@ public class PrecompiledCharMapNormalizer {
             secondIndex++;
         }
         if (secondIndex == firstIndex) {
-            return Optional.empty();
+            return Optional.of(new BytesRef(BytesRef.EMPTY_BYTES));
         }
         return Optional.of(new BytesRef(normalizedStrUtf8Bytes, firstIndex, secondIndex - firstIndex));
     }
@@ -155,40 +155,47 @@ public class PrecompiledCharMapNormalizer {
         // break points from there. But, this seemed the easiest way for now
         //
         // Keep in mind, these break points aren't necessarily surrogate pairs, but also codepoints that contain a combining mark
+        byte[] strBytes = str.getBytes(StandardCharsets.UTF_8);
+        char[] strChars = str.toCharArray();
+        int[] strCp = str.codePoints().toArray();
         BreakIterator b = BreakIterator.getCharacterInstance(Locale.ROOT);
         b.setText(str);
-        int start = b.first();
-        // If we knew the utf-8 length ahead of time (and iterated over the bytes in the appropriate chunks)
-        // we could pre-populate the known length here.
+        // We iterate the whole string, so b.first() is always `0`
+        int startIter = b.first();
+        int codePointPos = 0;
         BytesRefBuilder strBuilder = new BytesRefBuilder();
-        for (int end = b.next(); end != BreakIterator.DONE; start = end, end = b.next()) {
-            // TODO: It would be awesome if we could translate these starts and ends to byte positions, if we could performance would be
-            // dramatically improved
-            String unicodeStr = str.substring(start, end);
-            byte[] unicode = unicodeStr.getBytes(StandardCharsets.UTF_8);
+        strBuilder.grow(strBytes.length);
+        int bytePos = 0;
+        for (int end = b.next(); end != BreakIterator.DONE; startIter = end, end = b.next()) {
+            int byteLen = 0;
+            int numCp = str.codePointCount(startIter, end);
+            for (int i = codePointPos; i < numCp + codePointPos; i++) {
+                byteLen += numUtf8Bytes(strCp[i]);
+            }
+            codePointPos += numCp;
             // The trie only go up to a depth of 5 bytes.
             // So even looking at it for graphemes (with combining, surrogate, etc.) that are 6+ bytes in length is useless.
-            if (unicode.length < 6) {
-                Optional<BytesRef> subStr = normalizePart(unicode, 0, unicode.length);
+            if (byteLen < 6) {
+                Optional<BytesRef> subStr = normalizePart(strBytes, bytePos, byteLen);
                 if (subStr.isPresent()) {
                     strBuilder.append(subStr.get());
+                    bytePos += byteLen;
                     continue;
                 }
             }
-            int charIndex = 0;
             int charByteIndex = 0;
-            char[] unicodeCharArray = unicodeStr.toCharArray();
-            for (char c : unicodeCharArray) {
-                Optional<BytesRef> subStr = normalizePart(unicode, charByteIndex, numUtf8Bytes(c));
+            for (int i = startIter; i < end; i++) {
+                int utf8CharBytes = numUtf8Bytes(strChars[i]);
+                Optional<BytesRef> subStr = normalizePart(strBytes, charByteIndex + bytePos, utf8CharBytes);
                 if (subStr.isPresent()) {
                     strBuilder.append(subStr.get());
                 } else {
-                    int numBytes = UnicodeUtil.UTF16toUTF8(unicodeCharArray, charIndex, 1, reusableCharByteBuffer);
+                    int numBytes = UnicodeUtil.UTF16toUTF8(strChars, i, 1, reusableCharByteBuffer);
                     strBuilder.append(reusableCharByteBuffer, 0, numBytes);
                 }
-                charByteIndex += numUtf8Bytes(c);
-                ++charIndex;
+                charByteIndex += utf8CharBytes;
             }
+            bytePos += byteLen;
         }
         return strBuilder.get().utf8ToString();
     }

@@ -44,7 +44,25 @@ public class PyTorchBuilderTests extends ESTestCase {
     }
 
     public void testBuild() throws IOException, InterruptedException {
-        new PyTorchBuilder(nativeController, processPipes, 2, 4).build();
+        new PyTorchBuilder(nativeController, processPipes, 2, 4, 12).build();
+
+        verify(nativeController).startProcess(commandCaptor.capture());
+
+        assertThat(
+            commandCaptor.getValue(),
+            contains(
+                "./pytorch_inference",
+                "--validElasticLicenseKeyConfirmed=true",
+                "--numThreadsPerAllocation=2",
+                "--numAllocations=4",
+                "--cacheMemorylimitBytes=12",
+                PROCESS_PIPES_ARG
+            )
+        );
+    }
+
+    public void testBuildWithNoCache() throws IOException, InterruptedException {
+        new PyTorchBuilder(nativeController, processPipes, 2, 4, 0).build();
 
         verify(nativeController).startProcess(commandCaptor.capture());
 

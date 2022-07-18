@@ -315,6 +315,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
                             range[1] = dft.resolution().parsePointAsMillis(max);
                         }
                     }
+                    log.trace("Bounds after index bound date rounding: {}, {}", range[0], range[1]);
 
                     boolean isMultiValue = false;
                     for (LeafReaderContext leaf : context.searcher().getLeafContexts()) {
@@ -362,11 +363,44 @@ public enum CoreValuesSourceType implements ValuesSourceType {
                             };
                         });
                     }
+                    log.trace("Bounds after query bound date rounding: {}, {}", range[0], range[1]);
 
                     if (range[0] == Long.MIN_VALUE && range[1] == Long.MAX_VALUE) {
                         // Didn't find any bounds
+                        log.trace("Unable to find rounding bounds");
                         return Rounding::prepareForUnknown;
                     }
+
+                    // If we have bounds stepping over each other from query bound checks, return a trivial rounding.
+                    if (range[0] > range[1]) {
+                        return rounding -> new Rounding.Prepared() {
+                            @Override
+                            public long round(long utcMillis) {
+                                return 0;
+                            }
+
+                            @Override
+                            public long nextRoundingValue(long utcMillis) {
+                                return 0;
+                            }
+
+                            @Override
+                            public double roundingSize(long utcMillis, Rounding.DateTimeUnit timeUnit) {
+                                return 0;
+                            }
+
+                            @Override
+                            public double roundingSize(Rounding.DateTimeUnit timeUnit) {
+                                return 0;
+                            }
+
+                            @Override
+                            public long[] fixedRoundingPoints() {
+                                return null;
+                            }
+                        };
+                    }
+
                     return rounding -> rounding.prepare(range[0], range[1]);
                 }
             };

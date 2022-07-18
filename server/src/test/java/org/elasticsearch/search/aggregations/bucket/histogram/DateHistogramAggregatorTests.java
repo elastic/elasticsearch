@@ -14,6 +14,9 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -28,6 +31,7 @@ import org.elasticsearch.index.mapper.CustomTermFreqField;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocCountFieldMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -611,6 +615,23 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                 assertEquals(3, bucket.getDocCount());
             },
             true
+        );
+    }
+
+    public void testIntervalEmpty() throws IOException {
+        BooleanQuery.Builder boolFilterBuilder = new BooleanQuery.Builder();
+        boolFilterBuilder.add(LongPoint.newRangeQuery(AGGREGABLE_DATE, asLong("2005"), Long.MAX_VALUE), BooleanClause.Occur.MUST);
+        boolFilterBuilder.add(LongPoint.newRangeQuery(AGGREGABLE_DATE, Long.MIN_VALUE, asLong("2002-09-26")), BooleanClause.Occur.MUST);
+        Query query = boolFilterBuilder.build();
+        testSearchCase(
+            query,
+            DATASET,
+            aggregation -> aggregation.calendarInterval(DateHistogramInterval.YEAR).field(AGGREGABLE_DATE),
+            histogram -> {
+                List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
+                assertEquals(0, buckets.size());
+            },
+            false
         );
     }
 

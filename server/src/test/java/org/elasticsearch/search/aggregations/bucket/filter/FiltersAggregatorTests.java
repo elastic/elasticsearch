@@ -367,6 +367,27 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         }, ft);
     }
 
+    public void testWithEmptyMergedPointRangeQueries() throws IOException {
+        MappedFieldType ft = new DateFieldMapper.DateFieldType("test", Resolution.MILLISECONDS);
+        AggregationBuilder builder = new FiltersAggregationBuilder(
+            "test",
+            new KeyedFilter("q1", new RangeQueryBuilder("test").from("2020-01-01").to("2020-02-01").includeUpper(false))
+        );
+        Query query = LongPoint.newRangeQuery(
+            "test",
+            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2010-01-01"),
+            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2015-02-01")
+        );
+        testCase(builder, query, iw -> {
+            iw.addDocument(List.of(new LongPoint("test", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2010-01-02"))));
+            iw.addDocument(List.of(new LongPoint("test", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2020-01-02"))));
+        }, result -> {
+            InternalFilters filters = (InternalFilters) result;
+            assertThat(filters.getBuckets(), hasSize(1));
+            assertThat(filters.getBucketByKey("q1").getDocCount(), equalTo(0L));
+        }, ft);
+    }
+
     public void testRangeFilter() throws IOException {
         MappedFieldType ft = new DateFieldMapper.DateFieldType(
             "test",

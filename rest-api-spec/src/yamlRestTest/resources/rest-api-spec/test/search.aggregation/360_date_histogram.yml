@@ -436,3 +436,59 @@ setup:
   - match: { aggregations.date_histogram_daily.buckets.1.key_as_string: "2020-03-09T00:00:00.000-04:00" }
   - match: { aggregations.date_histogram_daily.buckets.1.key: 1583726400000 }
   - match: { aggregations.date_histogram_daily.buckets.1.doc_count: 5 }
+
+---
+"Date histogram with contradicting filters":
+  - do:
+      indices.create:
+        index: test_date_filter
+        body:
+          mappings:
+            properties:
+              dt:
+                type: date
+  - do:
+      index:
+        index: test_date_filter
+        id: "1"
+        body: { "dt": "2002-09-26" }
+
+  - do:
+      index:
+        index: test_date_filter
+        id: "2"
+        body: { "dt": "2005-02-02" }
+
+  - do:
+      index:
+        index: test_date_filter
+        id: "3"
+        body: { "dt": "2004-02-02" }
+
+  - do:
+      search:
+        index: test_date_filter
+        body:
+          query: {"bool": {
+            "must": [
+              {
+                "range": {
+                  "dt": {
+                    "lte": "2002-09-26||/d"
+                  }
+                }
+              },
+              {
+                "range": {
+                  "dt": {
+                    "gte": "2005||/y"
+                  }
+                }
+              }
+            ]}}
+          aggs:
+            histo:
+              date_histogram:
+                field: range
+                calendar_interval: year
+  - match: { hits.total.value: 0 }

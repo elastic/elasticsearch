@@ -9,21 +9,13 @@ package org.elasticsearch.xpack.sql.action;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.NumericDocValuesField;
-import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
-import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.geo.GeometryTestUtils;
-import org.elasticsearch.geometry.Point;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.search.aggregations.metrics.GeoBoundsAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.InternalGeoBounds;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.spatial.index.mapper.GeoShapeWithDocValuesFieldMapper;
 import org.elasticsearch.xpack.sql.action.compute.Driver;
 import org.elasticsearch.xpack.sql.action.compute.LongBlock;
 import org.elasticsearch.xpack.sql.action.compute.LongGroupingOperator;
@@ -34,15 +26,20 @@ import org.elasticsearch.xpack.sql.action.compute.NumericDocValuesExtractor;
 import org.elasticsearch.xpack.sql.action.compute.Operator;
 import org.elasticsearch.xpack.sql.action.compute.Page;
 import org.elasticsearch.xpack.sql.action.compute.PageConsumerOperator;
+import org.elasticsearch.xpack.sql.action.compute.exchange.ExchangeSink;
+import org.elasticsearch.xpack.sql.action.compute.exchange.ExchangeSinkOperator;
+import org.elasticsearch.xpack.sql.action.compute.exchange.ExchangeSource;
+import org.elasticsearch.xpack.sql.action.compute.exchange.ExchangeSourceOperator;
+import org.elasticsearch.xpack.sql.action.compute.exchange.PassthroughExchanger;
+import org.elasticsearch.xpack.sql.action.compute.exchange.RandomExchanger;
+import org.elasticsearch.xpack.sql.action.compute.exchange.RandomUnionSourceOperator;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-
-import static org.hamcrest.Matchers.equalTo;
+import java.util.function.Consumer;
 
 public class OperatorTests extends ESTestCase {
 
@@ -90,7 +87,7 @@ public class OperatorTests extends ESTestCase {
             new LongTransformer(0, i -> i + 1),
             new LongGroupingOperator(1, BigArrays.NON_RECYCLING_INSTANCE),
             new LongMaxOperator(2),
-            new PageConsumerOperator(page -> logger.info("New block: {}", page))),
+            new PageConsumerOperator(page -> logger.info("New page: {}", page))),
             () -> {});
         driver.run();
     }
@@ -133,7 +130,7 @@ public class OperatorTests extends ESTestCase {
                     new LongMaxOperator(3), // returns highest group number
                     new LongTransformer(0, i -> i + 1), // adds +1 to group number (which start with 0) to get group count
                     new PageConsumerOperator(page -> {
-                        logger.info("New block: {}", page);
+                        logger.info("New page: {}", page);
                         pageCount.incrementAndGet();
                         rowCount.addAndGet(page.getPositionCount());
                         lastPage.set(page);
@@ -148,34 +145,78 @@ public class OperatorTests extends ESTestCase {
         }
     }
 
-    // Operator that just chains blocks through, but allows checking some conditions
-    public static class AssertOperator implements Operator {
+    public void testOperatorsWithPassthroughExchange() throws InterruptedException {
+        ExchangeSource exchangeSource = new ExchangeSource();
+        Consumer<ExchangeSink> sinkFinished = sink -> {
+            exchangeSource.finish();
+        };
+        Driver driver1 = new Driver(List.of(
+            new RandomLongBlockSourceOperator(),
+            new LongTransformer(0, i -> i + 1),
+            new LongGroupingOperator(1, BigArrays.NON_RECYCLING_INSTANCE),
+            new ExchangeSinkOperator(new ExchangeSink(new PassthroughExchanger(exchangeSource), sinkFinished))),
+            () -> {});
 
+        Driver driver2 = new Driver(List.of(
+            new ExchangeSourceOperator(exchangeSource),
+            new PageConsumerOperator(page -> logger.info("New page: {}", page))),
+            () -> {});
 
+        Thread t1 = new Thread(driver1::run);
+        Thread t2 = new Thread(driver2::run);
+        t1.start();
+        t2.start();
+        t1.join();
+        t2.join();
+    }
 
-        @Override
-        public Page getOutput() {
-            return null;
-        }
+    public void testOperatorsWithRandomExchange() throws InterruptedException {
+        ExchangeSource exchangeSource1 = new ExchangeSource();
+        ExchangeSource exchangeSource2 = new ExchangeSource();
 
-        @Override
-        public boolean isFinished() {
-            return false;
-        }
+        Consumer<ExchangeSink> sink1Finished = sink -> {
+            exchangeSource1.finish();
+            exchangeSource2.finish();
+        };
 
-        @Override
-        public void finish() {
+        ExchangeSource exchangeSource3 = new ExchangeSource();
+        ExchangeSource exchangeSource4 = new ExchangeSource();
 
-        }
+        Driver driver1 = new Driver(List.of(
+            new RandomLongBlockSourceOperator(),
+            new LongTransformer(0, i -> i + 1),
+            new ExchangeSinkOperator(new ExchangeSink(new RandomExchanger(List.of(exchangeSource1::addPage, exchangeSource2::addPage)),
+                sink1Finished))),
+            () -> {});
 
-        @Override
-        public boolean needsInput() {
-            return false;
-        }
+        Driver driver2 = new Driver(List.of(
+            new ExchangeSourceOperator(exchangeSource1),
+            new LongGroupingOperator(1, BigArrays.NON_RECYCLING_INSTANCE),
+            new ExchangeSinkOperator(new ExchangeSink(new PassthroughExchanger(exchangeSource3), s -> exchangeSource3.finish()))),
+            () -> {});
 
-        @Override
-        public void addInput(Page page) {
+        Driver driver3 = new Driver(List.of(
+            new ExchangeSourceOperator(exchangeSource2),
+            new LongMaxOperator(1),
+            new ExchangeSinkOperator(new ExchangeSink(new PassthroughExchanger(exchangeSource4), s -> exchangeSource4.finish()))),
+            () -> {});
 
-        }
+        Driver driver4 = new Driver(List.of(
+            new RandomUnionSourceOperator(List.of(exchangeSource3, exchangeSource4)),
+            new PageConsumerOperator(page -> logger.info("New page with #blocks: {}", page.getBlockCount()))),
+            () -> {});
+
+        Thread t1 = new Thread(driver1::run);
+        Thread t2 = new Thread(driver2::run);
+        Thread t3 = new Thread(driver3::run);
+        Thread t4 = new Thread(driver4::run);
+        t1.start();
+        t2.start();
+        t3.start();
+        t4.start();
+        t1.join();
+        t2.join();
+        t3.join();
+        t4.join();
     }
 }

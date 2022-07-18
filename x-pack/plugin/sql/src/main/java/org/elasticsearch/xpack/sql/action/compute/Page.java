@@ -76,4 +76,8 @@ public class Page {
     public int getPositionCount() {
         return positionCount;
     }
+
+    public int getBlockCount() {
+        return blocks.length;
+    }
 }

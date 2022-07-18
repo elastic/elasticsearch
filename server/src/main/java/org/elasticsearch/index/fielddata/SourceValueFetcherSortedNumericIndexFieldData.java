@@ -9,7 +9,7 @@
 package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
@@ -20,26 +20,25 @@ import org.elasticsearch.search.lookup.SourceLookup;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Iterator;
-import java.util.SortedSet;
 import java.util.TreeSet;
 
-public class SourceValueFetcherSortedBinaryIndexFieldData extends SourceValueFetcherIndexFieldData<SortedBinaryDocValues> {
+public class SourceValueFetcherSortedNumericIndexFieldData extends SourceValueFetcherIndexFieldData<SortedNumericDocValues> {
 
-    public static class Builder extends SourceValueFetcherIndexFieldData.Builder<SortedBinaryDocValues> {
+    public static class Builder extends SourceValueFetcherIndexFieldData.Builder<SortedNumericDocValues> {
 
         public Builder(
             String fieldName,
             ValuesSourceType valuesSourceType,
             ValueFetcher valueFetcher,
             SourceLookup sourceLookup,
-            ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory
+            ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory
         ) {
             super(fieldName, valuesSourceType, valueFetcher, sourceLookup, toScriptFieldFactory);
         }
 
         @Override
-        public SourceValueFetcherSortedBinaryIndexFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
-            return new SourceValueFetcherSortedBinaryIndexFieldData(
+        public SourceValueFetcherSortedNumericIndexFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
+            return new SourceValueFetcherSortedNumericIndexFieldData(
                 fieldName,
                 valuesSourceType,
                 valueFetcher,
@@ -49,25 +48,25 @@ public class SourceValueFetcherSortedBinaryIndexFieldData extends SourceValueFet
         }
     }
 
-    protected SourceValueFetcherSortedBinaryIndexFieldData(
+    protected SourceValueFetcherSortedNumericIndexFieldData(
         String fieldName,
         ValuesSourceType valuesSourceType,
         ValueFetcher valueFetcher,
         SourceLookup sourceLookup,
-        ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory
+        ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory
     ) {
         super(fieldName, valuesSourceType, valueFetcher, sourceLookup, toScriptFieldFactory);
     }
 
     @Override
-    public SourceValueFetcherSortedBinaryLeafFieldData loadDirect(LeafReaderContext context) throws Exception {
-        return new SourceValueFetcherSortedBinaryLeafFieldData(toScriptFieldFactory, context, valueFetcher, sourceLookup);
+    public SourceValueFetcherSortedNumericLeafFieldData loadDirect(LeafReaderContext context) throws Exception {
+        return new SourceValueFetcherSortedNumericLeafFieldData(toScriptFieldFactory, context, valueFetcher, sourceLookup);
     }
 
-    public static class SourceValueFetcherSortedBinaryLeafFieldData extends SourceValueFetcherLeafFieldData<SortedBinaryDocValues> {
+    public static class SourceValueFetcherSortedNumericLeafFieldData extends SourceValueFetcherLeafFieldData<SortedNumericDocValues> {
 
-        public SourceValueFetcherSortedBinaryLeafFieldData(
-            ToScriptFieldFactory<SortedBinaryDocValues> toScriptFieldFactory,
+        public SourceValueFetcherSortedNumericLeafFieldData(
+            ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory,
             LeafReaderContext leafReaderContext,
             ValueFetcher valueFetcher,
             SourceLookup sourceLookup
@@ -78,23 +77,23 @@ public class SourceValueFetcherSortedBinaryIndexFieldData extends SourceValueFet
         @Override
         public DocValuesScriptFieldFactory getScriptFieldFactory(String name) {
             return toScriptFieldFactory.getScriptFieldFactory(
-                new SourceValueFetcherSortedBinaryDocValues(leafReaderContext, valueFetcher, sourceLookup),
+                new SourceValueFetcherSortedNumericDocValues(leafReaderContext, valueFetcher, sourceLookup),
                 name
             );
         }
     }
 
-    public static class SourceValueFetcherSortedBinaryDocValues extends SortedBinaryDocValues implements ValueFetcherDocValues {
+    public static class SourceValueFetcherSortedNumericDocValues extends SortedNumericDocValues implements ValueFetcherDocValues {
 
         private final LeafReaderContext leafReaderContext;
 
         private final ValueFetcher valueFetcher;
         private final SourceLookup sourceLookup;
 
-        private SortedSet<Object> values;
-        private Iterator<Object> iterator;
+        private TreeSet<Long> values;
+        private Iterator<Long> iterator;
 
-        public SourceValueFetcherSortedBinaryDocValues(
+        public SourceValueFetcherSortedNumericDocValues(
             LeafReaderContext leafReaderContext,
             ValueFetcher valueFetcher,
             SourceLookup sourceLookup
@@ -107,7 +106,12 @@ public class SourceValueFetcherSortedBinaryIndexFieldData extends SourceValueFet
         @Override
         public boolean advanceExact(int doc) throws IOException {
             sourceLookup.setSegmentAndDocument(leafReaderContext, doc);
-            values = new TreeSet<>(valueFetcher.fetchValues(sourceLookup, Collections.emptyList()));
+            values = new TreeSet<>();
+
+            for (Object value : valueFetcher.fetchValues(sourceLookup, Collections.emptyList())) {
+                values.add(((Number) value).longValue());
+            }
+
             iterator = values.iterator();
 
             return true;
@@ -119,9 +123,29 @@ public class SourceValueFetcherSortedBinaryIndexFieldData extends SourceValueFet
         }
 
         @Override
-        public BytesRef nextValue() throws IOException {
+        public long nextValue() throws IOException {
             assert iterator.hasNext();
-            return new BytesRef(iterator.next().toString());
+            return iterator.next();
+        }
+
+        @Override
+        public int docID() {
+            throw new UnsupportedOperationException("not supported for source fallback");
+        }
+
+        @Override
+        public int nextDoc() throws IOException {
+            throw new UnsupportedOperationException("not supported for source fallback");
+        }
+
+        @Override
+        public int advance(int target) throws IOException {
+            throw new UnsupportedOperationException("not supported for source fallback");
+        }
+
+        @Override
+        public long cost() {
+            throw new UnsupportedOperationException("not supported for source fallback");
         }
     }
 }

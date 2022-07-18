@@ -35,6 +35,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
+import org.elasticsearch.index.fielddata.SourceValueFetcherSortedNumericIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedDoublesIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.mapper.TimeSeriesParams.MetricType;
@@ -53,6 +54,7 @@ import org.elasticsearch.script.field.ShortDocValuesField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
@@ -919,6 +921,21 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
+            public IndexFieldData.Builder getValueFetcherFieldDataBuilder(
+                String name,
+                SourceLookup sourceLookup,
+                ValueFetcher valueFetcher
+            ) {
+                return new SourceValueFetcherSortedNumericIndexFieldData.Builder(
+                    name,
+                    numericType().getValuesSourceType(),
+                    valueFetcher,
+                    sourceLookup,
+                    IntegerDocValuesField::new
+                );
+            }
+
+            @Override
             SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String fieldName, String fieldSimpleName) {
                 return NumberType.syntheticLongFieldLoader(fieldName, fieldSimpleName);
             }
@@ -1253,6 +1270,10 @@ public class NumberFieldMapper extends FieldMapper {
 
         public abstract IndexFieldData.Builder getFieldDataBuilder(String name);
 
+        public IndexFieldData.Builder getValueFetcherFieldDataBuilder(String name, SourceLookup sourceLookup, ValueFetcher valueFetcher) {
+            throw new UnsupportedOperationException("not supported for source fallback");
+        }
+
         /**
          * Adjusts a value to the value it would have been had it been parsed by that mapper
          * and then cast up to a double. This is meant to be an entry point to manipulate values
@@ -1405,6 +1426,27 @@ public class NumberFieldMapper extends FieldMapper {
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
             return type.getFieldDataBuilder(name());
+        }
+
+        @Override
+        public IndexFieldData.Builder scriptFielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+            if (hasDocValues()) {
+                return type.getFieldDataBuilder(name());
+            }
+
+            return type.getValueFetcherFieldDataBuilder(
+                name(),
+                searchLookup.get().source(),
+                new SourceValueFetcher(searchLookup.get().sourcePaths(name()), nullValue) {
+                    @Override
+                    protected Object parseSourceValue(Object value) {
+                        if (value.equals("")) {
+                            return nullValue;
+                        }
+                        return type.parse(value, coerce);
+                    }
+                }
+            );
         }
 
         @Override

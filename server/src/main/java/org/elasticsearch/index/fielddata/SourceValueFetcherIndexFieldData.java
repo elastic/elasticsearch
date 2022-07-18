@@ -135,6 +135,11 @@ public abstract class SourceValueFetcherIndexFieldData<T>
         public void close() {
 
         }
+
+        @Override
+        public SortedBinaryDocValues getBytesValues() {
+            throw new IllegalArgumentException("not supported for source fallback");
+        }
     }
 
     /**

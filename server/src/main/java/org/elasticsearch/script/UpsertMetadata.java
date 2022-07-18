@@ -22,7 +22,7 @@ class UpsertMetadata extends UpdateMetadata {
         ID,
         SET_ONCE_STRING,
         OP,
-        new FieldProperty<>(String.class, true, true, setValidator(VALID_UPSERT_OPS)),
+        new FieldProperty<>(String.class, true, true, stringSetValidator(VALID_UPSERT_OPS)),
         TIMESTAMP,
         SET_ONCE_LONG
     );
@@ -42,11 +42,11 @@ class UpsertMetadata extends UpdateMetadata {
 
     @Override
     public String getRouting() {
-        throw new IllegalArgumentException("routing is unavailable for insert");
+        throw new UnsupportedOperationException("routing is unavailable for insert");
     }
 
     @Override
     public long getVersion() {
-        throw new IllegalArgumentException("version is unavailable for insert");
+        throw new UnsupportedOperationException("version is unavailable for insert");
     }
 }

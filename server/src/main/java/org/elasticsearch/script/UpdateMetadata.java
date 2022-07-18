@@ -49,12 +49,12 @@ public class UpdateMetadata extends Metadata {
         TYPE,
         SET_ONCE_STRING,
         OP,
-        new FieldProperty<>(String.class, true, true, setValidator(VALID_UPDATE_OPS)),
+        new FieldProperty<>(String.class, true, true, stringSetValidator(VALID_UPDATE_OPS)),
         TIMESTAMP,
         SET_ONCE_LONG
     );
 
-    protected static BiConsumer<String, String> setValidator(Set<String> valid) {
+    protected static BiConsumer<String, String> stringSetValidator(Set<String> valid) {
         return (k, v) -> {
             if (valid.contains(v) == false) {
                 throw new IllegalArgumentException(

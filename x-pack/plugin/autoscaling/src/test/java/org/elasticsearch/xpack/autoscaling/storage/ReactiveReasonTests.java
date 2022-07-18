@@ -7,6 +7,12 @@
 
 package org.elasticsearch.xpack.autoscaling.storage;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
+import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
+import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.shard.ShardId;
@@ -24,6 +30,8 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.greaterThan;
 
 public class ReactiveReasonTests extends ESTestCase {
@@ -37,12 +45,31 @@ public class ReactiveReasonTests extends ESTestCase {
         String indexName = randomAlphaOfLength(10);
         SortedSet<ShardId> unassignedShardIds = new TreeSet<>(randomUnique(() -> new ShardId(indexName, indexUUID, randomInt(1000)), 600));
         SortedSet<ShardId> assignedShardIds = new TreeSet<>(randomUnique(() -> new ShardId(indexName, indexUUID, randomInt(1000)), 600));
+        AllocateUnassignedDecision unassignedDecision = AllocateUnassignedDecision.no(
+            randomFrom(
+                UnassignedInfo.AllocationStatus.DECIDERS_NO,
+                UnassignedInfo.AllocationStatus.DELAYED_ALLOCATION,
+                UnassignedInfo.AllocationStatus.NO_VALID_SHARD_COPY,
+                UnassignedInfo.AllocationStatus.FETCHING_SHARD_DATA
+            ),
+            randomBoolean()
+                ? List.of(
+                    new NodeAllocationResult(
+                        new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
+                        Decision.NO,
+                        1
+                    )
+                )
+                : List.of(),
+            randomBoolean()
+        );
         var reactiveReason = new ReactiveStorageDeciderService.ReactiveReason(
             reason,
             unassigned,
             unassignedShardIds,
             assigned,
-            assignedShardIds
+            assignedShardIds,
+            unassignedDecision
         );
 
         try (
@@ -77,6 +104,22 @@ public class ReactiveReasonTests extends ESTestCase {
             );
             assertSorted(xContentAssignedShardIds.stream().map(ShardId::fromString).toList());
             assertEquals(assignedShardIds.size(), map.get("assigned_shards_count"));
+
+            Map<String, Object> unassignedDecisionAsMap = (Map<String, Object>) map.get("unassigned_shard_allocate_decision");
+            assertEquals(unassignedDecision.getAllocationDecision().toString(), unassignedDecisionAsMap.get("can_allocate"));
+            assertEquals(unassignedDecision.getExplanation(), unassignedDecisionAsMap.get("allocate_explanation"));
+            List<Object> nodeAllocationDecisions = (List<Object>) unassignedDecisionAsMap.get("node_allocation_decisions");
+            if (unassignedDecision.getNodeDecisions().size() > 0) {
+                Map<String, Object> nodeAllocationResult = (Map<String, Object>) nodeAllocationDecisions.get(0);
+                assertEquals(
+                    unassignedDecision.getNodeDecisions().get(0).getNodeDecision().toString(),
+                    nodeAllocationResult.get("node_decision")
+                );
+                assertEquals(unassignedDecision.getNodeDecisions().get(0).getNode().getId(), nodeAllocationResult.get("node_id"));
+                assertEquals(unassignedDecision.getNodeDecisions().get(0).getWeightRanking(), nodeAllocationResult.get("weight_ranking"));
+            } else {
+                assertNull(nodeAllocationDecisions);
+            }
         }
     }
 

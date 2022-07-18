@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -73,6 +74,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.Mockito.mock;
 
 /**
  * Test the higher level parts of {@link ReactiveStorageDeciderService} that all require a similar setup.
@@ -403,7 +405,8 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         ReactiveStorageDeciderService.AllocationState allocationState = new ReactiveStorageDeciderService.AllocationState(
             createContext(state, Set.of(role)),
             DISK_THRESHOLD_SETTINGS,
-            createAllocationDeciders(allocationDeciders)
+            createAllocationDeciders(allocationDeciders),
+            mock(AllocationService.class)
         );
         assertThat(subject.invoke(allocationState), equalTo(expected));
     }
@@ -416,7 +419,8 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         ReactiveStorageDeciderService decider = new ReactiveStorageDeciderService(
             Settings.EMPTY,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            createAllocationDeciders(allocationDeciders)
+            createAllocationDeciders(allocationDeciders),
+            mock(AllocationService.class)
         );
         TestAutoscalingDeciderContext context = createContext(state, Set.of(DiscoveryNodeRole.DATA_HOT_NODE_ROLE));
         AutoscalingDeciderResult result = decider.scale(Settings.EMPTY, context);

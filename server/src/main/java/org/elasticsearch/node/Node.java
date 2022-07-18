@@ -625,6 +625,7 @@ public class Node implements Closeable {
             final RerouteService rerouteService = new BatchedRerouteService(clusterService, clusterModule.getAllocationService()::reroute);
             rerouteServiceReference.set(rerouteService);
             clusterService.setRerouteService(rerouteService);
+            clusterService.setAllocationService(clusterModule.getAllocationService());
 
             final IndicesService indicesService = new IndicesService(
                 settings,

@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -57,6 +58,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
+import static org.mockito.Mockito.mock;
 
 public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
     public void testScale() {
@@ -92,7 +94,12 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             }
         });
         AllocationDeciders allocationDeciders = new AllocationDeciders(allocationDecidersList);
-        ProactiveStorageDeciderService service = new ProactiveStorageDeciderService(Settings.EMPTY, clusterSettings, allocationDeciders);
+        ProactiveStorageDeciderService service = new ProactiveStorageDeciderService(
+            Settings.EMPTY,
+            clusterSettings,
+            allocationDeciders,
+            mock(AllocationService.class)
+        );
         AutoscalingCapacity currentCapacity = ReactiveStorageDeciderDecisionTests.randomCurrentCapacity();
         ClusterInfo info = randomClusterInfo(state);
         AutoscalingDeciderContext context = new AutoscalingDeciderContext() {
@@ -177,7 +184,8 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             null,
             null,
             Set.of(),
-            Set.of()
+            Set.of(),
+            mock(AllocationService.class)
         );
 
         assertThat(allocationState.forecast(Long.MAX_VALUE, System.currentTimeMillis()), Matchers.sameInstance(allocationState));
@@ -209,7 +217,8 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             randomClusterInfo(state),
             null,
             Sets.newHashSet(state.nodes()),
-            Set.of()
+            Set.of(),
+            mock(AllocationService.class)
         );
 
         assertThat(allocationState.forecast(0, lastCreated + between(-3, 1)), Matchers.sameInstance(allocationState));
@@ -253,7 +262,8 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             info,
             null,
             Sets.newHashSet(state.nodes()),
-            Set.of()
+            Set.of(),
+            mock(AllocationService.class)
         );
 
         for (int window = 0; window < between(1, 20); ++window) {

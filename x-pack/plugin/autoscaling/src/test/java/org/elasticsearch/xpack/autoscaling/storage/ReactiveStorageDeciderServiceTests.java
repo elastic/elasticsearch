@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -65,6 +66,7 @@ import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.mockito.Mockito.mock;
 
 /**
  * Tests the primitive methods in {@link ReactiveStorageDeciderService}. Tests of higher level methods are in
@@ -411,7 +413,8 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             info,
             null,
             Set.of(),
-            Set.of()
+            Set.of(),
+            mock(AllocationService.class)
         );
         return allocationState;
     }
@@ -486,7 +489,8 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             null,
             shardSizeInfo,
             Set.of(),
-            Set.of()
+            Set.of(),
+            mock(AllocationService.class)
         );
 
         assertThat(allocationState.sizeOf(primaryShard), equalTo(expected));
@@ -576,7 +580,8 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             info,
             null,
             Set.of(),
-            Set.of()
+            Set.of(),
+            mock(AllocationService.class)
         );
 
         long result = allocationState.unmovableSize(nodeId, shards);
@@ -656,7 +661,8 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             ClusterInfo.EMPTY,
             null,
             Set.of(),
-            Set.of(DiscoveryNodeRole.DATA_WARM_NODE_ROLE)
+            Set.of(DiscoveryNodeRole.DATA_WARM_NODE_ROLE),
+            mock(AllocationService.class)
         );
 
         RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, clusterState, null, null, randomLong());
@@ -759,7 +765,8 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             ClusterInfo.EMPTY,
             null,
             Set.of(),
-            Set.of(DiscoveryNodeRole.DATA_WARM_NODE_ROLE)
+            Set.of(DiscoveryNodeRole.DATA_WARM_NODE_ROLE),
+            mock(AllocationService.class)
         );
 
         RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, clusterState, null, null, randomLong());

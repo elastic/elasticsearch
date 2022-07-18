@@ -152,7 +152,7 @@ public class HDRPreAggregatedPercentilesAggregatorTests extends AggregatorTestCa
                 MappedFieldType fieldType = new HistogramFieldMapper.HistogramFieldType("number", Collections.emptyMap(), null);
                 Aggregator aggregator = createAggregator(builder, indexSearcher, fieldType);
                 aggregator.preCollection();
-                indexSearcher.search(query, aggregator);
+                indexSearcher.search(query, aggregator.asCollector());
                 aggregator.postCollection();
                 verify.accept((InternalHDRPercentiles) aggregator.buildTopLevel());
 

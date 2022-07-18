@@ -13,7 +13,6 @@ import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
 import org.elasticsearch.gradle.fixtures.LocalRepositoryFixture
 import org.gradle.testkit.runner.TaskOutcome
 import org.junit.ClassRule
-import org.junit.rules.TemporaryFolder
 import spock.lang.Shared
 
 import java.nio.charset.StandardCharsets
@@ -128,6 +127,7 @@ class BuildPluginFuncTest extends AbstractGradleFuncTest {
 
     def "applies checks"() {
         given:
+        withVersionCatalogue()
         repository.generateJar("org.elasticsearch", "build-conventions", "unspecified", 'org.acme.CheckstyleStuff')
         repository.configureBuild(buildFile)
         setupJarHellJar(dir('local-repo/org/elasticsearch/elasticsearch-core/current/'))
@@ -142,7 +142,6 @@ class BuildPluginFuncTest extends AbstractGradleFuncTest {
               api "junit:junit:4.12"
               // missing classes in thirdparty audit
               api 'org.hamcrest:hamcrest-core:1.3'
-
             }
             licenseFile.set(file("LICENSE"))
             noticeFile.set(file("NOTICE"))

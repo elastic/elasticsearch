@@ -20,14 +20,16 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-public class BinaryGeoShapeDocValuesField extends CustomDocValuesField {
+public class BinaryShapeDocValuesField extends CustomDocValuesField {
 
     private final List<IndexableField> fields;
+    private final CoordinateEncoder coordinateEncoder;
     private final CentroidCalculator centroidCalculator;
 
-    public BinaryGeoShapeDocValuesField(String name) {
+    public BinaryShapeDocValuesField(String name, CoordinateEncoder coordinateEncoder) {
         super(name);
         this.fields = new ArrayList<>();
+        this.coordinateEncoder = coordinateEncoder;
         this.centroidCalculator = new CentroidCalculator();
     }
 
@@ -39,7 +41,7 @@ public class BinaryGeoShapeDocValuesField extends CustomDocValuesField {
     @Override
     public BytesRef binaryValue() {
         try {
-            return GeometryDocValueWriter.write(fields, CoordinateEncoder.GEO, centroidCalculator);
+            return GeometryDocValueWriter.write(fields, coordinateEncoder, centroidCalculator);
         } catch (IOException e) {
             throw new ElasticsearchException("failed to encode shape", e);
         }

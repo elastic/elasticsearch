@@ -110,7 +110,8 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
      * This field holds the result of the tasks in the remoteStableMasterHealthIndicatorTasks field above. The field is accessed
      * (reads/writes) from multiple threads, but the reference itself is only ever changed on the cluster change event thread.
      */
-    private volatile AtomicReference<RemoteMasterHealthResult> remoteCoordinationDiagnosisResult = null;  // Non-private for testing
+    // Non-private for testing
+    private volatile AtomicReference<RemoteMasterHealthResult> remoteCoordinationDiagnosisResult = new AtomicReference<>();
 
     /**
      * This is the default amount of time we look back to see if we have had a master at all, before moving on with other checks
@@ -738,7 +739,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
         if (remoteStableMasterHealthIndicatorTasks != null) {
             remoteStableMasterHealthIndicatorTasks.forEach(Scheduler.Cancellable::cancel);
             remoteStableMasterHealthIndicatorTasks = null;
-            remoteCoordinationDiagnosisResult = null;
+            remoteCoordinationDiagnosisResult = new AtomicReference<>();
         }
     }
 

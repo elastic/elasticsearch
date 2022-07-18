@@ -1,4 +1,5 @@
 import org.elasticsearch.gradle.internal.info.BuildParams
+
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 esplugin {
@@ -40,3 +41,84 @@ if (BuildParams.isSnapshotBuild()) {
   addQaCheckDependencies(project)
 }
 
+/**********************************************
+ *          ESQL Parser regeneration           *
+ **********************************************/
+
+configurations {
+  regenerate
+}
+
+dependencies {
+  regenerate "org.antlr:antlr4:${antlrVersion}"
+}
+
+String grammarPath = 'src/main/antlr'
+String outputPath = 'src/main/java/org/elasticsearch/xpack/esql/parser'
+
+pluginManager.withPlugin('com.diffplug.spotless') {
+  spotless {
+    java {
+      // for some reason "${outputPath}/EsqlBase*.java" does not match the same files...
+      targetExclude "src/main/java/org/elasticsearch/xpack/esql/parser/EsqlBase*.java"
+    }
+  }
+}
+
+tasks.register("cleanGenerated", Delete) {
+  delete fileTree(grammarPath) {
+    include '*.tokens'
+  }
+  delete fileTree(outputPath) {
+    include 'EsqlBase*.java'
+  }
+}
+
+tasks.register("regenParser", JavaExec) {
+  dependsOn "cleanGenerated"
+  mainClass = 'org.antlr.v4.Tool'
+  classpath = configurations.regenerate
+  systemProperty 'file.encoding', 'UTF-8'
+  systemProperty 'user.language', 'en'
+  systemProperty 'user.country', 'US'
+  systemProperty 'user.variant', ''
+  args '-Werror',
+    '-package', 'org.elasticsearch.xpack.esql.parser',
+    '-listener',
+    '-visitor',
+    '-o', outputPath,
+    "${file(grammarPath)}/EsqlBase.g4"
+}
+
+tasks.register("regen") {
+  dependsOn "regenParser"
+  doLast {
+    // moves token files to grammar directory for use with IDE's
+    ant.move(file: "${outputPath}/EsqlBase.tokens", toDir: grammarPath)
+    ant.move(file: "${outputPath}/EsqlBaseLexer.tokens", toDir: grammarPath)
+    // make the generated classes package private
+    ant.replaceregexp(
+      match: 'public ((interface|class) \\QEsqlBase\\E\\w+)',
+      replace: '\\1',
+      encoding: 'UTF-8'
+    ) {
+      fileset(dir: outputPath, includes: 'EsqlBase*.java')
+    }
+    // nuke timestamps/filenames in generated files
+    ant.replaceregexp(
+      match: '\\Q// Generated from \\E.*',
+      replace: '\\/\\/ ANTLR GENERATED CODE: DO NOT EDIT',
+      encoding: 'UTF-8'
+    ) {
+      fileset(dir: outputPath, includes: 'EsqlBase*.java')
+    }
+    // remove tabs in antlr generated files
+    ant.replaceregexp(match: '\t', flags: 'g', replace: '  ', encoding: 'UTF-8') {
+      fileset(dir: outputPath, includes: 'EsqlBase*.java')
+    }
+    // fix line endings
+    ant.fixcrlf(srcdir: outputPath, eol: 'lf') {
+      patternset(includes: 'EsqlBase*.java')
+    }
+  }
+}

@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.time.ZoneId;
+import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptySet;
@@ -84,13 +85,15 @@ public class RestEsqlTestCase extends ESRestTestCase {
 
     public void testGetAnswer() throws IOException {
         RequestObjectBuilder builder = new RequestObjectBuilder(randomFrom(XContentType.values()));
-        Map<String, Object> answer = runEsql(builder.query(randomAlphaOfLength(10)).build());
+        Map<String, Object> answer = runEsql(builder.query("row a = 1, b = 2").build());
         assertEquals(2, answer.size());
-        assertTrue(answer.containsKey("columns"));
-        assertTrue(answer.containsKey("values"));
+        Map<String, String> colA = Map.of("name", "a", "type", "integer");
+        Map<String, String> colB = Map.of("name", "b", "type", "integer");
+        assertEquals(List.of(colA, colB), answer.get("columns"));
+        assertEquals(List.of(List.of(1, 2)), answer.get("values"));
     }
 
-    private static Map<String, Object> runEsql(RequestObjectBuilder requestObject) throws IOException {
+    public static Map<String, Object> runEsql(RequestObjectBuilder requestObject) throws IOException {
         Request request = new Request("POST", "/_esql");
         request.addParameter("error_trace", "true");
         String mediaType = requestObject.contentType().mediaTypeWithoutParameters();

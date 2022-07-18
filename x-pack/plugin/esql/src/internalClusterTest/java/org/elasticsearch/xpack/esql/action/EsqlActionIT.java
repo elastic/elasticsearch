@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 
@@ -20,8 +21,9 @@ import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 public class EsqlActionIT extends ESIntegTestCase {
 
     public void testEsqlAction() {
-        EsqlQueryResponse response = new EsqlQueryRequestBuilder(client(), EsqlQueryAction.INSTANCE).query(randomAlphaOfLength(10)).get();
-        assertNotNull(response);
+        int value = randomIntBetween(0, Integer.MAX_VALUE);
+        EsqlQueryResponse response = new EsqlQueryRequestBuilder(client(), EsqlQueryAction.INSTANCE).query("row " + value).get();
+        assertEquals(List.of(List.of(value)), response.values());
     }
 
     @Override

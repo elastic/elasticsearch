@@ -160,18 +160,14 @@ public class LambdaTests extends ScriptTestCase {
         assertTrue(expected.getMessage().contains("is read-only"));
     }
 
-    /** Lambda parameters shouldn't be able to mask a variable already in scope */
-    public void testNoParamMasking() {
-        IllegalArgumentException expected = expectScriptThrows(
-            IllegalArgumentException.class,
-            () -> {
-                exec(
-                    "int x = 0; List l = new ArrayList(); l.add(1); l.add(1); "
-                        + "return l.stream().mapToInt(x -> { x += 1; return x }).sum();"
-                );
-            }
+    public void testParamMasking() {
+        assertEquals(
+            4,
+            exec(
+                "Map x = [:]; List l = new ArrayList(); l.add(1); l.add(1); "
+                    + "return l.stream().mapToInt(x -> { int l = x; return l + 1 }).sum();"
+            )
         );
-        assertTrue(expected.getMessage().contains("already defined"));
     }
 
     public void testCaptureDef() {

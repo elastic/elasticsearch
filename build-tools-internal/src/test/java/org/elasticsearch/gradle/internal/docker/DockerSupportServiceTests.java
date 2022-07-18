@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.gradle.internal.docker;
 
-import org.elasticsearch.gradle.internal.test.GradleUnitTestCase;
+import org.junit.Test;
 
 import java.util.HashMap;
 import java.util.List;
@@ -16,9 +16,11 @@ import java.util.Map;
 import static org.elasticsearch.gradle.internal.docker.DockerSupportService.deriveId;
 import static org.elasticsearch.gradle.internal.docker.DockerSupportService.parseOsRelease;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.MatcherAssert.assertThat;
 
-public class DockerSupportServiceTests extends GradleUnitTestCase {
+public class DockerSupportServiceTests {
 
+    @Test
     public void testParseOsReleaseOnOracle() {
         final List<String> lines = List.of(
             "NAME=\"Oracle Linux Server\"",

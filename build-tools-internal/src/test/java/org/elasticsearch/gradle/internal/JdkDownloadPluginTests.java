@@ -8,15 +8,16 @@
 
 package org.elasticsearch.gradle.internal;
 
-import org.elasticsearch.gradle.internal.test.GradleUnitTestCase;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
 import org.gradle.testfixtures.ProjectBuilder;
 import org.junit.BeforeClass;
 
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.junit.Assert.assertThrows;
 
-public class JdkDownloadPluginTests extends GradleUnitTestCase {
+public class JdkDownloadPluginTests {
     private static Project rootProject;
 
     @BeforeClass
@@ -97,7 +98,7 @@ public class JdkDownloadPluginTests extends GradleUnitTestCase {
         final String architecture,
         final String message
     ) {
-        IllegalArgumentException e = expectThrows(
+        IllegalArgumentException e = assertThrows(
             IllegalArgumentException.class,
             () -> createJdk(project, name, vendor, version, platform, architecture)
         );

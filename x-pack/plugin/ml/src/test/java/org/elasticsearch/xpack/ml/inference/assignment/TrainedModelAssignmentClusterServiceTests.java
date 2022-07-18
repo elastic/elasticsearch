@@ -345,7 +345,6 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
             .nodes(DiscoveryNodes.builder().add(mlNode1Node).add(buildNode("not-ml-node", false, ByteSizeValue.ofGb(4).getBytes(), 8)))
             .build();
 
-        // No metadata in the new state means no allocations, so no updates
         assertThat(
             TrainedModelAssignmentClusterService.detectReasonToRebalanceModels(
                 new ClusterChangedEvent(
@@ -906,7 +905,6 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
             )
             .build();
 
-        // No metadata in the new state means no allocations, so no updates
         assertThat(
             TrainedModelAssignmentClusterService.detectReasonToRebalanceModels(
                 new ClusterChangedEvent("test", currentState, previousState)
@@ -990,7 +988,6 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
             )
             .build();
 
-        // No metadata in the new state means no allocations, so no updates
         assertThat(
             TrainedModelAssignmentClusterService.detectReasonToRebalanceModels(
                 new ClusterChangedEvent("test", currentState, previousState)
@@ -1068,7 +1065,6 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
             )
             .build();
 
-        // No metadata in the new state means no allocations, so no updates
         assertThat(
             TrainedModelAssignmentClusterService.detectReasonToRebalanceModels(
                 new ClusterChangedEvent("test", currentState, previousState)

@@ -566,16 +566,9 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
 
         // If an ML persistent task with process stopped we should rebalance as we could have
         // available memory that we did not have before.
-        Optional<String> reasonIfMlJobsStopped = detectReasonIfMlJobsStopped(event);
-        if (reasonIfMlJobsStopped.isPresent()) {
-            return reasonIfMlJobsStopped;
-        }
-
-        if (haveMlNodesChanged(event, newMetadata)) {
-            return Optional.of("nodes changed");
-        }
-
-        return Optional.empty();
+        return detectReasonIfMlJobsStopped(event).or(
+            () -> Optional.ofNullable(haveMlNodesChanged(event, newMetadata) ? "nodes changed" : null)
+        );
     }
 
     static Optional<String> detectReasonIfMlJobsStopped(ClusterChangedEvent event) {

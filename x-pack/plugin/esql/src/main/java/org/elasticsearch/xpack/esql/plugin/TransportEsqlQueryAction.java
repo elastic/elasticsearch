@@ -13,9 +13,13 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
+import org.elasticsearch.xpack.esql.session.EsqlSession;
+
+import java.util.List;
 
 public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRequest, EsqlQueryResponse> {
 
@@ -26,10 +30,9 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
 
     @Override
     protected void doExecute(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> listener) {
-        try {
-            listener.onResponse(new EsqlQueryResponse());
-        } catch (Exception e) {
-            listener.onFailure(e);
-        }
+        new EsqlSession().execute(request.query(), listener.map(r -> {
+            List<ColumnInfo> columns = r.columns().stream().map(c -> new ColumnInfo(c.qualifiedName(), c.dataType().esType())).toList();
+            return new EsqlQueryResponse(columns, r.values());
+        }));
     }
 }

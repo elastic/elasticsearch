@@ -7,6 +7,8 @@ dependencies {
 
   // Common utilities from QL
   api project(xpackModule('ql:test-fixtures'))
+
+  implementation "net.sf.supercsv:super-csv:${versions.supercsv}"
 }
 
 subprojects {
@@ -29,26 +31,29 @@ subprojects {
     }
 
 
-  dependencies {
-    configurations.javaRestTestRuntimeClasspath {
-      resolutionStrategy.force "org.slf4j:slf4j-api:1.7.25"
-    }
-    configurations.javaRestTestRuntimeOnly {
-      // This is also required to make resolveAllDependencies work
-      resolutionStrategy.force "org.slf4j:slf4j-api:1.7.25"
-    }
+    dependencies {
+      configurations.javaRestTestRuntimeClasspath {
+        resolutionStrategy.force "org.slf4j:slf4j-api:1.7.25"
+      }
+      configurations.javaRestTestRuntimeOnly {
+        // This is also required to make resolveAllDependencies work
+        resolutionStrategy.force "org.slf4j:slf4j-api:1.7.25"
+      }
 
-    /* Since we're a standalone rest test we actually get transitive
-     * dependencies but we don't really want them because they cause
-     * all kinds of trouble with the jar hell checks. So we suppress
-     * them explicitly for non-es projects. */
-    javaRestTestImplementation(project(':x-pack:plugin:esql:qa:server')) {
-      transitive = false
-    }
-    javaRestTestImplementation project(":test:framework")
-    javaRestTestRuntimeOnly project(xpackModule('ql:test-fixtures'))
+      /* Since we're a standalone rest test we actually get transitive
+       * dependencies but we don't really want them because they cause
+       * all kinds of trouble with the jar hell checks. So we suppress
+       * them explicitly for non-es projects. */
+      javaRestTestImplementation(project(':x-pack:plugin:esql:qa:server')) {
+        transitive = false
+      }
+      javaRestTestImplementation project(":test:framework")
+      javaRestTestRuntimeOnly project(xpackModule('ql:test-fixtures'))
 
-    javaRestTestRuntimeOnly "org.slf4j:slf4j-api:1.7.25"
-  }
+      javaRestTestRuntimeOnly "org.slf4j:slf4j-api:1.7.25"
+      javaRestTestRuntimeOnly "net.sf.supercsv:super-csv:${versions.supercsv}"
+
+      javaRestTestImplementation project(path: xpackModule('ql:test-fixtures'))
+    }
   }
 }

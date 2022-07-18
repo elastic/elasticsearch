@@ -68,9 +68,9 @@ public interface ReservedClusterStateHandler<T> {
      * <p>
      * Sometimes certain parts of the cluster state cannot be created/updated without previously
      * setting other cluster state components, e.g. composable templates. Since the reserved cluster state handlers
-     * are processed in random order by the ReservedClusterStateController, this method gives an opportunity
+     * are processed in random order by the ReservedClusterStateService, this method gives an opportunity
      * to any reserved handler to declare other state handlers it depends on. Given dependencies exist,
-     * the ReservedClusterStateController will order those handlers such that the handlers that are dependent
+     * the ReservedClusterStateService will order those handlers such that the handlers that are dependent
      * on are processed first.
      *
      * @return a collection of reserved state handler names

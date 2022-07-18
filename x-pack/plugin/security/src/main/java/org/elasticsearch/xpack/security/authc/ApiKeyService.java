@@ -119,7 +119,6 @@ import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -445,6 +444,7 @@ public class ApiKeyService {
     /**
      * @return `null` if the update is a noop, i.e., if no changes to `currentApiKeyDoc` are required
      */
+    @Nullable
     XContentBuilder maybeBuildUpdatedDocument(
         final ApiKeyDoc currentApiKeyDoc,
         final Version targetDocVersion,
@@ -560,26 +560,21 @@ public class ApiKeyService {
             final List<RoleDescriptor> currentRoleDescriptors = parseRoleDescriptorsBytes(
                 request.getId(),
                 apiKeyDoc.roleDescriptorsBytes,
-                RoleReference.ApiKeyRoleType.ASSIGNED
+                false
             );
             if (false == (newRoleDescriptors.size() == currentRoleDescriptors.size()
-                && Set.copyOf(newRoleDescriptors).containsAll(new HashSet<>(currentRoleDescriptors)))) {
+                && Set.copyOf(newRoleDescriptors).containsAll(currentRoleDescriptors))) {
                 return false;
             }
         }
 
         assert userRoleDescriptors != null;
-        // There is an edge case here when we update an 7.x API key that has a `LEGACY_SUPERUSER_ROLE_DESCRIPTOR` role descriptor:
-        // `parseRoleDescriptorsBytes` automatically transforms it to `ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR`. As such, when we
-        // perform the noop check on `ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR` we will treat it as a noop even though the actual
-        // role descriptor bytes on the API key are different, and correspond to `LEGACY_SUPERUSER_ROLE_DESCRIPTOR`.
-        //
-        // This does *not* present a functional issue, since whenever a `LEGACY_SUPERUSER_ROLE_DESCRIPTOR` is loaded at authentication time,
-        // it is likewise automatically transformed to `ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR`.
         final List<RoleDescriptor> currentLimitedByRoleDescriptors = parseRoleDescriptorsBytes(
             request.getId(),
             apiKeyDoc.limitedByRoleDescriptorsBytes,
-            RoleReference.ApiKeyRoleType.LIMITED_BY
+            // We want the 7.x `LEGACY_SUPERUSER_ROLE_DESCRIPTOR` role descriptor to be returned here to auto-update
+            // `LEGACY_SUPERUSER_ROLE_DESCRIPTOR` to `ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR`, when we update a 7.x API key.
+            false
         );
         return (userRoleDescriptors.size() == currentLimitedByRoleDescriptors.size()
             && userRoleDescriptors.containsAll(currentLimitedByRoleDescriptors));
@@ -706,6 +701,14 @@ public class ApiKeyService {
         BytesReference bytesReference,
         RoleReference.ApiKeyRoleType roleType
     ) {
+        return parseRoleDescriptorsBytes(apiKeyId, bytesReference, roleType == RoleReference.ApiKeyRoleType.LIMITED_BY);
+    }
+
+    private List<RoleDescriptor> parseRoleDescriptorsBytes(
+        final String apiKeyId,
+        BytesReference bytesReference,
+        final boolean replaceLegacySuperuserRoleDescriptor
+    ) {
         if (bytesReference == null) {
             return Collections.emptyList();
         }
@@ -728,9 +731,7 @@ public class ApiKeyService {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-        return roleType == RoleReference.ApiKeyRoleType.LIMITED_BY
-            ? maybeReplaceSuperuserRoleDescriptor(apiKeyId, roleDescriptors)
-            : roleDescriptors;
+        return replaceLegacySuperuserRoleDescriptor ? maybeReplaceSuperuserRoleDescriptor(apiKeyId, roleDescriptors) : roleDescriptors;
     }
 
     // package private for tests

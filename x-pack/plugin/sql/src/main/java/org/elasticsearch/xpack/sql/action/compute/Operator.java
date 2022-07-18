@@ -20,4 +20,5 @@ public interface Operator {
 
     void addInput(Page page);
 
+    void close();
 }

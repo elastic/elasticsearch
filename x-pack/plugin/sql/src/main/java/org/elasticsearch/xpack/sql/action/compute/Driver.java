@@ -22,12 +22,8 @@ public class Driver implements Runnable {
         this.releasable = releasable;
     }
 
-    private boolean operatorsFinished() {
-        return activeOperators.isEmpty() || activeOperators.get(activeOperators.size() - 1).isFinished();
-    }
-
     public void run() {
-        while (operatorsFinished() == false) {
+        while (activeOperators.isEmpty() == false) {
             runLoopIteration();
         }
         releasable.close();
@@ -54,6 +50,7 @@ public class Driver implements Runnable {
             if (activeOperators.get(index).isFinished()) {
                 // close and remove this operator and all source operators
                 List<Operator> finishedOperators = this.activeOperators.subList(0, index + 1);
+                finishedOperators.stream().forEach(Operator::close);
                 finishedOperators.clear();
 
                 // Finish the next operator, which is now the first operator.

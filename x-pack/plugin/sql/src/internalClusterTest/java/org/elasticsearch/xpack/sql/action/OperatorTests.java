@@ -79,6 +79,11 @@ public class OperatorTests extends ESTestCase {
         public void addInput(Page page) {
             throw new UnsupportedOperationException();
         }
+
+        @Override
+        public void close() {
+
+        }
     }
 
     public void testOperators() {

@@ -92,4 +92,10 @@ public class NumericDocValuesExtractor implements Operator {
             lastPage = page.appendColumn(new LongBlock(values, docs.getPositionCount()));
         }
     }
+
+    @Override
+    public void close() {
+        lastLeafReaderContext = null;
+        lastNumericDocValues = null;
+    }
 }

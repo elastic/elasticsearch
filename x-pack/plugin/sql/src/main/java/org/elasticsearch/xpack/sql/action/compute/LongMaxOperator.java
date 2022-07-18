@@ -48,4 +48,9 @@ public class LongMaxOperator implements Operator {
             max = Math.max(block.getLong(i), max);
         }
     }
+
+    @Override
+    public void close() {
+
+    }
 }

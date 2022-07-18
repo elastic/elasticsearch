@@ -91,6 +91,11 @@ public class LucenePageCollector extends SimpleCollector implements Operator {
     }
 
     @Override
+    public void close() {
+
+    }
+
+    @Override
     public Page getOutput() {
         return pages.poll();
     }

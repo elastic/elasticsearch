@@ -57,4 +57,9 @@ public class LongTransformer implements Operator {
     public void addInput(Page page) {
         lastInput = page;
     }
+
+    @Override
+    public void close() {
+
+    }
 }

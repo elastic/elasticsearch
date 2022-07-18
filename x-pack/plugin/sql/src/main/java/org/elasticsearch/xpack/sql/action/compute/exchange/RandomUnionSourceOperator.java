@@ -46,4 +46,9 @@ public class RandomUnionSourceOperator implements Operator {
     public void addInput(Page page) {
         throw new UnsupportedOperationException();
     }
+
+    @Override
+    public void close() {
+
+    }
 }

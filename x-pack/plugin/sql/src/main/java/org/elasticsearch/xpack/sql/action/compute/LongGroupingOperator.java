@@ -62,4 +62,9 @@ public class LongGroupingOperator implements Operator {
         }
         lastPage = page.appendColumn(new LongBlock(groups, block.getPositionCount()));
     }
+
+    @Override
+    public void close() {
+        longHash.close();
+    }
 }

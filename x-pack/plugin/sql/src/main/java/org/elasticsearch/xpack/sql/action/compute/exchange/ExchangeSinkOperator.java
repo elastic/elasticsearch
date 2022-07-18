@@ -42,4 +42,9 @@ public class ExchangeSinkOperator implements Operator {
     public void addInput(Page page) {
         sink.addPage(page);
     }
+
+    @Override
+    public void close() {
+
+    }
 }

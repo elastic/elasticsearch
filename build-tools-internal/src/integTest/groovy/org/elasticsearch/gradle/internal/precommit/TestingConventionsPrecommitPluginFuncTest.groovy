@@ -21,13 +21,9 @@ class TestingConventionsPrecommitPluginFuncTest extends AbstractGradlePrecommitP
 
     Class<? extends PrecommitPlugin> pluginClassUnderTest = TestingConventionsPrecommitPlugin.class
 
-    @ClassRule
-    @Shared
-    public TemporaryFolder repoFolder = new TemporaryFolder()
-
     @Shared
     @ClassRule
-    public LocalRepositoryFixture repository = new LocalRepositoryFixture(repoFolder)
+    public LocalRepositoryFixture repository = new LocalRepositoryFixture()
 
     def setupSpec() {
         repository.generateJar('org.apache.lucene', 'tests.util', "1.0",

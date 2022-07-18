@@ -14,6 +14,7 @@ import org.elasticsearch.gradle.OS;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.JavaVersion;
 import org.gradle.api.file.ArchiveOperations;
+import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileSystemOperations;
 import org.gradle.api.file.FileTree;
@@ -55,7 +56,7 @@ import java.util.stream.Stream;
 import javax.inject.Inject;
 
 @CacheableTask
-public class ThirdPartyAuditTask extends DefaultTask {
+public abstract class ThirdPartyAuditTask extends DefaultTask {
 
     private static final Pattern MISSING_CLASS_PATTERN = Pattern.compile(
         "WARNING: Class '(.*)' cannot be loaded \\(.*\\)\\. Please fix the classpath!"
@@ -80,8 +81,6 @@ public class ThirdPartyAuditTask extends DefaultTask {
 
     private String javaHome;
 
-    private FileCollection jdkJarHellClasspath;
-
     private final Property<JavaVersion> targetCompatibility;
 
     private final ArchiveOperations archiveOperations;
@@ -93,10 +92,6 @@ public class ThirdPartyAuditTask extends DefaultTask {
     private final ProjectLayout projectLayout;
 
     private FileCollection classpath;
-
-    private FileCollection jarsToScan;
-
-    private FileCollection forbiddenApisClasspath;
 
     @Inject
     public ThirdPartyAuditTask(
@@ -120,13 +115,7 @@ public class ThirdPartyAuditTask extends DefaultTask {
 
     @InputFiles
     @PathSensitive(PathSensitivity.NAME_ONLY)
-    public FileCollection getForbiddenAPIsClasspath() {
-        return forbiddenApisClasspath;
-    }
-
-    public void setForbiddenAPIsClasspath(FileCollection forbiddenApisClasspath) {
-        this.forbiddenApisClasspath = forbiddenApisClasspath;
-    }
+    public abstract ConfigurableFileCollection getForbiddenAPIsClasspath();
 
     @InputFile
     @PathSensitive(PathSensitivity.NONE)
@@ -161,13 +150,7 @@ public class ThirdPartyAuditTask extends DefaultTask {
     // We use compile classpath normalization here because class implementation changes are irrelevant for the purposes of jdk jar hell.
     // We only care about the runtime classpath ABI here.
     @CompileClasspath
-    public FileCollection getJdkJarHellClasspath() {
-        return jdkJarHellClasspath.filter(File::exists);
-    }
-
-    public void setJdkJarHellClasspath(FileCollection jdkJarHellClasspath) {
-        this.jdkJarHellClasspath = jdkJarHellClasspath;
-    }
+    abstract ConfigurableFileCollection getJdkJarHellClasspath();
 
     public void ignoreMissingClasses(String... classesOrPackages) {
         if (classesOrPackages.length == 0) {
@@ -207,13 +190,11 @@ public class ThirdPartyAuditTask extends DefaultTask {
 
     @Classpath
     @SkipWhenEmpty
-    public FileCollection getJarsToScan() {
-        return jarsToScan;
-    }
+    public abstract ConfigurableFileCollection getJarsToScan();
 
     @TaskAction
     public void runThirdPartyAudit() throws IOException {
-        Set<File> jars = jarsToScan.getFiles();
+        Set<File> jars = getJarsToScan().getFiles();
         extractJars(jars, getJarExpandDir());
         final String forbiddenApisOutput = runForbiddenAPIsCli();
         final Set<String> missingClasses = new TreeSet<>();
@@ -357,7 +338,7 @@ public class ThirdPartyAuditTask extends DefaultTask {
             if (javaHome != null) {
                 spec.setExecutable(javaHome + "/bin/java");
             }
-            spec.classpath(forbiddenApisClasspath, classpath);
+            spec.classpath(getForbiddenAPIsClasspath(), classpath);
             spec.jvmArgs("-Xmx1g");
             spec.getMainClass().set("de.thetaphi.forbiddenapis.cli.CliMain");
             spec.args("-f", getSignatureFile().getAbsolutePath(), "-d", getJarExpandDir(), "--allowmissingclasses");
@@ -383,8 +364,7 @@ public class ThirdPartyAuditTask extends DefaultTask {
     private Set<String> runJdkJarHellCheck() throws IOException {
         ByteArrayOutputStream standardOut = new ByteArrayOutputStream();
         ExecResult execResult = execOperations.javaexec(spec -> {
-            spec.classpath(jdkJarHellClasspath, classpath);
-
+            spec.classpath(getJdkJarHellClasspath(), classpath);
             spec.getMainClass().set(JDK_JAR_HELL_MAIN_CLASS);
             spec.args(getJarExpandDir());
             spec.setIgnoreExitValue(true);
@@ -407,7 +387,4 @@ public class ThirdPartyAuditTask extends DefaultTask {
         this.classpath = classpath;
     }
 
-    public void setJarsToScan(FileCollection jarsToScan) {
-        this.jarsToScan = jarsToScan;
-    }
 }

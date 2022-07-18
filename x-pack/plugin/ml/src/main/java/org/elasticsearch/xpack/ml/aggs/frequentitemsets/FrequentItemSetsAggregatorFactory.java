@@ -108,7 +108,7 @@ public class FrequentItemSetsAggregatorFactory extends AggregatorFactory {
                 context,
                 parent,
                 metadata,
-                new EclatMapReducer(FrequentItemSetsAggregationBuilder.NAME, minimumSupport, minimumSetSize, size),
+                new EclatMapReducer(FrequentItemSetsAggregationBuilder.NAME, minimumSupport, minimumSetSize, size, context.profiling()),
                 configs
             ) {
         };

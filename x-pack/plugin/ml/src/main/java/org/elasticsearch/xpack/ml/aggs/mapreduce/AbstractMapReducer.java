@@ -76,14 +76,15 @@ public abstract class AbstractMapReducer<
      * Definition of the mapper that gets executed locally on every shard
      *
      * @param keyValues A stream of keys and values, while a value is a list of values.
+     * @param mapContext context object for mapping
      */
-    protected abstract MapContext map(Stream<Tuple<Field, List<Object>>> keyValues, MapContext mapReduceContext);
+    protected abstract MapContext map(Stream<Tuple<Field, List<Object>>> keyValues, MapContext mapContext);
 
     /**
      * Definition of code to execute(optional) after the mapper processed all input.
      *
      */
-    protected abstract MapFinalContext mapFinalize(MapContext mapReduceContext);
+    protected abstract MapFinalContext mapFinalize(MapContext mapContext);
 
     /**
      * Definition of code to execute before the reducer processes any input.
@@ -96,12 +97,12 @@ public abstract class AbstractMapReducer<
      * Definition of the reducer that gets results from every shard
      *
      * @param partitions individual map reduce context instances which hold the data
-     * @param mapReduceContext the result object create by doReduceInit
+     * @param reduceContext the result object create by doReduceInit
      * @param isCanceledSupplier supplier to check whether the request has been canceled
      */
     protected abstract ReduceContext reduce(
         Stream<MapFinalContext> partitions,
-        ReduceContext mapReduceContext,
+        ReduceContext reduceContext,
         Supplier<Boolean> isCanceledSupplier
     );
 
@@ -111,13 +112,13 @@ public abstract class AbstractMapReducer<
      * This can be optionally overwritten, otherwise it calls doReduce
      *
      * @param partitions individual map reduce context instances which hold the data
-     * @param mapReduceContext the result object created by doReduceInit
+     * @param reduceContext the result object created by doReduceInit
      * @param isCanceledSupplier supplier to check whether the request has been canceled
      *
      */
     protected abstract MapFinalContext combine(
         Stream<MapFinalContext> partitions,
-        ReduceContext mapReduceContext,
+        ReduceContext reduceContext,
         Supplier<Boolean> isCanceledSupplier
     );
 
@@ -173,7 +174,7 @@ public abstract class AbstractMapReducer<
      *
      * @param add callback to add a string/object pair as debug info
      */
-    void collectDebugInfo(BiConsumer<String, Object> add) {}
+    protected void collectDebugInfo(BiConsumer<String, Object> add) {}
 
     /**
      * Forwarded from {@link InternalAggregation}:

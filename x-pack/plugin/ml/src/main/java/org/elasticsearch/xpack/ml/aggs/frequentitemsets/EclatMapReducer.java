@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.aggregations.Aggregation.CommonFields;
@@ -28,9 +29,13 @@ import org.elasticsearch.xpack.ml.aggs.mapreduce.AbstractMapReducer;
 import org.elasticsearch.xpack.ml.aggs.mapreduce.MapReduceValueSource.Field;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
@@ -68,16 +73,16 @@ public final class EclatMapReducer extends AbstractMapReducer<
     static class EclatResult implements ToXContent, Writeable {
 
         private final FrequentItemSet[] frequentItemSets;
-        private final Map<String, Long> meta;
+        private final Map<String, Object> profilingInfo;
 
-        EclatResult(FrequentItemSet[] frequentItemSets, Map<String, Long> meta) {
+        EclatResult(FrequentItemSet[] frequentItemSets, @Nullable Map<String, Object> profilingInfo) {
             this.frequentItemSets = frequentItemSets;
-            this.meta = meta;
+            this.profilingInfo = profilingInfo == null ? Collections.emptyMap() : profilingInfo;
         }
 
         EclatResult(StreamInput in) throws IOException {
             this.frequentItemSets = in.readArray(FrequentItemSet::new, FrequentItemSet[]::new);
-            this.meta = in.readMap(StreamInput::readString, StreamInput::readLong);
+            this.profilingInfo = in.readOrderedMap(StreamInput::readString, StreamInput::readGenericValue);
         }
 
         FrequentItemSet[] getFrequentItemSets() {
@@ -88,7 +93,7 @@ public final class EclatMapReducer extends AbstractMapReducer<
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeArray(frequentItemSets);
-            out.writeMap(meta, StreamOutput::writeString, StreamOutput::writeLong);
+            out.writeMap(profilingInfo, StreamOutput::writeString, StreamOutput::writeGenericValue);
         }
 
         @Override
@@ -97,7 +102,7 @@ public final class EclatMapReducer extends AbstractMapReducer<
 
             if (params != null && params.paramAsBoolean(SearchProfileResults.PROFILE_FIELD, false)) {
                 builder.startObject("profile");
-                builder.mapContents(meta);
+                builder.mapContents(profilingInfo);
                 builder.endObject();
             }
             return builder;
@@ -111,13 +116,19 @@ public final class EclatMapReducer extends AbstractMapReducer<
 
     // cache for marking transactions visited, memory usage: ((BITSET_CACHE_TRAVERSAL_DEPTH -2) * BITSET_CACHE_NUMBER_OF_TRANSACTIONS) / 8
     private static final int MAX_BITSET_CACHE_NUMBER_OF_TRANSACTIONS = 65536;
-    private static final int BITSET_CACHE_TRAVERSAL_DEPTH = 20;
+    private static final int BITSET_CACHE_TRAVERSAL_DEPTH = 60;
 
     private final double minimumSupport;
     private final int minimumSetSize;
     private final int size;
+    private final boolean profiling;
 
-    public EclatMapReducer(String aggregationName, double minimumSupport, int minimumSetSize, int size) {
+    // only for profiling, not serialized
+    // we must differ between map and reduce parts
+    private final Map<String, Object> profilingInfoReduce;
+    private final Map<String, Object> profilingInfoMap;
+
+    public EclatMapReducer(String aggregationName, double minimumSupport, int minimumSetSize, int size, boolean profiling) {
         super(aggregationName, NAME);
 
         assert size > 0;
@@ -126,6 +137,9 @@ public final class EclatMapReducer extends AbstractMapReducer<
         this.minimumSupport = minimumSupport;
         this.minimumSetSize = minimumSetSize;
         this.size = size;
+        this.profiling = profiling;
+        this.profilingInfoReduce = profiling ? new LinkedHashMap<>() : null;
+        this.profilingInfoMap = profiling ? new LinkedHashMap<>() : null;
     }
 
     public EclatMapReducer(String aggregationName, StreamInput in) throws IOException {
@@ -135,6 +149,9 @@ public final class EclatMapReducer extends AbstractMapReducer<
         this.minimumSupport = in.readDouble();
         this.minimumSetSize = in.readVInt();
         this.size = in.readVInt();
+        this.profiling = in.readBoolean();
+        this.profilingInfoReduce = profiling ? new LinkedHashMap<>() : null;
+        this.profilingInfoMap = profiling ? new LinkedHashMap<>() : null;
     }
 
     public double getMinimumSupport() {
@@ -157,6 +174,7 @@ public final class EclatMapReducer extends AbstractMapReducer<
         out.writeDouble(minimumSupport);
         out.writeVInt(minimumSetSize);
         out.writeVInt(size);
+        out.writeBoolean(profiling);
     }
 
     @Override
@@ -172,7 +190,29 @@ public final class EclatMapReducer extends AbstractMapReducer<
 
     @Override
     protected ImmutableTransactionStore mapFinalize(HashBasedTransactionStore transactionStore) {
-        return transactionStore.createImmutableTransactionStore();
+
+        // reported by shard in collectDebugInfo
+        if (profiling) {
+            // note: collect this before creating the immutable transaction store as memory gets freed
+            profilingInfoMap.put("ram_bytes_transactionstore_after_map", transactionStore.ramBytesUsed());
+            profilingInfoMap.put("total_items_after_map", transactionStore.getTotalItemCount());
+            profilingInfoMap.put("total_transactions_after_map", transactionStore.getTotalTransactionCount());
+            profilingInfoMap.put("unique_items_after_map", transactionStore.getUniqueItemsCount());
+            profilingInfoMap.put("unique_transactions_after_map", transactionStore.getUniqueTransactionCount());
+        }
+
+        ImmutableTransactionStore transactionStoreMapFinalize = transactionStore.createImmutableTransactionStore();
+
+        if (profiling) {
+            profilingInfoMap.put("ram_bytes_transactionstore_map_finalize", transactionStoreMapFinalize.ramBytesUsed());
+        }
+
+        return transactionStoreMapFinalize;
+    }
+
+    @Override
+    protected void collectDebugInfo(BiConsumer<String, Object> add) {
+        profilingInfoMap.forEach(add);
     }
 
     @Override
@@ -206,11 +246,16 @@ public final class EclatMapReducer extends AbstractMapReducer<
         HashBasedTransactionStore transactionStore,
         Supplier<Boolean> isCanceledSupplier
     ) {
+        final AtomicLong ramBytesSum = new AtomicLong();
+
         // we must iterate one at a time, because the transaction store isn't thread-safe
         partitions.forEachOrdered(p -> {
             try {
                 if (isCanceledSupplier.get()) {
                     throw new TaskCancelledException("Cancelled");
+                }
+                if (profiling) {
+                    ramBytesSum.addAndGet(p.ramBytesUsed());
                 }
                 transactionStore.merge(p);
             } catch (IOException e) {
@@ -220,13 +265,37 @@ public final class EclatMapReducer extends AbstractMapReducer<
             }
         });
 
+        // reduction can be executed in several steps, if reduce has been called before take the max
+        if (profiling) {
+            profilingInfoReduce.compute(
+                "max_ram_bytes_sum_transactionstore_before_merge",
+                (k, v) -> (v == null) ? ramBytesSum.get() : Math.max(ramBytesSum.get(), (long) v)
+            );
+        }
+
         return transactionStore;
     }
 
     @Override
     public EclatResult reduceFinalize(HashBasedTransactionStore transactionStore, List<Field> fields, Supplier<Boolean> isCanceledSupplier)
         throws IOException {
+        if (profiling) {
+            profilingInfoReduce.put("ram_bytes_transactionstore_after_reduce", transactionStore.ramBytesUsed());
+            profilingInfoReduce.put("total_items_after_reduce", transactionStore.getTotalItemCount());
+            profilingInfoReduce.put("total_transactions_after_reduce", transactionStore.getTotalTransactionCount());
+            profilingInfoReduce.put("unique_items_after_reduce", transactionStore.getUniqueItemsCount());
+            profilingInfoReduce.put("unique_transactions_after_reduce", transactionStore.getUniqueTransactionCount());
+        }
+
         transactionStore.prune(minimumSupport);
+
+        if (profiling) {
+            profilingInfoReduce.put("ram_bytes_transactionstore_after_prune", transactionStore.ramBytesUsed());
+            profilingInfoReduce.put("total_items_after_prune", transactionStore.getTotalItemCount());
+            profilingInfoReduce.put("total_transactions_after_prune", transactionStore.getTotalTransactionCount());
+            profilingInfoReduce.put("unique_items_after_prune", transactionStore.getUniqueItemsCount());
+            profilingInfoReduce.put("unique_transactions_after_prune", transactionStore.getUniqueTransactionCount());
+        }
 
         if (isCanceledSupplier.get()) {
             throw new TaskCancelledException("Cancelled");
@@ -241,7 +310,8 @@ public final class EclatMapReducer extends AbstractMapReducer<
                 minimumSetSize,
                 size,
                 fields,
-                isCanceledSupplier
+                isCanceledSupplier,
+                profilingInfoReduce
             );
             return frequentItemSets;
         }
@@ -261,14 +331,20 @@ public final class EclatMapReducer extends AbstractMapReducer<
         int minimumSetSize,
         int size,
         List<Field> fields,
-        Supplier<Boolean> isCanceledSupplier
+        Supplier<Boolean> isCanceledSupplier,
+        Map<String, Object> profilingInfoReduce
     ) throws IOException {
         final long relativeStartNanos = System.nanoTime();
         final long totalTransactionCount = transactionStore.getTotalTransactionCount();
-
+        Map<String, Object> profilingInfo = null;
         long minCount = (long) Math.ceil(totalTransactionCount * minimumSupport);
         FrequentItemSetCollector collector = new FrequentItemSetCollector(transactionStore, size, minCount);
         long numberOfSetsChecked = 0;
+
+        if (profilingInfoReduce != null) {
+            profilingInfo = new LinkedHashMap<>(profilingInfoReduce);
+            profilingInfo.put("start_min_count_eclat", minCount);
+        }
 
         try (
             CountingItemSetTraverser setTraverser = new CountingItemSetTraverser(
@@ -286,6 +362,7 @@ public final class EclatMapReducer extends AbstractMapReducer<
             );
 
             long previousMinCount = 0;
+
             while (setTraverser.next(minCount)) {
                 if (numberOfSetsChecked % ITERATION_CHECK_INTERVAL == 0) {
                     logger.debug("checked {} sets", numberOfSetsChecked);
@@ -382,30 +459,16 @@ public final class EclatMapReducer extends AbstractMapReducer<
                     logger.debug("adjusting min count to {}", minCount);
                 }
             }
+            FrequentItemSet[] topFrequentItems = collector.finalizeAndGetResults(fields);
+            final long eclatRuntimeNanos = System.nanoTime() - relativeStartNanos;
+
+            if (profilingInfoReduce != null) {
+                profilingInfo.put("end_min_count_eclat", minCount);
+                profilingInfo.put("runtime_ms_eclat", TimeUnit.NANOSECONDS.toMillis(eclatRuntimeNanos));
+                profilingInfo.put("item_sets_checked_eclat", numberOfSetsChecked);
+            }
+
+            return new EclatResult(topFrequentItems, profilingInfo);
         }
-
-        FrequentItemSet[] topFrequentItems = collector.finalizeAndGetResults(fields);
-
-        final long eclatRuntimeNanos = System.nanoTime() - relativeStartNanos;
-
-        return new EclatResult(
-            topFrequentItems,
-            Map.of(
-                "total_items",
-                transactionStore.getTotalItemCount(),
-                "total_transactions",
-                transactionStore.getTotalTransactionCount(),
-                "unique_items",
-                transactionStore.getUniqueItemsCount(),
-                "start_min_count",
-                (long) (totalTransactionCount * minimumSupport),
-                "end_min_count",
-                minCount,
-                "eclat_runtime_ms",
-                TimeUnit.NANOSECONDS.toMillis(eclatRuntimeNanos),
-                "item_sets_checked",
-                numberOfSetsChecked
-            )
-        );
     }
 }

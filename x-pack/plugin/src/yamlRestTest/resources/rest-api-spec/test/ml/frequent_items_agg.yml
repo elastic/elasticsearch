@@ -159,7 +159,7 @@ setup:
 
 
 ---
-"Test frequent items":
+"Test frequent items date format 2":
 
   - do:
       search:
@@ -193,6 +193,40 @@ setup:
   - match: { aggregations.fi.buckets.0.support: 0.4 }
   - match: { aggregations.fi.buckets.0.key.weekday: ["Thu"] }
   - match: { aggregations.fi.buckets.0.key.error_message: ["engine overheated"] }
+
+---
+"Test frequent items array fields profile":
+
+  - do:
+      search:
+        index: store
+        body: >
+          {
+            "profile": true,
+            "size": 0,
+            "aggs": {
+              "fi": {
+                "frequent_items": {
+                  "minimum_set_size": 3,
+                  "minimum_support": 0.2,
+                  "fields": [
+                    {"field": "features"},
+                    {"field": "error_message"}
+                  ]
+                }
+              }
+            }
+          }
+  - length: { aggregations.fi.buckets: 10 }
+  - match: { aggregations.fi.buckets.0.doc_count: 5 }
+  - match: { aggregations.fi.buckets.0.support: 0.5 }
+  - match: { aggregations.fi.buckets.0.key.error_message: ["compressor low pressure"] }
+  - match: { aggregations.fi.buckets.1.doc_count: 4 }
+  - match: { aggregations.fi.buckets.1.support: 0.4 }
+  - match: { aggregations.fi.buckets.1.key.error_message: ["engine overheated"] }
+  - match: { aggregations.fi.buckets.1.support: 0.4 }
+  - match: { aggregations.fi.profile.unique_transactions_after_prune: 10 }
+  - match: { aggregations.fi.profile.unique_items_after_prune: 11 }
 
 ---
 "Test frequent items flattened fields":

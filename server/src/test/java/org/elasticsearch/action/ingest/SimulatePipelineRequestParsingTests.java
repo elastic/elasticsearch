@@ -100,9 +100,8 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
         Iterator<Map<String, Object>> expectedDocsIterator = expectedDocs.iterator();
         for (IngestDocument ingestDocument : actualRequest.documents()) {
             Map<String, Object> expectedDocument = expectedDocsIterator.next();
-            Map<String, Object> metadataMap = ingestDocument.getMetadataMap();
-            assertThat(metadataMap.get(INDEX.getFieldName()), equalTo(expectedDocument.get(INDEX.getFieldName())));
-            assertThat(metadataMap.get(ID.getFieldName()), equalTo(expectedDocument.get(ID.getFieldName())));
+            assertThat(ingestDocument.getMetadata().get(INDEX.getFieldName()), equalTo(expectedDocument.get(INDEX.getFieldName())));
+            assertThat(ingestDocument.getMetadata().get(ID.getFieldName()), equalTo(expectedDocument.get(ID.getFieldName())));
             assertThat(ingestDocument.getSource(), equalTo(expectedDocument.get(Fields.SOURCE)));
         }
 
@@ -196,14 +195,14 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
         Iterator<Map<String, Object>> expectedDocsIterator = expectedDocs.iterator();
         for (IngestDocument ingestDocument : actualRequest.documents()) {
             Map<String, Object> expectedDocument = expectedDocsIterator.next();
-            Map<String, Object> metadataMap = ingestDocument.getMetadataMap();
-            assertThat(metadataMap.get(INDEX.getFieldName()), equalTo(expectedDocument.get(INDEX.getFieldName())));
-            assertThat(metadataMap.get(ID.getFieldName()), equalTo(expectedDocument.get(ID.getFieldName())));
-            assertThat(metadataMap.get(ROUTING.getFieldName()), equalTo(expectedDocument.get(ROUTING.getFieldName())));
-            assertThat(metadataMap.get(VERSION.getFieldName()), equalTo(expectedDocument.get(VERSION.getFieldName())));
-            assertThat(metadataMap.get(VERSION_TYPE.getFieldName()), equalTo(expectedDocument.get(VERSION_TYPE.getFieldName())));
-            assertThat(metadataMap.get(IF_SEQ_NO.getFieldName()), equalTo(expectedDocument.get(IF_SEQ_NO.getFieldName())));
-            assertThat(metadataMap.get(IF_PRIMARY_TERM.getFieldName()), equalTo(expectedDocument.get(IF_PRIMARY_TERM.getFieldName())));
+            org.elasticsearch.script.Metadata metadata = ingestDocument.getMetadata();
+            assertThat(metadata.get(INDEX.getFieldName()), equalTo(expectedDocument.get(INDEX.getFieldName())));
+            assertThat(metadata.get(ID.getFieldName()), equalTo(expectedDocument.get(ID.getFieldName())));
+            assertThat(metadata.get(ROUTING.getFieldName()), equalTo(expectedDocument.get(ROUTING.getFieldName())));
+            assertThat(metadata.get(VERSION.getFieldName()), equalTo(expectedDocument.get(VERSION.getFieldName())));
+            assertThat(metadata.get(VERSION_TYPE.getFieldName()), equalTo(expectedDocument.get(VERSION_TYPE.getFieldName())));
+            assertThat(metadata.get(IF_SEQ_NO.getFieldName()), equalTo(expectedDocument.get(IF_SEQ_NO.getFieldName())));
+            assertThat(metadata.get(IF_PRIMARY_TERM.getFieldName()), equalTo(expectedDocument.get(IF_PRIMARY_TERM.getFieldName())));
             assertThat(ingestDocument.getSource(), equalTo(expectedDocument.get(Fields.SOURCE)));
         }
 
@@ -349,12 +348,12 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
         Iterator<Map<String, Object>> expectedDocsIterator = expectedDocs.iterator();
         for (IngestDocument ingestDocument : actualRequest.documents()) {
             Map<String, Object> expectedDocument = expectedDocsIterator.next();
-            Map<String, Object> metadataMap = ingestDocument.getMetadataMap();
-            assertThat(metadataMap.get(INDEX.getFieldName()), equalTo(expectedDocument.get(INDEX.getFieldName())));
-            assertThat(metadataMap.get(ID.getFieldName()), equalTo(expectedDocument.get(ID.getFieldName())));
-            assertThat(metadataMap.get(ROUTING.getFieldName()), equalTo(expectedDocument.get(ROUTING.getFieldName())));
-            assertThat(metadataMap.get(VERSION.getFieldName()), equalTo(expectedDocument.get(VERSION.getFieldName())));
-            assertThat(metadataMap.get(VERSION_TYPE.getFieldName()), equalTo(expectedDocument.get(VERSION_TYPE.getFieldName())));
+            org.elasticsearch.script.Metadata metadata = ingestDocument.getMetadata();
+            assertThat(metadata.get(INDEX.getFieldName()), equalTo(expectedDocument.get(INDEX.getFieldName())));
+            assertThat(metadata.get(ID.getFieldName()), equalTo(expectedDocument.get(ID.getFieldName())));
+            assertThat(metadata.get(ROUTING.getFieldName()), equalTo(expectedDocument.get(ROUTING.getFieldName())));
+            assertThat(metadata.get(VERSION.getFieldName()), equalTo(expectedDocument.get(VERSION.getFieldName())));
+            assertThat(metadata.get(VERSION_TYPE.getFieldName()), equalTo(expectedDocument.get(VERSION_TYPE.getFieldName())));
             assertThat(ingestDocument.getSource(), equalTo(expectedDocument.get(Fields.SOURCE)));
         }
         assertThat(actualRequest.pipeline().getId(), equalTo(SIMULATED_PIPELINE_ID));

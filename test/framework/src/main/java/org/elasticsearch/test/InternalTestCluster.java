@@ -2234,8 +2234,7 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     public String startDataOnlyNode(Settings settings) {
-        Settings settings1 = Settings.builder().put(settings).put(dataOnlyNode(settings)).build();
-        return startNode(settings1);
+        return startNode(Settings.builder().put(settings).put(dataOnlyNode(settings)).build());
     }
 
     private synchronized void publishNode(NodeAndClient nodeAndClient) {

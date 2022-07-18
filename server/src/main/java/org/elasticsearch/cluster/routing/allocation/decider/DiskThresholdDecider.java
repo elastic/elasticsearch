@@ -461,7 +461,7 @@ public class DiskThresholdDecider extends AllocationDecider {
     );
 
     @Override
-    public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+    public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         if (shardRouting.currentNodeId().equals(node.nodeId()) == false) {
             throw new IllegalArgumentException("Shard [" + shardRouting + "] is not allocated on node: [" + node.nodeId() + "]");
         }
@@ -472,7 +472,7 @@ public class DiskThresholdDecider extends AllocationDecider {
             return decision;
         }
 
-        if (allocation.metadata().index(shardRouting.index()).ignoreDiskWatermarks()) {
+        if (indexMetadata.ignoreDiskWatermarks()) {
             return YES_DISK_WATERMARKS_IGNORED;
         }
 

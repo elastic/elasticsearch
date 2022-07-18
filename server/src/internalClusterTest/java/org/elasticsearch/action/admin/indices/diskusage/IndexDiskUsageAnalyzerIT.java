@@ -25,6 +25,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -57,6 +58,7 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
         plugins.add(EngineTestPlugin.class);
         plugins.add(MockTransportService.TestPlugin.class);
+        plugins.add(TestGeoShapeFieldMapperPlugin.class);
         return plugins;
     }
 

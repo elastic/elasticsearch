@@ -39,9 +39,9 @@ public class UpsertCtxMapTests extends ESTestCase {
         assertEquals("myIndex", meta.getIndex());
         assertEquals("myId", meta.getId());
         assertEquals("create", meta.getOp());
-        IllegalArgumentException err = expectThrows(IllegalArgumentException.class, () -> meta.getVersion());
+        UnsupportedOperationException err = expectThrows(UnsupportedOperationException.class, () -> meta.getVersion());
         assertEquals("version is unavailable for insert", err.getMessage());
-        err = expectThrows(IllegalArgumentException.class, () -> meta.getRouting());
+        err = expectThrows(UnsupportedOperationException.class, () -> meta.getRouting());
         assertEquals("routing is unavailable for insert", err.getMessage());
     }
 

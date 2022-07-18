@@ -19,7 +19,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentFieldFilter;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.XContentType;
@@ -85,10 +84,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
         @Override
         protected Parameter<?>[] getParameters() {
-            if (IndexSettings.isTimeSeriesModeEnabled()) {
-                return new Parameter<?>[] { enabled, synthetic, includes, excludes };
-            }
-            return new Parameter<?>[] { enabled, includes, excludes };
+            return new Parameter<?>[] { enabled, synthetic, includes, excludes };
         }
 
         @Override

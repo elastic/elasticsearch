@@ -10,7 +10,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.IndexSettings;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -27,7 +26,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toList;
 
@@ -51,16 +49,16 @@ public class TimeseriesLifecycleType implements LifecycleType {
     static final String DELETE_PHASE = "delete";
     public static final List<String> ORDERED_VALID_PHASES = List.of(HOT_PHASE, WARM_PHASE, COLD_PHASE, FROZEN_PHASE, DELETE_PHASE);
 
-    public static final List<String> ORDERED_VALID_HOT_ACTIONS = Stream.of(
+    public static final List<String> ORDERED_VALID_HOT_ACTIONS = Arrays.asList(
         SetPriorityAction.NAME,
         UnfollowAction.NAME,
         RolloverAction.NAME,
         ReadOnlyAction.NAME,
-        IndexSettings.isTimeSeriesModeEnabled() ? RollupILMAction.NAME : null,
+        RollupILMAction.NAME,
         ShrinkAction.NAME,
         ForceMergeAction.NAME,
         SearchableSnapshotAction.NAME
-    ).filter(Objects::nonNull).toList();
+    );
     public static final List<String> ORDERED_VALID_WARM_ACTIONS = Arrays.asList(
         SetPriorityAction.NAME,
         UnfollowAction.NAME,
@@ -70,7 +68,7 @@ public class TimeseriesLifecycleType implements LifecycleType {
         ShrinkAction.NAME,
         ForceMergeAction.NAME
     );
-    public static final List<String> ORDERED_VALID_COLD_ACTIONS = Stream.of(
+    public static final List<String> ORDERED_VALID_COLD_ACTIONS = Arrays.asList(
         SetPriorityAction.NAME,
         UnfollowAction.NAME,
         ReadOnlyAction.NAME,
@@ -78,8 +76,8 @@ public class TimeseriesLifecycleType implements LifecycleType {
         AllocateAction.NAME,
         MigrateAction.NAME,
         FreezeAction.NAME,
-        IndexSettings.isTimeSeriesModeEnabled() ? RollupILMAction.NAME : null
-    ).filter(Objects::nonNull).toList();
+        RollupILMAction.NAME
+    );
     public static final List<String> ORDERED_VALID_FROZEN_ACTIONS = List.of(UnfollowAction.NAME, SearchableSnapshotAction.NAME);
     public static final List<String> ORDERED_VALID_DELETE_ACTIONS = List.of(WaitForSnapshotAction.NAME, DeleteAction.NAME);
 

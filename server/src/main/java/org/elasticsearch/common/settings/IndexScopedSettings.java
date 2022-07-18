@@ -37,7 +37,6 @@ import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.ShardLimitValidator;
 
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -162,6 +161,11 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         DiskThresholdDecider.SETTING_IGNORE_DISK_WATERMARKS,
         ShardLimitValidator.INDEX_SETTING_SHARD_LIMIT_GROUP,
         DataTier.TIER_PREFERENCE_SETTING,
+        // TSDB
+        IndexSettings.MODE,
+        IndexMetadata.INDEX_ROUTING_PATH,
+        IndexSettings.TIME_SERIES_START_TIME,
+        IndexSettings.TIME_SERIES_END_TIME,
 
         // validate that built-in similarities don't get redefined
         Setting.groupSetting("index.similarity.", (s) -> {
@@ -180,15 +184,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
     public static final Set<Setting<?>> BUILT_IN_INDEX_SETTINGS = builtInIndexSettings();
 
     private static Set<Setting<?>> builtInIndexSettings() {
-        if (false == IndexSettings.isTimeSeriesModeEnabled()) {
-            return ALWAYS_ENABLED_BUILT_IN_INDEX_SETTINGS;
-        }
-        Set<Setting<?>> result = new HashSet<>(ALWAYS_ENABLED_BUILT_IN_INDEX_SETTINGS);
-        result.add(IndexSettings.MODE);
-        result.add(IndexMetadata.INDEX_ROUTING_PATH);
-        result.add(IndexSettings.TIME_SERIES_START_TIME);
-        result.add(IndexSettings.TIME_SERIES_END_TIME);
-        return Set.copyOf(result);
+        return ALWAYS_ENABLED_BUILT_IN_INDEX_SETTINGS;
     }
 
     public static final IndexScopedSettings DEFAULT_SCOPED_SETTINGS = new IndexScopedSettings(Settings.EMPTY, BUILT_IN_INDEX_SETTINGS);

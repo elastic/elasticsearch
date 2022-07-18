@@ -21,7 +21,6 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
@@ -127,7 +126,7 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        List<RestHandler> handlers = new ArrayList<>(
+        return new ArrayList<>(
             Arrays.asList(
                 new RestRollupSearchAction(),
                 new RestPutRollupJobAction(),
@@ -136,21 +135,15 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
                 new RestDeleteRollupJobAction(),
                 new RestGetRollupJobsAction(),
                 new RestGetRollupCapsAction(),
-                new RestGetRollupIndexCapsAction()
+                new RestGetRollupIndexCapsAction(),
+                new RestRollupAction()
             )
         );
-
-        // TSDB Downsampling / Rollup
-        if (IndexSettings.isTimeSeriesModeEnabled()) {
-            handlers.add(new RestRollupAction());
-        }
-
-        return handlers;
     }
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        List<ActionHandler<?, ?>> actions = new ArrayList<>(
+        return new ArrayList<>(
             Arrays.asList(
                 new ActionHandler<>(RollupSearchAction.INSTANCE, TransportRollupSearchAction.class),
                 new ActionHandler<>(PutRollupJobAction.INSTANCE, TransportPutRollupJobAction.class),
@@ -161,16 +154,11 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
                 new ActionHandler<>(GetRollupCapsAction.INSTANCE, TransportGetRollupCapsAction.class),
                 new ActionHandler<>(GetRollupIndexCapsAction.INSTANCE, TransportGetRollupIndexCapsAction.class),
                 new ActionHandler<>(XPackUsageFeatureAction.ROLLUP, RollupUsageTransportAction.class),
-                new ActionHandler<>(XPackInfoFeatureAction.ROLLUP, RollupInfoTransportAction.class)
+                new ActionHandler<>(XPackInfoFeatureAction.ROLLUP, RollupInfoTransportAction.class),
+                new ActionHandler<>(RollupIndexerAction.INSTANCE, TransportRollupIndexerAction.class),
+                new ActionHandler<>(RollupAction.INSTANCE, TransportRollupAction.class)
             )
         );
-
-        if (IndexSettings.isTimeSeriesModeEnabled()) {
-            actions.add(new ActionHandler<>(RollupIndexerAction.INSTANCE, TransportRollupIndexerAction.class));
-            actions.add(new ActionHandler<>(RollupAction.INSTANCE, TransportRollupAction.class));
-        }
-
-        return actions;
     }
 
     @Override

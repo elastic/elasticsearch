@@ -10,7 +10,6 @@ package org.elasticsearch.index;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Strings;
 import org.apache.lucene.index.MergePolicy;
-import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
@@ -23,7 +22,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.ingest.IngestService;
@@ -456,24 +454,6 @@ public final class IndexSettings {
     );
 
     /**
-     * Is the {@code index.mode} enabled? It should only be enbaled if you
-     * pass a jvm parameter or are running a snapshot build.
-     */
-    private static final Boolean TIME_SERIES_MODE_FEATURE_FLAG_REGISTERED;
-
-    static {
-        final String property = System.getProperty("es.index_mode_feature_flag_registered");
-        if (Build.CURRENT.isSnapshot() && property != null) {
-            throw new IllegalArgumentException("es.index_mode_feature_flag_registered is only supported in non-snapshot builds");
-        }
-        TIME_SERIES_MODE_FEATURE_FLAG_REGISTERED = Booleans.parseBoolean(property, null);
-    }
-
-    public static boolean isTimeSeriesModeEnabled() {
-        return Build.CURRENT.isSnapshot() || (TIME_SERIES_MODE_FEATURE_FLAG_REGISTERED != null && TIME_SERIES_MODE_FEATURE_FLAG_REGISTERED);
-    }
-
-    /**
      * in time series mode, the start time of the index, timestamp must larger than start_time
      */
     public static final Setting<Instant> TIME_SERIES_START_TIME = Setting.dateSetting(
@@ -696,7 +676,7 @@ public final class IndexSettings {
         nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.indexMetadata = indexMetadata;
         numberOfShards = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, null);
-        mode = isTimeSeriesModeEnabled() ? scopedSettings.get(MODE) : IndexMode.STANDARD;
+        mode = scopedSettings.get(MODE);
         this.timestampBounds = mode.getTimestampBound(indexMetadata);
         if (timestampBounds != null) {
             scopedSettings.addSettingsUpdateConsumer(

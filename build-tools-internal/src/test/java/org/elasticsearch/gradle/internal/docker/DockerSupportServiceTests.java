@@ -62,6 +62,7 @@ public class DockerSupportServiceTests {
     /**
      * Trailing whitespace should be removed
      */
+    @Test
     public void testRemoveTrailingWhitespace() {
         final List<String> lines = List.of("NAME=\"Oracle Linux Server\"   ");
 
@@ -75,6 +76,7 @@ public class DockerSupportServiceTests {
     /**
      * Comments should be removed
      */
+    @Test
     public void testRemoveComments() {
         final List<String> lines = List.of("# A comment", "NAME=\"Oracle Linux Server\"");
 
@@ -85,6 +87,7 @@ public class DockerSupportServiceTests {
         assertThat(expected, equalTo(results));
     }
 
+    @Test
     public void testDeriveIdOnOracle() {
         final Map<String, String> osRelease = new HashMap<>();
         osRelease.put("ID", "ol");

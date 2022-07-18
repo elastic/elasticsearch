@@ -12,6 +12,7 @@ import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
 import org.gradle.testfixtures.ProjectBuilder;
 import org.junit.BeforeClass;
+import org.junit.Test;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -25,10 +26,12 @@ public class JdkDownloadPluginTests {
         rootProject = ProjectBuilder.builder().build();
     }
 
+    @Test
     public void testMissingVendor() {
         assertJdkError(createProject(), "testjdk", null, "11.0.2+33", "linux", "x64", "vendor not specified for jdk [testjdk]");
     }
 
+    @Test
     public void testUnknownVendor() {
         assertJdkError(
             createProject(),
@@ -41,10 +44,12 @@ public class JdkDownloadPluginTests {
         );
     }
 
+    @Test
     public void testMissingVersion() {
         assertJdkError(createProject(), "testjdk", "openjdk", null, "linux", "x64", "version not specified for jdk [testjdk]");
     }
 
+    @Test
     public void testBadVersionFormat() {
         assertJdkError(
             createProject(),
@@ -57,10 +62,12 @@ public class JdkDownloadPluginTests {
         );
     }
 
+    @Test
     public void testMissingPlatform() {
         assertJdkError(createProject(), "testjdk", "openjdk", "11.0.2+33", null, "x64", "platform not specified for jdk [testjdk]");
     }
 
+    @Test
     public void testUnknownPlatform() {
         assertJdkError(
             createProject(),
@@ -73,10 +80,12 @@ public class JdkDownloadPluginTests {
         );
     }
 
+    @Test
     public void testMissingArchitecture() {
         assertJdkError(createProject(), "testjdk", "openjdk", "11.0.2+33", "linux", null, "architecture not specified for jdk [testjdk]");
     }
 
+    @Test
     public void testUnknownArchitecture() {
         assertJdkError(
             createProject(),

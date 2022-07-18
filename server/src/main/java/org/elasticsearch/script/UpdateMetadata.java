@@ -105,8 +105,8 @@ public class UpdateMetadata extends Metadata {
 
     @Override
     public void setOp(String op) {
-        if (LEGACY_NOOP_STRING.equals(op)) {
-            throw new IllegalArgumentException("'" + LEGACY_NOOP_STRING + "' is not allowed, use 'noop' instead");
+        if (LEGACY_NOOP_STRING.equals(op) || op == null) {
+            throw new IllegalArgumentException(op + " is not allowed, use 'noop' instead");
         }
         super.setOp(op);
     }

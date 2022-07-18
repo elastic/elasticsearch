@@ -72,7 +72,9 @@ public class UpdateCtxMapTests extends ESTestCase {
 
     public void testNoneOp() {
         IllegalArgumentException err = expectThrows(IllegalArgumentException.class, () -> meta.setOp("none"));
-        assertEquals("'none' is not allowed, use 'noop' instead", err.getMessage());
+        assertEquals("none is not allowed, use 'noop' instead", err.getMessage());
+        err = expectThrows(IllegalArgumentException.class, () -> meta.setOp("none"));
+        assertEquals("null is not allowed, use 'noop' instead", err.getMessage());
         meta.put("op", "none");
         assertEquals("noop", meta.getOp());
         meta.remove("op");

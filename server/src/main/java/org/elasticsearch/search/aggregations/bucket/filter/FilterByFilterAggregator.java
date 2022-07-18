@@ -47,7 +47,7 @@ public class FilterByFilterAggregator extends FiltersAggregator {
         private final String name;
         private final List<QueryToFilterAdapter> filters = new ArrayList<>();
         private final boolean keyed;
-        private final AggregationContext context;
+        private final AggregationContext aggCtx;
         private final Aggregator parent;
         private final CardinalityUpperBound cardinality;
         private final Map<String, Object> metadata;
@@ -58,18 +58,18 @@ public class FilterByFilterAggregator extends FiltersAggregator {
             String name,
             boolean keyed,
             String otherBucketKey,
-            AggregationContext context,
+            AggregationContext aggCtx,
             Aggregator parent,
             CardinalityUpperBound cardinality,
             Map<String, Object> metadata
         ) throws IOException {
             this.name = name;
             this.keyed = keyed;
-            this.context = context;
+            this.aggCtx = aggCtx;
             this.parent = parent;
             this.cardinality = cardinality;
             this.metadata = metadata;
-            this.rewrittenTopLevelQuery = context.searcher().rewrite(context.query());
+            this.rewrittenTopLevelQuery = aggCtx.searcher().rewrite(aggCtx.query());
             this.valid = parent == null && otherBucketKey == null;
         }
 
@@ -93,7 +93,7 @@ public class FilterByFilterAggregator extends FiltersAggregator {
                 valid = false;
                 return;
             }
-            add(QueryToFilterAdapter.build(context.searcher(), key, query));
+            add(QueryToFilterAdapter.build(aggCtx.searcher(), key, query));
         }
 
         final void add(QueryToFilterAdapter filter) throws IOException {
@@ -120,7 +120,7 @@ public class FilterByFilterAggregator extends FiltersAggregator {
                  * fields are expensive to decode and the overhead of iterating per
                  * filter causes us to decode doc counts over and over again.
                  */
-                if (context.hasDocCountField()) {
+                if (aggCtx.hasDocCountField()) {
                     valid = false;
                     return;
                 }
@@ -140,7 +140,7 @@ public class FilterByFilterAggregator extends FiltersAggregator {
 
                 @Override
                 public FilterByFilterAggregator apply(AggregatorFactories subAggregators) throws IOException {
-                    agg = new FilterByFilterAggregator(name, subAggregators, filters, keyed, context, parent, cardinality, metadata);
+                    agg = new FilterByFilterAggregator(name, subAggregators, filters, keyed, aggCtx, parent, cardinality, metadata);
                     return agg;
                 }
             }
@@ -202,12 +202,12 @@ public class FilterByFilterAggregator extends FiltersAggregator {
         AggregatorFactories factories,
         List<QueryToFilterAdapter> filters,
         boolean keyed,
-        AggregationContext context,
+        AggregationContext aggCtx,
         Aggregator parent,
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        super(name, factories, filters, keyed, null, context, parent, cardinality, metadata);
+        super(name, factories, filters, keyed, null, aggCtx, parent, cardinality, metadata);
     }
 
     /**
@@ -237,7 +237,7 @@ public class FilterByFilterAggregator extends FiltersAggregator {
             collectCount(aggCtx.getLeafReaderContext(), live);
         } else {
             segmentsCollected++;
-            collectSubs(aggCtx.getLeafReaderContext(), live, sub);
+            collectSubs(aggCtx, live, sub);
         }
         return LeafBucketCollector.NO_OP_COLLECTOR;
     }
@@ -273,7 +273,7 @@ public class FilterByFilterAggregator extends FiltersAggregator {
      * less memory because there isn't a need to buffer a block of matches.
      * And its a hell of a lot less code.
      */
-    private void collectSubs(LeafReaderContext ctx, Bits live, LeafBucketCollector sub) throws IOException {
+    private void collectSubs(AggregationExecutionContext aggCtx, Bits live, LeafBucketCollector sub) throws IOException {
         class MatchCollector implements LeafCollector {
             LeafBucketCollector subCollector = sub;
             int filterOrd;
@@ -287,11 +287,11 @@ public class FilterByFilterAggregator extends FiltersAggregator {
             public void setScorer(Scorable scorer) throws IOException {}
         }
         MatchCollector collector = new MatchCollector();
-        filters().get(0).collect(ctx, collector, live);
+        filters().get(0).collect(aggCtx.getLeafReaderContext(), collector, live);
         for (int filterOrd = 1; filterOrd < filters().size(); filterOrd++) {
-            collector.subCollector = collectableSubAggregators.getLeafCollector(ctx);
+            collector.subCollector = collectableSubAggregators.getLeafCollector(aggCtx);
             collector.filterOrd = filterOrd;
-            filters().get(filterOrd).collect(ctx, collector, live);
+            filters().get(filterOrd).collect(aggCtx.getLeafReaderContext(), collector, live);
         }
     }
 

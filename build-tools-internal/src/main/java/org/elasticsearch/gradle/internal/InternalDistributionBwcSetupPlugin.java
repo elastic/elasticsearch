@@ -241,9 +241,9 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                 return BuildParams.isCi()
                     && (gitBranch == null || gitBranch.endsWith("master") == false || gitBranch.endsWith("main") == false);
             });
-            c.args(projectPath.replace('/', ':') + ":" + assembleTaskName);
+            c.getArgs().add(projectPath.replace('/', ':') + ":" + assembleTaskName);
             if (project.getGradle().getStartParameter().isBuildCacheEnabled()) {
-                c.args("--build-cache");
+                c.getArgs().add("--build-cache");
             }
             c.doLast(new Action<Task>() {
                 @Override

@@ -608,7 +608,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         final boolean isPartialSearchableSnapshot,
         @Nullable final IndexMode indexMode,
         @Nullable final Instant timeSeriesStart,
-        @Nullable final Instant timeSeriesEnd
+        @Nullable final Instant timeSeriesEnd,
+        final Version indexCompatibilityVersion
     ) {
         this.index = index;
         this.version = version;
@@ -654,7 +655,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.autoExpandReplicas = autoExpandReplicas;
         this.isSearchableSnapshot = isSearchableSnapshot;
         this.isPartialSearchableSnapshot = isPartialSearchableSnapshot;
-        this.indexCompatibilityVersion = SETTING_INDEX_VERSION_COMPATIBILITY.get(settings);
+        this.indexCompatibilityVersion = indexCompatibilityVersion;
+        assert indexCompatibilityVersion.equals(SETTING_INDEX_VERSION_COMPATIBILITY.get(settings));
         this.indexMode = indexMode;
         this.timeSeriesStart = timeSeriesStart;
         this.timeSeriesEnd = timeSeriesEnd;
@@ -705,7 +707,218 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.isPartialSearchableSnapshot,
             this.indexMode,
             this.timeSeriesStart,
-            this.timeSeriesEnd
+            this.timeSeriesEnd,
+            this.indexCompatibilityVersion
+        );
+    }
+
+    /**
+     * Copy constructor that sets the in-sync allocation ids for the specified shard.
+     * @param shardId shard id to set in-sync allocation ids for
+     * @param inSyncSet new in-sync allocation ids
+     * @return updated instance
+     */
+    public IndexMetadata withInSyncAllocationIds(int shardId, Set<String> inSyncSet) {
+        if (inSyncSet.equals(inSyncAllocationIds.get(shardId))) {
+            return this;
+        }
+        return new IndexMetadata(
+            this.index,
+            this.version,
+            this.mappingVersion,
+            this.settingsVersion,
+            this.aliasesVersion,
+            this.primaryTerms,
+            this.state,
+            this.numberOfShards,
+            this.numberOfReplicas,
+            this.settings,
+            this.mapping,
+            this.aliases,
+            this.customData,
+            Maps.copyMapWithAddedOrReplacedEntry(this.inSyncAllocationIds, shardId, Set.copyOf(inSyncSet)),
+            this.requireFilters,
+            this.initialRecoveryFilters,
+            this.includeFilters,
+            this.excludeFilters,
+            this.indexCreatedVersion,
+            this.routingNumShards,
+            this.routingPartitionSize,
+            this.routingPaths,
+            this.waitForActiveShards,
+            this.rolloverInfos,
+            this.isSystem,
+            this.isHidden,
+            this.timestampRange,
+            this.priority,
+            this.creationDate,
+            this.ignoreDiskWatermarks,
+            this.tierPreference,
+            this.shardsPerNodeLimit,
+            this.lifecyclePolicyName,
+            this.lifecycleExecutionState,
+            this.autoExpandReplicas,
+            this.isSearchableSnapshot,
+            this.isPartialSearchableSnapshot,
+            this.indexMode,
+            this.timeSeriesStart,
+            this.timeSeriesEnd,
+            this.indexCompatibilityVersion
+        );
+    }
+
+    /**
+     * Creates a copy of this instance that has the primary term for the given shard id incremented.
+     * @param shardId shard id to increment primary term for
+     * @return updated instance with incremented primary term
+     */
+    public IndexMetadata withIncrementedPrimaryTerm(int shardId) {
+        final long[] incremented = this.primaryTerms.clone();
+        incremented[shardId]++;
+        return new IndexMetadata(
+            this.index,
+            this.version,
+            this.mappingVersion,
+            this.settingsVersion,
+            this.aliasesVersion,
+            incremented,
+            this.state,
+            this.numberOfShards,
+            this.numberOfReplicas,
+            this.settings,
+            this.mapping,
+            this.aliases,
+            this.customData,
+            this.inSyncAllocationIds,
+            this.requireFilters,
+            this.initialRecoveryFilters,
+            this.includeFilters,
+            this.excludeFilters,
+            this.indexCreatedVersion,
+            this.routingNumShards,
+            this.routingPartitionSize,
+            this.routingPaths,
+            this.waitForActiveShards,
+            this.rolloverInfos,
+            this.isSystem,
+            this.isHidden,
+            this.timestampRange,
+            this.priority,
+            this.creationDate,
+            this.ignoreDiskWatermarks,
+            this.tierPreference,
+            this.shardsPerNodeLimit,
+            this.lifecyclePolicyName,
+            this.lifecycleExecutionState,
+            this.autoExpandReplicas,
+            this.isSearchableSnapshot,
+            this.isPartialSearchableSnapshot,
+            this.indexMode,
+            this.timeSeriesStart,
+            this.timeSeriesEnd,
+            this.indexCompatibilityVersion
+        );
+    }
+
+    /**
+     * @param timestampRange new timestamp range
+     * @return copy of this instance with updated timestamp range
+     */
+    public IndexMetadata withTimestampRange(IndexLongFieldRange timestampRange) {
+        if (timestampRange.equals(this.timestampRange)) {
+            return this;
+        }
+        return new IndexMetadata(
+            this.index,
+            this.version,
+            this.mappingVersion,
+            this.settingsVersion,
+            this.aliasesVersion,
+            this.primaryTerms,
+            this.state,
+            this.numberOfShards,
+            this.numberOfReplicas,
+            this.settings,
+            this.mapping,
+            this.aliases,
+            this.customData,
+            this.inSyncAllocationIds,
+            this.requireFilters,
+            this.initialRecoveryFilters,
+            this.includeFilters,
+            this.excludeFilters,
+            this.indexCreatedVersion,
+            this.routingNumShards,
+            this.routingPartitionSize,
+            this.routingPaths,
+            this.waitForActiveShards,
+            this.rolloverInfos,
+            this.isSystem,
+            this.isHidden,
+            timestampRange,
+            this.priority,
+            this.creationDate,
+            this.ignoreDiskWatermarks,
+            this.tierPreference,
+            this.shardsPerNodeLimit,
+            this.lifecyclePolicyName,
+            this.lifecycleExecutionState,
+            this.autoExpandReplicas,
+            this.isSearchableSnapshot,
+            this.isPartialSearchableSnapshot,
+            this.indexMode,
+            this.timeSeriesStart,
+            this.timeSeriesEnd,
+            this.indexCompatibilityVersion
+        );
+    }
+
+    /**
+     * @return a copy of this instance that has its version incremented by one
+     */
+    public IndexMetadata withIncrementedVersion() {
+        return new IndexMetadata(
+            this.index,
+            this.version + 1,
+            this.mappingVersion,
+            this.settingsVersion,
+            this.aliasesVersion,
+            this.primaryTerms,
+            this.state,
+            this.numberOfShards,
+            this.numberOfReplicas,
+            this.settings,
+            this.mapping,
+            this.aliases,
+            this.customData,
+            this.inSyncAllocationIds,
+            this.requireFilters,
+            this.initialRecoveryFilters,
+            this.includeFilters,
+            this.excludeFilters,
+            this.indexCreatedVersion,
+            this.routingNumShards,
+            this.routingPartitionSize,
+            this.routingPaths,
+            this.waitForActiveShards,
+            this.rolloverInfos,
+            this.isSystem,
+            this.isHidden,
+            this.timestampRange,
+            this.priority,
+            this.creationDate,
+            this.ignoreDiskWatermarks,
+            this.tierPreference,
+            this.shardsPerNodeLimit,
+            this.lifecyclePolicyName,
+            this.lifecycleExecutionState,
+            this.autoExpandReplicas,
+            this.isSearchableSnapshot,
+            this.isPartialSearchableSnapshot,
+            this.indexMode,
+            this.timeSeriesStart,
+            this.timeSeriesEnd,
+            this.indexCompatibilityVersion
         );
     }
 
@@ -715,18 +928,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public String getIndexUUID() {
         return index.getUUID();
-    }
-
-    /**
-     * Test whether the current index UUID is the same as the given one. Returns true if either are _na_
-     */
-    public boolean isSameUUID(String otherUUID) {
-        assert otherUUID != null;
-        assert getIndexUUID() != null;
-        if (INDEX_UUID_NA_VALUE.equals(otherUUID) || INDEX_UUID_NA_VALUE.equals(getIndexUUID())) {
-            return true;
-        }
-        return otherUUID.equals(getIndexUUID());
     }
 
     public long getVersion() {
@@ -1581,10 +1782,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             return this;
         }
 
-        public long aliasesVersion() {
-            return aliasesVersion;
-        }
-
         public Builder aliasesVersion(final long aliasesVersion) {
             this.aliasesVersion = aliasesVersion;
             return this;
@@ -1638,10 +1835,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         public Builder timestampRange(IndexLongFieldRange timestampRange) {
             this.timestampRange = timestampRange;
             return this;
-        }
-
-        public IndexLongFieldRange getTimestampRange() {
-            return timestampRange;
         }
 
         public IndexMetadata build() {
@@ -1804,7 +1997,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 isSearchableSnapshot && settings.getAsBoolean(SEARCHABLE_SNAPSHOT_PARTIAL_SETTING_KEY, false),
                 isTsdb ? IndexMode.TIME_SERIES : null,
                 isTsdb ? IndexSettings.TIME_SERIES_START_TIME.get(settings) : null,
-                isTsdb ? IndexSettings.TIME_SERIES_END_TIME.get(settings) : null
+                isTsdb ? IndexSettings.TIME_SERIES_END_TIME.get(settings) : null,
+                SETTING_INDEX_VERSION_COMPATIBILITY.get(settings)
             );
         }
 

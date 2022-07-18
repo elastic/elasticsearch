@@ -13,6 +13,7 @@ import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.IOUtils;
@@ -306,7 +307,13 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
             if (logger.isDebugEnabled()) {
                 logger.debug(() -> format("Exception occurred during %s for %s", action, LdapRealm.this), e);
             }
-            resultListener.onResponse(AuthenticationResult.unsuccessful(action + " failed", e));
+
+            // setting validation should generally be done earlier, however in some cases the settings may not be compatible at runtime.
+            if (e instanceof SettingsException) {
+                resultListener.onFailure(e);
+            } else {
+                resultListener.onResponse(AuthenticationResult.unsuccessful(action + " failed", e));
+            }
         }
 
     }

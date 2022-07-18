@@ -26,6 +26,7 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.core.IOUtils;
@@ -182,7 +183,7 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
     @Override
     void getUnauthenticatedSessionWithoutPool(String user, ActionListener<LdapSession> listener) {
         if (config.hasSetting(PoolingSessionFactorySettings.BIND_DN) == false) {
-            listener.onResponse(null);
+            listener.onFailure(new SettingsException("A bind_dn is required for the " + this.config.name() + " realm"));
             return;
         }
         try {

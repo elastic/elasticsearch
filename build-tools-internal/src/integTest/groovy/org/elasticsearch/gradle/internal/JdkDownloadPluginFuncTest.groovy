@@ -147,7 +147,7 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
             plugins {
              id 'elasticsearch.jdk-download'
             }
-            import org.elasticsearch.gradle.internal.Jdk
+            import org.elasticsearch.gradle.Jdk
             apply plugin: 'base'
             apply plugin: 'elasticsearch.jdk-download'
 

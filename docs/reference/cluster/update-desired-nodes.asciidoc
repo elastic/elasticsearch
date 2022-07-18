@@ -92,7 +92,8 @@ The API returns the following result:
 [source,console-result]
 --------------------------------------------------
 {
-  "replaced_existing_history_id": false
+  "replaced_existing_history_id": false,
+  "dry_run": false
 }
 --------------------------------------------------
 

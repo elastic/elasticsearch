@@ -1,0 +1,5 @@
+pr: 88594
+summary: Better handling for missing `bind_dn` for AD impersonate
+area: Authentication
+type: bug
+issues: []

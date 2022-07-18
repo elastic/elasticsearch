@@ -17,6 +17,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStats;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -437,6 +438,23 @@ public class AssignmentStats implements ToXContentObject, Writeable {
         return this;
     }
 
+    /**
+     * @return The overall inference stats for the model assignment
+     */
+    public InferenceStats getOverallInferenceStats() {
+        return new InferenceStats(
+            0L,
+            nodeStats.stream().filter(n -> n.getInferenceCount().isPresent()).mapToLong(n -> n.getInferenceCount().get()).sum(),
+            // This is for ALL failures, so sum the error counts, timeouts, and rejections
+            nodeStats.stream().mapToLong(n -> n.getErrorCount() + n.getTimeoutCount() + n.getRejectedExecutionCount()).sum(),
+            // TODO Update when we actually have cache miss/hit values
+            0L,
+            modelId,
+            null,
+            Instant.now()
+        );
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -501,7 +519,11 @@ public class AssignmentStats implements ToXContentObject, Writeable {
         out.writeOptionalVInt(queueCapacity);
         out.writeInstant(startTime);
         out.writeList(nodeStats);
-        out.writeOptionalEnum(state);
+        if (AssignmentState.FAILED.equals(state) && out.getVersion().before(Version.V_8_4_0)) {
+            out.writeOptionalEnum(AssignmentState.STARTING);
+        } else {
+            out.writeOptionalEnum(state);
+        }
         out.writeOptionalString(reason);
         out.writeOptionalWriteable(allocationStatus);
     }

@@ -41,6 +41,16 @@ public class ApiKeyGenerator {
         }
         apiKeyService.ensureEnabled();
 
+        getUserRoleDescriptors(
+            authentication,
+            ActionListener.wrap(
+                roleDescriptors -> apiKeyService.createApiKey(authentication, request, roleDescriptors, listener),
+                listener::onFailure
+            )
+        );
+    }
+
+    public void getUserRoleDescriptors(Authentication authentication, ActionListener<Set<RoleDescriptor>> listener) {
         final ActionListener<Set<RoleDescriptor>> roleDescriptorsListener = ActionListener.wrap(roleDescriptors -> {
             for (RoleDescriptor rd : roleDescriptors) {
                 try {
@@ -50,7 +60,7 @@ public class ApiKeyGenerator {
                     return;
                 }
             }
-            apiKeyService.createApiKey(authentication, request, roleDescriptors, listener);
+            listener.onResponse(roleDescriptors);
         }, listener::onFailure);
 
         final Subject effectiveSubject = authentication.getEffectiveSubject();
@@ -64,7 +74,6 @@ public class ApiKeyGenerator {
         rolesStore.getRoleDescriptorsList(effectiveSubject, ActionListener.wrap(roleDescriptorsList -> {
             assert roleDescriptorsList.size() == 1;
             roleDescriptorsListener.onResponse(roleDescriptorsList.iterator().next());
-
         }, roleDescriptorsListener::onFailure));
     }
 }

@@ -324,7 +324,21 @@ public class SpatialPlugin extends Plugin implements ActionPlugin, MapperPlugin,
     }
 
     private static void registerCardinalityAggregator(ValuesSourceRegistry.Builder builder) {
-        builder.register(CardinalityAggregationBuilder.REGISTRY_KEY, GeoShapeValuesSourceType.instance(), CardinalityAggregator::new, true);
+        builder.register(
+            CardinalityAggregationBuilder.REGISTRY_KEY,
+            GeoShapeValuesSourceType.instance(),
+            (name, valuesSourceConfig, precision, executionMode, context, parent, metadata) -> new CardinalityAggregator(
+                name,
+                valuesSourceConfig,
+                precision,
+                // Force execution mode to null
+                null,
+                context,
+                parent,
+                metadata
+            ),
+            true
+        );
     }
 
     private <T> ContextParser<String, T> checkLicense(ContextParser<String, T> realParser, LicensedFeature.Momentary feature) {

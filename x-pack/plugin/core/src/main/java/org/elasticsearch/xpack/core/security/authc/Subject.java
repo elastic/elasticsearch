@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.xpack.core.security.authc.Authentication.VERSION_API_KEY_ROLES_AS_BYTES;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY;
@@ -86,6 +87,10 @@ public class Subject {
         return metadata;
     }
 
+    Version getVersion() {
+        return version;
+    }
+
     public RoleReferenceIntersection getRoleReferenceIntersection(@Nullable AnonymousUser anonymousUser) {
         switch (type) {
             case USER:
@@ -139,6 +144,23 @@ public class Subject {
                     return false;
                 }
             }
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Subject subject = (Subject) o;
+        return version.equals(subject.version)
+            && user.equals(subject.user)
+            && Objects.equals(realm, subject.realm)
+            && type == subject.type
+            && metadata.equals(subject.metadata);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(version, user, realm, type, metadata);
     }
 
     @Override

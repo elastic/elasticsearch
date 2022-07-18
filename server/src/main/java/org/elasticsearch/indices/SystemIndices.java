@@ -35,7 +35,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.snapshots.SnapshotsService;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -48,10 +47,7 @@ import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedDeque;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
-import java.util.function.Consumer;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -339,7 +335,8 @@ public class SystemIndices {
         return findMatchingDescriptor(indexDescriptors, name);
     }
 
-    @Nullable static SystemIndexDescriptor findMatchingDescriptor(SystemIndexDescriptor[] indexDescriptors, String name) {
+    @Nullable
+    static SystemIndexDescriptor findMatchingDescriptor(SystemIndexDescriptor[] indexDescriptors, String name) {
         SystemIndexDescriptor matchingDescriptor = null;
         for (SystemIndexDescriptor systemIndexDescriptor : indexDescriptors) {
             if (systemIndexDescriptor.matchesIndexPattern(name)) {
@@ -869,15 +866,17 @@ public class SystemIndices {
         private static ListenableActionFuture<AcknowledgedResponse> cleanUpFeatureForIndices(
             Client client,
             String[] indexNames,
-            final Consumer<Exception> errorListener
+            final ActionListener<Void> listener
         ) {
             var actionListener = new ActionListener<AcknowledgedResponse>() {
                 @Override
-                public void onResponse(AcknowledgedResponse acknowledgedResponse) {}
+                public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                    listener.onResponse(null);
+                }
 
                 @Override
                 public void onFailure(Exception e) {
-                    errorListener.accept(e);
+                    listener.onFailure(e);
                 }
             };
             var actionFuture = new ListenableActionFuture<AcknowledgedResponse>();
@@ -887,6 +886,16 @@ public class SystemIndices {
             client.execute(DeleteIndexAction.INSTANCE, deleteIndexRequest, actionFuture);
 
             return actionFuture;
+        }
+
+        private static long countInnerTasks(
+            Metadata metadata,
+            Collection<SystemIndexDescriptor> indexDescriptors,
+            List<String> associatedIndices
+        ) {
+            return associatedIndices.size() + indexDescriptors.stream()
+                .filter(id -> id.getMatchingIndices(metadata).isEmpty() == false)
+                .count();
         }
 
         /**
@@ -904,48 +913,66 @@ public class SystemIndices {
             String name,
             ClusterService clusterService,
             Client client,
-            ActionListener<ResetFeatureStateStatus> listener
+            final ActionListener<ResetFeatureStateStatus> listener
         ) {
             Metadata metadata = clusterService.state().getMetadata();
-            List<Future<?>> actionFutures = new ArrayList<>();
-            var errors = new ConcurrentLinkedDeque<Exception>();
 
             List<String> associatedIndices = associatedIndexDescriptors.stream()
                 .map(descriptor -> descriptor.getMatchingIndices(metadata))
                 .flatMap(List::stream)
                 .toList();
 
-            if (associatedIndices.isEmpty() == false) {
-                actionFutures.add(cleanUpFeatureForIndices(client, associatedIndices.toArray(Strings.EMPTY_ARRAY), e -> errors.add(e)));
+            final long taskCount = countInnerTasks(metadata, indexDescriptors, associatedIndices);
+
+            // check if there's nothing to do and take an early out
+            if (taskCount == 0) {
+                listener.onResponse(ResetFeatureStateStatus.success(name));
+                return;
             }
 
+            ActionListener<Void> taskListener = new ActionListener<>() {
+                AtomicLong tasksCounter = new AtomicLong(taskCount);
+                Collection<Exception> errors = new ConcurrentLinkedDeque<>();
+
+                @Override
+                public void onResponse(Void resetFeatureStateStatus) {
+                    taskCompleted();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    errors.add(e);
+                    taskCompleted();
+                }
+
+                private void taskCompleted() {
+                    if (tasksCounter.decrementAndGet() == 0) {
+                        if (errors.isEmpty()) {
+                            listener.onResponse(ResetFeatureStateStatus.success(name));
+                        } else {
+                            StringBuilder exceptions = new StringBuilder("[");
+                            exceptions.append(errors.stream().map(Exception::getMessage).collect(Collectors.joining(", ")));
+                            exceptions.append(']');
+                            listener.onResponse(ResetFeatureStateStatus.failure(name, new Exception(exceptions.toString())));
+                        }
+                    }
+                }
+            };
+
+            // Send cleanup for the associated indices, they don't need special origin since they are not protected
+            if (associatedIndices.isEmpty() == false) {
+                cleanUpFeatureForIndices(client, associatedIndices.toArray(Strings.EMPTY_ARRAY), taskListener);
+            }
+
+            // One descriptor at a time, create an originating client and clean up the feature
             for (var indexDescriptor : indexDescriptors) {
                 List<String> matchingIndices = indexDescriptor.getMatchingIndices(metadata);
 
-                final OriginSettingClient clientWithOrigin = new OriginSettingClient(client, indexDescriptor.getOrigin());
-                actionFutures.add(cleanUpFeatureForIndices(
-                    clientWithOrigin,
-                    matchingIndices.toArray(Strings.EMPTY_ARRAY),
-                    e -> errors.add(e))
-                );
-            }
+                if (matchingIndices.isEmpty() == false) {
+                    final OriginSettingClient clientWithOrigin = new OriginSettingClient(client, indexDescriptor.getOrigin());
 
-            for (var future : actionFutures) {
-                try {
-                    future.get(5, TimeUnit.SECONDS);
-                } catch (TimeoutException ignore) {
-                } catch (Exception e) {
-                    throw new IllegalStateException("Unexpected error while waiting on action", e);
+                    cleanUpFeatureForIndices(clientWithOrigin, matchingIndices.toArray(Strings.EMPTY_ARRAY), taskListener);
                 }
-            }
-
-            if (errors.isEmpty()) {
-                listener.onResponse(ResetFeatureStateStatus.success(name));
-            } else {
-                StringBuilder exceptions = new StringBuilder('[');
-                exceptions.append(errors.stream().map(Exception::getMessage).collect(Collectors.joining(", ")));
-                exceptions.append(']');
-                listener.onResponse(ResetFeatureStateStatus.failure(name, new Exception(exceptions.toString())));
             }
         }
 

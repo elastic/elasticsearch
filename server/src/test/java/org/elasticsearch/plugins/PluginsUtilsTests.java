@@ -38,18 +38,8 @@ import static org.hamcrest.Matchers.containsString;
 public class PluginsUtilsTests extends ESTestCase {
 
     PluginDescriptor newTestDescriptor(String name, List<String> deps) {
-        return new PluginDescriptor(
-            name,
-            "desc",
-            "1.0",
-            Version.CURRENT,
-            Runtime.version().toString(),
-            "MyPlugin",
-            null,
-            deps,
-            false,
-            false
-        );
+        String javaVersion = Runtime.version().toString();
+        return new PluginDescriptor(name, "desc", "1.0", Version.CURRENT, javaVersion, "MyPlugin", null, deps, false, false);
     }
 
     public void testExistingPluginMissingDescriptor() throws Exception {

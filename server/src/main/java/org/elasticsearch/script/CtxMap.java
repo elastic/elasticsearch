@@ -64,12 +64,8 @@ public class CtxMap extends AbstractMap<String, Object> {
     @SuppressWarnings("unchecked")
     public Map<String, Object> getSource() {
         Object rawSource = source.get(SOURCE);
-        if (rawSource instanceof Map<?, ?> map) {
-            return (Map<String, Object>) map;
-        }
-        throw new IllegalStateException(
-            "Expected source to be a map, instead was [" + rawSource + "] with type [" + rawSource.getClass().getCanonicalName() + "]"
-        );
+        assert rawSource instanceof Map<?, ?> : " wrapped source of unexpected type";
+        return (Map<String, Object>) rawSource;
     }
 
     /**

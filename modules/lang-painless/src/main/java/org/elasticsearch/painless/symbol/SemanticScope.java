@@ -70,7 +70,7 @@ public abstract class SemanticScope {
         }
 
         @Override
-        public boolean isVariableDefined(String name) {
+        public boolean isVariableDefined(String name, boolean local) {
             return variables.containsKey(name);
         }
 
@@ -129,12 +129,12 @@ public abstract class SemanticScope {
         }
 
         @Override
-        public boolean isVariableDefined(String name) {
+        public boolean isVariableDefined(String name, boolean local) {
             if (variables.containsKey(name)) {
                 return true;
             }
 
-            return parent.isVariableDefined(name);
+            return local == false && parent.isVariableDefined(name, false);
         }
 
         /**
@@ -210,12 +210,12 @@ public abstract class SemanticScope {
         }
 
         @Override
-        public boolean isVariableDefined(String name) {
+        public boolean isVariableDefined(String name, boolean local) {
             if (variables.containsKey(name)) {
                 return true;
             }
 
-            return parent.isVariableDefined(name);
+            return local == false && parent.isVariableDefined(name, false);
         }
 
         /**
@@ -334,7 +334,7 @@ public abstract class SemanticScope {
     public abstract String getReturnCanonicalTypeName();
 
     public Variable defineVariable(Location location, Class<?> type, String name, boolean isReadOnly) {
-        if (isVariableDefined(name)) {
+        if (isVariableDefined(name, true)) {
             throw location.createError(new IllegalArgumentException("variable [" + name + "] is already defined"));
         }
 
@@ -344,7 +344,7 @@ public abstract class SemanticScope {
         return variable;
     }
 
-    public abstract boolean isVariableDefined(String name);
+    public abstract boolean isVariableDefined(String name, boolean local);
 
     public abstract Variable getVariable(Location location, String name);
 
@@ -360,8 +360,8 @@ public abstract class SemanticScope {
         return defineVariable(location, type, "#" + name, isReadOnly);
     }
 
-    public boolean isInternalVariableDefined(String name) {
-        return isVariableDefined("#" + name);
+    public boolean isInternalVariableDefined(String name, boolean local) {
+        return isVariableDefined("#" + name, local);
     }
 
     public Variable getInternalVariable(Location location, String name) {

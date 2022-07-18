@@ -12,6 +12,7 @@ import com.unboundid.ldap.sdk.ResultCode;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
@@ -488,6 +489,15 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryT
                     assertThat("group avenger test for user " + user, groups(ldap), hasItem(containsString("Avengers")));
                 }
             }
+        }
+    }
+
+    public void testADLookupWithoutBindUser() throws Exception {
+        RealmConfig config = configureRealm("ad-test", LdapRealmSettings.AD_TYPE, buildAdSettings(AD_LDAP_URL, AD_DOMAIN, false, false));
+        try (ActiveDirectorySessionFactory sessionFactory = getActiveDirectorySessionFactory(config, sslService, threadPool)) {
+            SettingsException e = expectThrows(SettingsException.class, () -> unauthenticatedSession(sessionFactory, "cap"));
+            assertThat(e.getMessage(), containsString("bind_dn is required"));
+            assertThat(e.getMessage(), containsString("ad-test realm"));
         }
     }
 

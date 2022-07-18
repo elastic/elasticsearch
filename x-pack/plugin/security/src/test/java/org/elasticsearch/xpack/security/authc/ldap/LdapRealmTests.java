@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
@@ -48,6 +49,7 @@ import org.elasticsearch.xpack.core.security.authc.support.mapper.TemplateRoleNa
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.Security;
+import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapTestCase;
 import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
 import org.elasticsearch.xpack.security.authc.support.DnRoleMapper;
@@ -527,7 +529,7 @@ public class LdapRealmTests extends LdapTestCase {
     /**
      * The contract for {@link Realm} implementations is that they should log-and-return-null (and
      * not call {@link ActionListener#onFailure(Exception)}) if there is an internal exception that prevented them from performing an
-     * authentication.
+     * authentication. Minor exception for a mis-configured realm (see below).
      * This method tests that when an LDAP server is unavailable (invalid hostname), there is a <code>null</code> result
      * rather than an exception.
      */
@@ -554,6 +556,30 @@ public class LdapRealmTests extends LdapTestCase {
         assertThat(result.getMessage(), is("authenticate failed"));
         assertThat(result.getException(), notNullValue());
         assertThat(result.getException().getMessage(), containsString("UnknownHostException"));
+    }
+
+    /**
+     * Some settings can only be validated for specific workflow at runtime (i.e. impersonate via AD), for that case we can exit early by
+     * calling the {@link ActionListener#onFailure(Exception)})
+     */
+    public void testLdapFailureForSettingsMisconfiguration() throws Exception {
+        Settings settings = Settings.builder()
+            .put(defaultGlobalSettings)
+            .put(buildLdapSettings(ldapUrls(), VALID_USER_TEMPLATE, "o=sevenSeas", LdapSearchScope.SUB_TREE))
+            .put(getFullSettingKey(REALM_IDENTIFIER, RealmSettings.ORDER_SETTING), 0)
+            .build();
+        RealmConfig config = getRealmConfig(REALM_IDENTIFIER, settings);
+        SessionFactory settingsExceptionFactory = new SessionFactory(config, sslService, threadPool) {
+            @Override
+            public void session(String user, SecureString password, ActionListener<LdapSession> listener) {
+                listener.onFailure(new SettingsException("boom"));
+            }
+        };
+        LdapRealm ldap = new LdapRealm(config, settingsExceptionFactory, buildGroupAsRoleMapper(resourceWatcherService), threadPool);
+        ldap.initialize(Collections.singleton(ldap), licenseState);
+        PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
+        ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, new SecureString(PASSWORD)), future);
+        expectThrows(SettingsException.class, future::actionGet);
     }
 
     public void testUsageStats() throws Exception {

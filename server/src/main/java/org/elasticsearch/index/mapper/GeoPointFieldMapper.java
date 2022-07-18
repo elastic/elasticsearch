@@ -29,6 +29,7 @@ import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.SourceValueFetcherMultiGeoPointIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.AbstractLatLonPointIndexFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.GeoPointFieldScript;
@@ -371,6 +372,21 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
             return new AbstractLatLonPointIndexFieldData.Builder(name(), CoreValuesSourceType.GEOPOINT, GeoPointDocValuesField::new);
+        }
+
+        @Override
+        public IndexFieldData.Builder scriptFielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+            if (hasDocValues()) {
+                return fielddataBuilder(fullyQualifiedIndexName, searchLookup);
+            }
+
+            return new SourceValueFetcherMultiGeoPointIndexFieldData.Builder(
+                name(),
+                CoreValuesSourceType.GEOPOINT,
+                valueFetcher(searchLookup.get().sourcePaths(name()), null, null),
+                searchLookup.get().source(),
+                GeoPointDocValuesField::new
+            );
         }
 
         @Override

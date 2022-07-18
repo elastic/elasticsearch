@@ -25,7 +25,7 @@ public abstract class SourceValueFetcherIndexFieldData<T>
     implements
         IndexFieldData<SourceValueFetcherIndexFieldData.SourceValueFetcherLeafFieldData<T>> {
 
-    public static abstract class Builder<T> implements IndexFieldData.Builder {
+    public abstract static class Builder<T> implements IndexFieldData.Builder {
 
         protected final String fieldName;
         protected final ValuesSourceType valuesSourceType;

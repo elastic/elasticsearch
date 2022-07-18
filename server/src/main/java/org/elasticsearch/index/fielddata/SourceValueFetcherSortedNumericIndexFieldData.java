@@ -85,13 +85,13 @@ public class SourceValueFetcherSortedNumericIndexFieldData extends SourceValueFe
 
     public static class SourceValueFetcherSortedNumericDocValues extends SortedNumericDocValues implements ValueFetcherDocValues {
 
-        private final LeafReaderContext leafReaderContext;
+        protected final LeafReaderContext leafReaderContext;
 
-        private final ValueFetcher valueFetcher;
-        private final SourceLookup sourceLookup;
+        protected final ValueFetcher valueFetcher;
+        protected final SourceLookup sourceLookup;
 
-        private TreeSet<Long> values;
-        private Iterator<Long> iterator;
+        protected TreeSet<Long> values;
+        protected Iterator<Long> iterator;
 
         public SourceValueFetcherSortedNumericDocValues(
             LeafReaderContext leafReaderContext,

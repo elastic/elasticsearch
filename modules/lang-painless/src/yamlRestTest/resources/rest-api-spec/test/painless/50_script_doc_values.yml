@@ -15,6 +15,9 @@ setup:
                             type: date_nanos
                         geo_point:
                             type: geo_point
+                        geo_point_no_doc_values:
+                          type: geo_point
+                          doc_values: false
                         ip:
                             type: ip
                         keyword:
@@ -61,6 +64,7 @@ setup:
                 date: 2017-01-01T12:11:12
                 nanos: 2015-01-01T12:10:30.123456789Z
                 geo_point: 41.12,-71.34
+                geo_point_no_doc_values: 41.12,-71.34
                 ip: 192.168.0.19
                 keyword: not split at all
                 keyword_no_doc_values: no doc values
@@ -93,6 +97,7 @@ setup:
               date: [2017-01-01T12:11:12, 2018-01-01T12:11:12]
               nanos: [2015-01-01T12:10:30.123456789Z, 2015-01-01T12:10:30.987654321Z]
               geo_point: [[-71.34,41.12],[60.32,21.25]]
+              geo_point_no_doc_values: [[60.32,21.25],[-71.34,41.12]]
               keyword: ["one string", "another string"]
               keyword_no_doc_values: ["no doc values 1", "no doc values 0", "no doc values 2"]
               long: [1152921504606846976, 576460752303423488]
@@ -701,6 +706,104 @@ setup:
                   source: "doc['geo_point'].getMercatorHeight()"
     - match: { hits.hits.0.fields.width.0: 0.0 }
     - match: { hits.hits.0.fields.height.0: 0.0 }
+
+---
+"geo_point_no_doc_values":
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['geo_point_no_doc_values'].get(0)"
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['geo_point_no_doc_values'].value"
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "field('geo_point_no_doc_values').get(new GeoPoint())"
+  - match: { hits.hits.0.fields.field.0.lat: 41.1199999647215 }
+  - match: { hits.hits.0.fields.field.0.lon: -71.34000004269183 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "/* avoid yaml stash */ $('geo_point_no_doc_values', new GeoPoint())"
+  - match: { hits.hits.0.fields.field.0.lat: 41.1199999647215 }
+  - match: { hits.hits.0.fields.field.0.lon: -71.34000004269183 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "3" } }
+          script_fields:
+            field:
+              script:
+                source: "field('geo_point_no_doc_values').get(new GeoPoint())"
+  - match: { hits.hits.0.fields.field.0.lat: 21.249999990686774 }
+  - match: { hits.hits.0.fields.field.0.lon: 60.319999968633056 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "3" } }
+          script_fields:
+            field:
+              script:
+                source: "/* avoid yaml stash */ $('geo_point_no_doc_values', new GeoPoint())"
+  - match: { hits.hits.0.fields.field.0.lat: 21.249999990686774 }
+  - match: { hits.hits.0.fields.field.0.lon: 60.319999968633056 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "3" } }
+          script_fields:
+            field:
+              script:
+                source: "field('geo_point_no_doc_values').get(1, new GeoPoint())"
+  - match: { hits.hits.0.fields.field.0.lat: 41.1199999647215 }
+  - match: { hits.hits.0.fields.field.0.lon: -71.34000004269183 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "2" } }
+          script_fields:
+            field:
+              script:
+                source: "/* avoid yaml stash */ $('geo_point_no_doc_values', new GeoPoint(1.0, 2.0))"
+  - match: { hits.hits.0.fields.field.0.lat: 1.0 }
+  - match: { hits.hits.0.fields.field.0.lon: 2.0 }
 
 ---
 "ip":

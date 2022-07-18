@@ -112,7 +112,7 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
                 if (request.method() == RestRequest.Method.HEAD) {
                     finalContent = BytesArray.EMPTY;
                 }
-            } catch (IllegalArgumentException ignoredException) {
+            } catch (IllegalArgumentException ignored) {
                 assert restResponse.status() == RestStatus.METHOD_NOT_ALLOWED
                     : "request HTTP method is unsupported but HTTP status is not METHOD_NOT_ALLOWED(405)";
             }
@@ -151,15 +151,9 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
             if (success == false) {
                 onFinish.run();
             }
-            httpTracer.maybeLogResponse(
-                httpRequest.uri(),
-                restResponse,
-                httpChannel,
-                contentLength,
-                opaque,
-                request.getRequestId(),
-                success
-            );
+            if (httpTracer != null) {
+                httpTracer.traceResponse(restResponse, httpChannel, contentLength, opaque, request.getRequestId(), success);
+            }
         }
     }
 

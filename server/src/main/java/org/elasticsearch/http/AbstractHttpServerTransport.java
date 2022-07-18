@@ -411,7 +411,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
             restRequest = innerRestRequest;
         }
 
-        httpTracer.maybeLogRequest(restRequest, exception);
+        final HttpTracer maybeHttpTracer = httpTracer.maybeTraceRequest(restRequest, exception);
 
         /*
          * We now want to create a channel used to send the response on. However, creating this channel can fail if there are invalid
@@ -432,7 +432,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
                     handlingSettings,
                     threadContext,
                     corsHandler,
-                    httpTracer,
+                    maybeHttpTracer,
                     tracer
                 );
             } catch (final IllegalArgumentException e) {

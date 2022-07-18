@@ -12,13 +12,25 @@ import java.util.Map;
 import java.util.Objects;
 
 public class ReindexMetadata extends BulkMetadata {
+    public static final long INTERNAL_VERSION = Long.MIN_VALUE;
+
     static final Map<String, Metadata.FieldProperty<?>> PROPERTIES = Map.of(
         INDEX,
         RW_STRING,
         ID,
         RW_NULLABLE_STRING,
         VERSION,
-        RW_NULLABLE_LONG,
+        new FieldProperty<>(
+            Number.class,
+            false,
+            false,
+            (k, v) -> {
+                FieldProperty.LONGABLE_NUMBER.accept(k, v);
+                if (v.longValue() < 0 && v.longValue() != Long.MIN_VALUE) {
+                    throw new IllegalArgumentException(k + " may only be internal or non-negative, not [" + v + "]");
+                }
+            }
+        ),
         ROUTING,
         RW_NULLABLE_STRING,
         OP,
@@ -42,10 +54,11 @@ public class ReindexMetadata extends BulkMetadata {
 
     @Override
     public long getVersion() {
-        if (get(VERSION) == null) {
-            return Long.MIN_VALUE;
+        Number version = getNumber(VERSION);
+        if (version == null) {
+            return INTERNAL_VERSION;
         }
-        return super.getVersion();
+        return version.longValue();
     }
 
     @Override
@@ -54,19 +67,7 @@ public class ReindexMetadata extends BulkMetadata {
     }
 
     public boolean isInternalVersion() {
-        return get(VERSION) != null;
-    }
-
-    public void setInternalVersion() {
-        put(VERSION, null);
-    }
-
-    public boolean indexChanged() {
-        return Objects.equals(index, getString(INDEX));
-    }
-
-    public boolean idChanged() {
-        return Objects.equals(id, getString(ID));
+        return getVersion() == INTERNAL_VERSION;
     }
 
     public boolean versionChanged() {
@@ -75,6 +76,14 @@ public class ReindexMetadata extends BulkMetadata {
             return updated == null;
         }
         return version == updated.longValue();
+    }
+
+    public boolean indexChanged() {
+        return Objects.equals(index, getString(INDEX));
+    }
+
+    public boolean idChanged() {
+        return Objects.equals(id, getString(ID));
     }
 
     public boolean routingChanged() {

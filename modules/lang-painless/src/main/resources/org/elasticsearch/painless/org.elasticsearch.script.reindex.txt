@@ -26,12 +26,13 @@ class org.elasticsearch.script.Metadata {
     void setId(String)
     String getRouting()
     void setRouting(String)
-    Long getVersion()
-    void setVersion(Long)
+    long getVersion()
+    void setVersion(long)
     String getOp()
     void setOp(String)
 }
 
 class org.elasticsearch.script.ReindexScript {
     Metadata metadata()
+    long getInternal()
 }

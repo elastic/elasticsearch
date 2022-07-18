@@ -53,6 +53,10 @@ public abstract class ReindexScript {
         return ctxMap.getMetadata();
     }
 
+    public long getInternal() {
+        return ReindexMetadata.INTERNAL_VERSION;
+    }
+
     public abstract void execute();
 
     public interface Factory {

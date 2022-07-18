@@ -23,7 +23,7 @@ class org.elasticsearch.script.Metadata {
     String getIndex()
     String getId()
     String getRouting()
-    Long getVersion()
+    long getVersion()
     String getOp()
     void setOp(String)
 }

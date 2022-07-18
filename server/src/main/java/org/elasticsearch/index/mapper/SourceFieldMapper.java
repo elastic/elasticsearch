@@ -54,7 +54,6 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     public static class Defaults {
         public static final String NAME = SourceFieldMapper.NAME;
-        public static final Mode MODE = Mode.STORED;
 
         public static final FieldType FIELD_TYPE = new FieldType();
 
@@ -167,7 +166,8 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    private final Mode mode;
+    // nullable for bwc reasons
+    private final @Nullable Mode mode;
     private final Explicit<Boolean> enabled;
 
     /** indicates whether the source will always exist and be complete, for use by features like the update API */

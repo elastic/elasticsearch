@@ -10,12 +10,14 @@ package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
+import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -72,6 +74,7 @@ public class RoutingAllocation {
     );
 
     private final Map<String, SingleNodeShutdownMetadata> nodeReplacementTargets;
+    private Map<String, Long> unaccountableSearchableSnapshotSizes;
 
     public RoutingAllocation(
         AllocationDeciders deciders,
@@ -96,7 +99,7 @@ public class RoutingAllocation {
         AllocationDeciders deciders,
         @Nullable RoutingNodes routingNodes,
         ClusterState clusterState,
-        ClusterInfo clusterInfo,
+        @Nullable ClusterInfo clusterInfo,
         SnapshotShardSizeInfo shardSizeInfo,
         long currentNanoTime
     ) {
@@ -113,6 +116,25 @@ public class RoutingAllocation {
             }
         }
         this.nodeReplacementTargets = Collections.unmodifiableMap(targetNameToShutdown);
+        unaccountableSearchableSnapshotSizes = new HashMap<>();
+        for (RoutingNode node : clusterState.getRoutingNodes()) {
+            long totalSize = 0;
+            for (ShardRouting shard : node.started()) {
+                if (clusterInfo == null) {
+                    continue;
+                }
+                DiskUsage usage = clusterInfo.getNodeMostAvailableDiskUsages().get(node.nodeId());
+                ClusterInfo.ReservedSpace reservedSpace = clusterInfo.getReservedSpace(node.nodeId(), usage != null ? usage.getPath() : "");
+                if (clusterState.metadata().getIndexSafe(shard.index()).isSearchableSnapshot()
+                    && reservedSpace.containsShardId(shard.shardId()) == false
+                    && clusterInfo.getShardSize(shard) == null) {
+                    totalSize += Math.max(shard.getExpectedShardSize(), 0L);
+                }
+            }
+            if (totalSize > 0) {
+                unaccountableSearchableSnapshotSizes.put(node.nodeId(), totalSize);
+            }
+        }
     }
 
     /** returns the nano time captured at the beginning of the allocation. used to make sure all time based decisions are aligned */
@@ -325,6 +347,10 @@ public class RoutingAllocation {
      */
     public void setHasPendingAsyncFetch() {
         this.hasPendingAsyncFetch = true;
+    }
+
+    public long unaccountableSearchableSnapshotSize(RoutingNode routingNode) {
+        return unaccountableSearchableSnapshotSizes.getOrDefault(routingNode.nodeId(), 0L);
     }
 
     public enum DebugMode {

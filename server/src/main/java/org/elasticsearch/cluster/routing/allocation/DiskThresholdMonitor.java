@@ -428,7 +428,8 @@ public class DiskThresholdMonitor {
             diskUsage.getPath(),
             info,
             reroutedClusterState.metadata(),
-            reroutedClusterState.routingTable()
+            reroutedClusterState.routingTable(),
+            0L
         );
     }
 

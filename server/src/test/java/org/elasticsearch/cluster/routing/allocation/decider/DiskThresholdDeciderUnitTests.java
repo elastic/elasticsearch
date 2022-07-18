@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource.EmptyStoreRecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.LocalShardsRecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.PeerRecoverySource;
@@ -502,34 +503,55 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             )
             .build();
         String nodeId = "node1";
+        String anotherNodeId = "another_node";
+
         List<ShardRouting> shards = new ArrayList<>();
+        int anotherNodeShardCounter = 0;
         for (int i = 1; i <= 3; i++) {
             int expectedSize = 10 * i;
-            shards.add(createShard(index, nodeId, i, expectedSize));
+            shards.add(createShard(index, nodeId, i - 1, expectedSize));
             // randomly add shard for non-searchable snapshot index
             if (randomBoolean()) {
-                shards.add(createShard(anotherIndex, "another_node", i, expectedSize));
+                shards.add(createShard(anotherIndex, anotherNodeId, anotherNodeShardCounter++, expectedSize));
             }
         }
 
-        long sizeOfRelocatingShards = sizeOfUnaccountedShards(
-            new RoutingAllocation(
-                null,
-                ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-                    .metadata(metadata)
-                    .routingTable(
-                        RoutingTable.builder().addAsNew(metadata.index(index.getName())).addAsNew(metadata.index(anotherIndex)).build()
+        DiscoveryNode node = new DiscoveryNode(nodeId, buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode anotherNode = new DiscoveryNode(
+            anotherNodeId,
+            buildNewFakeTransportAddress(),
+            emptyMap(),
+            emptySet(),
+            Version.CURRENT
+        );
+        ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metadata(metadata)
+            .routingTable(
+                RoutingTable.builder()
+                    .add(
+                        shards.stream()
+                            .filter(s -> s.getIndexName().equals(mainIndexName))
+                            .reduce(IndexRoutingTable.builder(index), IndexRoutingTable.Builder::addShard, (a, b) -> a)
                     )
-                    .build(),
-                new DevNullClusterInfo(Map.of(), Map.of(), Map.of()),
-                null,
-                0
-            ),
-            RoutingNodesHelper.routingNode(
-                nodeId,
-                new DiscoveryNode(nodeId, buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
-                shards.toArray(ShardRouting[]::new)
-            ),
+                    .add(
+                        shards.stream()
+                            .filter(s -> s.getIndexName().equals(anotherIndexName))
+                            .reduce(IndexRoutingTable.builder(anotherIndex), IndexRoutingTable.Builder::addShard, (a, b) -> a)
+                    )
+                    .build()
+            )
+            .nodes(DiscoveryNodes.builder().add(node).add(anotherNode).build())
+            .build();
+        RoutingAllocation allocation = new RoutingAllocation(
+            null,
+            clusterState,
+            new DevNullClusterInfo(Map.of(), Map.of(), Map.of()),
+            null,
+            0
+        );
+        long sizeOfRelocatingShards = sizeOfUnaccountedShards(
+            allocation,
+            RoutingNodesHelper.routingNode(nodeId, node, shards.toArray(ShardRouting[]::new)),
             false,
             "/dev/null"
         );
@@ -539,7 +561,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
     private ShardRouting createShard(Index index, String nodeId, int i, int expectedSize) {
         var unassigned = ShardRouting.newUnassigned(
             new ShardId(index, i),
-            false,
+            true,
             PeerRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foo")
         );
@@ -555,7 +577,8 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             dataPath,
             allocation.clusterInfo(),
             allocation.metadata(),
-            allocation.routingTable()
+            allocation.routingTable(),
+            allocation.unaccountableSearchableSnapshotSize(node)
         );
     }
 

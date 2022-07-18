@@ -437,7 +437,7 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
          *  where we have not had a master node recently. Then we swap out he clusterFormationResponses so that the reason appears to be
          * a discovery problem instead of a quorum problem.
          */
-        try (Cluster cluster = new Cluster(3, false, Settings.EMPTY)) {
+        try (Cluster cluster = new Cluster(3, true, Settings.EMPTY)) {
             // The allNodesMasterEligible=false passed to the Cluster constructor does not guarantee a non-master node in the cluster:
             createAndAddNonMasterNode(cluster);
             cluster.runRandomly();

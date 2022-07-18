@@ -20,6 +20,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator.BucketComparator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -109,7 +110,9 @@ public class FilterAggregatorTests extends AggregatorTestCase {
                 FilterAggregationBuilder builder = new FilterAggregationBuilder("test", new MatchAllQueryBuilder());
                 FilterAggregator agg = createAggregator(builder, indexSearcher, fieldType);
                 agg.preCollection();
-                LeafBucketCollector collector = agg.getLeafCollector(indexReader.leaves().get(0));
+                LeafBucketCollector collector = agg.getLeafCollector(
+                    new AggregationExecutionContext(indexReader.leaves().get(0), null, null)
+                );
                 collector.collect(0, 0);
                 collector.collect(0, 0);
                 collector.collect(0, 1);

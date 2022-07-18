@@ -4,6 +4,9 @@
 <titleabbrev>Set up minimal security</titleabbrev>
 ++++
 
+IMPORTANT: You only need to complete the following steps if you're running an 
+existing, unsecured cluster and want to enable the {es} {security-features}.
+
 In {es} 8.0 and later, security is
 <<configuring-stack-security,enabled automatically>> when you start {es} for the 
 first time. 
@@ -14,10 +17,6 @@ built-in users. You can add more users later, but using the built-in users
 simplifies the process of enabling security for your cluster.
 
 include::../security-manual-configuration.asciidoc[tag=minimal-security-note]
-
-The basic license includes minimal security settings for the {stack}, so
-you can just download the distribution and get to work. You can also enable a
-free trial license to access all features of the {stack}. See https://www.elastic.co/subscriptions[subscriptions] and https://www.elastic.co/guide/en/kibana/current/managing-licenses.html[license management].
 
 ==== Enable {es} security features
 

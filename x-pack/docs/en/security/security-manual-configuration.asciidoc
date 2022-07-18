@@ -1,8 +1,5 @@
 [[manually-configure-security]]
 == Manually configure security
-++++
-<titleabbrev>Configure security</titleabbrev>
-++++
 
 Security needs vary depending on whether you're developing locally on your
 laptop or securing all communications in a production environment. Regardless
@@ -11,10 +8,10 @@ incredibly important to protect your data. That's why security is
 <<configuring-stack-security,enabled and configured by default>> in {es} 8.0
 and later.
 
-If you want to enable security on an existing cluster, use your own Certificate 
-Authority (CA) or would rather manually configure security, the following 
-scenarios provide steps for configuring TLS on the transport layer, plus securing 
-HTTPS traffic if you want it.
+If you want to enable security on an existing, unsecured cluster, use your own 
+Certificate Authority (CA), or would rather manually configure security, the 
+following scenarios provide steps for configuring TLS on the transport layer,
+plus securing HTTPS traffic if you want it.
 
 If you configure security manually _before_ starting your {es} nodes, the
 auto-configuration process will respect your security configuration. You can
@@ -27,8 +24,8 @@ image::images/elastic-security-overview.png[Elastic Security layers]
 [[security-minimal-overview]]
 === Minimal security ({es} Development)
 
-If you've been working with {es} and want to enable security on your existing
-cluster, start here. You'll set passwords for the built-in users to prevent 
+If you've been working with {es} and want to enable security on your existing,
+unsecured cluster, start here. You'll set passwords for the built-in users to prevent 
 unauthorized access to your local cluster, and also configure password 
 authentication for {kib}.
 

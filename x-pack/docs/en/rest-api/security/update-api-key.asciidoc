@@ -29,13 +29,14 @@ Use this API to update API keys created by the <<security-api-create-api-key,cre
 It's not possible to update expired API keys, or API keys that have been invalidated by <<security-api-invalidate-api-key,invalidate API Key>>.
 
 This API supports updates to an API key's access scope, i.e., its permissions, and its metadata.
+The access scope of an API key is derived from the <<security-api-update-api-key-api-key-role-descriptors,`role_descriptors`>> you specify in the request, and a snapshot of the owner user's permissions at the time of the request.
+The snapshot of the owner's permissions is updated automatically on every call.
 
 [IMPORTANT]
 ====
 A call to this API might change the API key's access scope, even if you don't specify new
-<<security-api-update-api-key-api-key-role-descriptors,`role_descriptors`>> in the request. This behavior
-can occur because the API key's access scope is derived and updated based on a snapshot of the owner
-user's permissions at the time of the request.
+<<security-api-update-api-key-api-key-role-descriptors,`role_descriptors`>> in the request.
+This behavior can occur if the owner user's permissions have changed since the creation or last update to the API key.
 ====
 
 [[security-api-update-api-key-path-params]]

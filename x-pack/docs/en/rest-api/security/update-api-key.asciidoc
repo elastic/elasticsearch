@@ -54,8 +54,8 @@ Following parameters can be specified in it:
 [[security-api-update-api-key-api-key-role-descriptors]]
 `role_descriptors`::
 (Optional, array) An array of new role descriptors for this API key.
-When the parameter is supplied but empty, the API key's new permissions will be the current _point in time snapshot of permissions of the authenticated user_.
-If you supply role descriptors, the API key's permissions will be the intersection of the supplied permissions and the authenticated user's current permissions, thereby limiting the API key's access scope.
+When the parameter is supplied but empty, the API key's new permissions will be the current _point in time snapshot of permissions of the owner user_.
+If you supply role descriptors, the API key's permissions will be the intersection of the supplied permissions and the owner user's current permissions, thereby limiting the API key's access scope.
 If you do not supply this parameter, the permissions will be the user's current permissions, limited by permissions previously assigned to the API key, if any.
 The structure of the role descriptor is the same as the request for the create role API.
 For more details, see <<security-api-put-role, create or update roles API>>.
@@ -121,7 +121,7 @@ For example:
 // TESTRESPONSE[s/ui2lp2axTNmsyakw9tvNnw/$body.api_key/]
 // TESTRESPONSE[s/VnVhQ2ZHY0JDZGJrUW0tZTVhT3g6dWkybHAyYXhUTm1zeWFrdzl0dk5udw==/$body.encoded/]
 
-For the examples below, assume that the authenticated user's permissions are:
+For the examples below, assume that the owner user's permissions are:
 
 [[security-api-update-api-key-examples-user-permissions]]
 [source,js]
@@ -175,7 +175,7 @@ A successful call returns a JSON structure indicating that the API key was updat
 }
 ----
 
-The API key's effective permissions after the update will be the intersection of the supplied role descriptors and the <<security-api-update-api-key-examples-user-permissions, authenticated user's permissions>>:
+The API key's effective permissions after the update will be the intersection of the supplied role descriptors and the <<security-api-update-api-key-examples-user-permissions, owner user's permissions>>:
 
 [source,js]
 --------------------------------------------------
@@ -190,7 +190,7 @@ The API key's effective permissions after the update will be the intersection of
 --------------------------------------------------
 // NOTCONSOLE
 
-The following example updates the API key, replacing the API key's assigned permissions with the <<security-api-update-api-key-examples-user-permissions, authenticated user's>>:
+The following example updates the API key, replacing the API key's assigned permissions with the <<security-api-update-api-key-examples-user-permissions, owner user's>>:
 
 [source,console]
 ----
@@ -226,7 +226,7 @@ The API key's effective permissions after the update will be:
 --------------------------------------------------
 // NOTCONSOLE
 
-For the next example, assume that the authenticated user's permissions changed from <<security-api-update-api-key-examples-user-permissions, the original permissions>> to:
+For the next example, assume that the owner user's permissions changed from <<security-api-update-api-key-examples-user-permissions, the original permissions>> to:
 
 [source,js]
 --------------------------------------------------

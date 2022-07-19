@@ -25,6 +25,6 @@
         </boolean-options>
     </field>
 
-    <field name="v-warehouse" value-type="string" category="general" label="Additional settings" optional="true"/>
+    <field name="vendor1" value-type="string" category="general" label="Additional settings" optional="true"/>
 
 </connection-fields>

@@ -38,6 +38,8 @@ import java.util.stream.IntStream;
 import static org.elasticsearch.index.store.Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
@@ -356,7 +358,6 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
         ensureGreen();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/88478")
     public void testScaleDuringSplitOrClone() throws Exception {
         internalCluster().startMasterOnlyNode();
         final String dataNode1Name = internalCluster().startDataOnlyNode();
@@ -392,15 +393,20 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
         setTotalSpace(dataNode1Name, enoughSpace);
         setTotalSpace(dataNode2Name, enoughSpace);
 
-        // validate initial state looks good
-        GetAutoscalingCapacityAction.Response response = capacity();
-        assertThat(response.results().keySet(), equalTo(Set.of(policyName)));
-        assertThat(response.results().get(policyName).currentCapacity().total().storage().getBytes(), equalTo(enoughSpace * 2));
-        assertThat(response.results().get(policyName).requiredCapacity().total().storage().getBytes(), equalTo(enoughSpace * 2));
-        assertThat(
-            response.results().get(policyName).requiredCapacity().node().storage().getBytes(),
-            equalTo(used + LOW_WATERMARK_BYTES + ReactiveStorageDeciderService.NODE_DISK_OVERHEAD)
-        );
+        // It might take a while until the autoscaling polls the node information of dataNode2 and
+        // provides a complete autoscaling capacity response
+        assertBusy(() -> {
+            // validate initial state looks good
+            GetAutoscalingCapacityAction.Response response = capacity();
+            assertThat(response.results().keySet(), equalTo(Set.of(policyName)));
+            assertThat(response.results().get(policyName).currentCapacity().total().storage().getBytes(), equalTo(enoughSpace * 2));
+            assertThat(response.results().get(policyName).requiredCapacity(), is(notNullValue()));
+            assertThat(response.results().get(policyName).requiredCapacity().total().storage().getBytes(), equalTo(enoughSpace * 2));
+            assertThat(
+                response.results().get(policyName).requiredCapacity().node().storage().getBytes(),
+                equalTo(used + LOW_WATERMARK_BYTES + ReactiveStorageDeciderService.NODE_DISK_OVERHEAD)
+            );
+        });
 
         assertAcked(
             client().admin()
@@ -430,7 +436,7 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
         // * 2 since worst case is no hard links, see DiskThresholdDecider.getExpectedShardSize.
         long requiredSpaceForClone = used * 2 + LOW_WATERMARK_BYTES;
 
-        response = capacity();
+        GetAutoscalingCapacityAction.Response response = capacity();
         assertThat(response.results().keySet(), equalTo(Set.of(policyName)));
         assertThat(response.results().get(policyName).currentCapacity().total().storage().getBytes(), equalTo(enoughSpace * 2));
         // test that even when the shard cannot allocate due to disk space, we do not request a "total" scale up, only a node-level.

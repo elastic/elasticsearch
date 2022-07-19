@@ -55,7 +55,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Supplier;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -305,13 +305,18 @@ class RollupShardIndexer {
                         final FormattedDocValues leafField = e.getValue();
 
                         if (leafField.advanceExact(docId)) {
-                            int docValueCount = leafField.docValueCount();
-                            Object[] values = new Object[docValueCount];
+                            rollupBucketBuilder.collect(fieldName, leafField.docValueCount(), docValueCount -> {
+                                final Object[] values = new Object[docValueCount];
+                                for (int i = 0; i < docValueCount; ++i) {
+                                    try {
+                                        values[i] = leafField.nextValue();
+                                    } catch (IOException ex) {
+                                        throw new ElasticsearchException("Failed to read values for field [" + fieldName + "]");
+                                    }
 
-                            for (int i = 0; i < docValueCount; i++) {
-                                values[i] = leafField.nextValue();
-                            }
-                            rollupBucketBuilder.collect(fieldName, () -> values);
+                                }
+                                return values;
+                            });
                         }
                     }
                     docsProcessed++;
@@ -374,8 +379,8 @@ class RollupShardIndexer {
             return this;
         }
 
-        public void collect(final String field, final Supplier<Object[]> fieldValueSupplier) {
-            final Object[] value = fieldValueSupplier.get();
+        public void collect(final String field, int docValueCount, final Function<Integer, Object[]> fieldValues) {
+            final Object[] value = fieldValues.apply(docValueCount);
             if (metricFieldProducers.containsKey(field)) {
                 // TODO: missing support for array metrics
                 collectMetric(field, value[0]);

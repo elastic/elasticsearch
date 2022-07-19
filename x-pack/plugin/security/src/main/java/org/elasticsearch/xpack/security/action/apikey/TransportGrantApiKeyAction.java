@@ -52,7 +52,6 @@ public final class TransportGrantApiKeyAction extends TransportGrantAction<Grant
             authenticationService,
             authorizationService,
             new ApiKeyUserRoleDescriptorResolver(rolesStore, xContentRegistry)
-
         );
     }
 

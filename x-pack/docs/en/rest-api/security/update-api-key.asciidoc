@@ -60,7 +60,7 @@ You can assign new privileges to the API key by specifying them in this paramete
 If you omit this parameter, the API key keeps its previously assigned privileges.
 You can remove all previously assigned privileges by supplying an empty `role_descriptors` parameter.
 The snapshot of the owner's permissions is always updated, regardless of whether you specify this parameter.
-The structure of the role descriptor is the same as the request for the <<security-api-put-role, create or update roles API>>.
+The structure of a role descriptor is the same as the request for the <<security-api-put-role, create or update roles API>>.
 
 `metadata`::
 (Optional, object) Arbitrary metadata that you want to associate with the API key.
@@ -192,7 +192,7 @@ The API key's effective permissions after the update will be the intersection of
 --------------------------------------------------
 // NOTCONSOLE
 
-The following example updates the API key, replacing the API key's assigned permissions with the <<security-api-update-api-key-examples-user-permissions, owner user's>>:
+The following example removes the API key's previously assigned permissions.
 
 [source,console]
 ----
@@ -212,7 +212,7 @@ Which returns the response:
 }
 ----
 
-The API key's effective permissions after the update will be:
+The API key's effective permissions after the update will the same as the <<security-api-update-api-key-examples-user-permissions, owner user's>>:
 
 [source,js]
 --------------------------------------------------
@@ -228,7 +228,7 @@ The API key's effective permissions after the update will be:
 --------------------------------------------------
 // NOTCONSOLE
 
-For the next example, assume that the owner user's permissions changed from <<security-api-update-api-key-examples-user-permissions, the original permissions>> to:
+For the next example, assume that the owner user's permissions have changed from <<security-api-update-api-key-examples-user-permissions, the original permissions>> to:
 
 [source,js]
 --------------------------------------------------
@@ -244,7 +244,7 @@ For the next example, assume that the owner user's permissions changed from <<se
 --------------------------------------------------
 // NOTCONSOLE
 
-The following request re-applies the user's updated permissions to the API key:
+The following request auto-updates the snapshot of the user's permissions associated with the API key:
 
 [source,console]
 ----

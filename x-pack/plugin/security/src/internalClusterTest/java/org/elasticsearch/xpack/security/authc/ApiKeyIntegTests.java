@@ -1552,13 +1552,15 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         expectRoleDescriptorsForApiKey("limited_by_role_descriptors", Set.of(roleDescriptorBeforeUpdate), getApiKeyDocument(apiKeyId));
 
         final List<String> newClusterPrivileges = randomValueOtherThanMany(
-            privs -> privs.equals(clusterPrivileges)
-                // At a minimum include privilege to manage own API key
-                // to ensure no 403
-                || (privs.contains("manage_api_key") == false && privs.contains("manage_own_api_key") == false),
-            () -> randomNonEmptySubsetOf(ClusterPrivilegeResolver.names())
+            privs -> privs.equals(clusterPrivileges),
+            () -> {
+                final List<String> privs = new ArrayList<>(randomSubsetOf(ClusterPrivilegeResolver.names()));
+                // At a minimum include privilege to manage own API key to ensure no 403
+                privs.add(randomFrom("manage_api_key", "manage_own_api_key"));
+                return privs;
+            }
         );
-
+        
         // Update user role
         final RoleDescriptor roleDescriptorAfterUpdate = putRoleWithClusterPrivileges(
             nativeRealmRole,

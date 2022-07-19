@@ -37,7 +37,7 @@ import org.elasticsearch.index.reindex.ClientScrollableHitSource;
 import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
 import org.elasticsearch.index.reindex.WorkerBulkByScrollTaskState;
-import org.elasticsearch.script.BulkMetadata;
+import org.elasticsearch.script.Metadata;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.Scroll;
@@ -46,12 +46,10 @@ import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -815,7 +813,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
     /**
      * Apply a {@link Script} to a {@link RequestWrapper}
      */
-    public abstract static class ScriptApplier<T extends BulkMetadata>
+    public abstract static class ScriptApplier<T extends Metadata>
         implements
             BiFunction<RequestWrapper<?>, ScrollableHitSource.Hit, RequestWrapper<?>> {
         protected static final String INDEX = "index";
@@ -876,36 +874,6 @@ public abstract class AbstractAsyncBulkByScrollAction<
         protected abstract T execute(ScrollableHitSource.Hit doc, Map<String, Object> source);
 
         protected void updateRequest(RequestWrapper<?> request, T metadata) {}
-    }
-
-    public enum OpType {
-
-        NOOP("noop"),
-        INDEX("index"),
-        DELETE("delete");
-
-        private final String id;
-
-        OpType(String id) {
-            this.id = id;
-        }
-
-        public static OpType fromString(String opType) {
-            String lowerOpType = opType.toLowerCase(Locale.ROOT);
-            return switch (lowerOpType) {
-                case "noop" -> OpType.NOOP;
-                case "index" -> OpType.INDEX;
-                case "delete" -> OpType.DELETE;
-                default -> throw new IllegalArgumentException(
-                    "Operation type [" + lowerOpType + "] not allowed, only " + Arrays.toString(values()) + " are allowed"
-                );
-            };
-        }
-
-        @Override
-        public String toString() {
-            return id.toLowerCase(Locale.ROOT);
-        }
     }
 
     static class ScrollConsumableHitsResponse {

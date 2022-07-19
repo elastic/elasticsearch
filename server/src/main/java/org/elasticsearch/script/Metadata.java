@@ -8,6 +8,8 @@
 
 package org.elasticsearch.script;
 
+import org.elasticsearch.common.util.Maps;
+
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -50,6 +52,9 @@ public class Metadata {
     protected static final String IF_PRIMARY_TERM = "_if_primary_term";
     protected static final String DYNAMIC_TEMPLATES = "_dynamic_templates";
 
+    public static FieldProperty<String> StringField = new FieldProperty<>(String.class);
+    public static FieldProperty<Number> LongField = new FieldProperty<>(Number.class).withValidation(FieldProperty.LONGABLE_NUMBER);
+
     protected final Map<String, Object> map;
     protected final Map<String, FieldProperty<?>> properties;
     protected static final FieldProperty<?> BAD_KEY = new FieldProperty<>(null, false, false, null);
@@ -58,6 +63,10 @@ public class Metadata {
         this.map = map;
         this.properties = Collections.unmodifiableMap(properties);
         validateMetadata();
+    }
+
+    public Metadata(MetadataBuilder builder) {
+        this(builder.map, builder.properties);
     }
 
     /**
@@ -280,6 +289,31 @@ public class Metadata {
      */
     public record FieldProperty<T> (Class<T> type, boolean nullable, boolean writable, BiConsumer<String, T> extendedValidation) {
 
+        public FieldProperty(Class<T> type) {
+            this(type, false, false, null);
+        }
+
+        public FieldProperty<T> withNullable() {
+            if (nullable) {
+                return this;
+            }
+            return new FieldProperty<>(type, true, writable, extendedValidation);
+        }
+
+        public FieldProperty<T> withWritable() {
+            if (writable) {
+                return this;
+            }
+            return new FieldProperty<>(type, nullable, true, extendedValidation);
+        }
+
+        public FieldProperty<T> withValidation(BiConsumer<String, T> extendedValidation) {
+            if (this.extendedValidation == extendedValidation) {
+                return this;
+            }
+            return new FieldProperty<>(type, nullable, writable, extendedValidation);
+        }
+
         public static BiConsumer<String, Number> LONGABLE_NUMBER = (k, v) -> {
             long version = v.longValue();
             // did we round?
@@ -344,6 +378,65 @@ public class Metadata {
             if (extendedValidation != null) {
                 extendedValidation.accept(key, (T) value);
             }
+        }
+    }
+
+    public static FieldProperty<String> WritableStringSetField(Set<String> valid) {
+        return StringField.withWritable().withValidation((k, v) -> {
+            if (valid.contains(v) == false) {
+                throw new IllegalArgumentException(
+                    "[" + k + "] must be one of " + valid.stream().sorted().collect(Collectors.joining(", ")) + ", not [" + v + "]"
+                );
+            }
+        });
+    }
+
+    protected static class MetadataBuilder {
+        final Map<String, Object> map;
+        final Map<String, FieldProperty<?>> properties;
+
+        public MetadataBuilder(Map<String, Object> map, Map<String, FieldProperty<?>> properties) {
+            this.map = map;
+            this.properties = properties;
+        }
+
+        public MetadataBuilder(int expectedSize) {
+            this.properties = Maps.newMapWithExpectedSize(expectedSize);
+            this.map = Maps.newMapWithExpectedSize(expectedSize);
+        }
+
+        public MetadataBuilder index(String index, FieldProperty<String> property) {
+            return put(INDEX, index, property);
+        }
+
+        public MetadataBuilder id(String id, FieldProperty<String> property) {
+            return put(ID, id, property);
+        }
+
+        public MetadataBuilder version(Long version, FieldProperty<Number> property) {
+            return put(VERSION, version, property);
+        }
+
+        public MetadataBuilder routing(String routing, FieldProperty<String> property) {
+            return put(ROUTING, routing, property);
+        }
+
+        public MetadataBuilder op(String op, FieldProperty<String> property) {
+            return put(OP, op, property);
+        }
+
+        public MetadataBuilder type(String type, FieldProperty<String> property) {
+            return put(TYPE, type, property);
+        }
+
+        public MetadataBuilder timestamp(long timestamp, FieldProperty<Number> property) {
+            return put(TIMESTAMP, timestamp, property);
+        }
+
+        public MetadataBuilder put(String key, Object value, FieldProperty<?> property) {
+            map.put(key, value);
+            properties.put(key, property);
+            return this;
         }
     }
 }

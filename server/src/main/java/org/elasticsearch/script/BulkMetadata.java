@@ -11,41 +11,9 @@ package org.elasticsearch.script;
 import org.elasticsearch.common.util.Maps;
 
 import java.util.Map;
-import java.util.Set;
-import java.util.function.BiConsumer;
-import java.util.stream.Collectors;
 
 /** Common operations for metadata updates done on bulk search operations: reindex and update by query */
-public class BulkMetadata extends Metadata {
-    protected static final FieldProperty<String> RO_STRING = new FieldProperty<>(String.class, false, false, null);
-    protected static final FieldProperty<String> RO_NULLABLE_STRING = new FieldProperty<>(String.class, true, false, null);
-    protected static final FieldProperty<Number> RO_LONG = new FieldProperty<>(Number.class, false, false, FieldProperty.LONGABLE_NUMBER);
-
-    protected static final FieldProperty<Number> RW_NULLABLE_LONG = new FieldProperty<>(
-        Number.class,
-        false,
-        false,
-        FieldProperty.LONGABLE_NUMBER
-    );
-    protected static Metadata.FieldProperty<String> RW_NULLABLE_STRING = new FieldProperty<>(String.class, true, true, null);
-    protected static Metadata.FieldProperty<String> RW_STRING = new FieldProperty<>(String.class, false, true, null);
-
-    protected static final FieldProperty<String> OP_PROPERTY = new FieldProperty<>(
-        String.class,
-        false,
-        true,
-        setValidator(Set.of("noop", "index", "delete"))
-    );
-
-    protected static BiConsumer<String, String> setValidator(Set<String> valid) {
-        return (k, v) -> {
-            if (valid.contains(v) == false) {
-                throw new IllegalArgumentException(
-                    "[" + k + "] must be one of " + valid.stream().sorted().collect(Collectors.joining(", ")) + ", not [" + v + "]"
-                );
-            }
-        };
-    }
+public abstract class BulkMetadata extends Metadata {
 
     /**
      * Reindex: _index rw, non-null

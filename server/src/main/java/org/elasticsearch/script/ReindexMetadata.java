@@ -8,36 +8,12 @@
 
 package org.elasticsearch.script;
 
-import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
-public class ReindexMetadata extends BulkMetadata {
+public class ReindexMetadata extends Metadata {
+    private static final Metadata.FieldProperty<String> WritableStringField = StringField.withWritable();
     public static final long INTERNAL_VERSION = Long.MIN_VALUE;
-
-    static final Map<String, Metadata.FieldProperty<?>> PROPERTIES = Map.of(
-        INDEX,
-        RW_STRING,
-        ID,
-        RW_NULLABLE_STRING,
-        VERSION,
-        new FieldProperty<>(
-            Number.class,
-            false,
-            false,
-            (k, v) -> {
-                FieldProperty.LONGABLE_NUMBER.accept(k, v);
-                if (v.longValue() < 0 && v.longValue() != Long.MIN_VALUE) {
-                    throw new IllegalArgumentException(k + " may only be internal or non-negative, not [" + v + "]");
-                }
-            }
-        ),
-        ROUTING,
-        RW_NULLABLE_STRING,
-        OP,
-        OP_PROPERTY,
-        TIMESTAMP,
-        RO_LONG
-    );
 
     protected final String index;
     protected final String id;
@@ -45,7 +21,19 @@ public class ReindexMetadata extends BulkMetadata {
     protected final String routing;
 
     public ReindexMetadata(String index, String id, Long version, String routing, String op, long timestamp) {
-        super(index, id, version, routing, op, timestamp, PROPERTIES);
+        super(
+            new MetadataBuilder(6).index(index, WritableStringField)
+                .id(id, WritableStringField.withNullable())
+                .version(version, LongField.withValidation((k, v) -> {
+                    LongField.extendedValidation().accept(k, v);
+                    if (v.longValue() < 0 && v.longValue() != Long.MIN_VALUE) {
+                        throw new IllegalArgumentException(k + " may only be internal or non-negative, not [" + v + "]");
+                    }
+                }))
+                .routing(routing, WritableStringField.withNullable())
+                .op(op, WritableStringSetField(Set.of("noop", "index", "delete")))
+                .timestamp(timestamp, LongField)
+        );
         this.index = index;
         this.id = id;
         this.version = version;
@@ -63,7 +51,11 @@ public class ReindexMetadata extends BulkMetadata {
 
     @Override
     public void setVersion(long version) {
-        super.setVersion(version);
+        if (version == INTERNAL_VERSION) {
+            put(VERSION, null);
+        } else {
+            super.setVersion(version);
+        }
     }
 
     public boolean isInternalVersion() {

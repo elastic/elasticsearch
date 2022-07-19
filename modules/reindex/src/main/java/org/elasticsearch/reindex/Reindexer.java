@@ -48,7 +48,7 @@ import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.index.reindex.WorkerBulkByScrollTaskState;
 import org.elasticsearch.reindex.remote.RemoteScrollableHitSource;
-import org.elasticsearch.script.BulkCtxMap;
+import org.elasticsearch.script.CtxMap;
 import org.elasticsearch.script.ReindexMetadata;
 import org.elasticsearch.script.ReindexScript;
 import org.elasticsearch.script.Script;
@@ -417,7 +417,7 @@ public class Reindexer {
 
             @Override
             protected ReindexMetadata execute(ScrollableHitSource.Hit doc, Map<String, Object> source) {
-                BulkCtxMap<ReindexMetadata> ctxMap = new BulkCtxMap<>(
+                CtxMap<ReindexMetadata> ctxMap = new CtxMap<>(
                     source,
                     new ReindexMetadata(
                         doc.getIndex(),

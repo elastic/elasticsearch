@@ -8,26 +8,17 @@
 
 package org.elasticsearch.script;
 
-import java.util.Map;
+import java.util.Set;
 
-public class UpdateByQueryMetadata extends BulkMetadata {
-
-    static final Map<String, FieldProperty<?>> PROPERTIES = Map.of(
-        INDEX,
-        RO_STRING,
-        ID,
-        RO_STRING,
-        VERSION,
-        RO_LONG,
-        ROUTING,
-        RO_NULLABLE_STRING,
-        OP,
-        OP_PROPERTY,
-        TIMESTAMP,
-        RO_LONG
-    );
-
+public class UpdateByQueryMetadata extends Metadata {
     public UpdateByQueryMetadata(String index, String id, long version, String routing, String op, long timestamp) {
-        super(index, id, version, routing, op, timestamp, PROPERTIES);
+        super(
+            new MetadataBuilder(6).index(index, StringField)
+                .id(id, StringField)
+                .version(version, LongField)
+                .routing(routing, StringField.withNullable())
+                .op(op, WritableStringSetField(Set.of("noop", "index", "delete")))
+                .timestamp(timestamp, LongField)
+        );
     }
 }

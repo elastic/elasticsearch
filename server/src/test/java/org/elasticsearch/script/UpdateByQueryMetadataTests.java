@@ -8,8 +8,6 @@
 
 package org.elasticsearch.script;
 
-import junit.framework.TestCase;
-
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;

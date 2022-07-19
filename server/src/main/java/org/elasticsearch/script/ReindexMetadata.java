@@ -22,10 +22,9 @@ public class ReindexMetadata extends Metadata {
 
     public ReindexMetadata(String index, String id, Long version, String routing, String op, long timestamp) {
         super(
-            new MetadataBuilder(6)
-                .index(index, WritableStringField)
+            new MetadataBuilder(6).index(index, WritableStringField)
                 .id(id, WritableStringField.withNullable())
-                .version(version, LongField.withValidation((k, v) -> {
+                .version(version, LongField.withWritable().withNullable().withValidation((k, v) -> {
                     LongField.extendedValidation().accept(k, v);
                     if (v.longValue() < 0 && v.longValue() != Long.MIN_VALUE) {
                         throw new IllegalArgumentException(k + " may only be internal or non-negative, not [" + v + "]");
@@ -65,21 +64,21 @@ public class ReindexMetadata extends Metadata {
 
     public boolean versionChanged() {
         Number updated = getNumber(VERSION);
-        if (version == null) {
-            return updated == null;
+        if (version == null || updated == null) {
+            return version != updated;
         }
-        return version == updated.longValue();
+        return version != updated.longValue();
     }
 
     public boolean indexChanged() {
-        return Objects.equals(index, getString(INDEX));
+        return Objects.equals(index, getString(INDEX)) == false;
     }
 
     public boolean idChanged() {
-        return Objects.equals(id, getString(ID));
+        return Objects.equals(id, getString(ID)) == false;
     }
 
     public boolean routingChanged() {
-        return Objects.equals(routing, getString(ROUTING));
+        return Objects.equals(routing, getString(ROUTING)) == false;
     }
 }

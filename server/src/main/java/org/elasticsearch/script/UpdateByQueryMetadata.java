@@ -13,8 +13,7 @@ import java.util.Set;
 public class UpdateByQueryMetadata extends Metadata {
     public UpdateByQueryMetadata(String index, String id, long version, String routing, String op, long timestamp) {
         super(
-            new MetadataBuilder(6)
-                .index(index, StringField)
+            new MetadataBuilder(6).index(index, StringField)
                 .id(id, StringField)
                 .version(version, LongField)
                 .routing(routing, StringField.withNullable())

@@ -11,16 +11,14 @@ package org.elasticsearch.script;
 import org.elasticsearch.test.ESTestCase;
 
 public class ReindexMetadataTests extends ESTestCase {
-    /*
-    TODO(stu): update
     private static final String INDEX = "myIndex";
     private static final String ID = "myId";
     private static final long VERSION = 5;
     private static final String ROUTING = "myRouting";
-    private static final Op OP = Op.INDEX;
-    private static final Map<String, Object> SOURCE = Map.of("foo", List.of("bar", "baz"));
-    private TestBulkMetadata metadata;
-    private Map<String, Object> ctx;
+    private static final String OP = "index";
+
+    private static final long TIMESTAMP = 1_658_000_000_000L;
+    private ReindexMetadata metadata;
 
     @Override
     public void setUp() throws Exception {
@@ -29,163 +27,120 @@ public class ReindexMetadataTests extends ESTestCase {
     }
 
     protected void reset() {
-        metadata = new TestBulkMetadata(INDEX, ID, VERSION, ROUTING, OP, SOURCE);
-        ctx = metadata.getCtx();
+        metadata = new ReindexMetadata(INDEX, ID, VERSION, ROUTING, OP, TIMESTAMP);
     }
 
-    public void testIndexChanged() {
+    public void testIndex() {
         assertFalse(metadata.indexChanged());
 
-        ctx.put(MapBackedMetadata.INDEX, INDEX);
+        metadata.put("_index", INDEX);
         assertFalse(metadata.indexChanged());
 
-        ctx.remove(MapBackedMetadata.INDEX);
+        IllegalArgumentException err = expectThrows(IllegalArgumentException.class, () -> metadata.remove("_index"));
+        assertEquals("_index cannot be removed", err.getMessage());
+        err = expectThrows(IllegalArgumentException.class, () -> metadata.put("_index", null));
+        assertEquals("_index cannot be null", err.getMessage());
+        assertFalse(metadata.indexChanged());
+
+        metadata.put("_index", "myIndex2");
         assertTrue(metadata.indexChanged());
-        assertNull(metadata.getIndex());
 
-        ctx.put(MapBackedMetadata.INDEX, INDEX);
+        metadata.put("_index", INDEX);
         assertFalse(metadata.indexChanged());
 
-        ctx.put(MapBackedMetadata.INDEX, "myIndex2");
+        metadata.setIndex("myIndex3");
         assertTrue(metadata.indexChanged());
     }
 
-    public void testIdChanged() {
+    public void testId() {
         assertFalse(metadata.idChanged());
 
-        ctx.put(MapBackedMetadata.ID, ID);
+        metadata.put("_id", ID);
         assertFalse(metadata.idChanged());
 
-        ctx.remove(MapBackedMetadata.ID);
+        metadata.remove("_id");
         assertTrue(metadata.idChanged());
         assertNull(metadata.getId());
 
-        ctx.put(MapBackedMetadata.ID, ID);
+        metadata.put("_id", "myId2");
+        assertTrue(metadata.idChanged());
+
+        metadata.setId(ID);
         assertFalse(metadata.idChanged());
 
-        ctx.put(MapBackedMetadata.ID, "myId2");
+        metadata.setId("myId3");
         assertTrue(metadata.idChanged());
     }
 
-    public void testRoutingChanged() {
+    public void testRouting() {
         assertFalse(metadata.routingChanged());
 
-        ctx.put(MapBackedMetadata.ROUTING, ROUTING);
+        metadata.put("_routing", ROUTING);
         assertFalse(metadata.routingChanged());
 
-        ctx.remove(MapBackedMetadata.ROUTING);
+        metadata.remove("_routing");
         assertTrue(metadata.routingChanged());
         assertNull(metadata.getRouting());
 
-        ctx.put(MapBackedMetadata.ROUTING, ROUTING);
+        metadata.put("_routing", "myRouting2");
+        assertTrue(metadata.routingChanged());
+
+        metadata.setRouting(ROUTING);
         assertFalse(metadata.routingChanged());
 
-        ctx.put(MapBackedMetadata.ROUTING, "myRouting2");
+        metadata.setRouting("myRouting3");
         assertTrue(metadata.routingChanged());
     }
 
-    public void testVersionChanged() {
+    public void testVersion() {
         assertFalse(metadata.versionChanged());
 
-        ctx.put(MapBackedMetadata.VERSION, VERSION);
+        metadata.put("_version", VERSION);
         assertFalse(metadata.versionChanged());
 
-        ctx.remove(MapBackedMetadata.VERSION);
+        metadata.remove("_version");
         assertTrue(metadata.versionChanged());
-        assertNull(metadata.getVersion());
+        assertTrue(metadata.isInternalVersion());
+        assertEquals(ReindexMetadata.INTERNAL_VERSION, metadata.getVersion());
+        assertNull(metadata.get("_version"));
 
-        ctx.put(MapBackedMetadata.VERSION, VERSION);
-        assertFalse(metadata.versionChanged());
-
-        ctx.put(MapBackedMetadata.VERSION, VERSION + 1);
+        metadata.put("_version", VERSION + 5);
         assertTrue(metadata.versionChanged());
 
+        metadata.setVersion(VERSION);
+        assertFalse(metadata.versionChanged());
+
+        metadata.setVersion(VERSION + 10);
+        assertTrue(metadata.versionChanged());
+        assertEquals(VERSION + 10, metadata.getVersion());
+
+        metadata.setVersion(ReindexMetadata.INTERNAL_VERSION);
+        assertTrue(metadata.isInternalVersion());
+        assertEquals(ReindexMetadata.INTERNAL_VERSION, metadata.getVersion());
+        assertNull(metadata.get("_version"));
+
+        IllegalArgumentException err = expectThrows(IllegalArgumentException.class, () -> metadata.setVersion(-1));
+        assertEquals("_version may only be internal or non-negative, not [-1]", err.getMessage());
+
+        err = expectThrows(IllegalArgumentException.class, () -> metadata.put("_version", -5));
+        assertEquals("_version may only be internal or non-negative, not [-5]", err.getMessage());
     }
 
     public void testOp() {
-        assertFalse(metadata.opChanged());
-        assertEquals(Op.INDEX, metadata.getOp());
+        assertEquals("index", metadata.getOp());
+        assertEquals("index", metadata.get("op"));
 
-        // Index has already been set
-        ctx.put(MapBackedMetadata.OP, OP.name);
-        assertFalse(metadata.opChanged());
-        assertEquals(Op.INDEX, metadata.getOp());
-        reset();
-        metadata.setOp(Op.INDEX);
-        assertFalse(metadata.opChanged());
-        assertEquals(Op.INDEX, metadata.getOp());
-        assertEquals("index", ctx.get(MapBackedMetadata.OP));
+        metadata.setOp("noop");
+        assertEquals("noop", metadata.getOp());
+        assertEquals("noop", metadata.get("op"));
 
-        reset();
+        metadata.put("op", "delete");
+        assertEquals("delete", metadata.getOp());
 
-        // NOOP works
-        ctx.put(MapBackedMetadata.OP, Op.NOOP.name);
-        assertTrue(metadata.opChanged());
-        assertEquals(Op.NOOP, metadata.getOp());
-        reset();
-        metadata.setOp(Op.NOOP);
-        assertTrue(metadata.opChanged());
-        assertEquals(Op.NOOP, metadata.getOp());
-        assertEquals("noop", ctx.get(MapBackedMetadata.OP));
+        IllegalArgumentException err = expectThrows(IllegalArgumentException.class, () -> metadata.setOp("bad"));
+        assertEquals("[op] must be one of delete, index, noop, not [bad]", err.getMessage());
 
-        reset();
-
-        // Delete works
-        ctx.put(MapBackedMetadata.OP, Op.DELETE.name);
-        assertTrue(metadata.opChanged());
-        assertEquals(Op.DELETE, metadata.getOp());
-        reset();
-        metadata.setOp(Op.DELETE);
-        assertTrue(metadata.opChanged());
-        assertEquals(Op.DELETE, metadata.getOp());
-        assertEquals("delete", ctx.get(MapBackedMetadata.OP));
-
-        reset();
-
-        // null not allowed via setOp
-        IllegalArgumentException err = expectThrows(IllegalArgumentException.class, () -> metadata.setOp(null));
-        assertEquals("operation must be non-null, valid operations are [noop, index, delete]", err.getMessage());
-        assertFalse(metadata.opChanged());
-        assertEquals(Op.INDEX, metadata.getOp());
-        assertEquals("index", ctx.get(MapBackedMetadata.OP));
-
-        // create not allowed via setOp
-        err = expectThrows(IllegalArgumentException.class, () -> metadata.setOp(Op.CREATE));
-        assertEquals("Operation type [create] not allowed, only [noop, index, delete] are allowed", err.getMessage());
-        assertFalse(metadata.opChanged());
-        assertEquals(Op.INDEX, metadata.getOp());
-        assertEquals("index", ctx.get(MapBackedMetadata.OP));
-
-        // unknown not allowed via setOp
-        err = expectThrows(IllegalArgumentException.class, () -> metadata.setOp(Op.UNKOWN));
-        assertEquals("Operation type [unknown] not allowed, only [noop, index, delete] are allowed", err.getMessage());
-        assertFalse(metadata.opChanged());
-        assertEquals(Op.INDEX, metadata.getOp());
-        assertEquals("index", ctx.get(MapBackedMetadata.OP));
-
-        // setting disallowed values in ctx causes getOp to fail
-        ctx.put(MapBackedMetadata.OP, Op.CREATE.name);
-        err = expectThrows(IllegalArgumentException.class, () -> metadata.getOp());
-        assertEquals("Operation type [create] not allowed, only [noop, index, delete] are allowed", err.getMessage());
-
-        ctx.put(MapBackedMetadata.OP, Op.UNKOWN.name);
-        err = expectThrows(IllegalArgumentException.class, () -> metadata.getOp());
-        assertEquals("Operation type [unknown] not allowed, only [noop, index, delete] are allowed", err.getMessage());
-
-        ctx.put(MapBackedMetadata.OP, "other");
-        err = expectThrows(IllegalArgumentException.class, () -> metadata.getOp());
-        assertEquals("Operation type [other] not allowed, only [noop, index, delete] are allowed", err.getMessage());
-
-        ctx.put(MapBackedMetadata.OP, null);
-        err = expectThrows(IllegalArgumentException.class, () -> metadata.getOp());
-        assertEquals("operation must be non-null, valid operations are [noop, index, delete]", err.getMessage());
+        err = expectThrows(IllegalArgumentException.class, () -> metadata.put("op", "malo"));
+        assertEquals("[op] must be one of delete, index, noop, not [malo]", err.getMessage());
     }
-
-    private static class TestBulkMetadata extends BulkMetadata {
-
-        TestBulkMetadata(String index, String id, Long version, String routing, Op op, Map<String, Object> source) {
-            super(index, id, version, routing, op, source);
-        }
-    }
-     */
 }

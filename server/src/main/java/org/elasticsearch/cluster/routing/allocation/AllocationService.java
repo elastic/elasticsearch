@@ -440,7 +440,13 @@ public class AllocationService {
         }
     }
 
-    public CommandsResult reroute(final ClusterState clusterState, AllocationCommands commands, boolean explain, boolean retryFailed) {
+    public CommandsResult reroute(
+        final ClusterState clusterState,
+        AllocationCommands commands,
+        boolean explain,
+        boolean retryFailed,
+        ActionListener<Void> listener
+    ) {
         RoutingNodes routingNodes = getMutableRoutingNodes(clusterState);
         // we don't shuffle the unassigned shards here, to try and get as close as possible to
         // a consistent result of the effect the commands have on the routing
@@ -467,7 +473,7 @@ public class AllocationService {
         allocation.ignoreDisable(false);
         // the assumption is that commands will move / act on shards (or fail through exceptions)
         // so, there will always be shard "movements", so no need to check on reroute
-        reroute(allocation, DesiredBalanceShardsAllocator.REMOVE_ME);
+        reroute(allocation, listener);
         return new CommandsResult(explanations, buildResultAndLogHealthChange(clusterState, allocation, "reroute commands"));
     }
 

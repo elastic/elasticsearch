@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 import java.util.Collections;
 import java.util.List;
 
+import static org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener.rerouteCompletionIsNotRequired;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -82,7 +83,8 @@ public class RetryFailedAllocationTests extends ESAllocationTestCase {
                 new AllocateReplicaAllocationCommand(INDEX_NAME, 0, getPrimary().currentNodeId().equals("node1") ? "node2" : "node1")
             ),
             false,
-            true
+            true,
+            rerouteCompletionIsNotRequired()
         );
         clusterState = result.clusterState();
 

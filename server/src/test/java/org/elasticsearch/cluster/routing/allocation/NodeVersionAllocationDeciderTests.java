@@ -66,6 +66,7 @@ import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithSta
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
+import static org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener.rerouteCompletionIsNotRequired;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -418,7 +419,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
             EmptyClusterInfoService.INSTANCE,
             EmptySnapshotsInfoService.INSTANCE
         );
-        state = strategy.reroute(state, new AllocationCommands(), true, false).clusterState();
+        state = strategy.reroute(state, new AllocationCommands(), true, false, rerouteCompletionIsNotRequired()).clusterState();
         // the two indices must stay as is, the replicas cannot move to oldNode2 because versions don't match
         assertThat(state.routingTable().index(shard2.getIndex()).shardsWithState(ShardRoutingState.RELOCATING).size(), equalTo(0));
         assertThat(state.routingTable().index(shard1.getIndex()).shardsWithState(ShardRoutingState.RELOCATING).size(), equalTo(0));
@@ -489,7 +490,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
             EmptyClusterInfoService.INSTANCE,
             () -> new SnapshotShardSizeInfo(snapshotShardSizes)
         );
-        state = strategy.reroute(state, new AllocationCommands(), true, false).clusterState();
+        state = strategy.reroute(state, new AllocationCommands(), true, false, rerouteCompletionIsNotRequired()).clusterState();
 
         // Make sure that primary shards are only allocated on the new node
         for (int i = 0; i < numberOfShards; i++) {

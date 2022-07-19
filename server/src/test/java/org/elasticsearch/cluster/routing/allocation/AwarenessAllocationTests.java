@@ -43,6 +43,7 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
+import static org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener.rerouteCompletionIsNotRequired;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -896,7 +897,7 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
         }
         commands.add(new MoveAllocationCommand("test", 0, primaryNode, "A-4"));
 
-        clusterState = strategy.reroute(clusterState, commands, false, false).clusterState();
+        clusterState = strategy.reroute(clusterState, commands, false, false, rerouteCompletionIsNotRequired()).clusterState();
 
         assertThat(shardsWithState(clusterState.getRoutingNodes(), STARTED).size(), equalTo(0));
         assertThat(shardsWithState(clusterState.getRoutingNodes(), RELOCATING).size(), equalTo(1));

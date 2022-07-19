@@ -33,6 +33,7 @@ import java.util.List;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
+import static org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener.rerouteCompletionIsNotRequired;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -117,7 +118,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
         assertThat(routingTable.index("idx").shard(0).shard(0).unassignedInfo().getMessage(), containsString("boom"));
 
         // manual resetting of retry count
-        newState = strategy.reroute(clusterState, new AllocationCommands(), false, true).clusterState();
+        newState = strategy.reroute(clusterState, new AllocationCommands(), false, true, rerouteCompletionIsNotRequired()).clusterState();
         assertThat(newState, not(equalTo(clusterState)));
         clusterState = newState;
         routingTable = newState.routingTable();

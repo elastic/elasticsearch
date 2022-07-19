@@ -53,6 +53,7 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
+import static org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener.rerouteCompletionIsNotRequired;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ThrottlingAllocationTests extends ESAllocationTestCase {
@@ -309,7 +310,8 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
             clusterState,
             new AllocationCommands(new MoveAllocationCommand("test", 0, "node2", "node4")),
             true,
-            false
+            false,
+            rerouteCompletionIsNotRequired()
         );
         assertEquals(commandsResult.explanations().explanations().size(), 1);
         assertEquals(commandsResult.explanations().explanations().get(0).decisions().type(), Decision.Type.THROTTLE);

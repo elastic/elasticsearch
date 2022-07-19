@@ -29,6 +29,7 @@ import org.elasticsearch.test.MockLogAppender;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
+import static org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener.rerouteCompletionIsNotRequired;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
@@ -187,7 +188,8 @@ public class DeadNodesAllocationTests extends ESAllocationTestCase {
                 )
             ),
             false,
-            false
+            false,
+            rerouteCompletionIsNotRequired()
         );
         assertThat(commandsResult.clusterState(), not(equalTo(clusterState)));
         clusterState = commandsResult.clusterState();
@@ -264,7 +266,8 @@ public class DeadNodesAllocationTests extends ESAllocationTestCase {
                 )
             ),
             false,
-            false
+            false,
+            rerouteCompletionIsNotRequired()
         );
         assertThat(commandsResult.clusterState(), not(equalTo(clusterState)));
         clusterState = commandsResult.clusterState();

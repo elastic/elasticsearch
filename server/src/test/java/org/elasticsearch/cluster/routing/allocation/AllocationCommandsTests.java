@@ -61,6 +61,7 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
+import static org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener.rerouteCompletionIsNotRequired;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -105,7 +106,8 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
             clusterState,
             new AllocationCommands(new MoveAllocationCommand("test", 0, existingNodeId, toNodeId)),
             false,
-            false
+            false,
+            rerouteCompletionIsNotRequired()
         ).clusterState();
         assertThat(newState, not(equalTo(clusterState)));
         clusterState = newState;
@@ -170,7 +172,13 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
 
         logger.info("--> allocating to non-existent node, should fail");
         try {
-            allocation.reroute(clusterState, new AllocationCommands(randomAllocateCommand(index, shardId.id(), "node42")), false, false);
+            allocation.reroute(
+                clusterState,
+                new AllocationCommands(randomAllocateCommand(index, shardId.id(), "node42")),
+                false,
+                false,
+                rerouteCompletionIsNotRequired()
+            );
             fail("expected IllegalArgumentException when allocating to non-existing node");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("failed to resolve [node42], no matching nodes"));
@@ -178,7 +186,13 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
 
         logger.info("--> allocating to non-data node, should fail");
         try {
-            allocation.reroute(clusterState, new AllocationCommands(randomAllocateCommand(index, shardId.id(), "node4")), false, false);
+            allocation.reroute(
+                clusterState,
+                new AllocationCommands(randomAllocateCommand(index, shardId.id(), "node4")),
+                false,
+                false,
+                rerouteCompletionIsNotRequired()
+            );
             fail("expected IllegalArgumentException when allocating to non-data node");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("allocation can only be done on data nodes"));
@@ -186,7 +200,13 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
 
         logger.info("--> allocating non-existing shard, should fail");
         try {
-            allocation.reroute(clusterState, new AllocationCommands(randomAllocateCommand("test", 1, "node2")), false, false);
+            allocation.reroute(
+                clusterState,
+                new AllocationCommands(randomAllocateCommand("test", 1, "node2")),
+                false,
+                false,
+                rerouteCompletionIsNotRequired()
+            );
             fail("expected ShardNotFoundException when allocating non-existing shard");
         } catch (ShardNotFoundException e) {
             assertThat(e.getMessage(), containsString("no such shard"));
@@ -194,7 +214,13 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
 
         logger.info("--> allocating non-existing index, should fail");
         try {
-            allocation.reroute(clusterState, new AllocationCommands(randomAllocateCommand("test2", 0, "node2")), false, false);
+            allocation.reroute(
+                clusterState,
+                new AllocationCommands(randomAllocateCommand("test2", 0, "node2")),
+                false,
+                false,
+                rerouteCompletionIsNotRequired()
+            );
             fail("expected ShardNotFoundException when allocating non-existing index");
         } catch (IndexNotFoundException e) {
             assertThat(e.getMessage(), containsString("no such index [test2]"));
@@ -206,7 +232,8 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
                 clusterState,
                 new AllocationCommands(new AllocateEmptyPrimaryAllocationCommand("test", 0, "node1", false)),
                 false,
-                false
+                false,
+                rerouteCompletionIsNotRequired()
             );
             fail("expected IllegalArgumentException when allocating empty primary with acceptDataLoss flag set to false");
         } catch (IllegalArgumentException e) {
@@ -226,7 +253,8 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
                 clusterState,
                 new AllocationCommands(new AllocateStalePrimaryAllocationCommand(index, shardId.id(), "node1", false)),
                 false,
-                false
+                false,
+                rerouteCompletionIsNotRequired()
             );
             fail("expected IllegalArgumentException when allocating stale primary with acceptDataLoss flag set to false");
         } catch (IllegalArgumentException e) {
@@ -245,7 +273,8 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
             clusterState,
             new AllocationCommands(new AllocateEmptyPrimaryAllocationCommand("test", 0, "node1", true)),
             false,
-            false
+            false,
+            rerouteCompletionIsNotRequired()
         ).clusterState();
         assertThat(newState, not(equalTo(clusterState)));
         clusterState = newState;
@@ -265,7 +294,8 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
                 clusterState,
                 new AllocationCommands(new AllocateReplicaAllocationCommand("test", 0, "node1")),
                 false,
-                false
+                false,
+                rerouteCompletionIsNotRequired()
             );
             fail("expected IllegalArgumentException when allocating replica shard on the primary shard node");
         } catch (IllegalArgumentException e) {}
@@ -275,7 +305,8 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
             clusterState,
             new AllocationCommands(new AllocateReplicaAllocationCommand("test", 0, "node2")),
             false,
-            false
+            false,
+            rerouteCompletionIsNotRequired()
         ).clusterState();
         assertThat(newState, not(equalTo(clusterState)));
         clusterState = newState;
@@ -293,7 +324,13 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
 
         logger.info("--> verify that we fail when there are no unassigned shards");
         try {
-            allocation.reroute(clusterState, new AllocationCommands(randomAllocateCommand("test", 0, "node3")), false, false);
+            allocation.reroute(
+                clusterState,
+                new AllocationCommands(randomAllocateCommand("test", 0, "node3")),
+                false,
+                false,
+                rerouteCompletionIsNotRequired()
+            );
             fail("expected IllegalArgumentException when allocating shard while no unassigned shard available");
         } catch (IllegalArgumentException e) {}
     }
@@ -340,7 +377,8 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
             clusterState,
             new AllocationCommands(new AllocateStalePrimaryAllocationCommand(index, 0, node1, true)),
             false,
-            false
+            false,
+            rerouteCompletionIsNotRequired()
         ).clusterState();
         RoutingNode routingNode1 = clusterState.getRoutingNodes().node(node1);
         assertThat(routingNode1.size(), equalTo(1));
@@ -386,7 +424,8 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
             clusterState,
             new AllocationCommands(new AllocateEmptyPrimaryAllocationCommand("test", 0, "node1", true)),
             false,
-            false
+            false,
+            rerouteCompletionIsNotRequired()
         ).clusterState();
         assertThat(newState, not(equalTo(clusterState)));
         clusterState = newState;
@@ -396,7 +435,13 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
 
         logger.info("--> cancel primary allocation, make sure it fails...");
         try {
-            allocation.reroute(clusterState, new AllocationCommands(new CancelAllocationCommand("test", 0, "node1", false)), false, false);
+            allocation.reroute(
+                clusterState,
+                new AllocationCommands(new CancelAllocationCommand("test", 0, "node1", false)),
+                false,
+                false,
+                rerouteCompletionIsNotRequired()
+            );
             fail();
         } catch (IllegalArgumentException e) {}
 
@@ -408,7 +453,13 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
 
         logger.info("--> cancel primary allocation, make sure it fails...");
         try {
-            allocation.reroute(clusterState, new AllocationCommands(new CancelAllocationCommand("test", 0, "node1", false)), false, false);
+            allocation.reroute(
+                clusterState,
+                new AllocationCommands(new CancelAllocationCommand("test", 0, "node1", false)),
+                false,
+                false,
+                rerouteCompletionIsNotRequired()
+            );
             fail();
         } catch (IllegalArgumentException e) {}
 
@@ -417,7 +468,8 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
             clusterState,
             new AllocationCommands(new AllocateReplicaAllocationCommand("test", 0, "node2")),
             false,
-            false
+            false,
+            rerouteCompletionIsNotRequired()
         ).clusterState();
         assertThat(newState, not(equalTo(clusterState)));
         clusterState = newState;
@@ -431,7 +483,8 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
             clusterState,
             new AllocationCommands(new CancelAllocationCommand("test", 0, "node2", false)),
             false,
-            false
+            false,
+            rerouteCompletionIsNotRequired()
         ).clusterState();
         assertThat(newState, not(equalTo(clusterState)));
         clusterState = newState;
@@ -445,7 +498,8 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
             clusterState,
             new AllocationCommands(new AllocateReplicaAllocationCommand("test", 0, "node2")),
             false,
-            false
+            false,
+            rerouteCompletionIsNotRequired()
         ).clusterState();
         assertThat(newState, not(equalTo(clusterState)));
         clusterState = newState;
@@ -456,7 +510,13 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
 
         logger.info("--> cancel the primary being replicated, make sure it fails");
         try {
-            allocation.reroute(clusterState, new AllocationCommands(new CancelAllocationCommand("test", 0, "node1", false)), false, false);
+            allocation.reroute(
+                clusterState,
+                new AllocationCommands(new CancelAllocationCommand("test", 0, "node1", false)),
+                false,
+                false,
+                rerouteCompletionIsNotRequired()
+            );
             fail();
         } catch (IllegalArgumentException e) {}
 
@@ -472,7 +532,8 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
             clusterState,
             new AllocationCommands(new CancelAllocationCommand("test", 0, "node2", false)),
             false,
-            false
+            false,
+            rerouteCompletionIsNotRequired()
         ).clusterState();
         assertThat(newState, not(equalTo(clusterState)));
         clusterState = newState;
@@ -486,7 +547,8 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
             clusterState,
             new AllocationCommands(new AllocateReplicaAllocationCommand("test", 0, "node2")),
             false,
-            false
+            false,
+            rerouteCompletionIsNotRequired()
         ).clusterState();
         assertThat(newState, not(equalTo(clusterState)));
         clusterState = newState;
@@ -506,7 +568,8 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
             clusterState,
             new AllocationCommands(new MoveAllocationCommand("test", 0, "node2", "node3")),
             false,
-            false
+            false,
+            rerouteCompletionIsNotRequired()
         ).clusterState();
         assertThat(clusterState.getRoutingNodes().node("node1").size(), equalTo(1));
         assertThat(clusterState.getRoutingNodes().node("node1").shardsWithState(STARTED).size(), equalTo(1));
@@ -521,7 +584,8 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
                 clusterState,
                 new AllocationCommands(new CancelAllocationCommand("test", 0, "node1", true)),
                 false,
-                false
+                false,
+                rerouteCompletionIsNotRequired()
             ).clusterState();
             assertThat(newState, not(equalTo(clusterState)));
             clusterState = newState;
@@ -534,7 +598,8 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
                 clusterState,
                 new AllocationCommands(new CancelAllocationCommand("test", 0, "node3", false)),
                 false,
-                false
+                false,
+                rerouteCompletionIsNotRequired()
             ).clusterState();
             assertThat(clusterState.getRoutingNodes().node("node1").size(), equalTo(1));
             assertThat(clusterState.getRoutingNodes().node("node1").shardsWithState(STARTED).size(), equalTo(1));
@@ -546,7 +611,8 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
                 clusterState,
                 new AllocationCommands(new MoveAllocationCommand("test", 0, "node2", "node3")),
                 false,
-                false
+                false,
+                rerouteCompletionIsNotRequired()
             ).clusterState();
             assertThat(clusterState.getRoutingNodes().node("node1").size(), equalTo(1));
             assertThat(clusterState.getRoutingNodes().node("node1").shardsWithState(STARTED).size(), equalTo(1));
@@ -560,7 +626,8 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
                 clusterState,
                 new AllocationCommands(new CancelAllocationCommand("test", 0, "node2", false)),
                 false,
-                false
+                false,
+                rerouteCompletionIsNotRequired()
             ).clusterState();
             assertThat(clusterState.getRoutingNodes().node("node1").size(), equalTo(1));
             assertThat(clusterState.getRoutingNodes().node("node1").shardsWithState(STARTED).size(), equalTo(1));
@@ -581,7 +648,8 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
                 clusterState,
                 new AllocationCommands(new CancelAllocationCommand("test", 0, "node1", true)),
                 false,
-                false
+                false,
+                rerouteCompletionIsNotRequired()
             ).clusterState();
             assertThat(newState, not(equalTo(clusterState)));
             clusterState = newState;
@@ -916,7 +984,8 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
                     new AllocateStalePrimaryAllocationCommand(index1, 0, node2, true)
                 ),
                 false,
-                false
+                false,
+                rerouteCompletionIsNotRequired()
             );
         }).getMessage(), containsString("primary [" + index1 + "][0] is already assigned"));
 
@@ -928,7 +997,8 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
                     new AllocateEmptyPrimaryAllocationCommand(index2, 0, node2, true)
                 ),
                 false,
-                false
+                false,
+                rerouteCompletionIsNotRequired()
             );
         }).getMessage(), containsString("primary [" + index2 + "][0] is already assigned"));
 
@@ -936,7 +1006,8 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
             clusterState,
             new AllocationCommands(new AllocateEmptyPrimaryAllocationCommand(index3, 0, node1, true)),
             false,
-            false
+            false,
+            rerouteCompletionIsNotRequired()
         ).clusterState();
         clusterState = startInitializingShardsAndReroute(allocation, clusterState);
 
@@ -952,7 +1023,8 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
                     new AllocateReplicaAllocationCommand(index3, 0, node2)
                 ),
                 false,
-                false
+                false,
+                rerouteCompletionIsNotRequired()
             );
         }).getMessage(), containsString("all copies of [" + index3 + "][0] are already assigned. Use the move allocation command instead"));
     }

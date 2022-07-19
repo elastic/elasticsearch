@@ -24,6 +24,7 @@ import org.elasticsearch.common.settings.Settings;
 import java.util.HashSet;
 import java.util.Set;
 
+import static org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener.rerouteCompletionIsNotRequired;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -63,7 +64,8 @@ public class TrackFailedAllocationNodesTests extends ESAllocationTestCase {
 
         // reroute with retryFailed=true should discard the failedNodes
         assertThat(clusterState.routingTable().index("idx").shard(0).shard(0).state(), equalTo(ShardRoutingState.UNASSIGNED));
-        clusterState = allocationService.reroute(clusterState, new AllocationCommands(), false, true).clusterState();
+        clusterState = allocationService.reroute(clusterState, new AllocationCommands(), false, true, rerouteCompletionIsNotRequired())
+            .clusterState();
         assertThat(clusterState.routingTable().index("idx").shard(0).shard(0).unassignedInfo().getFailedNodeIds(), empty());
 
         // do not track the failed nodes while shard is started

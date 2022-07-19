@@ -70,6 +70,7 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
+import static org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener.rerouteCompletionIsNotRequired;
 import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -761,7 +762,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             AllocationCommand moveAllocationCommand = new MoveAllocationCommand("test", 0, "node2", "node3");
             AllocationCommands cmds = new AllocationCommands(moveAllocationCommand);
 
-            clusterState = strategy.reroute(clusterState, cmds, false, false).clusterState();
+            clusterState = strategy.reroute(clusterState, cmds, false, false, rerouteCompletionIsNotRequired()).clusterState();
             logShardStates(clusterState);
         }
 
@@ -785,8 +786,10 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             final ClusterState clusterStateThatRejectsCommands = clusterState;
 
             assertThat(
-                expectThrows(IllegalArgumentException.class, () -> strategy.reroute(clusterStateThatRejectsCommands, cmds, false, false))
-                    .getMessage(),
+                expectThrows(
+                    IllegalArgumentException.class,
+                    () -> strategy.reroute(clusterStateThatRejectsCommands, cmds, false, false, rerouteCompletionIsNotRequired())
+                ).getMessage(),
                 containsString(
                     "the node is above the low watermark cluster setting "
                         + "[cluster.routing.allocation.disk.watermark.low=0.7], using more disk space than the maximum "
@@ -797,8 +800,10 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             clusterInfoReference.set(overfullClusterInfo);
 
             assertThat(
-                expectThrows(IllegalArgumentException.class, () -> strategy.reroute(clusterStateThatRejectsCommands, cmds, false, false))
-                    .getMessage(),
+                expectThrows(
+                    IllegalArgumentException.class,
+                    () -> strategy.reroute(clusterStateThatRejectsCommands, cmds, false, false, rerouteCompletionIsNotRequired())
+                ).getMessage(),
                 containsString("the node has fewer free bytes remaining than the total size of all incoming shards")
             );
 
@@ -810,7 +815,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             AllocationCommands cmds = new AllocationCommands(moveAllocationCommand);
 
             clusterState = startInitializingShardsAndReroute(strategy, clusterState);
-            clusterState = strategy.reroute(clusterState, cmds, false, false).clusterState();
+            clusterState = strategy.reroute(clusterState, cmds, false, false, rerouteCompletionIsNotRequired()).clusterState();
             logShardStates(clusterState);
 
             clusterInfoReference.set(overfullClusterInfo);

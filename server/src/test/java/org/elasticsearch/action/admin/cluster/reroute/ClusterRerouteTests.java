@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
+import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -79,7 +80,7 @@ public class ClusterRerouteTests extends ESAllocationTestCase {
         ClusterRerouteRequest req = new ClusterRerouteRequest();
         req.dryRun(true);
         AtomicReference<ClusterRerouteResponse> responseRef = new AtomicReference<>();
-        ActionListener<ClusterRerouteResponse> responseActionListener = new ActionListener<ClusterRerouteResponse>() {
+        var responseActionListener = new AllocationActionListener<>(new ActionListener<ClusterRerouteResponse>() {
             @Override
             public void onResponse(ClusterRerouteResponse clusterRerouteResponse) {
                 responseRef.set(clusterRerouteResponse);
@@ -89,7 +90,7 @@ public class ClusterRerouteTests extends ESAllocationTestCase {
             public void onFailure(Exception e) {
 
             }
-        };
+        });
         TransportClusterRerouteAction.ClusterRerouteResponseAckedClusterStateUpdateTask task =
             new TransportClusterRerouteAction.ClusterRerouteResponseAckedClusterStateUpdateTask(
                 logger,

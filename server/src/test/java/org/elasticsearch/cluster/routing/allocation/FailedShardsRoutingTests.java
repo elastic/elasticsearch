@@ -37,6 +37,7 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
+import static org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener.rerouteCompletionIsNotRequired;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
@@ -107,7 +108,8 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
                 )
             ),
             false,
-            false
+            false,
+            rerouteCompletionIsNotRequired()
         );
         assertThat(commandsResult.clusterState(), not(equalTo(clusterState)));
         clusterState = commandsResult.clusterState();
@@ -136,7 +138,8 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
                 )
             ),
             false,
-            false
+            false,
+            rerouteCompletionIsNotRequired()
         );
         assertThat(commandsResult.clusterState(), not(equalTo(clusterState)));
         clusterState = commandsResult.clusterState();

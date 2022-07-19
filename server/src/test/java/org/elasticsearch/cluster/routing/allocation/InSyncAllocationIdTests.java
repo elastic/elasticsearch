@@ -36,6 +36,7 @@ import java.util.Set;
 import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
+import static org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener.rerouteCompletionIsNotRequired;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 
@@ -116,7 +117,8 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
             clusterState,
             new AllocationCommands(new AllocateEmptyPrimaryAllocationCommand("test", 0, "node1", true)),
             false,
-            false
+            false,
+            rerouteCompletionIsNotRequired()
         ).clusterState();
 
         // check that in-sync allocation ids are reset by forcing an empty primary

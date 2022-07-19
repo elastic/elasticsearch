@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationComman
 import org.elasticsearch.common.settings.Settings;
 
 import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
+import static org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener.rerouteCompletionIsNotRequired;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
@@ -127,7 +128,8 @@ public class ExpectedShardSizeAllocationTests extends ESAllocationTestCase {
             clusterState,
             new AllocationCommands(new MoveAllocationCommand("test", 0, existingNodeId, toNodeId)),
             false,
-            false
+            false,
+            rerouteCompletionIsNotRequired()
         );
         assertThat(commandsResult.clusterState(), not(equalTo(clusterState)));
         clusterState = commandsResult.clusterState();

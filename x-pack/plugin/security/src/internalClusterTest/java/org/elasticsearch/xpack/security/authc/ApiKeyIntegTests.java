@@ -99,6 +99,7 @@ import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -1532,7 +1533,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             new String(HASHER.hash(TEST_PASSWORD_SECURE_STRING)),
             Collections.singletonMap("Authorization", basicAuthHeaderValue(TEST_USER_NAME, TEST_PASSWORD_SECURE_STRING))
         );
-        final List<String> clusterPrivileges = new ArrayList<>(randomSubsetOf(ClusterPrivilegeResolver.names()));
+        final Set<String> clusterPrivileges = new HashSet<>(randomSubsetOf(ClusterPrivilegeResolver.names()));
         // At a minimum include privilege to manage own API key to ensure no 403
         clusterPrivileges.add(randomFrom("manage_api_key", "manage_own_api_key"));
         final RoleDescriptor roleDescriptorBeforeUpdate = putRoleWithClusterPrivileges(
@@ -1550,9 +1551,12 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final String apiKeyId = createdApiKey.getId();
         expectRoleDescriptorsForApiKey("limited_by_role_descriptors", Set.of(roleDescriptorBeforeUpdate), getApiKeyDocument(apiKeyId));
 
-        final List<String> newClusterPrivileges = new ArrayList<>(randomSubsetOf(ClusterPrivilegeResolver.names()));
-        // At a minimum include privilege to manage own API key to ensure no 403
-        newClusterPrivileges.add(randomFrom("manage_api_key", "manage_own_api_key"));
+        final Set<String> newClusterPrivileges = randomValueOtherThanMany(
+            privs -> clusterPrivileges.equals(privs)
+                || (clusterPrivileges.contains("manage_api_key") == false && clusterPrivileges.contains("manage_own_api_key") == false),
+            () -> Set.copyOf(randomNonEmptySubsetOf(ClusterPrivilegeResolver.names()))
+        );
+
         // Update user role
         final RoleDescriptor roleDescriptorAfterUpdate = putRoleWithClusterPrivileges(
             nativeRealmRole,

@@ -14,7 +14,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * Class that collects all raw values for a label field.
+ * Class that produces values for a label field.
  */
 abstract class LabelFieldProducer extends AbstractRollupFieldProducer<Object> {
 

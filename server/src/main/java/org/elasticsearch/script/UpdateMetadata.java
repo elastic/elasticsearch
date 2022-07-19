@@ -12,7 +12,6 @@ import org.elasticsearch.common.util.Maps;
 
 import java.util.Map;
 import java.util.Set;
-import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 /**
@@ -35,8 +34,6 @@ public class UpdateMetadata extends Metadata {
         FieldProperty.LONGABLE_NUMBER
     );
 
-    protected static final Set<String> VALID_UPDATE_OPS = Set.of("noop", "index", "delete", LEGACY_NOOP_STRING);
-
     static final Map<String, FieldProperty<?>> PROPERTIES = Map.of(
         INDEX,
         SET_ONCE_STRING,
@@ -49,27 +46,20 @@ public class UpdateMetadata extends Metadata {
         TYPE,
         SET_ONCE_STRING,
         OP,
-        new FieldProperty<>(String.class, true, true, stringSetValidator(VALID_UPDATE_OPS)),
+        new FieldProperty<>(String.class, true, true, null),
         TIMESTAMP,
         SET_ONCE_LONG
     );
 
-    protected static BiConsumer<String, String> stringSetValidator(Set<String> valid) {
-        return (k, v) -> {
-            if (valid.contains(v) == false) {
-                throw new IllegalArgumentException(
-                    "[" + k + "] must be one of " + valid.stream().sorted().collect(Collectors.joining(", ")) + ", not [" + v + "]"
-                );
-            }
-        };
-    }
+    protected final Set<String> validOps;
 
     public UpdateMetadata(String index, String id, long version, String routing, String type, String op, long timestamp) {
-        this(metadataMap(index, id, version, routing, type, op, timestamp), PROPERTIES);
+        this(metadataMap(index, id, version, routing, type, op, timestamp), Set.of("noop", "index", "delete"), PROPERTIES);
     }
 
-    protected UpdateMetadata(Map<String, Object> metadata, Map<String, FieldProperty<?>> properties) {
+    protected UpdateMetadata(Map<String, Object> metadata, Set<String> validOps, Map<String, FieldProperty<?>> properties) {
         super(metadata, properties);
+        this.validOps = validOps;
     }
 
     protected static Map<String, Object> metadataMap(
@@ -95,9 +85,8 @@ public class UpdateMetadata extends Metadata {
     @Override
     public String getOp() {
         String op = super.getOp();
-        if (LEGACY_NOOP_STRING.equals(op) || op == null) {
-            // UpdateHelper.UpdateOpType.lenientFromString allows anything into the map but UpdateMetadata limits
-            // it to VALID_UPDATE_OPS
+        if (LEGACY_NOOP_STRING.equals(op) || op == null || validOps.contains(op) == false) {
+            // UpdateHelper.UpdateOpType.lenientFromString treats all invalid ops as "noop"
             return "noop";
         }
         return op;
@@ -105,8 +94,13 @@ public class UpdateMetadata extends Metadata {
 
     @Override
     public void setOp(String op) {
-        if (LEGACY_NOOP_STRING.equals(op) || op == null) {
-            throw new IllegalArgumentException(op + " is not allowed, use 'noop' instead");
+        // Due to existing leniency, we cannot rely on the map validator, so we must do validation here.
+        if (LEGACY_NOOP_STRING.equals(op)) {
+            throw new IllegalArgumentException("'" + LEGACY_NOOP_STRING + "' is not allowed, use 'noop' instead");
+        } else if (op == null || validOps.contains(op) == false) {
+            throw new IllegalArgumentException(
+                "op must be one of [" + validOps.stream().sorted().collect(Collectors.joining(", ")) + "], not [" + op + "]"
+            );
         }
         super.setOp(op);
     }

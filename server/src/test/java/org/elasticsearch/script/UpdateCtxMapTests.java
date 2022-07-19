@@ -70,24 +70,21 @@ public class UpdateCtxMapTests extends ESTestCase {
         }
     }
 
-    public void testNoneOp() {
+    public void testInvalidOp() {
         IllegalArgumentException err = expectThrows(IllegalArgumentException.class, () -> meta.setOp("none"));
-        assertEquals("none is not allowed, use 'noop' instead", err.getMessage());
-        err = expectThrows(IllegalArgumentException.class, () -> meta.setOp("none"));
-        assertEquals("null is not allowed, use 'noop' instead", err.getMessage());
+        assertEquals("'none' is not allowed, use 'noop' instead", err.getMessage());
+        err = expectThrows(IllegalArgumentException.class, () -> meta.setOp(null));
+        assertEquals("op must be one of [delete, index, noop], not [null]", err.getMessage());
+        err = expectThrows(IllegalArgumentException.class, () -> meta.setOp("foo"));
+        assertEquals("op must be one of [delete, index, noop], not [foo]", err.getMessage());
         meta.put("op", "none");
+        assertEquals("noop", meta.getOp());
+        meta.put("op", "foo");
         assertEquals("noop", meta.getOp());
         meta.remove("op");
         assertEquals("noop", meta.getOp());
         meta.put("op", "index");
         assertEquals("index", meta.getOp());
-    }
-
-    public void testInvalidOp() {
-        IllegalArgumentException err = expectThrows(IllegalArgumentException.class, () -> meta.put("op", "blah"));
-        assertEquals("[op] must be one of delete, index, none, noop, not [blah]", err.getMessage());
-        err = expectThrows(IllegalArgumentException.class, () -> meta.setOp("blah"));
-        assertEquals("[op] must be one of delete, index, none, noop, not [blah]", err.getMessage());
     }
 
     public void testTimestamp() {

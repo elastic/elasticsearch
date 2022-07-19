@@ -888,7 +888,7 @@ public class SystemIndices {
             Collection<SystemIndexDescriptor> indexDescriptors,
             List<String> associatedIndices
         ) {
-            return associatedIndices.size() + (int)indexDescriptors.stream()
+            return associatedIndices.size() + (int) indexDescriptors.stream()
                 .filter(id -> id.getMatchingIndices(metadata).isEmpty() == false)
                 .count();
         }
@@ -927,8 +927,7 @@ public class SystemIndices {
 
             GroupedActionListener<ResetFeatureStateStatus> groupedListener = new GroupedActionListener<>(
                 ActionListener.wrap(listenerResults -> {
-                    List<ResetFeatureStateStatus> errors = listenerResults
-                        .stream()
+                    List<ResetFeatureStateStatus> errors = listenerResults.stream()
                         .filter(status -> status.getStatus() == ResetFeatureStateResponse.ResetFeatureStateStatus.Status.FAILURE)
                         .collect(Collectors.toList());
 

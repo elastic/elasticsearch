@@ -12,7 +12,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureSta
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.test.NativeRealmIntegTestCase;
+import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.TestSecurityClient;
@@ -23,13 +23,14 @@ import java.util.Collections;
 
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import static org.hamcrest.Matchers.containsString;
 
-public class SecurityFeatureResetTests extends NativeRealmIntegTestCase {
+public class SecurityFeatureResetTests extends SecurityIntegTestCase {
     private static final SecureString SUPER_USER_PASSWD = SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
 
     @Override
-    public boolean shouldDeleteSecurityIndex() {
-        return false;
+    protected boolean addMockHttpTransport() {
+        return false; // enable http
     }
 
     @Before
@@ -70,12 +71,12 @@ public class SecurityFeatureResetTests extends NativeRealmIntegTestCase {
         return super.configRoles() + """
             %s
             role1:
-              cluster: [ all ]
+              cluster: [ manage ]
               indices:
                 - names: '*'
                   privileges: [ manage ]
             role2:
-              cluster: [ all ]
+              cluster: [ monitor ]
               indices:
                 - names: '*'
                   privileges: [ read ]
@@ -83,18 +84,39 @@ public class SecurityFeatureResetTests extends NativeRealmIntegTestCase {
     }
 
     public void testFeatureResetSuperuser() {
-        assertReset("su", SUPER_USER_PASSWD, 0);
+        assertResetSuccessful("su", SUPER_USER_PASSWD);
     }
 
     public void testFeatureResetManageRole() {
-        assertReset("manager", SUPER_USER_PASSWD, 0);
+        assertResetSuccessful("manager", SUPER_USER_PASSWD);
     }
 
-    /*public void testFeatureResetUsrRole() {
-        assertReset("usr", SUPER_USER_PASSWD, 1);
-    }*/
+    public void testFeatureResetNoManageRole() {
+        final ResetFeatureStateRequest req = new ResetFeatureStateRequest();
 
-    private void assertReset(String user, SecureString password, final int numFailures) {
+        client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("usr", SUPER_USER_PASSWD)))
+            .admin()
+            .cluster()
+            .execute(ResetFeatureStateAction.INSTANCE, req, new ActionListener<>() {
+                @Override
+                public void onResponse(ResetFeatureStateResponse response) {
+                    fail("Shouldn't reach here");
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    assertThat(
+                        e.getMessage(),
+                        containsString("action [cluster:admin/features/reset] is unauthorized for user [usr] with roles [role2]")
+                    );
+                }
+            });
+
+        // Manually delete the security index, reset shouldn't work
+        deleteSecurityIndex();
+    }
+
+    private void assertResetSuccessful(String user, SecureString password) {
         final ResetFeatureStateRequest req = new ResetFeatureStateRequest();
 
         client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue(user, password)))
@@ -107,7 +129,7 @@ public class SecurityFeatureResetTests extends NativeRealmIntegTestCase {
                         .stream()
                         .filter(status -> status.getStatus() == ResetFeatureStateResponse.ResetFeatureStateStatus.Status.FAILURE)
                         .count();
-                    assertEquals(numFailures, failures);
+                    assertEquals(0, failures);
                 }
 
                 @Override

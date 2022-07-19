@@ -43,15 +43,9 @@ public abstract class NativeRealmIntegTestCase extends SecurityIntegTestCase {
         }
     }
 
-    public boolean shouldDeleteSecurityIndex() {
-        return true;
-    }
-
     @After
     public void stopESNativeStores() throws Exception {
-        if (shouldDeleteSecurityIndex()) {
-            deleteSecurityIndex();
-        }
+        deleteSecurityIndex();
 
         if (getCurrentClusterScope() == Scope.SUITE) {
             // Clear the realm cache for all realms since we use a SUITE scoped cluster

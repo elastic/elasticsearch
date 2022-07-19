@@ -15,29 +15,34 @@
 ==== {api-prereq-title}
 
 * To use this API, you must have at least the `manage_own_api_key` cluster privilege.
-Users can only update their own API keys, i.e., API keys they created.
-To update another user's API key, you must use the run as feature.
-For more information, see <<run-as-privilege>>.
+Users can only update API keys that they created or that were granted to them.
+To update another user's API key, use the <<run-as-privilege,`run_as` feature>>
+to submit a request on behalf of another user.
 
 IMPORTANT: It's not possible to use an API key as the authentication credential for this API.
-To update an API key, user password or <<security-api-get-token, token credentials>> are required.
+To update an API key, the owner user's credentials are required.
 
 [[security-api-update-api-key-desc]]
 ==== {api-description-title}
 
-The API keys created by <<security-api-create-api-key,create API Key>> or <<security-api-grant-api-key,grant API Key>> can be updated using this API.
+Use this API to update API keys created by the <<security-api-create-api-key,create API Key>> or <<security-api-grant-api-key,grant API Key>> APIs.
 It's not possible to update expired API keys, or API keys that have been invalidated by <<security-api-invalidate-api-key,invalidate API Key>>.
 
 This API supports updates to an API key's access scope, i.e., its permissions, and its metadata.
 
-IMPORTANT: A call to <<security-api-update-api-key,update API Key>> may result in a change in the API key's access scope, even if you don't specify new <<security-api-update-api-key-api-key-role-descriptors,`role_descriptors`>> in the request.
-This is because the API key's access scope is <<security-api-update-api-key-api-key-role-descriptors,derived and updated>> based on a snapshot of the authenticated user's permissions at the time of the request.
+[IMPORTANT]
+====
+A call to this API might change the API key's access scope, even if you don't specify new
+<<security-api-update-api-key-api-key-role-descriptors,`role_descriptors`>> in the request. This behavior
+can occur because the API key's access scope is derived and updated based on a snapshot of the owner
+user's permissions at the time of the request.
+====
 
 [[security-api-update-api-key-path-params]]
 ==== {api-path-parms-title}
 
 `id`::
-(Required, string) The ID of the API key to be updated.
+(Required, string) The ID of the API key to update.
 
 [[security-api-update-api-key-request-body]]
 ==== {api-request-body-title}
@@ -47,8 +52,7 @@ Following parameters can be specified in it:
 
 [[security-api-update-api-key-api-key-role-descriptors]]
 `role_descriptors`::
-(Optional, array-of-role-descriptor) An array of new role descriptors for this API key.
-This parameter is optional.
+(Optional, array) An array of new role descriptors for this API key.
 When the parameter is supplied but empty, the API key's new permissions will be the current _point in time snapshot of permissions of the authenticated user_.
 If you supply role descriptors, the API key's permissions will be the intersection of the supplied permissions and the authenticated user's current permissions, thereby limiting the API key's access scope.
 If you do not supply this parameter, the permissions will be the user's current permissions, limited by permissions previously assigned to the API key, if any.
@@ -58,14 +62,15 @@ For more details, see <<security-api-put-role, create or update roles API>>.
 `metadata`::
 (Optional, object) Arbitrary metadata that you want to associate with the API key.
 It supports nested data structure.
-Within the `metadata` object, keys beginning with `_` are reserved for system usage.
+Within the `metadata` object, top-level keys beginning with `_` are reserved for system usage.
 When specified, this fully replaces metadata previously associated with the API key.
 
 [[security-api-update-api-key-response-body]]
 ==== {api-response-body-title}
 
 `updated`::
-(boolean) `true` if the API key was updated, `false` if the API key did not change.
+(boolean) If `true`, the API key was updated.
+If `false`, the API key didn't change because no change was detected.
 
 [[security-api-update-api-key-example]]
 ==== {api-examples-title}

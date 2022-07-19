@@ -125,7 +125,9 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
 
         // Backup JWKs 1
         final List<JwtIssuer.AlgJwkPair> jwtIssuerJwks1Backup = jwtIssuerAndRealm.issuer().algAndJwksAll;
-        final boolean jwtIssuerJwks1OidcSafe = JwkValidateUtil.areJwkHmacOidcSafe(jwtIssuerJwks1Backup.stream().map(e -> e.jwk()).toList());
+        final boolean jwtIssuerJwks1OidcSafe = JwkValidateUtilTests.areJwkHmacOidcSafe(
+            jwtIssuerJwks1Backup.stream().map(e -> e.jwk()).toList()
+        );
         LOGGER.debug("JWKs 1, algs=[{}]", String.join(",", jwtIssuerAndRealm.issuer().algorithmsAll));
 
         // Empty all JWT issuer JWKs.

@@ -9,11 +9,15 @@ package org.elasticsearch.xpack.security.authc.jwt;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.jwk.JWK;
+import com.nimbusds.jose.jwk.OctetSequenceKey;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 
 import static org.hamcrest.Matchers.anyOf;
@@ -23,6 +27,24 @@ import static org.hamcrest.Matchers.is;
 public class JwkValidateUtilTests extends JwtTestCase {
 
     private static final Logger LOGGER = LogManager.getLogger(JwkValidateUtilTests.class);
+
+    // Test decode bytes as UTF8 to String, encode back to UTF8, and compare to original bytes. If same, it is safe for OIDC JWK encode.
+    static boolean isJwkHmacOidcSafe(final JWK jwk) {
+        if (jwk instanceof OctetSequenceKey jwkHmac) {
+            final byte[] rawKeyBytes = jwkHmac.getKeyValue().decode();
+            return Arrays.equals(rawKeyBytes, new String(rawKeyBytes, StandardCharsets.UTF_8).getBytes(StandardCharsets.UTF_8));
+        }
+        return true;
+    }
+
+    static boolean areJwkHmacOidcSafe(final Collection<JWK> jwks) {
+        for (final JWK jwk : jwks) {
+            if (JwkValidateUtilTests.isJwkHmacOidcSafe(jwk) == false) {
+                return false;
+            }
+        }
+        return true;
+    }
 
     public void testComputeBitLengthRsa() throws Exception {
         for (final String signatureAlgorithmRsa : JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_RSA) {

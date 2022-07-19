@@ -1,0 +1,9 @@
+pr: 88600
+summary: Make `categorize_text` aggregation GA
+area: Machine Learning
+type: feature
+issues: []
+highlight:
+  title: Make `categorize_text` aggregation GA
+  body: Removes the experimental tag from the categorize_text aggregation.
+  notable: true

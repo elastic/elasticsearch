@@ -81,7 +81,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         }
 
         boolean isEmpty() {
-            return ((this.jwksContent == null) || this.jwksContent.isEmpty()) && this.jwksAlgs.isEmpty();
+            return Strings.isEmpty(this.jwksContent) && this.jwksAlgs.isEmpty();
         }
     }
 

@@ -1,6 +1,6 @@
 setup:
   - skip:
-      version: " - 8.2.99"
+      version: " - 8.3.99"
       reason: tsdb indexing changed in 8.3.0
 
   - do:

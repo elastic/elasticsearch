@@ -146,13 +146,11 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
     private Resource privilegedGetClassResourceOrNull(JarMeta jarMeta, String pkg, String filepath) {
         return AccessController.doPrivileged((PrivilegedAction<Resource>) () -> {
             List<Integer> releaseVersions = jarMeta.pkgToVersions().getOrDefault(pkg, List.of());
-            if (jarMeta.isMultiRelease()) {
-                for (int releaseVersion : releaseVersions) {
-                    String fullName = jarMeta.prefix() + "/" + MRJAR_VERSION_PREFIX + releaseVersion + "/" + filepath;
-                    InputStream is = parent.getResourceAsStream(fullName);
-                    if (is != null) {
-                        return new Resource(is, prefixToCodeBase.get(jarMeta.prefix()));
-                    }
+            for (int releaseVersion : releaseVersions) {
+                String fullName = jarMeta.prefix() + "/" + MRJAR_VERSION_PREFIX + releaseVersion + "/" + filepath;
+                InputStream is = parent.getResourceAsStream(fullName);
+                if (is != null) {
+                    return new Resource(is, prefixToCodeBase.get(jarMeta.prefix()));
                 }
             }
             InputStream is = parent.getResourceAsStream(jarMeta.prefix() + "/" + filepath);

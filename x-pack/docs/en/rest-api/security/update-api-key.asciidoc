@@ -36,7 +36,7 @@ The snapshot of the owner's permissions is updated automatically on every call.
 ====
 A call to this API might change the API key's access scope, even if you don't specify new
 <<security-api-update-api-key-api-key-role-descriptors,`role_descriptors`>> in the request.
-This behavior can occur if the owner user's permissions have changed since the creation or last update to the API key.
+This behavior can occur if the owner user's permissions have changed since the creation or last update of the API key.
 ====
 
 [[security-api-update-api-key-path-params]]
@@ -58,7 +58,7 @@ The API key's permissions are an intersection of its assigned privileges and the
 If no privileges are assigned, the API key has the owner user's full current permissions.
 You can assign new privileges to the API key by specifying them in this parameter.
 If you omit this parameter, the API key keeps its previously assigned privileges.
-You can remove all previously assigned privileges by specifying an empty parameter.
+You can remove all previously assigned privileges by supplying an empty parameter.
 The snapshot of the owner's permissions is always updated, regardless of whether you specify this parameter or not.
 The structure of the role descriptor is the same as the request for the create role API.
 For more details, see <<security-api-put-role, create or update roles API>>.

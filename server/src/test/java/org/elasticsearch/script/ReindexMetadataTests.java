@@ -10,7 +10,7 @@ package org.elasticsearch.script;
 
 import org.elasticsearch.test.ESTestCase;
 
-public class BulkMetadataTests extends ESTestCase {
+public class ReindexMetadataTests extends ESTestCase {
     /*
     TODO(stu): update
     private static final String INDEX = "myIndex";

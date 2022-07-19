@@ -22,7 +22,8 @@ public class ReindexMetadata extends Metadata {
 
     public ReindexMetadata(String index, String id, Long version, String routing, String op, long timestamp) {
         super(
-            new MetadataBuilder(6).index(index, WritableStringField)
+            new MetadataBuilder(6)
+                .index(index, WritableStringField)
                 .id(id, WritableStringField.withNullable())
                 .version(version, LongField.withValidation((k, v) -> {
                     LongField.extendedValidation().accept(k, v);

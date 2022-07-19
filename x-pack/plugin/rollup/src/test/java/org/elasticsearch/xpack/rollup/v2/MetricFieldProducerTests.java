@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.rollup.v2;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.index.mapper.timeseries.TimeSeriesParams;
+import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 

@@ -30,8 +30,9 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
+import org.elasticsearch.index.mapper.TimeSeriesParams;
+import org.elasticsearch.index.mapper.TimeSeriesParams.MetricType;
 import org.elasticsearch.index.mapper.ValueFetcher;
-import org.elasticsearch.index.mapper.timeseries.TimeSeriesParams;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -83,7 +84,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
          * For the numeric fields gauge and counter metric types are
          * supported
          */
-        private final Parameter<TimeSeriesParams.MetricType> metric;
+        private final Parameter<MetricType> metric;
 
         public Builder(String name, Settings settings) {
             this(name, IGNORE_MALFORMED_SETTING.get(settings));
@@ -121,11 +122,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                 }
             });
 
-            this.metric = TimeSeriesParams.metricParam(
-                m -> toType(m).metricType,
-                TimeSeriesParams.MetricType.gauge,
-                TimeSeriesParams.MetricType.counter
-            ).addValidator(v -> {
+            this.metric = TimeSeriesParams.metricParam(m -> toType(m).metricType, MetricType.gauge, MetricType.counter).addValidator(v -> {
                 if (v != null && hasDocValues.getValue() == false) {
                     throw new IllegalArgumentException(
                         "Field [" + TimeSeriesParams.TIME_SERIES_METRIC_PARAM + "] requires that [" + hasDocValues.name + "] is true"
@@ -154,7 +151,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             return this;
         }
 
-        public Builder metric(TimeSeriesParams.MetricType metric) {
+        public Builder metric(MetricType metric) {
             this.metric.setValue(metric);
             return this;
         }
@@ -194,7 +191,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
 
         private final Number nullValueFormatted;
         private final boolean isDimension;
-        private final TimeSeriesParams.MetricType metricType;
+        private final MetricType metricType;
 
         public UnsignedLongFieldType(
             String name,
@@ -204,7 +201,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             Number nullValueFormatted,
             Map<String, String> meta,
             boolean isDimension,
-            TimeSeriesParams.MetricType metricType
+            MetricType metricType
         ) {
             super(name, indexed, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
             this.nullValueFormatted = nullValueFormatted;
@@ -466,7 +463,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
          * If field is a time series metric field, returns its metric type
          * @return the metric type or null
          */
-        public TimeSeriesParams.MetricType getMetricType() {
+        public MetricType getMetricType() {
             return metricType;
         }
     }
@@ -479,7 +476,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
     private final String nullValue;
     private final Long nullValueIndexed; // null value to use for indexing, represented as shifted to signed long range
     private final boolean dimension;
-    private final TimeSeriesParams.MetricType metricType;
+    private final MetricType metricType;
 
     private UnsignedLongFieldMapper(
         String simpleName,

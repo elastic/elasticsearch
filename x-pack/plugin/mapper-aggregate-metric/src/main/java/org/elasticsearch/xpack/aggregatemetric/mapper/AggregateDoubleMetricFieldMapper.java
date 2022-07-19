@@ -33,8 +33,9 @@ import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
+import org.elasticsearch.index.mapper.TimeSeriesParams;
+import org.elasticsearch.index.mapper.TimeSeriesParams.MetricType;
 import org.elasticsearch.index.mapper.ValueFetcher;
-import org.elasticsearch.index.mapper.timeseries.TimeSeriesParams;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.ScriptCompiler;
@@ -142,7 +143,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
          * For {@link AggregateDoubleMetricFieldMapper} fields gauge, counter and summary metric types are
          * supported.
          */
-        private final Parameter<TimeSeriesParams.MetricType> timeSeriesMetric;
+        private final Parameter<MetricType> timeSeriesMetric;
 
         /**
          * Set the default metric so that query operations are delegated to it.
@@ -168,9 +169,9 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
             this.timeSeriesMetric = TimeSeriesParams.metricParam(
                 m -> toType(m).metricType,
-                TimeSeriesParams.MetricType.gauge,
-                TimeSeriesParams.MetricType.counter,
-                TimeSeriesParams.MetricType.summary
+                MetricType.gauge,
+                MetricType.counter,
+                MetricType.summary
             );
 
             this.indexCreatedVersion = Objects.requireNonNull(indexCreatedVersion);
@@ -181,7 +182,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
             return new Parameter<?>[] { ignoreMalformed, metrics, defaultMetric, meta, timeSeriesMetric };
         }
 
-        public Builder metric(TimeSeriesParams.MetricType metric) {
+        public Builder metric(MetricType metric) {
             this.timeSeriesMetric.setValue(metric);
             return this;
         }
@@ -271,13 +272,13 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
         private Metric defaultMetric;
 
-        private final TimeSeriesParams.MetricType metricType;
+        private final MetricType metricType;
 
         public AggregateDoubleMetricFieldType(String name) {
             this(name, Collections.emptyMap(), null);
         }
 
-        public AggregateDoubleMetricFieldType(String name, Map<String, String> meta, TimeSeriesParams.MetricType metricType) {
+        public AggregateDoubleMetricFieldType(String name, Map<String, String> meta, MetricType metricType) {
             super(name, true, false, false, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
             this.metricType = metricType;
         }
@@ -511,7 +512,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
          * If field is a time series metric field, returns its metric type
          * @return the metric type or null
          */
-        public TimeSeriesParams.MetricType getMetricType() {
+        public MetricType getMetricType() {
             return metricType;
         }
     }

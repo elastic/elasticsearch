@@ -37,7 +37,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.SortedDoublesIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
-import org.elasticsearch.index.mapper.timeseries.TimeSeriesParams;
+import org.elasticsearch.index.mapper.TimeSeriesParams.MetricType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.DoubleFieldScript;
 import org.elasticsearch.script.LongFieldScript;
@@ -104,7 +104,7 @@ public class NumberFieldMapper extends FieldMapper {
          * For the numeric fields gauge and counter metric types are
          * supported
          */
-        private final Parameter<TimeSeriesParams.MetricType> metric;
+        private final Parameter<MetricType> metric;
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
@@ -173,11 +173,7 @@ public class NumberFieldMapper extends FieldMapper {
                 }
             });
 
-            this.metric = TimeSeriesParams.metricParam(
-                m -> toType(m).metricType,
-                TimeSeriesParams.MetricType.gauge,
-                TimeSeriesParams.MetricType.counter
-            ).addValidator(v -> {
+            this.metric = TimeSeriesParams.metricParam(m -> toType(m).metricType, MetricType.gauge, MetricType.counter).addValidator(v -> {
                 if (v != null && hasDocValues.getValue() == false) {
                     throw new IllegalArgumentException(
                         "Field [" + TimeSeriesParams.TIME_SERIES_METRIC_PARAM + "] requires that [" + hasDocValues.name + "] is true"
@@ -211,7 +207,7 @@ public class NumberFieldMapper extends FieldMapper {
             return this;
         }
 
-        public Builder metric(TimeSeriesParams.MetricType metric) {
+        public Builder metric(MetricType metric) {
             this.metric.setValue(metric);
             return this;
         }
@@ -1288,7 +1284,7 @@ public class NumberFieldMapper extends FieldMapper {
         private final Number nullValue;
         private final FieldValues<Number> scriptValues;
         private final boolean isDimension;
-        private final TimeSeriesParams.MetricType metricType;
+        private final MetricType metricType;
 
         public NumberFieldType(
             String name,
@@ -1301,7 +1297,7 @@ public class NumberFieldMapper extends FieldMapper {
             Map<String, String> meta,
             FieldValues<Number> script,
             boolean isDimension,
-            TimeSeriesParams.MetricType metricType
+            MetricType metricType
         ) {
             super(name, isIndexed, isStored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
             this.type = Objects.requireNonNull(type);
@@ -1467,7 +1463,7 @@ public class NumberFieldMapper extends FieldMapper {
          * If field is a time series metric field, returns its metric type
          * @return the metric type or null
          */
-        public TimeSeriesParams.MetricType getMetricType() {
+        public MetricType getMetricType() {
             return metricType;
         }
     }
@@ -1486,7 +1482,7 @@ public class NumberFieldMapper extends FieldMapper {
     private final boolean dimension;
     private final ScriptCompiler scriptCompiler;
     private final Script script;
-    private final TimeSeriesParams.MetricType metricType;
+    private final MetricType metricType;
     private final Version indexCreatedVersion;
 
     private NumberFieldMapper(String simpleName, MappedFieldType mappedFieldType, MultiFields multiFields, CopyTo copyTo, Builder builder) {

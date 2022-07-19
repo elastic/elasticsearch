@@ -47,8 +47,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.timeseries.TimeSeriesParams;
-import org.elasticsearch.index.mapper.timeseries.TimeseriesFieldTypeHelper;
+import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -70,7 +69,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.index.mapper.timeseries.TimeSeriesParams.TIME_SERIES_METRIC_PARAM;
+import static org.elasticsearch.index.mapper.TimeSeriesParams.TIME_SERIES_METRIC_PARAM;
 
 /**
  * The master rollup action that coordinates
@@ -206,11 +205,8 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
             final List<String> dimensionFields = new ArrayList<>();
             final List<String> metricFields = new ArrayList<>();
             final List<String> labelFields = new ArrayList<>();
-            final TimeseriesFieldTypeHelper helper = new TimeseriesFieldTypeHelper.Builder(
-                indicesService,
-                sourceIndexMappings,
-                sourceIndexMetadata
-            ).build(request.getRollupConfig().getTimestampField());
+            final FieldTypeHelper helper = new FieldTypeHelpers.Builder(indicesService, sourceIndexMappings, sourceIndexMetadata)
+                .timeseriesHelper(request.getRollupConfig().getTimestampField());
             MappingVisitor.visitMapping(sourceIndexMappings, (field, mapping) -> {
                 if (helper.isTimeSeriesDimension(field, mapping)) {
                     dimensionFields.add(field);
@@ -383,7 +379,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
      * @return the mapping of the rollup index
      */
     public static String createRollupIndexMapping(
-        final TimeseriesFieldTypeHelper helper,
+        final FieldTypeHelper helper,
         final RollupActionConfig config,
         final MapperService mapperService,
         final Map<String, Object> sourceIndexMappings
@@ -410,7 +406,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
     }
 
     private static void addMetricFields(
-        final TimeseriesFieldTypeHelper helper,
+        final FieldTypeHelper helper,
         final Map<String, Object> sourceIndexMappings,
         final XContentBuilder builder
     ) {

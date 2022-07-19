@@ -21,7 +21,7 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
-public class RestClearApiKeyCacheAction extends ApiKeyBaseRestHandler {
+public class RestClearApiKeyCacheAction extends SecurityBaseRestHandler {
 
     public RestClearApiKeyCacheAction(Settings settings, XPackLicenseState licenseState) {
         super(settings, licenseState);

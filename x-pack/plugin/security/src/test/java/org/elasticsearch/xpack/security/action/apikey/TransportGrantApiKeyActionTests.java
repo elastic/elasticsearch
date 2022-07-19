@@ -85,7 +85,9 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
             mock(TransportService.class),
             mock(ActionFilters.class),
             threadContext,
-            authenticationService, authorizationService, apiKeyService,
+            authenticationService,
+            authorizationService,
+            apiKeyService,
             resolver
         );
     }

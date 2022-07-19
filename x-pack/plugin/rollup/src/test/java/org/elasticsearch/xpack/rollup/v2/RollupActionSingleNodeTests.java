@@ -535,7 +535,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             }
         });
 
-        assertRollupIndexAgrgegations(sourceIndex, rollupIndex, config, metricFields, labelFields);
+        assertRollupIndexAggregations(sourceIndex, rollupIndex, config, metricFields, labelFields);
 
         GetIndexResponse indexSettingsResp = client().admin().indices().prepareGetIndex().addIndices(sourceIndex, rollupIndex).get();
         assertRollupIndexSettings(sourceIndex, rollupIndex, indexSettingsResp);
@@ -570,7 +570,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         assertEquals(labelFieldRollupIndexCloneProperties, labelFieldSourceIndexProperties);
     }
 
-    private void assertRollupIndexAgrgegations(
+    private void assertRollupIndexAggregations(
         String sourceIndex,
         String rollupIndex,
         RollupActionConfig config,

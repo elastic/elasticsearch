@@ -1586,7 +1586,7 @@ public class NumberFieldMapper extends FieldMapper {
             IndexableField last = fields.get(fields.size() - 1);
             assert last.name().equals(fieldType().name())
                 : "last field name [" + last.name() + "] mis match field name [" + fieldType().name() + "]";
-            context.doc().addWithKey(fieldType().name(), fields.get(fields.size() - 1));
+            context.doc().onlyAddKey(fieldType().name(), fields.get(fields.size() - 1));
         }
 
         if (hasDocValues == false && (stored || indexed)) {

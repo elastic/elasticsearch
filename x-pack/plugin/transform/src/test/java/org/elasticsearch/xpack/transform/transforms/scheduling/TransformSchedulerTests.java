@@ -149,20 +149,20 @@ public class TransformSchedulerTests extends ESTestCase {
         transformScheduler.handleTransformFailureCountChanged(transformId, 1);
         assertThat(
             transformScheduler.getTransformScheduledTasks(),
-            contains(new TransformScheduledTask(transformId, frequency, 0L, 1, 2 * 1000, listener))
+            contains(new TransformScheduledTask(transformId, frequency, 0L, 1, 5 * 1000, listener))
         );
         assertThat(events, hasSize(1));
 
         transformScheduler.processScheduledTasks();
         assertThat(
             transformScheduler.getTransformScheduledTasks(),
-            contains(new TransformScheduledTask(transformId, frequency, 60 * 1000L, 1, 62 * 1000, listener))
+            contains(new TransformScheduledTask(transformId, frequency, 60 * 1000L, 1, 65 * 1000, listener))
         );
         assertThat(events, hasSize(2));
 
         assertThat(
             events,
-            contains(new TransformScheduler.Event(transformId, 0, 0), new TransformScheduler.Event(transformId, 2 * 1000, 60 * 1000))
+            contains(new TransformScheduler.Event(transformId, 0, 0), new TransformScheduler.Event(transformId, 5 * 1000, 60 * 1000))
         );
 
         transformScheduler.deregisterTransform(transformId);
@@ -396,6 +396,7 @@ public class TransformSchedulerTests extends ESTestCase {
             setCurrentTime(currentTime.plus(duration));
         }
 
+        @Override
         public Instant instant() {
             return currentTime;
         }

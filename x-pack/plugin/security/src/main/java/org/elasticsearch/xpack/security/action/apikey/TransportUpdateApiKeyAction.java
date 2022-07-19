@@ -20,12 +20,14 @@ import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyResponse;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.support.ApiKeyUpdateHandler;
+import org.elasticsearch.xpack.security.authc.support.ApiKeyUserRoleDescriptorResolver;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 
 public final class TransportUpdateApiKeyAction extends HandledTransportAction<UpdateApiKeyRequest, UpdateApiKeyResponse> {
 
     private final SecurityContext securityContext;
-    private final ApiKeyUpdateHandler handler;
+    private final ApiKeyService apiKeyService;
+    private final ApiKeyUserRoleDescriptorResolver resolver;
 
     @Inject
     public TransportUpdateApiKeyAction(
@@ -38,7 +40,8 @@ public final class TransportUpdateApiKeyAction extends HandledTransportAction<Up
     ) {
         super(UpdateApiKeyAction.NAME, transportService, actionFilters, UpdateApiKeyRequest::new);
         this.securityContext = context;
-        this.handler = new ApiKeyUpdateHandler(apiKeyService, rolesStore, xContentRegistry);
+        this.apiKeyService = apiKeyService;
+        this.resolver = new ApiKeyUserRoleDescriptorResolver(rolesStore, xContentRegistry);
     }
 
     @Override
@@ -54,6 +57,12 @@ public final class TransportUpdateApiKeyAction extends HandledTransportAction<Up
             return;
         }
 
-        handler.updateApiKey(authentication, request, listener);
+        resolver.getUserRoleDescriptors(
+            authentication,
+            ActionListener.wrap(
+                roleDescriptors -> apiKeyService.updateApiKey(authentication, request, roleDescriptors, listener),
+                listener::onFailure
+            )
+        );
     }
 }

@@ -29,7 +29,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 /**
  * Rest action to get one or more API keys information.
  */
-public final class RestGetApiKeyAction extends SecurityBaseRestHandler {
+public final class RestGetApiKeyAction extends ApiKeyBaseRestHandler {
 
     public RestGetApiKeyAction(Settings settings, XPackLicenseState licenseState) {
         super(settings, licenseState);

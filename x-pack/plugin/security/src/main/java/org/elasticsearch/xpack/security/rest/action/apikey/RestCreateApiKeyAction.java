@@ -26,7 +26,7 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 /**
  * Rest action to create an API key
  */
-public final class RestCreateApiKeyAction extends SecurityBaseRestHandler {
+public final class RestCreateApiKeyAction extends ApiKeyBaseRestHandler {
 
     /**
      * @param settings the node's settings

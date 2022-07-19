@@ -32,8 +32,9 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.support.BearerToken;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
-import org.elasticsearch.xpack.security.authc.support.ApiKeyGenerator;
+import org.elasticsearch.xpack.security.authc.support.ApiKeyUserRoleDescriptorResolver;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.junit.After;
 import org.junit.Before;
@@ -62,14 +63,16 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 public class TransportGrantApiKeyActionTests extends ESTestCase {
 
     private TransportGrantApiKeyAction action;
-    private ApiKeyGenerator apiKeyGenerator;
+    private ApiKeyService apiKeyService;
+    private ApiKeyUserRoleDescriptorResolver resolver;
     private AuthenticationService authenticationService;
     private ThreadPool threadPool;
     private AuthorizationService authorizationService;
 
     @Before
     public void setupMocks() throws Exception {
-        apiKeyGenerator = mock(ApiKeyGenerator.class);
+        apiKeyService = mock(ApiKeyService.class);
+        resolver = mock(ApiKeyUserRoleDescriptorResolver.class);
         authenticationService = mock(AuthenticationService.class);
         authorizationService = mock(AuthorizationService.class);
 
@@ -80,9 +83,10 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
             mock(TransportService.class),
             mock(ActionFilters.class),
             threadContext,
-            apiKeyGenerator,
+            apiKeyService,
             authenticationService,
-            authorizationService
+            authorizationService,
+            resolver
         );
     }
 
@@ -123,7 +127,7 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
         }).when(authenticationService)
             .authenticate(eq(GrantApiKeyAction.NAME), same(request), any(UsernamePasswordToken.class), anyActionListener());
 
-        setupApiKeyGenerator(authentication, request, response);
+        setupApiKeyService(authentication, request, response);
 
         final PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture<>();
         action.doExecute(null, request, future);
@@ -160,7 +164,7 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
             return null;
         }).when(authenticationService).authenticate(eq(GrantApiKeyAction.NAME), same(request), any(BearerToken.class), anyActionListener());
 
-        setupApiKeyGenerator(authentication, request, response);
+        setupApiKeyService(authentication, request, response);
 
         final PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture<>();
         action.doExecute(null, request, future);
@@ -214,7 +218,7 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
         }).when(authenticationService)
             .authenticate(eq(GrantApiKeyAction.NAME), same(request), any(AuthenticationToken.class), anyActionListener());
 
-        setupApiKeyGenerator(authentication, request, response);
+        setupApiKeyService(authentication, request, response);
 
         final PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture<>();
         action.doExecute(null, request, future);
@@ -222,7 +226,7 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
         final ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class, future::actionGet);
         assertThat(exception, throwableWithMessage("authentication failed for testing"));
 
-        verifyNoMoreInteractions(apiKeyGenerator);
+        verifyNoMoreInteractions(apiKeyService);
         verify(authorizationService, never()).authorize(any(), any(), any(), anyActionListener());
     }
 
@@ -251,7 +255,7 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
             .build();
 
         final CreateApiKeyResponse response = mockResponse(request);
-        setupApiKeyGenerator(authentication, request, response);
+        setupApiKeyService(authentication, request, response);
 
         doAnswer(inv -> {
             assertThat(threadPool.getThreadContext().getHeader(AuthenticationServiceField.RUN_AS_USER_HEADER), equalTo(runAsUsername));
@@ -397,7 +401,7 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
         return request;
     }
 
-    private void setupApiKeyGenerator(Authentication authentication, GrantApiKeyRequest request, CreateApiKeyResponse response) {
+    private void setupApiKeyService(Authentication authentication, GrantApiKeyRequest request, CreateApiKeyResponse response) {
         doAnswer(inv -> {
             final Object[] args = inv.getArguments();
             assertThat(args, arrayWithSize(3));
@@ -410,7 +414,7 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
             listener.onResponse(response);
 
             return null;
-        }).when(apiKeyGenerator).generateApiKey(any(Authentication.class), any(CreateApiKeyRequest.class), anyActionListener());
+        }).when(apiKeyService).createApiKey(any(Authentication.class), any(CreateApiKeyRequest.class), any(), anyActionListener());
     }
 
 }

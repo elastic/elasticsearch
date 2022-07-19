@@ -26,7 +26,7 @@ import java.util.Map;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public final class RestUpdateApiKeyAction extends SecurityBaseRestHandler {
+public final class RestUpdateApiKeyAction extends ApiKeyBaseRestHandler {
 
     @SuppressWarnings("unchecked")
     static final ConstructingObjectParser<Payload, Void> PARSER = new ConstructingObjectParser<>(

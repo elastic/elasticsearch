@@ -33,7 +33,7 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 /**
  * Rest action to invalidate one or more API keys
  */
-public final class RestInvalidateApiKeyAction extends SecurityBaseRestHandler {
+public final class RestInvalidateApiKeyAction extends ApiKeyBaseRestHandler {
     @SuppressWarnings("unchecked")
     static final ConstructingObjectParser<InvalidateApiKeyRequest, Void> PARSER = new ConstructingObjectParser<>(
         "invalidate_api_key",

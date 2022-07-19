@@ -39,7 +39,7 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
  * Rest action to create an API key on behalf of another user. Loosely mimics the API of
  * {@link org.elasticsearch.xpack.security.rest.action.oauth2.RestGetTokenAction} combined with {@link RestCreateApiKeyAction}
  */
-public final class RestGrantApiKeyAction extends SecurityBaseRestHandler implements RestRequestFilter {
+public final class RestGrantApiKeyAction extends ApiKeyBaseRestHandler implements RestRequestFilter {
 
     static final ObjectParser<GrantApiKeyRequest, Void> PARSER = new ObjectParser<>("grant_api_key_request", GrantApiKeyRequest::new);
     static {

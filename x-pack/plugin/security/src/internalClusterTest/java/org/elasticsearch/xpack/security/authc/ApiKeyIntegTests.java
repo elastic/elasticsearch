@@ -99,7 +99,6 @@ import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -1560,7 +1559,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 return privs;
             }
         );
-        
+
         // Update user role
         final RoleDescriptor roleDescriptorAfterUpdate = putRoleWithClusterPrivileges(
             nativeRealmRole,

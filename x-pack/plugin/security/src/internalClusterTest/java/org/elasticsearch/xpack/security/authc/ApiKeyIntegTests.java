@@ -1533,7 +1533,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             new String(HASHER.hash(TEST_PASSWORD_SECURE_STRING)),
             Collections.singletonMap("Authorization", basicAuthHeaderValue(TEST_USER_NAME, TEST_PASSWORD_SECURE_STRING))
         );
-        final Set<String> clusterPrivileges = new HashSet<>(randomSubsetOf(ClusterPrivilegeResolver.names()));
+        final List<String> clusterPrivileges = new ArrayList<>(randomSubsetOf(ClusterPrivilegeResolver.names()));
         // At a minimum include privilege to manage own API key to ensure no 403
         clusterPrivileges.add(randomFrom("manage_api_key", "manage_own_api_key"));
         final RoleDescriptor roleDescriptorBeforeUpdate = putRoleWithClusterPrivileges(
@@ -1551,10 +1551,12 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final String apiKeyId = createdApiKey.getId();
         expectRoleDescriptorsForApiKey("limited_by_role_descriptors", Set.of(roleDescriptorBeforeUpdate), getApiKeyDocument(apiKeyId));
 
-        final Set<String> newClusterPrivileges = randomValueOtherThanMany(
-            privs -> clusterPrivileges.equals(privs)
-                || (clusterPrivileges.contains("manage_api_key") == false && clusterPrivileges.contains("manage_own_api_key") == false),
-            () -> Set.copyOf(randomNonEmptySubsetOf(ClusterPrivilegeResolver.names()))
+        final List<String> newClusterPrivileges = randomValueOtherThanMany(
+            privs -> privs.equals(clusterPrivileges)
+                // At a minimum include privilege to manage own API key
+                // to ensure no 403
+                || (privs.contains("manage_api_key") == false && privs.contains("manage_own_api_key") == false),
+            () -> randomNonEmptySubsetOf(ClusterPrivilegeResolver.names())
         );
 
         // Update user role

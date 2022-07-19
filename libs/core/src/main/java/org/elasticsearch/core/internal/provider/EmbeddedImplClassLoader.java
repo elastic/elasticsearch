@@ -107,7 +107,10 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
             .collect(toUnmodifiableMap(k -> k.getKey().prefix(), Map.Entry::getValue));
         Map<String, JarMeta> map = new HashMap<>();
         for (var jarMeta : prefixToCodeBase.keySet()) {
-            jarMeta.packages().stream().forEach(pkg -> map.put(pkg, jarMeta));
+            jarMeta.packages().stream().forEach(pkg -> {
+                var prev = map.put(pkg, jarMeta);
+                assert prev == null;
+            });
         }
         this.packageToJarMeta = Collections.unmodifiableMap(map);
     }
@@ -142,8 +145,8 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
     // Retrieves a class resource from this loader's jars, or null.
     private Resource privilegedGetClassResourceOrNull(JarMeta jarMeta, String pkg, String filepath) {
         return AccessController.doPrivileged((PrivilegedAction<Resource>) () -> {
-            List<Integer> releaseVersions = jarMeta.pkgToVersions().get(pkg);
-            if (jarMeta.isMultiRelease() && releaseVersions != null) {
+            List<Integer> releaseVersions = jarMeta.pkgToVersions().getOrDefault(pkg, List.of());
+            if (jarMeta.isMultiRelease()) {
                 for (int releaseVersion : releaseVersions) {
                     String fullName = jarMeta.prefix() + "/" + MRJAR_VERSION_PREFIX + releaseVersion + "/" + filepath;
                     InputStream is = parent.getResourceAsStream(fullName);
@@ -375,33 +378,31 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
     /** Tuple of package and package-to-release-version map. */
     record ScanResult(Set<String> packages, Map<String, List<Integer>> pkgVersions) {}
 
-    static ScanResult scanPackages(Path dir) {
+    static ScanResult scanPackages(Path dir, boolean isMultiRelease) {
         String separator = dir.getFileSystem().getSeparator();
         Set<String> pkgs = new HashSet<>();
         Map<String, List<Integer>> pkgVersions = new HashMap<>();
-        try {
-            try (var paths = Files.find(dir, Integer.MAX_VALUE, ((path, attrs) -> attrs.isRegularFile()))) {
-                paths.map(path -> dir.relativize(path)).filter(path -> path.getFileName().toString().endsWith(".class")).forEach(path -> {
-                    Path parent = path.getParent();
-                    if (parent != null) {
-                        if (parent.startsWith(MRJAR_VERSION_PREFIX)) {
-                            int version = getMRVersionFromPrefix(path);
-                            if (version <= RUNTIME_VERSION_FEATURE) {
-                                String pkg = removeMRJARPrefix(parent).replace(separator, ".");
-                                if (isPackageName(pkg)) {
-                                    pkgVersions.computeIfAbsent(pkg, k -> new ArrayList<>()).add(version);
-                                    pkgs.add(pkg);
-                                }
-                            }
-                        } else {
-                            String pkg = parent.toString().replace(separator, ".");
+        try (var paths = Files.find(dir, Integer.MAX_VALUE, ((path, attrs) -> attrs.isRegularFile()))) {
+            paths.map(path -> dir.relativize(path)).filter(path -> path.getFileName().toString().endsWith(".class")).forEach(path -> {
+                Path parent = path.getParent();
+                if (parent != null) {
+                    if (parent.startsWith(MRJAR_VERSION_PREFIX)) {
+                        int version = getMRVersionFromPrefix(path);
+                        if (isMultiRelease && version <= RUNTIME_VERSION_FEATURE) {
+                            String pkg = removeMRJARPrefix(parent).replace(separator, ".");
                             if (isPackageName(pkg)) {
+                                pkgVersions.computeIfAbsent(pkg, k -> new ArrayList<>()).add(version);
                                 pkgs.add(pkg);
                             }
                         }
+                    } else {
+                        String pkg = parent.toString().replace(separator, ".");
+                        if (isPackageName(pkg)) {
+                            pkgs.add(pkg);
+                        }
                     }
-                });
-            }
+                }
+            });
         } catch (IOException x) {
             throw new UncheckedIOException(x);
         }
@@ -430,11 +431,16 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
             for (String jar : jars) {
                 final CodeSource codeSource = codeSource(parent.getResource(providerPrefix + JAR_LISTING_FILE), jar);
                 final String jarPrefix = providerPrefix + "/" + jar;
+                final boolean isMultiRelease = isMultiRelease(parent, jarPrefix);
                 URI rootURI = rootURI(codeSource.getLocation());
                 Path p = embeddedJarPath(Set.of(jarPrefix), rootURI)[0];
-                var scan = scanPackages(p);
-                if (p.getFileSystem().provider().getScheme().equals("jar")) {
-                    p.getFileSystem().close();
+                ScanResult scan;
+                try {
+                    scan = scanPackages(p, isMultiRelease);
+                } finally {
+                    if (p.getFileSystem().provider().getScheme().equals("jar")) {
+                        p.getFileSystem().close();
+                    }
                 }
                 map.put(new JarMeta(jarPrefix, isMultiRelease(parent, jarPrefix), scan.packages(), scan.pkgVersions()), codeSource);
             }

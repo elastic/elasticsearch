@@ -107,12 +107,12 @@ public class ShardSnapshotWorkerPoolTests extends ESTestCase {
 
     public void testAllWorkersExitWhenBothQueuesAreExhausted() throws Exception {
         Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
-        int desiredSize = randomIntBetween(1, threadPool.info(ThreadPool.Names.SNAPSHOT).getMax());
+        int desiredSize = 5;// randomIntBetween(1, threadPool.info(ThreadPool.Names.SNAPSHOT).getMax());
         DummyRepo repo = new DummyRepo();
         ShardSnapshotWorkerPool workers = new ShardSnapshotWorkerPool(desiredSize, executor, repo::snapshotShard, repo::uploadFile);
         assertThat(workers.size(), equalTo(0));
         repo.setWorkers(workers);
-        int shardsToSnapshot = randomIntBetween(1, 10);
+        int shardsToSnapshot = randomIntBetween(1, 100);
         for (int i = 0; i < shardsToSnapshot; i++) {
             workers.enqueueShardSnapshot(mock(SnapshotShardContext.class));
         }

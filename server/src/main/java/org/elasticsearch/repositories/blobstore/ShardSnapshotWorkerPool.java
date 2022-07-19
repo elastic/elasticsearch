@@ -55,7 +55,7 @@ public final class ShardSnapshotWorkerPool {
         logger.trace("enqueuing shard snapshot task [snapshotID={}, indexID={}]", context.snapshotId(), context.indexId());
         synchronized (mutex) {
             shardsToSnapshot.add(context);
-            ensureDesiredWorkerCount();
+            ensureEnoughWorkers();
         }
     }
 
@@ -68,14 +68,14 @@ public final class ShardSnapshotWorkerPool {
         );
         synchronized (mutex) {
             filesToSnapshot.add(snapshotFileUpload);
-            ensureDesiredWorkerCount();
+            ensureEnoughWorkers();
         }
     }
 
-    private void ensureDesiredWorkerCount() {
+    private void ensureEnoughWorkers() {
         assert Thread.holdsLock(mutex);
 
-        int workersToCreate = desiredWorkerCount - workerCount;
+        int workersToCreate = Math.min(desiredWorkerCount - workerCount, Math.max(filesToSnapshot.size(), shardsToSnapshot.size()));
         if (workersToCreate > 0) {
             logger.debug("starting {} shard snapshot workers", workersToCreate);
         }
@@ -90,7 +90,7 @@ public final class ShardSnapshotWorkerPool {
         synchronized (mutex) {
             workerCount--;
             if (workerCount < desiredWorkerCount && (shardsToSnapshot.isEmpty() == false || filesToSnapshot.isEmpty() == false)) {
-                ensureDesiredWorkerCount();
+                ensureEnoughWorkers();
             }
         }
     }

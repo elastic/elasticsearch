@@ -208,7 +208,17 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
         List<TaskOperationFailure> taskOperationFailures,
         List<FailedNodeException> failedNodeExceptions
     ) {
-        // there should be only 1 response, todo: check
+        assert tasks.size() + taskOperationFailures.size() == 1 : "found more than one error or response";
+        if (tasks.isEmpty()) {
+            if (taskOperationFailures.isEmpty() == false) {
+                throw org.elasticsearch.ExceptionsHelper.convertToElastic(taskOperationFailures.get(0).getCause());
+            } else if (failedNodeExceptions.isEmpty() == false) {
+                throw org.elasticsearch.ExceptionsHelper.convertToElastic(failedNodeExceptions.get(0));
+            } else {
+                throw new IllegalStateException("No errors or response");
+            }
+        }
+
         return tasks.get(0);
     }
 

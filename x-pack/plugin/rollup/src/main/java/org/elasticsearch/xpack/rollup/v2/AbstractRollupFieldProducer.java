@@ -10,12 +10,12 @@ package org.elasticsearch.xpack.rollup.v2;
 /**
  * Base class for classes that read metric and label fields.
  */
-abstract class AbstractFieldProducer<T> {
+abstract class AbstractRollupFieldProducer<T> {
 
     protected final String field;
     protected boolean isEmpty;
 
-    AbstractFieldProducer(String field) {
+    AbstractRollupFieldProducer(String field) {
         this.field = field;
         this.isEmpty = true;
     }

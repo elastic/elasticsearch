@@ -22,7 +22,7 @@ import java.util.Map;
  * values. Based on the supported metric types, the subclasses of this class compute values for
  * gauge and metric types.
  */
-abstract class MetricFieldProducer extends AbstractFieldProducer<Number> {
+abstract class MetricFieldProducer extends AbstractRollupFieldProducer<Number> {
     /**
      * a list of metrics that will be computed for the field
      */

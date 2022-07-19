@@ -435,7 +435,7 @@ class RollupShardIndexer {
                 doc.put(e.getKey(), e.getValue());
             }
 
-            for (AbstractFieldProducer<?> fieldProducer : Stream.concat(
+            for (AbstractRollupFieldProducer<?> fieldProducer : Stream.concat(
                 metricFieldProducers.values().stream(),
                 labelFieldProducers.values().stream()
             ).toList()) {

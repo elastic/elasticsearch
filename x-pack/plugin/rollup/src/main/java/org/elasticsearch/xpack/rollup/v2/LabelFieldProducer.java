@@ -16,7 +16,7 @@ import java.util.Map;
 /**
  * Class that collects all raw values for a label field.
  */
-abstract class LabelFieldProducer extends AbstractFieldProducer<Object> {
+abstract class LabelFieldProducer extends AbstractRollupFieldProducer<Object> {
 
     private final Label label;
 

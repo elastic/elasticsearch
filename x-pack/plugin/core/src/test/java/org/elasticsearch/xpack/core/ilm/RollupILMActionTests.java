@@ -82,7 +82,7 @@ public class RollupILMActionTests extends AbstractActionTestCase<RollupILMAction
         assertThat(steps.get(5).getKey().getName(), equalTo(RollupStep.NAME));
         assertThat(steps.get(5).getNextStepKey().getName(), equalTo(WaitForIndexColorStep.NAME));
 
-        assertTrue(steps.get(6) instanceof WaitForIndexColorStep);
+        assertTrue(steps.get(6) instanceof ClusterStateWaitUntilThresholdStep);
         assertThat(steps.get(6).getKey().getName(), equalTo(WaitForIndexColorStep.NAME));
         assertThat(steps.get(6).getNextStepKey().getName(), equalTo(CopyExecutionStateStep.NAME));
 

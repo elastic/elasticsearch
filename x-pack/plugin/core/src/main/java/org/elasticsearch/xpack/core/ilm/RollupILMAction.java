@@ -105,7 +105,7 @@ public class RollupILMAction implements LifecycleAction {
         StepKey cleanupRollupIndexKey = new StepKey(phase, NAME, CleanupTargetIndexStep.NAME);
         StepKey generateRollupIndexNameKey = new StepKey(phase, NAME, GENERATE_ROLLUP_STEP_NAME);
         StepKey rollupKey = new StepKey(phase, NAME, RollupStep.NAME);
-        StepKey waitForGreenRollupIndexKey = new StepKey(phase, NAME, WaitForIndexColorStep.NAME);
+        StepKey waitForRollupIndexKey = new StepKey(phase, NAME, WaitForIndexColorStep.NAME);
         StepKey copyMetadataKey = new StepKey(phase, NAME, CopyExecutionStateStep.NAME);
         StepKey copyLifecyclePolicySettingKey = new StepKey(phase, NAME, CopySettingsStep.NAME);
         StepKey dataStreamCheckBranchingKey = new StepKey(phase, NAME, CONDITIONAL_DATASTREAM_CHECK_KEY);
@@ -141,14 +141,22 @@ public class RollupILMAction implements LifecycleAction {
         );
 
         // Here is where the actual rollup action takes place
-        RollupStep rollupStep = new RollupStep(rollupKey, waitForGreenRollupIndexKey, client, fixedInterval);
-        // Wait until the Rollup index health is green
-        WaitForIndexColorStep waitForGreenIndexHealthStep = new WaitForIndexColorStep(
-            waitForGreenRollupIndexKey,
-            copyMetadataKey,
-            ClusterHealthStatus.GREEN,
-            (indexName, lifecycleState) -> lifecycleState.rollupIndexName()
+        RollupStep rollupStep = new RollupStep(rollupKey, waitForRollupIndexKey, client, fixedInterval);
+
+        // Wait until the rollup index is recovered. We again wait until the configured threshold is breached and
+        // if the rollup index has not successfully recovered until then, we rewind to the "cleanup-rollup-index"
+        // step to delete this unsuccessful rollup index and retry the operation by generating a new rollup index
+        // name and attempting to rollup again
+        ClusterStateWaitUntilThresholdStep rollupAllocatedStep = new ClusterStateWaitUntilThresholdStep(
+            new WaitForIndexColorStep(
+                waitForRollupIndexKey,
+                copyMetadataKey,
+                ClusterHealthStatus.YELLOW,
+                (indexName, lifecycleState) -> lifecycleState.rollupIndexName()
+            ),
+            cleanupRollupIndexKey
         );
+
         CopyExecutionStateStep copyExecutionStateStep = new CopyExecutionStateStep(
             copyMetadataKey,
             copyLifecyclePolicySettingKey,
@@ -157,6 +165,8 @@ public class RollupILMAction implements LifecycleAction {
         );
 
         // Copy the index.lifecycle.name setting to the rollup index settings
+        // TODO: This step is going to be removed when downsampling action copies all settings
+        // from source to rollup index (https://github.com/elastic/elasticsearch/pull/88565)
         CopySettingsStep copySettingsStep = new CopySettingsStep(
             copyLifecyclePolicySettingKey,
             dataStreamCheckBranchingKey,
@@ -201,7 +211,7 @@ public class RollupILMAction implements LifecycleAction {
             readOnlyStep,
             generateRollupIndexNameStep,
             rollupStep,
-            waitForGreenIndexHealthStep,
+            rollupAllocatedStep,
             copyExecutionStateStep,
             copySettingsStep,
             isDataStreamBranchingStep,

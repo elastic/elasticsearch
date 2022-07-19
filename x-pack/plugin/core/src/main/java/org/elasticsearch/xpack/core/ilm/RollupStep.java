@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.ilm;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
@@ -24,9 +25,9 @@ import java.util.Objects;
 
 /**
  * ILM step that invokes the rollup action for an index using a {@link DateHistogramInterval}. The rollup
- * action produces a rollup index using a prefix prepended to the original index name for the name of the rollup
- * index. Also, the rollup action deletes the source index at the end, so no DeleteStep is required after this
- * step.
+ * index name is retrieved from the lifecycle state {@link LifecycleExecutionState#rollupIndexName()}
+ * index. If a rollup index with the same name has been already successfully created, this step
+ * will be skipped.
  */
 public class RollupStep extends AsyncActionStep {
     public static final String NAME = "rollup";
@@ -72,6 +73,8 @@ public class RollupStep extends AsyncActionStep {
         IndexMetadata rollupIndexMetadata = currentState.metadata().index(rollupIndexName);
         if (rollupIndexMetadata != null) {
             IndexMetadata.RollupTaskStatus rollupIndexStatus = IndexMetadata.INDEX_ROLLUP_STATUS.get(rollupIndexMetadata.getSettings());
+            // Rollup index has already been created with the generated name and its status is "success".
+            // So we skip index rollup creation.
             if (IndexMetadata.RollupTaskStatus.SUCCESS.equals(rollupIndexStatus)) {
                 logger.warn(
                     "skipping [{}] step for index [{}] as part of policy [{}] as the rollup index [{}] already exists",
@@ -82,25 +85,45 @@ public class RollupStep extends AsyncActionStep {
                 );
                 listener.onResponse(null);
             } else {
-                listener.onFailure(
-                    new IllegalStateException(
-                        "failing ["
-                            + RollupStep.NAME
-                            + "] step for index ["
-                            + indexName
-                            + "] as part of policy ["
-                            + policyName
-                            + "] because the rollup index ["
-                            + rollupIndexName
-                            + "] already exists with rollup status ["
-                            + rollupIndexStatus
-                            + "]"
-                    )
+                logger.warn(
+                    "[{}] step for index [{}] as part of policy [{}] found the rollup index [{}] already exists. Deleting it.",
+                    RollupStep.NAME,
+                    indexName,
+                    policyName,
+                    rollupIndexName
                 );
+                // Rollup index has already been created with the generated name but its status is not "success".
+                // So we delete the index and proceed with executing the rollup step.
+                DeleteIndexRequest deleteRequest = new DeleteIndexRequest(rollupIndexName);
+                getClient().admin().indices().delete(deleteRequest, ActionListener.wrap(response -> {
+                    if (response.isAcknowledged()) {
+                        performRollupIndex(indexName, rollupIndexName, listener);
+                    } else {
+                        listener.onFailure(
+                            new IllegalStateException(
+                                "failing ["
+                                    + RollupStep.NAME
+                                    + "] step for index ["
+                                    + indexName
+                                    + "] as part of policy ["
+                                    + policyName
+                                    + "] because the rollup index ["
+                                    + rollupIndexName
+                                    + "] already exists with rollup status ["
+                                    + rollupIndexStatus
+                                    + "]"
+                            )
+                        );
+                    }
+                }, listener::onFailure));
             }
             return;
         }
 
+        performRollupIndex(indexName, rollupIndexName, listener);
+    }
+
+    private void performRollupIndex(String indexName, String rollupIndexName, ActionListener<Void> listener) {
         RollupActionConfig config = new RollupActionConfig(fixedInterval);
         RollupAction.Request request = new RollupAction.Request(indexName, rollupIndexName, config).masterNodeTimeout(TimeValue.MAX_VALUE);
         // Currently, RollupAction always acknowledges action was complete when no exceptions are thrown.

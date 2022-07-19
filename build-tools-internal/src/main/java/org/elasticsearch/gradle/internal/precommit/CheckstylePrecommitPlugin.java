@@ -96,6 +96,7 @@ public class CheckstylePrecommitPlugin extends PrecommitPlugin {
 
         project.getTasks().withType(Checkstyle.class).configureEach(t -> {
             t.dependsOn(copyCheckstyleConf);
+            t.getMaxHeapSize().set("1g");
             t.reports(r -> r.getHtml().getRequired().set(false));
         });
 

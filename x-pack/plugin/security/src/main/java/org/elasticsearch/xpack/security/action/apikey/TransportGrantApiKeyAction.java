@@ -83,7 +83,7 @@ public final class TransportGrantApiKeyAction extends TransportGrantAction<Grant
         executeWithGrantAuthentication(
             request,
             listener.delegateFailure(
-                (l, authentication) -> resolver.getUserRoleDescriptors(
+                (l, authentication) -> resolver.resolveUserRoleDescriptors(
                     authentication,
                     ActionListener.wrap(
                         roleDescriptors -> apiKeyService.createApiKey(

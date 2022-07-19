@@ -27,7 +27,7 @@ public class ApiKeyUserRoleDescriptorResolver {
         this.xContentRegistry = xContentRegistry;
     }
 
-    public void getUserRoleDescriptors(final Authentication authentication, final ActionListener<Set<RoleDescriptor>> listener) {
+    public void resolveUserRoleDescriptors(final Authentication authentication, final ActionListener<Set<RoleDescriptor>> listener) {
         final ActionListener<Set<RoleDescriptor>> roleDescriptorsListener = ActionListener.wrap(roleDescriptors -> {
             for (RoleDescriptor rd : roleDescriptors) {
                 try {

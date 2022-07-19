@@ -63,7 +63,7 @@ public class ApiKeyUserRoleDescriptorResolverTests extends ESTestCase {
         }).when(rolesStore).getRoleDescriptorsList(any(Subject.class), any(ActionListener.class));
 
         final PlainActionFuture<Set<RoleDescriptor>> future = new PlainActionFuture<>();
-        resolver.getUserRoleDescriptors(authentication, future);
+        resolver.resolveUserRoleDescriptors(authentication, future);
 
         assertThat(future.actionGet(), equalTo(roleDescriptors));
     }
@@ -74,7 +74,7 @@ public class ApiKeyUserRoleDescriptorResolverTests extends ESTestCase {
 
         final ApiKeyUserRoleDescriptorResolver resolver = new ApiKeyUserRoleDescriptorResolver(rolesStore, NamedXContentRegistry.EMPTY);
         final PlainActionFuture<Set<RoleDescriptor>> future = new PlainActionFuture<>();
-        resolver.getUserRoleDescriptors(authentication, future);
+        resolver.resolveUserRoleDescriptors(authentication, future);
 
         assertThat(future.actionGet(), equalTo(Set.of()));
         verify(rolesStore, never()).getRoleDescriptorsList(any(), any());

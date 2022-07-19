@@ -62,7 +62,7 @@ public final class TransportCreateApiKeyAction extends HandledTransportAction<Cr
                 );
                 return;
             }
-            resolver.getUserRoleDescriptors(
+            resolver.resolveUserRoleDescriptors(
                 authentication,
                 ActionListener.wrap(
                     roleDescriptors -> apiKeyService.createApiKey(authentication, request, roleDescriptors, listener),

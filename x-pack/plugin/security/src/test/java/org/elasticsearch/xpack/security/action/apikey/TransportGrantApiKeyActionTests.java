@@ -434,6 +434,6 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
             listener.onResponse(roleDescriptors);
 
             return null;
-        }).when(resolver).getUserRoleDescriptors(any(Authentication.class), anyActionListener());
+        }).when(resolver).resolveUserRoleDescriptors(any(Authentication.class), anyActionListener());
     }
 }

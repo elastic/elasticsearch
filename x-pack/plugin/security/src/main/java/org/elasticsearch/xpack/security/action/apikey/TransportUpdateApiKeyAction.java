@@ -56,7 +56,7 @@ public final class TransportUpdateApiKeyAction extends HandledTransportAction<Up
             return;
         }
 
-        resolver.getUserRoleDescriptors(
+        resolver.resolveUserRoleDescriptors(
             authentication,
             ActionListener.wrap(
                 roleDescriptors -> apiKeyService.updateApiKey(authentication, request, roleDescriptors, listener),

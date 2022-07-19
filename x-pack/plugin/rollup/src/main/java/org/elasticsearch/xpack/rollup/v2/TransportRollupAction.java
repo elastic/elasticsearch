@@ -205,8 +205,11 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
             final List<String> dimensionFields = new ArrayList<>();
             final List<String> metricFields = new ArrayList<>();
             final List<String> labelFields = new ArrayList<>();
-            final TimeseriesFieldTypeHelper helper = new TimeseriesFieldTypeHelper.Builder(indicesService, sourceIndexMappings, sourceIndexMetadata)
-                .build(request.getRollupConfig().getTimestampField());
+            final TimeseriesFieldTypeHelper helper = new TimeseriesFieldTypeHelper.Builder(
+                indicesService,
+                sourceIndexMappings,
+                sourceIndexMetadata
+            ).build(request.getRollupConfig().getTimestampField());
             MappingVisitor.visitMapping(sourceIndexMappings, (field, mapping) -> {
                 if (helper.isTimeSeriesDimension(field, mapping)) {
                     dimensionFields.add(field);

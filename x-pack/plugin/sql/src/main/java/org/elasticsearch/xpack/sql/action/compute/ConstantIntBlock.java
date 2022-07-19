@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.sql.action.compute;
 public class ConstantIntBlock extends Block {
     private final int constant;
 
-    ConstantIntBlock(int positionCount, int constant) {
+    public ConstantIntBlock(int positionCount, int constant) {
         super(positionCount);
         this.constant = constant;
     }

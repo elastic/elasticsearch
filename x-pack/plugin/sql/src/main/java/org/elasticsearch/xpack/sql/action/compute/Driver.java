@@ -7,10 +7,13 @@
 
 package org.elasticsearch.xpack.sql.action.compute;
 
+import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.TimeValue;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class Driver implements Runnable {
 
@@ -23,21 +26,61 @@ public class Driver implements Runnable {
     }
 
     public void run() {
-        while (activeOperators.isEmpty() == false) {
+        while (isFinished() == false) {
             runLoopIteration();
         }
         releasable.close();
     }
 
-    private void runLoopIteration() {
+    public ListenableActionFuture<Void> run(TimeValue maxTime, int maxIterations) {
+        long maxTimeNanos = maxTime.nanos();
+        long startTime = System.nanoTime();
+        int iter = 0;
+        while (isFinished() == false) {
+            ListenableActionFuture<Void> fut = runLoopIteration();
+            if (fut.isDone() == false) {
+                return fut;
+            }
+            if (++iter >= maxIterations) {
+                break;
+            }
+            long now = System.nanoTime();
+            if (now - startTime > maxTimeNanos) {
+                break;
+            }
+        }
+        if (isFinished()) {
+            releasable.close();
+        }
+        return Operator.NOT_BLOCKED;
+    }
+
+    public boolean isFinished() {
+        return activeOperators.isEmpty();
+    }
+
+    private ListenableActionFuture<Void> runLoopIteration() {
+
+        boolean movedPage = false;
+
         for (int i = 0; i < activeOperators.size() - 1; i++) {
             Operator op = activeOperators.get(i);
             Operator nextOp = activeOperators.get(i + 1);
 
-            if (op.isFinished() == false && nextOp.needsInput()) {
+            // skip blocked operator
+            if (op.isBlocked().isDone() == false) {
+                continue;
+            }
+
+            if (op.isFinished() == false && nextOp.isBlocked().isDone() && nextOp.needsInput()) {
                 Page page = op.getOutput();
-                if (page != null) {
+                if (page != null && page.getPositionCount() != 0) {
                     nextOp.addInput(page);
+                    movedPage = true;
+                }
+
+                if (op instanceof SourceOperator) {
+                    movedPage = true;
                 }
             }
 
@@ -61,5 +104,27 @@ public class Driver implements Runnable {
                 break;
             }
         }
+
+        if (movedPage == false) {
+            return oneOf(activeOperators.stream()
+                .map(Operator::isBlocked)
+                .filter(laf -> laf.isDone() == false)
+                .collect(Collectors.toList()));
+        }
+        return Operator.NOT_BLOCKED;
+    }
+
+    private static ListenableActionFuture<Void> oneOf(List<ListenableActionFuture<Void>> futures) {
+        if (futures.isEmpty()) {
+            return Operator.NOT_BLOCKED;
+        }
+        if (futures.size() == 1) {
+            return futures.get(0);
+        }
+        ListenableActionFuture<Void> oneOf = new ListenableActionFuture<>();
+        for (ListenableActionFuture<Void> fut : futures) {
+            fut.addListener(oneOf);
+        }
+        return oneOf;
     }
 }

@@ -7,10 +7,13 @@
 
 package org.elasticsearch.xpack.sql.action.compute.exchange;
 
+import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.xpack.sql.action.compute.Page;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+
+import static org.elasticsearch.xpack.sql.action.compute.Operator.NOT_BLOCKED;
 
 public class ExchangeSink {
 
@@ -39,6 +42,14 @@ public class ExchangeSink {
     public void addPage(Page page)
     {
         exchanger.accept(page);
+    }
+
+    public ListenableActionFuture<Void> waitForWriting()
+    {
+        if (isFinished()) {
+            return NOT_BLOCKED;
+        }
+        return exchanger.waitForWriting();
     }
 
 }

@@ -7,12 +7,15 @@
 
 package org.elasticsearch.xpack.sql.action.compute.exchange;
 
+import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.xpack.sql.action.compute.Operator;
 import org.elasticsearch.xpack.sql.action.compute.Page;
 
 public class ExchangeSinkOperator implements Operator {
 
     private final ExchangeSink sink;
+
+    private ListenableActionFuture<Void> isBlocked = NOT_BLOCKED;
 
     public ExchangeSinkOperator(ExchangeSink sink) {
         this.sink = sink;
@@ -34,8 +37,20 @@ public class ExchangeSinkOperator implements Operator {
     }
 
     @Override
+    public ListenableActionFuture<Void> isBlocked()
+    {
+        if (isBlocked.isDone()) {
+            isBlocked = sink.waitForWriting();
+            if (isBlocked.isDone()) {
+                isBlocked = NOT_BLOCKED;
+            }
+        }
+        return isBlocked;
+    }
+
+    @Override
     public boolean needsInput() {
-        return isFinished() == false;
+        return isFinished() == false && isBlocked().isDone();
     }
 
     @Override
@@ -45,6 +60,6 @@ public class ExchangeSinkOperator implements Operator {
 
     @Override
     public void close() {
-
+        finish();
     }
 }

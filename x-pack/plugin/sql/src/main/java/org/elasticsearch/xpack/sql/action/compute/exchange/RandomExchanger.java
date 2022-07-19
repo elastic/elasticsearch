@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.sql.action.compute.exchange;
 
+import org.elasticsearch.action.support.ListenableActionFuture;
+import org.elasticsearch.xpack.sql.action.compute.Operator;
 import org.elasticsearch.xpack.sql.action.compute.Page;
 
 import java.util.List;
@@ -25,5 +27,11 @@ public class RandomExchanger implements Exchanger {
     public void accept(Page page) {
         int randomIndex = ThreadLocalRandom.current().nextInt(buffers.size());
         buffers.get(randomIndex).accept(page);
+    }
+
+    @Override
+    public ListenableActionFuture<Void> waitForWriting() {
+        // TODO: implement
+        return Operator.NOT_BLOCKED;
     }
 }

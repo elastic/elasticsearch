@@ -10,27 +10,23 @@ package org.elasticsearch.xpack.sql.action.compute;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.SimpleCollector;
+import org.elasticsearch.xpack.sql.action.compute.exchange.ExchangeSink;
 
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
-
-public class LucenePageCollector extends SimpleCollector implements Operator {
-
+public class LuceneCollector extends SimpleCollector {
     private static final int PAGE_SIZE = 4096;
 
     private final int pageSize;
     private int[] currentPage;
     private int currentPos;
     private LeafReaderContext lastContext;
-    private volatile boolean finished;
+    private final ExchangeSink exchangeSink;
 
-    public final BlockingQueue<Page> pages = new LinkedBlockingQueue<>(2);
-
-    public LucenePageCollector() {
-        this(PAGE_SIZE);
+    public LuceneCollector(ExchangeSink exchangeSink) {
+        this(exchangeSink, PAGE_SIZE);
     }
 
-    public LucenePageCollector(int pageSize) {
+    public LuceneCollector(ExchangeSink exchangeSink, int pageSize) {
+        this.exchangeSink = exchangeSink;
         this.pageSize = pageSize;
     }
 
@@ -58,11 +54,8 @@ public class LucenePageCollector extends SimpleCollector implements Operator {
     private void createPage() {
         if (currentPos > 0) {
             Page page = new Page(currentPos, new IntBlock(currentPage, currentPos), new ConstantIntBlock(currentPos, lastContext.ord));
-            try {
-                pages.put(page);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
+            exchangeSink.waitForWriting().actionGet();
+            exchangeSink.addPage(page);
         }
         currentPage = null;
         currentPos = 0;
@@ -73,35 +66,8 @@ public class LucenePageCollector extends SimpleCollector implements Operator {
         return ScoreMode.COMPLETE_NO_SCORES;
     }
 
-    @Override
     public void finish() {
-        assert finished == false;
         createPage();
-        finished = true;
-    }
-
-    @Override
-    public boolean needsInput() {
-        return false;
-    }
-
-    @Override
-    public void addInput(Page page) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public void close() {
-
-    }
-
-    @Override
-    public Page getOutput() {
-        return pages.poll();
-    }
-
-    @Override
-    public boolean isFinished() {
-        return finished && pages.isEmpty();
+        exchangeSink.finish();
     }
 }

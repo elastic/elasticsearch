@@ -15,13 +15,13 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.action.compute.Driver;
 import org.elasticsearch.xpack.sql.action.compute.LongBlock;
 import org.elasticsearch.xpack.sql.action.compute.LongGroupingOperator;
 import org.elasticsearch.xpack.sql.action.compute.LongMaxOperator;
 import org.elasticsearch.xpack.sql.action.compute.LongTransformer;
-import org.elasticsearch.xpack.sql.action.compute.LucenePageCollector;
 import org.elasticsearch.xpack.sql.action.compute.NumericDocValuesExtractor;
 import org.elasticsearch.xpack.sql.action.compute.Operator;
 import org.elasticsearch.xpack.sql.action.compute.Page;
@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.sql.action.compute.exchange.ExchangeSink;
 import org.elasticsearch.xpack.sql.action.compute.exchange.ExchangeSinkOperator;
 import org.elasticsearch.xpack.sql.action.compute.exchange.ExchangeSource;
 import org.elasticsearch.xpack.sql.action.compute.exchange.ExchangeSourceOperator;
+import org.elasticsearch.xpack.sql.action.compute.LuceneCollector;
 import org.elasticsearch.xpack.sql.action.compute.exchange.PassthroughExchanger;
 import org.elasticsearch.xpack.sql.action.compute.exchange.RandomExchanger;
 import org.elasticsearch.xpack.sql.action.compute.exchange.RandomUnionSourceOperator;
@@ -112,7 +113,11 @@ public class OperatorTests extends ESTestCase {
 
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                LucenePageCollector pageCollector = new LucenePageCollector();
+                ExchangeSource exchangeSource = new ExchangeSource();
+
+                LuceneCollector pageCollector = new LuceneCollector(
+                    new ExchangeSink(new PassthroughExchanger(exchangeSource, 1), sink -> exchangeSource.finish())
+                );
                 Thread t = new Thread(() -> {
                     logger.info("Start processing");
                     try {
@@ -129,7 +134,7 @@ public class OperatorTests extends ESTestCase {
 
                 // implements cardinality on value field
                 Driver driver = new Driver(List.of(
-                    pageCollector,
+                    new ExchangeSourceOperator(exchangeSource),
                     new NumericDocValuesExtractor(searcher.getIndexReader(), 0, 1, "value"),
                     new LongGroupingOperator(2, BigArrays.NON_RECYCLING_INSTANCE),
                     new LongMaxOperator(3), // returns highest group number
@@ -159,7 +164,7 @@ public class OperatorTests extends ESTestCase {
             new RandomLongBlockSourceOperator(),
             new LongTransformer(0, i -> i + 1),
             new LongGroupingOperator(1, BigArrays.NON_RECYCLING_INSTANCE),
-            new ExchangeSinkOperator(new ExchangeSink(new PassthroughExchanger(exchangeSource), sinkFinished))),
+            new ExchangeSinkOperator(new ExchangeSink(new PassthroughExchanger(exchangeSource, Integer.MAX_VALUE), sinkFinished))),
             () -> {});
 
         Driver driver2 = new Driver(List.of(
@@ -190,20 +195,23 @@ public class OperatorTests extends ESTestCase {
         Driver driver1 = new Driver(List.of(
             new RandomLongBlockSourceOperator(),
             new LongTransformer(0, i -> i + 1),
-            new ExchangeSinkOperator(new ExchangeSink(new RandomExchanger(List.of(exchangeSource1::addPage, exchangeSource2::addPage)),
+            new ExchangeSinkOperator(new ExchangeSink(new RandomExchanger(List.of(p -> exchangeSource1.addPage(p, () -> {}),
+                p -> exchangeSource2.addPage(p, () -> {}))),
                 sink1Finished))),
             () -> {});
 
         Driver driver2 = new Driver(List.of(
             new ExchangeSourceOperator(exchangeSource1),
             new LongGroupingOperator(1, BigArrays.NON_RECYCLING_INSTANCE),
-            new ExchangeSinkOperator(new ExchangeSink(new PassthroughExchanger(exchangeSource3), s -> exchangeSource3.finish()))),
+            new ExchangeSinkOperator(new ExchangeSink(new PassthroughExchanger(exchangeSource3, Integer.MAX_VALUE),
+                s -> exchangeSource3.finish()))),
             () -> {});
 
         Driver driver3 = new Driver(List.of(
             new ExchangeSourceOperator(exchangeSource2),
             new LongMaxOperator(1),
-            new ExchangeSinkOperator(new ExchangeSink(new PassthroughExchanger(exchangeSource4), s -> exchangeSource4.finish()))),
+            new ExchangeSinkOperator(new ExchangeSink(new PassthroughExchanger(exchangeSource4, Integer.MAX_VALUE),
+                s -> exchangeSource4.finish()))),
             () -> {});
 
         Driver driver4 = new Driver(List.of(
@@ -223,5 +231,20 @@ public class OperatorTests extends ESTestCase {
         t2.join();
         t3.join();
         t4.join();
+    }
+
+    public void testOperatorsAsync() {
+        Driver driver = new Driver(List.of(
+            new RandomLongBlockSourceOperator(),
+            new LongTransformer(0, i -> i + 1),
+            new LongGroupingOperator(1, BigArrays.NON_RECYCLING_INSTANCE),
+            new LongMaxOperator(2),
+            new PageConsumerOperator(page -> logger.info("New page: {}", page))),
+            () -> {});
+
+        while (driver.isFinished() == false) {
+            logger.info("Run a couple of steps");
+            driver.run(TimeValue.MAX_VALUE, 10);
+        }
     }
 }

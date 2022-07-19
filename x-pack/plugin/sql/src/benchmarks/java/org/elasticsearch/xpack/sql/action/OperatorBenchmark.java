@@ -34,11 +34,15 @@ import org.elasticsearch.xpack.sql.action.compute.LongBlock;
 import org.elasticsearch.xpack.sql.action.compute.LongGroupingOperator;
 import org.elasticsearch.xpack.sql.action.compute.LongMaxOperator;
 import org.elasticsearch.xpack.sql.action.compute.LongTransformer;
-import org.elasticsearch.xpack.sql.action.compute.LucenePageCollector;
 import org.elasticsearch.xpack.sql.action.compute.NumericDocValuesExtractor;
 import org.elasticsearch.xpack.sql.action.compute.Operator;
 import org.elasticsearch.xpack.sql.action.compute.Page;
 import org.elasticsearch.xpack.sql.action.compute.PageConsumerOperator;
+import org.elasticsearch.xpack.sql.action.compute.exchange.ExchangeSink;
+import org.elasticsearch.xpack.sql.action.compute.exchange.ExchangeSource;
+import org.elasticsearch.xpack.sql.action.compute.exchange.ExchangeSourceOperator;
+import org.elasticsearch.xpack.sql.action.compute.LuceneCollector;
+import org.elasticsearch.xpack.sql.action.compute.exchange.PassthroughExchanger;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -277,20 +281,24 @@ public class OperatorBenchmark {
 
     private int runWithDriver(int pageSize, Operator... operators) throws InterruptedException {
         IndexSearcher searcher = new IndexSearcher(indexReader);
-        LucenePageCollector pageCollector = new LucenePageCollector(pageSize);
+        ExchangeSource luceneExchangeSource = new ExchangeSource();
+        LuceneCollector luceneCollector = new LuceneCollector(
+            new ExchangeSink(new PassthroughExchanger(luceneExchangeSource, 100), sink -> luceneExchangeSource.finish()),
+            pageSize
+        );
         Thread t = new Thread(() -> {
             try {
-                searcher.search(new MatchAllDocsQuery(), pageCollector);
+                searcher.search(new MatchAllDocsQuery(), luceneCollector);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
-            pageCollector.finish();
+            luceneCollector.finish();
         });
         t.start();
         AtomicInteger rowCount = new AtomicInteger();
 
         List<Operator> operatorList = new ArrayList<>();
-        operatorList.add(pageCollector);
+        operatorList.add(new ExchangeSourceOperator(luceneExchangeSource));
         operatorList.addAll(List.of(operators));
         operatorList.add(new PageConsumerOperator(page -> rowCount.addAndGet(page.getPositionCount())));
         Driver driver = new Driver(operatorList, () -> {

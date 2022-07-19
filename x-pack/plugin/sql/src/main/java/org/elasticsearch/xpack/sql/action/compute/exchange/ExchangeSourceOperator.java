@@ -7,12 +7,14 @@
 
 package org.elasticsearch.xpack.sql.action.compute.exchange;
 
+import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.xpack.sql.action.compute.Operator;
 import org.elasticsearch.xpack.sql.action.compute.Page;
 
 public class ExchangeSourceOperator implements Operator {
 
     private final ExchangeSource source;
+    private ListenableActionFuture<Void> isBlocked = NOT_BLOCKED;
 
     public ExchangeSourceOperator(ExchangeSource source) {
         this.source = source;
@@ -44,7 +46,18 @@ public class ExchangeSourceOperator implements Operator {
     }
 
     @Override
-    public void close() {
+    public ListenableActionFuture<Void> isBlocked() {
+        if (isBlocked.isDone()) {
+            isBlocked = source.waitForReading();
+            if (isBlocked.isDone()) {
+                isBlocked = NOT_BLOCKED;
+            }
+        }
+        return isBlocked;
+    }
 
+    @Override
+    public void close() {
+        source.close();
     }
 }

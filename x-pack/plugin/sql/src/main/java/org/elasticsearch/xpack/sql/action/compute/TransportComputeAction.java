@@ -32,6 +32,10 @@ import org.elasticsearch.search.query.QueryPhase;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.sql.action.compute.exchange.ExchangeSink;
+import org.elasticsearch.xpack.sql.action.compute.exchange.ExchangeSource;
+import org.elasticsearch.xpack.sql.action.compute.exchange.ExchangeSourceOperator;
+import org.elasticsearch.xpack.sql.action.compute.exchange.PassthroughExchanger;
 import org.elasticsearch.xpack.sql.querydsl.agg.Aggs;
 
 import java.io.IOException;
@@ -104,13 +108,17 @@ public class TransportComputeAction extends TransportSingleShardAction<ComputeRe
         boolean success = false;
         try {
 
-            LucenePageCollector lucenePageCollector = new LucenePageCollector();
+            ExchangeSource luceneExchangeSource = new ExchangeSource();
+            LuceneCollector luceneCollector = new LuceneCollector(
+                new ExchangeSink(new PassthroughExchanger(luceneExchangeSource, 1), sink -> luceneExchangeSource.finish())
+            );
 
             // TODO: turn aggs into operator chain and pass to driver
             Aggs aggs = request.aggs;
 
             // only release search context once driver actually completed
-            Driver driver = new Driver(List.of(lucenePageCollector,
+            Driver driver = new Driver(List.of(
+                new ExchangeSourceOperator(luceneExchangeSource),
                 new NumericDocValuesExtractor(context.getSearchExecutionContext().getIndexReader(), 0, 1, "count"),
                 new LongTransformer(2, i -> i + 1),
                 new LongGroupingOperator(3, BigArrays.NON_RECYCLING_INSTANCE),
@@ -126,10 +134,10 @@ public class TransportComputeAction extends TransportSingleShardAction<ComputeRe
             context.size(0); // no hits needed
             context.preProcess();
 
-            context.queryCollectors().put(TransportComputeAction.class, lucenePageCollector);
+            context.queryCollectors().put(TransportComputeAction.class, luceneCollector);
             // run query, invoking collector
             QueryPhase.execute(context);
-            lucenePageCollector.finish();
+            luceneCollector.finish();
             success = true;
         } finally {
             context.queryCollectors().remove(TransportComputeAction.class);

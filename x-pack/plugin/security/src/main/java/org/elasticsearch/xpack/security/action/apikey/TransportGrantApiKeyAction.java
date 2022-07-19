@@ -38,9 +38,9 @@ public final class TransportGrantApiKeyAction extends TransportGrantAction<Grant
         TransportService transportService,
         ActionFilters actionFilters,
         ThreadPool threadPool,
-        ApiKeyService apiKeyService,
         AuthenticationService authenticationService,
         AuthorizationService authorizationService,
+        ApiKeyService apiKeyService,
         CompositeRolesStore rolesStore,
         NamedXContentRegistry xContentRegistry
     ) {
@@ -48,9 +48,9 @@ public final class TransportGrantApiKeyAction extends TransportGrantAction<Grant
             transportService,
             actionFilters,
             threadPool.getThreadContext(),
-            apiKeyService,
             authenticationService,
             authorizationService,
+            apiKeyService,
             new ApiKeyUserRoleDescriptorResolver(rolesStore, xContentRegistry)
         );
     }
@@ -59,9 +59,9 @@ public final class TransportGrantApiKeyAction extends TransportGrantAction<Grant
         TransportService transportService,
         ActionFilters actionFilters,
         ThreadContext threadContext,
-        ApiKeyService apiKeyService,
         AuthenticationService authenticationService,
         AuthorizationService authorizationService,
+        ApiKeyService apiKeyService,
         ApiKeyUserRoleDescriptorResolver resolver
     ) {
         super(

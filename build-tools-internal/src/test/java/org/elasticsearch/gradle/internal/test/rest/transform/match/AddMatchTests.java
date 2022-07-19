@@ -16,7 +16,6 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 
 import org.elasticsearch.gradle.internal.test.rest.transform.TransformTests;
 import org.hamcrest.CoreMatchers;
-import org.junit.Assert;
 import org.junit.Test;
 
 import java.util.Collections;
@@ -26,6 +25,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
 public class AddMatchTests extends TransformTests {
@@ -40,7 +40,7 @@ public class AddMatchTests extends TransformTests {
         JsonNode addNode = MAPPER.convertValue("_doc", JsonNode.class);
         assertEquals(
             "adding matches is only supported for named tests",
-            Assert.assertThrows(
+            assertThrows(
                 NullPointerException.class,
                 () -> transformTests(tests, Collections.singletonList(new AddMatch("_type", addNode, null)))
             ).getMessage()

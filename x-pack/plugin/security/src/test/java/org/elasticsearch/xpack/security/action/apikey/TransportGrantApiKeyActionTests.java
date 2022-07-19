@@ -229,6 +229,7 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
         assertThat(exception, throwableWithMessage("authentication failed for testing"));
 
         verifyNoMoreInteractions(apiKeyService);
+        verifyNoMoreInteractions(resolver);
         verify(authorizationService, never()).authorize(any(), any(), any(), anyActionListener());
     }
 

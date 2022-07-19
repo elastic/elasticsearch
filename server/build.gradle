@@ -314,3 +314,5 @@ tasks.named('splitPackagesAudit').configure {
     'org.apache.lucene.geo.XTessellator'
 
 }
+
+tasks.withType(Checkstyle.class).configureEach { t -> t.getMaxHeapSize().set("2g") }

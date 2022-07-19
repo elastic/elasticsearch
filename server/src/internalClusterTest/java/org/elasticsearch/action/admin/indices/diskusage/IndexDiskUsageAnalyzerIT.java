@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.admin.indices.diskusage;
 
-import org.apache.lucene.tests.geo.GeoTestUtil;
 import org.apache.lucene.tests.util.English;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -25,7 +24,6 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -58,7 +56,6 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
         plugins.add(EngineTestPlugin.class);
         plugins.add(MockTransportService.TestPlugin.class);
-        plugins.add(TestGeoShapeFieldMapperPlugin.class);
         return plugins;
     }
 
@@ -158,59 +155,6 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
         assertThat(valueField.getPointsBytes(), greaterThan(0L));
         assertThat(valueField.getDocValuesBytes(), greaterThan(0L));
 
-        assertMetadataFields(stats);
-    }
-
-    public void testGeoShape() throws Exception {
-        final XContentBuilder mapping = XContentFactory.jsonBuilder();
-        mapping.startObject();
-        {
-            mapping.startObject("_doc");
-            {
-                mapping.startObject("properties");
-                {
-                    mapping.startObject("location");
-                    mapping.field("type", "geo_shape");
-                    mapping.endObject();
-                }
-                mapping.endObject();
-            }
-            mapping.endObject();
-        }
-        mapping.endObject();
-
-        final String index = "test-index";
-        client().admin()
-            .indices()
-            .prepareCreate(index)
-            .setMapping(mapping)
-            .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)))
-            .get();
-
-        int numDocs = randomIntBetween(10, 100);
-        for (int i = 0; i < numDocs; i++) {
-            final XContentBuilder doc = XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("location")
-                .field("type", "point")
-                .field("coordinates", new double[] { GeoTestUtil.nextLatitude(), GeoTestUtil.nextLongitude() })
-                .endObject()
-                .endObject();
-            client().prepareIndex(index).setId("id-" + i).setSource(doc).get();
-        }
-        AnalyzeIndexDiskUsageResponse resp = client().execute(
-            AnalyzeIndexDiskUsageAction.INSTANCE,
-            new AnalyzeIndexDiskUsageRequest(new String[] { index }, AnalyzeIndexDiskUsageRequest.DEFAULT_INDICES_OPTIONS, true)
-        ).actionGet();
-
-        final IndexDiskUsageStats stats = resp.getStats().get(index);
-        logger.info("--> stats {}", stats);
-        assertNotNull(stats);
-        assertThat(stats.getIndexSizeInBytes(), greaterThan(100L));
-
-        final IndexDiskUsageStats.PerFieldDiskUsage locationField = stats.getFields().get("location");
-        assertThat(locationField.totalBytes(), greaterThan(0L));
-        assertThat(locationField.getPointsBytes(), greaterThan(0L));
         assertMetadataFields(stats);
     }
 

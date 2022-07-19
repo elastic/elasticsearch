@@ -8,18 +8,14 @@
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.index.VersionType;
-import org.elasticsearch.ingest.IngestDocument;
-
 import java.time.ZonedDateTime;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 /**
@@ -50,80 +46,31 @@ public class Metadata {
     protected static final String IF_PRIMARY_TERM = "_if_primary_term";
     protected static final String DYNAMIC_TEMPLATES = "_dynamic_templates";
 
-    protected static final Map<String, Validator> VALIDATORS = Map.of(
-        INDEX,
-        Metadata::stringValidator,
-        ID,
-        Metadata::stringValidator,
-        ROUTING,
-        Metadata::stringValidator,
-        VERSION_TYPE,
-        Metadata::versionTypeValidator,
-        VERSION,
-        Metadata::notNullLongValidator,
-        TYPE,
-        Metadata::stringValidator,
-        IF_SEQ_NO,
-        Metadata::longValidator,
-        IF_PRIMARY_TERM,
-        Metadata::longValidator,
-        DYNAMIC_TEMPLATES,
-        Metadata::mapValidator
-    );
-
     protected final Map<String, Object> map;
-    protected final Map<String, Validator> validators;
+    protected final Map<String, FieldProperty<?>> properties;
+    protected static final FieldProperty<?> BAD_KEY = new FieldProperty<>(null, false, false, null);
 
-    // timestamp is new to ingest metadata, so it doesn't need to be backed by the map for back compat
-    protected final ZonedDateTime timestamp;
-
-    public Metadata(String index, String id, long version, String routing, VersionType versionType, ZonedDateTime timestamp) {
-        this(metadataMap(index, id, version, routing, versionType), timestamp, VALIDATORS);
-    }
-
-    public Metadata(Map<String, Object> map, ZonedDateTime timestamp) {
-        this(map, timestamp, VALIDATORS);
-    }
-
-    Metadata(Map<String, Object> map, ZonedDateTime timestamp, Map<String, Validator> validators) {
+    public Metadata(Map<String, Object> map, Map<String, FieldProperty<?>> properties) {
         this.map = map;
-        this.timestamp = timestamp;
-        this.validators = validators;
+        this.properties = Collections.unmodifiableMap(properties);
         validateMetadata();
     }
 
     /**
-     * Create the backing metadata map with the standard contents assuming default validators.
-     */
-    protected static Map<String, Object> metadataMap(String index, String id, long version, String routing, VersionType versionType) {
-        Map<String, Object> metadata = Maps.newHashMapWithExpectedSize(IngestDocument.Metadata.values().length);
-        metadata.put(IngestDocument.Metadata.INDEX.getFieldName(), index);
-        metadata.put(IngestDocument.Metadata.ID.getFieldName(), id);
-        metadata.put(IngestDocument.Metadata.VERSION.getFieldName(), version);
-        if (routing != null) {
-            metadata.put(IngestDocument.Metadata.ROUTING.getFieldName(), routing);
-        }
-        if (versionType != null) {
-            metadata.put(IngestDocument.Metadata.VERSION_TYPE.getFieldName(), VersionType.toString(versionType));
-        }
-        return metadata;
-    }
-
-    /**
-     * Check that all metadata map contains only valid metadata and no extraneous keys and source map contains no metadata
+     * Check that all metadata map contains only valid metadata and no extraneous keys
      */
     protected void validateMetadata() {
         int numMetadata = 0;
-        for (Map.Entry<String, Validator> entry : validators.entrySet()) {
+        for (Map.Entry<String, FieldProperty<?>> entry : properties.entrySet()) {
             String key = entry.getKey();
             if (map.containsKey(key)) {
                 numMetadata++;
             }
-            entry.getValue().accept(MapOperation.INIT, key, map.get(key));
+            entry.getValue().check(MapOperation.INIT, key, map.get(key));
         }
         if (numMetadata < map.size()) {
             Set<String> keys = new HashSet<>(map.keySet());
-            keys.removeAll(validators.keySet());
+            keys.removeAll(properties.keySet());
             throw new IllegalArgumentException(
                 "Unexpected metadata keys [" + keys.stream().sorted().map(k -> k + ":" + map.get(k)).collect(Collectors.joining(", ")) + "]"
             );
@@ -172,7 +119,7 @@ public class Metadata {
     }
 
     public ZonedDateTime getTimestamp() {
-        return timestamp;
+        throw new UnsupportedOperationException("unimplemented");
     }
 
     // These are not available to scripts
@@ -218,7 +165,7 @@ public class Metadata {
      * this call.
      */
     public boolean isAvailable(String key) {
-        return validators.containsKey(key);
+        return properties.containsKey(key);
     }
 
     /**
@@ -226,8 +173,7 @@ public class Metadata {
      * @throws IllegalArgumentException if {@link #isAvailable(String)} is false or the key cannot be updated to the value.
      */
     public Object put(String key, Object value) {
-        Validator v = validators.getOrDefault(key, this::badKey);
-        v.accept(MapOperation.UPDATE, key, value);
+        properties.getOrDefault(key, Metadata.BAD_KEY).check(MapOperation.UPDATE, key, value);
         return map.put(key, value);
     }
 
@@ -257,8 +203,7 @@ public class Metadata {
      * @throws IllegalArgumentException if {@link #isAvailable(String)} is false or the key cannot be removed.
      */
     public Object remove(String key) {
-        Validator v = validators.getOrDefault(key, this::badKey);
-        v.accept(MapOperation.REMOVE, key, null);
+        properties.getOrDefault(key, Metadata.BAD_KEY).check(MapOperation.REMOVE, key, null);
         return map.remove(key);
     }
 
@@ -278,7 +223,8 @@ public class Metadata {
 
     @Override
     public Metadata clone() {
-        return new Metadata(new HashMap<>(map), timestamp, new HashMap<>(validators));
+        // properties is an UnmodifiableMap, no need to create a copy
+        return new Metadata(new HashMap<>(map), properties);
     }
 
     /**
@@ -288,97 +234,17 @@ public class Metadata {
         return map;
     }
 
-    /**
-     * Allow a String or null.
-     * @throws IllegalArgumentException if {@param value} is neither a {@link String} nor null
-     */
-    protected static void stringValidator(MapOperation op, String key, Object value) {
-        if (op == MapOperation.REMOVE || value == null || value instanceof String) {
-            return;
-        }
-        throw new IllegalArgumentException(
-            key + " must be null or a String but was [" + value + "] with type [" + value.getClass().getName() + "]"
-        );
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if ((o instanceof Metadata) == false) return false;
+        Metadata metadata = (Metadata) o;
+        return map.equals(metadata.map);
     }
 
-    /**
-     * Allow Numbers that can be represented as longs without loss of precision or null
-     * @throws IllegalArgumentException if the value cannot be represented as a long
-     */
-    protected static void longValidator(MapOperation op, String key, Object value) {
-        if (op == MapOperation.REMOVE || value == null) {
-            return;
-        }
-        if (value instanceof Number number) {
-            long version = number.longValue();
-            // did we round?
-            if (number.doubleValue() == version) {
-                return;
-            }
-        }
-        throw new IllegalArgumentException(
-            key + " may only be set to an int or a long but was [" + value + "] with type [" + value.getClass().getName() + "]"
-        );
-    }
-
-    /**
-     * Same as {@link #longValidator(MapOperation, String, Object)} but {@param value} cannot be null.
-     * @throws IllegalArgumentException if value is null or cannot be represented as a long.
-     */
-    protected static void notNullLongValidator(MapOperation op, String key, Object value) {
-        if (op == MapOperation.REMOVE || value == null) {
-            throw new IllegalArgumentException(key + " cannot be removed or set to null");
-        }
-        longValidator(op, key, value);
-    }
-
-    /**
-     * Allow maps.
-     * @throws IllegalArgumentException if {@param value} is not a {@link Map}
-     */
-    protected static void mapValidator(MapOperation op, String key, Object value) {
-        if (op == MapOperation.REMOVE || value == null || value instanceof Map<?, ?>) {
-            return;
-        }
-        throw new IllegalArgumentException(
-            key + " must be a null or a Map but was [" + value + "] with type [" + value.getClass().getName() + "]"
-        );
-    }
-
-    /**
-     * Allow lower case Strings that map to VersionType values, or null.
-     * @throws IllegalArgumentException if {@param value} cannot be converted via {@link VersionType#fromString(String)}
-     */
-    protected static void versionTypeValidator(MapOperation op, String key, Object value) {
-        if (op == MapOperation.REMOVE || value == null) {
-            return;
-        }
-        if (value instanceof String versionType) {
-            try {
-                VersionType.fromString(versionType);
-                return;
-            } catch (IllegalArgumentException ignored) {}
-        }
-        throw new IllegalArgumentException(
-            key
-                + " must be a null or one of ["
-                + Arrays.stream(VersionType.values()).map(vt -> VersionType.toString(vt)).collect(Collectors.joining(", "))
-                + "] but was ["
-                + value
-                + "] with type ["
-                + value.getClass().getName()
-                + "]"
-        );
-    }
-
-    private void badKey(MapOperation op, String key, Object value) {
-        throw new IllegalArgumentException(
-            "unexpected metadata key ["
-                + key
-                + "], expected one of ["
-                + validators.keySet().stream().sorted().collect(Collectors.joining(", "))
-                + "]"
-        );
+    @Override
+    public int hashCode() {
+        return Objects.hash(map);
     }
 
     /**
@@ -394,25 +260,78 @@ public class Metadata {
     }
 
     /**
-     * A "TriConsumer" that tests if the {@link MapOperation}, the metadata key and value are valid.
-     *
-     * throws IllegalArgumentException if the given triple is invalid
+     * The properties of a metadata field.
+     * @param type - the class of the field.  Updates must be assignable to this type.  If null, no type checking is performed.
+     * @param nullable - can the field value be null and can it be removed
+     * @param writable - can the field be updated after the initial set
+     * @param extendedValidation - value validation after type checking, may be used for values that may be one of a set
      */
-    @FunctionalInterface
-    public interface Validator {
-        void accept(MapOperation op, String key, Object value);
-    }
+    public record FieldProperty<T> (Class<T> type, boolean nullable, boolean writable, BiConsumer<String, T> extendedValidation) {
 
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        Metadata metadata = (Metadata) o;
-        return Objects.equals(map, metadata.map) && Objects.equals(timestamp, metadata.timestamp);
-    }
+        public static BiConsumer<String, Number> LONGABLE_NUMBER = (k, v) -> {
+            long version = v.longValue();
+            // did we round?
+            if (v.doubleValue() == version) {
+                return;
+            }
+            throw new IllegalArgumentException(
+                k + " may only be set to an int or a long but was [" + v + "] with type [" + v.getClass().getName() + "]"
+            );
+        };
 
-    @Override
-    public int hashCode() {
-        return Objects.hash(map, timestamp);
+        public static FieldProperty<?> ALLOW_ALL = new FieldProperty<>(null, true, true, null);
+
+        @SuppressWarnings("fallthrough")
+        public void check(MapOperation op, String key, Object value) {
+            switch (op) {
+                case UPDATE:
+                    if (writable == false) {
+                        throw new IllegalArgumentException(key + " cannot be updated");
+                    }
+                    // fall through
+
+                case INIT:
+                    if (value == null) {
+                        if (nullable == false) {
+                            throw new IllegalArgumentException(key + " cannot be null");
+                        }
+                    } else {
+                        checkType(key, value);
+                    }
+                    break;
+
+                case REMOVE:
+                    if (writable == false || nullable == false) {
+                        throw new IllegalArgumentException(key + " cannot be removed");
+                    }
+                    break;
+
+                default:
+                    throw new IllegalArgumentException("unexpected op [" + op + "] for key [" + key + "] and value [" + value + "]");
+
+            }
+        }
+
+        @SuppressWarnings("unchecked")
+        private void checkType(String key, Object value) {
+            if (type == null) {
+                return;
+            }
+            if (type.isAssignableFrom(value.getClass()) == false) {
+                throw new IllegalArgumentException(
+                    key
+                        + " ["
+                        + value
+                        + "] is wrong type, expected assignable to ["
+                        + type.getName()
+                        + "], not ["
+                        + value.getClass().getName()
+                        + "]"
+                );
+            }
+            if (extendedValidation != null) {
+                extendedValidation.accept(key, (T) value);
+            }
+        }
     }
 }

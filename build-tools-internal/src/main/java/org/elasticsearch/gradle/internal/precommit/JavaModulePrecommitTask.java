@@ -126,9 +126,8 @@ public class JavaModulePrecommitTask extends PrecommitTask {
         Path servicesRoot = getResourcesDir().toPath().resolve("META-INF").resolve("services");
         getLogger().info("%s servicesRoot %s".formatted(this, servicesRoot));
         if (Files.exists(servicesRoot)) {
-            try {
-                Files.walk(servicesRoot)
-                    .filter(Files::isRegularFile)
+            try (var paths = Files.walk(servicesRoot)) {
+                paths.filter(Files::isRegularFile)
                     .map(p -> servicesRoot.relativize(p))
                     .map(Path::toString)
                     .peek(s -> getLogger().info("%s checking service %s".formatted(this, s)))

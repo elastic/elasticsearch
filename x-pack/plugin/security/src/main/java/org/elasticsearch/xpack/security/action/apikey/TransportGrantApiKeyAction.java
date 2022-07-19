@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyRequest;
 import org.elasticsearch.xpack.security.action.TransportGrantAction;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
-import org.elasticsearch.xpack.security.authc.support.ApiKeyGenerator;
 import org.elasticsearch.xpack.security.authc.support.ApiKeyUserRoleDescriptorResolver;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;

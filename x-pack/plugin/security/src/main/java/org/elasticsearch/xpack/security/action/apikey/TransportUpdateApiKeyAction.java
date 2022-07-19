@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyResponse;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
-import org.elasticsearch.xpack.security.authc.support.ApiKeyUpdateHandler;
 import org.elasticsearch.xpack.security.authc.support.ApiKeyUserRoleDescriptorResolver;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 

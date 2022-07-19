@@ -1,2 +1,10 @@
 include ":libs:elasticsearch-core"
 include ":test:logger-usage"
+
+dependencyResolutionManagement {
+    versionCatalogs {
+        buildLibs {
+            from(files("build.versions.toml"))
+        }
+    }
+}

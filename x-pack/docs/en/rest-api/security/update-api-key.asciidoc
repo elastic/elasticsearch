@@ -36,7 +36,7 @@ The snapshot of the owner's permissions is updated automatically on every call.
 ====
 A call to this API might change the API key's access scope, even if you don't specify new
 <<security-api-update-api-key-api-key-role-descriptors,`role_descriptors`>> in the request.
-This behavior can occur if the owner user's permissions have changed since the creation or last update of the API key.
+This behavior can occur if the owner user's permissions have changed since the last modification of the API key.
 ====
 
 [[security-api-update-api-key-path-params]]
@@ -47,9 +47,9 @@ This behavior can occur if the owner user's permissions have changed since the c
 
 [[security-api-update-api-key-request-body]]
 ==== {api-request-body-title}
+(Optional)
 
-The request body is optional.
-Following parameters can be specified in it:
+You can specify the following optional parameters in the request body.
 
 [[security-api-update-api-key-api-key-role-descriptors]]
 `role_descriptors`::

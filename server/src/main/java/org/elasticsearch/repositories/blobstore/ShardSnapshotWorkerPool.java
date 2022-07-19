@@ -27,7 +27,7 @@ import static org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSna
 public final class ShardSnapshotWorkerPool {
     private static final Logger logger = LogManager.getLogger(ShardSnapshotWorkerPool.class);
 
-    private final int desiredWorkerCount;
+    private final int maxWorkers;
     private final Object mutex = new Object();
     private final BlockingQueue<SnapshotShardContext> shardsToSnapshot = new LinkedBlockingQueue<>();
     private final BlockingQueue<SnapshotFileUpload> filesToSnapshot = new LinkedBlockingQueue<>();
@@ -39,13 +39,13 @@ public final class ShardSnapshotWorkerPool {
     public record SnapshotFileUpload(SnapshotShardContext context, FileInfo fileInfo, ActionListener<Void> listener) {}
 
     public ShardSnapshotWorkerPool(
-        final int size,
+        final int maxWorkers,
         final Executor executor,
         final Consumer<SnapshotShardContext> shardSnapshotter,
         final CheckedBiConsumer<SnapshotShardContext, FileInfo, IOException> fileSnapshotter
     ) {
-        logger.info("starting shard snapshot worker pool of size {}", size);
-        desiredWorkerCount = size;
+        logger.info("starting shard snapshot worker pool of max size {}", maxWorkers);
+        this.maxWorkers = maxWorkers;
         this.executor = executor;
         this.shardSnapshotter = shardSnapshotter;
         this.fileSnapshotter = fileSnapshotter;
@@ -75,7 +75,7 @@ public final class ShardSnapshotWorkerPool {
     private void ensureEnoughWorkers() {
         assert Thread.holdsLock(mutex);
 
-        int workersToCreate = Math.min(desiredWorkerCount - workerCount, Math.max(filesToSnapshot.size(), shardsToSnapshot.size()));
+        int workersToCreate = Math.min(maxWorkers - workerCount, Math.max(filesToSnapshot.size(), shardsToSnapshot.size()));
         if (workersToCreate > 0) {
             logger.debug("starting {} shard snapshot workers", workersToCreate);
         }
@@ -89,7 +89,7 @@ public final class ShardSnapshotWorkerPool {
     private void workerDone() {
         synchronized (mutex) {
             workerCount--;
-            if (workerCount < desiredWorkerCount && (shardsToSnapshot.isEmpty() == false || filesToSnapshot.isEmpty() == false)) {
+            if (workerCount < maxWorkers && (shardsToSnapshot.isEmpty() == false || filesToSnapshot.isEmpty() == false)) {
                 ensureEnoughWorkers();
             }
         }

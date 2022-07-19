@@ -1,0 +1,95 @@
+[[circuit-breaker-errors]]
+=== Circuit breaker errors
+
+{es} uses <<circuit-breaker,circuit breakers>> to prevent nodes from running out
+of JVM heap memory. If Elasticsearch estimates an operation would exceed a
+circuit breaker, it stops the operation and returns an error.
+
+By default, the <<parent-circuit-breaker,parent circuit breaker>> triggers at
+95% JVM memory usage. To prevent errors, we recommend taking steps to reduce
+memory pressure if usage consistently exceeds 85%.
+
+[discrete]
+[[diagnose-circuit-breaker-errors]]
+==== Diagnose circuit breaker errors
+
+**Error messages**
+
+If a request triggers a circuit breaker, {es} returns an error with a `429` HTTP
+status code.
+
+[source,js]
+----
+{
+  'error': {
+    'type': 'circuit_breaking_exception',
+    'reason': '[parent] Data too large, data for [<http_request>] would be [123848638/118.1mb], which is larger than the limit of [123273216/117.5mb], real usage: [120182112/114.6mb], new bytes reserved: [3666526/3.4mb]',
+    'bytes_wanted': 123848638,
+    'bytes_limit': 123273216,
+    'durability': 'TRANSIENT'
+  },
+  'status': 429
+}
+----
+// NOTCONSOLE
+
+{es} also writes circuit breaker errors to <<logging,`elasticsearch.log`>>. This
+is helpful when automated processes, such as allocation, trigger a circuit
+breaker.
+
+[source,txt]
+----
+Caused by: org.elasticsearch.common.breaker.CircuitBreakingException: [parent] Data too large, data for [<transport_request>] would be [num/numGB], which is larger than the limit of [num/numGB], usages [request=0/0b, fielddata=num/numKB, in_flight_requests=num/numGB, accounting=num/numGB]
+----
+
+**Check JVM memory usage**
+
+If you've enabled Stack Monitoring, you can view JVM memory usage in {kib}. In
+the main menu, click **Stack Monitoring**. On the Stack Monitoring **Overview**
+page, click **Nodes**. The **JVM Heap** column lists the current memory usage
+for each node.
+
+You can also use the <<cat-nodes,cat nodes API>> to get the current
+`heap.percent` for each node.
+
+[source,console]
+----
+GET _cat/nodes?v=true&h=name,node*,heap*
+----
+
+To get the JVM memory usage for each circuit breaker, use the
+<<cluster-nodes-stats,node stats API>>.
+
+[source,console]
+----
+GET _nodes/stats/breaker
+----
+
+[discrete]
+[[prevent-circuit-breaker-errors]]
+==== Prevent circuit breaker errors
+
+**Reduce JVM memory pressure**
+
+High JVM memory pressure often causes circuit breaker errors. See
+<<high-jvm-memory-pressure>>.
+
+**Avoid using fielddata on `text` fields**
+
+For high-cardinality `text` fields, fielddata can use a large amount of JVM
+memory. To avoid this, {es} disables fielddata on `text` fields by default. If
+you've enabled fielddata and triggered the <<fielddata-circuit-breaker,fielddata
+circuit breaker>>, consider disabling it and using a `keyword` field instead.
+See <<fielddata>>.
+
+**Clear the fieldata cache**
+
+If you've triggered the fielddata circuit breaker and can't disable fielddata,
+use the <<indices-clearcache,clear cache API>> to clear the fielddata cache.
+This may disrupt any in-flight searches that use fielddata.
+
+[source,console]
+----
+POST _cache/clear?fielddata=true
+----
+// TEST[s/^/PUT my-index\n/]

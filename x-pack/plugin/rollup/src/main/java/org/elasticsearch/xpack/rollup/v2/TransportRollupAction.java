@@ -68,7 +68,6 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Consumer;
 
 import static org.elasticsearch.index.mapper.TimeSeriesParams.TIME_SERIES_METRIC_PARAM;
 
@@ -237,13 +236,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
 
             final String mapping;
             try {
-                mapping = createRollupIndexMapping(
-                    helper,
-                    request.getRollupConfig(),
-                    mapperService,
-                    sourceIndexMappings,
-                    listener::onFailure
-                );
+                mapping = createRollupIndexMapping(helper, request.getRollupConfig(), mapperService, sourceIndexMappings);
             } catch (IOException e) {
                 listener.onFailure(e);
                 return;
@@ -389,8 +382,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         final FieldTypeHelper helper,
         final RollupActionConfig config,
         final MapperService mapperService,
-        final Map<String, Object> sourceIndexMappings,
-        final Consumer<Exception> failureHandler
+        final Map<String, Object> sourceIndexMappings
     ) throws IOException {
         final XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
 
@@ -399,7 +391,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         builder.startObject("properties");
 
         addTimestampField(config, builder);
-        addMetricFields(helper, sourceIndexMappings, failureHandler, builder);
+        addMetricFields(helper, sourceIndexMappings, builder);
 
         builder.endObject(); // match initial startObject
         builder.endObject(); // match startObject("properties")
@@ -416,7 +408,6 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
     private static void addMetricFields(
         final FieldTypeHelper helper,
         final Map<String, Object> sourceIndexMappings,
-        final Consumer<Exception> failureHandler,
         final XContentBuilder builder
     ) {
         MappingVisitor.visitMapping(sourceIndexMappings, (field, mapping) -> {
@@ -424,7 +415,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                 try {
                     addMetricFieldMapping(builder, field, mapping);
                 } catch (IOException e) {
-                    failureHandler.accept(e);
+                    throw new ElasticsearchException("Error while adding metric for field [" + field + "]");
                 }
             }
         });

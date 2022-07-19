@@ -14,10 +14,11 @@ import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse.ResetFeatureStateStatus;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
-import org.elasticsearch.action.support.ListenableActionFuture;
+import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
@@ -46,8 +47,6 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.ConcurrentLinkedDeque;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -863,37 +862,33 @@ public class SystemIndices {
             return postMigrationFunction;
         }
 
-        private static ListenableActionFuture<AcknowledgedResponse> cleanUpFeatureForIndices(
+        private static void cleanUpFeatureForIndices(
+            String name,
             Client client,
             String[] indexNames,
-            final ActionListener<Void> listener
+            final ActionListener<ResetFeatureStateStatus> listener
         ) {
-            var actionListener = new ActionListener<AcknowledgedResponse>() {
+            DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest();
+            deleteIndexRequest.indices(indexNames);
+            client.execute(DeleteIndexAction.INSTANCE, deleteIndexRequest, new ActionListener<>() {
                 @Override
                 public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                    listener.onResponse(null);
+                    listener.onResponse(ResetFeatureStateStatus.success(name));
                 }
 
                 @Override
                 public void onFailure(Exception e) {
-                    listener.onFailure(e);
+                    listener.onResponse(ResetFeatureStateStatus.failure(name, e));
                 }
-            };
-            var actionFuture = new ListenableActionFuture<AcknowledgedResponse>();
-            actionFuture.addListener(actionListener);
-            DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest();
-            deleteIndexRequest.indices(indexNames);
-            client.execute(DeleteIndexAction.INSTANCE, deleteIndexRequest, actionFuture);
-
-            return actionFuture;
+            });
         }
 
-        private static long countInnerTasks(
+        private static int countInnerTasks(
             Metadata metadata,
             Collection<SystemIndexDescriptor> indexDescriptors,
             List<String> associatedIndices
         ) {
-            return associatedIndices.size() + indexDescriptors.stream()
+            return associatedIndices.size() + (int)indexDescriptors.stream()
                 .filter(id -> id.getMatchingIndices(metadata).isEmpty() == false)
                 .count();
         }
@@ -922,7 +917,7 @@ public class SystemIndices {
                 .flatMap(List::stream)
                 .toList();
 
-            final long taskCount = countInnerTasks(metadata, indexDescriptors, associatedIndices);
+            final int taskCount = countInnerTasks(metadata, indexDescriptors, associatedIndices);
 
             // check if there's nothing to do and take an early out
             if (taskCount == 0) {
@@ -930,38 +925,28 @@ public class SystemIndices {
                 return;
             }
 
-            ActionListener<Void> taskListener = new ActionListener<>() {
-                AtomicLong tasksCounter = new AtomicLong(taskCount);
-                Collection<Exception> errors = new ConcurrentLinkedDeque<>();
+            GroupedActionListener<ResetFeatureStateStatus> groupedListener = new GroupedActionListener<>(
+                ActionListener.wrap(listenerResults -> {
+                    List<ResetFeatureStateStatus> errors = listenerResults
+                        .stream()
+                        .filter(status -> status.getStatus() == ResetFeatureStateResponse.ResetFeatureStateStatus.Status.FAILURE)
+                        .collect(Collectors.toList());
 
-                @Override
-                public void onResponse(Void resetFeatureStateStatus) {
-                    taskCompleted();
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    errors.add(e);
-                    taskCompleted();
-                }
-
-                private void taskCompleted() {
-                    if (tasksCounter.decrementAndGet() == 0) {
-                        if (errors.isEmpty()) {
-                            listener.onResponse(ResetFeatureStateStatus.success(name));
-                        } else {
-                            StringBuilder exceptions = new StringBuilder("[");
-                            exceptions.append(errors.stream().map(Exception::getMessage).collect(Collectors.joining(", ")));
-                            exceptions.append(']');
-                            listener.onResponse(ResetFeatureStateStatus.failure(name, new Exception(exceptions.toString())));
-                        }
+                    if (errors.isEmpty()) {
+                        listener.onResponse(ResetFeatureStateStatus.success(name));
+                    } else {
+                        StringBuilder exceptions = new StringBuilder("[");
+                        exceptions.append(errors.stream().map(e -> e.getException().getMessage()).collect(Collectors.joining(", ")));
+                        exceptions.append(']');
+                        listener.onResponse(ResetFeatureStateStatus.failure(name, new Exception(exceptions.toString())));
                     }
-                }
-            };
+                }, listener::onFailure),
+                taskCount
+            );
 
             // Send cleanup for the associated indices, they don't need special origin since they are not protected
             if (associatedIndices.isEmpty() == false) {
-                cleanUpFeatureForIndices(client, associatedIndices.toArray(Strings.EMPTY_ARRAY), taskListener);
+                cleanUpFeatureForIndices(name, client, associatedIndices.toArray(Strings.EMPTY_ARRAY), groupedListener);
             }
 
             // One descriptor at a time, create an originating client and clean up the feature
@@ -971,7 +956,7 @@ public class SystemIndices {
                 if (matchingIndices.isEmpty() == false) {
                     final OriginSettingClient clientWithOrigin = new OriginSettingClient(client, indexDescriptor.getOrigin());
 
-                    cleanUpFeatureForIndices(clientWithOrigin, matchingIndices.toArray(Strings.EMPTY_ARRAY), taskListener);
+                    cleanUpFeatureForIndices(name, clientWithOrigin, matchingIndices.toArray(Strings.EMPTY_ARRAY), groupedListener);
                 }
             }
         }

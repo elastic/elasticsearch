@@ -29,11 +29,11 @@ public final class ShardSnapshotWorkerPool {
 
     private final int desiredWorkerCount;
     private final Object mutex = new Object();
-    private final BlockingQueue<SnapshotShardContext> shardSnapshots = new LinkedBlockingQueue<>();
-    private final BlockingQueue<SnapshotFileUpload> fileUploads = new LinkedBlockingQueue<>();
+    private final BlockingQueue<SnapshotShardContext> shardsToSnapshot = new LinkedBlockingQueue<>();
+    private final BlockingQueue<SnapshotFileUpload> filesToSnapshot = new LinkedBlockingQueue<>();
     private final Executor executor;
     private final Consumer<SnapshotShardContext> shardSnapshotter;
-    private final CheckedBiConsumer<SnapshotShardContext, FileInfo, IOException> fileUploader;
+    private final CheckedBiConsumer<SnapshotShardContext, FileInfo, IOException> fileSnapshotter;
     private volatile int workerCount;
 
     public record SnapshotFileUpload(SnapshotShardContext context, FileInfo fileInfo, ActionListener<Void> listener) {}
@@ -42,19 +42,21 @@ public final class ShardSnapshotWorkerPool {
         final int size,
         final Executor executor,
         final Consumer<SnapshotShardContext> shardSnapshotter,
-        final CheckedBiConsumer<SnapshotShardContext, FileInfo, IOException> fileUploader
+        final CheckedBiConsumer<SnapshotShardContext, FileInfo, IOException> fileSnapshotter
     ) {
         logger.info("starting shard snapshot worker pool of size {}", size);
         desiredWorkerCount = size;
         this.executor = executor;
         this.shardSnapshotter = shardSnapshotter;
-        this.fileUploader = fileUploader;
+        this.fileSnapshotter = fileSnapshotter;
     }
 
     public void enqueueShardSnapshot(final SnapshotShardContext context) {
         logger.trace("enqueuing shard snapshot task [snapshotID={}, indexID={}]", context.snapshotId(), context.indexId());
-        shardSnapshots.add(context);
-        ensureEnoughWorkersExist();
+        synchronized (mutex) {
+            shardsToSnapshot.add(context);
+            ensureDesiredWorkerCount();
+        }
     }
 
     public void enqueueFileUpload(final SnapshotFileUpload snapshotFileUpload) {
@@ -64,34 +66,32 @@ public final class ShardSnapshotWorkerPool {
             snapshotFileUpload.context.indexId(),
             snapshotFileUpload.fileInfo.name()
         );
-        fileUploads.add(snapshotFileUpload);
-        ensureEnoughWorkersExist();
+        synchronized (mutex) {
+            filesToSnapshot.add(snapshotFileUpload);
+            ensureDesiredWorkerCount();
+        }
     }
 
-    private void ensureEnoughWorkersExist() {
-        synchronized (mutex) {
-            int workersToCreate = desiredWorkerCount - workerCount;
-            if (workersToCreate > 0) {
-                logger.debug("starting {} shard snapshot workers", workersToCreate);
-            }
-            while (workersToCreate > 0) {
-                workerCount++;
-                workersToCreate--;
-                startWorker(UUIDs.base64UUID());
-            }
+    private void ensureDesiredWorkerCount() {
+        assert Thread.holdsLock(mutex);
+
+        int workersToCreate = desiredWorkerCount - workerCount;
+        if (workersToCreate > 0) {
+            logger.debug("starting {} shard snapshot workers", workersToCreate);
+        }
+        while (workersToCreate > 0) {
+            startWorker(UUIDs.base64UUID());
+            workerCount++;
+            workersToCreate--;
         }
     }
 
     private void workerDone() {
-        boolean ensureWorkers = false;
         synchronized (mutex) {
             workerCount--;
-            if (workerCount < desiredWorkerCount && (shardSnapshots.isEmpty() == false || fileUploads.isEmpty() == false)) {
-                ensureWorkers = true;
+            if (workerCount < desiredWorkerCount && (shardsToSnapshot.isEmpty() == false || filesToSnapshot.isEmpty() == false)) {
+                ensureDesiredWorkerCount();
             }
-        }
-        if (ensureWorkers) {
-            ensureEnoughWorkersExist();
         }
     }
 
@@ -104,7 +104,7 @@ public final class ShardSnapshotWorkerPool {
         executor.execute(() -> {
             try {
                 while (true) {
-                    SnapshotShardContext context = shardSnapshots.poll();
+                    SnapshotShardContext context = shardsToSnapshot.poll();
                     if (context == null) {
                         logger.trace("[worker {}] shard snapshot queue is empty", workerId);
                         break;
@@ -112,14 +112,14 @@ public final class ShardSnapshotWorkerPool {
                     shardSnapshotter.accept(context);
                 }
                 while (true) {
-                    SnapshotFileUpload fileUploadTask = fileUploads.poll();
+                    SnapshotFileUpload fileUploadTask = filesToSnapshot.poll();
                     if (fileUploadTask == null) {
                         logger.trace("[worker {}] file upload queue is empty", workerId);
                         break;
                     }
                     ActionRunnable.run(
                         fileUploadTask.listener,
-                        () -> fileUploader.accept(fileUploadTask.context(), fileUploadTask.fileInfo())
+                        () -> fileSnapshotter.accept(fileUploadTask.context(), fileUploadTask.fileInfo())
                     ).run();
                 }
             } finally {
@@ -129,8 +129,4 @@ public final class ShardSnapshotWorkerPool {
         });
     }
 
-    public void stop() {
-        shardSnapshots.clear();
-        fileUploads.clear();
-    }
 }

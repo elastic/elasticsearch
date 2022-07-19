@@ -138,7 +138,7 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
         verify(authorizationService, never()).authorize(any(), any(), any(), anyActionListener());
     }
 
-    public void testGrantApiKeyWithAccessToken() throws Exception {
+    public void testGrantApiKeyWithAccessToken() {
         final String username = randomAlphaOfLengthBetween(4, 12);
         final Authentication authentication = buildAuthentication(username);
 

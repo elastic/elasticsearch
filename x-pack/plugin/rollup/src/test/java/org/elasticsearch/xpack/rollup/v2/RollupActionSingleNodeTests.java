@@ -535,6 +535,48 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             }
         });
 
+        assertRollupIndexAgrgegations(sourceIndex, rollupIndex, config, metricFields, labelFields);
+
+        GetIndexResponse indexSettingsResp = client().admin().indices().prepareGetIndex().addIndices(sourceIndex, rollupIndex).get();
+        assertRollupIndexSettings(sourceIndex, rollupIndex, indexSettingsResp);
+
+        Map<String, Map<String, Object>> mappings = (Map<String, Map<String, Object>>) indexSettingsResp.getMappings()
+            .get(rollupIndex)
+            .getSourceAsMap()
+            .get("properties");
+
+        assertFieldMappings(config, metricFields, mappings);
+
+        GetMappingsResponse indexMappings = client().admin()
+            .indices()
+            .getMappings(new GetMappingsRequest().indices(rollupIndex, sourceIndex))
+            .actionGet();
+        Map<String, String> rollupIndexProperties = (Map<String, String>) indexMappings.mappings()
+            .get(rollupIndex)
+            .sourceAsMap()
+            .get("properties");
+        Map<String, String> sourceIndexCloneProperties = (Map<String, String>) indexMappings.mappings()
+            .get(sourceIndex)
+            .sourceAsMap()
+            .get("properties");
+        List<Map.Entry<String, String>> labelFieldRollupIndexCloneProperties = (rollupIndexProperties.entrySet()
+            .stream()
+            .filter(entry -> labelFields.containsKey(entry.getKey()))
+            .toList());
+        List<Map.Entry<String, String>> labelFieldSourceIndexProperties = (sourceIndexCloneProperties.entrySet()
+            .stream()
+            .filter(entry -> labelFields.containsKey(entry.getKey()))
+            .toList());
+        assertEquals(labelFieldRollupIndexCloneProperties, labelFieldSourceIndexProperties);
+    }
+
+    private void assertRollupIndexAgrgegations(
+        String sourceIndex,
+        String rollupIndex,
+        RollupActionConfig config,
+        Map<String, TimeSeriesParams.MetricType> metricFields,
+        Map<String, String> labelFields
+    ) {
         final AggregationBuilder aggregations = buildAggregations(config, metricFields, labelFields, config.getTimestampField());
         Aggregations origResp = aggregate(sourceIndex, aggregations);
         Aggregations rollupResp = aggregate(rollupIndex, aggregations);
@@ -626,8 +668,30 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
                 }
             }
         });
+    }
 
-        GetIndexResponse indexSettingsResp = client().admin().indices().prepareGetIndex().addIndices(sourceIndex, rollupIndex).get();
+    private void assertFieldMappings(
+        RollupActionConfig config,
+        Map<String, TimeSeriesParams.MetricType> metricFields,
+        Map<String, Map<String, Object>> mappings
+    ) {
+        // Assert field mappings
+        assertEquals(DateFieldMapper.CONTENT_TYPE, mappings.get(config.getTimestampField()).get("type"));
+        Map<String, Object> dateTimeMeta = (Map<String, Object>) mappings.get(config.getTimestampField()).get("meta");
+        assertEquals(config.getTimeZone(), dateTimeMeta.get("time_zone"));
+        assertEquals(config.getInterval().toString(), dateTimeMeta.get(config.getIntervalType()));
+
+        metricFields.forEach((field, metricType) -> {
+            switch (metricType) {
+                case counter -> assertEquals("double", mappings.get(field).get("type"));
+                case gauge -> assertEquals("aggregate_metric_double", mappings.get(field).get("type"));
+                default -> fail("Unsupported field type");
+            }
+            assertEquals(metricType.toString(), mappings.get(field).get("time_series_metric"));
+        });
+    }
+
+    private void assertRollupIndexSettings(String sourceIndex, String rollupIndex, GetIndexResponse indexSettingsResp) {
         // Assert rollup metadata are set in index settings
         assertEquals("success", indexSettingsResp.getSetting(rollupIndex, IndexMetadata.INDEX_ROLLUP_STATUS_KEY));
 
@@ -675,48 +739,6 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             indexSettingsResp.getSetting(rollupIndex, IndexMetadata.SETTING_NUMBER_OF_REPLICAS)
         );
         assertEquals("true", indexSettingsResp.getSetting(rollupIndex, "index.blocks.write"));
-
-        // Assert field mappings
-        Map<String, Map<String, Object>> mappings = (Map<String, Map<String, Object>>) indexSettingsResp.getMappings()
-            .get(rollupIndex)
-            .getSourceAsMap()
-            .get("properties");
-
-        assertEquals(DateFieldMapper.CONTENT_TYPE, mappings.get(config.getTimestampField()).get("type"));
-        Map<String, Object> dateTimeMeta = (Map<String, Object>) mappings.get(config.getTimestampField()).get("meta");
-        assertEquals(config.getTimeZone(), dateTimeMeta.get("time_zone"));
-        assertEquals(config.getInterval().toString(), dateTimeMeta.get(config.getIntervalType()));
-
-        metricFields.forEach((field, metricType) -> {
-            switch (metricType) {
-                case counter -> assertEquals("double", mappings.get(field).get("type"));
-                case gauge -> assertEquals("aggregate_metric_double", mappings.get(field).get("type"));
-                default -> fail("Unsupported field type");
-            }
-            assertEquals(metricType.toString(), mappings.get(field).get("time_series_metric"));
-        });
-
-        GetMappingsResponse indexMappings = client().admin()
-            .indices()
-            .getMappings(new GetMappingsRequest().indices(rollupIndex, sourceIndex))
-            .actionGet();
-        Map<String, String> rollupIndexProperties = (Map<String, String>) indexMappings.mappings()
-            .get(rollupIndex)
-            .sourceAsMap()
-            .get("properties");
-        Map<String, String> sourceIndexCloneProperties = (Map<String, String>) indexMappings.mappings()
-            .get(sourceIndex)
-            .sourceAsMap()
-            .get("properties");
-        List<Map.Entry<String, String>> labelFieldRollupIndexCloneProperties = (rollupIndexProperties.entrySet()
-            .stream()
-            .filter(entry -> labelFields.containsKey(entry.getKey()))
-            .toList());
-        List<Map.Entry<String, String>> labelFieldSourceIndexProperties = (sourceIndexCloneProperties.entrySet()
-            .stream()
-            .filter(entry -> labelFields.containsKey(entry.getKey()))
-            .toList());
-        assertEquals(labelFieldRollupIndexCloneProperties, labelFieldSourceIndexProperties);
     }
 
     private AggregationBuilder buildAggregations(

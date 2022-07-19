@@ -7,6 +7,10 @@
 
 package org.elasticsearch.xpack.indiceswriteloadtracker;
 
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.TokenFilter;
+import org.apache.lucene.analysis.Tokenizer;
+import org.apache.lucene.analysis.standard.StandardTokenizer;
 import org.apache.lucene.index.CodecReader;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.MergeTrigger;
@@ -16,8 +20,17 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.TieredMergePolicy;
 import org.apache.lucene.util.IOSupplier;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
+import org.elasticsearch.action.bulk.BulkItemRequest;
+import org.elasticsearch.action.bulk.BulkShardRequest;
+import org.elasticsearch.action.bulk.BulkShardResponse;
+import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.replication.TransportReplicationAction;
+import org.elasticsearch.action.update.UpdateHelper;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -29,8 +42,6 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
@@ -42,13 +53,11 @@ import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.InternalEngine;
-import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -78,15 +87,15 @@ import static org.mockito.Mockito.when;
 public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
     private LongSupplier relativeTimeClock = () -> 0L;
 
-    @Override
-    protected ThreadPool setUpThreadPool() {
-        return new TestThreadPool(getClass().getName(), threadPoolSettings()) {
-            @Override
-            public long rawRelativeTimeInNanos() {
-                return relativeTimeClock.getAsLong();
-            }
-        };
-    }
+    // @Override
+    // protected ThreadPool setUpThreadPool() {
+    // return new TestThreadPool(getClass().getName(), threadPoolSettings()) {
+    // @Override
+    // public long rawRelativeTimeInNanos() {
+    // return relativeTimeClock.getAsLong();
+    // }
+    // };
+    // }
 
     public void testRegularIndicesLoadIsNotTracked() throws Exception {
         final var fakeClock = new FakeClock(TimeValue.timeValueMillis(50));
@@ -117,7 +126,7 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
         }
     }
 
-    public void testIndexingLoadTracking() throws Exception {
+    public void testFsyncIsTracked() throws Exception {
         final var fakeClock = new FakeClock(TimeValue.timeValueMillis(50));
         final var samplingFrequency = TimeValue.timeValueSeconds(1);
         try (var shardRef = createDataStreamShard(fakeClock)) {
@@ -129,24 +138,21 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
             final var indicesWriteLoadStatsCollector = new IndicesWriteLoadStatsCollector(clusterService, fakeClock(samplingFrequency));
             indicesWriteLoadStatsCollector.afterIndexShardStarted(shard);
 
-            int numberOfProcessors = randomIntBetween(2, 64);
-            int maxCPUsUsed = 0;
-            long previousTotalIndexingTimeSample = 0;
+            int numberOfProcessors = randomIntBetween(2, 4);
+            final int maxCPUsUsed = randomIntBetween(1, numberOfProcessors);
             for (int i = 0; i < 60; i++) {
                 if (randomBoolean()) {
-                    // Simulate some long indexing operations taking a few CPUS
                     fakeClock.setTickValue(samplingFrequency);
-                    int numDocs = randomIntBetween(1, numberOfProcessors);
-                    indexDocs(shard, numDocs);
-                    maxCPUsUsed = Math.max(maxCPUsUsed, numDocs);
+                    // Simulate a few bulk operations running concurrently taking maxCPUsUsed
+                    for (int j = 0; j < maxCPUsUsed; j++) {
+                        int numDocs = randomIntBetween(1, 10);
+                        indexDocs(shard, numDocs);
+                    }
                 } else {
                     // Otherwise, simulate a few quick indexing ops
                     fakeClock.setTickValue(TimeValue.timeValueMillis(randomIntBetween(1, 20)));
                     indexDocs(shard, randomIntBetween(1, 20));
                 }
-
-                assertThat(shard.getTotalIndexingTimeInNanos(), is(greaterThan(previousTotalIndexingTimeSample)));
-                previousTotalIndexingTimeSample = shard.getTotalIndexingTimeInNanos();
 
                 indicesWriteLoadStatsCollector.collectWriteLoadStats();
             }
@@ -173,6 +179,72 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
                 assertThat(indexingLoadHistogramSnapshot.p90(), is(equalTo(0.0)));
                 assertThat(indexingLoadHistogramSnapshot.p50(), is(equalTo(0.0)));
             }
+        }
+    }
+
+    public void testIndexingLoadTracking() throws Exception {
+        final var fakeClock = new FakeClock(TimeValue.timeValueMillis(50));
+        final var samplingFrequency = TimeValue.timeValueSeconds(1);
+        try (var shardRef = createDataStreamShard(fakeClock)) {
+            final var shard = shardRef.shard();
+
+            final var clusterService = mock(ClusterService.class);
+            final var clusterState = clusterStateWithShardDataStream(shard);
+            when(clusterService.state()).thenReturn(clusterState);
+            final var indicesWriteLoadStatsCollector = new IndicesWriteLoadStatsCollector(clusterService, fakeClock(samplingFrequency));
+            indicesWriteLoadStatsCollector.afterIndexShardStarted(shard);
+
+            int numberOfProcessors = randomIntBetween(2, 4);
+            final int maxCPUsUsed = randomIntBetween(1, numberOfProcessors);
+            for (int i = 0; i < 2; i++) {
+                indexDocs(shard, maxCPUsUsed);
+                indicesWriteLoadStatsCollector.collectWriteLoadStats();
+            }
+            // for (int i = 0; i < 60; i++) {
+            // if (randomBoolean()) {
+            // fakeClock.setTickValue(samplingFrequency);
+            // // Simulate a few bulk operations running concurrently taking maxCPUsUsed
+            // for (int j = 0; j < maxCPUsUsed; j++) {
+            // int numDocs = randomIntBetween(1, 10);
+            // indexDocs(shard, numDocs);
+            // }
+            // } else {
+            // // Otherwise, simulate a few quick indexing ops
+            // fakeClock.setTickValue(TimeValue.timeValueMillis(randomIntBetween(1, 20)));
+            // indexDocs(shard, randomIntBetween(1, 20));
+            // }
+            //
+            // indicesWriteLoadStatsCollector.collectWriteLoadStats();
+            // }
+
+            {
+                final var shardLoadHistogramSnapshots = indicesWriteLoadStatsCollector.getWriteLoadHistogramSnapshotsAndReset();
+
+                assertThat(shardLoadHistogramSnapshots, hasSize(1));
+                final var shardWriteLoadHistogramSnapshot = shardLoadHistogramSnapshots.get(0);
+                final var indexingLoadHistogramSnapshot = shardWriteLoadHistogramSnapshot.indexLoadHistogramSnapshot();
+                assertThat(indexingLoadHistogramSnapshot.max(), is(closeTo(maxCPUsUsed, 0.5)));
+                assertThat(indexingLoadHistogramSnapshot.p90(), is(lessThanOrEqualTo(indexingLoadHistogramSnapshot.max())));
+                assertThat(indexingLoadHistogramSnapshot.p50(), is(lessThanOrEqualTo(indexingLoadHistogramSnapshot.p90())));
+            }
+
+            {
+                // We didn't have any readings after the previous reset
+                final var shardLoadHistogramSnapshots = indicesWriteLoadStatsCollector.getWriteLoadHistogramSnapshotsAndReset();
+
+                assertThat(shardLoadHistogramSnapshots, hasSize(1));
+                final var shardWriteLoadHistogramSnapshot = shardLoadHistogramSnapshots.get(0);
+                final var indexingLoadHistogramSnapshot = shardWriteLoadHistogramSnapshot.indexLoadHistogramSnapshot();
+                assertThat(indexingLoadHistogramSnapshot.max(), is(equalTo(0.0)));
+                assertThat(indexingLoadHistogramSnapshot.p90(), is(equalTo(0.0)));
+                assertThat(indexingLoadHistogramSnapshot.p50(), is(equalTo(0.0)));
+            }
+
+            shard.refresh("test");
+
+            indexDocs(shard, 1);
+
+            shard.forceMerge(new ForceMergeRequest().maxNumSegments(1));
         }
     }
 
@@ -508,6 +580,9 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
                         "properties": {
                             "@timestamp": {
                                 "type": "date"
+                            },
+                           "test": {
+                                "type": "text"
                             }
                         },
                         "_data_stream_timestamp": {
@@ -523,6 +598,9 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
                         "properties": {
                             "@timestamp": {
                                 "type": "date"
+                            },
+                            "test": {
+                                "type": "text"
                             }
                         }
                     }
@@ -537,7 +615,7 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
                 config.getWarmer(),
                 config.getStore(),
                 mergePolicy,
-                config.getAnalyzer(),
+                new SleepingAnalyzer(),
                 config.getSimilarity(),
                 new CodecService(null),
                 config.getEventListener(),
@@ -558,6 +636,12 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
             return new InternalEngine(configWithMergePolicy) {
                 @Override
                 public boolean ensureTranslogSynced(Stream<Translog.Location> locations) throws IOException {
+                    // try {
+                    // System.out.println("hola");
+                    // Thread.sleep(1000);
+                    // } catch (InterruptedException e) {
+                    // throw new RuntimeException(e);
+                    // }
                     return super.ensureTranslogSynced(locations);
                 }
             };
@@ -568,22 +652,74 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
         return new ShardRef(shard);
     }
 
+    static class SleepingAnalyzer extends Analyzer {
+        @Override
+        protected TokenStreamComponents createComponents(String fieldName) {
+            Tokenizer tokenizer = new StandardTokenizer();
+            TokenFilter filter = new TokenFilter(tokenizer) {
+                @Override
+                public boolean incrementToken() throws IOException {
+                    boolean hasMoreTokens = input.incrementToken();
+
+                    if (hasMoreTokens) {
+                        try {
+                            System.out.println("sleeping!!" + Thread.currentThread().getName());
+                            Thread.sleep(1000);
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            throw new AssertionError(e);
+                        }
+                    }
+
+                    return hasMoreTokens;
+                }
+            };
+            return new TokenStreamComponents(tokenizer, filter);
+        }
+    }
+
     private List<String> indexDocs(IndexShard shard, int numDocs) throws Exception {
         final List<String> docIds = new ArrayList<>();
+        BulkItemRequest[] bulkItemRequests = new BulkItemRequest[numDocs];
         for (int i = 0; i < numDocs; i++) {
-            final var id = UUIDs.randomBase64UUID();
-            final Engine.IndexResult result = shard.applyIndexOperationOnPrimary(
-                Versions.MATCH_ANY,
-                VersionType.INTERNAL,
-                new SourceToParse(id, new BytesArray("{\"@timestamp\": 123456}"), XContentType.JSON),
-                UNASSIGNED_SEQ_NO,
-                0,
-                IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
-                false
+            bulkItemRequests[i] = new BulkItemRequest(
+                i,
+                new IndexRequest(shard.shardId().getIndexName()).source(
+                    "{\"@timestamp\": \"2020-12-12\", \"test\": \"test\"}",
+                    XContentType.JSON
+                ).id(UUIDs.randomBase64UUID())
             );
-            assertThat(result.getResultType(), is(equalTo(Engine.Result.Type.SUCCESS)));
-            docIds.add(id);
         }
+
+        final var bulkShardRequest = new BulkShardRequest(shard.shardId(), WriteRequest.RefreshPolicy.NONE, bulkItemRequests);
+        final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+        threadPool.executor(ThreadPool.Names.WRITE).submit(() -> {
+            TransportShardBulkAction.performOnPrimary(
+                bulkShardRequest,
+                shard,
+                mock(UpdateHelper.class),
+                () -> 0L,
+                (update, shardId, listener) -> listener.onFailure(new RuntimeException("Unexpected mapping update")),
+                (listener) -> listener.onFailure(new RuntimeException("Unexpected mapping update")),
+                new ActionListener<>() {
+                    @Override
+                    public void onResponse(TransportReplicationAction.PrimaryResult<BulkShardRequest, BulkShardResponse> primaryResult) {
+                        primaryResult.runPostReplicationActions(future);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        future.onFailure(e);
+                    }
+                },
+                threadPool,
+                ThreadPool.Names.WRITE
+            );
+        });
+
+        future.get();
+
+        // TODO: collect ids
         return docIds;
     }
 

@@ -17,8 +17,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 
 import java.util.List;
 import java.util.Map;
@@ -30,7 +28,6 @@ import java.util.function.Supplier;
 import static org.elasticsearch.xpack.indiceswriteloadtracker.IndicesWriteLoadTrackerPlugin.currentThreadIsWriterLoadCollectorThreadOrTestThread;
 
 class IndicesWriteLoadStatsCollector implements IndexEventListener {
-    private final Logger logger = LogManager.getLogger(IndicesWriteLoadStatsCollector.class);
     private final ClusterService clusterService;
     private final LongSupplier relativeTimeInNanosSupplier;
     private final ConcurrentMap<ShardId, ShardWriteLoadHistogram> histograms = ConcurrentCollections.newConcurrentMap();
@@ -39,19 +36,24 @@ class IndicesWriteLoadStatsCollector implements IndexEventListener {
     IndicesWriteLoadStatsCollector(ClusterService clusterService, LongSupplier relativeTimeInNanosSupplier) {
         this.clusterService = clusterService;
         this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
+        // TODO: Provide node id
         this.nodeWriteLoadHistogram = new NodeWriteLoadHistogram("fakeId");
     }
 
     void collectWriteLoadStats() {
         assert currentThreadIsWriterLoadCollectorThreadOrTestThread() : Thread.currentThread().getName();
-        double total = 0;
+
+        double totalIndexingCPUs = 0;
+        double totalMergeCPUs = 0;
+        double totalRefreshCPUs = 0;
         for (ShardWriteLoadHistogram shardWriteLoadHistogram : histograms.values()) {
             final var recordedSample = shardWriteLoadHistogram.recordSample();
-            total += recordedSample.indexingCPUs();
+            totalIndexingCPUs += recordedSample.indexingCPUs();
+            totalMergeCPUs += recordedSample.mergeCPUs();
+            totalRefreshCPUs += recordedSample.refreshCPUs();
         }
 
-        nodeWriteLoadHistogram.takeSample(new Sample(total, 0, 0));
-        logger.info("--> TOTAL SAMPLE {} {}", total, nodeWriteLoadHistogram.indexingTimeHistogram.getValueAtPercentile(90));
+        nodeWriteLoadHistogram.takeSample(new WriteLoadSample(totalIndexingCPUs, totalMergeCPUs, totalRefreshCPUs));
     }
 
     @Nullable
@@ -130,7 +132,7 @@ class IndicesWriteLoadStatsCollector implements IndexEventListener {
             this.refreshTimeHistogram = new Histogram(2);
         }
 
-        void takeSample(Sample sample) {
+        void takeSample(WriteLoadSample sample) {
             indexingTimeHistogram.recordValue(sample.indexingCPUs);
             mergeTimeHistogram.recordValue(sample.mergeCPUs);
             refreshTimeHistogram.recordValue(sample.refreshCPUs);
@@ -155,8 +157,8 @@ class IndicesWriteLoadStatsCollector implements IndexEventListener {
         }
     }
 
-    private record Sample(double indexingCPUs, double mergeCPUs, double refreshCPUs) {
-        static Sample EMPTY = new Sample(0, 0, 0);
+    private record WriteLoadSample(double indexingCPUs, double mergeCPUs, double refreshCPUs) {
+        static WriteLoadSample EMPTY = new WriteLoadSample(0, 0, 0);
     }
 
     private static class ShardWriteLoadHistogram {
@@ -189,7 +191,7 @@ class IndicesWriteLoadStatsCollector implements IndexEventListener {
             this.lastSampleRelativeTimeInNanos = relativeTimeInNanosSupplier.getAsLong();
         }
 
-        Sample recordSample() {
+        WriteLoadSample recordSample() {
             long totalIndexingTimeInNanosSample = Math.addExact(
                 indexShard.getTotalIndexingTimeInNanos(),
                 indexShard.getTotalDeleteTimeInNanos()
@@ -204,7 +206,7 @@ class IndicesWriteLoadStatsCollector implements IndexEventListener {
             // Even though we're using a MONOTONIC clock (at least System.nanoTime() relies on clock_gettime with CLOCK_MONOTONIC in linux)
             // it's possible that the clock do not have enough granularity, in that case we bail out early just to be cautious.
             if (samplingTimeInNanos <= 0) {
-                return Sample.EMPTY;
+                return WriteLoadSample.EMPTY;
             }
             lastSampleRelativeTimeInNanos = sampleRelativeTimeInNanos;
 
@@ -220,7 +222,7 @@ class IndicesWriteLoadStatsCollector implements IndexEventListener {
 
             // Don't record the load if we're taking the first sample.
             if (indexingTimeDeltaInNanos == totalIndexingTimeInNanosSample) {
-                return Sample.EMPTY;
+                return WriteLoadSample.EMPTY;
             }
 
             double indexingCPUs = indexingTimeDeltaInNanos / (double) samplingTimeInNanos;
@@ -233,7 +235,7 @@ class IndicesWriteLoadStatsCollector implements IndexEventListener {
                 refreshTimeHistogram.recordValue(refreshCPUs);
             }
 
-            return new Sample(indexingCPUs, mergeCPUs, refreshCPUs);
+            return new WriteLoadSample(indexingCPUs, mergeCPUs, refreshCPUs);
         }
 
         ShardWriteLoadHistogramSnapshot getWriteLoadHistogramSnapshotAndReset() {

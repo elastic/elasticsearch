@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.bulk.stats;
 
-import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.core.Releasable;
 
 import java.util.List;
@@ -47,7 +46,8 @@ public class BulkLoadTracker {
     public Releasable trackWriteLoad() {
         synchronized (mutex) {
             int slot = freeSlots.remove();
-            startTime[slot] = relativeTimeSupplier.getAsLong();
+            long time = relativeTimeSupplier.getAsLong();
+            startTime[slot] = time;
             // final boolean replaced = outstandingRequestStartTime.compareAndSet(slot, 0, System.nanoTime());
             return () -> release(slot);
         }

@@ -966,7 +966,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 isRetry,
                 ifSeqNo,
                 ifPrimaryTerm,
-                threadPool.rawRelativeTimeInNanos()
+                System.nanoTime()
             );
             Mapping update = operation.parsedDoc().dynamicMappingsUpdate();
             if (update != null) {

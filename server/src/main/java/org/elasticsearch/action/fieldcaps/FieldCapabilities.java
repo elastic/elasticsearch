@@ -13,7 +13,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.index.mapper.TimeSeriesParams;
+import org.elasticsearch.index.mapper.timeseries.TimeSeriesParams;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.InstantiatingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -36,8 +36,8 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.index.mapper.TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM;
-import static org.elasticsearch.index.mapper.TimeSeriesParams.TIME_SERIES_METRIC_PARAM;
+import static org.elasticsearch.index.mapper.timeseries.TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM;
+import static org.elasticsearch.index.mapper.timeseries.TimeSeriesParams.TIME_SERIES_METRIC_PARAM;
 
 /**
  * Describes the capabilities of a field optionally merged across multiple indices.

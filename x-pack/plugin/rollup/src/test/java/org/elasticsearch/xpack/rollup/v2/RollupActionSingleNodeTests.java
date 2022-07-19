@@ -42,7 +42,8 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
-import org.elasticsearch.index.mapper.TimeSeriesParams;
+import org.elasticsearch.index.mapper.timeseries.TimeSeriesParams;
+import org.elasticsearch.index.mapper.timeseries.TimeseriesFieldTypeHelper;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
@@ -92,7 +93,7 @@ import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.index.mapper.TimeSeriesParams.TIME_SERIES_METRIC_PARAM;
+import static org.elasticsearch.index.mapper.timeseries.TimeSeriesParams.TIME_SERIES_METRIC_PARAM;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
 
@@ -519,8 +520,11 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             .orElseThrow(() -> new IllegalArgumentException("No mapping found for rollup source index [" + sourceIndex + "]"));
 
         IndexMetadata indexMetadata = client().admin().cluster().prepareState().get().getState().getMetadata().index(sourceIndex);
-        FieldTypeHelper helper = new FieldTypeHelpers.Builder(getInstanceFromNode(IndicesService.class), sourceIndexMappings, indexMetadata)
-            .timeseriesHelper(config.getTimestampField());
+        TimeseriesFieldTypeHelper helper = new TimeseriesFieldTypeHelper.Builder(
+            getInstanceFromNode(IndicesService.class),
+            sourceIndexMappings,
+            indexMetadata
+        ).build(config.getTimestampField());
         Map<String, TimeSeriesParams.MetricType> metricFields = new HashMap<>();
         Map<String, String> labelFields = new HashMap<>();
         MappingVisitor.visitMapping(sourceIndexMappings, (field, fieldMapping) -> {

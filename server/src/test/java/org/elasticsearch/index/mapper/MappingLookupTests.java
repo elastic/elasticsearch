@@ -16,7 +16,7 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.mapper.TimeSeriesParams.MetricType;
+import org.elasticsearch.index.mapper.timeseries.TimeSeriesParams;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.test.ESTestCase;
 
@@ -128,10 +128,10 @@ public class MappingLookupTests extends ESTestCase {
         };
         FieldMapper dimMapper = new FakeFieldMapper(dim, "index1");
 
-        MetricType metricType = randomFrom(MetricType.values());
+        TimeSeriesParams.MetricType metricType = randomFrom(TimeSeriesParams.MetricType.values());
         FakeFieldType metric = new FakeFieldType("metric") {
             @Override
-            public MetricType getMetricType() {
+            public TimeSeriesParams.MetricType getMetricType() {
                 return metricType;
             }
         };
@@ -158,10 +158,10 @@ public class MappingLookupTests extends ESTestCase {
         };
         FieldMapper dimMapper = new FakeFieldMapper(dim, "index1");
 
-        MetricType metricType = randomFrom(MetricType.values());
+        TimeSeriesParams.MetricType metricType = randomFrom(TimeSeriesParams.MetricType.values());
         FakeFieldType metric = new FakeFieldType("metric") {
             @Override
-            public MetricType getMetricType() {
+            public TimeSeriesParams.MetricType getMetricType() {
                 return metricType;
             }
         };

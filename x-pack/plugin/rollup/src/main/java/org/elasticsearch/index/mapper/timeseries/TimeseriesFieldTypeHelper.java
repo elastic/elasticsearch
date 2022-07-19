@@ -5,19 +5,22 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.rollup.v2;
+package org.elasticsearch.index.mapper.timeseries;
 
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.TimeSeriesParams;
+import org.elasticsearch.indices.IndicesService;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 
-import static org.elasticsearch.index.mapper.TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM;
-import static org.elasticsearch.index.mapper.TimeSeriesParams.TIME_SERIES_METRIC_PARAM;
+import static org.elasticsearch.index.mapper.timeseries.TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM;
+import static org.elasticsearch.index.mapper.timeseries.TimeSeriesParams.TIME_SERIES_METRIC_PARAM;
 
-class TimeseriesFieldTypeHelper implements FieldTypeHelper {
+public class TimeseriesFieldTypeHelper {
 
     private final MapperService mapperService;
     private final String timestampField;
@@ -27,7 +30,6 @@ class TimeseriesFieldTypeHelper implements FieldTypeHelper {
         this.timestampField = timestampField;
     }
 
-    @Override
     public boolean isTimeSeriesLabel(final String field, final Map<String, ?> unused) {
         final MappedFieldType fieldType = mapperService.mappingLookup().getFieldType(field);
         return fieldType != null
@@ -37,15 +39,33 @@ class TimeseriesFieldTypeHelper implements FieldTypeHelper {
             && (mapperService.isMetadataField(field) == false);
     }
 
-    @Override
     public boolean isTimeSeriesMetric(final String unused, final Map<String, ?> fieldMapping) {
         final String metricType = (String) fieldMapping.get(TIME_SERIES_METRIC_PARAM);
         return metricType != null
             && Arrays.asList(TimeSeriesParams.MetricType.values()).contains(TimeSeriesParams.MetricType.valueOf(metricType));
     }
 
-    @Override
     public boolean isTimeSeriesDimension(final String unused, final Map<String, ?> fieldMapping) {
         return Boolean.TRUE.equals(fieldMapping.get(TIME_SERIES_DIMENSION_PARAM));
+    }
+
+    public static class Builder {
+
+        private final IndicesService indicesService;
+        private final Map<String, Object> indexMapping;
+        private final IndexMetadata indexMetadata;
+
+        public Builder(final IndicesService indicesService, final Map<String, Object> indexMapping, final IndexMetadata indexMetadata) {
+            this.indicesService = indicesService;
+            this.indexMapping = indexMapping;
+            this.indexMetadata = indexMetadata;
+        }
+
+        public TimeseriesFieldTypeHelper build(final String timestampField) throws IOException {
+            final MapperService mapperService = indicesService.createIndexMapperServiceForValidation(indexMetadata);
+            final CompressedXContent sourceIndexCompressedXContent = new CompressedXContent(indexMapping);
+            mapperService.merge(MapperService.SINGLE_MAPPING_NAME, sourceIndexCompressedXContent, MapperService.MergeReason.INDEX_TEMPLATE);
+            return new TimeseriesFieldTypeHelper(mapperService, timestampField);
+        }
     }
 }

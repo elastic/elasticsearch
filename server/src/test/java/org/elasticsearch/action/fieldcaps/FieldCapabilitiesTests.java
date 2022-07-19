@@ -11,7 +11,7 @@ package org.elasticsearch.action.fieldcaps;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.index.mapper.TimeSeriesParams;
+import org.elasticsearch.index.mapper.timeseries.TimeSeriesParams;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 

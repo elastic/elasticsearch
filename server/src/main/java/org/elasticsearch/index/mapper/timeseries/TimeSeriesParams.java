@@ -6,7 +6,9 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.index.mapper;
+package org.elasticsearch.index.mapper.timeseries;
+
+import org.elasticsearch.index.mapper.FieldMapper;
 
 import java.util.Arrays;
 import java.util.EnumSet;

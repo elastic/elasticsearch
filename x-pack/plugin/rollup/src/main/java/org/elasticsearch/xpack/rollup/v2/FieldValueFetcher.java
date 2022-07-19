@@ -18,9 +18,7 @@ import org.elasticsearch.search.DocValueFormat;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Function;
@@ -30,11 +28,20 @@ import java.util.function.Function;
  */
 class FieldValueFetcher {
 
-    private static final Set<Class<?>> VALID_METRIC_TYPES = Collections.unmodifiableSet(
-        new HashSet<>(Arrays.asList(Long.class, Double.class, BigInteger.class, String.class, BytesRef.class))
+    private static final Set<Class<?>> VALID_METRIC_TYPES = Set.of(
+        Long.class,
+        Double.class,
+        BigInteger.class,
+        String.class,
+        BytesRef.class
     );
-    private static final Set<Class<?>> VALID_LABEL_TYPES = Collections.unmodifiableSet(
-        new HashSet<>(Arrays.asList(Long.class, Double.class, BigInteger.class, String.class, BytesRef.class, Boolean.class))
+    private static final Set<Class<?>> VALID_LABEL_TYPES = Set.of(
+        Long.class,
+        Double.class,
+        BigInteger.class,
+        String.class,
+        BytesRef.class,
+        Boolean.class
     );
 
     private final String name;

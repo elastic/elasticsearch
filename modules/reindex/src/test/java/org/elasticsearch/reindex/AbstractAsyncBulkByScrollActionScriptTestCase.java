@@ -82,7 +82,7 @@ public abstract class AbstractAsyncBulkByScrollActionScriptTestCase<
             applyScript((Map<String, Object> ctx) -> ctx.put("junk", "junk"));
             fail("Expected error");
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("Invalid fields added to context [junk]"));
+            assertThat(e.getMessage(), equalTo("invalid field added to source [junk:junk]"));
         }
     }
 
@@ -106,7 +106,7 @@ public abstract class AbstractAsyncBulkByScrollActionScriptTestCase<
             IllegalArgumentException.class,
             () -> applyScript((Map<String, Object> ctx) -> ctx.put("op", "unknown"))
         );
-        assertThat(e.getMessage(), equalTo("Operation type [unknown] not allowed, only [noop, index, delete] are allowed"));
+        assertThat(e.getMessage(), equalTo("[op] must be one of delete, index, noop, not [unknown]"));
     }
 
     protected abstract AbstractAsyncBulkByScrollAction<Request, ?> action(ScriptService scriptService, Request request);

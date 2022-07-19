@@ -80,7 +80,7 @@ public final class IngestDocument {
         Map<String, Object> metadata;
         if (sourceAndMetadata instanceof IngestCtxMap ingestCtxMap) {
             source = new HashMap<>(ingestCtxMap.getSource());
-            metadata = new HashMap<>(ingestCtxMap.getMetadata().getMap());
+            metadata = new HashMap<>(ingestCtxMap.getMetadata().unwrap());
         } else {
             metadata = Maps.newHashMapWithExpectedSize(Metadata.METADATA_NAMES.size());
             source = new HashMap<>(sourceAndMetadata);

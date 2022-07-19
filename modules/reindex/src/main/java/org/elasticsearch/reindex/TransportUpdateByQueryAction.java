@@ -148,7 +148,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
             }
 
             @Override
-            protected UpdateByQueryMetadata execute(ScrollableHitSource.Hit doc, Map<String, Object> source) {
+            protected CtxMap<UpdateByQueryMetadata> execute(ScrollableHitSource.Hit doc, Map<String, Object> source) {
                 if (update == null) {
                     update = scriptService.compile(script, UpdateByQueryScript.CONTEXT);
                 }
@@ -164,7 +164,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
                     )
                 );
                 update.newInstance(params, ctxMap).execute();
-                return ctxMap.getMetadata();
+                return ctxMap;
             }
         }
     }

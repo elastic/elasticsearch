@@ -389,9 +389,6 @@ public class Reindexer {
 
             @Override
             protected void updateRequest(RequestWrapper<?> request, ReindexMetadata metadata) {
-                if (reindex == null) {
-                    reindex = scriptService.compile(script, ReindexScript.CONTEXT);
-                }
                 if (metadata.indexChanged()) {
                     request.setIndex(metadata.getIndex());
                 }
@@ -416,7 +413,10 @@ public class Reindexer {
             }
 
             @Override
-            protected ReindexMetadata execute(ScrollableHitSource.Hit doc, Map<String, Object> source) {
+            protected CtxMap<ReindexMetadata> execute(ScrollableHitSource.Hit doc, Map<String, Object> source) {
+                if (reindex == null) {
+                    reindex = scriptService.compile(script, ReindexScript.CONTEXT);
+                }
                 CtxMap<ReindexMetadata> ctxMap = new CtxMap<>(
                     source,
                     new ReindexMetadata(
@@ -429,7 +429,7 @@ public class Reindexer {
                     )
                 );
                 reindex.newInstance(params, ctxMap).execute();
-                return ctxMap.getMetadata();
+                return ctxMap;
             }
         }
     }

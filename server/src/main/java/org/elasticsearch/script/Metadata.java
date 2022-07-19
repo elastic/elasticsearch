@@ -39,7 +39,7 @@ import java.util.stream.Collectors;
  *
  * Validates all updates whether originating in map-like interface or setters.
  */
-public class Metadata {
+public class Metadata implements MapWrappable {
     protected static final String INDEX = "_index";
     protected static final String ID = "_id";
     protected static final String ROUTING = "_routing";
@@ -251,7 +251,8 @@ public class Metadata {
     /**
      * Get the backing map, if modified then the guarantees of this class may not hold
      */
-    public Map<String, Object> getMap() {
+    @Override
+    public Map<String, Object> unwrap() {
         return map;
     }
 
@@ -363,7 +364,7 @@ public class Metadata {
             if (type == null) {
                 return;
             }
-            if (type.isAssignableFrom(value.getClass()) == false) {
+            if (String.class != type && type.isAssignableFrom(value.getClass()) == false) {
                 throw new IllegalArgumentException(
                     key
                         + " ["

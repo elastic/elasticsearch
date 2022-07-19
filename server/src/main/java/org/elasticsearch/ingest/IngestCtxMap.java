@@ -10,10 +10,12 @@ package org.elasticsearch.ingest;
 
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.script.CtxMap;
+import org.elasticsearch.script.MapWrappable;
 
 import java.time.ZonedDateTime;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Map containing ingest source and metadata.
@@ -74,12 +76,69 @@ class IngestCtxMap extends CtxMap<IngestDocMetadata> {
 
     @Override
     public Map<String, Object> getSource() {
-        return source;
+        return source.unwrap();
     }
 
     @Override
-    protected Map<String, Object> wrapSource(Map<String, Object> source) {
-        // Not wrapped in Ingest
-        return source;
+    protected MapWrappable wrapSource(Map<String, Object> source) {
+        return new RawSource(source);
+    }
+
+    public static class RawSource implements MapWrappable {
+        protected Map<String, Object> source;
+
+        RawSource(Map<String, Object> source) {
+            this.source = source;
+        }
+
+        @Override
+        public boolean isAvailable(String key) {
+            return true;
+        }
+
+        @Override
+        public Object put(String key, Object value) {
+            return source;
+        }
+
+        @Override
+        public boolean containsKey(String key) {
+            return source.containsKey(key);
+        }
+
+        @Override
+        public boolean containsValue(Object value) {
+            return source.containsValue(value);
+        }
+
+        @Override
+        public Object get(String key) {
+            return source.get(key);
+        }
+
+        @Override
+        public Object remove(String key) {
+            return source.remove(key);
+        }
+
+        @Override
+        public Set<String> keySet() {
+            return source.keySet();
+        }
+
+        @Override
+        public int size() {
+            return source.size();
+        }
+
+        @Override
+        public MapWrappable clone() {
+            return new RawSource(new HashMap<>(source));
+        }
+
+        @Override
+        public Map<String, Object> unwrap() {
+            return source;
+        }
     }
 }

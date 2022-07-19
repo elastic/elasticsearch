@@ -37,6 +37,7 @@ import org.elasticsearch.index.reindex.ClientScrollableHitSource;
 import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
 import org.elasticsearch.index.reindex.WorkerBulkByScrollTaskState;
+import org.elasticsearch.script.CtxMap;
 import org.elasticsearch.script.Metadata;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
@@ -844,7 +845,11 @@ public abstract class AbstractAsyncBulkByScrollAction<
                 return request;
             }
 
-            T metadata = execute(doc, request.getSource());
+            CtxMap<T> ctxMap = execute(doc, request.getSource());
+
+            T metadata = ctxMap.getMetadata();
+
+            request.setSource(ctxMap.getSource());
 
             updateRequest(request, metadata);
 
@@ -871,7 +876,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
             }
         }
 
-        protected abstract T execute(ScrollableHitSource.Hit doc, Map<String, Object> source);
+        protected abstract CtxMap<T> execute(ScrollableHitSource.Hit doc, Map<String, Object> source);
 
         protected void updateRequest(RequestWrapper<?> request, T metadata) {}
     }

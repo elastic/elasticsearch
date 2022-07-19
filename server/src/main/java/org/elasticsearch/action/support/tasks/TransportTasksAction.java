@@ -328,9 +328,6 @@ public abstract class TransportTasksAction<
 
         @Override
         public void messageReceived(final NodeTaskRequest request, final TransportChannel channel, Task task) throws Exception {
-            if (task instanceof CancellableTask cancellableTask) {
-                cancellableTask.ensureNotCancelled();
-            }
             nodeOperation(task, request, ActionListener.wrap(channel::sendResponse, e -> {
                 try {
                     channel.sendResponse(e);

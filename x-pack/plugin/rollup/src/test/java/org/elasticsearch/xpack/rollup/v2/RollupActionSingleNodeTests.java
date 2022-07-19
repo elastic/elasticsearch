@@ -669,6 +669,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         });
     }
 
+    @SuppressWarnings("unchecked")
     private void assertFieldMappings(
         RollupActionConfig config,
         Map<String, TimeSeriesParams.MetricType> metricFields,

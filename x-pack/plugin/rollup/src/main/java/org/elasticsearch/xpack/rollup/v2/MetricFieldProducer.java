@@ -31,7 +31,6 @@ abstract class MetricFieldProducer extends AbstractRollupFieldProducer<Number> {
     MetricFieldProducer(String field, List<Metric> metrics) {
         super(field);
         this.metrics = metrics;
-        this.isEmpty = true;
     }
 
     /**

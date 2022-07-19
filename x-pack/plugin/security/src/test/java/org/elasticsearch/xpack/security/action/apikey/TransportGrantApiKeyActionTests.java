@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.support.BearerToken;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
@@ -40,6 +41,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
@@ -95,7 +97,7 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
         threadPool.shutdown();
     }
 
-    public void testGrantApiKeyWithUsernamePassword() throws Exception {
+    public void testGrantApiKeyWithUsernamePassword() {
         final String username = randomAlphaOfLengthBetween(4, 12);
         final SecureString password = new SecureString(randomAlphaOfLengthBetween(8, 24).toCharArray());
         final Authentication authentication = buildAuthentication(username);
@@ -127,7 +129,7 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
         }).when(authenticationService)
             .authenticate(eq(GrantApiKeyAction.NAME), same(request), any(UsernamePasswordToken.class), anyActionListener());
 
-        setupApiKeyService(authentication, request, response);
+        setupApiKeyServiceWithRoleResolution(authentication, request, response);
 
         final PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture<>();
         action.doExecute(null, request, future);
@@ -164,7 +166,7 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
             return null;
         }).when(authenticationService).authenticate(eq(GrantApiKeyAction.NAME), same(request), any(BearerToken.class), anyActionListener());
 
-        setupApiKeyService(authentication, request, response);
+        setupApiKeyServiceWithRoleResolution(authentication, request, response);
 
         final PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture<>();
         action.doExecute(null, request, future);
@@ -218,7 +220,7 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
         }).when(authenticationService)
             .authenticate(eq(GrantApiKeyAction.NAME), same(request), any(AuthenticationToken.class), anyActionListener());
 
-        setupApiKeyService(authentication, request, response);
+        setupApiKeyServiceWithRoleResolution(authentication, request, response);
 
         final PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture<>();
         action.doExecute(null, request, future);
@@ -255,7 +257,7 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
             .build();
 
         final CreateApiKeyResponse response = mockResponse(request);
-        setupApiKeyService(authentication, request, response);
+        setupApiKeyServiceWithRoleResolution(authentication, request, response);
 
         doAnswer(inv -> {
             assertThat(threadPool.getThreadContext().getHeader(AuthenticationServiceField.RUN_AS_USER_HEADER), equalTo(runAsUsername));
@@ -401,13 +403,19 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
         return request;
     }
 
-    private void setupApiKeyService(Authentication authentication, GrantApiKeyRequest request, CreateApiKeyResponse response) {
+    private void setupApiKeyServiceWithRoleResolution(
+        Authentication authentication,
+        GrantApiKeyRequest request,
+        CreateApiKeyResponse response
+    ) {
+        final Set<RoleDescriptor> roleDescriptors = Set.of();
         doAnswer(inv -> {
             final Object[] args = inv.getArguments();
-            assertThat(args, arrayWithSize(3));
+            assertThat(args, arrayWithSize(4));
 
             assertThat(args[0], equalTo(authentication));
             assertThat(args[1], sameInstance(request.getApiKeyRequest()));
+            assertThat(args[2], sameInstance(roleDescriptors));
 
             @SuppressWarnings("unchecked")
             ActionListener<CreateApiKeyResponse> listener = (ActionListener<CreateApiKeyResponse>) args[args.length - 1];
@@ -415,6 +423,17 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
 
             return null;
         }).when(apiKeyService).createApiKey(any(Authentication.class), any(CreateApiKeyRequest.class), any(), anyActionListener());
-    }
 
+        doAnswer(inv -> {
+            final Object[] args = inv.getArguments();
+            assertThat(args, arrayWithSize(2));
+            assertThat(args[0], equalTo(authentication));
+
+            @SuppressWarnings("unchecked")
+            ActionListener<Set<RoleDescriptor>> listener = (ActionListener<Set<RoleDescriptor>>) args[args.length - 1];
+            listener.onResponse(roleDescriptors);
+
+            return null;
+        }).when(resolver).getUserRoleDescriptors(any(Authentication.class), anyActionListener());
+    }
 }

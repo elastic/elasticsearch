@@ -78,9 +78,7 @@ public class RollupILMAction implements LifecycleAction {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        if (fixedInterval != null) {
-            builder.field(FIXED_INTERVAL_FIELD.getPreferredName(), fixedInterval.toString());
-        }
+        builder.field(FIXED_INTERVAL_FIELD.getPreferredName(), fixedInterval.toString());
         builder.endObject();
         return builder;
     }

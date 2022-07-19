@@ -72,7 +72,7 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
         InferTrainedModelDeploymentAction.Request request,
         ActionListener<InferTrainedModelDeploymentAction.Response> listener
     ) {
-        TaskId taskId = new TaskId(clusterService.getNodeName(), task.getId());
+        TaskId taskId = new TaskId(clusterService.localNode().getId(), task.getId());
         final String deploymentId = request.getDeploymentId();
         // We need to check whether there is at least an assigned task here, otherwise we cannot redirect to the
         // node running the job task.

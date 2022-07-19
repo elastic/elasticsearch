@@ -27,7 +27,7 @@ import java.util.stream.Collectors;
 /**
  * This Action is the reserved state save version of RestClusterUpdateSettingsAction
  * <p>
- * It is used by the ReservedClusterStateController to update the persistent cluster settings.
+ * It is used by the ReservedClusterStateService to update the persistent cluster settings.
  * Since transient cluster settings are deprecated, this action doesn't support updating transient cluster settings.
  */
 public class ReservedClusterSettingsAction implements ReservedClusterStateHandler<Map<String, Object>> {

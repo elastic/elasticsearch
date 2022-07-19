@@ -519,8 +519,8 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             .orElseThrow(() -> new IllegalArgumentException("No mapping found for rollup source index [" + sourceIndex + "]"));
 
         IndexMetadata indexMetadata = client().admin().cluster().prepareState().get().getState().getMetadata().index(sourceIndex);
-        FieldTypeHelper helper = new FieldTypeHelpers.Builder(getInstanceFromNode(IndicesService.class), sourceIndexMappings, indexMetadata)
-            .timeseriesHelper(config.getTimestampField());
+        TimeseriesFieldTypeHelper helper = new TimeseriesFieldTypeHelper.Builder(getInstanceFromNode(IndicesService.class), sourceIndexMappings, indexMetadata)
+            .build(config.getTimestampField());
         Map<String, TimeSeriesParams.MetricType> metricFields = new HashMap<>();
         Map<String, String> labelFields = new HashMap<>();
         MappingVisitor.visitMapping(sourceIndexMappings, (field, fieldMapping) -> {

@@ -205,8 +205,8 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
             final List<String> dimensionFields = new ArrayList<>();
             final List<String> metricFields = new ArrayList<>();
             final List<String> labelFields = new ArrayList<>();
-            final FieldTypeHelper helper = new FieldTypeHelpers.Builder(indicesService, sourceIndexMappings, sourceIndexMetadata)
-                .timeseriesHelper(request.getRollupConfig().getTimestampField());
+            final TimeseriesFieldTypeHelper helper = new TimeseriesFieldTypeHelper.Builder(indicesService, sourceIndexMappings, sourceIndexMetadata)
+                .build(request.getRollupConfig().getTimestampField());
             MappingVisitor.visitMapping(sourceIndexMappings, (field, mapping) -> {
                 if (helper.isTimeSeriesDimension(field, mapping)) {
                     dimensionFields.add(field);
@@ -379,7 +379,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
      * @return the mapping of the rollup index
      */
     public static String createRollupIndexMapping(
-        final FieldTypeHelper helper,
+        final TimeseriesFieldTypeHelper helper,
         final RollupActionConfig config,
         final MapperService mapperService,
         final Map<String, Object> sourceIndexMappings
@@ -406,7 +406,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
     }
 
     private static void addMetricFields(
-        final FieldTypeHelper helper,
+        final TimeseriesFieldTypeHelper helper,
         final Map<String, Object> sourceIndexMappings,
         final XContentBuilder builder
     ) {

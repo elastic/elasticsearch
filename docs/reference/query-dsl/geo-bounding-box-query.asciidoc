@@ -348,11 +348,9 @@ corner at `39.375,-67.5`.
 ==== Vertices
 
 The vertices of the bounding box can either be set by `top_left` and
-`bottom_right` or by `top_right` and `bottom_left` parameters. More
-over the names `topLeft`, `bottomRight`, `topRight` and `bottomLeft`
-are supported. Instead of setting the values pairwise, one can use
-the simple names `top`, `left`, `bottom` and `right` to set the
-values separately.
+`bottom_right` or by `top_right` and `bottom_left` parameters. Instead of 
+setting the values pairwise, one can use the simple names `top`, `left`, 
+`bottom` and `right` to set the values separately.
 
 [source,console]
 --------------------------------------------------

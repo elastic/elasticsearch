@@ -43,8 +43,8 @@ abstract class MetricFieldProducer extends AbstractRollupFieldProducer<Number> {
         isEmpty = true;
     }
 
-    public String field() {
-        return field;
+    public String name() {
+        return name;
     }
 
     /** return the list of metrics that are computed for the field */

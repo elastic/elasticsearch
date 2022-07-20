@@ -445,7 +445,7 @@ class RollupShardIndexer {
                 labelFieldProducers.values().stream()
             ).toList()) {
                 if (fieldProducer.isEmpty() == false) {
-                    String field = fieldProducer.field();
+                    String field = fieldProducer.name();
                     Object value = fieldProducer.value();
                     if (value != null) {
                         doc.put(field, value);

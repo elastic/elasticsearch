@@ -129,7 +129,7 @@ public class MetricFieldProducerTests extends AggregatorTestCase {
         assertFalse(producer.isEmpty());
         Object o = producer.value();
         assertEquals(55.0, o);
-        assertEquals("field", producer.field());
+        assertEquals("field", producer.name());
     }
 
     public void testGaugeMetricFieldProducer() {
@@ -148,7 +148,7 @@ public class MetricFieldProducerTests extends AggregatorTestCase {
         } else {
             fail("Value is not a Map");
         }
-        assertEquals("field", producer.field());
+        assertEquals("field", producer.name());
     }
 
     public void testBuildMetricProducers() {

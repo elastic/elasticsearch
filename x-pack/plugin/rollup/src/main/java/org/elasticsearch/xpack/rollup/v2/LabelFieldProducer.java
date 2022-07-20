@@ -25,8 +25,8 @@ abstract class LabelFieldProducer extends AbstractRollupFieldProducer<Object> {
         this.label = label;
     }
 
-    public String field() {
-        return field;
+    public String name() {
+        return name;
     }
 
     /** Collect the value of a raw field  */

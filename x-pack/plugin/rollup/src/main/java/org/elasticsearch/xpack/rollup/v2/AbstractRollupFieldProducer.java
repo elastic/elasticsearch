@@ -12,11 +12,11 @@ package org.elasticsearch.xpack.rollup.v2;
  */
 abstract class AbstractRollupFieldProducer<T> {
 
-    protected final String field;
+    protected final String name;
     protected boolean isEmpty;
 
-    AbstractRollupFieldProducer(String field) {
-        this.field = field;
+    AbstractRollupFieldProducer(String name) {
+        this.name = name;
         this.isEmpty = true;
     }
 
@@ -29,8 +29,8 @@ abstract class AbstractRollupFieldProducer<T> {
     /**
      * @return the name of the field.
      */
-    public String field() {
-        return field;
+    public String name() {
+        return name;
     }
 
     /**

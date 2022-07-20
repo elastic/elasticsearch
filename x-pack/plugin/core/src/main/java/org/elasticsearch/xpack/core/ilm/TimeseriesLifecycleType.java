@@ -54,7 +54,6 @@ public class TimeseriesLifecycleType implements LifecycleType {
         UnfollowAction.NAME,
         RolloverAction.NAME,
         ReadOnlyAction.NAME,
-        RollupILMAction.NAME,
         ShrinkAction.NAME,
         ForceMergeAction.NAME,
         SearchableSnapshotAction.NAME
@@ -75,8 +74,7 @@ public class TimeseriesLifecycleType implements LifecycleType {
         SearchableSnapshotAction.NAME,
         AllocateAction.NAME,
         MigrateAction.NAME,
-        FreezeAction.NAME,
-        RollupILMAction.NAME
+        FreezeAction.NAME
     );
     public static final List<String> ORDERED_VALID_FROZEN_ACTIONS = List.of(UnfollowAction.NAME, SearchableSnapshotAction.NAME);
     public static final List<String> ORDERED_VALID_DELETE_ACTIONS = List.of(WaitForSnapshotAction.NAME, DeleteAction.NAME);
@@ -104,13 +102,12 @@ public class TimeseriesLifecycleType implements LifecycleType {
         ReadOnlyAction.NAME,
         ShrinkAction.NAME,
         ForceMergeAction.NAME,
-        RollupILMAction.NAME,
         SearchableSnapshotAction.NAME
     );
     // Set of actions that cannot be defined (executed) after the managed index has been mounted as searchable snapshot.
     // It's ordered to produce consistent error messages which can be unit tested.
     public static final Set<String> ACTIONS_CANNOT_FOLLOW_SEARCHABLE_SNAPSHOT = Collections.unmodifiableSet(
-        new LinkedHashSet<>(Arrays.asList(ForceMergeAction.NAME, FreezeAction.NAME, ShrinkAction.NAME, RollupILMAction.NAME))
+        new LinkedHashSet<>(Arrays.asList(ForceMergeAction.NAME, FreezeAction.NAME, ShrinkAction.NAME))
     );
 
     private TimeseriesLifecycleType() {}

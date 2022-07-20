@@ -498,6 +498,9 @@ public class AllocationService {
             snapshotsInfoService.snapshotShardSizes(),
             currentNanoTime()
         );
+        if (listener == DesiredBalanceShardsAllocator.REMOVE_ME) {
+            logger.warn("Executing reroute [{}] using [REMOVE_ME] listener, async result is ignored", reason);
+        }
         reroute(allocation, listener);
         if (fixedClusterState == clusterState && allocation.routingNodesChanged() == false) {
             return clusterState;

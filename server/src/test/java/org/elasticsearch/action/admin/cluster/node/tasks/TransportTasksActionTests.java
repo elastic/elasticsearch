@@ -640,7 +640,6 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         TestTasksAction[] tasksActions = new TestTasksAction[numNodes];
         for (int j = 0; j < numNodes; j++) {
             final int nodeId = j;
-            // Simulate task action that fails on one of the tasks on one of the nodes
             tasksActions[j] = new TestTasksAction(
                 "internal:testTasksAction",
                 testNodes[nodeId].clusterService,

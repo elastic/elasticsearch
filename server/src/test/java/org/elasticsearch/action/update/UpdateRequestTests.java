@@ -91,19 +91,19 @@ public class UpdateRequestTests extends ESTestCase {
             ctx.put("_timestamp", ctx.get("_now"));
             return null;
         });
-        scripts.put("ctx.op = delete", vars -> {
+        scripts.put("ctx.op = 'delete'", vars -> {
             @SuppressWarnings("unchecked")
             final Map<String, Object> ctx = (Map<String, Object>) vars.get("ctx");
             ctx.put("op", "delete");
             return null;
         });
-        scripts.put("ctx.op = bad", vars -> {
+        scripts.put("ctx.op = 'bad'", vars -> {
             @SuppressWarnings("unchecked")
             final Map<String, Object> ctx = (Map<String, Object>) vars.get("ctx");
             ctx.put("op", "bad");
             return null;
         });
-        scripts.put("ctx.op = none", vars -> {
+        scripts.put("ctx.op = 'none'", vars -> {
             @SuppressWarnings("unchecked")
             final Map<String, Object> ctx = (Map<String, Object>) vars.get("ctx");
             ctx.put("op", "none");
@@ -381,7 +381,7 @@ public class UpdateRequestTests extends ESTestCase {
 
     public void testDeleteTimeout() {
         final GetResult getResult = new GetResult("test", "1", 0, 1, 0, true, new BytesArray("{\"f\":\"v\"}"), null, null);
-        final UpdateRequest updateRequest = new UpdateRequest("test", "1").script(mockInlineScript("ctx.op = delete"))
+        final UpdateRequest updateRequest = new UpdateRequest("test", "1").script(mockInlineScript("ctx.op = 'delete'"))
             .timeout(randomTimeValue());
         runTimeoutTest(getResult, updateRequest);
     }
@@ -598,7 +598,7 @@ public class UpdateRequestTests extends ESTestCase {
         assertThat(result.updatedSourceAsMap().get("body").toString(), equalTo("foo"));
 
         // Now where the script changes the op to "delete"
-        request = new UpdateRequest("test", "1").script(mockInlineScript("ctx.op = delete"));
+        request = new UpdateRequest("test", "1").script(mockInlineScript("ctx.op = 'delete'"));
 
         result = updateHelper.prepareUpdateScriptRequest(shardId, request, getResult, ESTestCase::randomNonNegativeLong);
 
@@ -608,9 +608,9 @@ public class UpdateRequestTests extends ESTestCase {
         // We treat everything else as a No-op
         boolean goodNoop = randomBoolean();
         if (goodNoop) {
-            request = new UpdateRequest("test", "1").script(mockInlineScript("ctx.op = none"));
+            request = new UpdateRequest("test", "1").script(mockInlineScript("ctx.op = 'none'"));
         } else {
-            request = new UpdateRequest("test", "1").script(mockInlineScript("ctx.op = bad"));
+            request = new UpdateRequest("test", "1").script(mockInlineScript("ctx.op = 'bad'"));
         }
 
         result = updateHelper.prepareUpdateScriptRequest(shardId, request, getResult, ESTestCase::randomNonNegativeLong);

@@ -73,4 +73,14 @@ class IngestCtxMap extends CtxMap {
         return null;
     }
 
+    @Override
+    public Map<String, Object> getSource() {
+        return source;
+    }
+
+    @Override
+    protected Map<String, Object> wrapSource(Map<String, Object> source) {
+        // Not wrapped in Ingest
+        return source;
+    }
 }

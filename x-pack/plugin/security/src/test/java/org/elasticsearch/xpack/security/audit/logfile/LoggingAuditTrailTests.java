@@ -620,13 +620,15 @@ public class LoggingAuditTrailTests extends ESTestCase {
             metadataWithSerialization.metadata()
         );
         auditTrail.accessGranted(requestId, authentication, UpdateApiKeyAction.NAME, updateApiKeyRequest, authorizationInfo);
-        final String roleDescriptorsSection = updateApiKeyRequest.getRoleDescriptors() == null ? "" : "," + roleDescriptorsStringBuilder;
-        final String metadataSection = updateApiKeyRequest.getMetadata() == null
+        final String serializedRoleDescriptorsEntry = updateApiKeyRequest.getRoleDescriptors() == null
+            ? ""
+            : "," + roleDescriptorsStringBuilder;
+        final String serializedMetadataEntry = updateApiKeyRequest.getMetadata() == null
             ? ""
             : ",\"metadata\":%s".formatted(metadataWithSerialization.serialization());
         final var expectedUpdateKeyAuditEventString = """
             "change":{"apikey":{"id":"%s"%s%s}}\
-            """.formatted(keyId, roleDescriptorsSection, metadataSection);
+            """.formatted(keyId, serializedRoleDescriptorsEntry, serializedMetadataEntry);
         output = CapturingLogger.output(logger.getName(), Level.INFO);
         assertThat(output.size(), is(2));
         String generatedUpdateKeyAuditEventString = output.get(1);

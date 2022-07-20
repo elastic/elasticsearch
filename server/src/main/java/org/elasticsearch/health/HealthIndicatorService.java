@@ -20,8 +20,6 @@ public interface HealthIndicatorService {
 
     String name();
 
-    String component();
-
     String helpURL();
 
     HealthIndicatorResult calculate(boolean explain);
@@ -50,6 +48,6 @@ public interface HealthIndicatorService {
         if (status.indicatesHealthProblem()) {
             helpURL = helpURL();
         }
-        return new HealthIndicatorResult(name(), component(), status, summary, helpURL, details, impactsList, userActions);
+        return new HealthIndicatorResult(name(), status, summary, helpURL, details, impactsList, userActions);
     }
 }

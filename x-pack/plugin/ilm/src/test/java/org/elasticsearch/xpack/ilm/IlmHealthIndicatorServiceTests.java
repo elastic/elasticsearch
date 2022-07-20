@@ -26,7 +26,6 @@ import java.util.Map;
 
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
-import static org.elasticsearch.health.ServerHealthComponents.DATA;
 import static org.elasticsearch.xpack.core.ilm.OperationMode.RUNNING;
 import static org.elasticsearch.xpack.core.ilm.OperationMode.STOPPED;
 import static org.elasticsearch.xpack.core.ilm.OperationMode.STOPPING;
@@ -46,7 +45,6 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
-                    DATA,
                     GREEN,
                     "Index Lifecycle Management is running",
                     null,
@@ -68,7 +66,6 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
-                    DATA,
                     YELLOW,
                     "Index Lifecycle Management is not running",
                     IlmHealthIndicatorService.HELP_URL,
@@ -97,7 +94,6 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
-                    DATA,
                     GREEN,
                     "No Index Lifecycle Management policies configured",
                     null,
@@ -118,7 +114,6 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
-                    DATA,
                     GREEN,
                     "No Index Lifecycle Management policies configured",
                     null,

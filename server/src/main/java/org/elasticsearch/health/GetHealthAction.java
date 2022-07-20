@@ -28,7 +28,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.NoSuchElementException;
 import java.util.Objects;
 
 public class GetHealthAction extends ActionType<GetHealthAction.Response> {
@@ -45,17 +44,17 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
         private final ClusterName clusterName;
         @Nullable
         private final HealthStatus status;
-        private final List<HealthComponentResult> components;
+        private final List<HealthIndicatorResult> indicatorResults;
 
         public Response(StreamInput in) {
             throw new AssertionError("GetHealthAction should not be sent over the wire.");
         }
 
-        public Response(final ClusterName clusterName, final List<HealthComponentResult> components, boolean showTopLevelStatus) {
-            this.components = components;
+        public Response(final ClusterName clusterName, final List<HealthIndicatorResult> indicatorResults, boolean showTopLevelStatus) {
+            this.indicatorResults = indicatorResults;
             this.clusterName = clusterName;
             if (showTopLevelStatus) {
-                this.status = HealthStatus.merge(components.stream().map(HealthComponentResult::status));
+                this.status = HealthStatus.merge(indicatorResults.stream().map(HealthIndicatorResult::status));
             } else {
                 this.status = null;
             }
@@ -67,17 +66,6 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
 
         public HealthStatus getStatus() {
             return status;
-        }
-
-        public List<HealthComponentResult> getComponents() {
-            return components;
-        }
-
-        public HealthComponentResult findComponent(String name) {
-            return components.stream()
-                .filter(c -> Objects.equals(c.name(), name))
-                .findFirst()
-                .orElseThrow(() -> new NoSuchElementException("Component [" + name + "] is not found"));
         }
 
         @Override
@@ -92,9 +80,9 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
                 builder.field("status", status.xContentValue());
             }
             builder.field("cluster_name", clusterName.value());
-            builder.startObject("components");
-            for (HealthComponentResult component : components) {
-                builder.field(component.name(), component, params);
+            builder.startObject("indicators");
+            for (HealthIndicatorResult result : indicatorResults) {
+                builder.field(result.name(), result, params);
             }
             builder.endObject();
             return builder.endObject();
@@ -109,35 +97,32 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
                 return false;
             }
             Response response = (Response) o;
-            return clusterName.equals(response.clusterName) && status == response.status && components.equals(response.components);
+            return clusterName.equals(response.clusterName)
+                && status == response.status
+                && indicatorResults.equals(response.indicatorResults);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(clusterName, status, components);
+            return Objects.hash(clusterName, status, indicatorResults);
         }
 
         @Override
         public String toString() {
-            return "Response{clusterName=" + clusterName + ", status=" + status + ", components=" + components + '}';
+            return "Response{clusterName=" + clusterName + ", status=" + status + ", indicatorResults=" + indicatorResults + '}';
         }
     }
 
     public static class Request extends ActionRequest {
-        private final String componentName;
         private final String indicatorName;
         private final boolean explain;
 
         public Request(boolean explain) {
-            // We never compute details if no component name is given because of the runtime cost:
-            this.componentName = null;
             this.indicatorName = null;
             this.explain = explain;
         }
 
-        public Request(String componentName, String indicatorName, boolean explain) {
-            assert componentName != null;
-            this.componentName = componentName;
+        public Request(String indicatorName, boolean explain) {
             this.indicatorName = indicatorName;
             this.explain = explain;
         }
@@ -168,11 +153,7 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
         @Override
         protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
             listener.onResponse(
-                new Response(
-                    clusterService.getClusterName(),
-                    healthService.getHealth(request.componentName, request.indicatorName, request.explain),
-                    request.componentName == null
-                )
+                new Response(clusterService.getClusterName(), healthService.getHealth(request.indicatorName, request.explain), true)
             );
         }
     }

@@ -403,7 +403,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
     }
 
     private ReactiveStorageDeciderService.AllocationState createAllocationState(Map<String, Long> shardSize, ClusterState clusterState) {
-        ClusterInfo info = new ClusterInfo(null, null, shardSize, null, null, null);
+        ClusterInfo info = new ClusterInfo(Map.of(), Map.of(), shardSize, Map.of(), Map.of(), Map.of());
         ReactiveStorageDeciderService.AllocationState allocationState = new ReactiveStorageDeciderService.AllocationState(
             clusterState,
             null,
@@ -567,7 +567,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         if (shardsWithSizes.isEmpty() == false) {
             shardSize.put(shardIdentifier(randomFrom(shardsWithSizes)), ByteSizeUnit.KB.toBytes(minShardSize));
         }
-        ClusterInfo info = new ClusterInfo(diskUsages, diskUsages, shardSize, null, null, null);
+        ClusterInfo info = new ClusterInfo(diskUsages, diskUsages, shardSize, Map.of(), Map.of(), Map.of());
 
         ReactiveStorageDeciderService.AllocationState allocationState = new ReactiveStorageDeciderService.AllocationState(
             clusterState,
@@ -615,7 +615,12 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
 
         AllocationDecider no = new AllocationDecider() {
             @Override
-            public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+            public Decision canRemain(
+                IndexMetadata indexMetadata,
+                ShardRouting shardRouting,
+                RoutingNode node,
+                RoutingAllocation allocation
+            ) {
                 return Decision.NO;
             }
         };

@@ -279,27 +279,27 @@ public class ApiKeyService {
      * Asynchronously creates a new API key based off of the request and authentication
      * @param authentication the authentication that this api key should be based off of
      * @param request the request to create the api key included any permission restrictions
-     * @param userRoles the user's actual roles that we always enforce
+     * @param userRoleDescriptors the user's actual roles that we always enforce
      * @param listener the listener that will be used to notify of completion
      */
     public void createApiKey(
         Authentication authentication,
         CreateApiKeyRequest request,
-        Set<RoleDescriptor> userRoles,
+        Set<RoleDescriptor> userRoleDescriptors,
         ActionListener<CreateApiKeyResponse> listener
     ) {
         ensureEnabled();
         if (authentication == null) {
             listener.onFailure(new IllegalArgumentException("authentication must be provided"));
         } else {
-            createApiKeyAndIndexIt(authentication, request, userRoles, listener);
+            createApiKeyAndIndexIt(authentication, request, userRoleDescriptors, listener);
         }
     }
 
     private void createApiKeyAndIndexIt(
         Authentication authentication,
         CreateApiKeyRequest request,
-        Set<RoleDescriptor> roleDescriptorSet,
+        Set<RoleDescriptor> userRoleDescriptors,
         ActionListener<CreateApiKeyResponse> listener
     ) {
         final Instant created = clock.instant();
@@ -313,7 +313,7 @@ public class ApiKeyService {
                     apiKeyHashChars,
                     request.getName(),
                     authentication,
-                    roleDescriptorSet,
+                    userRoleDescriptors,
                     created,
                     expiration,
                     request.getRoleDescriptors(),
@@ -325,6 +325,7 @@ public class ApiKeyService {
                 final IndexRequest indexRequest = client.prepareIndex(SECURITY_MAIN_ALIAS)
                     .setSource(builder)
                     .setId(request.getId())
+                    .setOpType(DocWriteRequest.OpType.CREATE)
                     .setRefreshPolicy(request.getRefreshPolicy())
                     .request();
                 final BulkRequest bulkRequest = toSingleItemBulkRequest(indexRequest);
@@ -338,6 +339,7 @@ public class ApiKeyService {
                         bulkRequest,
                         TransportSingleItemBulkWriteAction.<IndexResponse>wrapBulkResponse(ActionListener.wrap(indexResponse -> {
                             assert request.getId().equals(indexResponse.getId());
+                            assert indexResponse.getResult() == DocWriteResponse.Result.CREATED;
                             final ListenableFuture<CachedApiKeyHashResult> listenableFuture = new ListenableFuture<>();
                             listenableFuture.onResponse(new CachedApiKeyHashResult(true, apiKey));
                             apiKeyAuthCache.put(request.getId(), listenableFuture);
@@ -356,7 +358,7 @@ public class ApiKeyService {
     public void updateApiKey(
         final Authentication authentication,
         final UpdateApiKeyRequest request,
-        final Set<RoleDescriptor> userRoles,
+        final Set<RoleDescriptor> userRoleDescriptors,
         final ActionListener<UpdateApiKeyResponse> listener
     ) {
         ensureEnabled();
@@ -384,10 +386,7 @@ public class ApiKeyService {
 
             validateCurrentApiKeyDocForUpdate(apiKeyId, authentication, versionedDoc.doc());
 
-            executeBulkRequest(
-                buildBulkRequestForUpdate(versionedDoc, authentication, request, userRoles),
-                ActionListener.wrap(bulkResponse -> translateResponseAndClearCache(apiKeyId, bulkResponse, listener), listener::onFailure)
-            );
+            doUpdateApiKey(authentication, request, userRoleDescriptors, versionedDoc, listener);
         }, listener::onFailure));
     }
 
@@ -416,10 +415,10 @@ public class ApiKeyService {
         char[] apiKeyHashChars,
         String name,
         Authentication authentication,
-        Set<RoleDescriptor> userRoles,
+        Set<RoleDescriptor> userRoleDescriptors,
         Instant created,
         Instant expiration,
-        List<RoleDescriptor> keyRoles,
+        List<RoleDescriptor> keyRoleDescriptors,
         Version version,
         @Nullable Map<String, Object> metadata
     ) throws IOException {
@@ -431,8 +430,8 @@ public class ApiKeyService {
             .field("api_key_invalidated", false);
 
         addApiKeyHash(builder, apiKeyHashChars);
-        addRoleDescriptors(builder, keyRoles);
-        addLimitedByRoleDescriptors(builder, userRoles);
+        addRoleDescriptors(builder, keyRoleDescriptors);
+        addLimitedByRoleDescriptors(builder, userRoleDescriptors);
 
         builder.field("name", name).field("version", version.id).field("metadata_flattened", metadata);
         addCreator(builder, authentication);
@@ -440,14 +439,23 @@ public class ApiKeyService {
         return builder.endObject();
     }
 
-    static XContentBuilder buildUpdatedDocument(
+    // package private for testing
+
+    /**
+     * @return `null` if the update is a noop, i.e., if no changes to `currentApiKeyDoc` are required
+     */
+    @Nullable
+    XContentBuilder maybeBuildUpdatedDocument(
         final ApiKeyDoc currentApiKeyDoc,
+        final Version targetDocVersion,
         final Authentication authentication,
-        final Set<RoleDescriptor> userRoles,
-        final List<RoleDescriptor> keyRoles,
-        final Version version,
-        final Map<String, Object> metadata
+        final UpdateApiKeyRequest request,
+        final Set<RoleDescriptor> userRoleDescriptors
     ) throws IOException {
+        if (isNoop(currentApiKeyDoc, targetDocVersion, authentication, request, userRoleDescriptors)) {
+            return null;
+        }
+
         final XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject()
             .field("doc_type", "api_key")
@@ -457,6 +465,7 @@ public class ApiKeyService {
 
         addApiKeyHash(builder, currentApiKeyDoc.hash.toCharArray());
 
+        final List<RoleDescriptor> keyRoles = request.getRoleDescriptors();
         if (keyRoles != null) {
             logger.trace(() -> format("Building API key doc with updated role descriptors [{}]", keyRoles));
             addRoleDescriptors(builder, keyRoles);
@@ -465,14 +474,15 @@ public class ApiKeyService {
             builder.rawField("role_descriptors", currentApiKeyDoc.roleDescriptorsBytes.streamInput(), XContentType.JSON);
         }
 
-        addLimitedByRoleDescriptors(builder, userRoles);
+        addLimitedByRoleDescriptors(builder, userRoleDescriptors);
 
-        builder.field("name", currentApiKeyDoc.name).field("version", version.id);
+        builder.field("name", currentApiKeyDoc.name).field("version", targetDocVersion.id);
 
         assert currentApiKeyDoc.metadataFlattened == null
             || MetadataUtils.containsReservedMetadata(
                 XContentHelper.convertToMap(currentApiKeyDoc.metadataFlattened, false, XContentType.JSON).v2()
             ) == false : "API key doc to be updated contains reserved metadata";
+        final Map<String, Object> metadata = request.getMetadata();
         if (metadata != null) {
             logger.trace(() -> format("Building API key doc with updated metadata [{}]", metadata));
             builder.field("metadata_flattened", metadata);
@@ -489,6 +499,85 @@ public class ApiKeyService {
         addCreator(builder, authentication);
 
         return builder.endObject();
+    }
+
+    private boolean isNoop(
+        final ApiKeyDoc apiKeyDoc,
+        final Version targetDocVersion,
+        final Authentication authentication,
+        final UpdateApiKeyRequest request,
+        final Set<RoleDescriptor> userRoleDescriptors
+    ) {
+        if (apiKeyDoc.version != targetDocVersion.id) {
+            return false;
+        }
+
+        final Map<String, Object> currentCreator = apiKeyDoc.creator;
+        final var user = authentication.getEffectiveSubject().getUser();
+        final var sourceRealm = authentication.getEffectiveSubject().getRealm();
+        if (false == (Objects.equals(user.principal(), currentCreator.get("principal"))
+            && Objects.equals(user.fullName(), currentCreator.get("full_name"))
+            && Objects.equals(user.email(), currentCreator.get("email"))
+            && Objects.equals(user.metadata(), currentCreator.get("metadata"))
+            && Objects.equals(sourceRealm.getName(), currentCreator.get("realm"))
+            && Objects.equals(sourceRealm.getType(), currentCreator.get("realm_type")))) {
+            return false;
+        }
+        if (sourceRealm.getDomain() != null) {
+            if (currentCreator.get("realm_domain") == null) {
+                return false;
+            }
+            @SuppressWarnings("unchecked")
+            final var currentRealmDomain = RealmDomain.fromXContent(
+                XContentHelper.mapToXContentParser(
+                    XContentParserConfiguration.EMPTY,
+                    (Map<String, Object>) currentCreator.get("realm_domain")
+                )
+            );
+            if (sourceRealm.getDomain().equals(currentRealmDomain) == false) {
+                return false;
+            }
+        } else {
+            if (currentCreator.get("realm_domain") != null) {
+                return false;
+            }
+        }
+
+        final Map<String, Object> newMetadata = request.getMetadata();
+        if (newMetadata != null) {
+            if (apiKeyDoc.metadataFlattened == null) {
+                return false;
+            }
+            final Map<String, Object> currentMetadata = XContentHelper.convertToMap(apiKeyDoc.metadataFlattened, false, XContentType.JSON)
+                .v2();
+            if (newMetadata.equals(currentMetadata) == false) {
+                return false;
+            }
+        }
+
+        final List<RoleDescriptor> newRoleDescriptors = request.getRoleDescriptors();
+        if (newRoleDescriptors != null) {
+            final List<RoleDescriptor> currentRoleDescriptors = parseRoleDescriptorsBytes(
+                request.getId(),
+                apiKeyDoc.roleDescriptorsBytes,
+                false
+            );
+            if (false == (newRoleDescriptors.size() == currentRoleDescriptors.size()
+                && Set.copyOf(newRoleDescriptors).containsAll(currentRoleDescriptors))) {
+                return false;
+            }
+        }
+
+        assert userRoleDescriptors != null;
+        final List<RoleDescriptor> currentLimitedByRoleDescriptors = parseRoleDescriptorsBytes(
+            request.getId(),
+            apiKeyDoc.limitedByRoleDescriptorsBytes,
+            // We want the 7.x `LEGACY_SUPERUSER_ROLE_DESCRIPTOR` role descriptor to be returned here to auto-update
+            // `LEGACY_SUPERUSER_ROLE_DESCRIPTOR` to `ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR`, when we update a 7.x API key.
+            false
+        );
+        return (userRoleDescriptors.size() == currentLimitedByRoleDescriptors.size()
+            && userRoleDescriptors.containsAll(currentLimitedByRoleDescriptors));
     }
 
     void tryAuthenticate(ThreadContext ctx, ApiKeyCredentials credentials, ActionListener<AuthenticationResult<User>> listener) {
@@ -612,6 +701,14 @@ public class ApiKeyService {
         BytesReference bytesReference,
         RoleReference.ApiKeyRoleType roleType
     ) {
+        return parseRoleDescriptorsBytes(apiKeyId, bytesReference, roleType == RoleReference.ApiKeyRoleType.LIMITED_BY);
+    }
+
+    private List<RoleDescriptor> parseRoleDescriptorsBytes(
+        final String apiKeyId,
+        BytesReference bytesReference,
+        final boolean replaceLegacySuperuserRoleDescriptor
+    ) {
         if (bytesReference == null) {
             return Collections.emptyList();
         }
@@ -634,9 +731,7 @@ public class ApiKeyService {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-        return roleType == RoleReference.ApiKeyRoleType.LIMITED_BY
-            ? maybeReplaceSuperuserRoleDescriptor(apiKeyId, roleDescriptors)
-            : roleDescriptors;
+        return replaceLegacySuperuserRoleDescriptor ? maybeReplaceSuperuserRoleDescriptor(apiKeyId, roleDescriptors) : roleDescriptors;
     }
 
     // package private for tests
@@ -969,6 +1064,68 @@ public class ApiKeyService {
         }
     }
 
+    private void doUpdateApiKey(
+        final Authentication authentication,
+        final UpdateApiKeyRequest request,
+        final Set<RoleDescriptor> userRoleDescriptors,
+        final VersionedApiKeyDoc currentVersionedDoc,
+        final ActionListener<UpdateApiKeyResponse> listener
+    ) throws IOException {
+        logger.trace(
+            "Building update request for API key doc [{}] with seqNo [{}] and primaryTerm [{}]",
+            request.getId(),
+            currentVersionedDoc.seqNo(),
+            currentVersionedDoc.primaryTerm()
+        );
+        final var targetDocVersion = clusterService.state().nodes().getMinNodeVersion();
+        final var currentDocVersion = Version.fromId(currentVersionedDoc.doc().version);
+        assert currentDocVersion.onOrBefore(targetDocVersion) : "current API key doc version must be on or before target version";
+        if (currentDocVersion.before(targetDocVersion)) {
+            logger.debug(
+                "API key update for [{}] will update version from [{}] to [{}]",
+                request.getId(),
+                currentDocVersion,
+                targetDocVersion
+            );
+        }
+
+        final XContentBuilder builder = maybeBuildUpdatedDocument(
+            currentVersionedDoc.doc(),
+            targetDocVersion,
+            authentication,
+            request,
+            userRoleDescriptors
+        );
+        final boolean isNoop = builder == null;
+        if (isNoop) {
+            logger.debug("Detected noop update request for API key [{}]. Skipping index request.", request.getId());
+            listener.onResponse(new UpdateApiKeyResponse(false));
+            return;
+        }
+
+        final IndexRequest indexRequest = client.prepareIndex(SECURITY_MAIN_ALIAS)
+            .setId(request.getId())
+            .setSource(builder)
+            .setIfSeqNo(currentVersionedDoc.seqNo())
+            .setIfPrimaryTerm(currentVersionedDoc.primaryTerm())
+            .setOpType(DocWriteRequest.OpType.INDEX)
+            .request();
+        logger.trace("Executing index request to update API key [{}]", request.getId());
+        securityIndex.prepareIndexIfNeededThenExecute(
+            listener::onFailure,
+            () -> executeAsyncWithOrigin(
+                client.threadPool().getThreadContext(),
+                SECURITY_ORIGIN,
+                client.prepareBulk().add(indexRequest).setRefreshPolicy(RefreshPolicy.WAIT_UNTIL).request(),
+                ActionListener.<BulkResponse>wrap(
+                    bulkResponse -> translateResponseAndClearCache(request.getId(), bulkResponse, listener),
+                    listener::onFailure
+                ),
+                client::bulk
+            )
+        );
+    }
+
     /**
      * Invalidate API keys for given realm, user name, API key name and id.
      * @param realmNames realm names
@@ -1233,63 +1390,11 @@ public class ApiKeyService {
         return elements.iterator().next();
     }
 
-    private BulkRequest buildBulkRequestForUpdate(
-        final VersionedApiKeyDoc versionedDoc,
-        final Authentication authentication,
-        final UpdateApiKeyRequest request,
-        final Set<RoleDescriptor> userRoles
-    ) throws IOException {
-        logger.trace(
-            "Building update request for API key doc [{}] with seqNo [{}] and primaryTerm [{}]",
-            request.getId(),
-            versionedDoc.seqNo(),
-            versionedDoc.primaryTerm()
-        );
-        final var currentDocVersion = Version.fromId(versionedDoc.doc().version);
-        final var targetDocVersion = clusterService.state().nodes().getMinNodeVersion();
-        assert currentDocVersion.onOrBefore(targetDocVersion) : "current API key doc version must be on or before target version";
-        if (currentDocVersion.before(targetDocVersion)) {
-            logger.debug(
-                "API key update for [{}] will update version from [{}] to [{}]",
-                request.getId(),
-                currentDocVersion,
-                targetDocVersion
-            );
-        }
-        final var bulkRequestBuilder = client.prepareBulk();
-        bulkRequestBuilder.add(
-            client.prepareIndex(SECURITY_MAIN_ALIAS)
-                .setId(request.getId())
-                .setSource(
-                    buildUpdatedDocument(
-                        versionedDoc.doc(),
-                        authentication,
-                        userRoles,
-                        request.getRoleDescriptors(),
-                        targetDocVersion,
-                        request.getMetadata()
-                    )
-                )
-                .setIfSeqNo(versionedDoc.seqNo())
-                .setIfPrimaryTerm(versionedDoc.primaryTerm())
-                .setOpType(DocWriteRequest.OpType.INDEX)
-                .request()
-        );
-        bulkRequestBuilder.setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
-        return bulkRequestBuilder.request();
-    }
-
-    private void executeBulkRequest(final BulkRequest bulkRequest, final ActionListener<BulkResponse> listener) {
-        securityIndex.prepareIndexIfNeededThenExecute(
-            listener::onFailure,
-            () -> executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, bulkRequest, listener, client::bulk)
-        );
-    }
-
-    private static void addLimitedByRoleDescriptors(final XContentBuilder builder, final Set<RoleDescriptor> userRoles) throws IOException {
-        assert userRoles != null;
+    private static void addLimitedByRoleDescriptors(final XContentBuilder builder, final Set<RoleDescriptor> limitedByRoleDescriptors)
+        throws IOException {
+        assert limitedByRoleDescriptors != null;
         builder.startObject("limited_by_role_descriptors");
-        for (RoleDescriptor descriptor : userRoles) {
+        for (RoleDescriptor descriptor : limitedByRoleDescriptors) {
             builder.field(descriptor.getName(), (contentBuilder, params) -> descriptor.toXContent(contentBuilder, params, true));
         }
         builder.endObject();

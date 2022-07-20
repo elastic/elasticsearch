@@ -53,7 +53,7 @@ public abstract class AbstractAsyncBulkByScrollActionScriptTestCase<
             (params, ctx) -> new UpdateScript(Collections.emptyMap(), ctx) {
                 @Override
                 public void execute() {
-                    scriptBody.accept(getCtx());
+                    scriptBody.accept(ctx);
                 }
             }
         );

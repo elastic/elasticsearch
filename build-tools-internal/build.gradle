@@ -311,10 +311,11 @@ tasks.register("bootstrapPerformanceTests", Copy) {
   from('performance')
   into('build/performanceTests')
   def root = file('..')
+  inputs.property('branchWrapper', gradle.gradleVersion)
   filter(ReplaceTokens, tokens: [
           testGitCommit:GitInfo.gitInfo(root).revision,
           masterWrapper:"${ -> resolveMasterWrapperVersion()}".toString(),
-          branchWrapper:"${-> new File(root, "build-tools-internal/src/main/resources/minimumGradleVersion").text}".toString()])
+          branchWrapper:"${-> gradle.gradleVersion}".toString()])
 }
 
 def resolveMasterWrapperVersion() {

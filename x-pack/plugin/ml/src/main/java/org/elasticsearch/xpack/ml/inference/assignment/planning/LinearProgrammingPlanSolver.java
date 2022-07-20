@@ -92,12 +92,16 @@ class LinearProgrammingPlanSolver {
             .collect(Collectors.toMap(Function.identity(), m -> m.memoryBytes() / (double) maxModelMemoryBytes));
     }
 
-    AssignmentPlan solvePlan() {
+    AssignmentPlan solvePlan(boolean useBinPackingOnly) {
         if (models.isEmpty() || maxNodeCores == 0) {
             return AssignmentPlan.builder(nodes, models).build();
         }
 
         Tuple<Map<Tuple<Model, Node>, Double>, AssignmentPlan> weightsAndBinPackingPlan = calculateWeightsAndBinPackingPlan();
+
+        if (useBinPackingOnly) {
+            return weightsAndBinPackingPlan.v2();
+        }
 
         Map<Tuple<Model, Node>, Double> allocationValues = new HashMap<>();
         Map<Tuple<Model, Node>, Double> assignmentValues = new HashMap<>();

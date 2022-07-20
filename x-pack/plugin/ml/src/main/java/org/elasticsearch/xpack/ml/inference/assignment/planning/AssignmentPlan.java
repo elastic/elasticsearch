@@ -32,11 +32,16 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
         long memoryBytes,
         int allocations,
         int threadsPerAllocation,
-        Map<String, Integer> currentAllocationsByNodeId
+        Map<String, Integer> currentAllocationsByNodeId,
+        int maxAssignedAllocations
     ) {
 
         int getPreviouslyAssignedAllocations() {
             return currentAllocationsByNodeId.values().stream().mapToInt(Integer::intValue).sum();
+        }
+
+        boolean hasEverBeenAllocated() {
+            return maxAssignedAllocations > 0;
         }
 
         @Override
@@ -50,6 +55,8 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
                 + threadsPerAllocation
                 + ") (current_allocations = "
                 + currentAllocationsByNodeId
+                + ") (max_assigned_allocations = "
+                + maxAssignedAllocations
                 + ")";
         }
     };
@@ -129,12 +136,34 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
         return models().stream().allMatch(this::satisfiesAllocations);
     }
 
+    public boolean arePreviouslyAssignedModelsAssigned() {
+        return models().stream()
+            .filter(Model::hasEverBeenAllocated)
+            .map(this::totalAllocations)
+            .allMatch(totalAllocations -> totalAllocations > 0);
+    }
+
+    public long countPreviouslyAssignedModelsThatAreStillAssigned() {
+        return models().stream()
+            .filter(Model::hasEverBeenAllocated)
+            .map(this::totalAllocations)
+            .filter(totalAllocations -> totalAllocations > 0)
+            .count();
+    }
+
     public int getRemainingNodeCores(String nodeId) {
         return remainingNodeCores.getOrDefault(nodeId, 0);
     }
 
     public long getRemainingNodeMemory(String nodeId) {
         return remainingNodeMemory.getOrDefault(nodeId, 0L);
+    }
+
+    public int totalAllocations(Model m) {
+        if (assignments.containsKey(m) == false) {
+            return 0;
+        }
+        return assignments.get(m).values().stream().mapToInt(Integer::intValue).sum();
     }
 
     private Quality computeQuality() {

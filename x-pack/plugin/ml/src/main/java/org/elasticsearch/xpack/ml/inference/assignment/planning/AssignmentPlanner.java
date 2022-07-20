@@ -14,7 +14,11 @@ import org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlan.M
 import org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlan.Node;
 
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -34,6 +38,9 @@ import static org.elasticsearch.core.Strings.format;
  * Furthermore, the planner preserves at least one allocation for all existing
  * assignments. This way, the new plan will only have new assignments and the
  * transition can happen with minimal impact on performance of started deployments.
+ * However, if previously assigned models do not receive any allocation, then we
+ * attempt to find a solution that provides at least one allocation to
+ * previously assigned models.
  */
 public class AssignmentPlanner {
 
@@ -48,8 +55,41 @@ public class AssignmentPlanner {
     }
 
     public AssignmentPlan computePlan() {
+        return computePlan(true);
+    }
+
+    private AssignmentPlan computePlan(boolean tryAssigningPreviouslyAssignedModels) {
         logger.debug(() -> format("Computing plan for nodes = %s; models = %s", nodes, models));
 
+        AssignmentPlan bestPlan;
+        AssignmentPlan planSatisfyingPreviousAssignments = solveSatisfyingPreviousAssignments();
+        logger.debug(() -> "Plan satisfying previous assignments =\n" + planSatisfyingPreviousAssignments.prettyPrint());
+        if (planSatisfyingPreviousAssignments.arePreviouslyAssignedModelsAssigned() == false && tryAssigningPreviouslyAssignedModels) {
+            AssignmentPlan planAllocatingAtLeastOnceModelsThatWerePreviouslyAllocated =
+                solveAllocatingAtLeastOnceModelsThatWerePreviouslyAllocated();
+            logger.debug(
+                () -> "Plan with at least one allocation for previously assigned models =\n"
+                    + planAllocatingAtLeastOnceModelsThatWerePreviouslyAllocated.prettyPrint()
+            );
+            if (planAllocatingAtLeastOnceModelsThatWerePreviouslyAllocated.arePreviouslyAssignedModelsAssigned()) {
+                bestPlan = planAllocatingAtLeastOnceModelsThatWerePreviouslyAllocated;
+            } else {
+                bestPlan = planSatisfyingPreviousAssignments
+                    .countPreviouslyAssignedModelsThatAreStillAssigned() >= planAllocatingAtLeastOnceModelsThatWerePreviouslyAllocated
+                        .countPreviouslyAssignedModelsThatAreStillAssigned()
+                            ? planSatisfyingPreviousAssignments
+                            : planAllocatingAtLeastOnceModelsThatWerePreviouslyAllocated;
+            }
+        } else {
+            bestPlan = planSatisfyingPreviousAssignments;
+        }
+
+        logger.debug(() -> "Best plan =\n" + bestPlan.prettyPrint());
+        logger.debug(() -> prettyPrintOverallStats(bestPlan));
+        return bestPlan;
+    }
+
+    private AssignmentPlan solveSatisfyingPreviousAssignments() {
         AssignmentPlan bestPlan;
         // First solve preserving one allocation per assignment because that is most flexible
         AssignmentPlan planKeepingOneAllocationOnPreviousAssignments = solveKeepingOneAllocationOnPreviousAssignments();
@@ -63,9 +103,54 @@ public class AssignmentPlanner {
         } else {
             bestPlan = planKeepingOneAllocationOnPreviousAssignments;
         }
-        logger.debug(() -> "Best plan =\n" + bestPlan.prettyPrint());
-        logger.debug(() -> prettyPrintOverallStats(bestPlan));
         return bestPlan;
+    }
+
+    private AssignmentPlan solveAllocatingAtLeastOnceModelsThatWerePreviouslyAllocated() {
+        logger.debug(() -> "Attempting to solve assigning at least one allocations to previously assigned models");
+        List<Model> previouslyAssignedModelsOnly = models.stream()
+            .filter(m -> m.hasEverBeenAllocated())
+            .map(
+                m -> new Model(
+                    m.id(),
+                    m.memoryBytes(),
+                    1,
+                    m.threadsPerAllocation(),
+                    m.currentAllocationsByNodeId(),
+                    m.maxAssignedAllocations()
+                )
+            )
+            .toList();
+        AssignmentPlan planWithSingleAllocationForPreviouslyAssignedModels = new LinearProgrammingPlanSolver(
+            nodes,
+            previouslyAssignedModelsOnly
+        ).solvePlan(true);
+
+        Map<String, String> modelIdToNodeIdWithSingleAllocation = new HashMap<>();
+        for (Model m : planWithSingleAllocationForPreviouslyAssignedModels.models()) {
+            Optional<Map<Node, Integer>> assignments = planWithSingleAllocationForPreviouslyAssignedModels.assignments(m);
+            Set<Node> nodes = assignments.orElse(Map.of()).keySet();
+            if (nodes.isEmpty() == false) {
+                assert nodes.size() == 1;
+                modelIdToNodeIdWithSingleAllocation.put(m.id(), nodes.iterator().next().id());
+            }
+        }
+
+        List<Model> planModels = models.stream().map(m -> {
+            Map<String, Integer> currentAllocationsByNodeId = modelIdToNodeIdWithSingleAllocation.containsKey(m.id())
+                ? Map.of(modelIdToNodeIdWithSingleAllocation.get(m.id()), 1)
+                : Map.of();
+            return new Model(
+                m.id(),
+                m.memoryBytes(),
+                m.allocations(),
+                m.threadsPerAllocation(),
+                currentAllocationsByNodeId,
+                m.maxAssignedAllocations()
+            );
+        }).toList();
+
+        return new AssignmentPlanner(nodes, planModels).computePlan(false);
     }
 
     private AssignmentPlan solveKeepingOneAllocationOnPreviousAssignments() {
@@ -85,7 +170,7 @@ public class AssignmentPlanner {
         List<Model> planModels = preserveAllocations.modelsPreservingAllocations();
         logger.trace(() -> format("Nodes after applying allocation preserving strategy = %s", planNodes));
         logger.trace(() -> format("Models after applying allocation preserving strategy = %s", planModels));
-        AssignmentPlan assignmentPlan = new LinearProgrammingPlanSolver(planNodes, planModels).solvePlan();
+        AssignmentPlan assignmentPlan = new LinearProgrammingPlanSolver(planNodes, planModels).solvePlan(false);
         return preserveAllocations.mergePreservedAllocations(assignmentPlan);
     }
 

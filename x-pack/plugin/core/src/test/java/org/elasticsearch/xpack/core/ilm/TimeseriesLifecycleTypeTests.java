@@ -240,10 +240,10 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
     }
 
     public void testActionsThatCannotFollowSearchableSnapshot() {
-        assertThat(ACTIONS_CANNOT_FOLLOW_SEARCHABLE_SNAPSHOT.size(), is(4));
+        assertThat(ACTIONS_CANNOT_FOLLOW_SEARCHABLE_SNAPSHOT.size(), is(3));
         assertThat(
             ACTIONS_CANNOT_FOLLOW_SEARCHABLE_SNAPSHOT,
-            containsInAnyOrder(ShrinkAction.NAME, FreezeAction.NAME, ForceMergeAction.NAME, RollupILMAction.NAME)
+            containsInAnyOrder(ShrinkAction.NAME, FreezeAction.NAME, ForceMergeAction.NAME)
         );
     }
 
@@ -259,7 +259,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
             assertThat(
                 e.getMessage(),
                 is(
-                    "phases [warm,cold] define one or more of [forcemerge, freeze, shrink, rollup] actions"
+                    "phases [warm,cold] define one or more of [forcemerge, freeze, shrink] actions"
                         + " which are not allowed after a managed index is mounted as a searchable snapshot"
                 )
             );
@@ -280,7 +280,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
             assertThat(
                 e.getMessage(),
                 is(
-                    "phases [frozen] define one or more of [forcemerge, freeze, shrink, rollup] actions"
+                    "phases [frozen] define one or more of [forcemerge, freeze, shrink] actions"
                         + " which are not allowed after a managed index is mounted as a searchable snapshot"
                 )
             );
@@ -304,7 +304,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
             assertThat(
                 e.getMessage(),
                 is(
-                    "phases [warm,frozen] define one or more of [forcemerge, freeze, shrink, rollup] actions"
+                    "phases [warm,frozen] define one or more of [forcemerge, freeze, shrink] actions"
                         + " which are not allowed after a managed index is mounted as a searchable snapshot"
                 )
             );
@@ -330,7 +330,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
             assertThat(
                 e.getMessage(),
                 is(
-                    "phases [warm,cold] define one or more of [forcemerge, freeze, shrink, rollup] actions"
+                    "phases [warm,cold] define one or more of [forcemerge, freeze, shrink] actions"
                         + " which are not allowed after a managed index is mounted as a searchable snapshot"
                 )
             );

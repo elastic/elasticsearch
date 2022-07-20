@@ -22,11 +22,6 @@ import java.util.Collections;
 public class GeoBoundingBoxQueryLegacyGeoShapeWithDocValuesIT extends GeoBoundingBoxQueryIntegTestCase {
 
     @Override
-    protected boolean addMockGeoShapeFieldMapper() {
-        return false;
-    }
-
-    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singleton(LocalStateSpatialPlugin.class);
     }

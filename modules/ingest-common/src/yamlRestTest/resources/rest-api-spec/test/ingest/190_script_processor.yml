@@ -317,6 +317,10 @@ teardown:
 
 ---
 "Test metadata":
+  - skip:
+      version: all
+      reason: https://github.com/elastic/elasticsearch/issues/88387
+
   - do:
       ingest.put_pipeline:
         id: "my_pipeline"

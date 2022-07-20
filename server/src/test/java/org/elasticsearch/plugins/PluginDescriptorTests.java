@@ -20,6 +20,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -53,19 +54,16 @@ public class PluginDescriptorTests extends ESTestCase {
 
     PluginDescriptor mockDescriptor(String... additionalProps) throws IOException {
         assert additionalProps.length % 2 == 0;
-        @SuppressWarnings({ "unchecked", "rawtypes" })
-        Map.Entry<String, String>[] additionalPropEntries = (Map.Entry<String, String>[]) new Map.Entry[additionalProps.length / 2];
+        Map<String, String> propsMap = new HashMap<>(DESCRIPTOR_TEMPLATE);
         for (int i = 0; i < additionalProps.length; i += 2) {
-            additionalPropEntries[i / 2] = Map.entry(additionalProps[i], additionalProps[i + 1]);
+            propsMap.put(additionalProps[i], additionalProps[i + 1]);
         }
-        var stream = Stream.concat(DESCRIPTOR_TEMPLATE.entrySet().stream(), Arrays.stream(additionalPropEntries));
-        Map<String, String> propsMap = stream.collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, (e1, e2) -> e2));
         String[] props = new String[propsMap.size() * 2];
         int i = 0;
         for (var e : propsMap.entrySet()) {
             props[i] = e.getKey();
             props[i + 1] = e.getValue();
-            ++i;
+            i += 2;
         }
 
         Path pluginDir = createTempDir().resolve("fake-plugin");

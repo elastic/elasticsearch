@@ -25,6 +25,11 @@ import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswo
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.containsString;
 
+/** 
+ * These tests ensure that the Feature Reset API works for users with default superuser and manage roles.
+ * This can be complex due to restrictions on system indices and the need to use the correct origin for
+ * each index. See also https://github.com/elastic/elasticsearch/issues/88617
+ */
 public class SecurityFeatureResetTests extends SecurityIntegTestCase {
     private static final SecureString SUPER_USER_PASSWD = SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
 

@@ -11,19 +11,17 @@ package org.elasticsearch.tasks;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.tracing.Traceable;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
 /**
  * Current task information
  */
-public class Task implements Traceable {
+public class Task {
 
     /**
      * The request header to mark tasks with specific ids
@@ -256,27 +254,5 @@ public class Task implements Traceable {
         } else {
             throw new IllegalStateException("response has to implement ToXContent to be able to store the results");
         }
-    }
-
-    @Override
-    public String getSpanId() {
-        return String.valueOf(id);
-    }
-
-    @Override
-    public String getSpanName() {
-        return action;
-    }
-
-    @Override
-    public Map<String, Object> getAttributes() {
-
-        TaskId parentTask = getParentTaskId();
-        Map<String, Object> attributes = new HashMap<>();
-        attributes.put(Traceable.AttributeKeys.TASK_ID, id);
-        if (parentTask.isSet()) {
-            attributes.put(Traceable.AttributeKeys.PARENT_TASK_ID, parentTask.toString());
-        }
-        return attributes;
     }
 }

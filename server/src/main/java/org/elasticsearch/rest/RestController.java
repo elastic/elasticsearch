@@ -36,9 +36,11 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -418,7 +420,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         final Set<RestRequest.Method> validMethodSet = getValidHandlerMethodSet(rawPath);
         if (validMethodSet.contains(method) == false) {
             if (method == RestRequest.Method.OPTIONS) {
-                tracer.onTraceStarted(threadContext, channel);
+                startTrace(threadContext, channel);
                 handleOptionsRequest(channel, validMethodSet);
                 return true;
             }
@@ -426,12 +428,57 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 // If an alternative handler for an explicit path is registered to a
                 // different HTTP method than the one supplied - return a 405 Method
                 // Not Allowed error.
-                tracer.onTraceStarted(threadContext, channel);
+                startTrace(threadContext, channel);
                 handleUnsupportedHttpMethod(uri, method, channel, validMethodSet, null);
                 return true;
             }
         }
         return false;
+    }
+
+    private void startTrace(ThreadContext threadContext, RestChannel channel) {
+        startTrace(threadContext, channel, null);
+    }
+
+    private void startTrace(ThreadContext threadContext, RestChannel channel, String restPath) {
+        final RestRequest req = channel.request();
+        if (restPath == null) {
+            restPath = req.path();
+        }
+        String method = null;
+        try {
+            method = req.method().name();
+        } catch (IllegalArgumentException e) {
+            // Invalid methods throw an exception
+        }
+        String name;
+        if (method != null) {
+            name = method + " " + restPath;
+        } else {
+            name = restPath;
+        }
+
+        Map<String, Object> attributes = new HashMap<>();
+        req.getHeaders().forEach((key, values) -> {
+            final String lowerKey = key.toLowerCase(Locale.ROOT).replace('-', '_');
+            final String value = switch (lowerKey) {
+                case "authorization", "cookie", "secret", "session", "set_cookie", "token" -> "[REDACTED]";
+                default -> String.join("; ", values);
+            };
+            attributes.put("http.request.headers." + lowerKey, value);
+        });
+        attributes.put("http.method", method);
+        attributes.put("http.url", req.uri());
+        switch (req.getHttpRequest().protocolVersion()) {
+            case HTTP_1_0 -> attributes.put("http.flavour", "1.0");
+            case HTTP_1_1 -> attributes.put("http.flavour", "1.1");
+        }
+
+        tracer.onTraceStarted(threadContext, "rest-" + channel.request().getRequestId(), name, attributes);
+    }
+
+    private void traceException(RestChannel channel, Throwable e) {
+        this.tracer.onTraceException("rest-" + channel.request().getRequestId(), e);
     }
 
     private static void sendContentTypeErrorMessage(@Nullable List<String> contentTypeHeader, RestChannel channel) throws IOException {
@@ -450,6 +497,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
             copyRestHeaders(request, threadContext);
             validateErrorTrace(request, channel);
         } catch (IllegalArgumentException e) {
+            startTrace(threadContext, channel);
             channel.sendResponse(RestResponse.createSimpleErrorResponse(channel, BAD_REQUEST, e.getMessage()));
             return;
         }
@@ -477,20 +525,19 @@ public class RestController implements HttpServerTransport.Dispatcher {
                         return;
                     }
                 } else {
-                    channel.setTracePath(handlers.getPath());
-                    tracer.onTraceStarted(threadContext, channel);
+                    startTrace(threadContext, channel, handlers.getPath());
                     dispatchRequest(request, channel, handler, threadContext);
                     return;
                 }
             }
         } catch (final IllegalArgumentException e) {
-            tracer.onTraceStarted(threadContext, channel);
-            tracer.onTraceException(channel, e);
+            startTrace(threadContext, channel);
+            traceException(channel, e);
             handleUnsupportedHttpMethod(uri, null, channel, getValidHandlerMethodSet(rawPath), e);
             return;
         }
         // If request has not been handled, fallback to a bad request error.
-        tracer.onTraceStarted(threadContext, channel);
+        startTrace(threadContext, channel);
         handleBadRequest(uri, requestMethod, channel);
     }
 
@@ -689,31 +736,6 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 throw new IllegalStateException("Channel is already closed");
             }
             inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(-contentLength);
-        }
-
-        @Override
-        public void setTracePath(String path) {
-            delegate.setTracePath(path);
-        }
-
-        @Override
-        public String getTracePath() {
-            return delegate.getTracePath();
-        }
-
-        @Override
-        public String getSpanId() {
-            return delegate.getSpanId();
-        }
-
-        @Override
-        public String getSpanName() {
-            return delegate.getSpanName();
-        }
-
-        @Override
-        public Map<String, Object> getAttributes() {
-            return delegate.getAttributes();
         }
     }
 

@@ -58,6 +58,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.in;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -289,7 +290,7 @@ public class TaskManagerTests extends ESTestCase {
             }
         });
 
-        verify(mockTracer).onTraceStarted(any(), eq(task));
+        verify(mockTracer).onTraceStarted(any(), eq("task-" + task.getId()), eq("testAction"), anyMap());
     }
 
     /**
@@ -312,7 +313,7 @@ public class TaskManagerTests extends ESTestCase {
 
         taskManager.unregister(task);
 
-        verify(mockTracer).onTraceStopped(eq(task));
+        verify(mockTracer).onTraceStopped("task-" + task.getId());
     }
 
     /**
@@ -357,8 +358,7 @@ public class TaskManagerTests extends ESTestCase {
             }
         );
 
-        verify(mockTracer).onTraceStarted(any(), eq(task));
-        verify(mockTracer).onTraceStopped(eq(task));
+        verify(mockTracer).onTraceStarted(any(), eq("task-" + task.getId()), eq("actionName"), anyMap());
     }
 
     static class CancellableRequest extends TransportRequest {

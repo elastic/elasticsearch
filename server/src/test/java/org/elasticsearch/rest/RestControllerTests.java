@@ -61,6 +61,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.mock;
@@ -193,7 +194,12 @@ public class RestControllerTests extends ESTestCase {
         });
         AssertingChannel channel = new AssertingChannel(fakeRequest, false, RestStatus.BAD_REQUEST);
         restController.dispatchRequest(fakeRequest, channel, threadContext);
-        verify(tracer).onTraceStarted(threadContext, channel);
+        verify(tracer).onTraceStarted(
+            eq(threadContext),
+            eq("rest-" + channel.request().getRequestId()),
+            eq("GET /"),
+            eq(Map.of("http.method", "GET", "http.flavour", "1.1", "http.url", "/"))
+        );
     }
 
     /**
@@ -802,7 +808,7 @@ public class RestControllerTests extends ESTestCase {
 
         final AssertingChannel channel = new AssertingChannel(request, true, RestStatus.METHOD_NOT_ALLOWED);
         restController.dispatchRequest(request, channel, client.threadPool().getThreadContext());
-        verify(tracer).onTraceStarted(any(), eq(channel));
+        verify(tracer).onTraceStarted(any(), eq("rest-" + channel.request().getRequestId()), eq("/"), anyMap());
         verify(tracer).onTraceException(any(), any(IllegalArgumentException.class));
     }
 

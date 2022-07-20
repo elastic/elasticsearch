@@ -87,6 +87,8 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
         // the request content again and release it
         httpRequest.release();
 
+        final String traceId = "rest-" + this.request.getRequestId();
+
         final ArrayList<Releasable> toClose = new ArrayList<>(3);
         if (HttpUtils.shouldCloseConnection(httpRequest)) {
             toClose.add(() -> CloseableChannel.closeChannel(httpChannel));
@@ -97,7 +99,7 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
         String contentLength = null;
         final Runnable onFinish = () -> {
             Releasables.close(toClose);
-            tracer.onTraceStopped(this);
+            tracer.onTraceStopped(traceId);
         };
 
         try {
@@ -138,9 +140,9 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
 
             addCookies(httpResponse);
 
-            tracer.setAttribute(this, "http.status_code", restResponse.status().getStatus());
+            tracer.setAttribute(traceId, "http.status_code", restResponse.status().getStatus());
             restResponse.getHeaders()
-                .forEach((key, values) -> tracer.setAttribute(this, "http.response.headers." + key, String.join("; ", values)));
+                .forEach((key, values) -> tracer.setAttribute(traceId, "http.response.headers." + key, String.join("; ", values)));
 
             ActionListener<Void> listener = ActionListener.wrap(onFinish);
             try (ThreadContext.StoredContext existing = threadContext.stashContext()) {

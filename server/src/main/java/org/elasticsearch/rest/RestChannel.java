@@ -10,7 +10,6 @@ package org.elasticsearch.rest;
 
 import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.tracing.Traceable;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -19,7 +18,7 @@ import java.io.IOException;
 /**
  * A channel used to construct bytes / builder based outputs, and send responses.
  */
-public interface RestChannel extends Traceable {
+public interface RestChannel {
 
     XContentBuilder newBuilder() throws IOException;
 
@@ -40,8 +39,4 @@ public interface RestChannel extends Traceable {
     boolean detailedErrorsEnabled();
 
     void sendResponse(RestResponse response);
-
-    void setTracePath(String path);
-
-    String getTracePath();
 }

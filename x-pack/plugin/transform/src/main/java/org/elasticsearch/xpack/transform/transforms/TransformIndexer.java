@@ -120,8 +120,6 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     private volatile TransformCheckpoint lastCheckpoint;
     private volatile TransformCheckpoint nextCheckpoint;
 
-    // Keeps track of the last exception that was written to our audit, keeps us from spamming the audit index
-    private volatile String lastAuditedExceptionMessage = null;
     private volatile RunState runState;
 
     private volatile long lastCheckpointCleanup = 0L;
@@ -924,7 +922,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
      * (Note: originally this method was synchronized, which is not necessary)
      */
     void handleFailure(Exception e) {
-        logger.warn(() -> "[" + getJobId() + "] transform encountered an exception: ", e);
+        // more detailed reporting in the handlers and below
+        logger.debug(() -> "[" + getJobId() + "] transform encountered an exception: ", e);
         Throwable unwrappedException = ExceptionsHelper.findSearchExceptionRootCause(e);
 
         if (unwrappedException instanceof CircuitBreakingException) {
@@ -957,7 +956,13 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
         int numFailureRetries = Optional.ofNullable(transformConfig.getSettings().getNumFailureRetries())
             .orElse(context.getNumFailureRetries());
-        if (numFailureRetries != -1 && context.incrementAndGetFailureCount() > numFailureRetries) {
+
+        // group failures to decide whether to report it below
+        final String thisFailureClass = unwrappedException.getClass().toString();
+        final String lastFailureClass = context.getLastFailure();
+        final int failureCount = context.incrementAndGetFailureCount(thisFailureClass);
+
+        if (numFailureRetries != -1 && failureCount > numFailureRetries) {
             failIndexer(
                 "task encountered more than "
                     + numFailureRetries
@@ -969,14 +974,16 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
         // Since our schedule fires again very quickly after failures it is possible to run into the same failure numerous
         // times in a row, very quickly. We do not want to spam the audit log with repeated failures, so only record the first one
-        if (e.getMessage().equals(lastAuditedExceptionMessage) == false) {
-            String message = ExceptionRootCauseFinder.getDetailedMessage(unwrappedException);
-
-            auditor.warning(
-                getJobId(),
-                "Transform encountered an exception: " + message + "; Will attempt again at next scheduled trigger."
+        // and if the number of retries is about to exceed
+        if (thisFailureClass.equals(lastFailureClass) == false || failureCount == numFailureRetries) {
+            String message = format(
+                "Transform encountered an exception: [%s]; Will automatically retry [%d/%d]",
+                ExceptionRootCauseFinder.getDetailedMessage(unwrappedException),
+                failureCount,
+                numFailureRetries
             );
-            lastAuditedExceptionMessage = message;
+            logger.warn(() -> "[" + getJobId() + "] " + message);
+            auditor.warning(getJobId(), message);
         }
     }
 

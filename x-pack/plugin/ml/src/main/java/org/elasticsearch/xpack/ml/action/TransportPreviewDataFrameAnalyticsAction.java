@@ -102,7 +102,7 @@ public class TransportPreviewDataFrameAnalyticsAction extends HandledTransportAc
     }
 
     void preview(Task task, DataFrameAnalyticsConfig config, ActionListener<Response> listener) {
-        final TaskId parentTaskId = new TaskId(clusterService.getNodeName(), task.getId());
+        final TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
         final ExtractedFieldsDetectorFactory extractedFieldsDetectorFactory = new ExtractedFieldsDetectorFactory(
             new ParentTaskAssigningClient(client, parentTaskId)
         );

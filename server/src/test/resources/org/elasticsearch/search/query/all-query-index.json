@@ -59,8 +59,7 @@
         "f_geop_alias": {
           "type": "alias",
           "path": "f_geop"
-        },
-        "f_geos": {"type": "geo_shape"}
+        }
       }
     }
   }

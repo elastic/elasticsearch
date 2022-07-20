@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionMultiListener;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
@@ -108,20 +109,21 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
             this.createIndexService = createIndexService;
             this.metadataCreateDataStreamService = metadataCreateDataStreamService;
             this.autoCreateIndex = autoCreateIndex;
-            executor = (currentState, taskContexts) -> {
+            this.executor = (currentState, taskContexts) -> {
+                var listener = new AllocationActionMultiListener<CreateIndexResponse>();
                 ClusterState state = currentState;
                 final Map<CreateIndexRequest, String> successfulRequests = Maps.newMapWithExpectedSize(taskContexts.size());
                 for (final var taskContext : taskContexts) {
                     final var task = taskContext.getTask();
                     try {
-                        state = task.execute(state, successfulRequests, taskContext);
+                        state = task.execute(state, successfulRequests, taskContext, listener);
                         assert successfulRequests.containsKey(task.request);
                     } catch (Exception e) {
                         taskContext.onFailure(e);
                     }
                 }
                 if (state != currentState) {
-                    state = allocationService.reroute(state, "auto-create");
+                    state = allocationService.reroute(state, "auto-create", listener.reroute());
                 }
                 return state;
             };
@@ -166,7 +168,10 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                 assert false : "should not be called";
             }
 
-            private ClusterStateAckListener getAckListener(String indexName) {
+            private ClusterStateAckListener getAckListener(
+                String indexName,
+                AllocationActionMultiListener<CreateIndexResponse> allocationActionMultiListener
+            ) {
                 return new ClusterStateAckListener() {
                     @Override
                     public boolean mustAck(DiscoveryNode discoveryNode) {
@@ -179,19 +184,20 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                             new String[] { indexName },
                             ActiveShardCount.DEFAULT,
                             request.timeout(),
-                            shardsAcked -> listener.onResponse(new CreateIndexResponse(true, shardsAcked, indexName)),
+                            shardsAcked -> allocationActionMultiListener.delay(listener)
+                                .onResponse(new CreateIndexResponse(true, shardsAcked, indexName)),
                             listener::onFailure
                         );
                     }
 
                     @Override
                     public void onAckFailure(Exception e) {
-                        listener.onResponse(new CreateIndexResponse(false, false, indexName));
+                        allocationActionMultiListener.delay(listener).onResponse(new CreateIndexResponse(false, false, indexName));
                     }
 
                     @Override
                     public void onAckTimeout() {
-                        listener.onResponse(new CreateIndexResponse(false, false, indexName));
+                        allocationActionMultiListener.delay(listener).onResponse(new CreateIndexResponse(false, false, indexName));
                     }
 
                     @Override
@@ -209,11 +215,12 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
             ClusterState execute(
                 ClusterState currentState,
                 Map<CreateIndexRequest, String> successfulRequests,
-                ClusterStateTaskExecutor.TaskContext<CreateIndexTask> taskContext
+                ClusterStateTaskExecutor.TaskContext<CreateIndexTask> taskContext,
+                AllocationActionMultiListener<CreateIndexResponse> allocationActionMultiListener
             ) throws Exception {
                 final var previousIndexName = successfulRequests.get(request);
                 if (previousIndexName != null) {
-                    taskContext.success(getAckListener(previousIndexName));
+                    taskContext.success(getAckListener(previousIndexName, allocationActionMultiListener));
                     return currentState;
                 }
 
@@ -249,7 +256,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                     );
 
                     final var indexName = clusterState.metadata().dataStreams().get(request.index()).getIndices().get(0).getName();
-                    taskContext.success(getAckListener(indexName));
+                    taskContext.success(getAckListener(indexName, allocationActionMultiListener));
                     successfulRequests.put(request, indexName);
                     return clusterState;
                 } else {
@@ -264,7 +271,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
 
                         if (shouldAutoCreate == false) {
                             // The index already exists.
-                            taskContext.success(getAckListener(indexName));
+                            taskContext.success(getAckListener(indexName, allocationActionMultiListener));
                             successfulRequests.put(request, indexName);
                             return currentState;
                         }
@@ -308,7 +315,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                         false,
                         DesiredBalanceShardsAllocator.REMOVE_ME
                     );
-                    taskContext.success(getAckListener(indexName));
+                    taskContext.success(getAckListener(indexName, allocationActionMultiListener));
                     successfulRequests.put(request, indexName);
                     return clusterState;
                 }

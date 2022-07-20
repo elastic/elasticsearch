@@ -8,12 +8,13 @@
 
 package org.elasticsearch.operator.service;
 
+import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.immutablestate.action.ImmutableClusterSettingsAction;
-import org.elasticsearch.immutablestate.service.ImmutableClusterStateController;
+import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
+import org.elasticsearch.reservedstate.service.ReservedClusterStateService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -63,14 +64,17 @@ public class FileSettingsServiceTests extends ESTestCase {
             threadpool,
             null
         );
+        clusterService.setRerouteService(mock(RerouteService.class));
         env = newEnvironment(Settings.EMPTY);
 
         Files.createDirectories(env.configFile());
 
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
-        ImmutableClusterStateController controller = new ImmutableClusterStateController(clusterService);
-        controller.initHandlers(List.of(new ImmutableClusterSettingsAction(clusterSettings)));
+        ReservedClusterStateService controller = new ReservedClusterStateService(
+            clusterService,
+            List.of(new ReservedClusterSettingsAction(clusterSettings))
+        );
 
         fileSettingsService = new FileSettingsService(clusterService, controller, env);
     }
@@ -153,14 +157,14 @@ public class FileSettingsServiceTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testInitialFile() throws Exception {
-        ImmutableClusterStateController controller = mock(ImmutableClusterStateController.class);
+        ReservedClusterStateService stateService = mock(ReservedClusterStateService.class);
 
         doAnswer((Answer<Void>) invocation -> {
             ((Consumer<Exception>) invocation.getArgument(2)).accept(new IllegalStateException("Some exception"));
             return null;
-        }).when(controller).process(any(), (XContentParser) any(), any());
+        }).when(stateService).process(any(), (XContentParser) any(), any());
 
-        FileSettingsService service = spy(new FileSettingsService(clusterService, controller, env));
+        FileSettingsService service = spy(new FileSettingsService(clusterService, stateService, env));
 
         Files.createDirectories(service.operatorSettingsDir());
 
@@ -180,7 +184,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         clearInvocations(service);
 
         // Let's check that if we didn't throw an error that everything works
-        doAnswer((Answer<Void>) invocation -> null).when(controller).process(any(), (XContentParser) any(), any());
+        doAnswer((Answer<Void>) invocation -> null).when(stateService).process(any(), (XContentParser) any(), any());
 
         service.start();
         service.startWatcher(true);

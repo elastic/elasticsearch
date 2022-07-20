@@ -18,7 +18,7 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.immutablestate.service.ImmutableClusterStateController;
+import org.elasticsearch.reservedstate.service.ReservedClusterStateService;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
@@ -49,7 +49,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
     private static final String SETTINGS_FILE_NAME = "settings.json";
     private static final String NAMESPACE = "file_settings";
 
-    private final ImmutableClusterStateController controller;
+    private final ReservedClusterStateService stateService;
     private final Environment environment;
 
     private WatchService watchService; // null;
@@ -70,11 +70,11 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
      * Constructs the {@link FileSettingsService}
      *
      * @param clusterService so we can register ourselves as a cluster state change listener
-     * @param controller an instance of the immutable cluster state controller, so we can perform the cluster state changes
+     * @param stateService an instance of the immutable cluster state controller, so we can perform the cluster state changes
      * @param environment we need the environment to pull the location of the config and operator directories
      */
-    public FileSettingsService(ClusterService clusterService, ImmutableClusterStateController controller, Environment environment) {
-        this.controller = controller;
+    public FileSettingsService(ClusterService clusterService, ReservedClusterStateService stateService, Environment environment) {
+        this.stateService = stateService;
         this.environment = environment;
         clusterService.addListener(this);
     }
@@ -276,18 +276,14 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         try (
             XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, Files.newInputStream(path))
         ) {
-            controller.process(NAMESPACE, parser, (e) -> {
+            stateService.process(NAMESPACE, parser, (e) -> {
                 if (e != null) {
-                    if (e instanceof ImmutableClusterStateController.IncompatibleVersionException) {
-                        logger.info(e.getMessage());
+                    // If we encountered an exception trying to apply the operator state at
+                    // startup time, we throw an error to force Elasticsearch to exit.
+                    if (onStartup) {
+                        throw new OperatorConfigurationError("Error applying operator settings", e);
                     } else {
-                        // If we encountered an exception trying to apply the operator state at
-                        // startup time, we throw an error to force Elasticsearch to exit.
-                        if (onStartup) {
-                            throw new OperatorConfigurationError("Error applying operator settings", e);
-                        } else {
-                            logger.error("Error processing operator settings json file", e);
-                        }
+                        logger.error("Error processing operator settings json file", e);
                     }
                 }
             });

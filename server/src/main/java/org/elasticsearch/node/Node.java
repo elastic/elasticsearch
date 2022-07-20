@@ -164,6 +164,9 @@ import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.readiness.ReadinessService;
 import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
+import org.elasticsearch.reservedstate.ReservedClusterStateHandlerProvider;
+import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
@@ -706,6 +709,17 @@ public class Node implements Closeable {
                 )
             ).toList();
 
+            List<ReservedClusterStateHandler<?>> reservedStateHandlers = new ArrayList<>();
+
+            // add all reserved state handlers from server
+            reservedStateHandlers.add(new ReservedClusterSettingsAction(settingsModule.getClusterSettings()));
+
+            // add all reserved state handlers from plugins
+            List<? extends ReservedClusterStateHandlerProvider> pluginHandlers = pluginsService.loadServiceProviders(
+                ReservedClusterStateHandlerProvider.class
+            );
+            pluginHandlers.forEach(h -> reservedStateHandlers.addAll(h.handlers()));
+
             ActionModule actionModule = new ActionModule(
                 settings,
                 clusterModule.getIndexNameExpressionResolver(),
@@ -718,7 +732,8 @@ public class Node implements Closeable {
                 circuitBreakerService,
                 usageService,
                 systemIndices,
-                clusterService
+                clusterService,
+                reservedStateHandlers
             );
             modules.add(actionModule);
 
@@ -1023,7 +1038,7 @@ public class Node implements Closeable {
 
             modules.add(
                 b -> b.bind(FileSettingsService.class)
-                    .toInstance(new FileSettingsService(clusterService, actionModule.getImmutableClusterStateController(), environment))
+                    .toInstance(new FileSettingsService(clusterService, actionModule.getReservedClusterStateService(), environment))
             );
 
             injector = modules.createInjector();
@@ -1063,8 +1078,6 @@ public class Node implements Closeable {
 
             logger.debug("initializing HTTP handlers ...");
             actionModule.initRestHandlers(() -> clusterService.state().nodesIfRecovered());
-            logger.debug("initializing operator handlers ...");
-            actionModule.initImmutableClusterStateHandlers(pluginsService);
             logger.info("initialized");
 
             success = true;

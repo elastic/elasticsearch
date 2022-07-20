@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.analytics.aggregations.metrics;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
@@ -83,7 +83,7 @@ public class TDigestPreAggregatedPercentilesAggregatorTests extends AggregatorTe
 
     public void testSomeMatchesBinaryDocValues() throws IOException {
         testCase(
-            new DocValuesFieldExistsQuery("number"),
+            new FieldExistsQuery("number"),
             iw -> { iw.addDocument(singleton(histogramFieldDocValues("number", new double[] { 60, 40, 20, 10 }))); },
             hdr -> {
                 // assertEquals(4L, hdr.state.getTotalCount());
@@ -98,7 +98,7 @@ public class TDigestPreAggregatedPercentilesAggregatorTests extends AggregatorTe
     }
 
     public void testSomeMatchesMultiBinaryDocValues() throws IOException {
-        testCase(new DocValuesFieldExistsQuery("number"), iw -> {
+        testCase(new FieldExistsQuery("number"), iw -> {
             iw.addDocument(singleton(histogramFieldDocValues("number", new double[] { 60, 40, 20, 10 })));
             iw.addDocument(singleton(histogramFieldDocValues("number", new double[] { 60, 40, 20, 10 })));
             iw.addDocument(singleton(histogramFieldDocValues("number", new double[] { 60, 40, 20, 10 })));
@@ -133,7 +133,7 @@ public class TDigestPreAggregatedPercentilesAggregatorTests extends AggregatorTe
                 MappedFieldType fieldType = new HistogramFieldMapper.HistogramFieldType("number", Collections.emptyMap(), null);
                 Aggregator aggregator = createAggregator(builder, indexSearcher, fieldType);
                 aggregator.preCollection();
-                indexSearcher.search(query, aggregator);
+                indexSearcher.search(query, aggregator.asCollector());
                 aggregator.postCollection();
                 verify.accept((InternalTDigestPercentiles) aggregator.buildTopLevel());
 

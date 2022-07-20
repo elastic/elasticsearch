@@ -97,6 +97,10 @@ The detailed allocation status given the deployment configuration.
 (integer)
 The current number of nodes where the model is allocated.
 
+`cache_size`:::
+(<<byte-units,byte value>>)
+The inference cache size (in memory outside the JVM heap) per node for the model.
+
 `state`:::
 (string)
 The detailed allocation state related to the nodes.

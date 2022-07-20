@@ -58,16 +58,16 @@ public class TransformScheduledTaskTests extends ESTestCase {
         {
             TransformScheduledTask task = new TransformScheduledTask(TRANSFORM_ID, FREQUENCY, LAST_TRIGGERED_TIME_MILLIS, 1, LISTENER);
             // Verify that the next scheduled time is calculated properly when failure count is greater than 0
-            assertThat(task.getNextScheduledTimeMillis(), is(equalTo(102000L)));
+            assertThat(task.getNextScheduledTimeMillis(), is(equalTo(105000L)));
         }
     }
 
     public void testCalculateNextScheduledTimeAfterFailure() {
         long lastTriggeredTimeMillis = Instant.now().toEpochMilli();
         long[] expectedDelayMillis = {
-            1000,    // 1s
-            2000,    // 2s
-            4000,    // 4s
+            5000,    // 5s
+            5000,    // 5s
+            5000,    // 5s
             8000,    // 8s
             16000,   // 16s
             32000,   // 32s

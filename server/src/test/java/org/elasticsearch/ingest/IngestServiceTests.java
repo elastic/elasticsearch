@@ -1153,6 +1153,8 @@ public class IngestServiceTests extends ESTestCase {
                     ingestDocument.setFieldValue(metadata.getFieldName(), ifPrimaryTerm);
                 } else if (metadata == IngestDocument.Metadata.DYNAMIC_TEMPLATES) {
                     ingestDocument.setFieldValue(metadata.getFieldName(), Map.of("foo", "bar"));
+                } else if (metadata == IngestDocument.Metadata.TYPE) {
+                    // can't update _type
                 } else {
                     ingestDocument.setFieldValue(metadata.getFieldName(), "update" + metadata.getFieldName());
                 }
@@ -2228,9 +2230,9 @@ public class IngestServiceTests extends ESTestCase {
 
         @Override
         public boolean matches(IngestDocument other) {
-            // ingest metadata and IngestSourceAndMetadata will not be the same (timestamp differs every time)
+            // ingest metadata and IngestCtxMap will not be the same (timestamp differs every time)
             return Objects.equals(ingestDocument.getSource(), other.getSource())
-                && Objects.equals(ingestDocument.getMetadataMap(), other.getMetadataMap());
+                && Objects.equals(ingestDocument.getMetadata().getMap(), other.getMetadata().getMap());
         }
     }
 

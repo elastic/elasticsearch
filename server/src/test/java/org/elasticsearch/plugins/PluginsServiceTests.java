@@ -531,6 +531,10 @@ public class PluginsServiceTests extends ESTestCase {
             public TestExtension(TestPlugin plugin) {
 
             }
+
+            public TestExtension(TestPlugin plugin, String anotherArg) {
+
+            }
         }
         IllegalStateException e = expectThrows(
             IllegalStateException.class,

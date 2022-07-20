@@ -21,9 +21,8 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.MultiTermQuery;
-import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
@@ -318,10 +317,8 @@ public abstract class MappedFieldType {
     }
 
     public Query existsQuery(SearchExecutionContext context) {
-        if (hasDocValues()) {
-            return new DocValuesFieldExistsQuery(name());
-        } else if (getTextSearchInfo().hasNorms()) {
-            return new NormsFieldExistsQuery(name());
+        if (hasDocValues() || getTextSearchInfo().hasNorms()) {
+            return new FieldExistsQuery(name());
         } else {
             return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
         }

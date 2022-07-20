@@ -228,7 +228,7 @@ Synthetic source always sorts `boolean` fields. For example:
 PUT idx
 {
   "mappings": {
-    "_source": { "synthetic": true },
+    "_source": { "mode": "synthetic" },
     "properties": {
       "bool": { "type": "boolean" }
     }

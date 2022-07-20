@@ -22,33 +22,25 @@ import java.util.stream.Collectors;
 public class UpdateMetadata extends Metadata {
     // AbstractAsyncBulkByScrollAction.OpType uses 'noop' rather than 'none', so unify on 'noop' but allow 'none' in
     // the ctx map
-
     protected static final String LEGACY_NOOP_STRING = "none";
 
-    protected static final FieldProperty<String> SET_ONCE_STRING = new FieldProperty<>(String.class, true, false, null);
-
-    protected static final FieldProperty<Number> SET_ONCE_LONG = new FieldProperty<>(
-        Number.class,
-        false,
-        false,
-        FieldProperty.LONGABLE_NUMBER
-    );
+    private static final FieldProperty<String> NullStringField = StringField.withNullable();
 
     static final Map<String, FieldProperty<?>> PROPERTIES = Map.of(
         INDEX,
-        SET_ONCE_STRING,
+        NullStringField,
         ID,
-        SET_ONCE_STRING,
+        NullStringField,
         VERSION,
-        SET_ONCE_LONG,
+        LongField,
         ROUTING,
-        SET_ONCE_STRING,
+        NullStringField,
         TYPE,
-        SET_ONCE_STRING,
+        NullStringField,
         OP,
-        new FieldProperty<>(String.class, true, true, null),
+        NullStringField.withWritable(),
         TIMESTAMP,
-        SET_ONCE_LONG
+        LongField
     );
 
     protected final Set<String> validOps;

@@ -100,7 +100,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
         ) {
             super(
                 task,
-                // use sequence number powered optimistic concurrency control
+                // use sequence number powered optimistic concurrency control, TODO(stu): no way to access version
                 false,
                 true,
                 logger,

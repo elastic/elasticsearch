@@ -46,7 +46,6 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.security.action.apikey.ApiKeyTests;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyAction;
@@ -614,15 +613,20 @@ public class LoggingAuditTrailTests extends ESTestCase {
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
 
         final String keyId = randomAlphaOfLength(10);
+        final MetadataWithSerialization metadataWithSerialization = randomMetadataWithSerialization();
         final var updateApiKeyRequest = new UpdateApiKeyRequest(
             keyId,
             randomBoolean() ? null : keyRoleDescriptors,
-            ApiKeyTests.randomMetadata()
+            metadataWithSerialization.metadata()
         );
         auditTrail.accessGranted(requestId, authentication, UpdateApiKeyAction.NAME, updateApiKeyRequest, authorizationInfo);
+        final String roleDescriptorsSection = updateApiKeyRequest.getRoleDescriptors() == null ? "" : "," + roleDescriptorsStringBuilder;
+        final String metadataSection = updateApiKeyRequest.getMetadata() == null
+            ? ""
+            : ",\"metadata\":%s".formatted(metadataWithSerialization.serialization());
         final var expectedUpdateKeyAuditEventString = """
-            "change":{"apikey":{"id":"%s"%s}}\
-            """.formatted(keyId, updateApiKeyRequest.getRoleDescriptors() == null ? "" : "," + roleDescriptorsStringBuilder);
+            "change":{"apikey":{"id":"%s"%s%s}}\
+            """.formatted(keyId, roleDescriptorsSection, metadataSection);
         output = CapturingLogger.output(logger.getName(), Level.INFO);
         assertThat(output.size(), is(2));
         String generatedUpdateKeyAuditEventString = output.get(1);
@@ -2900,5 +2904,28 @@ public class LoggingAuditTrailTests extends ESTestCase {
         } else {
             checkedFields.put(LoggingAuditTrail.REQUEST_NAME_FIELD_NAME, MockRequest.class.getSimpleName());
         }
+    }
+
+    private record MetadataWithSerialization(Map<String, Object> metadata, String serialization) {};
+
+    private MetadataWithSerialization randomMetadataWithSerialization() {
+        final int metadataCase = randomInt(3);
+        return switch (metadataCase) {
+            case 0 -> new MetadataWithSerialization(null, null);
+            case 1 -> new MetadataWithSerialization(Map.of(), "{}");
+            case 2 -> {
+                final Map<String, Object> metadata = new TreeMap<>();
+                metadata.put("test", true);
+                metadata.put("ans", 42);
+                yield new MetadataWithSerialization(metadata, "{\"ans\":42,\"test\":true}");
+            }
+            case 3 -> {
+                final Map<String, Object> metadata = new TreeMap<>();
+                metadata.put("ans", List.of(42, true));
+                metadata.put("other", Map.of("42", true));
+                yield new MetadataWithSerialization(metadata, "{\"ans\":[42,true],\"other\":{\"42\":true}}");
+            }
+            default -> throw new IllegalStateException("Unexpected case number: " + metadataCase);
+        };
     }
 }

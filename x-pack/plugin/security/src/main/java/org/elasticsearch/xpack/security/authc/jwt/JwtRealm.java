@@ -503,23 +503,6 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                 }
                 // Validate all else before signature, because these checks are more helpful diagnostics than rejected signatures.
                 final boolean isJwtSigHmac = JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_HMAC.contains(header.getAlgorithm().getName());
-                final boolean isJwtSigPkc = JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_PKC.contains(header.getAlgorithm().getName());
-                if (isJwtSigHmac && (this.isConfiguredJwkSetHmac == false) && (this.isConfiguredJwkOidcHmac == false)) {
-                    final String msg = "Realm [" + super.name() + "] not configured to verify PKC JWTs for token=[" + tokenPrincipal + "].";
-                    LOGGER.debug(msg);
-                    listener.onResponse(AuthenticationResult.unsuccessful(msg, null));
-                    return;
-                } else if (isJwtSigPkc && (this.isConfiguredJwkSetPkc == false)) {
-                    final String msg = "Realm ["
-                        + super.name()
-                        + "] not configured to verify HMAC JWTs for token=["
-                        + tokenPrincipal
-                        + "].";
-                    LOGGER.debug(msg);
-                    listener.onResponse(AuthenticationResult.unsuccessful(msg, null));
-                    return;
-                }
-
                 JwtValidateUtil.validateType(jwt);
                 JwtValidateUtil.validateIssuer(jwt, allowedIssuer);
                 JwtValidateUtil.validateAudiences(jwt, allowedAudiences);

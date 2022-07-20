@@ -88,7 +88,11 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
         return true;
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/82569")
+    @Override
+    protected boolean preserveTemplatesUponCompletion() {
+        return true;
+    }
+
     public void testCreateAndRestoreSnapshot() throws IOException {
         final String repoName = getTestName();
         try {
@@ -135,7 +139,6 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/82569")
     public void testReadOnlyRepo() throws IOException {
         final String repoName = getTestName();
         final int shards = 3;
@@ -169,7 +172,6 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
         ElasticsearchStatusException.class
     );
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/82569")
     public void testUpgradeMovesRepoToNewMetaVersion() throws IOException {
         final String repoName = getTestName();
         try {

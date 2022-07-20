@@ -12,6 +12,7 @@ import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 
 import org.elasticsearch.cli.Command;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.core.PathUtils;
@@ -54,7 +55,7 @@ public class GeoIpCli extends Command {
     }
 
     @Override
-    protected void execute(Terminal terminal, OptionSet options) throws Exception {
+    protected void execute(Terminal terminal, OptionSet options, ProcessInfo processInfo) throws Exception {
         Path source = getPath(options.valueOf(sourceDirectory));
         String targetString = options.valueOf(targetDirectory);
         Path target = targetString != null ? getPath(targetString) : source;

@@ -180,6 +180,7 @@ public abstract class GeoPointFieldScript extends AbstractFieldScript {
         }
 
         public void emit(double lat, double lon) {
+            script.checkMaxSize(script.count());
             script.emit(lat, lon);
         }
     }

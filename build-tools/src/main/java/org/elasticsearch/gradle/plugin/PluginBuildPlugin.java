@@ -120,8 +120,6 @@ public class PluginBuildPlugin implements Plugin<Project> {
             task.getExtendedPlugins().set(providerFactory.provider(extension::getExtendedPlugins));
             task.getHasNativeController().set(providerFactory.provider(extension::isHasNativeController));
             task.getRequiresKeystore().set(providerFactory.provider(extension::isRequiresKeystore));
-            task.getPluginType().set(providerFactory.provider(extension::getType));
-            task.getJavaOpts().set(providerFactory.provider(extension::getJavaOpts));
             task.getIsLicensed().set(providerFactory.provider(extension::isLicensed));
 
             var mainSourceSet = project.getExtensions().getByType(SourceSetContainer.class).getByName(SourceSet.MAIN_SOURCE_SET_NAME);

@@ -26,7 +26,6 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.net.URI;
 import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.AccessDeniedException;
@@ -118,10 +117,6 @@ public class IOUtilsTests extends ESTestCase {
         runDeleteFilesIgnoringExceptionsTest(Function.identity(), IOUtils::deleteFilesIgnoringExceptions);
     }
 
-    public void testDeleteFilesIgnoringExceptionsIterable() throws IOException {
-        runDeleteFilesIgnoringExceptionsTest((Function<Path[], List<Path>>) Arrays::asList, IOUtils::deleteFilesIgnoringExceptions);
-    }
-
     private <T> void runDeleteFilesIgnoringExceptionsTest(
         final Function<Path[], T> function,
         CheckedConsumer<T, IOException> deleteFilesIgnoringExceptions
@@ -158,10 +153,8 @@ public class IOUtilsTests extends ESTestCase {
         for (int i = 0; i < numberOfLocations; i++) {
             if (exception && randomBoolean()) {
                 final Path location = createTempDir();
-                final FileSystem fs = new AccessDeniedWhileDeletingFileSystem(location.getFileSystem()).getFileSystem(
-                    URI.create("file:///")
-                );
-                final Path wrapped = new FilterPath(location, fs);
+                final FilterFileSystemProvider fsProvider = new AccessDeniedWhileDeletingFileSystem(location.getFileSystem());
+                final Path wrapped = fsProvider.wrapPath(location);
                 locations[i] = wrapped.resolve(randomAlphaOfLength(8));
                 Files.createDirectory(locations[i]);
                 locationsThrowingException.add(locations[i]);
@@ -246,8 +239,8 @@ public class IOUtilsTests extends ESTestCase {
 
     public void testFsyncAccessDeniedOpeningDirectory() throws Exception {
         final Path path = createTempDir().toRealPath();
-        final FileSystem fs = new AccessDeniedWhileOpeningDirectoryFileSystem(path.getFileSystem()).getFileSystem(URI.create("file:///"));
-        final Path wrapped = new FilterPath(path, fs);
+        final FilterFileSystemProvider fsProvider = new AccessDeniedWhileOpeningDirectoryFileSystem(path.getFileSystem());
+        final Path wrapped = fsProvider.wrapPath(path);
         if (Constants.WINDOWS) {
             // no exception, we early return and do not even try to open the directory
             fsync(wrapped, true);

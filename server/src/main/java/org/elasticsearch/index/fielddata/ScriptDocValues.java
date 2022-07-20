@@ -232,6 +232,9 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         /** Returns the bounding box of this geometry  */
         public abstract GeoBoundingBox getBoundingBox();
 
+        /** Returns the suggested label position  */
+        public abstract GeoPoint getLabelPosition();
+
         /** Returns the centroid of this geometry  */
         public abstract GeoPoint getCentroid();
 
@@ -247,6 +250,8 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         GeoPoint getInternalCentroid();
 
         GeoBoundingBox getInternalBoundingBox();
+
+        GeoPoint getInternalLabelPosition();
     }
 
     public static class GeoPoints extends Geometry<GeoPoint> {
@@ -362,6 +367,11 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         @Override
         public GeoBoundingBox getBoundingBox() {
             return size() == 0 ? null : geometrySupplier.getInternalBoundingBox();
+        }
+
+        @Override
+        public GeoPoint getLabelPosition() {
+            return size() == 0 ? null : geometrySupplier.getInternalLabelPosition();
         }
     }
 

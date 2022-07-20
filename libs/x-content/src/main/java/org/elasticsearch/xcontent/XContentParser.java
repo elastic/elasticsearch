@@ -9,6 +9,7 @@
 package org.elasticsearch.xcontent;
 
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
 
 import java.io.Closeable;
@@ -69,6 +70,11 @@ public interface XContentParser extends Closeable {
     void allowDuplicateKeys(boolean allowDuplicateKeys);
 
     Token nextToken() throws IOException;
+
+    @Nullable
+    default String nextFieldName() throws IOException {
+        return nextToken() == Token.FIELD_NAME ? currentName() : null;
+    }
 
     void skipChildren() throws IOException;
 

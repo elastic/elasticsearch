@@ -26,6 +26,8 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.action.ValidateActions.addValidationError;
+
 public class RollupAction extends ActionType<AcknowledgedResponse> {
     public static final RollupAction INSTANCE = new RollupAction();
     public static final String NAME = "indices:admin/xpack/rollup";
@@ -91,7 +93,17 @@ public class RollupAction extends ActionType<AcknowledgedResponse> {
 
         @Override
         public ActionRequestValidationException validate() {
-            return null;
+            ActionRequestValidationException validationException = null;
+            if (sourceIndex == null) {
+                validationException = addValidationError("source index is missing", validationException);
+            }
+            if (rollupIndex == null) {
+                validationException = addValidationError("rollup index name is missing", validationException);
+            }
+            if (rollupConfig == null) {
+                validationException = addValidationError("rollup configuration is missing", validationException);
+            }
+            return validationException;
         }
 
         @Override

@@ -281,7 +281,7 @@ Indexes the specified document if it does not already exist.
 The following line must contain the source data to be indexed.
 +
 --
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-index]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-index-ds]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-id]
 

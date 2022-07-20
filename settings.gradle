@@ -15,6 +15,14 @@ includeBuild "build-tools-internal"
 
 rootProject.name = "elasticsearch"
 
+dependencyResolutionManagement {
+  versionCatalogs {
+    buildLibs {
+      from(files("gradle/build.versions.toml"))
+    }
+  }
+}
+
 List projects = [
   'rest-api-spec',
   'docs',
@@ -55,6 +63,7 @@ List projects = [
   'distribution:tools:java-version-checker',
   'distribution:tools:cli-launcher',
   'distribution:tools:server-cli',
+  'distribution:tools:windows-service-cli',
   'distribution:tools:plugin-cli',
   'distribution:tools:keystore-cli',
   'distribution:tools:geoip-cli',

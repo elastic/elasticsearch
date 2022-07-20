@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.idp.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -20,7 +19,6 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.support.SecondaryAuthentication;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -43,7 +41,6 @@ import java.net.URL;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.CoreMatchers.containsString;
@@ -159,21 +156,19 @@ public class TransportSamlInitiateSingleSignOnActionTests extends IdpSamlTestCas
         if (withSecondaryAuth) {
             new SecondaryAuthentication(
                 securityContext,
-                new Authentication(
-                    new User(
-                        "saml_enduser",
-                        new String[] { "saml_enduser_role" },
-                        "Saml Enduser",
-                        "samlenduser@elastic.co",
-                        new HashMap<>(),
-                        true
-                    ),
-                    new Authentication.RealmRef("_es_api_key", "_es_api_key", "node_name"),
-                    new Authentication.RealmRef("_es_api_key", "_es_api_key", "node_name"),
-                    Version.CURRENT,
-                    Authentication.AuthenticationType.API_KEY,
-                    Map.of(AuthenticationField.API_KEY_ID_KEY, randomAlphaOfLength(20))
-                )
+                AuthenticationTestHelper.builder()
+                    .apiKey()
+                    .user(
+                        new User(
+                            "saml_enduser",
+                            new String[] { "saml_enduser_role" },
+                            "Saml Enduser",
+                            "samlenduser@elastic.co",
+                            new HashMap<>(),
+                            true
+                        )
+                    )
+                    .build()
             ).writeToContext(threadContext);
         }
 

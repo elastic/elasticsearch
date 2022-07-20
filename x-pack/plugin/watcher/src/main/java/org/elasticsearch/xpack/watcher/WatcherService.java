@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.watcher;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
@@ -384,7 +383,7 @@ public class WatcherService {
                             watches.add(watch);
                         }
                     } catch (Exception e) {
-                        logger.error(new ParameterizedMessage("couldn't load watch [{}], ignoring it...", id), e);
+                        logger.error(() -> "couldn't load watch [" + id + "], ignoring it...", e);
                     }
                 }
                 SearchScrollRequest request = new SearchScrollRequest(response.getScrollId());

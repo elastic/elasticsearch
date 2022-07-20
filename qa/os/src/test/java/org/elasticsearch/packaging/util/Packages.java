@@ -337,7 +337,11 @@ public class Packages {
          * @return Recent journald logs for the Elasticsearch service.
          */
         public Result getLogs() {
-            return sh.run("journalctl -u elasticsearch.service --after-cursor='" + this.cursor + "'");
+            String cmd = "journalctl -u elasticsearch.service";
+            if (cursor.isEmpty() == false) {
+                cmd += " --after-cursor='" + this.cursor + "'";
+            }
+            return sh.run(cmd);
         }
     }
 

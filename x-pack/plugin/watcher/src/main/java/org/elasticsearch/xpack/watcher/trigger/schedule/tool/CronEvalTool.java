@@ -11,6 +11,7 @@ import joptsimple.OptionSpec;
 
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.time.DateFormatter;
@@ -50,7 +51,7 @@ class CronEvalTool extends Command {
     }
 
     @Override
-    protected void execute(Terminal terminal, OptionSet options) throws Exception {
+    protected void execute(Terminal terminal, OptionSet options, ProcessInfo processInfo) throws Exception {
         int count = countOption.value(options);
         List<String> args = arguments.values(options);
         if (args.size() != 1) {

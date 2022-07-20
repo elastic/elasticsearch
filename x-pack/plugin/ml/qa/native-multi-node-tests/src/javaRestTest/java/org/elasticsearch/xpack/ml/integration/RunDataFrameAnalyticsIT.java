@@ -649,7 +649,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             id,
             "Created analytics with type [outlier_detection]",
             "Estimated memory usage [",
-            "Job requires at least [1tb] free memory on a machine learning capable node to run",
+            "Job requires at least [1tb] free memory on a machine learning node to run",
             "Started analytics",
             "Stopped analytics"
         );

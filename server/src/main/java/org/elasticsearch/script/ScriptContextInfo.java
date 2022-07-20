@@ -11,6 +11,7 @@ package org.elasticsearch.script;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -100,7 +101,7 @@ public class ScriptContextInfo implements ToXContentObject, Writeable {
         this.name = in.readString();
         this.execute = new ScriptMethodInfo(in);
         int numGetters = in.readInt();
-        Set<ScriptMethodInfo> getters = new HashSet<>(numGetters);
+        Set<ScriptMethodInfo> getters = Sets.newHashSetWithExpectedSize(numGetters);
         for (int i = 0; i < numGetters; i++) {
             getters.add(new ScriptMethodInfo(in));
         }

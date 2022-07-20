@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.searchablesnapshots.cache.full;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
@@ -56,6 +55,7 @@ import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUtils.toIntBytes;
 
 /**
@@ -353,10 +353,7 @@ public class CacheService extends AbstractLifecycleComponent {
 
                     @Override
                     public void onFailure(Exception e) {
-                        logger.warn(
-                            () -> new ParameterizedMessage("failed to evict cache files associated with shard {}", shardEviction),
-                            e
-                        );
+                        logger.warn(() -> format("failed to evict cache files associated with shard %s", shardEviction), e);
                         assert false : e;
                     }
                 }));
@@ -373,7 +370,7 @@ public class CacheService extends AbstractLifecycleComponent {
      * @param shardId           the {@link ShardId}
      */
     public void waitForCacheFilesEvictionIfNeeded(String snapshotUUID, String snapshotIndexName, ShardId shardId) {
-        assert assertGenericThreadPool();
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
         final Future<?> future;
         synchronized (shardsEvictionsMutex) {
             if (allowShardsEvictions == false) {
@@ -394,7 +391,7 @@ public class CacheService extends AbstractLifecycleComponent {
      */
     private void processShardEviction(ShardEviction shardEviction) {
         assert isPendingShardEviction(shardEviction) : "shard is not marked as evicted: " + shardEviction;
-        assert assertGenericThreadPool();
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
 
         shardsEvictionsLock.readLock().lock();
         try {
@@ -414,7 +411,7 @@ public class CacheService extends AbstractLifecycleComponent {
                         try {
                             cache.invalidate(cacheFile.getCacheKey(), cacheFile);
                         } catch (RuntimeException e) {
-                            logger.warn(() -> new ParameterizedMessage("failed to evict cache file {}", cacheFile.getCacheKey()), e);
+                            logger.warn(() -> format("failed to evict cache file %s", cacheFile.getCacheKey()), e);
                             assert false : e;
                         }
                     }
@@ -586,10 +583,7 @@ public class CacheService extends AbstractLifecycleComponent {
                                         shouldPersist = true;
                                     } catch (Exception e) {
                                         if (cacheDirsSyncExceptionsLogs.putIfAbsent(cacheDir, startTimeNanos) == null) {
-                                            logger.warn(
-                                                () -> new ParameterizedMessage("failed to synchronize cache directory [{}]", cacheDir),
-                                                e
-                                            );
+                                            logger.warn(() -> "failed to synchronize cache directory [" + cacheDir + "]", e);
                                         }
                                         assert e instanceof IOException : e;
                                         shouldPersist = false;
@@ -606,11 +600,7 @@ public class CacheService extends AbstractLifecycleComponent {
                 } catch (Exception e) {
                     if (cacheFilesSyncExceptionsLogs.putIfAbsent(cacheDir, startTimeNanos) == null) {
                         logger.warn(
-                            () -> new ParameterizedMessage(
-                                "failed to process [{}] for cache file [{}]",
-                                event.type,
-                                cacheFile.getFile().getFileName()
-                            ),
+                            () -> format("failed to process [%s] for cache file [%s]", event.type, cacheFile.getFile().getFileName()),
                             e
                         );
                     }
@@ -743,13 +733,6 @@ public class CacheService extends AbstractLifecycleComponent {
                 && Objects.equals(snapshotIndexName, cacheKey.getSnapshotIndexName())
                 && Objects.equals(shardId, cacheKey.getShardId());
         }
-    }
-
-    private static boolean assertGenericThreadPool() {
-        final String threadName = Thread.currentThread().getName();
-        assert threadName.contains('[' + ThreadPool.Names.GENERIC + ']') || threadName.startsWith("TEST-")
-            : "expected generic thread pool but got " + threadName;
-        return true;
     }
 
     private enum CacheFileEventType {

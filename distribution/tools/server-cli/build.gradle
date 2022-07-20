@@ -10,25 +10,25 @@ import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis
 apply plugin: 'elasticsearch.build'
 
 dependencies {
-  implementation "org.yaml:snakeyaml:${versions.snakeyaml}"
-  testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
-  testImplementation "junit:junit:${versions.junit}"
-  testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
+  compileOnly project(":server")
+  compileOnly project(":libs:elasticsearch-cli")
+
+  testImplementation project(":test:framework")
+}
+
+tasks.named("test").configure {
+  systemProperty "tests.security.manager", "false"
 }
 
 tasks.withType(CheckForbiddenApis).configureEach {
-  replaceSignatureFiles 'jdk-signatures', 'snakeyaml-signatures'
-}
-
-tasks.named("testingConventions").configure {
-  naming.clear()
-  naming {
-    Tests {
-      baseClass 'org.elasticsearch.server.cli.LaunchersTestCase'
-    }
-  }
+  replaceSignatureFiles 'jdk-signatures'
 }
 
 ["javadoc", "loggerUsageCheck", "jarHell"].each { tsk ->
   tasks.named(tsk).configure { enabled = false }
+}
+
+tasks.named("test").configure {
+  // this is necessary to jvm options can invoke java to find final options
+  systemProperty "tests.system_call_filter", "false"
 }

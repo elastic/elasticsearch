@@ -181,7 +181,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
                         state,
                         new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "")
                     )
-                ).build()
+                )
             );
             indexRoutingTableBuilder.addReplica();
         }
@@ -206,7 +206,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         indexRoutingTableBuilder.addIndexShard(
             new IndexShardRoutingTable.Builder(shardId).addShard(
                 TestShardRouting.newShardRouting(shardId, "_node_id", null, true, ShardRoutingState.STARTED)
-            ).build()
+            )
         );
         indexRoutingTableBuilder.addReplica();
         routingTableBuilder.add(indexRoutingTableBuilder.build());
@@ -338,7 +338,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         indexRoutingTableBuilder.addIndexShard(
             new IndexShardRoutingTable.Builder(shardId).addShard(
                 TestShardRouting.newShardRouting(shardId, "_node_id", null, true, ShardRoutingState.STARTED)
-            ).build()
+            )
         );
         indexRoutingTableBuilder.addReplica();
         routingTableBuilder.add(indexRoutingTableBuilder.build());
@@ -372,7 +372,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         indexRoutingTableBuilder.addIndexShard(
             new IndexShardRoutingTable.Builder(new ShardId(index, 0)).addShard(
                 TestShardRouting.newShardRouting("triggered-watches-alias", 0, "_node_id", null, true, ShardRoutingState.STARTED)
-            ).build()
+            )
         );
         indexRoutingTableBuilder.addReplica();
         final Index otherIndex = metadataBuilder.get("whatever").getIndex();
@@ -380,7 +380,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         otherIndexRoutingTableBuilder.addIndexShard(
             new IndexShardRoutingTable.Builder(new ShardId(otherIndex, 0)).addShard(
                 TestShardRouting.newShardRouting("whatever", 0, "_node_id", null, true, ShardRoutingState.STARTED)
-            ).build()
+            )
         );
 
         csBuilder.metadata(metadataBuilder);

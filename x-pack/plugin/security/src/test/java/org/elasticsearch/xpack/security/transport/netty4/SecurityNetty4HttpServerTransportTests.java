@@ -14,7 +14,7 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.http.AbstractHttpServerTransportTestCase;
@@ -69,7 +69,7 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
         SecurityNetty4HttpServerTransport transport = new SecurityNetty4HttpServerTransport(
             settings,
             new NetworkService(Collections.emptyList()),
-            mock(BigArrays.class),
+            mock(PageCacheRecycler.class),
             mock(IPFilter.class),
             sslService,
             mock(ThreadPool.class),
@@ -95,7 +95,7 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
         SecurityNetty4HttpServerTransport transport = new SecurityNetty4HttpServerTransport(
             settings,
             new NetworkService(Collections.emptyList()),
-            mock(BigArrays.class),
+            mock(PageCacheRecycler.class),
             mock(IPFilter.class),
             sslService,
             mock(ThreadPool.class),
@@ -121,7 +121,7 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
         SecurityNetty4HttpServerTransport transport = new SecurityNetty4HttpServerTransport(
             settings,
             new NetworkService(Collections.emptyList()),
-            mock(BigArrays.class),
+            mock(PageCacheRecycler.class),
             mock(IPFilter.class),
             sslService,
             mock(ThreadPool.class),
@@ -147,7 +147,7 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
         SecurityNetty4HttpServerTransport transport = new SecurityNetty4HttpServerTransport(
             settings,
             new NetworkService(Collections.emptyList()),
-            mock(BigArrays.class),
+            mock(PageCacheRecycler.class),
             mock(IPFilter.class),
             sslService,
             mock(ThreadPool.class),
@@ -168,7 +168,7 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
         SecurityNetty4HttpServerTransport transport = new SecurityNetty4HttpServerTransport(
             settings,
             new NetworkService(Collections.emptyList()),
-            mock(BigArrays.class),
+            mock(PageCacheRecycler.class),
             mock(IPFilter.class),
             sslService,
             mock(ThreadPool.class),
@@ -190,7 +190,7 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
         transport = new SecurityNetty4HttpServerTransport(
             settings,
             new NetworkService(Collections.emptyList()),
-            mock(BigArrays.class),
+            mock(PageCacheRecycler.class),
             mock(IPFilter.class),
             sslService,
             mock(ThreadPool.class),
@@ -221,7 +221,7 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
         SecurityNetty4HttpServerTransport transport = new SecurityNetty4HttpServerTransport(
             settings,
             new NetworkService(Collections.emptyList()),
-            mock(BigArrays.class),
+            mock(PageCacheRecycler.class),
             mock(IPFilter.class),
             sslService,
             mock(ThreadPool.class),

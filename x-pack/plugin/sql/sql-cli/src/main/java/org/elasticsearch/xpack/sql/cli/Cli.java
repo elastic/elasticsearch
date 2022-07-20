@@ -11,8 +11,10 @@ import joptsimple.OptionSpec;
 
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.xpack.sql.cli.command.AllowPartialResultsCliCommand;
 import org.elasticsearch.xpack.sql.cli.command.ClearScreenCliCommand;
 import org.elasticsearch.xpack.sql.cli.command.CliCommand;
 import org.elasticsearch.xpack.sql.cli.command.CliCommands;
@@ -63,7 +65,7 @@ public class Cli extends Command {
                 true
             )
         );
-        int status = cli.main(args, Terminal.DEFAULT);
+        int status = cli.main(args, Terminal.DEFAULT, ProcessInfo.fromSystem());
         if (status != ExitCodes.OK) {
             exit(status);
         }
@@ -107,7 +109,7 @@ public class Cli extends Command {
     }
 
     @Override
-    protected void execute(org.elasticsearch.cli.Terminal terminal, OptionSet options) throws Exception {
+    protected void execute(Terminal terminal, OptionSet options, ProcessInfo processInfo) throws Exception {
         boolean debug = options.has("d") || options.has("debug");
         boolean binary = binaryCommunication.value(options);
         boolean checkConnection = checkOption.value(options);
@@ -130,6 +132,7 @@ public class Cli extends Command {
             new ClearScreenCliCommand(),
             new FetchSizeCliCommand(),
             new LenientCliCommand(),
+            new AllowPartialResultsCliCommand(),
             new FetchSeparatorCliCommand(),
             new ServerInfoCliCommand(),
             new ServerQueryCliCommand()

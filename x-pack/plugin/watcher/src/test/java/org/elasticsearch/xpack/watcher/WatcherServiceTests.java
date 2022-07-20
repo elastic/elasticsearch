@@ -149,11 +149,12 @@ public class WatcherServiceTests extends ESTestCase {
         Index watchIndex = new Index(Watch.INDEX, "uuid");
         ShardId shardId = new ShardId(watchIndex, 0);
 
-        IndexShardRoutingTable indexShardRoutingTable = new IndexShardRoutingTable.Builder(shardId).addShard(
-            TestShardRouting.newShardRouting(shardId, "node", true, ShardRoutingState.STARTED)
-        ).build();
-
-        IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(watchIndex).addIndexShard(indexShardRoutingTable).build();
+        IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(watchIndex)
+            .addIndexShard(
+                IndexShardRoutingTable.builder(shardId)
+                    .addShard(TestShardRouting.newShardRouting(shardId, "node", true, ShardRoutingState.STARTED))
+            )
+            .build();
         RoutingTable routingTable = RoutingTable.builder().add(indexRoutingTable).build();
         csBuilder.routingTable(routingTable);
 

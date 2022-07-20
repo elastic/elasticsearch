@@ -232,40 +232,39 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
         Map<String, String> historyUUIDs = new HashMap<>();
         Map<String, FileInfo> files = new HashMap<>();
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
-            String currentFieldName = parser.currentName();
+        String currentFieldName;
+        while ((currentFieldName = parser.nextFieldName()) != null) {
             token = parser.nextToken();
-            if (token == XContentParser.Token.START_ARRAY) {
-                if (Fields.FILES.equals(currentFieldName) == false) {
-                    XContentParserUtils.throwUnknownField(currentFieldName, parser);
+            switch (token) {
+                case START_ARRAY -> {
+                    if (Fields.FILES.equals(currentFieldName) == false) {
+                        XContentParserUtils.throwUnknownField(currentFieldName, parser);
+                    }
+                    while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                        FileInfo fileInfo = FileInfo.fromXContent(parser);
+                        files.put(fileInfo.name(), fileInfo);
+                    }
                 }
-                while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                    FileInfo fileInfo = FileInfo.fromXContent(parser);
-                    files.put(fileInfo.name(), fileInfo);
-                }
-            } else if (token == XContentParser.Token.START_OBJECT) {
-                if (Fields.SNAPSHOTS.equals(currentFieldName) == false) {
-                    XContentParserUtils.throwUnknownField(currentFieldName, parser);
-                }
-                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
-                    String snapshot = parser.currentName();
-                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                        if (token == XContentParser.Token.FIELD_NAME) {
-                            currentFieldName = parser.currentName();
-                            if (Fields.FILES.equals(currentFieldName) && parser.nextToken() == XContentParser.Token.START_ARRAY) {
-                                snapshotsMap.put(snapshot, XContentParserUtils.parseList(parser, XContentParser::text));
+                case START_OBJECT -> {
+                    if (Fields.SNAPSHOTS.equals(currentFieldName) == false) {
+                        XContentParserUtils.throwUnknownField(currentFieldName, parser);
+                    }
+                    String snapshot;
+                    while ((snapshot = parser.nextFieldName()) != null) {
+                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+                        while ((currentFieldName = parser.nextFieldName()) != null) {
+                            token = parser.nextToken();
+                            if (Fields.FILES.equals(currentFieldName)) {
+                                if (token == XContentParser.Token.START_ARRAY) {
+                                    snapshotsMap.put(snapshot, XContentParserUtils.parseList(parser, XContentParser::text));
+                                }
                             } else if (Fields.SHARD_STATE_ID.equals(currentFieldName)) {
-                                parser.nextToken();
                                 historyUUIDs.put(snapshot, parser.text());
                             }
                         }
                     }
                 }
-            } else {
-                XContentParserUtils.throwUnknownToken(token, parser);
+                default -> XContentParserUtils.throwUnknownToken(token, parser);
             }
         }
 

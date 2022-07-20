@@ -26,8 +26,8 @@ import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.lucene.search.vectorhighlight.CustomFieldQuery;
+import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext.Field;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext.FieldOptions;
@@ -99,7 +99,7 @@ public class FastVectorHighlighter implements Highlighter {
             Function<SourceLookup, FragmentsBuilder> fragmentsBuilderSupplier = fragmentsBuilderSupplier(
                 field,
                 fieldType,
-                fieldContext.context.getSearchExecutionContext(),
+                fieldContext.context,
                 forceSource,
                 fixBrokenAnalysis
             );
@@ -219,7 +219,7 @@ public class FastVectorHighlighter implements Highlighter {
     private Function<SourceLookup, FragmentsBuilder> fragmentsBuilderSupplier(
         SearchHighlightContext.Field field,
         MappedFieldType fieldType,
-        SearchExecutionContext context,
+        FetchContext fetchContext,
         boolean forceSource,
         boolean fixBrokenAnalysis
     ) {
@@ -242,7 +242,7 @@ public class FastVectorHighlighter implements Highlighter {
             if (options.numberOfFragments() != 0 && options.scoreOrdered()) {
                 supplier = lookup -> new SourceScoreOrderFragmentsBuilder(
                     fieldType,
-                    context,
+                    fetchContext,
                     fixBrokenAnalysis,
                     lookup,
                     options.preTags(),
@@ -252,7 +252,7 @@ public class FastVectorHighlighter implements Highlighter {
             } else {
                 supplier = lookup -> new SourceSimpleFragmentsBuilder(
                     fieldType,
-                    context,
+                    fetchContext,
                     fixBrokenAnalysis,
                     lookup,
                     options.preTags(),

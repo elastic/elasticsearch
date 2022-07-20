@@ -21,7 +21,6 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LRUQueryCache;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
@@ -35,6 +34,7 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.search.RandomApproximationQuery;
 import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.test.ESTestCase;
@@ -75,7 +75,7 @@ public class QueryProfilerTests extends ESTestCase {
             reader,
             IndexSearcher.getDefaultSimilarity(),
             IndexSearcher.getDefaultQueryCache(),
-            ALWAYS_CACHE_POLICY,
+            TrivialQueryCachingPolicy.ALWAYS,
             true
         );
     }
@@ -296,15 +296,4 @@ public class QueryProfilerTests extends ESTestCase {
         dir.close();
     }
 
-    private static final QueryCachingPolicy ALWAYS_CACHE_POLICY = new QueryCachingPolicy() {
-
-        @Override
-        public void onUse(Query query) {}
-
-        @Override
-        public boolean shouldCache(Query query) throws IOException {
-            return true;
-        }
-
-    };
 }

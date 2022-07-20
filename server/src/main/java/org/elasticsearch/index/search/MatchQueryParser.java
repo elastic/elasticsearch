@@ -255,7 +255,7 @@ public class MatchQueryParser {
         TextSearchInfo tsi = fieldType.getTextSearchInfo();
         assert tsi != TextSearchInfo.NONE;
         if (analyzer == null) {
-            return quoted ? tsi.getSearchQuoteAnalyzer() : tsi.getSearchAnalyzer();
+            return quoted ? tsi.searchQuoteAnalyzer() : tsi.searchAnalyzer();
         } else {
             return analyzer;
         }

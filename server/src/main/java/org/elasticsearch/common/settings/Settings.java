@@ -715,46 +715,47 @@ public final class Settings implements ToXContentFragment {
     private static void fromXContent(XContentParser parser, StringBuilder keyBuilder, Settings.Builder builder, boolean allowNullValues)
         throws IOException {
         final int length = keyBuilder.length();
-        while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-            if (parser.currentToken() == XContentParser.Token.FIELD_NAME) {
-                keyBuilder.setLength(length);
-                keyBuilder.append(parser.currentName());
-            } else if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
-                keyBuilder.append('.');
-                fromXContent(parser, keyBuilder, builder, allowNullValues);
-            } else if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
-                List<String> list = new ArrayList<>();
-                while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                    if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
-                        list.add(parser.text());
-                    } else if (parser.currentToken() == XContentParser.Token.VALUE_NUMBER) {
-                        list.add(parser.text()); // just use the string representation here
-                    } else if (parser.currentToken() == XContentParser.Token.VALUE_BOOLEAN) {
-                        list.add(String.valueOf(parser.text()));
-                    } else {
-                        throw new IllegalStateException("only value lists are allowed in serialized settings");
-                    }
+        String currentFieldName;
+        while ((currentFieldName = parser.nextFieldName()) != null) {
+            keyBuilder.setLength(length);
+            keyBuilder.append(currentFieldName);
+            XContentParser.Token token = parser.nextToken();
+            switch (token) {
+                case START_OBJECT -> {
+                    keyBuilder.append('.');
+                    fromXContent(parser, keyBuilder, builder, allowNullValues);
                 }
-                String key = keyBuilder.toString();
-                validateValue(key, list, parser, allowNullValues);
-                builder.putList(key, list);
-            } else if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
-                String key = keyBuilder.toString();
-                validateValue(key, null, parser, allowNullValues);
-                builder.putNull(key);
-            } else if (parser.currentToken() == XContentParser.Token.VALUE_STRING
-                || parser.currentToken() == XContentParser.Token.VALUE_NUMBER) {
+                case START_ARRAY -> {
+                    List<String> list = new ArrayList<>();
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        switch (token) {
+                            // just use the string representation here
+                            case VALUE_STRING, VALUE_NUMBER, VALUE_BOOLEAN -> list.add(parser.text());
+                            default -> throw new IllegalStateException("only value lists are allowed in serialized settings");
+                        }
+                    }
+                    String key = keyBuilder.toString();
+                    validateValue(key, list, parser, allowNullValues);
+                    builder.putList(key, list);
+                }
+                case VALUE_NULL -> {
+                    String key = keyBuilder.toString();
+                    validateValue(key, null, parser, allowNullValues);
+                    builder.putNull(key);
+                }
+                case VALUE_STRING, VALUE_NUMBER -> {
                     String key = keyBuilder.toString();
                     String value = parser.text();
                     validateValue(key, value, parser, allowNullValues);
                     builder.put(key, value);
-                } else if (parser.currentToken() == XContentParser.Token.VALUE_BOOLEAN) {
+                }
+                case VALUE_BOOLEAN -> {
                     String key = keyBuilder.toString();
                     validateValue(key, parser.text(), parser, allowNullValues);
                     builder.put(key, parser.booleanValue());
-                } else {
-                    XContentParserUtils.throwUnknownToken(parser.currentToken(), parser);
                 }
+                default -> XContentParserUtils.throwUnknownToken(parser.currentToken(), parser);
+            }
         }
     }
 

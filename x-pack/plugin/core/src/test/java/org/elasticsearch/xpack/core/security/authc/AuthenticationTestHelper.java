@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.security.authc;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -22,6 +23,7 @@ import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.pki.PkiRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
@@ -29,6 +31,7 @@ import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.SecurityProfileUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.core.security.user.UsernamesField;
 import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 
@@ -68,6 +71,14 @@ public class AuthenticationTestHelper {
         ServiceAccountSettings.REALM_TYPE
     );
 
+    private static final Set<User> INTERNAL_USERS = Set.of(
+        SystemUser.INSTANCE,
+        XPackUser.INSTANCE,
+        XPackSecurityUser.INSTANCE,
+        AsyncSearchUser.INSTANCE,
+        SecurityProfileUser.INSTANCE
+    );
+
     public static AuthenticationTestBuilder builder() {
         return new AuthenticationTestBuilder();
     }
@@ -76,6 +87,36 @@ public class AuthenticationTestHelper {
         return new User(
             ESTestCase.randomAlphaOfLengthBetween(3, 8),
             ESTestCase.randomArray(1, 3, String[]::new, () -> ESTestCase.randomAlphaOfLengthBetween(3, 8))
+        );
+    }
+
+    public static User userWithRandomMetadataAndDetails(final String username, final String... roles) {
+        return new User(
+            username,
+            roles,
+            ESTestCase.randomFrom(ESTestCase.randomAlphaOfLengthBetween(1, 10), null),
+            // Not a very realistic email address, but we don't validate this nor rely on correct format, so keeping it simple
+            ESTestCase.randomFrom(ESTestCase.randomAlphaOfLengthBetween(1, 10), null),
+            randomUserMetadata(),
+            true
+        );
+    }
+
+    public static Map<String, Object> randomUserMetadata() {
+        return ESTestCase.randomFrom(
+            Map.of(
+                "employee_id",
+                ESTestCase.randomAlphaOfLength(5),
+                "number",
+                1,
+                "numbers",
+                List.of(1, 3, 5),
+                "extra",
+                Map.of("favorite pizza", "hawaii", "age", 42)
+            ),
+            Map.of(ESTestCase.randomAlphaOfLengthBetween(3, 8), ESTestCase.randomAlphaOfLengthBetween(3, 8)),
+            Map.of(),
+            null
         );
     }
 
@@ -95,6 +136,10 @@ public class AuthenticationTestHelper {
             )
         );
         return new RealmDomain(ESTestCase.randomAlphaOfLengthBetween(3, 8), domainRealms);
+    }
+
+    public static Authentication.RealmRef randomRealmRef() {
+        return randomRealmRef(ESTestCase.randomBoolean());
     }
 
     public static Authentication.RealmRef randomRealmRef(boolean underDomain) {
@@ -121,6 +166,10 @@ public class AuthenticationTestHelper {
         }
     }
 
+    public static RealmConfig.RealmIdentifier randomRealmIdentifier(boolean includeInternal) {
+        return new RealmConfig.RealmIdentifier(randomRealmTypeSupplier(includeInternal).get(), ESTestCase.randomAlphaOfLengthBetween(3, 8));
+    }
+
     private static Supplier<String> randomRealmTypeSupplier(boolean includeInternal) {
         final Supplier<String> randomAllRealmTypeSupplier = () -> ESTestCase.randomFrom(
             "reserved",
@@ -132,6 +181,7 @@ public class AuthenticationTestHelper {
             OpenIdConnectRealmSettings.TYPE,
             SamlRealmSettings.TYPE,
             KerberosRealmSettings.TYPE,
+            PkiRealmSettings.TYPE,
             ESTestCase.randomAlphaOfLengthBetween(3, 8)
         );
         if (includeInternal) {
@@ -150,6 +200,35 @@ public class AuthenticationTestHelper {
         );
     }
 
+    private static User stripRoles(User user) {
+        if (user.roles() != null || user.roles().length == 0) {
+            return new User(user.principal(), Strings.EMPTY_ARRAY, user.fullName(), user.email(), user.metadata(), user.enabled());
+        } else {
+            return user;
+        }
+    }
+
+    public static String randomInternalUsername() {
+        return builder().internal().build(false).getUser().principal();
+    }
+
+    /**
+     * @return non-empty collection of internal usernames
+     */
+    public static List<String> randomInternalUsernames() {
+        return ESTestCase.randomNonEmptySubsetOf(INTERNAL_USERS.stream().map(User::principal).toList());
+    }
+
+    public static String randomInternalRoleName() {
+        return ESTestCase.randomFrom(
+            UsernamesField.SYSTEM_ROLE,
+            UsernamesField.XPACK_ROLE,
+            UsernamesField.ASYNC_SEARCH_ROLE,
+            UsernamesField.XPACK_SECURITY_ROLE,
+            UsernamesField.SECURITY_PROFILE_ROLE
+        );
+    }
+
     public static class AuthenticationTestBuilder {
         private Version version;
         private Authentication authenticatingAuthentication;
@@ -163,7 +242,7 @@ public class AuthenticationTestHelper {
         private AuthenticationTestBuilder() {}
 
         private AuthenticationTestBuilder(Authentication authentication) {
-            assert false == authentication.getUser().isRunAs() : "authenticating authentication cannot itself be run-as";
+            assert false == authentication.isRunAs() : "authenticating authentication cannot itself be run-as";
             this.authenticatingAuthentication = authentication;
             this.version = authentication.getVersion();
         }
@@ -227,15 +306,7 @@ public class AuthenticationTestHelper {
         }
 
         public AuthenticationTestBuilder internal() {
-            return internal(
-                ESTestCase.randomFrom(
-                    SystemUser.INSTANCE,
-                    XPackUser.INSTANCE,
-                    XPackSecurityUser.INSTANCE,
-                    SecurityProfileUser.INSTANCE,
-                    AsyncSearchUser.INSTANCE
-                )
-            );
+            return internal(ESTestCase.randomFrom(INTERNAL_USERS));
         }
 
         public AuthenticationTestBuilder internal(User user) {
@@ -338,6 +409,8 @@ public class AuthenticationTestHelper {
                         if (user == null) {
                             user = randomUser();
                         }
+                        // User associated to API key authentication has empty roles
+                        user = stripRoles(user);
                         prepareApiKeyMetadata();
                         authentication = Authentication.newApiKeyAuthentication(
                             AuthenticationResult.success(user, metadata),
@@ -359,6 +432,7 @@ public class AuthenticationTestHelper {
                             final int tokenVariant = ESTestCase.randomIntBetween(0, 9);
                             if (tokenVariant == 0 && user == null && realmRef == null) {
                                 // service account
+                                prepareServiceAccountMetadata();
                                 authentication = Authentication.newServiceAccountAuthentication(
                                     new User(
                                         ESTestCase.randomAlphaOfLengthBetween(3, 8) + "/" + ESTestCase.randomAlphaOfLengthBetween(3, 8)
@@ -371,6 +445,8 @@ public class AuthenticationTestHelper {
                                 if (user == null) {
                                     user = randomUser();
                                 }
+                                // User associated to API key authentication has empty roles
+                                user = stripRoles(user);
                                 prepareApiKeyMetadata();
                                 authentication = Authentication.newApiKeyAuthentication(
                                     AuthenticationResult.success(user, metadata),
@@ -407,13 +483,7 @@ public class AuthenticationTestHelper {
                     }
                     case INTERNAL -> {
                         if (user == null) {
-                            user = ESTestCase.randomFrom(
-                                SystemUser.INSTANCE,
-                                XPackUser.INSTANCE,
-                                XPackSecurityUser.INSTANCE,
-                                SecurityProfileUser.INSTANCE,
-                                AsyncSearchUser.INSTANCE
-                            );
+                            user = ESTestCase.randomFrom(INTERNAL_USERS);
                         }
                         assert User.isInternal(user) : "user must be internal for internal authentication";
                         assert realmRef == null : "cannot specify realm type for internal authentication";

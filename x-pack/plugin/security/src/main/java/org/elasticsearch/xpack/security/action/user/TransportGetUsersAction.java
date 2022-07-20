@@ -59,9 +59,6 @@ public class TransportGetUsersAction extends HandledTransportAction<GetUsersRequ
             for (String username : requestedUsers) {
                 if (ClientReservedRealm.isReserved(username, settings)) {
                     realmLookup.add(username);
-                } else if (User.isInternalUsername(username)) {
-                    listener.onFailure(new IllegalArgumentException("user [" + username + "] is internal"));
-                    return;
                 } else {
                     usersToSearchFor.add(username);
                 }

@@ -11,6 +11,7 @@ package org.elasticsearch.common.cli;
 import joptsimple.OptionSet;
 
 import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
@@ -45,11 +46,14 @@ public abstract class KeyStoreAwareCommand extends EnvironmentAwareCommand {
             passwordArray = terminal.readSecret("Enter new password for the elasticsearch keystore (empty for no password): ");
             char[] passwordVerification = terminal.readSecret("Enter same password again: ");
             if (Arrays.equals(passwordArray, passwordVerification) == false) {
-                throw new UserException(ExitCodes.DATA_ERROR, "Passwords are not equal, exiting.");
+                throw new UserException(
+                    ExitCodes.DATA_ERROR,
+                    "Passwords are not equal, exiting.: " + new String(passwordArray) + ", " + new String(passwordVerification)
+                );
             }
             Arrays.fill(passwordVerification, '\u0000');
         } else {
-            passwordArray = terminal.readSecret("Enter password for the elasticsearch keystore : ");
+            passwordArray = terminal.readSecret(KeyStoreWrapper.PROMPT);
         }
         return new SecureString(passwordArray);
     }
@@ -65,5 +69,5 @@ public abstract class KeyStoreAwareCommand extends EnvironmentAwareCommand {
         }
     }
 
-    protected abstract void execute(Terminal terminal, OptionSet options, Environment env) throws Exception;
+    public abstract void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception;
 }

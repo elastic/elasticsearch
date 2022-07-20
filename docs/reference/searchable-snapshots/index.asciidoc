@@ -295,6 +295,10 @@ which identifies its original index snapshot. It does not contain any data from
 the original index. The restore of a backup will fail to restore any
 {search-snap} indices whose original index snapshot is unavailable.
 
+Because {search-snap} indices are not regular indices, it is not possible to
+use a <<snapshots-source-only-repository,source-only repository>> to take
+snapshots of {search-snap} indices.
+
 [discrete]
 [[searchable-snapshots-reliability]]
 === Reliability of {search-snaps}

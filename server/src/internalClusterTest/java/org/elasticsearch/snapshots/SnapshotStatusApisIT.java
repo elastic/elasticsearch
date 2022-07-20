@@ -17,9 +17,12 @@ import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStats;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
+import org.elasticsearch.action.support.GroupedActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -39,6 +42,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.allOf;
@@ -50,6 +54,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.oneOf;
 
 public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
 
@@ -630,33 +635,77 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testConcurrentCreateAndStatusAPICalls() throws Exception {
-        for (int i = 0; i < randomIntBetween(1, 10); i++) {
-            createIndexWithContent("test-idx-" + i);
-        }
+        final var indexNames = IntStream.range(0, between(1, 10)).mapToObj(i -> "test-idx-" + i).toList();
+        indexNames.forEach(this::createIndexWithContent);
         final String repoName = "test-repo";
         createRepository(repoName, "fs");
+
+        if (randomBoolean()) {
+            // sometimes cause some deduplication
+            createSnapshot(repoName, "initial_snapshot", List.of());
+            for (final var indexName : indexNames) {
+                if (randomBoolean()) {
+                    indexDoc(indexName, "another_id", "baz", "quux");
+                }
+            }
+        }
+
         final int snapshots = randomIntBetween(10, 20);
         final List<ActionFuture<SnapshotsStatusResponse>> statuses = new ArrayList<>(snapshots);
         final List<ActionFuture<GetSnapshotsResponse>> gets = new ArrayList<>(snapshots);
         final Client dataNodeClient = dataNodeClient();
-        final String[] snapshotNames = createNSnapshots(repoName, snapshots).toArray(Strings.EMPTY_ARRAY);
 
-        for (int i = 0; i < snapshots; i++) {
+        final var snapshotNames = IntStream.range(0, snapshots).mapToObj(i -> "test-snap-" + i).toArray(String[]::new);
+        final var waitForCompletion = randomBoolean();
+        final var createsListener = new PlainActionFuture<Void>();
+        final var createsGroupedListener = new GroupedActionListener<CreateSnapshotResponse>(
+            createsListener.map(ignored -> null),
+            snapshotNames.length
+        );
+        for (final var snapshotName : snapshotNames) {
+            clusterAdmin().prepareCreateSnapshot(repoName, snapshotName)
+                .setWaitForCompletion(waitForCompletion)
+                .execute(createsGroupedListener);
+        }
+        createsListener.get(60, TimeUnit.SECONDS);
+
+        // run enough parallel status requests to max out the SNAPSHOT_META threadpool
+        final var metaThreadPoolSize = internalCluster().getCurrentMasterNodeInstance(ThreadPool.class)
+            .info(ThreadPool.Names.SNAPSHOT_META)
+            .getMax();
+        for (int i = 0; i < metaThreadPoolSize * 2; i++) {
             statuses.add(dataNodeClient.admin().cluster().prepareSnapshotStatus(repoName).setSnapshots(snapshotNames).execute());
             gets.add(dataNodeClient.admin().cluster().prepareGetSnapshots(repoName).setSnapshots(snapshotNames).execute());
         }
+
+        // ... and then some more status requests until all snapshots are done
+        var masterClusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
+        assertBusy(() -> {
+            final var stillRunning = masterClusterService.state()
+                .custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY)
+                .isEmpty() == false;
+            statuses.add(dataNodeClient.admin().cluster().prepareSnapshotStatus(repoName).setSnapshots(snapshotNames).execute());
+            gets.add(dataNodeClient.admin().cluster().prepareGetSnapshots(repoName).setSnapshots(snapshotNames).execute());
+            assertFalse(stillRunning);
+        }, 60, TimeUnit.SECONDS);
 
         for (ActionFuture<SnapshotsStatusResponse> status : statuses) {
             assertThat(status.get().getSnapshots(), hasSize(snapshots));
             for (SnapshotStatus snapshot : status.get().getSnapshots()) {
                 assertThat(snapshot.getState(), allOf(not(SnapshotsInProgress.State.FAILED), not(SnapshotsInProgress.State.ABORTED)));
+                for (final var shard : snapshot.getShards()) {
+                    if (shard.getStage() == SnapshotIndexShardStage.DONE) {
+                        assertEquals(shard.getStats().getIncrementalFileCount(), shard.getStats().getProcessedFileCount());
+                        assertEquals(shard.getStats().getIncrementalSize(), shard.getStats().getProcessedSize());
+                    }
+                }
             }
         }
         for (ActionFuture<GetSnapshotsResponse> get : gets) {
             final List<SnapshotInfo> snapshotInfos = get.get().getSnapshots();
             assertThat(snapshotInfos, hasSize(snapshots));
             for (SnapshotInfo snapshotInfo : snapshotInfos) {
-                assertThat(snapshotInfo.state(), is(SnapshotState.SUCCESS));
+                assertThat(snapshotInfo.state(), oneOf(SnapshotState.IN_PROGRESS, SnapshotState.SUCCESS));
             }
         }
     }

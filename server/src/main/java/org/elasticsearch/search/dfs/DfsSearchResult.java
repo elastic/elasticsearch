@@ -95,11 +95,10 @@ public class DfsSearchResult extends SearchPhaseResult {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         contextId.writeTo(out);
-        out.writeVInt(terms.length);
-        for (Term term : terms) {
-            out.writeString(term.field());
-            out.writeBytesRef(term.bytes());
-        }
+        out.writeArray((o, term) -> {
+            o.writeString(term.field());
+            o.writeBytesRef(term.bytes());
+        }, terms);
         writeTermStats(out, termStatistics);
         writeFieldStats(out, fieldStatistics);
         out.writeVInt(maxDoc);
@@ -109,25 +108,18 @@ public class DfsSearchResult extends SearchPhaseResult {
     }
 
     public static void writeFieldStats(StreamOutput out, Map<String, CollectionStatistics> fieldStatistics) throws IOException {
-        out.writeVInt(fieldStatistics.size());
-
-        for (var entry : fieldStatistics.entrySet()) {
-            out.writeString(entry.getKey());
-            CollectionStatistics statistics = entry.getValue();
+        out.writeMap(fieldStatistics, StreamOutput::writeString, (o, statistics) -> {
             assert statistics.maxDoc() >= 0;
-            out.writeVLong(statistics.maxDoc());
+            o.writeVLong(statistics.maxDoc());
             // stats are always positive numbers
-            out.writeVLong(statistics.docCount());
-            out.writeVLong(statistics.sumTotalTermFreq());
-            out.writeVLong(statistics.sumDocFreq());
-        }
+            o.writeVLong(statistics.docCount());
+            o.writeVLong(statistics.sumTotalTermFreq());
+            o.writeVLong(statistics.sumDocFreq());
+        });
     }
 
     public static void writeTermStats(StreamOutput out, TermStatistics[] termStatistics) throws IOException {
-        out.writeVInt(termStatistics.length);
-        for (TermStatistics termStatistic : termStatistics) {
-            writeSingleTermStats(out, termStatistic);
-        }
+        out.writeArray(DfsSearchResult::writeSingleTermStats, termStatistics);
     }
 
     public static void writeSingleTermStats(StreamOutput out, TermStatistics termStatistic) throws IOException {

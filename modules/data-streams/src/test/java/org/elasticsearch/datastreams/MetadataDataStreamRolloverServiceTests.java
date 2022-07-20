@@ -26,9 +26,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -63,8 +65,10 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             IndexMode.TIME_SERIES
         );
         ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of(dataStream.getName() + "*"))
-            .template(new Template(Settings.builder().put("index.routing_path", "uid").build(), null, null))
-            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false, IndexMode.TIME_SERIES))
+            .template(
+                new Template(Settings.builder().put("index.mode", "time_series").put("index.routing_path", "uid").build(), null, null)
+            )
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
             .build();
         Metadata.Builder builder = Metadata.builder();
         builder.put("template", template);
@@ -90,7 +94,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             MetadataRolloverService rolloverService = DataStreamTestHelper.getMetadataRolloverService(
                 dataStream,
                 testThreadPool,
-                Set.of(new DataStreamIndexSettingsProvider()),
+                Set.of(createSettingsProvider(xContentRegistry())),
                 xContentRegistry()
             );
             MaxDocsCondition condition = new MaxDocsCondition(randomNonNegativeLong());
@@ -161,8 +165,10 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             dsIndexMode
         );
         ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of(dataStream.getName() + "*"))
-            .template(new Template(Settings.builder().put("index.routing_path", "uid").build(), null, null))
-            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false, IndexMode.TIME_SERIES))
+            .template(
+                new Template(Settings.builder().put("index.mode", "time_series").put("index.routing_path", "uid").build(), null, null)
+            )
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
             .build();
         Metadata.Builder builder = Metadata.builder();
         builder.put("template", template);
@@ -183,7 +189,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             MetadataRolloverService rolloverService = DataStreamTestHelper.getMetadataRolloverService(
                 dataStream,
                 testThreadPool,
-                Set.of(new DataStreamIndexSettingsProvider()),
+                Set.of(createSettingsProvider(xContentRegistry())),
                 xContentRegistry()
             );
             MaxDocsCondition condition = new MaxDocsCondition(randomNonNegativeLong());
@@ -245,8 +251,10 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             IndexMode.TIME_SERIES
         );
         ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of(dataStream.getName() + "*"))
-            .template(new Template(Settings.builder().put("index.routing_path", "uid").build(), null, null))
-            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false, randomBoolean() ? IndexMode.STANDARD : null))
+            .template(
+                new Template(Settings.builder().put("index.mode", "time_series").put("index.routing_path", "uid").build(), null, null)
+            )
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
             .build();
         Metadata.Builder builder = Metadata.builder();
         builder.put("template", template);
@@ -272,7 +280,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             MetadataRolloverService rolloverService = DataStreamTestHelper.getMetadataRolloverService(
                 dataStream,
                 testThreadPool,
-                Set.of(new DataStreamIndexSettingsProvider()),
+                Set.of(createSettingsProvider(xContentRegistry())),
                 xContentRegistry()
             );
             MaxDocsCondition condition = new MaxDocsCondition(randomNonNegativeLong());
@@ -320,6 +328,12 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
         } finally {
             testThreadPool.shutdown();
         }
+    }
+
+    static DataStreamIndexSettingsProvider createSettingsProvider(NamedXContentRegistry xContentRegistry) {
+        return new DataStreamIndexSettingsProvider(
+            im -> MapperTestUtils.newMapperService(xContentRegistry, createTempDir(), im.getSettings(), im.getIndex().getName())
+        );
     }
 
 }

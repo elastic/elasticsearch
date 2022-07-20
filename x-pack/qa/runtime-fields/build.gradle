@@ -24,7 +24,7 @@ subprojects {
     apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
     dependencies {
-      yamlRestTestImplementation xpackProject(":x-pack:qa:runtime-fields")
+      yamlRestTestImplementation project(":x-pack:qa:runtime-fields")
     }
 
     restResources {
@@ -95,6 +95,11 @@ subprojects {
           'search.aggregation/20_terms/string profiler via global ordinals native implementation',
           'search.aggregation/20_terms/Global ordinals are loaded with the global_ordinals execution hint',
           'search.aggregation/170_cardinality_metric/profiler string',
+          'search.aggregation/170_cardinality_metric/profiler string segment ords hint',
+          'search.aggregation/170_cardinality_metric/profiler string global ords hint',
+          'search.aggregation/170_cardinality_metric/profiler string direct hint',
+          'search.aggregation/170_cardinality_metric/profiler string save memory hint',
+          'search.aggregation/170_cardinality_metric/profiler string save time hint',
           'search.aggregation/235_composite_sorted/*',
           // timeseries dimensions can't be runtime fields
           'search.aggregation/450_time_series/*',
@@ -104,6 +109,9 @@ subprojects {
           // we need a @timestamp field to be defined in index mapping
           'search/380_sort_segments_on_timestamp/*',
           'field_caps/40_time_series/*',
+          // Synthetic source needs doc values that runtime fields tests disable
+          'search/400_synthetic_source/*',
+          'search.highlight/50_synthetic_source/*',
           /////// NOT SUPPORTED ///////
         ].join(',')
     }

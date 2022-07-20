@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.NerResults;
 import org.elasticsearch.xpack.core.ml.inference.results.NlpClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.PyTorchPassThroughResults;
+import org.elasticsearch.xpack.core.ml.inference.results.QuestionAnsweringInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
@@ -47,6 +48,8 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NerConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NerConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PassThroughConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PassThroughConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.QuestionAnsweringConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.QuestionAnsweringConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ResultsFieldUpdate;
@@ -365,6 +368,20 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
                 ZeroShotClassificationConfig::fromXContentStrict
             )
         );
+        namedXContent.add(
+            new NamedXContentRegistry.Entry(
+                StrictlyParsedInferenceConfig.class,
+                new ParseField(QuestionAnsweringConfig.NAME),
+                QuestionAnsweringConfig::fromXContentStrict
+            )
+        );
+        namedXContent.add(
+            new NamedXContentRegistry.Entry(
+                LenientlyParsedInferenceConfig.class,
+                new ParseField(QuestionAnsweringConfig.NAME),
+                QuestionAnsweringConfig::fromXContentLenient
+            )
+        );
 
         // Inference Configs Update
         namedXContent.add(
@@ -421,6 +438,13 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
                 InferenceConfigUpdate.class,
                 new ParseField(ZeroShotClassificationConfigUpdate.NAME),
                 ZeroShotClassificationConfigUpdate::fromXContentStrict
+            )
+        );
+        namedXContent.add(
+            new NamedXContentRegistry.Entry(
+                InferenceConfigUpdate.class,
+                new ParseField(QuestionAnsweringConfigUpdate.NAME),
+                QuestionAnsweringConfigUpdate::fromXContentStrict
             )
         );
 
@@ -548,6 +572,13 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
                 NlpClassificationInferenceResults::new
             )
         );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                InferenceResults.class,
+                QuestionAnsweringInferenceResults.NAME,
+                QuestionAnsweringInferenceResults::new
+            )
+        );
         // Inference Configs
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(InferenceConfig.class, ClassificationConfig.NAME.getPreferredName(), ClassificationConfig::new)
@@ -564,6 +595,9 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
         namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceConfig.class, TextEmbeddingConfig.NAME, TextEmbeddingConfig::new));
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(InferenceConfig.class, ZeroShotClassificationConfig.NAME, ZeroShotClassificationConfig::new)
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(InferenceConfig.class, QuestionAnsweringConfig.NAME, QuestionAnsweringConfig::new)
         );
 
         // Inference Configs Updates
@@ -607,6 +641,13 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
                 InferenceConfigUpdate.class,
                 ZeroShotClassificationConfigUpdate.NAME,
                 ZeroShotClassificationConfigUpdate::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                InferenceConfigUpdate.class,
+                QuestionAnsweringConfigUpdate.NAME,
+                QuestionAnsweringConfigUpdate::new
             )
         );
 

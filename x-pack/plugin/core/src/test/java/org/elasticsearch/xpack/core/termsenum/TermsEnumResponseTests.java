@@ -9,13 +9,13 @@ package org.elasticsearch.xpack.core.termsenum;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.AbstractBroadcastResponseTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.termsenum.action.TermsEnumResponse;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -23,7 +23,7 @@ public class TermsEnumResponseTests extends AbstractBroadcastResponseTestCase<Te
 
     protected static List<String> getRandomTerms() {
         int termCount = randomIntBetween(0, 100);
-        Set<String> uniqueTerms = new HashSet<>(termCount);
+        Set<String> uniqueTerms = Sets.newHashSetWithExpectedSize(termCount);
         while (uniqueTerms.size() < termCount) {
             String s = randomAlphaOfLengthBetween(1, 10);
             uniqueTerms.add(s);

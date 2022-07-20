@@ -15,14 +15,12 @@ import org.elasticsearch.script.GeoPointFieldScript;
 
 import java.util.Arrays;
 
-public final class GeoPointScriptDocValues extends MultiGeoPointValues {
+public final class GeoPointScriptDocValues extends AbstractSortedNumericDocValues {
     private final GeoPointFieldScript script;
-    private final GeoPoint point;
     private int cursor;
 
     GeoPointScriptDocValues(GeoPointFieldScript script) {
         this.script = script;
-        this.point = new GeoPoint();
     }
 
     @Override
@@ -65,10 +63,7 @@ public final class GeoPointScriptDocValues extends MultiGeoPointValues {
     }
 
     @Override
-    public GeoPoint nextValue() {
-        final long value = script.values()[cursor++];
-        final int lat = (int) (value >>> 32);
-        final int lon = (int) (value & 0xFFFFFFFF);
-        return point.reset(GeoEncodingUtils.decodeLatitude(lat), GeoEncodingUtils.decodeLongitude(lon));
+    public long nextValue() {
+        return script.values()[cursor++];
     }
 }

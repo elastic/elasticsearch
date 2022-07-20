@@ -25,6 +25,8 @@ import static org.elasticsearch.gradle.fixtures.DistributionDownloadFixture.with
 class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
 
     def setup() {
+        // TestClusterPlugin with adding task listeners is not cc compatible
+        configurationCacheCompatible = false
         buildFile << """
             import org.elasticsearch.gradle.testclusters.TestClustersAware
             import org.elasticsearch.gradle.testclusters.ElasticsearchCluster
@@ -122,7 +124,7 @@ class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
     @Unroll
     def "test cluster #pluginType #propertyName change is detected"() {
         given:
-        addSubProject("test-$pluginType") << """
+        subProject("test-$pluginType") << """
             plugins {
                 id 'elasticsearch.esplugin'
             }

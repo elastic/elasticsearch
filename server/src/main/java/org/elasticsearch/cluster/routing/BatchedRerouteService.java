@@ -10,7 +10,6 @@ package org.elasticsearch.cluster.routing;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
@@ -18,6 +17,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
@@ -25,6 +25,8 @@ import org.elasticsearch.core.SuppressForbidden;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BiFunction;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * A {@link BatchedRerouteService} is a {@link RerouteService} that batches together reroute requests to avoid unnecessary extra reroutes.
@@ -120,17 +122,6 @@ public class BatchedRerouteService implements RerouteService {
                 }
 
                 @Override
-                public void onNoLongerMaster() {
-                    synchronized (mutex) {
-                        if (pendingRerouteListeners == currentListeners) {
-                            pendingRerouteListeners = null;
-                        }
-                    }
-                    ActionListener.onFailure(currentListeners, new NotMasterException("delayed reroute [" + reason + "] cancelled"));
-                    // no big deal, the new master will reroute again
-                }
-
-                @Override
                 public void onFailure(Exception e) {
                     synchronized (mutex) {
                         if (pendingRerouteListeners == currentListeners) {
@@ -138,18 +129,14 @@ public class BatchedRerouteService implements RerouteService {
                         }
                     }
                     final ClusterState state = clusterService.state();
-                    if (logger.isTraceEnabled()) {
-                        logger.error(
-                            () -> new ParameterizedMessage("unexpected failure during [{}], current state:\n{}", source, state),
-                            e
-                        );
+                    if (MasterService.isPublishFailureException(e)) {
+                        logger.debug(() -> format("unexpected failure during [%s], current state:\n%s", source, state), e);
+                        // no big deal, the new master will reroute again
+                    } else if (logger.isTraceEnabled()) {
+                        logger.error(() -> format("unexpected failure during [%s], current state:\n%s", source, state), e);
                     } else {
                         logger.error(
-                            () -> new ParameterizedMessage(
-                                "unexpected failure during [{}], current state version [{}]",
-                                source,
-                                state.version()
-                            ),
+                            () -> format("unexpected failure during [%s], current state version [%s]", source, state.version()),
                             e
                         );
                     }
@@ -169,7 +156,7 @@ public class BatchedRerouteService implements RerouteService {
                 }
             }
             ClusterState state = clusterService.state();
-            logger.warn(() -> new ParameterizedMessage("failed to reroute routing table, current state:\n{}", state), e);
+            logger.warn(() -> "failed to reroute routing table, current state:\n" + state, e);
             ActionListener.onFailure(
                 currentListeners,
                 new ElasticsearchException("delayed reroute [" + reason + "] could not be submitted", e)

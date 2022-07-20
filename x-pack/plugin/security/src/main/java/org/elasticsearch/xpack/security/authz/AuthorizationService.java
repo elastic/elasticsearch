@@ -44,12 +44,10 @@ import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyRequest;
-import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
-import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
-import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
+import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authc.esnative.ClientReservedRealm;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AsyncSupplier;
@@ -86,7 +84,6 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
@@ -171,30 +168,36 @@ public class AuthorizationService {
     }
 
     public void checkPrivileges(
-        Authentication authentication,
-        HasPrivilegesRequest request,
+        Subject subject,
+        AuthorizationEngine.PrivilegesToCheck privilegesToCheck,
         Collection<ApplicationPrivilegeDescriptor> applicationPrivilegeDescriptors,
-        ActionListener<HasPrivilegesResponse> listener
+        ActionListener<AuthorizationEngine.PrivilegesCheckResult> listener
     ) {
-        getAuthorizationEngine(authentication).checkPrivileges(
-            authentication,
-            getAuthorizationInfoFromContext(),
-            request,
-            applicationPrivilegeDescriptors,
-            wrapPreservingContext(listener, threadContext)
+        final AuthorizationEngine authorizationEngine = getAuthorizationEngineForSubject(subject);
+        authorizationEngine.resolveAuthorizationInfo(
+            subject,
+            wrapPreservingContext(
+                listener.delegateFailure(
+                    (delegateListener, authorizationInfo) -> authorizationEngine.checkPrivileges(
+                        authorizationInfo,
+                        privilegesToCheck,
+                        applicationPrivilegeDescriptors,
+                        wrapPreservingContext(delegateListener, threadContext)
+                    )
+                ),
+                threadContext
+            )
         );
     }
 
     public void retrieveUserPrivileges(
-        Authentication authentication,
-        GetUserPrivilegesRequest request,
+        Subject subject,
+        AuthorizationInfo authorizationInfo,
         ActionListener<GetUserPrivilegesResponse> listener
     ) {
-        getAuthorizationEngine(authentication).getUserPrivileges(authentication, getAuthorizationInfoFromContext(), request, listener);
-    }
-
-    private AuthorizationInfo getAuthorizationInfoFromContext() {
-        return Objects.requireNonNull(threadContext.getTransient(AUTHORIZATION_INFO_KEY), "authorization info is missing from context");
+        final AuthorizationEngine authorizationEngine = getAuthorizationEngineForSubject(subject);
+        // TODO the AuthorizationInfo is associated to the Subject; the argument is redundant and a possible source of conflict
+        authorizationEngine.getUserPrivileges(authorizationInfo, wrapPreservingContext(listener, threadContext));
     }
 
     /**
@@ -339,7 +342,7 @@ public class AuthorizationService {
         final Authentication authentication = requestInfo.getAuthentication();
         final TransportRequest request = requestInfo.getRequest();
         final String action = requestInfo.getAction();
-        final boolean isRunAs = authentication.getUser().isRunAs();
+        final boolean isRunAs = authentication.isRunAs();
         final AuditTrail auditTrail = auditTrailService.get();
         if (isRunAs) {
             ActionListener<AuthorizationResult> runAsListener = wrapPreservingContext(ActionListener.wrap(result -> {
@@ -578,12 +581,16 @@ public class AuthorizationService {
 
     // pkg-private for testing
     AuthorizationEngine getRunAsAuthorizationEngine(final Authentication authentication) {
-        return getAuthorizationEngineForUser(authentication.getUser().authenticatedUser());
+        return getAuthorizationEngineForSubject(authentication.getAuthenticatingSubject());
     }
 
     // pkg-private for testing
     AuthorizationEngine getAuthorizationEngine(final Authentication authentication) {
-        return getAuthorizationEngineForUser(authentication.getUser());
+        return getAuthorizationEngineForSubject(authentication.getEffectiveSubject());
+    }
+
+    AuthorizationEngine getAuthorizationEngineForSubject(final Subject subject) {
+        return getAuthorizationEngineForUser(subject.getUser());
     }
 
     private AuthorizationEngine getAuthorizationEngineForUser(final User user) {
@@ -889,7 +896,7 @@ public class AuthorizationService {
     ) {
         // Special case for anonymous user
         if (isAnonymousEnabled
-            && anonymousUser.equals(authentication.getUser().authenticatedUser())
+            && anonymousUser.equals(authentication.getAuthenticatingSubject().getUser())
             && anonymousAuthzExceptionEnabled == false) {
             return authcFailureHandler.authenticationRequired(action, threadContext);
         }

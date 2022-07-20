@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.authc;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.UnicodeUtil;
@@ -34,16 +33,12 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
-import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.ack.AckedRequest;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -61,7 +56,6 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -123,7 +117,6 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -150,6 +143,7 @@ import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
 
 import static org.elasticsearch.action.support.TransportActions.isShardNotAvailableException;
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.threadpool.ThreadPool.Names.GENERIC;
@@ -179,8 +173,6 @@ public final class TokenService {
     private static final String ENCRYPTION_CIPHER = "AES/GCM/NoPadding";
     private static final String EXPIRED_TOKEN_WWW_AUTH_VALUE = String.format(Locale.ROOT, """
         Bearer realm="%s", error="invalid_token", error_description="The access token expired\"""", XPackField.SECURITY);
-    private static final String MALFORMED_TOKEN_WWW_AUTH_VALUE = String.format(Locale.ROOT, """
-        Bearer realm="%s", error="invalid_token", error_description="The access token is malformed\"""", XPackField.SECURITY);
     private static final BackoffPolicy DEFAULT_BACKOFF = BackoffPolicy.exponentialBackoff();
 
     public static final String THREAD_POOL_NAME = XPackField.SECURITY + "-token-key";
@@ -442,25 +434,6 @@ public final class TokenService {
     }
 
     /**
-     * Decodes the provided token, and validates it (for format, expiry and invalidation).
-     * If valid, the token's {@link Authentication} (see {@link UserToken#getAuthentication()} is provided to the listener.
-     * If the token is invalid (expired etc), then {@link ActionListener#onFailure(Exception)} will be called.
-     * If tokens are not enabled, or the token does not exist, {@link ActionListener#onResponse} will be called with a
-     * {@code null} authentication object.
-     */
-    public void authenticateToken(SecureString tokenString, ActionListener<Authentication> listener) {
-        decodeAndValidateToken(tokenString, listener.map(token -> {
-            if (token == null) {
-                // Typically this means that the index is unavailable, so _probably_ the token is invalid but the only
-                // this we can say for certain is that we couldn't validate it. The logs will be more explicit.
-                throw new IllegalArgumentException("Cannot validate access token");
-            } else {
-                return token.getAuthentication();
-            }
-        }));
-    }
-
-    /**
      * Reads the authentication and metadata from the given token.
      * This method does not validate whether the token is expired or not.
      */
@@ -522,7 +495,7 @@ public final class TokenService {
                                 tokensIndex.aliasName()
                             );
                         } else {
-                            logger.error(new ParameterizedMessage("failed to get access token [{}]", userTokenId), e);
+                            logger.error(() -> "failed to get access token [" + userTokenId + "]", e);
                         }
                         listener.onFailure(e);
                     }),
@@ -610,17 +583,13 @@ public final class TokenService {
                         }
                     }, listener::onFailure));
                 } else {
-                    logger.debug(() -> new ParameterizedMessage("invalid key {} key: {}", passphraseHash, keyCache.cache.keySet()));
+                    logger.debug(() -> format("invalid key %s key: %s", passphraseHash, keyCache.cache.keySet()));
                     listener.onResponse(null);
                 }
             }
         } catch (Exception e) {
             // could happen with a token that is not ours
-            if (logger.isDebugEnabled()) {
-                logger.debug("built in token service unable to decode token", e);
-            } else {
-                logger.warn("built in token service unable to decode token");
-            }
+            logger.debug("built in token service unable to decode token", e);
             listener.onResponse(null);
         }
     }
@@ -893,11 +862,7 @@ public final class TokenService {
                                 UpdateResponse updateResponse = bulkItemResponse.getResponse();
                                 if (updateResponse.getResult() == DocWriteResponse.Result.UPDATED) {
                                     logger.debug(
-                                        () -> new ParameterizedMessage(
-                                            "Invalidated [{}] for doc [{}]",
-                                            srcPrefix,
-                                            updateResponse.getGetResult().getId()
-                                        )
+                                        () -> format("Invalidated [%s] for doc [%s]", srcPrefix, updateResponse.getGetResult().getId())
                                     );
                                     invalidated.add(updateResponse.getGetResult().getId());
                                 } else if (updateResponse.getResult() == DocWriteResponse.Result.NOOP) {
@@ -1040,7 +1005,7 @@ public final class TokenService {
                     refreshTokenVersion = versionAndRefreshTokenTuple.v1();
                     unencodedRefreshToken = versionAndRefreshTokenTuple.v2();
                 } catch (IOException e) {
-                    logger.debug(() -> new ParameterizedMessage("Could not decode refresh token [{}].", refreshToken), e);
+                    logger.debug(() -> "Could not decode refresh token [" + refreshToken + "].", e);
                     listener.onResponse(SearchHits.EMPTY_WITH_TOTAL_HITS);
                     return;
                 }
@@ -1216,10 +1181,7 @@ public final class TokenService {
                     ActionListener.<UpdateResponse>wrap(updateResponse -> {
                         if (updateResponse.getResult() == DocWriteResponse.Result.UPDATED) {
                             logger.debug(
-                                () -> new ParameterizedMessage(
-                                    "updated the original token document to {}",
-                                    updateResponse.getGetResult().sourceAsMap()
-                                )
+                                () -> format("updated the original token document to %s", updateResponse.getGetResult().sourceAsMap())
                             );
                             final Tuple<UserToken, String> parsedTokens = parseTokensFromDocument(source, null);
                             final UserToken toRefreshUserToken = parsedTokens.v1();
@@ -1268,7 +1230,7 @@ public final class TokenService {
                         if (cause instanceof VersionConflictEngineException) {
                             // The document has been updated by another thread, get it again.
                             logger.debug("version conflict while updating document [{}], attempting to get it again", tokenDocId);
-                            getTokenDocAsync(tokenDocId, refreshedTokenIndex, true, new ActionListener<GetResponse>() {
+                            getTokenDocAsync(tokenDocId, refreshedTokenIndex, true, new ActionListener<>() {
                                 @Override
                                 public void onResponse(GetResponse response) {
                                     if (response.isExists()) {
@@ -1964,8 +1926,9 @@ public final class TokenService {
         } else {
             final GetRequest getRequest = client.prepareGet(tokensIndex.aliasName(), getTokenDocumentId(userToken)).request();
             Consumer<Exception> onFailure = ex -> listener.onFailure(traceLog("check token state", userToken.getId(), ex));
-            tokensIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
-                executeAsyncWithOrigin(
+            tokensIndex.checkIndexVersionThenExecute(
+                listener::onFailure,
+                () -> executeAsyncWithOrigin(
                     client.threadPool().getThreadContext(),
                     SECURITY_ORIGIN,
                     getRequest,
@@ -2013,13 +1976,13 @@ public final class TokenService {
                             logger.warn("failed to get access token because index is not available");
                             listener.onResponse(null);
                         } else {
-                            logger.error(new ParameterizedMessage("failed to get token [{}]", userToken.getId()), e);
+                            logger.error(() -> "failed to get token [" + userToken.getId() + "]", e);
                             listener.onFailure(e);
                         }
                     }),
                     client::get
-                );
-            });
+                )
+            );
         }
     }
 
@@ -2103,7 +2066,7 @@ public final class TokenService {
             final Version version = Version.readVersion(in);
             in.setVersion(version);
             final String payload = in.readString();
-            return new Tuple<Version, String>(version, payload);
+            return new Tuple<>(version, payload);
         }
     }
 
@@ -2231,12 +2194,12 @@ public final class TokenService {
             if (exception instanceof final ElasticsearchException esEx) {
                 final Object detail = esEx.getHeader("error_description");
                 if (detail != null) {
-                    logger.trace(() -> new ParameterizedMessage("Failure in [{}] for id [{}] - [{}]", action, identifier, detail), esEx);
+                    logger.trace(() -> format("Failure in [%s] for id [%s] - [%s]", action, identifier, detail), esEx);
                 } else {
-                    logger.trace(() -> new ParameterizedMessage("Failure in [{}] for id [{}]", action, identifier), esEx);
+                    logger.trace(() -> format("Failure in [%s] for id [%s]", action, identifier), esEx);
                 }
             } else {
-                logger.trace(() -> new ParameterizedMessage("Failure in [{}] for id [{}]", action, identifier), exception);
+                logger.trace(() -> format("Failure in [%s] for id [%s]", action, identifier), exception);
             }
         }
         return exception;
@@ -2250,12 +2213,12 @@ public final class TokenService {
             if (exception instanceof final ElasticsearchException esEx) {
                 final Object detail = esEx.getHeader("error_description");
                 if (detail != null) {
-                    logger.trace(() -> new ParameterizedMessage("Failure in [{}] - [{}]", action, detail), esEx);
+                    logger.trace(() -> format("Failure in [%s] - [%s]", action, detail), esEx);
                 } else {
-                    logger.trace(() -> new ParameterizedMessage("Failure in [{}]", action), esEx);
+                    logger.trace(() -> "Failure in [" + action + "]", esEx);
                 }
             } else {
-                logger.trace(() -> new ParameterizedMessage("Failure in [{}]", action), exception);
+                logger.trace(() -> "Failure in [" + action + "]", exception);
             }
         }
         return exception;
@@ -2333,67 +2296,6 @@ public final class TokenService {
     }
 
     /**
-     * Creates a new key unless present that is newer than the current active key and returns the corresponding metadata. Note:
-     * this method doesn't modify the metadata used in this token service. See {@link #refreshMetadata(TokenMetadata)}
-     */
-    @SuppressWarnings("unchecked")
-    synchronized TokenMetadata generateSpareKey() {
-        KeyAndCache maxKey = keyCache.cache.values().stream().max(Comparator.comparingLong(v -> v.keyAndTimestamp.getTimestamp())).get();
-        KeyAndCache currentKey = keyCache.activeKeyCache;
-        if (currentKey == maxKey) {
-            long timestamp = createdTimeStamps.incrementAndGet();
-            while (true) {
-                byte[] saltArr = new byte[SALT_BYTES];
-                secureRandom.nextBytes(saltArr);
-                SecureString tokenKey = generateTokenKey();
-                KeyAndCache keyAndCache = new KeyAndCache(new KeyAndTimestamp(tokenKey, timestamp), new BytesKey(saltArr));
-                if (keyCache.cache.containsKey(keyAndCache.getKeyHash())) {
-                    continue; // collision -- generate a new key
-                }
-                return newTokenMetadata(keyCache.currentTokenKeyHash, CollectionUtils.appendToCopy(keyCache.cache.values(), keyAndCache));
-            }
-        }
-        return newTokenMetadata(keyCache.currentTokenKeyHash, keyCache.cache.values());
-    }
-
-    /**
-     * Rotate the current active key to the spare key created in the previous {@link #generateSpareKey()} call.
-     */
-    synchronized TokenMetadata rotateToSpareKey() {
-        KeyAndCache maxKey = keyCache.cache.values().stream().max(Comparator.comparingLong(v -> v.keyAndTimestamp.getTimestamp())).get();
-        if (maxKey == keyCache.activeKeyCache) {
-            throw new IllegalStateException("call generateSpareKey first");
-        }
-        return newTokenMetadata(maxKey.getKeyHash(), keyCache.cache.values());
-    }
-
-    /**
-     * Prunes the keys and keeps up to the latest N keys around
-     *
-     * @param numKeysToKeep the number of keys to keep.
-     */
-    synchronized TokenMetadata pruneKeys(int numKeysToKeep) {
-        if (keyCache.cache.size() <= numKeysToKeep) {
-            return getTokenMetadata(); // nothing to do
-        }
-        Map<BytesKey, KeyAndCache> map = Maps.newMapWithExpectedSize(keyCache.cache.size() + 1);
-        KeyAndCache currentKey = keyCache.get(keyCache.currentTokenKeyHash);
-        ArrayList<KeyAndCache> entries = new ArrayList<>(keyCache.cache.values());
-        Collections.sort(entries, (left, right) -> Long.compare(right.keyAndTimestamp.getTimestamp(), left.keyAndTimestamp.getTimestamp()));
-        for (KeyAndCache value : entries) {
-            if (map.size() < numKeysToKeep || value.keyAndTimestamp.getTimestamp() >= currentKey.keyAndTimestamp.getTimestamp()) {
-                logger.debug("keeping key {} ", value.getKeyHash());
-                map.put(value.getKeyHash(), value);
-            } else {
-                logger.debug("prune key {} ", value.getKeyHash());
-            }
-        }
-        assert map.isEmpty() == false;
-        assert map.containsKey(keyCache.currentTokenKeyHash);
-        return newTokenMetadata(keyCache.currentTokenKeyHash, map.values());
-    }
-
-    /**
      * Returns the current in-use metdata of this {@link TokenService}
      */
     public synchronized TokenMetadata getTokenMetadata() {
@@ -2432,7 +2334,7 @@ public final class TokenService {
         }
         createdTimeStamps.set(maxTimestamp);
         keyCache = new TokenKeys(Collections.unmodifiableMap(map), currentUsedKeyHash);
-        logger.debug(() -> new ParameterizedMessage("refreshed keys current: {}, keys: {}", currentUsedKeyHash, keyCache.cache.keySet()));
+        logger.debug(() -> format("refreshed keys current: %s, keys: %s", currentUsedKeyHash, keyCache.cache.keySet()));
     }
 
     private SecureString generateTokenKey() {
@@ -2452,59 +2354,9 @@ public final class TokenService {
         }
     }
 
-    synchronized String getActiveKeyHash() {
-        return new BytesRef(Base64.getUrlEncoder().withoutPadding().encode(this.keyCache.currentTokenKeyHash.bytes)).utf8ToString();
-    }
-
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
     private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
         clusterService.submitUnbatchedStateUpdateTask(source, task);
-    }
-
-    void rotateKeysOnMaster(ActionListener<AcknowledgedResponse> listener) {
-        logger.info("rotate keys on master");
-        TokenMetadata tokenMetadata = generateSpareKey();
-        submitUnbatchedTask(
-            "publish next key to prepare key rotation",
-            new TokenMetadataPublishAction(tokenMetadata, ActionListener.wrap((res) -> {
-                if (res.isAcknowledged()) {
-                    TokenMetadata metadata = rotateToSpareKey();
-                    submitUnbatchedTask("publish next key to prepare key rotation", new TokenMetadataPublishAction(metadata, listener));
-                } else {
-                    listener.onFailure(new IllegalStateException("not acked"));
-                }
-            }, listener::onFailure))
-        );
-    }
-
-    private static final class TokenMetadataPublishAction extends AckedClusterStateUpdateTask {
-
-        private final TokenMetadata tokenMetadata;
-
-        protected TokenMetadataPublishAction(TokenMetadata tokenMetadata, ActionListener<AcknowledgedResponse> listener) {
-            super(new AckedRequest() {
-                @Override
-                public TimeValue ackTimeout() {
-                    return AcknowledgedRequest.DEFAULT_ACK_TIMEOUT;
-                }
-
-                @Override
-                public TimeValue masterNodeTimeout() {
-                    return AcknowledgedRequest.DEFAULT_MASTER_NODE_TIMEOUT;
-                }
-            }, listener);
-            this.tokenMetadata = tokenMetadata;
-        }
-
-        @Override
-        public ClusterState execute(ClusterState currentState) throws Exception {
-            XPackPlugin.checkReadyForXPackCustomMetadata(currentState);
-
-            if (tokenMetadata.equals(currentState.custom(TokenMetadata.TYPE))) {
-                return currentState;
-            }
-            return ClusterState.builder(currentState).putCustom(TokenMetadata.TYPE, tokenMetadata).build();
-        }
     }
 
     private void initialize(ClusterService clusterService) {
@@ -2613,7 +2465,7 @@ public final class TokenService {
         }
 
         @Override
-        public void close() throws IOException {
+        public void close() {
             keyAndTimestamp.getKey().close();
         }
 

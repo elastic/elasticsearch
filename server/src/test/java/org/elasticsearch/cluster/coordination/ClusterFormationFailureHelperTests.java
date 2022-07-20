@@ -24,6 +24,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -32,6 +33,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
@@ -962,6 +965,147 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
             ).getDescription(),
             is(expected.toString())
         );
+    }
+
+    public void testClusterFormationStateSerialization() {
+        final DiscoveryNode localNode = makeDiscoveryNode("local");
+        List<TransportAddress> resolvedAddresses = List.of(buildNewFakeTransportAddress(), buildNewFakeTransportAddress());
+        List<DiscoveryNode> foundPeers = List.of(
+            new DiscoveryNode(UUID.randomUUID().toString(), buildNewFakeTransportAddress(), Version.CURRENT),
+            new DiscoveryNode(UUID.randomUUID().toString(), buildNewFakeTransportAddress(), Version.CURRENT),
+            new DiscoveryNode(UUID.randomUUID().toString(), buildNewFakeTransportAddress(), Version.CURRENT)
+        );
+        List<JoinStatus> joinStatuses = List.of(
+            new JoinStatus(
+                new DiscoveryNode(UUID.randomUUID().toString(), buildNewFakeTransportAddress(), Version.CURRENT),
+                1,
+                "join status message",
+                new TimeValue(500, TimeUnit.SECONDS)
+            )
+        );
+        Settings settings = Settings.builder().putList(INITIAL_MASTER_NODES_SETTING.getKey(), List.of("a", "b", "c")).build();
+        ClusterFormationState clusterFormationState = new ClusterFormationState(
+            settings,
+            state(localNode, new String[] { "n1" }, new String[] { "n2", "n3", "n4" }),
+            resolvedAddresses,
+            foundPeers,
+            0L,
+            electionStrategy,
+            new StatusInfo(HEALTHY, "healthy-info"),
+            joinStatuses
+        );
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+            clusterFormationState,
+            history -> copyWriteable(clusterFormationState, writableRegistry(), ClusterFormationState::new),
+            this::mutateClusterFormationState
+        );
+    }
+
+    private static ClusterState state(DiscoveryNode localNode, VotingConfiguration acceptedConfig, VotingConfiguration committedConfig) {
+        return ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()))
+            .metadata(
+                Metadata.builder()
+                    .coordinationMetadata(
+                        CoordinationMetadata.builder()
+                            .lastAcceptedConfiguration(acceptedConfig)
+                            .lastCommittedConfiguration(committedConfig)
+                            .build()
+                    )
+            )
+            .build();
+    }
+
+    private ClusterFormationState mutateClusterFormationState(ClusterFormationState originalClusterFormationState) {
+        Settings settings = Settings.builder()
+            .putList(INITIAL_MASTER_NODES_SETTING.getKey(), originalClusterFormationState.initialMasterNodesSetting())
+            .build();
+        final DiscoveryNode localNode = originalClusterFormationState.localNode();
+        List<TransportAddress> resolvedAddresses = originalClusterFormationState.resolvedAddresses();
+        List<DiscoveryNode> foundPeers = originalClusterFormationState.foundPeers();
+        long currentTerm = originalClusterFormationState.currentTerm();
+        StatusInfo statusInfo = originalClusterFormationState.statusInfo();
+        List<JoinStatus> joinStatuses = originalClusterFormationState.inFlightJoinStatuses();
+        ClusterState clusterState = state(
+            localNode,
+            originalClusterFormationState.lastAcceptedConfiguration(),
+            originalClusterFormationState.lastCommittedConfiguration()
+        );
+        switch (randomIntBetween(1, 5)) {
+            case 1 -> {
+                return new ClusterFormationState(
+                    settings,
+                    clusterState,
+                    resolvedAddresses,
+                    foundPeers,
+                    currentTerm + 1,
+                    electionStrategy,
+                    statusInfo,
+                    joinStatuses
+                );
+            }
+            case 2 -> {
+                List<DiscoveryNode> newFoundPeers = new ArrayList<>(foundPeers);
+                newFoundPeers.add(new DiscoveryNode(UUID.randomUUID().toString(), buildNewFakeTransportAddress(), Version.CURRENT));
+                return new ClusterFormationState(
+                    settings,
+                    clusterState,
+                    resolvedAddresses,
+                    newFoundPeers,
+                    currentTerm,
+                    electionStrategy,
+                    statusInfo,
+                    joinStatuses
+                );
+            }
+            case 3 -> {
+                List<JoinStatus> newJoinStatuses = new ArrayList<>(joinStatuses);
+                newJoinStatuses.add(
+                    new JoinStatus(
+                        new DiscoveryNode(UUID.randomUUID().toString(), buildNewFakeTransportAddress(), Version.CURRENT),
+                        1,
+                        "join status message",
+                        new TimeValue(500, TimeUnit.SECONDS)
+                    )
+                );
+                return new ClusterFormationState(
+                    settings,
+                    clusterState,
+                    resolvedAddresses,
+                    foundPeers,
+                    currentTerm,
+                    electionStrategy,
+                    statusInfo,
+                    newJoinStatuses
+                );
+            }
+            case 4 -> {
+                StatusInfo newStatusInfo = new StatusInfo(randomFrom(HEALTHY, UNHEALTHY), randomAlphaOfLength(20));
+                return new ClusterFormationState(
+                    settings,
+                    clusterState,
+                    resolvedAddresses,
+                    foundPeers,
+                    currentTerm,
+                    electionStrategy,
+                    newStatusInfo,
+                    joinStatuses
+                );
+            }
+            case 5 -> {
+                return new ClusterFormationState(
+                    Settings.EMPTY,
+                    clusterState,
+                    resolvedAddresses,
+                    foundPeers,
+                    currentTerm,
+                    electionStrategy,
+                    statusInfo,
+                    joinStatuses
+                );
+            }
+            default -> throw new IllegalStateException();
+        }
     }
 
     private static DiscoveryNode makeDiscoveryNode(String nodeId) {

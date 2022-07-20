@@ -11,7 +11,9 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
+import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
@@ -19,6 +21,7 @@ import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.health.HealthStatus.GREEN;
@@ -28,6 +31,7 @@ import static org.elasticsearch.xpack.core.ilm.OperationMode.RUNNING;
 import static org.elasticsearch.xpack.core.ilm.OperationMode.STOPPED;
 import static org.elasticsearch.xpack.core.ilm.OperationMode.STOPPING;
 import static org.elasticsearch.xpack.slm.SlmHealthIndicatorService.NAME;
+import static org.elasticsearch.xpack.slm.SlmHealthIndicatorService.SLM_NOT_RUNNING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -45,8 +49,10 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                     NAME,
                     SNAPSHOT,
                     GREEN,
-                    "SLM is running",
+                    "Snapshot Lifecycle Management is running",
+                    null,
                     new SimpleHealthIndicatorDetails(Map.of("slm_status", RUNNING, "policies", 1)),
+                    Collections.emptyList(),
                     Collections.emptyList()
                 )
             )
@@ -65,9 +71,17 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                     NAME,
                     SNAPSHOT,
                     YELLOW,
-                    "SLM is not running",
+                    "Snapshot Lifecycle Management is not running",
+                    SlmHealthIndicatorService.HELP_URL,
                     new SimpleHealthIndicatorDetails(Map.of("slm_status", status, "policies", 1)),
-                    Collections.emptyList()
+                    Collections.singletonList(
+                        new HealthIndicatorImpact(
+                            3,
+                            "Scheduled snapshots are not running. New backup snapshots will not be created automatically.",
+                            List.of(ImpactArea.BACKUP)
+                        )
+                    ),
+                    List.of(SLM_NOT_RUNNING)
                 )
             )
         );
@@ -85,8 +99,10 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                     NAME,
                     SNAPSHOT,
                     GREEN,
-                    "No policies configured",
+                    "No Snapshot Lifecycle Management policies configured",
+                    null,
                     new SimpleHealthIndicatorDetails(Map.of("slm_status", status, "policies", 0)),
+                    Collections.emptyList(),
                     Collections.emptyList()
                 )
             )
@@ -104,8 +120,10 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                     NAME,
                     SNAPSHOT,
                     GREEN,
-                    "No policies configured",
+                    "No Snapshot Lifecycle Management policies configured",
+                    null,
                     new SimpleHealthIndicatorDetails(Map.of("slm_status", RUNNING, "policies", 0)),
+                    Collections.emptyList(),
                     Collections.emptyList()
                 )
             )

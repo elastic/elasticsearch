@@ -33,6 +33,18 @@ information about disabling {security-features} in specific {kib} instances, see
 {kibana-ref}/security-settings-kb.html[{kib} security settings].
 --
 
+`xpack.security.autoconfiguration.enabled`::
+(<<static-cluster-setting,Static>>)
+Defaults to `true`, which enables
+<<configuring-stack-security,security auto configuration>>.
++
+--
+If set to `false`, security auto configuration is disabled, which is not
+recommended. When disabled, security is not configured automatically when
+starting {es} for the first time, which means that you must
+<<manually-configure-security,manually configure security>>.
+--
+
 `xpack.security.hide_settings`::
 (<<static-cluster-setting,Static>>)
 A comma-separated list of settings that are omitted from the results of the
@@ -133,14 +145,16 @@ from being configured. Defaults to `true`.
 The time-to-live for cached `BitSet` entries for document level security.
 Document level security queries may depend on Lucene BitSet objects, and these are
 automatically cached to improve performance. Defaults to expire entries that are
-unused for `168h` (7 days).
+unused for `2h` (2 hours).
 
 `xpack.security.dls.bitset.cache.size`::
 (<<static-cluster-setting,Static>>)
 The maximum memory usage of cached `BitSet` entries for document level security.
 Document level security queries may depend on Lucene BitSet objects, and these are
-automatically cached to improve performance. Defaults to `50mb`, after which
-least-recently-used entries will be evicted.
+automatically cached to improve performance. Can be configured as a raw number
+of bytes (such as `200mb` or `1g`) or a percentage of the node's JVM heap
+memory (such as `5%`). When the default value is exceeded, the least recently
+used entries are evicted. Defaults to `10%` of the heap assigned to the node.
 
 [discrete]
 [[token-service-settings]]
@@ -193,7 +207,6 @@ The hashing algorithm that is used for the
 in-memory cached API key credentials. For possible values, see <<cache-hash-algo>>.
 Defaults to `ssha256`.
 
-ifeval::["{release-state}"!="released"]
 [discrete]
 [[security-domain-settings]]
 ==== Security domain settings
@@ -215,7 +228,6 @@ xpack:
 <1> Specifies the name of the security domain
 <2> Specifies the realms that belong to the domain
 // end::security-domain-settings-description-tag[]
-endif::[]
 
 [discrete]
 [[realm-settings]]
@@ -1651,7 +1663,7 @@ or `client_secret_jwt`. Defaults to `client_secret_basic`.
 // end::rp-client-auth-method-tag[]
 
 // tag::rp-client-auth-jwt-signature-algorithm[]
-`rp.client_auth_signature_algorithm` {ess-icon}::
+`rp.client_auth_jwt_signature_algorithm` {ess-icon}::
 (<<static-cluster-setting, Static>>)
 The signature algorithm that {es} uses to sign the JWT with which it authenticates
 as a client to the OpenID Connect Provider when `client_secret_jwt` is selected for
@@ -1680,7 +1692,10 @@ or one of `id_token`, `id_token token` for the implicit flow.
 (<<static-cluster-setting,Static>>)
 The signature algorithm that will be used by {es} in order to verify the
 signature of the id tokens it will receive from the OpenID Connect Provider.
-Defaults to `RSA256`.
+Allowed values are `HS256`, `HS384`, `HS512`, `ES256`, `ES384`, `ES512`,
+`RS256`, `RS384`, `RS512`, `PS256`, `PS384`, `PS512`.
+Defaults to `RS256`.
+
 // end::rp-signature-algorithm-tag[]
 
 // tag::rp-requested-scopes-tag[]
@@ -1768,6 +1783,7 @@ As per `claim_patterns.principal`, but for the _dn_ property.
 (<<static-cluster-setting,Static>>)
 The maximum allowed clock skew to be taken into consideration when validating
 id tokens with regards to their creation and expiration times.
+Defaults to `60s`.
 // end::oidc-allowed-clock-skew-tag[]
 
 // tag::oidc-populate-user-metadata-tag[]
@@ -1830,6 +1846,7 @@ a maximum period inactivity between two consecutive data packets). Defaults to
 Controls the behavior of the http client used for back-channel communication to
 the OpenID Connect Provider endpoints. Specifies the maximum number of
 connections allowed across all endpoints.
+Defaults to `200`.
 // end::oidc-http-max-connections-tag[]
 
 // tag::oidc-http-max-endpoint-connections-tag[]
@@ -1838,7 +1855,30 @@ connections allowed across all endpoints.
 Controls the behavior of the http client used for back-channel communication to
 the OpenID Connect Provider endpoints. Specifies the maximum number of
 connections allowed per endpoint.
+Defaults to `200`.
 // end::oidc-http-max-endpoint-connections-tag[]
+
+// tag::oidc-http-tcp-keepalive-tag[]
+`http.tcp.keep_alive` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+Whether to enable TCP keepalives on HTTP connections used for back-channel communication
+to the OpenID Connect Provider endpoints. Defaults to `true`.
+// end::oidc-http-tcp-keepalive-tag[]
+
+// tag::oidc-http-connection-pool-ttl-tag[]
+`http.connection_pool_ttl` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+Controls the behavior of the http client used for back-channel communication to
+the OpenID Connect Provider endpoints. Specifies the time-to-live of connections
+in the connection pool (default to 3 minutes). A connection is closed if it is
+idle for more than the specified timeout.
+
+The server can also set the `Keep-Alive` HTTP response header. The effective
+time-to-live value is the smaller value between this setting and the `Keep-Alive`
+reponse header. Configure this setting to `-1` to let the server dictate the value.
+If the header is not set by the server and the setting has value of `-1`,
+the time-to-live is infinite and connections never expire.
+// end::oidc-http-connection-pool-ttl-tag[]
 
 [discrete]
 [[ref-oidc-ssl-settings]]
@@ -2018,7 +2058,7 @@ See <<authorization_realms>>.
 `claims.dn` {ess-icon}::
 (<<static-cluster-setting,Static>>)
 The name of the JWT claim that contains the user's Distinguished Name (DN),
-which uniquely identifies a user or group. 
+which uniquely identifies a user or group.
 // end::jwt-claims-dn-tag[]
 
 // tag::jwt-claims-pattern-dn-tag[]
@@ -2095,7 +2135,7 @@ the principal. Another example is `sub` which may not need a pattern setting.
 `client_authentication.type` {ess-icon}::
 (<<static-cluster-setting,Static>>)
 Specifies whether to use `shared_secret` or `none` to authenticate
-incoming client requests. If this value is `shared_secret`, the client is 
+incoming client requests. If this value is `shared_secret`, the client is
 authenticated using an HTTP request header that must match a pre-configured
 secret value. The client must provide this shared secret with every request in
 the `ES-Client-Authentication` header. If this value is `none`, then the
@@ -2104,7 +2144,7 @@ request header `ES-Client-Authentication` is ignored. Defaults to
 +
 Enabling client authentication is recommended. If JWT bearer
 tokens are shared with other clients or services, client authentication
-restricts which ones are allowed to submit those JWTs to {es}. 
+restricts which ones are allowed to submit those JWTs to {es}.
 // end::jwt-client-authentication-type-tag[]
 
 // tag::jwt-client-authentication-shared-secret-tag[]
@@ -2160,12 +2200,14 @@ JWTs can only be cached if client authentication is successful (or disabled).
 Uses the standard {es} <<time-units,time units>>. If clients use a different JWT
 for every request, set to `0` to disable the JWT cache. Defaults to `20m`.
 
-// tag::jwt-jwkset-path-tag[]
+// tag::jwt-pkc-jwkset-path-tag[]
 `pkc_jwkset_path` {ess-icon}::
 (<<static-cluster-setting,Static>>)
-The file path or URL to a JSON Web Key Set with the key material that the JWT
-Issuer uses for signing tokens and claims responses. If a path is provided,
-then it is resolved relative to the {es} configuration directory.
+The file path or URL to a JSON Web Key Set (JWKS) with the public key material that
+the JWT Realm uses for verifying token signatures. If a path is provided,
+then it is resolved relative to the {es} configuration directory. In {ecloud},
+use an absolute path starting with `/app/config/`.
++
 If a URL is provided, then it must be either a `file` URL or an `https` URL.
 {es} automatically caches the retrieved JWK set to avoid unnecessary HTTP
 requests, but will attempt to refresh the JWK upon signature verification
@@ -2174,7 +2216,30 @@ rotated the signing keys.
 +
 File-based resources are polled at a frequency determined by the global {es}
 `resource.reload.interval.high` setting, which defaults to `5s`.
-// end::jwt-jwkset-path-tag[]
+// end::jwt-pkc-jwkset-path-tag[]
+
+// tag::jwt-hmac-jwkset-tag[]
+`hmac_jwkset` {ess-icon}::
+(<<secure-settings,Secure>>)
+Contents of a JSON Web Key Set (JWKS), including the secret key that the JWT
+realm uses to verify token signatures. This format supports multiple keys and
+optional attributes, and is preferred over the `hmac_key` setting. Cannot be
+used in conjunction with the `hmac_key` setting. Refer to
+<<jwt-realm-configuration,Configure {es} to use a JWT realm>>.
+// end::jwt-hmac-jwkset-tag[]
+
+// tag::jwt-hmac-key-tag[]
+`hmac_key` {ess-icon}::
+(<<secure-settings,Secure>>)
+Contents of a single JSON Web Key (JWK), including the secret key that the JWT
+realm uses to verify token signatures. This format only supports a single key
+without attributes, and cannot be used with the `hmac_jwkset` setting. This
+format is compatible with OIDC. The HMAC key must be a UNICODE string, where
+the key bytes are the UTF-8 encoding of the UNICODE string.
+The `hmac_jwkset` setting is preferred. Refer to
+<<jwt-realm-configuration,Configure {es} to use a JWT realm>>.
+
+// end::jwt-hmac-key-tag[]
 
 // tag::jwt-populate-user-metadata-tag[]
 `populate_user_metadata` {ess-icon}::

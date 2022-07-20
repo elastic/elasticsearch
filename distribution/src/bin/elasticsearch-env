@@ -32,10 +32,6 @@ while [ "`basename "$ES_HOME"`" != "bin" ]; do
 done
 ES_HOME=`dirname "$ES_HOME"`
 
-# now set the classpath
-ES_CLASSPATH="$ES_HOME/lib/*"
-SERVER_CLI_CLASSPATH="$ES_CLASSPATH:$ES_HOME/lib/tools/server-cli/*"
-
 # now set the path to java
 if [ ! -z "$ES_JAVA_HOME" ]; then
   JAVA="$ES_JAVA_HOME/bin/java"

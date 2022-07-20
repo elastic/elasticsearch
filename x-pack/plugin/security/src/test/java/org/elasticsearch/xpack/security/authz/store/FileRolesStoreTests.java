@@ -27,6 +27,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.audit.logfile.CapturingLogger;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
@@ -437,7 +438,7 @@ public class FileRolesStoreTests extends ESTestCase {
             assertEquals(1, modifiedRoles.size());
             assertTrue(modifiedRoles.contains("role5"));
             final TransportRequest request = mock(TransportRequest.class);
-            final Authentication authentication = mock(Authentication.class);
+            final Authentication authentication = AuthenticationTestHelper.builder().build();
             descriptors = store.roleDescriptors(Collections.singleton("role5"));
             assertThat(descriptors, notNullValue());
             assertEquals(1, descriptors.size());
@@ -583,17 +584,16 @@ public class FileRolesStoreTests extends ESTestCase {
             xContentRegistry()
         );
         assertThat(roles, notNullValue());
-        assertThat(roles.size(), is(1));
+        assertThat(roles.size(), is(2));
 
         assertThat(roles, hasKey("admin"));
+        assertThat(roles, hasKey("_system"));
 
         assertThat(events, notNullValue());
-        assertThat(events, hasSize(4));
-        // the system role will always be checked first
-        assertThat(events.get(0), containsString("Role [_system] is reserved"));
-        assertThat(events.get(1), containsString("Role [superuser] is reserved"));
-        assertThat(events.get(2), containsString("Role [kibana_system] is reserved"));
-        assertThat(events.get(3), containsString("Role [transport_client] is reserved"));
+        assertThat(events, hasSize(3));
+        assertThat(events.get(0), containsString("Role [superuser] is reserved"));
+        assertThat(events.get(1), containsString("Role [kibana_system] is reserved"));
+        assertThat(events.get(2), containsString("Role [transport_client] is reserved"));
     }
 
     public void testUsageStats() throws Exception {

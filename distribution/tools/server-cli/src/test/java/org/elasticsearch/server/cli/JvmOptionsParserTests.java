@@ -8,6 +8,9 @@
 
 package org.elasticsearch.server.cli;
 
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.ESTestCase.WithoutSecurityManager;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.StringReader;
@@ -28,13 +31,9 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertThat;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
-public class JvmOptionsParserTests extends LaunchersTestCase {
+@WithoutSecurityManager
+public class JvmOptionsParserTests extends ESTestCase {
 
     public void testSubstitution() {
         final List<String> jvmOptions = JvmOptionsParser.substitutePlaceholders(
@@ -146,7 +145,7 @@ public class JvmOptionsParserTests extends LaunchersTestCase {
     }
 
     public void testMissingRootJvmOptions() throws IOException, JvmOptionsParser.JvmOptionsFileParserException {
-        final Path config = newTempDir();
+        final Path config = createTempDir();
         try {
             final JvmOptionsParser parser = new JvmOptionsParser();
             parser.readJvmOptionsFiles(config);
@@ -157,7 +156,7 @@ public class JvmOptionsParserTests extends LaunchersTestCase {
     }
 
     public void testReadRootJvmOptions() throws IOException, JvmOptionsParser.JvmOptionsFileParserException {
-        final Path config = newTempDir();
+        final Path config = createTempDir();
         final Path rootJvmOptions = config.resolve("jvm.options");
         Files.write(rootJvmOptions, List.of("# comment", "-Xms256m", "-Xmx256m"), StandardOpenOption.CREATE_NEW, StandardOpenOption.APPEND);
         if (randomBoolean()) {
@@ -170,7 +169,7 @@ public class JvmOptionsParserTests extends LaunchersTestCase {
     }
 
     public void testReadJvmOptionsDirectory() throws IOException, JvmOptionsParser.JvmOptionsFileParserException {
-        final Path config = newTempDir();
+        final Path config = createTempDir();
         Files.createDirectory(config.resolve("jvm.options.d"));
         Files.write(
             config.resolve("jvm.options"),
@@ -190,7 +189,7 @@ public class JvmOptionsParserTests extends LaunchersTestCase {
     }
 
     public void testReadJvmOptionsDirectoryInOrder() throws IOException, JvmOptionsParser.JvmOptionsFileParserException {
-        final Path config = newTempDir();
+        final Path config = createTempDir();
         Files.createDirectory(config.resolve("jvm.options.d"));
         Files.write(
             config.resolve("jvm.options"),
@@ -217,7 +216,7 @@ public class JvmOptionsParserTests extends LaunchersTestCase {
 
     public void testReadJvmOptionsDirectoryIgnoresFilesNotNamedOptions() throws IOException,
         JvmOptionsParser.JvmOptionsFileParserException {
-        final Path config = newTempDir();
+        final Path config = createTempDir();
         Files.createFile(config.resolve("jvm.options"));
         Files.createDirectory(config.resolve("jvm.options.d"));
         Files.write(
@@ -232,7 +231,7 @@ public class JvmOptionsParserTests extends LaunchersTestCase {
     }
 
     public void testFileContainsInvalidLinesThrowsParserException() throws IOException {
-        final Path config = newTempDir();
+        final Path config = createTempDir();
         final Path rootJvmOptions = config.resolve("jvm.options");
         Files.write(rootJvmOptions, List.of("XX:+UseG1GC"), StandardOpenOption.CREATE_NEW, StandardOpenOption.APPEND);
         try {

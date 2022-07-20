@@ -3606,7 +3606,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         @Override
         public Map<String, AnalysisModule.AnalysisProvider<AnalyzerProvider<? extends Analyzer>>> getAnalyzers() {
             return singletonMap("mock_whitespace", (indexSettings, environment, name, settings) -> {
-                return new AbstractIndexAnalyzerProvider<Analyzer>(indexSettings, name, settings) {
+                return new AbstractIndexAnalyzerProvider<Analyzer>(name, settings) {
 
                     MockAnalyzer instance = new MockAnalyzer(random(), MockTokenizer.WHITESPACE, false);
 

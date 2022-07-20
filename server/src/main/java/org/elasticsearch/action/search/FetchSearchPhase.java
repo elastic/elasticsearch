@@ -8,7 +8,6 @@
 package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -219,10 +218,7 @@ final class FetchSearchPhase extends SearchPhase {
                     @Override
                     public void onFailure(Exception e) {
                         try {
-                            logger.debug(
-                                () -> new ParameterizedMessage("[{}] Failed to execute fetch phase", fetchSearchRequest.contextId()),
-                                e
-                            );
+                            logger.debug(() -> "[" + fetchSearchRequest.contextId() + "] Failed to execute fetch phase", e);
                             progressListener.notifyFetchFailure(shardIndex, shardTarget, e);
                             counter.onFailure(shardIndex, shardTarget, e);
                         } finally {

@@ -3,6 +3,10 @@ apply plugin: 'elasticsearch.internal-test-artifact'
 dependencies {
   testImplementation project(':x-pack:plugin:core')
   testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation project(":test:framework")
+  testImplementation(project(':x-pack:plugin:sql:qa:server')) {
+    transitive = false
+  }
 }
 
 Project mainProject = project
@@ -12,12 +16,12 @@ subprojects {
   configurations.create('testArtifacts').transitive(false)
 
   dependencies {
-    testImplementation project(":x-pack:plugin:core")
-    testImplementation(testArtifact(project(xpackModule('core'))))
+    javaRestTestImplementation project(":x-pack:plugin:core")
+    javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
     testArtifacts testArtifact(project(mainProject.path))
   }
 
-  testClusters.matching { it.name == "integTest" }.configureEach {
+  testClusters.matching { it.name == "javaRestTest" }.configureEach {
     testDistribution = 'DEFAULT'
     // Setup auditing so we can use it in some tests
     setting 'xpack.security.audit.enabled', 'true'
@@ -43,14 +47,14 @@ subprojects {
     into testArtifactsDir
   }
 
-  tasks.named("integTest").configure {
+  tasks.named("javaRestTest").configure {
     dependsOn copyTestClasses
     testClassesDirs += project.files(testArtifactsDir)
     classpath += configurations.testArtifacts
     nonInputProperties.systemProperty 'tests.audit.logfile',
-      "${-> testClusters.integTest.singleNode().getAuditLog()}"
+      "${-> testClusters.javaRestTest.singleNode().getAuditLog()}"
     nonInputProperties.systemProperty 'tests.audit.yesterday.logfile',
-      "${-> testClusters.integTest.singleNode().getAuditLog().getParentFile()}/integTest_audit-${new Date().format('yyyy-MM-dd')}-1.json.gz"
+      "${-> testClusters.javaRestTest.singleNode().getAuditLog().getParentFile()}/javaRestTest_audit-${new Date().format('yyyy-MM-dd')}-1.json.gz"
   }
 
 }

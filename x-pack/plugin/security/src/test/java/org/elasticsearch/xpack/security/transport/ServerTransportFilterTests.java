@@ -76,9 +76,7 @@ public class ServerTransportFilterTests extends ESTestCase {
 
     public void testInbound() throws Exception {
         TransportRequest request = mock(TransportRequest.class);
-        Authentication authentication = mock(Authentication.class);
-        when(authentication.getVersion()).thenReturn(Version.CURRENT);
-        when(authentication.getUser()).thenReturn(SystemUser.INSTANCE);
+        Authentication authentication = AuthenticationTestHelper.builder().internal(SystemUser.INSTANCE).build();
         doAnswer(getAnswer(authentication)).when(authcService).authenticate(eq("_action"), eq(request), eq(true), anyActionListener());
         ServerTransportFilter filter = getNodeFilter();
         PlainActionFuture<Void> future = new PlainActionFuture<>();
@@ -93,9 +91,7 @@ public class ServerTransportFilterTests extends ESTestCase {
             IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()),
             randomFrom("*", "_all", "test*")
         );
-        Authentication authentication = mock(Authentication.class);
-        when(authentication.getVersion()).thenReturn(Version.CURRENT);
-        when(authentication.getUser()).thenReturn(SystemUser.INSTANCE);
+        Authentication authentication = AuthenticationTestHelper.builder().internal(SystemUser.INSTANCE).build();
         doAnswer(getAnswer(authentication)).when(authcService).authenticate(eq(action), eq(request), eq(true), anyActionListener());
         ServerTransportFilter filter = getNodeFilter();
         @SuppressWarnings("unchecked")
@@ -135,10 +131,8 @@ public class ServerTransportFilterTests extends ESTestCase {
     public void testInboundAuthorizationException() throws Exception {
         ServerTransportFilter filter = getNodeFilter();
         TransportRequest request = mock(TransportRequest.class);
-        Authentication authentication = mock(Authentication.class);
+        Authentication authentication = AuthenticationTestHelper.builder().internal(XPackUser.INSTANCE).build();
         doAnswer(getAnswer(authentication)).when(authcService).authenticate(eq("_action"), eq(request), eq(true), anyActionListener());
-        when(authentication.getVersion()).thenReturn(Version.CURRENT);
-        when(authentication.getUser()).thenReturn(XPackUser.INSTANCE);
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         doThrow(authorizationError("authz failed")).when(authzService)
             .authorize(eq(authentication), eq("_action"), eq(request), anyActionListener());

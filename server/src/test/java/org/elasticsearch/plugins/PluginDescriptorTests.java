@@ -53,7 +53,7 @@ public class PluginDescriptorTests extends ESTestCase {
 
     PluginDescriptor mockDescriptor(String... additionalProps) throws IOException {
         assert additionalProps.length % 2 == 0;
-        @SuppressWarnings("unchecked")
+        @SuppressWarnings({"unchecked", "rawtypes"})
         Map.Entry<String, String>[] additionalPropEntries = (Map.Entry<String, String>[]) new Map.Entry[additionalProps.length / 2];
         for (int i = 0; i < additionalProps.length; i += 2) {
             additionalPropEntries[i / 2] = Map.entry(additionalProps[i], additionalProps[i + 1]);

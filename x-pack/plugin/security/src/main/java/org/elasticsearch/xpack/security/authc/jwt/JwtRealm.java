@@ -17,14 +17,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.SettingsException;
-import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasable;
@@ -55,7 +53,6 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static java.lang.String.join;
 import static org.elasticsearch.core.Strings.format;
@@ -128,7 +125,6 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     DelegatedAuthorizationSupport delegatedAuthorizationSupport = null;
     ContentAndJwksAlgs contentAndJwksAlgsPkc;
     ContentAndJwksAlgs contentAndJwksAlgsHmac;
-    private final AtomicReference<ListenableFuture<Boolean>> reloadActionRef = new AtomicReference<>();
 
     JwtRealm(
         final RealmConfig realmConfig,
@@ -526,64 +522,18 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                     }
                     final String sigErr = originalValidateSignatureException.getMessage() + " ";
 
-                    ListenableFuture<Boolean> reloadAction = this.reloadActionRef.get(); // shared by threads using this realm
-                    final PlainActionFuture<Boolean> reloadListener = PlainActionFuture.newFuture(); // local thread
-                    final PlainActionFuture<Boolean> reloadListener2 = PlainActionFuture.newFuture(); // local thread
-                    while (reloadAction == null) {
-                        reloadAction = new ListenableFuture<>(); // current thread will try to take charge of reload
-                        boolean isCurrentThread = this.reloadActionRef.compareAndSet(null, reloadAction);
-                        if (isCurrentThread == false) {
-                            reloadAction = this.reloadActionRef.get(); // different thread took charge, get the shared reference
-                        }
-                        reloadAction.addListener(reloadListener);
-                        reloadAction.addListener(reloadListener2);
-                        if (isCurrentThread) {
-                            try {
-                                LOGGER.trace(sigErr + "Reloading PKC JWKs to retry verify JWT token=[" + tokenPrincipal + "]");
-                                final ContentAndJwksAlgs newContentAndJwksAlgs;
-                                try {
-                                    newContentAndJwksAlgs = this.parseJwksAlgsPkc();
-                                } catch (Exception reloadException) {
-                                    final String msg = sigErr
-                                        + "Failed to reload PKC JWKs, can't retry verify JWT token=["
-                                        + tokenPrincipal
-                                        + "]";
-                                    reloadException.addSuppressed(originalValidateSignatureException);
-                                    LOGGER.error(msg, reloadException);
-                                    listener.onResponse(AuthenticationResult.unsuccessful(msg, reloadException));
-                                    return;
-                                }
-                                final boolean isSame = Arrays.equals(this.contentAndJwksAlgsPkc.sha256, newContentAndJwksAlgs.sha256);
-                                if (isSame) {
-                                    LOGGER.debug(sigErr + "Reloaded same PKC JWKs to verify JWT token=[" + tokenPrincipal + "]");
-                                } else {
-                                    LOGGER.debug(sigErr + "Reloaded different PKC JWKs to verify JWT token=[" + tokenPrincipal + "]");
-                                    this.contentAndJwksAlgsPkc = newContentAndJwksAlgs;
-
-                                    // If all PKC JWKs were replaced, all PKC JWT cache entries need to be invalidated.
-                                    // Enhancement idea: Use separate caches for PKC vs HMAC JWKs, so only PKC entries get invalidated.
-                                    // Enhancement idea: When some JWKs are retained (ex: rotation), only invalidate for removed JWKs.
-                                    this.invalidateJwtCache();
-                                }
-                                reloadAction.onResponse(isSame);
-                            } catch (Exception e) {
-                                final String msg = sigErr
-                                    + "Failed to reload PKC JWKs, can't retry verify JWT token=["
-                                    + tokenPrincipal
-                                    + "]";
-                                e.addSuppressed(originalValidateSignatureException);
-                                LOGGER.error(msg, e);
-                                reloadAction.onFailure(e);
-                            } finally {
-                                this.reloadActionRef.set(null);
-                            }
-                        }
+                    LOGGER.trace(sigErr + "Reloading PKC JWKs to retry verify JWT token=[" + tokenPrincipal + "]");
+                    final ContentAndJwksAlgs newContentAndJwksAlgs;
+                    try {
+                        newContentAndJwksAlgs = this.parseJwksAlgsPkc();
+                    } catch (Exception reloadException) {
+                        final String msg = sigErr + "Failed to reload PKC JWKs, can't retry verify JWT token=[" + tokenPrincipal + "]";
+                        reloadException.addSuppressed(originalValidateSignatureException);
+                        LOGGER.error(msg, reloadException);
+                        listener.onResponse(AuthenticationResult.unsuccessful(msg, reloadException));
+                        return;
                     }
-
-                    LOGGER.trace(sigErr + "Waiting for reload of PKC JWKs to retry verify JWT token=[" + tokenPrincipal + "]");
-                    final boolean isSame = reloadListener.actionGet(); // wait for action to complete
-                    final boolean isSame2 = reloadListener2.actionGet(); // wait for action to complete
-                    assert isSame == isSame2;
+                    final boolean isSame = Arrays.equals(this.contentAndJwksAlgsPkc.sha256, newContentAndJwksAlgs.sha256);
                     if (isSame) {
                         final String msg = sigErr + "Reloaded same PKC JWKs, can't retry verify JWT token=[" + tokenPrincipal + "]";
                         final ElasticsearchException reloadPkcException = new ElasticsearchException(msg);
@@ -591,11 +541,20 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                         LOGGER.debug(msg, reloadPkcException);
                         listener.onResponse(AuthenticationResult.unsuccessful(msg, reloadPkcException));
                         return;
-                    } else if (this.contentAndJwksAlgsPkc.jwksAlgs.isEmpty()) {
+                    }
+                    LOGGER.debug(sigErr + "Reloaded different PKC JWKs to verify JWT token=[" + tokenPrincipal + "]");
+                    this.contentAndJwksAlgsPkc = newContentAndJwksAlgs;
+
+                    // If all PKC JWKs were replaced, all PKC JWT cache entries need to be invalidated.
+                    // Enhancement idea: Use separate caches for PKC vs HMAC JWKs, so only PKC entries get invalidated.
+                    // Enhancement idea: When some JWKs are retained (ex: rotation), only invalidate for removed JWKs.
+                    this.invalidateJwtCache();
+
+                    if (this.contentAndJwksAlgsPkc.jwksAlgs.isEmpty()) {
                         LOGGER.error(sigErr + "Reloaded empty PKC JWKs, can't retry verify JWT token=[" + tokenPrincipal + "]");
                         // allow empty, filtered PKC JWKs to fall through to try/catch below, to reuse that error handling
                     }
-                    // different PKC JWKs detected so retry signature
+
                     try {
                         JwtValidateUtil.validateSignature(jwt, this.contentAndJwksAlgsPkc.jwksAlgs.jwks);
                     } catch (Exception e) {

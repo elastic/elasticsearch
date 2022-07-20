@@ -96,7 +96,7 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
 
         Response.Builder responseBuilder = Response.builder();
-        TaskId parentTaskId = new TaskId(clusterService.getNodeName(), task.getId());
+        TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
 
         if (MachineLearningField.ML_API_FEATURE.check(licenseState)) {
             responseBuilder.setLicensed(true);

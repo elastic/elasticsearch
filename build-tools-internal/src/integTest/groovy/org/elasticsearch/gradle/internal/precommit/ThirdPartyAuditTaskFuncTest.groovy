@@ -9,6 +9,7 @@
 package org.elasticsearch.gradle.internal.precommit
 
 import net.bytebuddy.ByteBuddy
+import net.bytebuddy.ClassFileVersion
 import net.bytebuddy.description.modifier.Ownership
 import net.bytebuddy.description.modifier.Visibility
 import net.bytebuddy.dynamic.DynamicType
@@ -185,13 +186,13 @@ class ThirdPartyAuditTaskFuncTest extends AbstractGradleFuncTest {
 
     Object generateDummyJars(String groupId) {
         def baseGroupFolderPath = "local-repo/${groupId.replace('.', '/')}"
-        DynamicType.Unloaded<?> stringDynamicType = new ByteBuddy().subclass(Object.class)
+        DynamicType.Unloaded<?> stringDynamicType = new ByteBuddy(ClassFileVersion.ofJavaVersion(8)).subclass(Object.class)
                 .name("java.lang.String")
                 .make()
         stringDynamicType.toJar(targetFile(dir("${baseGroupFolderPath}/dummy-string/0.0.1"),
                 "dummy-string-0.0.1.jar"));
 
-        DynamicType.Unloaded<?> ioDynamicType = new ByteBuddy().subclass(Object.class)
+        DynamicType.Unloaded<?> ioDynamicType = new ByteBuddy(ClassFileVersion.ofJavaVersion(8)).subclass(Object.class)
                 .name("org.acme.TestingIO")
                 .defineMethod("getFile", File.class, Visibility.PUBLIC, Ownership.MEMBER)
                 .intercept(FixedValue.nullValue())
@@ -199,7 +200,7 @@ class ThirdPartyAuditTaskFuncTest extends AbstractGradleFuncTest {
         ioDynamicType.toJar(targetFile(dir("${baseGroupFolderPath}//dummy-io/0.0.1")
                 , "dummy-io-0.0.1.jar"));
 
-        DynamicType.Unloaded<?> loggingDynamicType = new ByteBuddy().subclass(Object.class)
+        DynamicType.Unloaded<?> loggingDynamicType = new ByteBuddy(ClassFileVersion.ofJavaVersion(8)).subclass(Object.class)
                 .name("org.acme.TestingLogging")
                 .defineMethod("getLogManager", LogManager.class, Visibility.PUBLIC, Ownership.MEMBER)
                 .intercept(FixedValue.nullValue())

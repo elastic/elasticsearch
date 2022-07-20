@@ -89,8 +89,8 @@ public class ReindexMetadata extends Metadata {
     /**
      * Augmentation to allow {@link ReindexScript}s to check if the version is set to "internal"
      */
-    public static boolean isVersionInternal(Metadata reciever) {
-        return reciever.get(VERSION) == null;
+    public static boolean isVersionInternal(Metadata receiver) {
+        return receiver.get(VERSION) == null;
     }
 
     /**
@@ -98,8 +98,8 @@ public class ReindexMetadata extends Metadata {
      *
      * This is necessary because {@link #setVersion(long)} takes a primitive long.
      */
-    public static void setVersionToInternal(Metadata reciever) {
-        reciever.put(VERSION, null);
+    public static void setVersionToInternal(Metadata receiver) {
+        receiver.put(VERSION, null);
     }
 
     public boolean versionChanged() {

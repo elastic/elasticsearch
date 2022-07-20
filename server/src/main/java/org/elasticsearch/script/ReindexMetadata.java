@@ -18,6 +18,7 @@ import java.util.Set;
 /**
  * Metadata for the {@link ReindexScript} context.
  * _index, _id, _version, _routing are all read-write and nullable.
+ * _now is millis since epoch and read-only
  * op is read-write one of 'index', 'noop', 'delete'
  *
  * If _version is set to null in the ctx map, that is interpreted as using internal versioning.

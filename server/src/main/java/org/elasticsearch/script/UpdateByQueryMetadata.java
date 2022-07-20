@@ -16,7 +16,8 @@ import java.util.Set;
 
 /**
  * Metadata for the {@link UpdateByQueryMetadata} context.
- * _index, _id, _version, _routing are all read-only.  _routing is also nullable
+ * _index, _id, _version, _routing are all read-only.  _routing is also nullable.
+ * _now is millis since epoch and read-only.
  * op is read-write and one of 'index', 'noop', 'delete'
  */
 public class UpdateByQueryMetadata extends Metadata {

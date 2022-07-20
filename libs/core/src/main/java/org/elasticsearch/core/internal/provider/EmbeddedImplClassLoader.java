@@ -118,13 +118,11 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
     record Resource(InputStream inputStream, CodeSource codeSource) {}
 
     /** Searches for the named resource. Iterates over all prefixes. */
-    private Resource privilegedGetResourceOrNull(String name) {
+    private Resource privilegedGetResourceOrNull(JarMeta jarMeta, String pkg, String filepath) {
         return AccessController.doPrivileged((PrivilegedAction<Resource>) () -> {
-            for (JarMeta jarMeta : jarMetas) {
-                InputStream is = findResourceForPrefixOrNull(name, jarMeta, parent::getResourceAsStream);
-                if (is != null) {
-                    return new Resource(is, prefixToCodeBase.get(jarMeta.prefix()));
-                }
+            InputStream is = findResourceInLoaderPkgOrNull(jarMeta, pkg, filepath, parent::getResourceAsStream);
+            if (is != null) {
+                return new Resource(is, prefixToCodeBase.get(jarMeta.prefix()));
             }
             return null;
         });
@@ -142,32 +140,13 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
         return null;
     }
 
-    // Retrieves a class resource from this loader's jars, or null.
-    private Resource privilegedGetClassResourceOrNull(JarMeta jarMeta, String pkg, String filepath) {
-        return AccessController.doPrivileged((PrivilegedAction<Resource>) () -> {
-            List<Integer> releaseVersions = jarMeta.pkgToVersions().getOrDefault(pkg, List.of());
-            for (int releaseVersion : releaseVersions) {
-                String fullName = jarMeta.prefix() + "/" + MRJAR_VERSION_PREFIX + releaseVersion + "/" + filepath;
-                InputStream is = parent.getResourceAsStream(fullName);
-                if (is != null) {
-                    return new Resource(is, prefixToCodeBase.get(jarMeta.prefix()));
-                }
-            }
-            InputStream is = parent.getResourceAsStream(jarMeta.prefix() + "/" + filepath);
-            if (is != null) {
-                return new Resource(is, prefixToCodeBase.get(jarMeta.prefix()));
-            }
-            return null;
-        });
-    }
-
     @Override
     public Class<?> findClass(String name) throws ClassNotFoundException {
         String filepath = name.replace('.', '/').concat(".class");
         String pkg = toPackageName(filepath);
         JarMeta jarMeta = packageToJarMeta.get(pkg);
         if (jarMeta != null) {
-            Resource res = privilegedGetClassResourceOrNull(jarMeta, pkg, filepath);
+            Resource res = privilegedGetResourceOrNull(jarMeta, pkg, filepath);
             if (res != null) {
                 try (InputStream in = res.inputStream()) {
                     byte[] bytes = in.readAllBytes();
@@ -185,35 +164,73 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
     @Override
     protected URL findResource(String name) {
         Objects.requireNonNull(name);
+        String pkg = toPackageName(name);
+        JarMeta jarMeta = packageToJarMeta.get(pkg);
+        URL url;
+        if (jarMeta != null) {
+            url = findResourceInLoaderPkgOrNull(jarMeta, pkg, name, parent::getResource);
+        } else {
+            // not in a package defined to this loader, slow search
+            url = findMiscResourceOrNull(name);
+        }
+        if (url != null) {
+            return url;
+        }
+        return parent.getResource(name);
+    }
+
+    /**
+     * Searches for the named resource located in a package defined to this loader, returning its
+     * url or null if not found. Iterates over all known package specific multi-release versions,
+     * then the root, for the given jar prefix.
+     */
+    <T> T findResourceInLoaderPkgOrNull(JarMeta jarMeta, String pkg, String name, Function<String, T> finder) {
+        List<Integer> releaseVersions = jarMeta.pkgToVersions().getOrDefault(pkg, List.of());
+        for (int releaseVersion : releaseVersions) {
+            String fullName = jarMeta.prefix() + "/" + MRJAR_VERSION_PREFIX + releaseVersion + "/" + name;
+            T t = finder.apply(fullName);
+            if (t != null) {
+                return t;
+            }
+        }
+        return finder.apply(jarMeta.prefix() + "/" + name);
+    }
+
+    /**
+     * Searches for the named resource, returning its url or null if not found.
+     * Iterates over all multi-release versions, then the root, for all jars.
+     * Slow path for resources not necessarily in packages defined to this loader.
+     */
+    URL findMiscResourceOrNull(String name) {
         for (JarMeta jarMeta : jarMetas) {
-            URL url = findResourceForPrefixOrNull(name, jarMeta, parent::getResource);
+            URL url = findResourceForPrefixOrNull(name, jarMeta);
             if (url != null) {
                 return url;
             }
         }
-        return parent.getResource(name);
+        return null;
     }
 
     /**
      * Searches for the named resource, returning its url or null if not found.
      * Iterates over all multi-release versions, then the root, for the given jar prefix.
      */
-    <T> T findResourceForPrefixOrNull(String name, JarMeta jarMeta, Function<String, T> finder) {
-        T resource;
+    URL findResourceForPrefixOrNull(String name, JarMeta jarMeta) {
+        URL url;
         if (jarMeta.isMultiRelease) {
-            resource = findVersionedResourceForPrefixOrNull(jarMeta.prefix(), name, finder);
-            if (resource != null) {
-                return resource;
+            url = findVersionedResourceForPrefixOrNull(jarMeta.prefix(), name);
+            if (url != null) {
+                return url;
             }
         }
-        return finder.apply(jarMeta.prefix() + "/" + name);
+        return parent.getResource(jarMeta.prefix() + "/" + name);
     }
 
-    <T> T findVersionedResourceForPrefixOrNull(String prefix, String name, Function<String, T> finder) {
+    URL findVersionedResourceForPrefixOrNull(String prefix, String name) {
         for (int v = RUNTIME_VERSION_FEATURE; v >= BASE_VERSION_FEATURE; v--) {
-            T resource = finder.apply(prefix + "/" + MRJAR_VERSION_PREFIX + v + "/" + name);
-            if (resource != null) {
-                return resource;
+            URL url = parent.getResource(prefix + "/" + MRJAR_VERSION_PREFIX + v + "/" + name);
+            if (url != null) {
+                return url;
             }
         }
         return null;
@@ -231,7 +248,7 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
                     return true;
                 } else {
                     while (jarMetaIndex < jarMetas.size()) {
-                        URL u = findResourceForPrefixOrNull(name, jarMetas.get(jarMetaIndex), parent::getResource);
+                        URL u = findResourceForPrefixOrNull(name, jarMetas.get(jarMetaIndex));
                         jarMetaIndex++;
                         if (u != null) {
                             url = u;
@@ -381,7 +398,7 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
         Set<String> pkgs = new HashSet<>();
         Map<String, List<Integer>> pkgVersions = new HashMap<>();
         try (var paths = Files.find(dir, Integer.MAX_VALUE, ((path, attrs) -> attrs.isRegularFile()))) {
-            paths.map(path -> dir.relativize(path)).filter(path -> path.getFileName().toString().endsWith(".class")).forEach(path -> {
+            paths.map(path -> dir.relativize(path)).forEach(path -> {
                 Path parent = path.getParent();
                 if (parent != null) {
                     if (parent.startsWith(MRJAR_VERSION_PREFIX)) {

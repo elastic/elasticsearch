@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -50,6 +51,7 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.startsWith;
+import static org.mockito.Mockito.mock;
 
 public class ActionModuleTests extends ESTestCase {
     public void testSetupActionsContainsKnownBuiltin() {
@@ -118,7 +120,7 @@ public class ActionModuleTests extends ESTestCase {
             null,
             usageService,
             null,
-            null,
+            mock(ClusterService.class),
             Collections.emptyList()
         );
         actionModule.initRestHandlers(null);
@@ -176,7 +178,7 @@ public class ActionModuleTests extends ESTestCase {
                 null,
                 usageService,
                 null,
-                null,
+                mock(ClusterService.class),
                 Collections.emptyList()
             );
             Exception e = expectThrows(IllegalArgumentException.class, () -> actionModule.initRestHandlers(null));
@@ -227,7 +229,7 @@ public class ActionModuleTests extends ESTestCase {
                 null,
                 usageService,
                 null,
-                null,
+                mock(ClusterService.class),
                 Collections.emptyList()
             );
             actionModule.initRestHandlers(null);
@@ -273,7 +275,7 @@ public class ActionModuleTests extends ESTestCase {
                     null,
                     usageService,
                     null,
-                    null,
+                    mock(ClusterService.class),
                     Collections.emptyList()
                 )
             );

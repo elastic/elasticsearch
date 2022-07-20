@@ -34,7 +34,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -66,6 +68,7 @@ import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 
 public class TransportTasksActionTests extends TaskManagerTestCase {
@@ -178,11 +181,16 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         }
 
         TestTasksRequest() {}
+
+        @Override
+        public CancellableTask createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, "testTasksRequest", parentTaskId, headers);
+        }
     }
 
     static class TestTasksResponse extends BaseTasksResponse {
 
-        private List<TestTaskResponse> tasks;
+        final private List<TestTaskResponse> tasks;
 
         TestTasksResponse(
             List<TestTaskResponse> tasks,
@@ -618,6 +626,81 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
             }
         }
         return taskDescriptions.toString();
+    }
+
+    public void testActionParentCancellationPropagates() throws ExecutionException, InterruptedException, IOException {
+        setupTestNodes(Settings.EMPTY);
+        connectNodes(testNodes);
+        CountDownLatch checkLatch = new CountDownLatch(1);
+        CountDownLatch taskLatch = new CountDownLatch(1);
+        ActionFuture<NodesResponse> future = startBlockingTestNodesAction(checkLatch);
+        int numNodes = 2;
+
+        CountDownLatch taskExecutesLatch = new CountDownLatch(numNodes);
+        TestTasksAction[] tasksActions = new TestTasksAction[numNodes];
+        for (int j = 0; j < numNodes; j++) {
+            final int nodeId = j;
+            // Simulate task action that fails on one of the tasks on one of the nodes
+            tasksActions[j] = new TestTasksAction(
+                "internal:testTasksAction",
+                testNodes[nodeId].clusterService,
+                testNodes[nodeId].transportService
+            ) {
+                @Override
+                protected void taskOperation(
+                    Task actionTask,
+                    TestTasksRequest request,
+                    Task task,
+                    ActionListener<TestTaskResponse> listener
+                ) {
+                    try {
+                        taskExecutesLatch.countDown();
+                        logger.info("Task handled on node {} {}", nodeId, actionTask);
+                        taskLatch.await();
+                        assertThat(actionTask, instanceOf(CancellableTask.class));
+                        logger.info("Task is now proceeding with cancellation check {}", nodeId);
+                        if (actionTask instanceof CancellableTask cancellableTask) {
+                            assertBusy(() -> assertTrue(cancellableTask.isCancelled()));
+                        }
+                        listener.onResponse(new TestTaskResponse("CANCELLED"));
+                    } catch (Exception e) {
+                        listener.onFailure(e);
+                        fail(e.getMessage());
+                    }
+                }
+            };
+        }
+
+        TestTasksRequest testTasksRequest = new TestTasksRequest();
+        testTasksRequest.setActions("internal:testAction[n]"); // pick all test actions
+        testTasksRequest.setNodes(testNodes[0].getNodeId(), testNodes[1].getNodeId()); // only first two nodes
+        PlainActionFuture<TestTasksResponse> taskFuture = newFuture();
+        CancellableTask task = (CancellableTask) testNodes[0].transportService.getTaskManager()
+            .registerAndExecute(
+                "direct",
+                tasksActions[0],
+                testTasksRequest,
+                testNodes[0].transportService.getLocalNodeConnection(),
+                taskFuture
+            );
+        logger.info("Executing test task request and awaiting their execution");
+        taskExecutesLatch.await();
+        logger.info("All test tasks are now executing");
+
+        PlainActionFuture<Void> cancellationFuture = newFuture();
+        logger.info("Cancelling tasks");
+
+        testNodes[0].transportService.getTaskManager().cancelTaskAndDescendants(task, "test case", false, cancellationFuture);
+        logger.info("Awaiting task cancellation");
+        cancellationFuture.actionGet();
+        logger.info("Parent task is now cancelled counting down task latch");
+        taskLatch.countDown();
+        expectThrows(TaskCancelledException.class, taskFuture::actionGet);
+
+        // Release all node tasks and wait for response
+        checkLatch.countDown();
+        NodesResponse responses = future.get();
+        assertEquals(0, responses.failureCount());
     }
 
     public void testTaskLevelActionFailures() throws ExecutionException, InterruptedException, IOException {

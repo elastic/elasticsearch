@@ -37,6 +37,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.nio.channels.ClosedChannelException;
@@ -52,6 +53,9 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -396,7 +400,7 @@ public class DefaultRestChannelTests extends ESTestCase {
     }
 
     /**
-     * Check that when a REST channel sends a response, then it stops the active trace.
+     * Check that when a REST channel sends a response, then it records the HTTP response code and stops the active trace.
      */
     public void testTraceStopped() {
         // Configure the httpChannel mock to call the action listener passed to it when sending a response
@@ -408,7 +412,8 @@ public class DefaultRestChannelTests extends ESTestCase {
 
         executeRequest(Settings.EMPTY, "request-host");
 
-        verify(tracer).onTraceStopped("rest-1");
+        verify(tracer).setAttribute(argThat(id -> id.startsWith("rest-")), eq("http.status_code"), eq(200L));
+        verify(tracer).onTraceStopped(argThat(id -> id.startsWith("rest-")));
     }
 
     private TestHttpResponse executeRequest(final Settings settings, final String host) {

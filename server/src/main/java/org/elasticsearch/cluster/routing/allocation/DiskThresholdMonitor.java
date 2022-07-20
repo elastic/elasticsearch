@@ -70,6 +70,9 @@ public class DiskThresholdMonitor {
     private final RerouteService rerouteService;
     private final AtomicLong lastRunTimeMillis = new AtomicLong(Long.MIN_VALUE);
     private final AtomicBoolean checkInProgress = new AtomicBoolean();
+    // Keeps track of whether the cleanup of existing index blocks (upon disabling
+    // the Disk Threshold Monitor) was successfully done or not.
+    private final AtomicBoolean cleanupUponDisableCalled = new AtomicBoolean();
 
     /**
      * The IDs of the nodes that were over the low threshold in the last check (and maybe over another threshold too). Tracked so that we
@@ -129,6 +132,9 @@ public class DiskThresholdMonitor {
         if (diskThresholdSettings.isEnabled() == false) {
             removeExistingIndexBlocks(ActionListener.wrap(this::checkFinished));
             return;
+        } else {
+            // reset this for the next disable call.
+            cleanupUponDisableCalled.set(false);
         }
 
         final Map<String, DiskUsage> usages = info.getNodeLeastAvailableDiskUsages();
@@ -475,7 +481,14 @@ public class DiskThresholdMonitor {
     }
 
     private void removeExistingIndexBlocks(ActionListener<Void> listener) {
-        ActionListener<Void> wrappedListener = ActionListener.wrap(listener::onResponse, e -> {
+        if (cleanupUponDisableCalled.get()) {
+            listener.onResponse(null);
+            return;
+        }
+        ActionListener<Void> wrappedListener = ActionListener.wrap(r -> {
+            cleanupUponDisableCalled.set(true);
+            listener.onResponse(null);
+        }, e -> {
             logger.debug("removing read-only blocks from indices failed", e);
             listener.onFailure(e);
         });

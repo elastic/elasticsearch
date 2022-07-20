@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.DiskUsageIntegTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -68,7 +67,7 @@ public class DiskThresholdMonitorIT extends DiskUsageIntegTestCase {
                 client().prepareIndex().setIndex(indexName).setId("1").setSource("f", "g"),
                 IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK
             );
-            assertThat(getIndexBlock(client(), indexName, IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE), equalTo("true"));
+            assertThat(getIndexBlock(indexName, IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE), equalTo("true"));
         });
 
         // Verify that we can adjust things like allocation filters even while blocked
@@ -105,7 +104,7 @@ public class DiskThresholdMonitorIT extends DiskUsageIntegTestCase {
         // Verify that the block is removed once the shard migration is complete
         refreshClusterInfo();
         assertFalse(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).get().isTimedOut());
-        assertNull(getIndexBlock(client(), indexName, IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE));
+        assertNull(getIndexBlock(indexName, IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE));
     }
 
     public void testRemoveExistingIndexBlocksWhenDiskThresholdMonitorIsDisabled() throws Exception {
@@ -132,7 +131,7 @@ public class DiskThresholdMonitorIT extends DiskUsageIntegTestCase {
                 client().prepareIndex().setIndex(indexName).setId("1").setSource("f", "g"),
                 IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK
             );
-            assertThat(getIndexBlock(client(), indexName, IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE), equalTo("true"));
+            assertThat(getIndexBlock(indexName, IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE), equalTo("true"));
         });
 
         // Disable disk threshold monitoring
@@ -143,15 +142,7 @@ public class DiskThresholdMonitorIT extends DiskUsageIntegTestCase {
         // Verify that the block is removed
         refreshClusterInfo();
         assertFalse(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).get().isTimedOut());
-        assertNull(getIndexBlock(client(), indexName, IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE));
-
-        // Verify that the cleanup is called even after disabling disk threshold monitoring
-        // by manually adding the block to the index and ensuring that it gets removed.
-        enableIndexBlock(indexName, IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE);
-        assertThat(getIndexBlock(client(), indexName, IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE), equalTo("true"));
-        refreshClusterInfo();
-        assertFalse(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).get().isTimedOut());
-        assertNull(getIndexBlock(client(), indexName, IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE));
+        assertNull(getIndexBlock(indexName, IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE));
 
         // Re-enable and the blocks should be back!
         updateClusterSettings(
@@ -159,12 +150,12 @@ public class DiskThresholdMonitorIT extends DiskUsageIntegTestCase {
         );
         refreshClusterInfo();
         assertFalse(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).get().isTimedOut());
-        assertThat(getIndexBlock(client(), indexName, IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE), equalTo("true"));
+        assertThat(getIndexBlock(indexName, IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE), equalTo("true"));
     }
 
     // Retrieves the value of the given block on an index.
-    private static String getIndexBlock(Client client, String indexName, String blockName) {
-        return client.admin().indices().prepareGetSettings(indexName).setNames(blockName).get().getSetting(indexName, blockName);
+    private static String getIndexBlock(String indexName, String blockName) {
+        return client().admin().indices().prepareGetSettings(indexName).setNames(blockName).get().getSetting(indexName, blockName);
     }
 
 }

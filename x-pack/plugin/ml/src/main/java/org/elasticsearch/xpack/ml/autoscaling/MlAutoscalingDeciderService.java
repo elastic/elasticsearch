@@ -411,7 +411,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
             .map(Map.Entry::getKey)
             .toList();
         // TODO for autoscaling by memory, we only care about if the model is allocated to at least one node (see above)
-        //  We should do this check in our autoscaling by processor count service, which will be a separate decider for readability's sake
+        // We should do this check in our autoscaling by processor count service, which will be a separate decider for readability's sake
         final List<String> notFullyAllocatedModels = modelAssignments.entrySet()
             .stream()
             .filter(

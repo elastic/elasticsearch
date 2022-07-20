@@ -49,14 +49,14 @@ public class ApiKeyUserRoleDescriptorResolverTests extends ESTestCase {
             .collect(Collectors.toUnmodifiableSet());
 
         doAnswer(inv -> {
-            final Object[] args1 = inv.getArguments();
-            assertThat(args1, arrayWithSize(2));
+            final Object[] args = inv.getArguments();
+            assertThat(args, arrayWithSize(2));
 
-            Subject subject = (Subject) args1[0];
+            Subject subject = (Subject) args[0];
             assertThat(subject.getType(), is(Subject.Type.USER));
             assertThat(Set.of(subject.getUser().roles()), equalTo(userRoleNames));
 
-            ActionListener<Collection<Set<RoleDescriptor>>> listener = (ActionListener<Collection<Set<RoleDescriptor>>>) args1[args1.length
+            ActionListener<Collection<Set<RoleDescriptor>>> listener = (ActionListener<Collection<Set<RoleDescriptor>>>) args[args.length
                 - 1];
             listener.onResponse(List.of(roleDescriptors));
             return null;

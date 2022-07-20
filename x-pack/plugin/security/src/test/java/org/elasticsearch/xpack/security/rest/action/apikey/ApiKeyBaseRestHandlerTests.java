@@ -28,6 +28,7 @@ public class ApiKeyBaseRestHandlerTests extends ESTestCase {
     public void testCheckFeatureAvailableChecksSettings() throws Exception {
         final boolean securityEnabled = randomBoolean();
         final boolean serviceEnabled = randomBoolean();
+        final boolean requiredSettingsEnabled = securityEnabled && serviceEnabled;
         final var settings = Settings.builder()
             .put(XPackSettings.SECURITY_ENABLED.getKey(), securityEnabled)
             .put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), serviceEnabled)
@@ -55,13 +56,13 @@ public class ApiKeyBaseRestHandlerTests extends ESTestCase {
             }
         };
         final var fakeRestRequest = new FakeRestRequest();
-        final var fakeRestChannel = new FakeRestChannel(fakeRestRequest, randomBoolean(), serviceEnabled ? 0 : 1);
+        final var fakeRestChannel = new FakeRestChannel(fakeRestRequest, randomBoolean(), requiredSettingsEnabled ? 0 : 1);
 
         try (NodeClient client = new NoOpNodeClient(this.getTestName())) {
             assertFalse(consumerCalled.get());
             handler.handleRequest(fakeRestRequest, fakeRestChannel, client);
 
-            if (securityEnabled && serviceEnabled) {
+            if (requiredSettingsEnabled) {
                 assertTrue(consumerCalled.get());
                 assertEquals(0, fakeRestChannel.responses().get());
                 assertEquals(0, fakeRestChannel.errors().get());

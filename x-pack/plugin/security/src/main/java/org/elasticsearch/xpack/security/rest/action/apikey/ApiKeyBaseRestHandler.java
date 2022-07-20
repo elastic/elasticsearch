@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.security.rest.action.apikey;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
@@ -17,9 +15,6 @@ import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 import org.elasticsearch.xpack.security.support.FeatureNotEnabledException;
 
 abstract class ApiKeyBaseRestHandler extends SecurityBaseRestHandler {
-
-    protected Logger logger = LogManager.getLogger(getClass());
-
     ApiKeyBaseRestHandler(Settings settings, XPackLicenseState licenseState) {
         super(settings, licenseState);
     }

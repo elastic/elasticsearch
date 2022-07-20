@@ -59,6 +59,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.NestedDocuments;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -478,10 +479,16 @@ public class SearchExecutionContext extends QueryRewriteContext {
     public SearchLookup lookup() {
         if (this.lookup == null) {
             SourceFieldMapper sourceMapper = mappingLookup == null ? null : (SourceFieldMapper) mappingLookup.getMapper("_source");
+            SourceLookup sourceLookup;
+            if (sourceMapper == null || sourceMapper.isSynthetic() == false) {
+                sourceLookup = new SourceLookup(new SourceLookup.ReaderSourceProvider());
+            } else {
+                sourceLookup = new SourceLookup(new SourceLookup.NullSourceProvider());
+            }
             this.lookup = new SearchLookup(
                 this::getFieldType,
                 (fieldType, searchLookup) -> indexFieldDataService.apply(fieldType, fullyQualifiedIndex.getName(), searchLookup),
-                sourceMapper == null || sourceMapper.isSynthetic() == false
+                sourceLookup
             );
         }
         return this.lookup;

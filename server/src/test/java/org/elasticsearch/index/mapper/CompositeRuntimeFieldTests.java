@@ -15,6 +15,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -334,7 +335,7 @@ public class CompositeRuntimeFieldTests extends MapperServiceTestCase {
             SearchLookup searchLookup = new SearchLookup(
                 mapperService::fieldType,
                 (mft, lookupSupplier) -> mft.fielddataBuilder("test", lookupSupplier).build(null, null),
-                true
+                new SourceLookup(new SourceLookup.ReaderSourceProvider())
             );
 
             LeafSearchLookup leafSearchLookup = searchLookup.getLeafSearchLookup(reader.leaves().get(0));

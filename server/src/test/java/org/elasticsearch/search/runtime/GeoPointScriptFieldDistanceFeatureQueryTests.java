@@ -24,6 +24,7 @@ import org.elasticsearch.script.AbstractLongFieldScript;
 import org.elasticsearch.script.GeoPointFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.List;
@@ -81,7 +82,7 @@ public class GeoPointScriptFieldDistanceFeatureQueryTests extends AbstractScript
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"location\": [-3.56, -45.98]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                SearchLookup searchLookup = new SearchLookup(null, null, true);
+                SearchLookup searchLookup = new SearchLookup(null, null, new SourceLookup(new SourceLookup.ReaderSourceProvider()));
                 Function<LeafReaderContext, AbstractLongFieldScript> leafFactory = ctx -> new GeoPointFieldScript(
                     "test",
                     Map.of(),
@@ -90,7 +91,7 @@ public class GeoPointScriptFieldDistanceFeatureQueryTests extends AbstractScript
                 ) {
                     @Override
                     public void execute() {
-                        GeoPoint point = GeoUtils.parseGeoPoint(searchLookup.source().get("location"), true);
+                        GeoPoint point = GeoUtils.parseGeoPoint(searchLookup.source().source().get("location"), true);
                         emit(point.lat(), point.lon());
                     }
                 };

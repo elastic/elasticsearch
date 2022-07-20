@@ -339,8 +339,7 @@ public class UpdateHelper {
 
         BytesReference sourceFilteredAsBytes = sourceAsBytes;
         if (request.fetchSource().includes().length > 0 || request.fetchSource().excludes().length > 0) {
-            SourceLookup sourceLookup = new SourceLookup.Static();
-            sourceLookup.setSource(source);
+            SourceLookup sourceLookup = new SourceLookup(new SourceLookup.MapSourceProvider(source));
             Object value = sourceLookup.filter(request.fetchSource());
             try {
                 final int initialCapacity = sourceAsBytes != null ? Math.min(1024, sourceAsBytes.length()) : 1024;

@@ -26,6 +26,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.StringFieldScript;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -195,13 +196,13 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
     }
 
     protected static SearchExecutionContext mockContext(boolean allowExpensiveQueries, MappedFieldType mappedFieldType) {
-        return mockContext(allowExpensiveQueries, mappedFieldType, true);
+        return mockContext(allowExpensiveQueries, mappedFieldType, new SourceLookup(new SourceLookup.ReaderSourceProvider()));
     }
 
     protected static SearchExecutionContext mockContext(
         boolean allowExpensiveQueries,
         MappedFieldType mappedFieldType,
-        boolean canReloadSource
+        SourceLookup sourceLookup
     ) {
         SearchExecutionContext context = mock(SearchExecutionContext.class);
         if (mappedFieldType != null) {
@@ -211,7 +212,7 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         SearchLookup lookup = new SearchLookup(
             context::getFieldType,
             (mft, lookupSupplier) -> mft.fielddataBuilder("test", lookupSupplier).build(null, null),
-            canReloadSource
+            sourceLookup
         );
         when(context.lookup()).thenReturn(lookup);
         return context;

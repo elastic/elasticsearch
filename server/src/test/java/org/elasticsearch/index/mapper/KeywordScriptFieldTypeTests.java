@@ -40,6 +40,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.StringFieldScript;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -301,7 +302,14 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
                 KeywordScriptFieldType fieldType = build("append_param", Map.of("param", "-suffix"));
                 expectThrows(
                     IllegalArgumentException.class,
-                    () -> { searcher.count(fieldType.termQuery("1-suffix", mockContext(true, null, false))); }
+                    () -> {
+                        searcher.count(
+                            fieldType.termQuery(
+                                "1-suffix",
+                                mockContext(true, null, new SourceLookup(new SourceLookup.NullSourceProvider()))
+                            )
+                        );
+                    }
                 );
             }
         }
@@ -404,7 +412,7 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
             case "read_foo" -> (fieldName, params, lookup) -> ctx -> new StringFieldScript(fieldName, params, lookup, ctx) {
                 @Override
                 public void execute() {
-                    for (Object foo : (List<?>) lookup.source().get("foo")) {
+                    for (Object foo : (List<?>) lookup.source().source().get("foo")) {
                         emit(foo.toString());
                     }
                 }
@@ -412,7 +420,7 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
             case "append_param" -> (fieldName, params, lookup) -> ctx -> new StringFieldScript(fieldName, params, lookup, ctx) {
                 @Override
                 public void execute() {
-                    for (Object foo : (List<?>) lookup.source().get("foo")) {
+                    for (Object foo : (List<?>) lookup.source().source().get("foo")) {
                         emit(foo.toString() + getParams().get("param").toString());
                     }
                 }

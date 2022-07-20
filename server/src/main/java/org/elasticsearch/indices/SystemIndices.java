@@ -8,6 +8,8 @@
 
 package org.elasticsearch.indices;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
@@ -107,6 +109,8 @@ public class SystemIndices {
     public static final String UPGRADED_INDEX_SUFFIX = "-reindexed-for-8";
 
     private static final Automaton EMPTY = Automata.makeEmpty();
+
+    private static final Logger logger = LogManager.getLogger(SystemIndices.class);
 
     /**
      * This is the source for non-plugin system features.
@@ -883,16 +887,6 @@ public class SystemIndices {
             });
         }
 
-        private static int countInnerTasks(
-            Metadata metadata,
-            Collection<SystemIndexDescriptor> indexDescriptors,
-            List<String> associatedIndices
-        ) {
-            return associatedIndices.size() + (int) indexDescriptors.stream()
-                .filter(id -> id.getMatchingIndices(metadata).isEmpty() == false)
-                .count();
-        }
-
         /**
          * Clean up the state of a feature
          * @param indexDescriptors List of descriptors of a feature's system indices
@@ -917,7 +911,9 @@ public class SystemIndices {
                 .flatMap(List::stream)
                 .toList();
 
-            final int taskCount = countInnerTasks(metadata, indexDescriptors, associatedIndices);
+            final int taskCount = associatedIndices.size() + (int) indexDescriptors.stream()
+                .filter(id -> id.getMatchingIndices(metadata).isEmpty() == false)
+                .count();
 
             // check if there's nothing to do and take an early out
             if (taskCount == 0) {
@@ -937,6 +933,7 @@ public class SystemIndices {
                         StringBuilder exceptions = new StringBuilder("[");
                         exceptions.append(errors.stream().map(e -> e.getException().getMessage()).collect(Collectors.joining(", ")));
                         exceptions.append(']');
+                        errors.forEach(e -> logger.warn(format("Encountered error while resetting feature [%s]", name), e));
                         listener.onResponse(ResetFeatureStateStatus.failure(name, new Exception(exceptions.toString())));
                     }
                 }, listener::onFailure),
@@ -953,7 +950,9 @@ public class SystemIndices {
                 List<String> matchingIndices = indexDescriptor.getMatchingIndices(metadata);
 
                 if (matchingIndices.isEmpty() == false) {
-                    final OriginSettingClient clientWithOrigin = new OriginSettingClient(client, indexDescriptor.getOrigin());
+                    final Client clientWithOrigin = (indexDescriptor.getOrigin() == null)
+                        ? client
+                        : new OriginSettingClient(client, indexDescriptor.getOrigin());
 
                     cleanUpFeatureForIndices(name, clientWithOrigin, matchingIndices.toArray(Strings.EMPTY_ARRAY), groupedListener);
                 }

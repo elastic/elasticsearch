@@ -593,15 +593,25 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                         listener.onResponse(AuthenticationResult.unsuccessful(msg, reloadPkcException));
                         return;
                     } else if (this.contentAndJwksAlgsPkc.jwksAlgs.isEmpty()) {
-                        final String msg = sigErr + "Reloaded empty PKC JWKs, can't retry verify JWT token=[" + tokenPrincipal + "]";
+                        LOGGER.error(sigErr + "Reloaded empty PKC JWKs, can't retry verify JWT token=[" + tokenPrincipal + "]");
+                        // allow empty, filtered PKC JWKs to fall through to try/catch below, to reuse that error handling
+                    }
+                    // different PKC JWKs detected so retry signature
+                    try {
+                        JwtValidateUtil.validateSignature(jwt, this.contentAndJwksAlgsPkc.jwksAlgs.jwks);
+                    } catch (Exception e) {
+                        final String msg = sigErr
+                            + "Realm ["
+                            + super.name()
+                            + "] JWT validation retry failed for token=["
+                            + tokenPrincipal
+                            + "].";
                         final ElasticsearchException reloadException = new ElasticsearchException(msg);
                         reloadException.addSuppressed(originalValidateSignatureException);
-                        LOGGER.error(msg, reloadException);
-                        listener.onResponse(AuthenticationResult.unsuccessful(msg, reloadException));
+                        LOGGER.debug(msg, e);
+                        listener.onResponse(AuthenticationResult.unsuccessful(msg, e));
                         return;
                     }
-                    // only PKC retry is possible at this point
-                    JwtValidateUtil.validateSignature(jwt, this.contentAndJwksAlgsPkc.jwksAlgs.jwks);
                 }
             } catch (Exception e) {
                 final String msg = "Realm [" + super.name() + "] JWT validation failed for token=[" + tokenPrincipal + "].";

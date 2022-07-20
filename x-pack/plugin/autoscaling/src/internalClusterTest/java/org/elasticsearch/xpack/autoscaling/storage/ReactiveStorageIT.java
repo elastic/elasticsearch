@@ -313,6 +313,7 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
         // are removed. This is necessary, otherwise the shrunk index won't fit in any node
         // and the autoscaling decider ends up requesting more disk space.
         assertBusy(() -> {
+            refreshClusterInfo();
             final ClusterInfo clusterInfo = getClusterInfo();
             final long freeBytes = clusterInfo.getNodeMostAvailableDiskUsages().get(dataNode2Id).getFreeBytes();
             assertThat(freeBytes, is(equalTo(enoughSpaceForColocation)));

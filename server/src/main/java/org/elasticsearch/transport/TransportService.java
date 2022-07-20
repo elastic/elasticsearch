@@ -313,22 +313,25 @@ public class TransportService extends AbstractLifecycleComponent
             throw new UncheckedIOException(e);
         } finally {
             // The underlying transport has stopped which closed all the connections to remote nodes and hence completed all their handlers,
-            // but there may still be pending handlers for node-local requests since this connection is not closed. We complete them here:
+            // but there may still be pending handlers for node-local requests since this connection is not closed, and we may also
+            // (briefly) track handlers for requests which are sent concurrently with stopping even though the underlying connection is
+            // now closed. We complete all these outstanding handlers here:
             for (final Transport.ResponseContext<?> holderToNotify : responseHandlers.prune(h -> true)) {
                 try {
                     final TransportResponseHandler<?> handler = holderToNotify.handler();
                     final var targetNode = holderToNotify.connection().getNode();
 
-                    // Assertion only holds for TcpTransport only because other transports (used in tests) may not implement the proper
-                    // close-connection behaviour. TODO fix this.
-                    assert transport instanceof TcpTransport == false || targetNode.equals(localNode)
+                    assert transport instanceof TcpTransport == false
+                        /* other transports (used in tests) may not implement the proper close-connection behaviour. TODO fix this. */
+                        || targetNode.equals(localNode)
+                        /* local node connection cannot be closed so may still have pending handlers */
+                        || holderToNotify.connection().isClosed()
+                        /* connections to remote nodes must be closed by this point but could still have pending handlers */
                         : "expected only responses for local "
                             + localNode
                             + " but found handler for ["
                             + holderToNotify.action()
-                            + "] on ["
-                            + (holderToNotify.connection().isClosed() ? "closed" : "open")
-                            + "] connection to "
+                            + "] on open connection to "
                             + targetNode;
 
                     final var exception = new SendRequestTransportException(

@@ -8,7 +8,6 @@
 package org.elasticsearch.gradle.internal.precommit;
 
 import org.apache.commons.io.FileUtils;
-import org.elasticsearch.gradle.internal.test.GradleUnitTestCase;
 import org.gradle.api.GradleException;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Dependency;
@@ -30,9 +29,13 @@ import java.security.NoSuchAlgorithmException;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
-public class UpdateShasTaskTests extends GradleUnitTestCase {
+public class UpdateShasTaskTests {
 
+    public static final String GROOVY_JAR_REGEX = "groovy-\\d\\.\\d+\\.\\d+\\.jar";
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
 
@@ -52,7 +55,6 @@ public class UpdateShasTaskTests extends GradleUnitTestCase {
 
     @Test
     public void whenDependencyDoesntExistThenShouldDeleteDependencySha() throws IOException, NoSuchAlgorithmException {
-
         File unusedSha = createFileIn(getLicensesDir(project), "test.sha1", "");
         task.updateShas();
 
@@ -66,7 +68,7 @@ public class UpdateShasTaskTests extends GradleUnitTestCase {
         getLicensesDir(project).mkdir();
         task.updateShas();
         Path groovySha = Files.list(getLicensesDir(project).toPath())
-            .filter(p -> p.toFile().getName().matches("groovy-\\d\\.\\d\\.\\d\\.jar.sha1"))
+            .filter(p -> p.toFile().getName().matches(GROOVY_JAR_REGEX + ".sha1"))
             .findFirst()
             .get();
         assertTrue(groovySha.toFile().getName().startsWith("groovy"));
@@ -79,14 +81,12 @@ public class UpdateShasTaskTests extends GradleUnitTestCase {
             .getDependencies()
             .getFiles()
             .stream()
-            .filter(f -> f.getName().matches("groovy-\\d\\.\\d\\.\\d\\.jar"))
+            .filter(f -> f.getName().matches(GROOVY_JAR_REGEX))
             .findFirst()
             .get();
         String groovyShaName = groovyJar.getName() + ".sha1";
-
         File groovySha = createFileIn(getLicensesDir(project), groovyShaName, "content");
         task.updateShas();
-
         assertThat(FileUtils.readFileToString(groovySha), equalTo("content"));
     }
 

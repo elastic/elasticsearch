@@ -103,7 +103,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
     }
 
     public static class NodesRequest extends BaseNodesRequest<NodesRequest> {
-        private String requestName;
+        final private String requestName;
 
         NodesRequest(StreamInput in) throws IOException {
             super(in);
@@ -190,7 +190,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
 
     static class TestTasksResponse extends BaseTasksResponse {
 
-        final private List<TestTaskResponse> tasks;
+        private final List<TestTaskResponse> tasks;
 
         TestTasksResponse(
             List<TestTaskResponse> tasks,
@@ -311,7 +311,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         CountDownLatch checkLatch = new CountDownLatch(1);
         CountDownLatch responseLatch = new CountDownLatch(1);
         final AtomicReference<NodesResponse> responseReference = new AtomicReference<>();
-        Task mainTask = startBlockingTestNodesAction(checkLatch, new ActionListener<NodesResponse>() {
+        Task mainTask = startBlockingTestNodesAction(checkLatch, new ActionListener<>() {
             @Override
             public void onResponse(NodesResponse listTasksResponse) {
                 responseReference.set(listTasksResponse);
@@ -628,7 +628,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         return taskDescriptions.toString();
     }
 
-    public void testActionParentCancellationPropagates() throws ExecutionException, InterruptedException, IOException {
+    public void testActionParentCancellationPropagates() throws ExecutionException, InterruptedException {
         setupTestNodes(Settings.EMPTY);
         connectNodes(testNodes);
         CountDownLatch checkLatch = new CountDownLatch(1);
@@ -702,7 +702,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         assertEquals(0, responses.failureCount());
     }
 
-    public void testTaskLevelActionFailures() throws ExecutionException, InterruptedException, IOException {
+    public void testTaskLevelActionFailures() throws ExecutionException, InterruptedException {
         setupTestNodes(Settings.EMPTY);
         connectNodes(testNodes);
         CountDownLatch checkLatch = new CountDownLatch(1);
@@ -770,7 +770,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
      * it executes a tasks action that targets these blocked node actions. The test verifies that task actions are only
      * getting executed on nodes that are not listed in the node filter.
      */
-    public void testTaskNodeFiltering() throws ExecutionException, InterruptedException, IOException {
+    public void testTaskNodeFiltering() throws ExecutionException, InterruptedException {
         setupTestNodes(Settings.EMPTY);
         connectNodes(testNodes);
         CountDownLatch checkLatch = new CountDownLatch(1);
@@ -802,7 +802,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
                             filteredNodes.add(node);
                         }
                     }
-                    return filteredNodes.toArray(new String[filteredNodes.size()]);
+                    return filteredNodes.toArray(new String[0]);
                 }
 
                 @Override

@@ -28,8 +28,8 @@ abstract class MetricFieldProducer extends AbstractRollupFieldProducer<Number> {
      */
     private final List<Metric> metrics;
 
-    MetricFieldProducer(String field, List<Metric> metrics) {
-        super(field);
+    MetricFieldProducer(String name, List<Metric> metrics) {
+        super(name);
         this.metrics = metrics;
     }
 
@@ -226,8 +226,8 @@ abstract class MetricFieldProducer extends AbstractRollupFieldProducer<Number> {
      */
     static class CounterMetricFieldProducer extends MetricFieldProducer {
 
-        CounterMetricFieldProducer(String field) {
-            super(field, List.of(new LastValue()));
+        CounterMetricFieldProducer(String name) {
+            super(name, List.of(new LastValue()));
         }
 
         @Override
@@ -242,8 +242,8 @@ abstract class MetricFieldProducer extends AbstractRollupFieldProducer<Number> {
      */
     static class GaugeMetricFieldProducer extends MetricFieldProducer {
 
-        GaugeMetricFieldProducer(String field) {
-            super(field, List.of(new Min(), new Max(), new Sum(), new ValueCount()));
+        GaugeMetricFieldProducer(String name) {
+            super(name, List.of(new Min(), new Max(), new Sum(), new ValueCount()));
         }
 
         @Override

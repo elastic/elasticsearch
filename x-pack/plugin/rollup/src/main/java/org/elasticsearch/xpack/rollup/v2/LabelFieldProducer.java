@@ -20,8 +20,8 @@ abstract class LabelFieldProducer extends AbstractRollupFieldProducer<Object> {
 
     private final Label label;
 
-    LabelFieldProducer(String field, Label label) {
-        super(field);
+    LabelFieldProducer(String name, Label label) {
+        super(name);
         this.label = label;
     }
 
@@ -106,8 +106,8 @@ abstract class LabelFieldProducer extends AbstractRollupFieldProducer<Object> {
      */
     static class LabelLastValueFieldProducer extends LabelFieldProducer {
 
-        LabelLastValueFieldProducer(String field) {
-            super(field, new LastValueLabel());
+        LabelLastValueFieldProducer(String name) {
+            super(name, new LastValueLabel());
         }
 
         @Override

@@ -410,6 +410,8 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
             .filter(e -> e.getValue().getAssignmentState().equals(AssignmentState.STARTING) && e.getValue().getNodeRoutingTable().isEmpty())
             .map(Map.Entry::getKey)
             .toList();
+        // TODO for autoscaling by memory, we only care about if the model is allocated to at least one node (see above)
+        //  We should do this check in our autoscaling by processor count service, which will be a separate decider for readability's sake
         final List<String> notFullyAllocatedModels = modelAssignments.entrySet()
             .stream()
             .filter(
@@ -669,7 +671,11 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
                 if (capacity == null) {
                     return null;
                 }
+                // TODO we should remove this when we can auto-scale (down and up) via a new CPU auto-scaling decider
                 if (modelAssignmentsRequireMoreThanHalfCpu(modelAssignments.values(), mlNodes)) {
+                    logger.debug(
+                        () -> format("not down-scaling; model assignments require more than half of the ML tier's allocated processors")
+                    );
                     return null;
                 }
                 return new AutoscalingDeciderResult(capacity, result.reason());

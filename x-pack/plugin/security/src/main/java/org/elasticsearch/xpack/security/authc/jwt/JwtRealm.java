@@ -243,7 +243,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                 );
             } else {
                 final OctetSequenceKey hmacKey = JwkValidateUtil.loadHmacJwkFromJwkString(
-                    RealmSettings.getFullSettingKey(super.config, JwtRealmSettings.HMAC_JWKSET),
+                    RealmSettings.getFullSettingKey(super.config, JwtRealmSettings.HMAC_KEY),
                     hmacKeyContents
                 );
                 assert hmacKey != null : "Null HMAC key should not happen here";

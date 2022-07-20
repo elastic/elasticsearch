@@ -487,7 +487,7 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                 .stream()
                 .filter(d -> nodesShuttingDown.contains(d.getId()) == false)
                 .filter(TaskParams::mayAssignToNode)
-                .collect(Collectors.toList());
+                .toList();
             OptionalLong smallestMLNode = nodes.stream().map(NodeLoadDetector::getNodeSize).flatMapToLong(OptionalLong::stream).min();
 
             // No nodes allocated at all!
@@ -506,6 +506,15 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                     RestStatus.TOO_MANY_REQUESTS,
                     detail
                 );
+                return true;
+            }
+
+            // We cannot add more nodes and the assignment is not satisfied
+            if (maxLazyMLNodes <= nodes.size()
+                && trainedModelAssignment.isSatisfied(nodes.stream().map(DiscoveryNode::getId).collect(Collectors.toSet())) == false) {
+                String msg = "Could not start deployment because there are not enough resources to provide all requested allocations";
+                logger.debug(() -> format("[%s] %s", modelId, msg));
+                exception = new ElasticsearchStatusException(msg, RestStatus.TOO_MANY_REQUESTS);
                 return true;
             }
 

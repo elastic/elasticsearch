@@ -189,7 +189,7 @@ example:
 PUT idx
 {
   "mappings": {
-    "_source": { "synthetic": true },
+    "_source": { "mode": "synthetic" },
     "properties": {
       "kwd": { "type": "keyword" }
     }

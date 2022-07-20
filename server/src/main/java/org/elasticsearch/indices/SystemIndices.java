@@ -911,7 +911,7 @@ public class SystemIndices {
                 .flatMap(List::stream)
                 .toList();
 
-            final int taskCount = associatedIndices.size() + (int) indexDescriptors.stream()
+            final int taskCount = ((associatedIndices.size() > 0) ? 1 : 0) + (int) indexDescriptors.stream()
                 .filter(id -> id.getMatchingIndices(metadata).isEmpty() == false)
                 .count();
 
@@ -933,7 +933,7 @@ public class SystemIndices {
                         StringBuilder exceptions = new StringBuilder("[");
                         exceptions.append(errors.stream().map(e -> e.getException().getMessage()).collect(Collectors.joining(", ")));
                         exceptions.append(']');
-                        errors.forEach(e -> logger.warn(format("Encountered error while resetting feature [%s]", name), e));
+                        errors.forEach(e -> logger.warn(() -> "error while resetting feature [" + name + "]", e.getException()));
                         listener.onResponse(ResetFeatureStateStatus.failure(name, new Exception(exceptions.toString())));
                     }
                 }, listener::onFailure),

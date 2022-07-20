@@ -34,7 +34,7 @@ public final class ShardSnapshotWorkerPool {
     private final Executor executor;
     private final Consumer<SnapshotShardContext> shardSnapshotter;
     private final CheckedBiConsumer<SnapshotShardContext, FileInfo, IOException> fileSnapshotter;
-    private volatile int workerCount;
+    private volatile int workerCount = 0;
 
     public record SnapshotFileUpload(SnapshotShardContext context, FileInfo fileInfo, ActionListener<Void> listener) {}
 
@@ -44,6 +44,8 @@ public final class ShardSnapshotWorkerPool {
         final Consumer<SnapshotShardContext> shardSnapshotter,
         final CheckedBiConsumer<SnapshotShardContext, FileInfo, IOException> fileSnapshotter
     ) {
+        assert maxWorkers > 0;
+
         logger.info("starting shard snapshot worker pool of max size {}", maxWorkers);
         this.maxWorkers = maxWorkers;
         this.executor = executor;
@@ -80,14 +82,17 @@ public final class ShardSnapshotWorkerPool {
             logger.debug("starting {} shard snapshot workers", workersToCreate);
         }
         while (workersToCreate > 0) {
-            startWorker(UUIDs.base64UUID());
             workerCount++;
+            startWorker(UUIDs.base64UUID());
             workersToCreate--;
         }
+        logger.debug("worker pool size is {}", workerCount);
     }
 
     private void workerDone() {
         synchronized (mutex) {
+            assert workerCount > 0;
+
             workerCount--;
             if (workerCount < maxWorkers && (shardsToSnapshot.isEmpty() == false || filesToSnapshot.isEmpty() == false)) {
                 ensureEnoughWorkers();

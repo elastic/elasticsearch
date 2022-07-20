@@ -14,7 +14,6 @@ import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -29,7 +28,6 @@ import java.util.function.IntSupplier;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 
-@TestLogging(value = "org.elasticsearch.repositories.blobstore:TRACE", reason = "debugging")
 public class ShardSnapshotWorkerPoolTests extends ESTestCase {
 
     private static ThreadPool threadPool;

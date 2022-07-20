@@ -21,7 +21,6 @@ import org.elasticsearch.index.shard.ShardId;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.TimeUnit;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
@@ -192,13 +191,8 @@ class IndicesWriteLoadStatsCollector implements IndexEventListener {
         }
 
         WriteLoadSample recordSample() {
-            long totalIndexingTimeInNanosSample = Math.addExact(
-                indexShard.getTotalIndexingTimeInNanos(),
-                indexShard.getTotalDeleteTimeInNanos()
-            );
-
-            long totalMergeTimeInMillisSample = indexShard.getTotalMergeTimeInMillis();
-            long activeMerges = indexShard.getActiveMerges();
+            long totalIndexingTimeInNanosSample = indexShard.getTotalIndexingTimeInNanos();
+            long totalMergeTimeInNanosSample = indexShard.getTotalMergeTimeInNanos();
             long totalRefreshTimeInNanos = indexShard.getTotalRefreshTimeInNanos();
 
             long sampleRelativeTimeInNanos = relativeTimeInNanosSupplier.getAsLong();
@@ -213,7 +207,6 @@ class IndicesWriteLoadStatsCollector implements IndexEventListener {
             long indexingTimeDeltaInNanos = totalIndexingTimeInNanosSample - lastTotalIndexingTimeSample;
             lastTotalIndexingTimeSample = totalIndexingTimeInNanosSample;
 
-            long totalMergeTimeInNanosSample = TimeUnit.MILLISECONDS.toNanos(totalMergeTimeInMillisSample);
             long mergeTimeDeltaInNanos = totalMergeTimeInNanosSample - lastTotalMergeTimeSample;
             lastTotalMergeTimeSample = totalMergeTimeInNanosSample;
 
@@ -231,7 +224,7 @@ class IndicesWriteLoadStatsCollector implements IndexEventListener {
 
             synchronized (histogramsLock) {
                 indexingTimeHistogram.recordValue(indexingCPUs);
-                mergeTimeHistogram.recordValue(activeMerges);
+                mergeTimeHistogram.recordValue(mergeCPUs);
                 refreshTimeHistogram.recordValue(refreshCPUs);
             }
 

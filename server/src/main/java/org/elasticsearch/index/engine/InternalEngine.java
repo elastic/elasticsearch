@@ -98,7 +98,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.LongAdder;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiConsumer;
@@ -161,8 +160,6 @@ public class InternalEngine extends Engine {
     private final NumericDocValuesField softDeletesField = Lucene.newSoftDeletesField();
     private final SoftDeletesPolicy softDeletesPolicy;
     private final LastRefreshedCheckpointListener lastRefreshedCheckpointListener;
-    private final TotalRefreshTimeTracker totalRefreshTimeTracker;
-
     private final CompletionStatsCache completionStatsCache;
 
     private final AtomicBoolean trackTranslogLocation = new AtomicBoolean(false);
@@ -212,7 +209,7 @@ public class InternalEngine extends Engine {
             mergeScheduler = scheduler = new EngineMergeScheduler(
                 engineConfig.getShardId(),
                 engineConfig.getIndexSettings(),
-                engineConfig.getThreadPool()::rawRelativeTimeInNanos
+                engineConfig.getWriteLoadTracker()
             );
             throttle = new IndexThrottle();
             try {
@@ -267,8 +264,6 @@ public class InternalEngine extends Engine {
             }
             this.lastRefreshedCheckpointListener = new LastRefreshedCheckpointListener(localCheckpointTracker.getProcessedCheckpoint());
             this.internalReaderManager.addListener(lastRefreshedCheckpointListener);
-            this.totalRefreshTimeTracker = new TotalRefreshTimeTracker(engineConfig.getThreadPool()::rawRelativeTimeInNanos);
-            this.internalReaderManager.addListener(totalRefreshTimeTracker);
             maxSeqNoOfUpdatesOrDeletes = new AtomicLong(SequenceNumbers.max(localCheckpointTracker.getMaxSeqNo(), translog.getMaxSeqNo()));
             if (localCheckpointTracker.getPersistedCheckpoint() < localCheckpointTracker.getMaxSeqNo()) {
                 try (Searcher searcher = acquireSearcher("restore_version_map_and_checkpoint_tracker", SearcherScope.INTERNAL)) {
@@ -2506,8 +2501,8 @@ public class InternalEngine extends Engine {
         private final AtomicInteger numMergesInFlight = new AtomicInteger(0);
         private final AtomicBoolean isThrottling = new AtomicBoolean();
 
-        EngineMergeScheduler(ShardId shardId, IndexSettings indexSettings, LongSupplier relativeTimeInNanosSupplier) {
-            super(shardId, indexSettings, relativeTimeInNanosSupplier);
+        EngineMergeScheduler(ShardId shardId, IndexSettings indexSettings, WriteLoadTracker writeLoadTracker) {
+            super(shardId, indexSettings, writeLoadTracker);
         }
 
         @Override
@@ -2661,18 +2656,6 @@ public class InternalEngine extends Engine {
 
     public MergeStats getMergeStats() {
         return mergeScheduler.stats();
-    }
-
-    public long totalMergeTimeInMillis() {
-        return mergeScheduler.totalMergeTimeInMillis();
-    }
-
-    public long activeMerges() {
-        return mergeScheduler.activeMerges();
-    }
-
-    public long totalRefreshTimeInNanos() {
-        return totalRefreshTimeTracker.getTotalRefreshTimeInNanos();
     }
 
     LocalCheckpointTracker getLocalCheckpointTracker() {
@@ -2924,33 +2907,6 @@ public class InternalEngine extends Engine {
         void updateRefreshedCheckpoint(long checkpoint) {
             refreshedCheckpoint.updateAndGet(curr -> Math.max(curr, checkpoint));
             assert refreshedCheckpoint.get() >= checkpoint : refreshedCheckpoint.get() + " < " + checkpoint;
-        }
-    }
-
-    private static final class TotalRefreshTimeTracker implements ReferenceManager.RefreshListener {
-        private final LongSupplier relativeTimeInNanosSupplier;
-        private final LongAdder totalRefreshTimeInNanos;
-        private volatile long refreshStartTimeNanos;
-
-        TotalRefreshTimeTracker(LongSupplier relativeTimeInNanosSupplier) {
-            this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
-            this.totalRefreshTimeInNanos = new LongAdder();
-        }
-
-        @Override
-        public void beforeRefresh() throws IOException {
-            refreshStartTimeNanos = relativeTimeInNanosSupplier.getAsLong();
-        }
-
-        @Override
-        public void afterRefresh(boolean didRefresh) throws IOException {
-            if (didRefresh) {
-                totalRefreshTimeInNanos.add(relativeTimeInNanosSupplier.getAsLong() - refreshStartTimeNanos);
-            }
-        }
-
-        long getTotalRefreshTimeInNanos() {
-            return totalRefreshTimeInNanos.longValue();
         }
     }
 

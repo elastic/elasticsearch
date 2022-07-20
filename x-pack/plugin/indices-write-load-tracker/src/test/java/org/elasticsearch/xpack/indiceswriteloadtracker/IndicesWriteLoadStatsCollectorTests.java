@@ -11,21 +11,19 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
-import org.apache.lucene.index.CodecReader;
-import org.apache.lucene.index.MergePolicy;
-import org.apache.lucene.index.MergeTrigger;
-import org.apache.lucene.index.NoMergePolicy;
-import org.apache.lucene.index.SegmentCommitInfo;
-import org.apache.lucene.index.SegmentInfos;
-import org.apache.lucene.index.TieredMergePolicy;
-import org.apache.lucene.util.IOSupplier;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FilterDirectory;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.bulk.BulkItemRequest;
+import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.bulk.BulkShardResponse;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
+import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
@@ -45,35 +43,36 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexModule;
-import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.codec.CodecService;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
+import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardPath;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
-import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -85,22 +84,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
-    private LongSupplier relativeTimeClock = () -> 0L;
-
-    // @Override
-    // protected ThreadPool setUpThreadPool() {
-    // return new TestThreadPool(getClass().getName(), threadPoolSettings()) {
-    // @Override
-    // public long rawRelativeTimeInNanos() {
-    // return relativeTimeClock.getAsLong();
-    // }
-    // };
-    // }
-
     public void testRegularIndicesLoadIsNotTracked() throws Exception {
-        final var fakeClock = new FakeClock(TimeValue.timeValueMillis(50));
         final var samplingFrequency = TimeValue.timeValueSeconds(1);
-        try (var shardRef = createRegularIndexShard(fakeClock)) {
+        try (var shardRef = createRegularIndexShard()) {
             final var shard = shardRef.shard();
 
             final var indicesWriteLoadStatsCollector = new IndicesWriteLoadStatsCollector(
@@ -116,7 +102,6 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
             indicesWriteLoadStatsCollector.afterIndexShardStarted(shard);
 
             for (int i = 0; i < 10; i++) {
-                fakeClock.setTickValue(samplingFrequency);
                 indexDocs(shard, randomIntBetween(1, 10));
                 indicesWriteLoadStatsCollector.collectWriteLoadStats();
                 assertThat(shard.getTotalIndexingTimeInNanos(), is(greaterThan(0L)));
@@ -127,9 +112,8 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
     }
 
     public void testFsyncIsTracked() throws Exception {
-        final var fakeClock = new FakeClock(TimeValue.timeValueMillis(50));
         final var samplingFrequency = TimeValue.timeValueSeconds(1);
-        try (var shardRef = createDataStreamShard(fakeClock)) {
+        try (var shardRef = createDataStreamShard()) {
             final var shard = shardRef.shard();
 
             final var clusterService = mock(ClusterService.class);
@@ -142,7 +126,6 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
             final int maxCPUsUsed = randomIntBetween(1, numberOfProcessors);
             for (int i = 0; i < 60; i++) {
                 if (randomBoolean()) {
-                    fakeClock.setTickValue(samplingFrequency);
                     // Simulate a few bulk operations running concurrently taking maxCPUsUsed
                     for (int j = 0; j < maxCPUsUsed; j++) {
                         int numDocs = randomIntBetween(1, 10);
@@ -150,7 +133,6 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
                     }
                 } else {
                     // Otherwise, simulate a few quick indexing ops
-                    fakeClock.setTickValue(TimeValue.timeValueMillis(randomIntBetween(1, 20)));
                     indexDocs(shard, randomIntBetween(1, 20));
                 }
 
@@ -183,9 +165,8 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
     }
 
     public void testIndexingLoadTracking() throws Exception {
-        final var fakeClock = new FakeClock(TimeValue.timeValueMillis(50));
         final var samplingFrequency = TimeValue.timeValueSeconds(1);
-        try (var shardRef = createDataStreamShard(fakeClock)) {
+        try (var shardRef = createDataStreamShard()) {
             final var shard = shardRef.shard();
 
             final var clusterService = mock(ClusterService.class);
@@ -194,11 +175,15 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
             final var indicesWriteLoadStatsCollector = new IndicesWriteLoadStatsCollector(clusterService, fakeClock(samplingFrequency));
             indicesWriteLoadStatsCollector.afterIndexShardStarted(shard);
 
+            long previousTotalIndexingTimeNanos = 0;
             int numberOfProcessors = randomIntBetween(2, 4);
             final int maxCPUsUsed = randomIntBetween(1, numberOfProcessors);
             for (int i = 0; i < 2; i++) {
                 indexDocs(shard, maxCPUsUsed);
                 indicesWriteLoadStatsCollector.collectWriteLoadStats();
+                final long totalIndexingTimeInNanos = shard.getTotalIndexingTimeInNanos();
+                assertThat(totalIndexingTimeInNanos, is(greaterThan(previousTotalIndexingTimeNanos)));
+                previousTotalIndexingTimeNanos = totalIndexingTimeInNanos;
             }
             // for (int i = 0; i < 60; i++) {
             // if (randomBoolean()) {
@@ -249,9 +234,8 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
     }
 
     public void testRefreshLoadTracking() throws Exception {
-        final var fakeClock = new FakeClock(TimeValue.timeValueMillis(50));
         final var samplingFrequency = TimeValue.timeValueSeconds(1);
-        try (var shardRef = createDataStreamShard(fakeClock, NoMergePolicy.INSTANCE)) {
+        try (var shardRef = createDataStreamShard()) {
             final var shard = shardRef.shard();
 
             final var clusterService = mock(ClusterService.class);
@@ -260,28 +244,24 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
             final var indicesWriteLoadStatsCollector = new IndicesWriteLoadStatsCollector(clusterService, fakeClock(samplingFrequency));
             indicesWriteLoadStatsCollector.afterIndexShardStarted(shard);
 
-            long previousTotalRefreshTimeSample = 0;
-            for (int i = 0; i < 60; i++) {
-                fakeClock.setTickValue(TimeValue.timeValueMillis(randomIntBetween(1, 20)));
-                indexDocs(shard, randomIntBetween(1, 20));
+            indexDocs(shard, 1);
+            indicesWriteLoadStatsCollector.collectWriteLoadStats();
 
-                fakeClock.setTickValue(samplingFrequency);
-                shard.refresh("test");
+            // .put(IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING.getKey(), "1kb")
 
-                assertThat(shard.getTotalRefreshTimeInNanos(), is(greaterThan(previousTotalRefreshTimeSample)));
-                previousTotalRefreshTimeSample = shard.getTotalRefreshTimeInNanos();
+            SlowDirectory.slow.set(true);
+            shard.refresh("test");
 
-                indicesWriteLoadStatsCollector.collectWriteLoadStats();
-            }
+            indicesWriteLoadStatsCollector.collectWriteLoadStats();
 
             final var shardLoadHistograms = indicesWriteLoadStatsCollector.getWriteLoadHistogramSnapshotsAndReset();
 
             assertThat(shardLoadHistograms, hasSize(1));
             final var shardWriteLoadDistribution = shardLoadHistograms.get(0);
 
-            assertThat(shardWriteLoadDistribution.indexLoadHistogramSnapshot().max(), is(greaterThan(0.0)));
+            // assertThat(shardWriteLoadDistribution.indexLoadHistogramSnapshot().max(), is(greaterThan(0.0)));
 
-            assertThat(shardWriteLoadDistribution.refreshLoadHistogramSnapshot().max(), is(closeTo(1.0, 0.5)));
+            assertThat(shardWriteLoadDistribution.refreshLoadHistogramSnapshot().max(), is(closeTo(2.0, 0.5)));
             assertThat(
                 shardWriteLoadDistribution.refreshLoadHistogramSnapshot().p90(),
                 is(lessThanOrEqualTo(shardWriteLoadDistribution.refreshLoadHistogramSnapshot().max()))
@@ -294,10 +274,10 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
     }
 
     public void testMergeLoadTracking() throws Exception {
-        final var fakeClock = new FakeClock(TimeValue.timeValueMillis(50));
+        // fail("configure merges to wait until force merge");
         final var samplingFrequency = TimeValue.timeValueSeconds(1);
-        final var mergePolicy = new SwappableMergePolicy(NoMergePolicy.INSTANCE);
-        try (var shardRef = createDataStreamShard(fakeClock, mergePolicy)) {
+
+        try (var shardRef = createDataStreamShard(SlowDirectory::new)) {
             final var shard = shardRef.shard();
 
             final var clusterState = clusterStateWithShardDataStream(shard);
@@ -306,44 +286,36 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
             final var indicesWriteLoadStatsCollector = new IndicesWriteLoadStatsCollector(clusterService, fakeClock(samplingFrequency));
             indicesWriteLoadStatsCollector.afterIndexShardStarted(shard);
 
-            final int numTicks = 60;
-            for (int i = 0; i < numTicks; i++) {
-                fakeClock.setTickValue(TimeValue.timeValueMillis(randomIntBetween(1, 20)));
-                indexDocs(shard, randomIntBetween(1, 20));
+            for (int i = 0; i < 2; i++) {
+                indexDocs(shard, randomIntBetween(1, 20), false);
                 shard.refresh("test");
 
                 indicesWriteLoadStatsCollector.collectWriteLoadStats();
             }
-            assertThat(shard.getTotalMergeTimeInMillis(), is(equalTo(0L)));
+            assertThat(shard.getTotalMergeTimeInNanos(), is(equalTo(0L)));
 
-            mergePolicy.swapDelegate(new TieredMergePolicy());
+            SlowDirectory.slow.set(true);
+
+            shard.forceMerge(new ForceMergeRequest().maxNumSegments(1));
+
+            indicesWriteLoadStatsCollector.collectWriteLoadStats();
 
             // Now force-merge every second and every force-merge should take 1 second
-            for (int i = 0; i < numTicks; i++) {
-                fakeClock.setTickValue(TimeValue.timeValueSeconds(1));
-                shard.forceMerge(new ForceMergeRequest().maxNumSegments(1));
 
-                indicesWriteLoadStatsCollector.collectWriteLoadStats();
-                indexDocs(shard, randomIntBetween(1, 10));
-            }
-
-            assertThat(shard.getTotalMergeTimeInMillis(), is(equalTo(TimeValue.timeValueSeconds(numTicks).millis())));
+            // assertThat(shard.getTotalMergeTimeInMillis(), is(equalTo(TimeValue.timeValueSeconds(numTicks).millis())));
 
             final var shardLoadHistograms = indicesWriteLoadStatsCollector.getWriteLoadHistogramSnapshotsAndReset();
 
             assertThat(shardLoadHistograms, hasSize(1));
             final var shardWriteLoadDistribution = shardLoadHistograms.get(0);
 
-            assertThat(shardWriteLoadDistribution.indexLoadHistogramSnapshot().max(), is(greaterThan(0.0)));
-
-            assertThat(shardWriteLoadDistribution.mergeLoadHistogramSnapshot().max(), is(closeTo(1.0, 0.1)));
+            assertThat(shardWriteLoadDistribution.mergeLoadHistogramSnapshot().max(), is(closeTo(2.0, 0.1)));
         }
     }
 
     public void testDeleteTimeIsTracked() throws Exception {
-        final var fakeClock = new FakeClock(TimeValue.timeValueMillis(50));
         final var samplingFrequency = TimeValue.timeValueSeconds(1);
-        try (var shardRef = createDataStreamShard(fakeClock)) {
+        try (var shardRef = createDataStreamShard()) {
             final var shard = shardRef.shard();
 
             final var clusterState = clusterStateWithShardDataStream(shard);
@@ -352,33 +324,29 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
             final var indicesWriteLoadStatsCollector = new IndicesWriteLoadStatsCollector(clusterService, fakeClock(samplingFrequency));
             indicesWriteLoadStatsCollector.afterIndexShardStarted(shard);
 
-            for (int i = 0; i < 60; i++) {
-                // We want to ensure that we are only measuring delete time
-                fakeClock.setTickValue(TimeValue.ZERO);
-                final int numDocs = randomIntBetween(1, 20);
-                final var docIds = indexDocs(shard, numDocs);
+            final var docIds = indexDocs(shard, 500, false);
 
-                fakeClock.setTickValue(TimeValue.timeValueMillis(randomIntBetween(1, 20)));
-                deleteDocs(shard, docIds);
+            indicesWriteLoadStatsCollector.collectWriteLoadStats();
 
-                indicesWriteLoadStatsCollector.collectWriteLoadStats();
-            }
+            indicesWriteLoadStatsCollector.getWriteLoadHistogramSnapshotsAndReset();
 
-            assertThat(shard.getTotalDeleteTimeInNanos(), is(greaterThan(0L)));
+            deleteDocs(shard, docIds);
+
+            indicesWriteLoadStatsCollector.collectWriteLoadStats();
 
             final var shardLoadHistograms = indicesWriteLoadStatsCollector.getWriteLoadHistogramSnapshotsAndReset();
 
             assertThat(shardLoadHistograms, hasSize(1));
             final var shardWriteLoadDistribution = shardLoadHistograms.get(0);
 
-            assertThat(shardWriteLoadDistribution.indexLoadHistogramSnapshot().max(), is(greaterThan(0.0)));
+            double max = shardWriteLoadDistribution.indexLoadHistogramSnapshot().max();
+            assertThat(max, is(greaterThan(0.0)));
         }
     }
 
     public void testShardLoadDistributionInfoIsClearedAfterDeletion() throws Exception {
-        final var fakeClock = new FakeClock(TimeValue.timeValueMillis(50));
         final var samplingFrequency = TimeValue.timeValueSeconds(1);
-        try (var shardRef = createDataStreamShard(fakeClock)) {
+        try (var shardRef = createDataStreamShard()) {
             final var shard = shardRef.shard();
 
             final var clusterState = clusterStateWithShardDataStream(shard);
@@ -388,7 +356,6 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
             indicesWriteLoadStatsCollector.afterIndexShardStarted(shard);
 
             for (int i = 0; i < 60; i++) {
-                fakeClock.setTickValue(TimeValue.timeValueMillis(randomIntBetween(1, 20)));
                 indexDocs(shard, randomIntBetween(1, 20));
 
                 indicesWriteLoadStatsCollector.collectWriteLoadStats();
@@ -407,13 +374,9 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
     }
 
     public void testRolledOverDataStreamIndicesAreRemovedAfterCollection() throws Exception {
-        final var fakeClock = new FakeClock(TimeValue.timeValueMillis(50));
         final var samplingFrequency = TimeValue.timeValueSeconds(1);
 
-        try (
-            var firstDataStreamShardRef = createDataStreamShard(fakeClock);
-            var rolledOverDataStreamShardRef = createDataStreamShard(fakeClock)
-        ) {
+        try (var firstDataStreamShardRef = createDataStreamShard(); var rolledOverDataStreamShardRef = createDataStreamShard()) {
 
             final var firstDataStreamShard = firstDataStreamShardRef.shard();
             final var firstDataStreamIndex = firstDataStreamShard.shardId().getIndex();
@@ -444,7 +407,6 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
             indicesWriteLoadStatsCollector.afterIndexShardStarted(firstDataStreamShard);
 
             for (int i = 0; i < 60; i++) {
-                fakeClock.setTickValue(TimeValue.timeValueMillis(randomIntBetween(1, 20)));
                 indexDocs(firstDataStreamShard, randomIntBetween(1, 20));
 
                 indicesWriteLoadStatsCollector.collectWriteLoadStats();
@@ -458,7 +420,6 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
 
             // take some new samples before rolling over
             for (int i = 0; i < 10; i++) {
-                fakeClock.setTickValue(TimeValue.timeValueMillis(randomIntBetween(1, 20)));
                 indexDocs(firstDataStreamShard, randomIntBetween(1, 20));
 
                 indicesWriteLoadStatsCollector.collectWriteLoadStats();
@@ -483,7 +444,6 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
             indicesWriteLoadStatsCollector.afterIndexShardStarted(rolledOverShard);
 
             for (int i = 0; i < 10; i++) {
-                fakeClock.setTickValue(TimeValue.timeValueMillis(randomIntBetween(1, 20)));
                 indexDocs(rolledOverShard, randomIntBetween(1, 20));
 
                 indicesWriteLoadStatsCollector.collectWriteLoadStats();
@@ -544,19 +504,24 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
         }
     }
 
-    private ShardRef createDataStreamShard(LongSupplier relativeTimeClock) throws Exception {
-        return createShard(relativeTimeClock, new TieredMergePolicy(), true);
+    private ShardRef createDataStreamShard() throws Exception {
+        return createShard(true, new SleepingAnalyzer(), () -> {}, d -> d);
     }
 
-    private ShardRef createRegularIndexShard(LongSupplier relativeTimeClock) throws Exception {
-        return createShard(relativeTimeClock, new TieredMergePolicy(), false);
+    private ShardRef createDataStreamShard(Function<Directory, Directory> directoryWrapper) throws Exception {
+        return createShard(true, null, () -> {}, directoryWrapper);
     }
 
-    private ShardRef createDataStreamShard(LongSupplier relativeTimeClock, MergePolicy mergePolicy) throws Exception {
-        return createShard(relativeTimeClock, mergePolicy, true);
+    private ShardRef createRegularIndexShard() throws Exception {
+        return createShard(false, new SleepingAnalyzer(), () -> {}, d -> d);
     }
 
-    private ShardRef createShard(LongSupplier relativeTimeClock, MergePolicy mergePolicy, boolean createAsDataStream) throws Exception {
+    private ShardRef createShard(
+        boolean createAsDataStream,
+        Analyzer analyzer,
+        Runnable runBeforeTranslogFsync,
+        Function<Directory, Directory> directoryWrapper
+    ) throws Exception {
         final var shardId = new ShardId(new Index(randomAlphaOfLength(10), "_na_"), 0);
         final RecoverySource recoverySource = RecoverySource.EmptyStoreRecoverySource.INSTANCE;
         final ShardRouting shardRouting = TestShardRouting.newShardRouting(
@@ -566,12 +531,15 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
             ShardRoutingState.INITIALIZING,
             recoverySource
         );
-        final var indexSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .build();
-        final var indexMetadata = IndexMetadata.builder(shardRouting.getIndexName()).settings(indexSettings).primaryTerm(0, primaryTerm);
+        final var indexMetadata = IndexMetadata.builder(shardRouting.getIndexName())
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .build()
+            )
+            .primaryTerm(0, primaryTerm);
 
         if (createAsDataStream) {
             indexMetadata.putMapping("""
@@ -607,15 +575,15 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
                 }
                 """);
         }
-        final var shard = newShard(shardRouting, indexMetadata.build(), null, config -> {
-            final EngineConfig configWithMergePolicy = new EngineConfig(
+        final EngineFactory engineFactory = config -> {
+            final EngineConfig engineConfigWithCustomAnalyzer = new EngineConfig(
                 config.getShardId(),
                 config.getThreadPool(),
                 config.getIndexSettings(),
                 config.getWarmer(),
                 config.getStore(),
-                mergePolicy,
-                new SleepingAnalyzer(),
+                config.getMergePolicy(),
+                analyzer == null ? config.getAnalyzer() : analyzer,
                 config.getSimilarity(),
                 new CodecService(null),
                 config.getEventListener(),
@@ -631,25 +599,58 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
                 config.retentionLeasesSupplier(),
                 config.getPrimaryTermSupplier(),
                 IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
-                config.getLeafSorter()
+                config.getLeafSorter(),
+                config.getWriteLoadTracker()
             );
-            return new InternalEngine(configWithMergePolicy) {
+            return new InternalEngine(engineConfigWithCustomAnalyzer) {
                 @Override
                 public boolean ensureTranslogSynced(Stream<Translog.Location> locations) throws IOException {
-                    // try {
-                    // System.out.println("hola");
-                    // Thread.sleep(1000);
-                    // } catch (InterruptedException e) {
-                    // throw new RuntimeException(e);
-                    // }
+                    runBeforeTranslogFsync.run();
                     return super.ensureTranslogSynced(locations);
                 }
             };
-        }, () -> {}, RetentionLeaseSyncer.EMPTY);
+        };
+        final NodeEnvironment.DataPath dataPath = new NodeEnvironment.DataPath(createTempDir());
+        final ShardPath shardPath = new ShardPath(false, dataPath.resolve(shardId), dataPath.resolve(shardId), shardId);
+        final var shard = newShard(
+            shardRouting,
+            shardPath,
+            indexMetadata.build(),
+            (indexSettings) -> new Store(
+                shardId,
+                indexSettings,
+                directoryWrapper.apply(newFSDirectory(shardPath.resolveIndex())),
+                new DummyShardLock(shardId)
+            ),
+            null,
+            engineFactory,
+            () -> {},
+            RetentionLeaseSyncer.EMPTY,
+            EMPTY_EVENT_LISTENER
+        );
         recoverShardFromStore(shard);
-        setUpRelativeTimeClock(relativeTimeClock);
         assertThat(shard.isDataStreamIndex(), is(createAsDataStream));
         return new ShardRef(shard);
+    }
+
+    static class SlowDirectory extends FilterDirectory {
+        SlowDirectory(Directory in) {
+            super(in);
+        }
+
+        static final AtomicBoolean slow = new AtomicBoolean();
+
+        @Override
+        public IndexOutput createOutput(String name, IOContext context) throws IOException {
+            if (slow.compareAndSet(true, false)) {
+                try {
+                    Thread.sleep(2000);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+            return super.createOutput(name, context);
+        }
     }
 
     static class SleepingAnalyzer extends Analyzer {
@@ -663,7 +664,6 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
 
                     if (hasMoreTokens) {
                         try {
-                            System.out.println("sleeping!!" + Thread.currentThread().getName());
                             Thread.sleep(1000);
                         } catch (InterruptedException e) {
                             Thread.currentThread().interrupt();
@@ -679,20 +679,35 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
     }
 
     private List<String> indexDocs(IndexShard shard, int numDocs) throws Exception {
-        final List<String> docIds = new ArrayList<>();
+        return indexDocs(shard, numDocs, true);
+    }
+
+    private List<String> indexDocs(IndexShard shard, int numDocs, boolean slowIndexing) throws Exception {
         BulkItemRequest[] bulkItemRequests = new BulkItemRequest[numDocs];
         for (int i = 0; i < numDocs; i++) {
+            String source = slowIndexing ? "{\"@timestamp\": \"2020-12-12\", \"test\": \"test\"}" : "{\"@timestamp\": \"2020-12-12\"}";
             bulkItemRequests[i] = new BulkItemRequest(
                 i,
-                new IndexRequest(shard.shardId().getIndexName()).source(
-                    "{\"@timestamp\": \"2020-12-12\", \"test\": \"test\"}",
-                    XContentType.JSON
-                ).id(UUIDs.randomBase64UUID())
+                new IndexRequest(shard.shardId().getIndexName()).source(source, XContentType.JSON).id(UUIDs.randomBase64UUID())
             );
         }
 
         final var bulkShardRequest = new BulkShardRequest(shard.shardId(), WriteRequest.RefreshPolicy.NONE, bulkItemRequests);
-        final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+        return executeBulkShardRequest(shard, bulkShardRequest);
+    }
+
+    private void deleteDocs(IndexShard shard, List<String> docIds) throws Exception {
+        BulkItemRequest[] bulkItemRequests = new BulkItemRequest[docIds.size()];
+        for (int i = 0; i < docIds.size(); i++) {
+            final var docId = docIds.get(i);
+            bulkItemRequests[i] = new BulkItemRequest(i, new DeleteRequest(shard.shardId().getIndexName()).id(docId));
+        }
+        final var bulkShardRequest = new BulkShardRequest(shard.shardId(), WriteRequest.RefreshPolicy.NONE, bulkItemRequests);
+        executeBulkShardRequest(shard, bulkShardRequest);
+    }
+
+    private List<String> executeBulkShardRequest(IndexShard shard, BulkShardRequest bulkShardRequest) throws Exception {
+        final PlainActionFuture<List<String>> future = PlainActionFuture.newFuture();
         threadPool.executor(ThreadPool.Names.WRITE).submit(() -> {
             TransportShardBulkAction.performOnPrimary(
                 bulkShardRequest,
@@ -704,7 +719,10 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
                 new ActionListener<>() {
                     @Override
                     public void onResponse(TransportReplicationAction.PrimaryResult<BulkShardRequest, BulkShardResponse> primaryResult) {
-                        primaryResult.runPostReplicationActions(future);
+                        final var docIds = Arrays.stream(primaryResult.finalResponseIfSuccessful.getResponses())
+                            .map(BulkItemResponse::getId)
+                            .toList();
+                        primaryResult.runPostReplicationActions(future.delegateFailure((delegate, unused) -> delegate.onResponse(docIds)));
                     }
 
                     @Override
@@ -717,132 +735,15 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
             );
         });
 
-        future.get();
-
-        // TODO: collect ids
-        return docIds;
-    }
-
-    private void deleteDocs(IndexShard shard, List<String> docIds) throws Exception {
-        for (String docId : docIds) {
-            final var result = shard.applyDeleteOperationOnPrimary(
-                1,
-                docId,
-                VersionType.INTERNAL,
-                UNASSIGNED_SEQ_NO,
-                UNASSIGNED_PRIMARY_TERM
-            );
-            assertThat(result.getResultType(), is(equalTo(Engine.Result.Type.SUCCESS)));
-            assertThat(result.getTook(), is(greaterThan(0L)));
-        }
+        return future.get();
     }
 
     /**
     * Creates a fake clock that advances the given {@param tickTime} in every
     * call to the clock
     */
-    private FakeClock fakeClock(TimeValue tickTime) {
-        return new FakeClock(tickTime);
-    }
-
-    private void setUpRelativeTimeClock(LongSupplier clock) {
-        relativeTimeClock = clock;
-    }
-
-    static class FakeClock implements LongSupplier {
-        private final AtomicLong clock = new AtomicLong();
-        private TimeValue tickTime;
-
-        FakeClock(TimeValue tickValue) {
-            this.tickTime = tickValue;
-        }
-
-        @Override
-        public long getAsLong() {
-            return clock.getAndAdd(tickTime.nanos());
-        }
-
-        void setTickValue(TimeValue tickTime) {
-            this.tickTime = tickTime;
-        }
-    }
-
-    private static final class SwappableMergePolicy extends MergePolicy {
-        private volatile MergePolicy delegate;
-
-        SwappableMergePolicy(MergePolicy delegate) {
-            this.delegate = delegate;
-        }
-
-        void swapDelegate(MergePolicy delegate) {
-            this.delegate = delegate;
-        }
-
-        @Override
-        public MergeSpecification findMerges(MergeTrigger mergeTrigger, SegmentInfos segmentInfos, MergeContext mergeContext)
-            throws IOException {
-            return delegate.findMerges(mergeTrigger, segmentInfos, mergeContext);
-        }
-
-        @Override
-        public MergeSpecification findForcedMerges(
-            SegmentInfos segmentInfos,
-            int maxSegmentCount,
-            Map<SegmentCommitInfo, Boolean> segmentsToMerge,
-            MergeContext mergeContext
-        ) throws IOException {
-            return delegate.findForcedMerges(segmentInfos, maxSegmentCount, segmentsToMerge, mergeContext);
-        }
-
-        @Override
-        public MergeSpecification findForcedDeletesMerges(SegmentInfos segmentInfos, MergeContext mergeContext) throws IOException {
-            return delegate.findForcedDeletesMerges(segmentInfos, mergeContext);
-        }
-
-        @Override
-        public MergeSpecification findFullFlushMerges(MergeTrigger mergeTrigger, SegmentInfos segmentInfos, MergeContext mergeContext)
-            throws IOException {
-            return delegate.findFullFlushMerges(mergeTrigger, segmentInfos, mergeContext);
-        }
-
-        @Override
-        public boolean useCompoundFile(SegmentInfos infos, SegmentCommitInfo mergedInfo, MergeContext mergeContext) throws IOException {
-            return delegate.useCompoundFile(infos, mergedInfo, mergeContext);
-        }
-
-        @Override
-        public long size(SegmentCommitInfo info, MergePolicy.MergeContext mergeContext) throws IOException {
-            return Long.MAX_VALUE;
-        }
-
-        @Override
-        public double getNoCFSRatio() {
-            return delegate.getNoCFSRatio();
-        }
-
-        @Override
-        public void setNoCFSRatio(double noCFSRatio) {
-            delegate.setNoCFSRatio(noCFSRatio);
-        }
-
-        @Override
-        public double getMaxCFSSegmentSizeMB() {
-            return delegate.getMaxCFSSegmentSizeMB();
-        }
-
-        @Override
-        public void setMaxCFSSegmentSizeMB(double v) {
-            delegate.setMaxCFSSegmentSizeMB(v);
-        }
-
-        @Override
-        public boolean keepFullyDeletedSegment(IOSupplier<CodecReader> readerIOSupplier) throws IOException {
-            return delegate.keepFullyDeletedSegment(readerIOSupplier);
-        }
-
-        @Override
-        public int numDeletesToMerge(SegmentCommitInfo info, int delCount, IOSupplier<CodecReader> readerSupplier) throws IOException {
-            return delegate.numDeletesToMerge(info, delCount, readerSupplier);
-        }
+    private LongSupplier fakeClock(TimeValue tickTime) {
+        final AtomicLong fakeClock = new AtomicLong();
+        return () -> fakeClock.getAndAdd(tickTime.nanos());
     }
 }

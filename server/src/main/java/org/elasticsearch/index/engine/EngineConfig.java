@@ -74,6 +74,8 @@ public final class EngineConfig {
     private final Supplier<RetentionLeases> retentionLeasesSupplier;
     private final Comparator<LeafReader> leafSorter;
 
+    private final WriteLoadTracker writeLoadTracker;
+
     /**
      * A supplier of the outstanding retention leases. This is used during merged operations to determine which operations that have been
      * soft deleted should be retained.
@@ -136,7 +138,8 @@ public final class EngineConfig {
         Supplier<RetentionLeases> retentionLeasesSupplier,
         LongSupplier primaryTermSupplier,
         IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier,
-        Comparator<LeafReader> leafSorter
+        Comparator<LeafReader> leafSorter,
+        WriteLoadTracker writeLoadTracker
     ) {
         this.shardId = shardId;
         this.indexSettings = indexSettings;
@@ -176,6 +179,7 @@ public final class EngineConfig {
         this.primaryTermSupplier = primaryTermSupplier;
         this.snapshotCommitSupplier = snapshotCommitSupplier;
         this.leafSorter = leafSorter;
+        this.writeLoadTracker = writeLoadTracker;
     }
 
     /**
@@ -373,5 +377,9 @@ public final class EngineConfig {
     @Nullable
     public Comparator<LeafReader> getLeafSorter() {
         return leafSorter;
+    }
+
+    public WriteLoadTracker getWriteLoadTracker() {
+        return writeLoadTracker;
     }
 }

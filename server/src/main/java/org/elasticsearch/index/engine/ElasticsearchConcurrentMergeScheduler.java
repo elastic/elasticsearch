@@ -19,6 +19,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergeSchedulerConfig;
@@ -30,7 +31,6 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Locale;
 import java.util.Set;
-import java.util.function.LongSupplier;
 
 /**
  * An extension to the {@link ConcurrentMergeScheduler} that provides tracking on merge times, total
@@ -54,14 +54,14 @@ class ElasticsearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
     private final Set<OnGoingMerge> onGoingMerges = ConcurrentCollections.newConcurrentSet();
     private final Set<OnGoingMerge> readOnlyOnGoingMerges = Collections.unmodifiableSet(onGoingMerges);
     private final MergeSchedulerConfig config;
-    private final LongSupplier relativeTimeInNanosSupplier;
+    private final WriteLoadTracker writeLoadTracker;
 
-    ElasticsearchConcurrentMergeScheduler(ShardId shardId, IndexSettings indexSettings, LongSupplier relativeTimeInNanosSupplier) {
+    ElasticsearchConcurrentMergeScheduler(ShardId shardId, IndexSettings indexSettings, WriteLoadTracker writeLoadTracker) {
         this.config = indexSettings.getMergeSchedulerConfig();
         this.shardId = shardId;
         this.indexSettings = indexSettings.getSettings();
         this.logger = Loggers.getLogger(getClass(), shardId);
-        this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
+        this.writeLoadTracker = writeLoadTracker;
         refreshConfig();
     }
 
@@ -98,7 +98,7 @@ class ElasticsearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
     protected void doMerge(MergeSource mergeSource, MergePolicy.OneMerge merge) throws IOException {
         int totalNumDocs = merge.totalNumDocs();
         long totalSizeInBytes = merge.totalBytesSize();
-        long timeNS = relativeTimeInNanosSupplier.getAsLong();
+        long timeNS = System.nanoTime();
         currentMerges.inc();
         currentMergesNumDocs.inc(totalNumDocs);
         currentMergesSizeInBytes.inc(totalSizeInBytes);
@@ -116,11 +116,11 @@ class ElasticsearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
                 new ByteSizeValue(merge.estimatedMergeBytes)
             );
         }
-        try {
+        try (Releasable unused = writeLoadTracker.startTrackingMergeLoad()) {
             beforeMerge(onGoingMerge);
             super.doMerge(mergeSource, merge);
         } finally {
-            long tookMS = TimeValue.nsecToMSec(relativeTimeInNanosSupplier.getAsLong() - timeNS);
+            long tookMS = TimeValue.nsecToMSec(System.nanoTime() - timeNS);
 
             onGoingMerges.remove(onGoingMerge);
             afterMerge(onGoingMerge);
@@ -207,14 +207,6 @@ class ElasticsearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
             config.isAutoThrottle() ? getIORateLimitMBPerSec() : Double.POSITIVE_INFINITY
         );
         return mergeStats;
-    }
-
-    long totalMergeTimeInMillis() {
-        return totalMerges.sum();
-    }
-
-    long activeMerges() {
-        return currentMerges.count();
     }
 
     void refreshConfig() {

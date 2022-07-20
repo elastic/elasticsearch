@@ -32,14 +32,6 @@ final class InternalIndexingStats implements IndexingOperationListener {
         return new IndexingStats(total);
     }
 
-    long getTotalIndexingTimeInNanos() {
-        return totalStats.indexMetric.sum();
-    }
-
-    long getTotalDeleteTimeInNanos() {
-        return totalStats.deleteMetric.sum();
-    }
-
     @Override
     public Engine.Index preIndex(ShardId shardId, Engine.Index operation) {
         if (operation.origin().isRecovery() == false) {

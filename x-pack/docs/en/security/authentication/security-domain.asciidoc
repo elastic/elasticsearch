@@ -131,7 +131,7 @@ Resources created before the removal can be owned by different users depending o
 For users whose realms are no longer in the same domain as the owner user, a new user profile
 will be created for them next time the activate user profile API is called.
 - Resources such as API keys are owned by the user who originally created them.
-- Users can only update the API keys they own.
+- Users can only <<security-api-update-api-key,update the API keys>> they own.
 If the realm associated with an API key is removed from the owner user's domain, the user loses the ability to update the API key.
 
 Instead of removing realms, consider disabling them and keeping them as part of the security domain.

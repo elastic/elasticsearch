@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.gradle
+package org.elasticsearch.gradle.reaper
 
 import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
 import org.gradle.testkit.runner.TaskOutcome
@@ -19,12 +19,12 @@ class ReaperPluginFuncTest extends AbstractGradleFuncTest {
             plugins {
               id 'elasticsearch.reaper'
             }
-            
+
             import org.elasticsearch.gradle.ReaperPlugin;
             import org.elasticsearch.gradle.util.GradleUtils;
-            
+
             def serviceProvider = GradleUtils.getBuildService(project.getGradle().getSharedServices(), ReaperPlugin.REAPER_SERVICE_NAME);
-                
+
             tasks.register("launchReaper") {
               doLast {
                 def reaper = serviceProvider.get()

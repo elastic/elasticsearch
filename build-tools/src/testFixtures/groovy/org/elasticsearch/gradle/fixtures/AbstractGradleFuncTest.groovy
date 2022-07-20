@@ -172,7 +172,6 @@ abstract class AbstractGradleFuncTest extends Specification {
         def dir = file(projectDir, path)
         dir.mkdirs()
         dir
-<<<<<<< HEAD
     }
 
     void withVersionCatalogue() {
@@ -189,9 +188,6 @@ checkstyle = "com.puppycrawl.tools:checkstyle:10.3"
               }
             }
             '''
-
-=======
->>>>>>> 07d0e17b23f (Port Thirdparty audit task tests to spock (#86832))
     }
 
     static class ProjectConfigurer {

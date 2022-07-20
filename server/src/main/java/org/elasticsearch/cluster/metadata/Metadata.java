@@ -192,6 +192,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
 
     public static final String CONTEXT_MODE_API = XContentContext.API.toString();
 
+    public static final String DEDUPLICATED_MAPPINGS_PARAM = "deduplicated_mappings";
     public static final String GLOBAL_STATE_FILE_PREFIX = "global-";
 
     private static final NamedDiffableValueSerializer<Custom> CUSTOM_VALUE_SERIALIZER = new NamedDiffableValueSerializer<>(Custom.class);

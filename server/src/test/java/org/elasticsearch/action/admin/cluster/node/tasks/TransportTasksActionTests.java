@@ -103,7 +103,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
     }
 
     public static class NodesRequest extends BaseNodesRequest<NodesRequest> {
-        final private String requestName;
+        private final String requestName;
 
         NodesRequest(StreamInput in) throws IOException {
             super(in);

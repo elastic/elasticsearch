@@ -19,14 +19,14 @@ import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyResponse;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
-import org.elasticsearch.xpack.security.authc.support.ApiKeyGenerator;
+import org.elasticsearch.xpack.security.authc.support.ApiKeyUserRoleDescriptorResolver;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 
 public final class TransportUpdateApiKeyAction extends HandledTransportAction<UpdateApiKeyRequest, UpdateApiKeyResponse> {
 
-    private final ApiKeyService apiKeyService;
     private final SecurityContext securityContext;
-    private final ApiKeyGenerator apiKeyGenerator;
+    private final ApiKeyService apiKeyService;
+    private final ApiKeyUserRoleDescriptorResolver resolver;
 
     @Inject
     public TransportUpdateApiKeyAction(
@@ -38,9 +38,9 @@ public final class TransportUpdateApiKeyAction extends HandledTransportAction<Up
         final NamedXContentRegistry xContentRegistry
     ) {
         super(UpdateApiKeyAction.NAME, transportService, actionFilters, UpdateApiKeyRequest::new);
-        this.apiKeyService = apiKeyService;
         this.securityContext = context;
-        this.apiKeyGenerator = new ApiKeyGenerator(apiKeyService, rolesStore, xContentRegistry);
+        this.apiKeyService = apiKeyService;
+        this.resolver = new ApiKeyUserRoleDescriptorResolver(rolesStore, xContentRegistry);
     }
 
     @Override
@@ -56,9 +56,7 @@ public final class TransportUpdateApiKeyAction extends HandledTransportAction<Up
             return;
         }
 
-        // TODO generalize `ApiKeyGenerator` to handle updates
-        apiKeyService.ensureEnabled();
-        apiKeyGenerator.getUserRoleDescriptors(
+        resolver.resolveUserRoleDescriptors(
             authentication,
             ActionListener.wrap(
                 roleDescriptors -> apiKeyService.updateApiKey(authentication, request, roleDescriptors, listener),

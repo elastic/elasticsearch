@@ -10,6 +10,7 @@ package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -479,6 +480,15 @@ public class RoutingTableTests extends ESAllocationTestCase {
                 }
             }
         }
+    }
+
+    public void testRoutingNodesRoundtrip() {
+        final RoutingTable originalTable = clusterState.getRoutingTable();
+        final RoutingNodes routingNodes = clusterState.getRoutingNodes();
+        final RoutingTable fromNodes = RoutingTable.of(originalTable.version(), routingNodes);
+        // we don't have an equals implementation for the routing table so we assert equality by checking for a noop diff
+        final Diff<RoutingTable> routingTableDiff = fromNodes.diff(originalTable);
+        assertSame(originalTable, routingTableDiff.apply(originalTable));
     }
 
     /** reverse engineer the in sync aid based on the given indexRoutingTable **/

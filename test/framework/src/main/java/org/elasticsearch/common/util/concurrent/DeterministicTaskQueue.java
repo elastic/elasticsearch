@@ -200,6 +200,35 @@ public class DeterministicTaskQueue {
         assert deferredTasks.isEmpty() == (nextDeferredTaskExecutionTimeMillis == Long.MAX_VALUE);
     }
 
+    public PrioritizedEsThreadPoolExecutor getPrioritizedEsThreadPoolExecutor() {
+        return getPrioritizedEsThreadPoolExecutor(Function.identity());
+    }
+
+    public PrioritizedEsThreadPoolExecutor getPrioritizedEsThreadPoolExecutor(Function<Runnable, Runnable> runnableWrapper) {
+        return new PrioritizedEsThreadPoolExecutor(
+            "DeterministicTaskQueue",
+            1,
+            1,
+            1,
+            TimeUnit.SECONDS,
+            r -> { throw new AssertionError("should not create new threads"); },
+            null,
+            null,
+            PrioritizedEsThreadPoolExecutor.StarvationWatcher.NOOP_STARVATION_WATCHER
+        ) {
+            @Override
+            public void execute(Runnable command, final TimeValue timeout, final Runnable timeoutCallback) {
+                throw new AssertionError("not implemented");
+            }
+
+            @Override
+            public void execute(Runnable command) {
+                final var wrappedCommand = runnableWrapper.apply(command);
+                runnableWrapper.apply(() -> scheduleNow(wrappedCommand)).run();
+            }
+        };
+    }
+
     /**
      * @return A <code>ThreadPool</code> that uses this task queue.
      */
@@ -498,7 +527,7 @@ public class DeterministicTaskQueue {
         return new Runnable() {
             @Override
             public void run() {
-                try (CloseableThreadContext.Instance ignored = CloseableThreadContext.put(NODE_ID_LOG_CONTEXT_KEY, nodeId)) {
+                try (var ignored = getLogContext(nodeId)) {
                     runnable.run();
                 }
             }
@@ -508,6 +537,10 @@ public class DeterministicTaskQueue {
                 return nodeId + ": " + runnable.toString();
             }
         };
+    }
+
+    public static CloseableThreadContext.Instance getLogContext(String value) {
+        return CloseableThreadContext.put(NODE_ID_LOG_CONTEXT_KEY, value);
     }
 
 }

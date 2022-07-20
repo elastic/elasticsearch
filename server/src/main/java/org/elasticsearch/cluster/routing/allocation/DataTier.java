@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -238,7 +239,8 @@ public class DataTier {
             boolean timeSeries,
             Metadata metadata,
             Instant resolvedAt,
-            Settings allSettings
+            Settings allSettings,
+            List<CompressedXContent> combinedTemplateMappings
         ) {
             Set<String> settings = allSettings.keySet();
             if (settings.contains(TIER_PREFERENCE)) {

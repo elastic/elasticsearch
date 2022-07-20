@@ -8,7 +8,6 @@ package org.elasticsearch.snapshots.sourceonly;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
@@ -53,6 +52,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.function.Function;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * <p>
@@ -180,10 +181,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
                 snapshot.syncSnapshot(snapshotIndexCommit);
             } catch (NoSuchFileException | CorruptIndexException | FileAlreadyExistsException e) {
                 logger.warn(
-                    () -> new ParameterizedMessage(
-                        "Existing staging directory [{}] appears corrupted and will be pruned and recreated.",
-                        snapPath
-                    ),
+                    () -> format("Existing staging directory [%s] appears corrupted and will be pruned and recreated.", snapPath),
                     e
                 );
                 Lucene.cleanLuceneIndex(overlayDir);

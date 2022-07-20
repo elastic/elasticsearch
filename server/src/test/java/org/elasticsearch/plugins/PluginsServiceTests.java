@@ -12,23 +12,36 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.plugins.spi.TestService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.PrivilegedOperations;
+import org.elasticsearch.test.compiler.InMemoryJavaCompiler;
+import org.elasticsearch.test.jar.JarUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.InvocationTargetException;
+import java.net.URL;
+import java.net.URLClassLoader;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystemException;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasToString;
@@ -38,89 +51,41 @@ import static org.hamcrest.Matchers.sameInstance;
 
 @LuceneTestCase.SuppressFileSystems(value = "ExtrasFS")
 public class PluginsServiceTests extends ESTestCase {
-    public static class AdditionalSettingsPlugin1 extends Plugin {
-        @Override
-        public Settings additionalSettings() {
-            return Settings.builder()
-                .put("foo.bar", "1")
-                .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.MMAPFS.getSettingsKey())
-                .build();
-        }
-    }
-
-    public static class AdditionalSettingsPlugin2 extends Plugin {
-        @Override
-        public Settings additionalSettings() {
-            return Settings.builder().put("foo.bar", "2").build();
-        }
-    }
-
     public static class FilterablePlugin extends Plugin implements ScriptPlugin {}
 
     static PluginsService newPluginsService(Settings settings) {
-        return new PluginsService(settings, null, null, TestEnvironment.newEnvironment(settings).pluginsFile(), List.of());
+        return new PluginsService(settings, null, null, TestEnvironment.newEnvironment(settings).pluginsFile());
     }
 
-    static PluginsService newPluginsService(Settings settings, Class<? extends Plugin> classpathPlugin) {
-        return new PluginsService(settings, null, null, TestEnvironment.newEnvironment(settings).pluginsFile(), List.of(classpathPlugin));
-    }
-
-    static PluginsService newPluginsService(Settings settings, List<Class<? extends Plugin>> classpathPlugins) {
-        return new PluginsService(settings, null, null, TestEnvironment.newEnvironment(settings).pluginsFile(), classpathPlugins);
-    }
-
-    static PluginsService newPluginsService(
-        Settings settings,
-        Class<? extends Plugin> classpathPlugin1,
-        Class<? extends Plugin> classpathPlugin2
-    ) {
-        return new PluginsService(
-            settings,
-            null,
-            null,
-            TestEnvironment.newEnvironment(settings).pluginsFile(),
-            List.of(classpathPlugin1, classpathPlugin2)
-        );
-    }
-
-    public void testAdditionalSettings() {
+    static PluginsService newMockPluginsService(List<Class<? extends Plugin>> classpathPlugins) {
         Settings settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
             .put("my.setting", "test")
             .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.NIOFS.getSettingsKey())
             .build();
-        PluginsService service = newPluginsService(settings, AdditionalSettingsPlugin1.class);
-        Settings newSettings = service.updatedSettings();
-        assertEquals("test", newSettings.get("my.setting")); // previous settings still exist
-        assertEquals("1", newSettings.get("foo.bar")); // added setting exists
-        // does not override pre existing settings
-        assertEquals(IndexModule.Type.NIOFS.getSettingsKey(), newSettings.get(IndexModule.INDEX_STORE_TYPE_SETTING.getKey()));
+        return new MockPluginsService(settings, TestEnvironment.newEnvironment(settings), classpathPlugins);
     }
 
-    public void testAdditionalSettingsClash() {
-        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
-        PluginsService service = newPluginsService(settings, AdditionalSettingsPlugin1.class, AdditionalSettingsPlugin2.class);
-        try {
-            service.updatedSettings();
-            fail("Expected exception when building updated settings");
-        } catch (IllegalArgumentException e) {
-            String msg = e.getMessage();
-            assertTrue(msg, msg.contains("Cannot have additional setting [foo.bar]"));
-            assertTrue(msg, msg.contains("plugin [" + AdditionalSettingsPlugin1.class.getName()));
-            assertTrue(msg, msg.contains("plugin [" + AdditionalSettingsPlugin2.class.getName()));
-        }
-    }
-
+    // This test uses a mock in order to use plugins from the classpath
     public void testFilterPlugins() {
-        Settings settings = Settings.builder()
-            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-            .put("my.setting", "test")
-            .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.NIOFS.getSettingsKey())
-            .build();
-        PluginsService service = newPluginsService(settings, AdditionalSettingsPlugin1.class, FilterablePlugin.class);
+        PluginsService service = newMockPluginsService(List.of(FakePlugin.class, FilterablePlugin.class));
         List<ScriptPlugin> scriptPlugins = service.filterPlugins(ScriptPlugin.class);
         assertEquals(1, scriptPlugins.size());
         assertEquals(FilterablePlugin.class, scriptPlugins.get(0).getClass());
+    }
+
+    // This test uses a mock in order to use plugins from the classpath
+    public void testMapPlugins() {
+        PluginsService service = newMockPluginsService(List.of(FakePlugin.class, FilterablePlugin.class));
+        List<String> mapResult = service.map(p -> p.getClass().getSimpleName()).toList();
+        assertThat(mapResult, containsInAnyOrder("FakePlugin", "FilterablePlugin"));
+
+        List<String> flatmapResult = service.flatMap(p -> List.of(p.getClass().getSimpleName())).toList();
+        assertThat(flatmapResult, containsInAnyOrder("FakePlugin", "FilterablePlugin"));
+
+        List<String> forEachConsumer = new ArrayList<>();
+        service.forEach(p -> forEachConsumer.add(p.getClass().getSimpleName()));
+        assertThat(forEachConsumer, containsInAnyOrder("FakePlugin", "FilterablePlugin"));
     }
 
     public void testHiddenFiles() throws IOException {
@@ -212,7 +177,7 @@ public class PluginsServiceTests extends ESTestCase {
         final Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), home).build();
         final IllegalStateException e = expectThrows(
             IllegalStateException.class,
-            () -> newPluginsService(settings, NoPublicConstructorPlugin.class)
+            () -> PluginsService.loadPlugin(NoPublicConstructorPlugin.class, settings, home)
         );
         assertThat(e, hasToString(containsString("no public constructor")));
     }
@@ -236,7 +201,7 @@ public class PluginsServiceTests extends ESTestCase {
         final Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), home).build();
         final IllegalStateException e = expectThrows(
             IllegalStateException.class,
-            () -> newPluginsService(settings, MultiplePublicConstructorsPlugin.class)
+            () -> PluginsService.loadPlugin(MultiplePublicConstructorsPlugin.class, settings, home)
         );
         assertThat(e, hasToString(containsString("no unique public constructor")));
     }
@@ -285,7 +250,10 @@ public class PluginsServiceTests extends ESTestCase {
         for (Class<? extends Plugin> pluginClass : classes) {
             final Path home = createTempDir();
             final Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), home).build();
-            final IllegalStateException e = expectThrows(IllegalStateException.class, () -> newPluginsService(settings, pluginClass));
+            final IllegalStateException e = expectThrows(
+                IllegalStateException.class,
+                () -> PluginsService.loadPlugin(pluginClass, settings, home)
+            );
             assertThat(e, hasToString(containsString("no public constructor of correct signature")));
         }
     }
@@ -344,12 +312,22 @@ public class PluginsServiceTests extends ESTestCase {
         assertEquals("Plugin [myplugin] cannot extend non-extensible plugin [nonextensible]", e.getMessage());
     }
 
-    public void testExistingMandatoryClasspathPlugin() {
-        final Settings settings = Settings.builder()
-            .put("path.home", createTempDir())
-            .put("plugin.mandatory", "org.elasticsearch.plugins.PluginsServiceTests$FakePlugin")
-            .build();
-        newPluginsService(settings, FakePlugin.class);
+    public void testPassingMandatoryPluginCheck() {
+        PluginsService.checkMandatoryPlugins(
+            Set.of("org.elasticsearch.plugins.PluginsServiceTests$FakePlugin"),
+            Set.of("org.elasticsearch.plugins.PluginsServiceTests$FakePlugin")
+        );
+    }
+
+    public void testFailingMandatoryPluginCheck() {
+        IllegalStateException e = expectThrows(
+            IllegalStateException.class,
+            () -> PluginsService.checkMandatoryPlugins(Set.of(), Set.of("org.elasticsearch.plugins.PluginsServiceTests$FakePlugin"))
+        );
+        assertEquals(
+            "missing mandatory plugins [org.elasticsearch.plugins.PluginsServiceTests$FakePlugin], found plugins []",
+            e.getMessage()
+        );
     }
 
     public static class FakePlugin extends Plugin {
@@ -358,6 +336,61 @@ public class PluginsServiceTests extends ESTestCase {
 
         }
 
+    }
+
+    public void testPluginNameClash() throws IOException {
+        // This test opens a child classloader, reading a jar under the test temp
+        // dir (a dummy plugin). Classloaders are closed by GC, so when test teardown
+        // occurs the jar is deleted while the classloader is still open. However, on
+        // windows, files cannot be deleted when they are still open by a process.
+        assumeFalse("windows deletion behavior is asinine", Constants.WINDOWS);
+        final Path pathHome = createTempDir();
+        final Path plugins = pathHome.resolve("plugins");
+        final Path fake1 = plugins.resolve("fake1");
+        final Path fake2 = plugins.resolve("fake2");
+
+        PluginTestUtil.writePluginProperties(
+            fake1,
+            "description",
+            "description",
+            "name",
+            "fake",
+            "version",
+            "1.0.0",
+            "elasticsearch.version",
+            Version.CURRENT.toString(),
+            "java.version",
+            System.getProperty("java.specification.version"),
+            "classname",
+            "test.DummyPlugin"
+        );
+        try (InputStream jar = PluginsServiceTests.class.getResourceAsStream("dummy-plugin.jar")) {
+            Files.copy(jar, fake1.resolve("plugin.jar"));
+        }
+
+        PluginTestUtil.writePluginProperties(
+            fake2,
+            "description",
+            "description",
+            "name",
+            "fake",
+            "version",
+            "1.0.0",
+            "elasticsearch.version",
+            Version.CURRENT.toString(),
+            "java.version",
+            System.getProperty("java.specification.version"),
+            "classname",
+            "test.NonExtensiblePlugin"
+        );
+        try (InputStream jar = PluginsServiceTests.class.getResourceAsStream("non-extensible-plugin.jar")) {
+            Files.copy(jar, fake2.resolve("plugin.jar"));
+        }
+
+        final Settings settings = Settings.builder().put("path.home", pathHome).build();
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> newPluginsService(settings));
+        assertThat(e.getMessage(), containsString("duplicate plugin: "));
+        assertThat(e.getMessage(), containsString("Name: fake"));
     }
 
     public void testExistingMandatoryInstalledPlugin() throws IOException {
@@ -435,9 +468,8 @@ public class PluginsServiceTests extends ESTestCase {
         PluginsService.loadExtensions(
             List.of(
                 new PluginsService.LoadedPlugin(
-                    new PluginInfo("extensible", null, null, null, null, null, null, List.of(), false, PluginType.ISOLATED, "", false),
-                    extensiblePlugin,
-                    null
+                    new PluginDescriptor("extensible", null, null, null, null, null, null, List.of(), false, false),
+                    extensiblePlugin
                 )
             )
         );
@@ -450,27 +482,12 @@ public class PluginsServiceTests extends ESTestCase {
         PluginsService.loadExtensions(
             List.of(
                 new PluginsService.LoadedPlugin(
-                    new PluginInfo("extensible", null, null, null, null, null, null, List.of(), false, PluginType.ISOLATED, "", false),
-                    extensiblePlugin,
-                    null
+                    new PluginDescriptor("extensible", null, null, null, null, null, null, List.of(), false, false),
+                    extensiblePlugin
                 ),
                 new PluginsService.LoadedPlugin(
-                    new PluginInfo(
-                        "test",
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        List.of("extensible"),
-                        false,
-                        PluginType.ISOLATED,
-                        "",
-                        false
-                    ),
-                    testPlugin,
-                    null
+                    new PluginDescriptor("test", null, null, null, null, null, null, List.of("extensible"), false, false),
+                    testPlugin
                 )
             )
         );
@@ -512,6 +529,10 @@ public class PluginsServiceTests extends ESTestCase {
             public TestExtension() {}
 
             public TestExtension(TestPlugin plugin) {
+
+            }
+
+            public TestExtension(TestPlugin plugin, String anotherArg) {
 
             }
         }
@@ -604,6 +625,74 @@ public class PluginsServiceTests extends ESTestCase {
         assertThat(e.getCause(), instanceOf(InvocationTargetException.class));
         assertThat(e.getCause().getCause(), instanceOf(IllegalArgumentException.class));
         assertThat(e.getCause().getCause(), hasToString(containsString("test constructor failure")));
+    }
+
+    private URLClassLoader buildTestProviderPlugin(String name) throws Exception {
+        Map<String, CharSequence> sources = Map.of("r.FooPlugin", """
+            package r;
+            import org.elasticsearch.plugins.ActionPlugin;
+            import org.elasticsearch.plugins.Plugin;
+            public final class FooPlugin extends Plugin implements ActionPlugin { }
+            """, "r.FooTestService", Strings.format("""
+            package r;
+            import org.elasticsearch.plugins.spi.TestService;
+            public final class FooTestService implements TestService {
+                @Override
+                public String name() {
+                    return "%s";
+                }
+            }
+            """, name));
+
+        var classToBytes = InMemoryJavaCompiler.compile(sources);
+
+        Map<String, byte[]> jarEntries = new HashMap<>();
+        jarEntries.put("r/FooPlugin.class", classToBytes.get("r.FooPlugin"));
+        jarEntries.put("r/FooTestService.class", classToBytes.get("r.FooTestService"));
+        jarEntries.put("META-INF/services/org.elasticsearch.plugins.spi.TestService", "r.FooTestService".getBytes(StandardCharsets.UTF_8));
+
+        Path topLevelDir = createTempDir(getTestName());
+        Path jar = topLevelDir.resolve(Strings.format("custom_plugin_%s.jar", name));
+        JarUtils.createJarWithEntries(jar, jarEntries);
+        URL[] urls = new URL[] { jar.toUri().toURL() };
+
+        URLClassLoader loader = URLClassLoader.newInstance(urls, this.getClass().getClassLoader());
+        return loader;
+    }
+
+    public void testLoadServiceProviders() throws Exception {
+        URLClassLoader fakeClassLoader = buildTestProviderPlugin("integer");
+        URLClassLoader fakeClassLoader1 = buildTestProviderPlugin("string");
+        try {
+            @SuppressWarnings("unchecked")
+            Class<? extends Plugin> fakePluginClass = (Class<? extends Plugin>) fakeClassLoader.loadClass("r.FooPlugin");
+            @SuppressWarnings("unchecked")
+            Class<? extends Plugin> fakePluginClass1 = (Class<? extends Plugin>) fakeClassLoader1.loadClass("r.FooPlugin");
+
+            assertFalse(fakePluginClass.getClassLoader().equals(fakePluginClass1.getClassLoader()));
+
+            getClass().getModule().addUses(TestService.class);
+
+            PluginsService service = newMockPluginsService(List.of(fakePluginClass, fakePluginClass1));
+
+            List<? extends TestService> providers = service.loadServiceProviders(TestService.class);
+            assertEquals(2, providers.size());
+            assertThat(providers.stream().map(p -> p.name()).toList(), containsInAnyOrder("string", "integer"));
+
+            service = newMockPluginsService(List.of(fakePluginClass));
+            providers = service.loadServiceProviders(TestService.class);
+
+            assertEquals(1, providers.size());
+            assertThat(providers.stream().map(p -> p.name()).toList(), containsInAnyOrder("integer"));
+
+            service = newMockPluginsService(new ArrayList<>());
+            providers = service.loadServiceProviders(TestService.class);
+
+            assertEquals(0, providers.size());
+        } finally {
+            PrivilegedOperations.closeURLClassLoader(fakeClassLoader);
+            PrivilegedOperations.closeURLClassLoader(fakeClassLoader1);
+        }
     }
 
     private static class TestExtensiblePlugin extends Plugin implements ExtensiblePlugin {

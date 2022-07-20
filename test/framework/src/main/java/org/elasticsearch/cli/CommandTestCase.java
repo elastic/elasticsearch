@@ -9,11 +9,17 @@
 package org.elasticsearch.cli;
 
 import org.elasticsearch.test.ESTestCase;
+import org.hamcrest.Matcher;
 import org.junit.Before;
 
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
+
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.emptyString;
 
 /**
  * A base test case for cli tools.
@@ -32,21 +38,22 @@ public abstract class CommandTestCase extends ESTestCase {
     /** The working directory that execute uses */
     protected Path esHomeDir;
 
+    /** The ES config dir */
+    protected Path configDir;
+
     @Before
-    public void resetTerminal() {
+    public void resetTerminal() throws IOException {
         terminal.reset();
         terminal.setSupportsBinary(false);
         terminal.setVerbosity(Terminal.Verbosity.NORMAL);
         esHomeDir = createTempDir();
+        configDir = esHomeDir.resolve("config");
+        Files.createDirectory(configDir);
         sysprops.clear();
         sysprops.put("es.path.home", esHomeDir.toString());
         sysprops.put("es.path.conf", esHomeDir.resolve("config").toString());
         sysprops.put("os.name", "Linux"); // default to linux, tests can override to check specific OS behavior
         envVars.clear();
-    }
-
-    protected static Map<String, String> mockSystemProperties(Path homeDir) {
-        return Map.of("es.path.home", homeDir.toString(), "es.path.conf", homeDir.resolve("config").toString());
     }
 
     /** Creates a Command to test execution. */
@@ -78,5 +85,23 @@ public abstract class CommandTestCase extends ESTestCase {
     public String execute(Command command, String... args) throws Exception {
         command.mainWithoutErrorHandling(args, terminal, new ProcessInfo(sysprops, envVars, esHomeDir));
         return terminal.getOutput();
+    }
+
+    protected void assertOk(String... args) throws Exception {
+        assertOkWithOutput(emptyString(), emptyString(), args);
+    }
+
+    protected void assertOkWithOutput(Matcher<String> outMatcher, Matcher<String> errMatcher, String... args) throws Exception {
+        int status = executeMain(args);
+        assertThat(status, equalTo(ExitCodes.OK));
+        assertThat(terminal.getErrorOutput(), errMatcher);
+        assertThat(terminal.getOutput(), outMatcher);
+    }
+
+    protected void assertUsage(Matcher<String> matcher, String... args) throws Exception {
+        terminal.reset();
+        int status = executeMain(args);
+        assertThat(status, equalTo(ExitCodes.USAGE));
+        assertThat(terminal.getErrorOutput(), matcher);
     }
 }

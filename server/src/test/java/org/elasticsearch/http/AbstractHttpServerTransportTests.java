@@ -14,7 +14,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
@@ -225,7 +224,10 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
         try (AbstractHttpServerTransport transport = failureAssertingtHttpServerTransport(clusterSettings, Set.of("Accept"))) {
 
             Map<String, List<String>> headers = new HashMap<>();
-            headers.put("Accept", Collections.singletonList("incorrectheader"));
+            headers.put("Accept", List.of("incorrectHeader"));
+            if (randomBoolean()) {
+                headers.put("Content-Type", List.of("alsoIncorrectHeader"));
+            }
 
             FakeRestRequest.FakeHttpRequest fakeHttpRequest = new FakeRestRequest.FakeHttpRequest(
                 RestRequest.Method.GET,
@@ -238,8 +240,10 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
         }
         try (AbstractHttpServerTransport transport = failureAssertingtHttpServerTransport(clusterSettings, Set.of("Content-Type"))) {
             Map<String, List<String>> headers = new HashMap<>();
-            headers.put("Accept", Collections.singletonList("application/json"));
-            headers.put("Content-Type", Collections.singletonList("incorrectheader"));
+            if (randomBoolean()) {
+                headers.put("Accept", List.of("application/json"));
+            }
+            headers.put("Content-Type", List.of("incorrectHeader"));
 
             FakeRestRequest.FakeHttpRequest fakeHttpRequest = new FakeRestRequest.FakeHttpRequest(
                 RestRequest.Method.GET,
@@ -382,7 +386,9 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                             + opaqueId
                             + "\\]\\["
                             + (badRequest ? "BAD_REQUEST" : "OK")
-                            + "\\]\\[null\\]\\[0\\] sent response to \\[.*"
+                            + "\\]\\["
+                            + RestResponse.TEXT_CONTENT_TYPE
+                            + "\\]\\[0\\] sent response to \\[.*"
                     )
                 );
 
@@ -682,22 +688,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
     }
 
     private static RestResponse emptyResponse(RestStatus status) {
-        return new RestResponse() {
-            @Override
-            public String contentType() {
-                return null;
-            }
-
-            @Override
-            public BytesReference content() {
-                return BytesArray.EMPTY;
-            }
-
-            @Override
-            public RestStatus status() {
-                return status;
-            }
-        };
+        return new RestResponse(status, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY);
     }
 
     private TransportAddress address(String host, int port) throws UnknownHostException {

@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.metadata.IndexGraveyard.IndexGraveyardDiff;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 
@@ -142,8 +141,8 @@ public class ClusterChangedEvent {
      */
     public Set<String> changedCustomMetadataSet() {
         Set<String> result = new HashSet<>();
-        ImmutableOpenMap<String, Metadata.Custom> currentCustoms = state.metadata().customs();
-        ImmutableOpenMap<String, Metadata.Custom> previousCustoms = previousState.metadata().customs();
+        Map<String, Metadata.Custom> currentCustoms = state.metadata().customs();
+        Map<String, Metadata.Custom> previousCustoms = previousState.metadata().customs();
         if (currentCustoms.equals(previousCustoms) == false) {
             for (Map.Entry<String, Metadata.Custom> currentCustomMetadata : currentCustoms.entrySet()) {
                 // new custom md added or existing custom md changed

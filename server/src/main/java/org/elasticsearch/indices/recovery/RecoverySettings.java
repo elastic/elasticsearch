@@ -10,7 +10,6 @@ package org.elasticsearch.indices.recovery;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.store.RateLimiter.SimpleRateLimiter;
 import org.elasticsearch.Version;
@@ -38,6 +37,8 @@ import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.common.settings.Setting.parseInt;
+import static org.elasticsearch.common.unit.ByteSizeValue.ofBytes;
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 
 public class RecoverySettings {
@@ -127,7 +128,7 @@ public class RecoverySettings {
      * Bandwidth settings have a default value of -1 (meaning that they are undefined) or a value in (0, Long.MAX_VALUE).
      */
     private static Setting<ByteSizeValue> bandwidthSetting(String key) {
-        return new Setting<>(key, s -> ByteSizeValue.MINUS_ONE.getStringRep(), s -> {
+        return new Setting<>(key, ByteSizeValue.MINUS_ONE.getStringRep(), s -> {
             final ByteSizeValue value = ByteSizeValue.parseBytesSizeValue(s, key);
             if (ByteSizeValue.MINUS_ONE.equals(value)) {
                 return value;
@@ -520,13 +521,13 @@ public class RecoverySettings {
             finalMaxBytesPerSec = ByteSizeValue.ofBytes(maxBytesPerSec);
         }
         logger.info(
-            () -> new ParameterizedMessage(
-                "using rate limit [{}] with [default={}, read={}, write={}, max={}]",
+            () -> format(
+                "using rate limit [%s] with [default=%s, read=%s, write=%s, max=%s]",
                 finalMaxBytesPerSec,
-                ByteSizeValue.ofBytes(defaultBytesPerSec),
-                ByteSizeValue.ofBytes(readBytesPerSec),
-                ByteSizeValue.ofBytes(writeBytesPerSec),
-                ByteSizeValue.ofBytes(maxAllowedBytesPerSec)
+                ofBytes(defaultBytesPerSec),
+                ofBytes(readBytesPerSec),
+                ofBytes(writeBytesPerSec),
+                ofBytes(maxAllowedBytesPerSec)
             )
         );
         setMaxBytesPerSec(finalMaxBytesPerSec);
@@ -649,21 +650,23 @@ public class RecoverySettings {
 
     @Nullable
     Releasable tryAcquireSnapshotDownloadPermits() {
+        if (getUseSnapshotsDuringRecovery() == false) {
+            return null;
+        }
+
         final int maxConcurrentSnapshotFileDownloads = getMaxConcurrentSnapshotFileDownloads();
         final boolean permitAcquired = maxSnapshotFileDownloadsPerNodeSemaphore.tryAcquire(maxConcurrentSnapshotFileDownloads);
-        if (getUseSnapshotsDuringRecovery() == false || permitAcquired == false) {
-            if (permitAcquired == false) {
-                logger.warn(
-                    String.format(
-                        Locale.ROOT,
-                        "Unable to acquire permit to use snapshot files during recovery, "
-                            + "this recovery will recover index files from the source node. "
-                            + "Ensure snapshot files can be used during recovery by setting [%s] to be no greater than [%d]",
-                        INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS.getKey(),
-                        this.maxConcurrentSnapshotFileDownloadsPerNode
-                    )
-                );
-            }
+        if (permitAcquired == false) {
+            logger.warn(
+                String.format(
+                    Locale.ROOT,
+                    "Unable to acquire permit to use snapshot files during recovery, "
+                        + "this recovery will recover index files from the source node. "
+                        + "Ensure snapshot files can be used during recovery by setting [%s] to be no greater than [%d]",
+                    INDICES_RECOVERY_MAX_CONCURRENT_SNAPSHOT_FILE_DOWNLOADS.getKey(),
+                    this.maxConcurrentSnapshotFileDownloadsPerNode
+                )
+            );
             return null;
         }
 

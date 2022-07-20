@@ -21,12 +21,12 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
-import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
@@ -1041,7 +1041,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         QueryStringQueryBuilder queryBuilder = new QueryStringQueryBuilder(TEXT_FIELD_NAME + ":*");
         Query query = queryBuilder.toQuery(context);
         if (context.getFieldType(TEXT_FIELD_NAME).getTextSearchInfo().hasNorms()) {
-            assertThat(query, equalTo(new ConstantScoreQuery(new NormsFieldExistsQuery(TEXT_FIELD_NAME))));
+            assertThat(query, equalTo(new ConstantScoreQuery(new FieldExistsQuery(TEXT_FIELD_NAME))));
         } else {
             assertThat(query, equalTo(new ConstantScoreQuery(new TermQuery(new Term("_field_names", TEXT_FIELD_NAME)))));
         }
@@ -1051,7 +1051,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             queryBuilder = new QueryStringQueryBuilder("_exists_:" + value);
             query = queryBuilder.toQuery(context);
             if (context.getFieldType(TEXT_FIELD_NAME).getTextSearchInfo().hasNorms()) {
-                assertThat(query, equalTo(new ConstantScoreQuery(new NormsFieldExistsQuery(TEXT_FIELD_NAME))));
+                assertThat(query, equalTo(new ConstantScoreQuery(new FieldExistsQuery(TEXT_FIELD_NAME))));
             } else {
                 assertThat(query, equalTo(new ConstantScoreQuery(new TermQuery(new Term("_field_names", TEXT_FIELD_NAME)))));
             }
@@ -1078,19 +1078,19 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
                 "query" : "this AND that OR thus",
                 "default_field" : "content",
                 "fields" : [ ],
-                "type" : "best_fields",
-                "tie_breaker" : 0.0,
-                "default_operator" : "or",
-                "max_determinized_states" : 10000,
-                "enable_position_increments" : true,
-                "fuzziness" : "AUTO",
-                "fuzzy_prefix_length" : 0,
-                "fuzzy_max_expansions" : 50,
-                "phrase_slop" : 0,
-                "escape" : false,
-                "auto_generate_synonyms_phrase_query" : true,
+                "type" : "most_fields",
+                "tie_breaker" : 0.1,
+                "default_operator" : "and",
+                "max_determinized_states" : 8000,
+                "enable_position_increments" : false,
+                "fuzziness" : "1",
+                "fuzzy_prefix_length" : 1,
+                "fuzzy_max_expansions" : 20,
+                "phrase_slop" : 1,
+                "escape" : true,
+                "auto_generate_synonyms_phrase_query" : false,
                 "fuzzy_transpositions" : false,
-                "boost" : 1.0
+                "boost" : 2.0
               }
             }""";
 
@@ -1100,6 +1100,24 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         assertEquals(json, "this AND that OR thus", parsed.queryString());
         assertEquals(json, "content", parsed.defaultField());
         assertEquals(json, false, parsed.fuzzyTranspositions());
+    }
+
+    public void testSimpleFromJson() throws IOException {
+        String json = """
+            {
+              "query_string" : {
+                "query" : "this AND that OR thus",
+                "default_field" : "content",
+                "fields" : [ ]
+              }
+            }""";
+
+        QueryStringQueryBuilder parsed = (QueryStringQueryBuilder) parseQuery(json);
+        checkGeneratedJson(json, parsed);
+
+        assertEquals(json, "this AND that OR thus", parsed.queryString());
+        assertEquals(json, "content", parsed.defaultField());
+        assertEquals(json, true, parsed.fuzzyTranspositions());
     }
 
     public void testExpandedTerms() throws Exception {

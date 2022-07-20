@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.core.ssl;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.ssl.DerParser;
 
 import java.io.IOException;
@@ -27,6 +26,8 @@ import java.util.stream.Collectors;
 
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.X509ExtendedTrustManager;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * An X509 trust manager that only trusts connections from a restricted set of predefined network entities (nodes, clients, etc).
@@ -98,8 +99,8 @@ public final class RestrictedTrustManager extends X509ExtendedTrustManager {
         Set<String> names = readCommonNames(certificate);
         if (verifyCertificateNames(names)) {
             logger.debug(
-                () -> new ParameterizedMessage(
-                    "Trusting certificate [{}] [{}] with common-names [{}]",
+                () -> format(
+                    "Trusting certificate [%s] [%s] with common-names [%s]",
                     certificate.getSubjectX500Principal(),
                     certificate.getSerialNumber().toString(16),
                     names

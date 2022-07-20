@@ -1,5 +1,0 @@
-pr: 84802
-summary: Speed up CompressedXContent Serialization
-area: Infra/Core
-type: enhancement
-issues: []

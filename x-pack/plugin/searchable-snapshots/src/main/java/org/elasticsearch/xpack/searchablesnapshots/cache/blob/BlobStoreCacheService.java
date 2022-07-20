@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.searchablesnapshots.cache.blob;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.IndexFileNames;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
@@ -50,6 +49,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.SEARCHABLE_SNAPSHOTS_ORIGIN;
 
@@ -136,8 +136,8 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
         } catch (ElasticsearchTimeoutException e) {
             if (logger.isDebugEnabled()) {
                 logger.debug(
-                    () -> new ParameterizedMessage(
-                        "get from cache index timed out after [5s], retrieving from blob store instead [id={}]",
+                    () -> format(
+                        "get from cache index timed out after [5s], retrieving from blob store instead [id=%s]",
                         generateId(repository, snapshotId, indexId, shardId, name, range)
                     ),
                     e
@@ -373,8 +373,8 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
                 });
             } catch (ExecutionException e) {
                 logger.warn(
-                    () -> new ParameterizedMessage(
-                        "{} failed to log information about exceeding file type [{}] with length [{}]",
+                    () -> format(
+                        "%s failed to log information about exceeding file type [%s] with length [%s]",
                         shardId,
                         extension,
                         length

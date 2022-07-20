@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.transform.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -50,6 +49,7 @@ import org.elasticsearch.xpack.transform.transforms.TransformTask;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.transform.utils.SecondaryAuthorizationUtils.useSecondaryAuthIfAvailable;
 
 public class TransportUpdateTransformAction extends TransportTasksAction<TransformTask, Request, Response, Response> {
@@ -189,13 +189,13 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
         List<String> warnings = TransformConfigLinter.getWarnings(function, config.getSource(), config.getSyncConfig());
 
         for (String warning : warnings) {
-            logger.warn(new ParameterizedMessage("[{}] {}", config.getId(), warning));
+            logger.warn(() -> format("[%s] %s", config.getId(), warning));
             auditor.warning(config.getId(), warning);
         }
     }
 
     @Override
-    protected void taskOperation(Request request, TransformTask transformTask, ActionListener<Response> listener) {
+    protected void taskOperation(Task actionTask, Request request, TransformTask transformTask, ActionListener<Response> listener) {
         // apply the settings
         transformTask.applyNewSettings(request.getConfig().getSettings());
         listener.onResponse(new Response(request.getConfig()));

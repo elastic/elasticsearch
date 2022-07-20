@@ -20,6 +20,7 @@ import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
 /**
@@ -35,9 +36,11 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
 
     private static final class WrappingParser extends FilterXContentParser {
 
+        private final BooleanSupplier isWithinLeafObject;
         final Deque<XContentParser> parsers = new ArrayDeque<>();
 
-        WrappingParser(XContentParser in) throws IOException {
+        WrappingParser(XContentParser in, BooleanSupplier isWithinLeafObject) throws IOException {
+            this.isWithinLeafObject = isWithinLeafObject;
             parsers.push(in);
             if (in.currentToken() == Token.FIELD_NAME) {
                 expandDots();
@@ -61,6 +64,12 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
         }
 
         private void expandDots() throws IOException {
+            // this handles fields that belong to objects that can't hold subobjects, where the document specifies
+            // the object holding the flat fields
+            // e.g. { "metrics.service": { "time.max" : 10 } } with service having subobjects set to false
+            if (isWithinLeafObject.getAsBoolean()) {
+                return;
+            }
             XContentParser delegate = delegate();
             String field = delegate.currentName();
             String[] subpaths = splitAndValidatePath(field);
@@ -82,7 +91,7 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
                 XContentParser subParser = token == Token.START_OBJECT || token == Token.START_ARRAY
                     ? new XContentSubParser(delegate)
                     : new SingletonValueXContentParser(delegate);
-                parsers.push(new DotExpandingXContentParser(subParser, subpaths, location));
+                parsers.push(new DotExpandingXContentParser(subParser, subpaths, location, isWithinLeafObject));
             }
         }
 
@@ -123,25 +132,26 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
         }
     }
 
-    private static String[] splitAndValidatePath(String fullFieldPath) {
-        if (fullFieldPath.isEmpty()) {
+    private static String[] splitAndValidatePath(String fieldName) {
+        if (fieldName.isEmpty()) {
             throw new IllegalArgumentException("field name cannot be an empty string");
         }
-        if (fullFieldPath.contains(".") == false) {
-            return new String[] { fullFieldPath };
+        if (fieldName.contains(".") == false) {
+            return new String[] { fieldName };
         }
-        String[] parts = fullFieldPath.split("\\.");
+        String[] parts = fieldName.split("\\.");
         if (parts.length == 0) {
             throw new IllegalArgumentException("field name cannot contain only dots");
         }
+
         for (String part : parts) {
             // check if the field name contains only whitespace
             if (part.isEmpty()) {
-                throw new IllegalArgumentException("field name cannot contain only whitespace: ['" + fullFieldPath + "']");
+                throw new IllegalArgumentException("field name cannot contain only whitespace: ['" + fieldName + "']");
             }
             if (part.isBlank()) {
                 throw new IllegalArgumentException(
-                    "field name starting or ending with a [.] makes object resolution ambiguous: [" + fullFieldPath + "]"
+                    "field name starting or ending with a [.] makes object resolution ambiguous: [" + fieldName + "]"
                 );
             }
         }
@@ -153,8 +163,8 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
      * @param in    the parser to wrap
      * @return  the wrapped XContentParser
      */
-    static XContentParser expandDots(XContentParser in) throws IOException {
-        return new WrappingParser(in);
+    static XContentParser expandDots(XContentParser in, BooleanSupplier isWithinLeafObject) throws IOException {
+        return new WrappingParser(in, isWithinLeafObject);
     }
 
     private enum State {
@@ -163,17 +173,24 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
         ENDING_EXPANDED_OBJECT
     }
 
-    final String[] subPaths;
+    private final BooleanSupplier isWithinLeafObject;
 
+    private String[] subPaths;
     private XContentLocation currentLocation;
     private int expandedTokens = 0;
     private int innerLevel = -1;
     private State state = State.EXPANDING_START_OBJECT;
 
-    private DotExpandingXContentParser(XContentParser subparser, String[] subPaths, XContentLocation startLocation) {
+    private DotExpandingXContentParser(
+        XContentParser subparser,
+        String[] subPaths,
+        XContentLocation startLocation,
+        BooleanSupplier isWithinLeafObject
+    ) {
         super(subparser);
         this.subPaths = subPaths;
         this.currentLocation = startLocation;
+        this.isWithinLeafObject = isWithinLeafObject;
     }
 
     @Override
@@ -191,6 +208,25 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
             }
             // The expansion consists of adding pairs of START_OBJECT and FIELD_NAME tokens
             if (expandedTokens % 2 == 0) {
+                int currentIndex = expandedTokens / 2;
+                // if there's more than one element left to expand and the parent can't hold subobjects, we replace the array
+                // e.g. metrics.service.time.max -> ["metrics", "service", "time.max"]
+                if (currentIndex < subPaths.length - 1 && isWithinLeafObject.getAsBoolean()) {
+                    String[] newSubPaths = new String[currentIndex + 1];
+                    StringBuilder collapsedPath = new StringBuilder();
+                    for (int i = 0; i < subPaths.length; i++) {
+                        if (i < currentIndex) {
+                            newSubPaths[i] = subPaths[i];
+                        } else {
+                            collapsedPath.append(subPaths[i]);
+                            if (i < subPaths.length - 1) {
+                                collapsedPath.append(".");
+                            }
+                        }
+                    }
+                    newSubPaths[currentIndex] = collapsedPath.toString();
+                    subPaths = newSubPaths;
+                }
                 return Token.FIELD_NAME;
             }
             return Token.START_OBJECT;

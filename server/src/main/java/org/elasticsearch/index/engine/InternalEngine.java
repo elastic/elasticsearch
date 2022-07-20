@@ -9,7 +9,6 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
@@ -108,6 +107,8 @@ import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static org.elasticsearch.core.Strings.format;
 
 public class InternalEngine extends Engine {
 
@@ -501,8 +502,8 @@ public class InternalEngine extends Engine {
         assert pendingTranslogRecovery.get() : "translogRecovery is not pending but should be";
         pendingTranslogRecovery.set(false); // we are good - now we can commit
         logger.trace(
-            () -> new ParameterizedMessage(
-                "flushing post recovery from translog: ops recovered [{}], current translog generation [{}]",
+            () -> format(
+                "flushing post recovery from translog: ops recovered [%s], current translog generation [%s]",
                 opsRecovered,
                 translog.currentFileGeneration()
             )
@@ -2407,6 +2408,8 @@ public class InternalEngine extends Engine {
             mergePolicy = new ShuffleForcedMergePolicy(mergePolicy);
         }
         iwc.setMergePolicy(mergePolicy);
+        // TODO: Introduce an index setting for setMaxFullFlushMergeWaitMillis
+        iwc.setMaxFullFlushMergeWaitMillis(-1);
         iwc.setSimilarity(engineConfig.getSimilarity());
         iwc.setRAMBufferSizeMB(engineConfig.getIndexingBufferSize().getMbFrac());
         iwc.setCodec(engineConfig.getCodec());

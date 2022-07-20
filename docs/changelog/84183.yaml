@@ -1,5 +1,0 @@
-pr: 84183
-summary: Simplify reading a list and converting it to a map from stream
-area: Infra/Core
-type: enhancement
-issues: []

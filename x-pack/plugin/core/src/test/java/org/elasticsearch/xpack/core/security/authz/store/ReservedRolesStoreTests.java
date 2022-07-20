@@ -1426,6 +1426,10 @@ public class ReservedRolesStoreTests extends ESTestCase {
             is(true)
         );
         assertThat(
+            remoteMonitoringAgentRole.indices().allowedIndicesMatcher(RolloverAction.NAME).test(mockIndexAbstraction(metricbeatIndex)),
+            is(true)
+        );
+        assertThat(
             remoteMonitoringAgentRole.indices()
                 .allowedIndicesMatcher(IndicesSegmentsAction.NAME)
                 .test(mockIndexAbstraction(metricbeatIndex)),

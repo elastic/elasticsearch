@@ -15,6 +15,7 @@ import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -155,7 +156,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
         };
     }
 
-    private final Map<RestApiVersion, Map<String, FieldParser>> fieldParserMap = new HashMap<>();
+    private final Map<RestApiVersion, Map<String, FieldParser>> fieldParserMap = new EnumMap<>(RestApiVersion.class);
     private final String name;
     private final Function<Context, Value> valueBuilder;
     private final UnknownFieldParser<Value, Context> unknownFieldParser;
@@ -751,7 +752,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
         OBJECT_ARRAY_OR_NULL(START_OBJECT, START_ARRAY, VALUE_NULL),
         OBJECT_OR_BOOLEAN(START_OBJECT, VALUE_BOOLEAN),
         OBJECT_OR_STRING(START_OBJECT, VALUE_STRING),
-        OBJECT_OR_LONG(START_OBJECT, VALUE_NUMBER),
+        OBJECT_OR_NUMBER(START_OBJECT, VALUE_NUMBER),
         OBJECT_ARRAY_BOOLEAN_OR_STRING(START_OBJECT, START_ARRAY, VALUE_BOOLEAN, VALUE_STRING),
         OBJECT_ARRAY_OR_STRING(START_OBJECT, START_ARRAY, VALUE_STRING),
         OBJECT_ARRAY_STRING_OR_NUMBER(START_OBJECT, START_ARRAY, VALUE_STRING, VALUE_NUMBER),

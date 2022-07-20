@@ -1,6 +1,0 @@
-pr: 86438
-summary: Fix edge case where user-defined heap settings are ignored
-area: Packaging
-type: bug
-issues:
- - 86431

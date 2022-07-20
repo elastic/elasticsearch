@@ -756,10 +756,10 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
             IllegalArgumentException.class,
             () -> preparePutRole(name).cluster("monitor").get()
         );
-        assertThat(exception.getMessage(), containsString("role [" + name + "] is reserved"));
+        assertThat(exception.getMessage(), containsString("Role [" + name + "] is reserved and may not be used"));
 
         exception = expectThrows(IllegalArgumentException.class, () -> new DeleteRoleRequestBuilder(client()).name(name).get());
-        assertThat(exception.getMessage(), containsString("role [" + name + "] is reserved"));
+        assertThat(exception.getMessage(), containsString("role [" + name + "] is reserved and cannot be deleted"));
 
         // get role is allowed
         GetRolesResponse response = new GetRolesRequestBuilder(client()).names(name).get();

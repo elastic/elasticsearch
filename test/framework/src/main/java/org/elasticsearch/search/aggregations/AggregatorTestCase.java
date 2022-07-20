@@ -27,7 +27,6 @@ import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
@@ -94,6 +93,8 @@ import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -184,6 +185,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
     private static final List<String> TYPE_TEST_BLACKLIST = List.of(
         ObjectMapper.CONTENT_TYPE, // Cannot aggregate objects
         GeoShapeFieldMapper.CONTENT_TYPE, // Cannot aggregate geoshapes (yet)
+        DenseVectorFieldMapper.CONTENT_TYPE, // Cannot aggregate dense vectors
+        SparseVectorFieldMapper.CONTENT_TYPE, // Sparse vectors are no longer supported
 
         NestedObjectMapper.CONTENT_TYPE, // TODO support for nested
         CompletionFieldMapper.CONTENT_TYPE, // TODO support completion
@@ -371,13 +374,12 @@ public abstract class AggregatorTestCase extends ESTestCase {
         BitsetFilterCache bitsetFilterCache
     ) {
         SearchContext ctx = mock(SearchContext.class);
-        QueryCache queryCache = new DisabledQueryCache(indexSettings);
         try {
             when(ctx.searcher()).thenReturn(
                 new ContextIndexSearcher(
                     searchExecutionContext.searcher().getIndexReader(),
                     searchExecutionContext.searcher().getSimilarity(),
-                    queryCache,
+                    DisabledQueryCache.INSTANCE,
                     TrivialQueryCachingPolicy.NEVER,
                     false
                 )
@@ -401,6 +403,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         when(indexShard.shardId()).thenReturn(new ShardId("test", "test", 0));
         when(indexShard.indexSettings()).thenReturn(indexSettings);
         when(ctx.indexShard()).thenReturn(indexShard);
+        when(ctx.newSourceLoader()).thenAnswer(inv -> searchExecutionContext.newSourceLoader(false));
         return new SubSearchContext(ctx);
     }
 
@@ -571,7 +574,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                     new TimeSeriesIndexSearcher(subSearcher, List.of()).search(rewritten, a);
                 } else {
                     Weight weight = subSearcher.createWeight(rewritten, ScoreMode.COMPLETE, 1f);
-                    subSearcher.search(weight, a);
+                    subSearcher.search(weight, a.asCollector());
                 }
                 a.postCollection();
                 aggs.add(a.buildTopLevel());
@@ -581,7 +584,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             if (context.isInSortOrderExecutionRequired()) {
                 new TimeSeriesIndexSearcher(searcher, List.of()).search(rewritten, MultiBucketCollector.wrap(true, List.of(root)));
             } else {
-                searcher.search(rewritten, MultiBucketCollector.wrap(true, List.of(root)));
+                searcher.search(rewritten, MultiBucketCollector.wrap(true, List.of(root)).asCollector());
             }
             root.postCollection();
             aggs.add(root.buildTopLevel());
@@ -750,7 +753,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         );
         Aggregator aggregator = createAggregator(builder, context);
         aggregator.preCollection();
-        searcher.search(context.query(), aggregator);
+        searcher.search(context.query(), aggregator.asCollector());
         aggregator.postCollection();
         InternalAggregation r = aggregator.buildTopLevel();
         r = r.reduce(
@@ -1283,7 +1286,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                     throws IOException {
                     return new MetricsAggregator(name, context, parent, metadata) {
                         @Override
-                        protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
+                        protected LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) {
                             return LeafBucketCollector.NO_OP_COLLECTOR;
                         }
 

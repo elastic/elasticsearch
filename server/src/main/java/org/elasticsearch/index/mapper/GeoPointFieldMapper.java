@@ -34,8 +34,8 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.GeoPointFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
+import org.elasticsearch.script.SortedNumericDocValuesLongFieldScript;
 import org.elasticsearch.script.field.GeoPointDocValuesField;
-import org.elasticsearch.script.field.SortedNumericDocValuesLongFieldScript;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -47,7 +47,6 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -99,8 +98,17 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         }
 
         @Override
-        protected List<Parameter<?>> getParameters() {
-            return Arrays.asList(hasDocValues, indexed, stored, ignoreMalformed, ignoreZValue, nullValue, script, onScriptError, meta);
+        protected Parameter<?>[] getParameters() {
+            return new Parameter<?>[] {
+                hasDocValues,
+                indexed,
+                stored,
+                ignoreMalformed,
+                ignoreZValue,
+                nullValue,
+                script,
+                onScriptError,
+                meta };
         }
 
         public Builder docValues(boolean hasDocValues) {
@@ -469,7 +477,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
             final GeoPoint point = new GeoPoint();
 
             @Override
-            protected void loadNextValue(XContentBuilder b, long value) throws IOException {
+            protected void writeValue(XContentBuilder b, long value) throws IOException {
                 point.reset(GeoEncodingUtils.decodeLatitude((int) (value >>> 32)), GeoEncodingUtils.decodeLongitude((int) value));
                 point.toXContent(b, ToXContent.EMPTY_PARAMS);
             }

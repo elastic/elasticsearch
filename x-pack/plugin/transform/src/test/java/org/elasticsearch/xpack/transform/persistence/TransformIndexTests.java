@@ -14,7 +14,6 @@ import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -82,8 +81,7 @@ public class TransformIndexTests extends ESTestCase {
         assertTrue(latch.await(10, TimeUnit.SECONDS));
     }
 
-    private void testIsDestinationIndexCreatedByTransform(ImmutableOpenMap<String, MappingMetadata> mappings, boolean expectedValue)
-        throws Exception {
+    private void testIsDestinationIndexCreatedByTransform(Map<String, MappingMetadata> mappings, boolean expectedValue) throws Exception {
         GetIndexResponse getIndexResponse = new GetIndexResponse(new String[] { DEST_INDEX }, mappings, null, null, null, null);
         doAnswer(withResponse(getIndexResponse)).when(client).execute(eq(GetIndexAction.INSTANCE), any(), any());
 
@@ -104,34 +102,31 @@ public class TransformIndexTests extends ESTestCase {
     }
 
     public void testIsDestinationIndexCreatedByTransform_NoIndexInMappings() throws Exception {
-        testIsDestinationIndexCreatedByTransform(ImmutableOpenMap.of(), false);
+        testIsDestinationIndexCreatedByTransform(Map.of(), false);
     }
 
     public void testIsDestinationIndexCreatedByTransform_NoMeta() throws Exception {
-        ImmutableOpenMap<String, MappingMetadata> mappings = ImmutableOpenMap.<String, MappingMetadata>builder()
-            .fPut(DEST_INDEX, MappingMetadata.EMPTY_MAPPINGS)
-            .build();
-        testIsDestinationIndexCreatedByTransform(mappings, false);
+        testIsDestinationIndexCreatedByTransform(Map.of(DEST_INDEX, MappingMetadata.EMPTY_MAPPINGS), false);
     }
 
     public void testIsDestinationIndexCreatedByTransform_NoCreatedBy() throws Exception {
-        ImmutableOpenMap<String, MappingMetadata> mappings = ImmutableOpenMap.<String, MappingMetadata>builder()
-            .fPut(DEST_INDEX, new MappingMetadata("_doc", Map.of("_meta", Map.of())))
-            .build();
+        Map<String, MappingMetadata> mappings = Map.of(DEST_INDEX, new MappingMetadata("_doc", Map.of("_meta", Map.of())));
         testIsDestinationIndexCreatedByTransform(mappings, false);
     }
 
     public void testIsDestinationIndexCreatedByTransform_CreatedByDoesNotMatch() throws Exception {
-        ImmutableOpenMap<String, MappingMetadata> mappings = ImmutableOpenMap.<String, MappingMetadata>builder()
-            .fPut(DEST_INDEX, new MappingMetadata("_doc", Map.of("_meta", Map.of("created_by", "some-user"))))
-            .build();
+        Map<String, MappingMetadata> mappings = Map.of(
+            DEST_INDEX,
+            new MappingMetadata("_doc", Map.of("_meta", Map.of("created_by", "some-user")))
+        );
         testIsDestinationIndexCreatedByTransform(mappings, false);
     }
 
     public void testIsDestinationIndexCreatedByTransform_Ok() throws Exception {
-        ImmutableOpenMap<String, MappingMetadata> mappings = ImmutableOpenMap.<String, MappingMetadata>builder()
-            .fPut(DEST_INDEX, new MappingMetadata("_doc", Map.of("_meta", Map.of("created_by", CREATED_BY))))
-            .build();
+        Map<String, MappingMetadata> mappings = Map.of(
+            DEST_INDEX,
+            new MappingMetadata("_doc", Map.of("_meta", Map.of("created_by", CREATED_BY)))
+        );
         testIsDestinationIndexCreatedByTransform(mappings, true);
     }
 

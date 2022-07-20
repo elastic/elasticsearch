@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.core.security.action.role.PutRoleRequest;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
+import org.elasticsearch.xpack.core.security.support.NativeRealmValidationUtil;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.io.IOException;
@@ -217,6 +218,9 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
 
     // pkg-private for testing
     void innerPutRole(final PutRoleRequest request, final RoleDescriptor role, final ActionListener<Boolean> listener) {
+        final String roleName = role.getName();
+        assert NativeRealmValidationUtil.validateRoleName(roleName, false) == null : "Role name was invalid or reserved: " + roleName;
+
         securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
             final XContentBuilder xContentBuilder;
             try {
@@ -226,7 +230,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                 return;
             }
             final IndexRequest indexRequest = client.prepareIndex(SECURITY_MAIN_ALIAS)
-                .setId(getIdForRole(role.getName()))
+                .setId(getIdForRole(roleName))
                 .setSource(xContentBuilder)
                 .setRefreshPolicy(request.getRefreshPolicy())
                 .request();
@@ -239,12 +243,12 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                     public void onResponse(IndexResponse indexResponse) {
                         final boolean created = indexResponse.getResult() == DocWriteResponse.Result.CREATED;
                         logger.trace("Created role: [{}]", indexRequest);
-                        clearRoleCache(role.getName(), listener, created);
+                        clearRoleCache(roleName, listener, created);
                     }
 
                     @Override
                     public void onFailure(Exception e) {
-                        logger.error(() -> "failed to put role [" + request.name() + "]", e);
+                        logger.error(() -> "failed to put role [" + roleName + "]", e);
                         listener.onFailure(e);
                     }
                 },

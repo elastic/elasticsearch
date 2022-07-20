@@ -300,10 +300,18 @@ public class NativeRolesStoreTests extends ESTestCase {
             RecoverySource.ExistingStoreRecoverySource.INSTANCE,
             new UnassignedInfo(Reason.INDEX_CREATED, "")
         );
-        IndexShardRoutingTable table = new IndexShardRoutingTable.Builder(new ShardId(index, 0)).addShard(
-            shardRouting.initialize(randomAlphaOfLength(8), null, shardRouting.getExpectedShardSize()).moveToStarted()
-        ).build();
-        RoutingTable routingTable = RoutingTable.builder().add(IndexRoutingTable.builder(index).addIndexShard(table).build()).build();
+        RoutingTable routingTable = RoutingTable.builder()
+            .add(
+                IndexRoutingTable.builder(index)
+                    .addIndexShard(
+                        IndexShardRoutingTable.builder(new ShardId(index, 0))
+                            .addShard(
+                                shardRouting.initialize(randomAlphaOfLength(8), null, shardRouting.getExpectedShardSize()).moveToStarted()
+                            )
+                    )
+                    .build()
+            )
+            .build();
 
         ClusterState clusterState = ClusterState.builder(new ClusterName(NativeRolesStoreTests.class.getName()))
             .metadata(metadata)

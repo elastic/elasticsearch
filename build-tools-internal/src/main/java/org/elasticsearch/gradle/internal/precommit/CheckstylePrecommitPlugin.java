@@ -8,13 +8,13 @@
 
 package org.elasticsearch.gradle.internal.precommit;
 
-import org.elasticsearch.gradle.VersionProperties;
-import org.elasticsearch.gradle.internal.InternalPlugin;
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitPlugin;
 import org.gradle.api.Action;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
+import org.gradle.api.artifacts.VersionCatalogsExtension;
 import org.gradle.api.artifacts.dsl.DependencyHandler;
+import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.plugins.quality.Checkstyle;
 import org.gradle.api.plugins.quality.CheckstyleExtension;
 import org.gradle.api.provider.Provider;
@@ -30,7 +30,7 @@ import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 
-public class CheckstylePrecommitPlugin extends PrecommitPlugin implements InternalPlugin {
+public class CheckstylePrecommitPlugin extends PrecommitPlugin {
     @Override
     public TaskProvider<? extends Task> createTask(Project project) {
         // Always copy the checkstyle configuration files to 'buildDir/checkstyle' since the resources could be located in a jar
@@ -85,25 +85,34 @@ public class CheckstylePrecommitPlugin extends PrecommitPlugin implements Intern
         checkstyle.getConfigDirectory().set(checkstyleDir);
 
         DependencyHandler dependencies = project.getDependencies();
-        String checkstyleVersion = VersionProperties.getVersions().get("checkstyle");
-        Provider<String> dependencyProvider = project.provider(() -> "org.elasticsearch:build-conventions:" + project.getVersion());
-        dependencies.add("checkstyle", "com.puppycrawl.tools:checkstyle:" + checkstyleVersion);
-        dependencies.addProvider("checkstyle", dependencyProvider, dep -> dep.setTransitive(false));
+        Provider<String> conventionsDependencyProvider = project.provider(
+            () -> "org.elasticsearch:build-conventions:" + project.getVersion()
+        );
+        dependencies.addProvider("checkstyle", project.provider(() -> {
+            var versionCatalog = project.getExtensions().getByType(VersionCatalogsExtension.class).named("buildLibs");
+            return versionCatalog.findLibrary("checkstyle").get().get();
+        }));
+        dependencies.addProvider("checkstyle", conventionsDependencyProvider, dep -> dep.setTransitive(false));
 
         project.getTasks().withType(Checkstyle.class).configureEach(t -> {
             t.dependsOn(copyCheckstyleConf);
+            t.getMaxHeapSize().set("1g");
             t.reports(r -> r.getHtml().getRequired().set(false));
         });
 
         // Configure checkstyle tasks with an empty classpath to improve build avoidance.
         // It's optional since our rules only rely on source files anyway.
-        project.getExtensions()
-            .getByType(SourceSetContainer.class)
-            .all(
-                sourceSet -> project.getTasks()
-                    .withType(Checkstyle.class)
-                    .named(sourceSet.getTaskName("checkstyle", null))
-                    .configure(t -> t.setClasspath(project.getObjects().fileCollection()))
+        project.getPlugins()
+            .withType(
+                JavaBasePlugin.class,
+                javaBasePlugin -> project.getExtensions()
+                    .getByType(SourceSetContainer.class)
+                    .all(
+                        sourceSet -> project.getTasks()
+                            .withType(Checkstyle.class)
+                            .named(sourceSet.getTaskName("checkstyle", null))
+                            .configure(t -> t.setClasspath(project.getObjects().fileCollection()))
+                    )
             );
 
         return checkstyleTask;

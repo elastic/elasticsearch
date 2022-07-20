@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.store.StoreStats;
@@ -82,7 +81,7 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
             .setIndices(CommonStatsFlags.ALL)
             .execute(ActionListener.wrap(nodesStatsResponse -> {
                 final RoutingNodes routingNodes = state.getRoutingNodes();
-                final ImmutableOpenMap<String, IndexMetadata> indices = state.getMetadata().getIndices();
+                final Map<String, IndexMetadata> indices = state.getMetadata().getIndices();
 
                 // Determine which tiers each index would prefer to be within
                 Map<String, String> indicesToTiers = tierIndices(indices);
@@ -100,7 +99,7 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
 
     // Visible for testing
     // Takes a registry of indices and returns a mapping of index name to which tier it most prefers. Always 1 to 1, some may filter out.
-    static Map<String, String> tierIndices(ImmutableOpenMap<String, IndexMetadata> indices) {
+    static Map<String, String> tierIndices(Map<String, IndexMetadata> indices) {
         Map<String, String> indexByTier = new HashMap<>();
         indices.entrySet().forEach(entry -> {
             String tierPref = entry.getValue().getSettings().get(DataTier.TIER_PREFERENCE);

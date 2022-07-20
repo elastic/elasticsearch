@@ -34,6 +34,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.snapshots.SnapshotState;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -447,6 +448,15 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
                 expectedIds.stream().sorted(Comparator.comparingInt(this::getIdAsNumeric).reversed()).collect(Collectors.toList()),
                 Arrays.stream(searchResponse.getHits().getHits()).map(SearchHit::getId).collect(Collectors.toList())
             );
+
+            // look up postings
+            searchResponse = client.search(
+                new SearchRequest(index).source(SearchSourceBuilder.searchSource().query(QueryBuilders.matchQuery("test", "test" + num))),
+                randomRequestOptions
+            );
+            logger.info(searchResponse);
+            // check match
+            ElasticsearchAssertions.assertSearchHits(searchResponse, id);
 
             if (oldVersion.before(Version.fromString("6.0.0"))) {
                 // search on _type and check that results contain _type information

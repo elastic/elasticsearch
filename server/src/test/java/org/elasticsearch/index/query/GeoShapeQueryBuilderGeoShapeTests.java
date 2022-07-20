@@ -8,12 +8,36 @@
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.ShapeType;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
+import org.elasticsearch.xcontent.XContentBuilder;
+
+import java.io.IOException;
+import java.util.Collection;
+import java.util.Collections;
 
 public class GeoShapeQueryBuilderGeoShapeTests extends GeoShapeQueryBuilderTests {
+
+    private static final String GEO_SHAPE_FIELD_NAME = "mapped_geo_shape";
+
+    @Override
+    protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
+        XContentBuilder builder = PutMappingRequest.simpleMapping(GEO_SHAPE_FIELD_NAME, "type=geo_shape");
+        mapperService.merge("_doc", new CompressedXContent(Strings.toString(builder)), MapperService.MergeReason.MAPPING_UPDATE);
+    }
+
+    @SuppressWarnings("deprecation") // dependencies in server for geo_shape field should be decoupled
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return Collections.singletonList(TestGeoShapeFieldMapperPlugin.class);
+    }
 
     protected String fieldName() {
         return GEO_SHAPE_FIELD_NAME;

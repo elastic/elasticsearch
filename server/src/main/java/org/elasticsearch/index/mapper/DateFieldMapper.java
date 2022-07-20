@@ -42,9 +42,9 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.DateFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
+import org.elasticsearch.script.SortedNumericDocValuesLongFieldScript;
 import org.elasticsearch.script.field.DateMillisDocValuesField;
 import org.elasticsearch.script.field.DateNanosDocValuesField;
-import org.elasticsearch.script.field.SortedNumericDocValuesLongFieldScript;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.FieldValues;
@@ -60,7 +60,6 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Collections;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -308,8 +307,8 @@ public final class DateFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected List<Parameter<?>> getParameters() {
-            return List.of(index, docValues, store, format, locale, nullValue, ignoreMalformed, script, onScriptError, meta);
+        protected Parameter<?>[] getParameters() {
+            return new Parameter<?>[] { index, docValues, store, format, locale, nullValue, ignoreMalformed, script, onScriptError, meta };
         }
 
         private Long parseNullValue(DateFieldType fieldType) {
@@ -918,7 +917,7 @@ public final class DateFieldMapper extends FieldMapper {
         }
         return new NumberFieldMapper.NumericSyntheticFieldLoader(name(), simpleName()) {
             @Override
-            protected void loadNextValue(XContentBuilder b, long value) throws IOException {
+            protected void writeValue(XContentBuilder b, long value) throws IOException {
                 b.value(fieldType().format(value, fieldType().dateTimeFormatter()));
             }
         };

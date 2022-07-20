@@ -91,7 +91,19 @@ public class ReproduceInfoPrinter extends RunListener {
         GradleMessageBuilder gradleMessageBuilder = new GradleMessageBuilder(b);
         gradleMessageBuilder.appendAllOpts(failure.getDescription());
 
+        if (isRestApiCompatibilityTest()) {
+            b.append(System.lineSeparator());
+            b.append(
+                "This is a Rest Api Compatibility Test. "
+                    + "See the developers guide for details how to troubleshoot - "
+                    + "https://github.com/elastic/elasticsearch/blob/master/REST_API_COMPATIBILITY.md"
+            );
+        }
         printToErr(b.toString());
+    }
+
+    private boolean isRestApiCompatibilityTest() {
+        return Boolean.parseBoolean(System.getProperty("tests.restCompat", "false"));
     }
 
     @SuppressForbidden(reason = "printing repro info")

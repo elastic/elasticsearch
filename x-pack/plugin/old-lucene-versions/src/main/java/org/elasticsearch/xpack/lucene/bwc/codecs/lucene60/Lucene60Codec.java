@@ -65,7 +65,7 @@ public class Lucene60Codec extends BWCCodec {
             if (formatName.equals("Lucene50")) {
                 return new BWCLucene50PostingsFormat();
             } else {
-                return super.getPostingsFormat(formatName);
+                return new EmptyPostingsFormat();
             }
         }
     };

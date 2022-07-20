@@ -1,7 +1,6 @@
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.info.BuildParams
-import org.elasticsearch.gradle.internal.test.RestIntegTestTask
 import org.elasticsearch.gradle.util.GradleUtils
 
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
@@ -60,15 +59,13 @@ tasks.named("processYamlRestTestResources").configure {
   dependsOn("copyExtraResources")
 }
 def restTestBlacklist = []
-tasks.withType(RestIntegTestTask).configureEach {
-  // TODO: fix this rest test to not depend on a hardcoded port!
-  restTestBlacklist.addAll(['getting_started/10_monitor_cluster_health/*'])
-  if (BuildParams.isSnapshotBuild() == false) {
-    // these tests attempt to install basic/internal licenses signed against the dev/public.key
-    // Since there is no infrastructure in place (anytime soon) to generate licenses using the production
-    // private key, these tests are blacklisted in non-snapshot test runs
-    restTestBlacklist.addAll(['xpack/15_basic/*', 'license/20_put_license/*', 'license/30_enterprise_license/*'])
-  }
+// TODO: fix this rest test to not depend on a hardcoded port!
+restTestBlacklist.addAll(['getting_started/10_monitor_cluster_health/*'])
+if (BuildParams.isSnapshotBuild() == false) {
+  // these tests attempt to install basic/internal licenses signed against the dev/public.key
+  // Since there is no infrastructure in place (anytime soon) to generate licenses using the production
+  // private key, these tests are blacklisted in non-snapshot test runs
+  restTestBlacklist.addAll(['xpack/15_basic/*', 'license/20_put_license/*', 'license/30_enterprise_license/*'])
 }
 
 tasks.named("yamlRestTest").configure {
@@ -118,22 +115,35 @@ tasks.named("yamlRestTestV7CompatTransform").configure { task ->
     "ml/datafeeds_crud/Test update datafeed to point to job already attached to another datafeed",
     "behaviour change #44752 - not allowing to update datafeed job_id"
   )
+  task.skipTest(
+    "ml/trained_model_cat_apis/Test cat trained models",
+    "A type field was added to cat.ml_trained_models #73660, this is a backwards compatible change. Still this is a cat api, and we don't support them with rest api compatibility. (the test would be very hard to transform too)"
+  )
+  task.skipTest(
+    "ml/categorization_agg/Test categorization agg simple",
+    "categorize_text was changed in 8.3, but experimental prior to the change"
+  )
+  task.skipTest(
+    "ml/categorization_agg/Test categorization aggregation against unsupported field",
+    "categorize_text was changed in 8.3, but experimental prior to the change"
+  )
+  task.skipTest(
+    "ml/categorization_agg/Test categorization aggregation with poor settings",
+    "categorize_text was changed in 8.3, but experimental prior to the change"
+  )
   task.skipTest("rollup/delete_job/Test basic delete_job", "rollup was an experimental feature, also see #41227")
   task.skipTest("rollup/delete_job/Test delete job twice", "rollup was an experimental feature, also see #41227")
   task.skipTest("rollup/delete_job/Test delete running job", "rollup was an experimental feature, also see #41227")
   task.skipTest("rollup/get_jobs/Test basic get_jobs", "rollup was an experimental feature, also see #41227")
   task.skipTest("rollup/put_job/Test basic put_job", "rollup was an experimental feature, also see #41227")
   task.skipTest("rollup/start_job/Test start job twice", "rollup was an experimental feature, also see #41227")
-  task.skipTest(
-    "ml/trained_model_cat_apis/Test cat trained models",
-    "A type field was added to cat.ml_trained_models #73660, this is a backwards compatible change. Still this is a cat api, and we don't support them with rest api compatibility. (the test would be very hard to transform too)"
-  )
   task.skipTest("indices.freeze/30_usage/Usage stats on frozen indices", "#70192 -- the freeze index API is removed from 8.0")
   task.skipTest("indices.freeze/20_stats/Translog stats on frozen indices", "#70192 -- the freeze index API is removed from 8.0")
   task.skipTest("indices.freeze/10_basic/Basic", "#70192 -- the freeze index API is removed from 8.0")
   task.skipTest("indices.freeze/10_basic/Test index options", "#70192 -- the freeze index API is removed from 8.0")
   task.skipTest("sql/sql/Paging through results", "scrolling through search hit queries no longer produces empty last page in 8.2")
   task.skipTest("service_accounts/10_basic/Test get service accounts", "new service accounts are added")
+  task.skipTest("spatial/70_script_doc_values/diagonal length", "precision changed in 8.4.0")
 
   task.replaceValueInMatch("_type", "_doc")
   task.addAllowedWarningRegex("\\[types removal\\].*")
@@ -176,7 +186,6 @@ testClusters.configureEach {
   extraConfigFile serviceTokens.name, serviceTokens
 
   requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
-  requiresFeature 'es.user_profile_feature_flag_enabled', Version.fromString("8.1.0")
 }
 
 tasks.register('enforceApiSpecsConvention').configure {

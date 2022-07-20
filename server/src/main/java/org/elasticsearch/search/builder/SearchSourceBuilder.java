@@ -283,10 +283,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         boolean hasSorts = sorts != null;
         out.writeBoolean(hasSorts);
         if (hasSorts) {
-            out.writeVInt(sorts.size());
-            for (SortBuilder<?> sort : sorts) {
-                out.writeNamedWriteable(sort);
-            }
+            out.writeNamedWriteableList(sorts);
         }
         boolean hasStats = stats != null;
         out.writeBoolean(hasStats);

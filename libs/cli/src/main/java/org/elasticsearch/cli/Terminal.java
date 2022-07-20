@@ -42,7 +42,7 @@ public abstract class Terminal {
 
     @SuppressForbidden(reason = "Writer for System.err")
     private static PrintWriter newErrorWriter() {
-        return new PrintWriter(System.err);
+        return new PrintWriter(System.err, true);
     }
 
     /** Defines the available verbosity levels of messages to be printed. */
@@ -79,8 +79,16 @@ public abstract class Terminal {
         this.currentVerbosity = verbosity;
     }
 
+    /**
+     * Return the current verbosity level of this terminal.
+     */
+    public Verbosity getVerbosity() {
+        return currentVerbosity;
+    }
+
     private char[] read(String prompt) {
         errWriter.print(prompt); // prompts should go to standard error to avoid mixing with list output
+        errWriter.flush(); // flush to ensure it is seen
         final char[] line = readLineToCharArray(reader);
         if (line == null) {
             throw new IllegalStateException("unable to read from standard input; is standard input open and a tty attached?");
@@ -96,6 +104,11 @@ public abstract class Terminal {
     /** Reads password text from the terminal input. See {@link Console#readPassword()}}. */
     public char[] readSecret(String prompt) {
         return read(prompt);
+    }
+
+    /** Returns a Reader which can be used to read directly from the terminal using standard input. */
+    public final Reader getReader() {
+        return reader;
     }
 
     /** Returns a Writer which can be used to write to the terminal directly using standard output. */
@@ -292,7 +305,7 @@ public abstract class Terminal {
                 // at the end of each character based read, so that switching to using getInputStream() returns binary data
                 // right after the last character based input (newline)
                 new InputStreamReader(System.in, Charset.defaultCharset()),
-                new PrintWriter(System.out),
+                new PrintWriter(System.out, true),
                 ERROR_WRITER
             );
         }

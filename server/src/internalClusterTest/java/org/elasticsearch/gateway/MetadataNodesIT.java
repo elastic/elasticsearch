@@ -12,7 +12,6 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
@@ -127,7 +126,7 @@ public class MetadataNodesIT extends ESIntegTestCase {
         );
 
         // make sure it was also written on red node although index is closed
-        ImmutableOpenMap<String, IndexMetadata> indicesMetadata = getIndicesMetadataOnNode(dataNode);
+        Map<String, IndexMetadata> indicesMetadata = getIndicesMetadataOnNode(dataNode);
         assertNotNull(((Map<String, ?>) (indicesMetadata.get(index).mapping().getSourceAsMap().get("properties"))).get("integer_field"));
         assertThat(indicesMetadata.get(index).getState(), equalTo(IndexMetadata.State.CLOSE));
 
@@ -214,7 +213,7 @@ public class MetadataNodesIT extends ESIntegTestCase {
         return false;
     }
 
-    private ImmutableOpenMap<String, IndexMetadata> getIndicesMetadataOnNode(String nodeName) {
+    private Map<String, IndexMetadata> getIndicesMetadataOnNode(String nodeName) {
         final Coordinator coordinator = internalCluster().getInstance(Coordinator.class, nodeName);
         return coordinator.getApplierState().getMetadata().getIndices();
     }

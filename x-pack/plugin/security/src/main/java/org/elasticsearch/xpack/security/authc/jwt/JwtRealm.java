@@ -49,6 +49,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
@@ -75,13 +76,13 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     }
 
     // Original PKC/HMAC JWKSet or HMAC JWK content (for comparison during refresh), and filtered JWKs and Algs
-    record ContentAndJwksAlgs(String jwksContent, JwksAlgs jwksAlgs) {
+    record ContentAndJwksAlgs(byte[] sha256, JwksAlgs jwksAlgs) {
         ContentAndJwksAlgs {
             Objects.requireNonNull(jwksAlgs, "Filters JWKs and Algs must not be null");
         }
 
         boolean isEmpty() {
-            return Strings.isEmpty(this.jwksContent) && this.jwksAlgs.isEmpty();
+            return ((this.sha256 == null) || this.sha256.length == 0) && this.jwksAlgs.isEmpty();
         }
     }
 
@@ -219,7 +220,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         final JwtRealm.JwksAlgs jwksAlgsHmac;
         final SecureString hmacJwkSetContents = super.config.getSetting(JwtRealmSettings.HMAC_JWKSET);
         final SecureString hmacKeyContents = super.config.getSetting(JwtRealmSettings.HMAC_KEY);
-        String hmacStringContent = null;
+        byte[] hmacStringContentsSha256 = null;
         if (Strings.hasText(hmacJwkSetContents) && Strings.hasText(hmacKeyContents)) {
             // HMAC Key vs HMAC JWKSet settings must be mutually exclusive
             throw new SettingsException(
@@ -236,7 +237,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             // At this point, one-and-only-one of the HMAC Key or HMAC JWKSet settings are set
             List<JWK> jwksHmac;
             if (Strings.hasText(hmacJwkSetContents)) {
-                hmacStringContent = hmacJwkSetContents.toString();
+                hmacStringContentsSha256 = sha256(hmacJwkSetContents.toString());
                 jwksHmac = JwkValidateUtil.loadJwksFromJwkSetString(
                     RealmSettings.getFullSettingKey(super.config, JwtRealmSettings.HMAC_JWKSET),
                     hmacJwkSetContents.toString()
@@ -248,19 +249,19 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                 );
                 assert hmacKey != null : "Null HMAC key should not happen here";
                 jwksHmac = List.of(hmacKey);
-                hmacStringContent = hmacKeyContents.toString();
+                hmacStringContentsSha256 = sha256(hmacKeyContents.toString());
             }
 
             // Filter JWK(s) vs signature algorithms. Only keep JWKs with a matching alg. Only keep algs with a matching JWK.
             jwksAlgsHmac = JwkValidateUtil.filterJwksAndAlgorithms(jwksHmac, this.allowedJwksAlgsHmac);
         }
         LOGGER.info("Usable HMAC: JWKs [{}]. Algorithms [{}].", jwksAlgsHmac.jwks.size(), String.join(",", jwksAlgsHmac.algs()));
-        return new ContentAndJwksAlgs(hmacStringContent, jwksAlgsHmac);
+        return new ContentAndJwksAlgs(hmacStringContentsSha256, jwksAlgsHmac);
     }
 
     private ContentAndJwksAlgs parseJwksAlgsPkc() {
         final JwtRealm.JwksAlgs jwksAlgsPkc;
-        String jwkSetContentsPkc = null;
+        byte[] jwkSetContentsPkcSha256 = null;
         if (this.isConfiguredJwkSetPkc == false) {
             jwksAlgsPkc = new JwtRealm.JwksAlgs(Collections.emptyList(), Collections.emptyList());
         } else {
@@ -280,7 +281,8 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                     this.httpClient
                 );
             }
-            jwkSetContentsPkc = new String(jwkSetContentBytesPkc, StandardCharsets.UTF_8);
+            final String jwkSetContentsPkc = new String(jwkSetContentBytesPkc, StandardCharsets.UTF_8);
+            jwkSetContentsPkcSha256 = sha256(jwkSetContentsPkc);
 
             // PKC JWKSet parse contents
             final List<JWK> jwksPkc = JwkValidateUtil.loadJwksFromJwkSetString(
@@ -292,7 +294,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             jwksAlgsPkc = JwkValidateUtil.filterJwksAndAlgorithms(jwksPkc, this.allowedJwksAlgsPkc);
         }
         LOGGER.info("Usable PKC: JWKs [{}]. Algorithms [{}].", jwksAlgsPkc.jwks().size(), String.join(",", jwksAlgsPkc.algs()));
-        return new ContentAndJwksAlgs(jwkSetContentsPkc, jwksAlgsPkc);
+        return new ContentAndJwksAlgs(jwkSetContentsPkcSha256, jwksAlgsPkc);
     }
 
     private void verifyAnyAvailableJwkAndAlgPair() {
@@ -421,7 +423,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
 
             // JWT cache
             final SecureString serializedJwt = jwtAuthenticationToken.getEndUserSignedJwt();
-            final BytesKey jwtCacheKey = (this.jwtCache == null) ? null : computeBytesKey(serializedJwt);
+            final BytesKey jwtCacheKey = (this.jwtCache == null) ? null : new BytesKey(sha256(serializedJwt));
             if (jwtCacheKey != null) {
                 final ExpiringUser expiringUser = this.jwtCache.get(jwtCacheKey);
                 if (expiringUser == null) {
@@ -551,10 +553,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                                     listener.onResponse(AuthenticationResult.unsuccessful(msg, reloadException));
                                     return;
                                 }
-                                final boolean isSame = Objects.equals(
-                                    this.contentAndJwksAlgsPkc.jwksContent,
-                                    newContentAndJwksAlgs.jwksContent
-                                );
+                                final boolean isSame = Arrays.equals(this.contentAndJwksAlgsPkc.sha256, newContentAndJwksAlgs.sha256);
                                 if (isSame) {
                                     LOGGER.debug(sigErr + "Reloaded same PKC JWKs to verify JWT token=[" + tokenPrincipal + "]");
                                 } else {
@@ -699,9 +698,9 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         }, listener::onFailure));
     }
 
-    static BytesKey computeBytesKey(final CharSequence charSequence) {
+    static byte[] sha256(final CharSequence charSequence) {
         final MessageDigest messageDigest = MessageDigests.sha256();
         messageDigest.update(charSequence.toString().getBytes(StandardCharsets.UTF_8));
-        return new BytesKey(messageDigest.digest());
+        return messageDigest.digest();
     }
 }

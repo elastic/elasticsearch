@@ -23,7 +23,7 @@ Some types of resources in {es} are owned by a single user, such as
 and <<user-profile,user profiles>>. When a user creates a resource, {es}
 captures the user's username and realm information as part of the resource's
 metadata. For certain resources that allow updates, such as <<security-api-update-api-key,API keys>>, {es} re-captures the user's
-username and realm information on every update.
+username and current realm information on every update.
 
 When a user later attempts to access the resource, {es} compares
 the captured username and realm information against those from the accessing

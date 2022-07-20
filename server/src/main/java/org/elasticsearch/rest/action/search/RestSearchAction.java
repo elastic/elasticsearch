@@ -201,7 +201,6 @@ public class RestSearchAction extends BaseRestHandler {
         searchRequest.indicesOptions(IndicesOptions.fromRequest(request, searchRequest.indicesOptions()));
 
         validateSearchRequest(request, searchRequest);
-        checkSearchType(request, searchRequest);
 
         if (searchRequest.pointInTimeBuilder() != null) {
             preparePointInTime(searchRequest, request, namedWriteableRegistry);

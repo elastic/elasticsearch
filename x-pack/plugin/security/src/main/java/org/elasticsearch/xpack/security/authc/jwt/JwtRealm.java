@@ -374,11 +374,11 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     @Override
     public void expire(final String username) {
         this.ensureInitialized();
-        LOGGER.trace("Expiring JWT cache entries for realm [" + super.name() + "] principal=[" + username + "]");
         if (this.jwtCacheHelper != null) {
+            LOGGER.trace("Expiring JWT cache entries for realm [" + super.name() + "] principal=[" + username + "]");
             this.jwtCacheHelper.removeValuesIf(expiringUser -> expiringUser.user.principal().equals(username));
+            LOGGER.trace("Expired JWT cache entries for realm [" + super.name() + "] principal=[" + username + "]");
         }
-        LOGGER.trace("Expired JWT cache entries for realm [" + super.name() + "] principal=[" + username + "]");
     }
 
     @Override

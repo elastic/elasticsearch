@@ -568,7 +568,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
                         Locale.ROOT,
                         "Passing currently perceived capacity as there are [%d] model snapshot upgrades, "
                             + "[%d] analytics and [%d] anomaly detection jobs in the queue, "
-                            + " [%d] trained models not fully-allocated, "
+                            + "[%d] trained models not fully-allocated, "
                             + "but the number in the queue is less than the configured maximum allowed "
                             + "or the queued jobs will eventually be assignable at the current size.",
                         waitingSnapshotUpgrades.size(),
@@ -673,9 +673,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
                 }
                 // TODO we should remove this when we can auto-scale (down and up) via a new CPU auto-scaling decider
                 if (modelAssignmentsRequireMoreThanHalfCpu(modelAssignments.values(), mlNodes)) {
-                    logger.debug(
-                        () -> format("not down-scaling; model assignments require more than half of the ML tier's allocated processors")
-                    );
+                    logger.debug("not down-scaling; model assignments require more than half of the ML tier's allocated processors");
                     return null;
                 }
                 return new AutoscalingDeciderResult(capacity, result.reason());

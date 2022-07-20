@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -345,7 +346,9 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                             ),
                             3,
                             null,
-                            new AssignmentStats("model_3", null, null, null, Instant.now(), List.of()).setState(AssignmentState.STOPPING)
+                            new AssignmentStats("model_3", null, null, null, null, Instant.now(), List.of()).setState(
+                                AssignmentState.STOPPING
+                            )
                         ),
                         new GetTrainedModelsStatsAction.Response.TrainedModelStats(
                             trainedModel4.getModelId(),
@@ -371,6 +374,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                                 2,
                                 2,
                                 1000,
+                                ByteSizeValue.ofBytes(1000),
                                 Instant.now(),
                                 List.of(
                                     AssignmentStats.NodeStats.forStartedState(

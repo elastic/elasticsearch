@@ -74,7 +74,7 @@ public class RoutingAllocation {
     );
 
     private final Map<String, SingleNodeShutdownMetadata> nodeReplacementTargets;
-    private Map<String, Long> unaccountableSearchableSnapshotSizes;
+    private Map<RoutingNode, Long> unaccountableSearchableSnapshotSizes;
 
     public RoutingAllocation(
         AllocationDeciders deciders,
@@ -118,23 +118,25 @@ public class RoutingAllocation {
         this.nodeReplacementTargets = Collections.unmodifiableMap(targetNameToShutdown);
         unaccountableSearchableSnapshotSizes = new HashMap<>();
         for (RoutingNode node : clusterState.getRoutingNodes()) {
-            long totalSize = 0;
-            for (ShardRouting shard : node.started()) {
-                if (clusterInfo == null) {
-                    continue;
-                }
-                DiskUsage usage = clusterInfo.getNodeMostAvailableDiskUsages().get(node.nodeId());
-                ClusterInfo.ReservedSpace reservedSpace = clusterInfo.getReservedSpace(node.nodeId(), usage != null ? usage.getPath() : "");
-                if (clusterState.metadata().getIndexSafe(shard.index()).isSearchableSnapshot()
-                    && reservedSpace.containsShardId(shard.shardId()) == false
-                    && clusterInfo.getShardSize(shard) == null) {
-                    totalSize += Math.max(shard.getExpectedShardSize(), 0L);
-                }
+            unaccountableSearchableSnapshotSizes.put(node, totalSize(node, clusterInfo, clusterState.metadata()));
+        }
+    }
+
+    private long totalSize(RoutingNode node, ClusterInfo clusterInfo, Metadata metadata) {
+        long totalSize = 0;
+        for (ShardRouting shard : node.started()) {
+            if (clusterInfo == null) {
+                continue;
             }
-            if (totalSize > 0) {
-                unaccountableSearchableSnapshotSizes.put(node.nodeId(), totalSize);
+            DiskUsage usage = clusterInfo.getNodeMostAvailableDiskUsages().get(node.nodeId());
+            ClusterInfo.ReservedSpace reservedSpace = clusterInfo.getReservedSpace(node.nodeId(), usage != null ? usage.getPath() : "");
+            if (metadata.getIndexSafe(shard.index()).isSearchableSnapshot()
+                && reservedSpace.containsShardId(shard.shardId()) == false
+                && clusterInfo.getShardSize(shard) == null) {
+                totalSize += Math.max(shard.getExpectedShardSize(), 0L);
             }
         }
+        return totalSize;
     }
 
     /** returns the nano time captured at the beginning of the allocation. used to make sure all time based decisions are aligned */
@@ -350,7 +352,7 @@ public class RoutingAllocation {
     }
 
     public long unaccountableSearchableSnapshotSize(RoutingNode routingNode) {
-        return unaccountableSearchableSnapshotSizes.getOrDefault(routingNode.nodeId(), 0L);
+        return unaccountableSearchableSnapshotSizes.getOrDefault(routingNode, 0L);
     }
 
     public enum DebugMode {

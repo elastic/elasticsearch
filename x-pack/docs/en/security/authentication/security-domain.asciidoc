@@ -22,8 +22,8 @@ Some types of resources in {es} are owned by a single user, such as
 <<async-search,async search contexts>>, <<security-api-create-api-key,API keys>>,
 and <<user-profile,user profiles>>. When a user creates a resource, {es}
 captures the user's username and realm information as part of the resource's
-metadata. For certain resources that allow updates, such as <<security-api-update-api-key,API keys>>,
-{es} re-captures the user's current realm information on every update.
+metadata. For certain resources, such as <<security-api-update-api-key,API keys>>,
+{es} re-captures the user's current realm information whenever the user updates the resource.
 
 When a user later attempts to access the resource, {es} compares
 the captured username and realm information against those from the accessing

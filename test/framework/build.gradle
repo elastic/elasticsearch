@@ -19,8 +19,8 @@ dependencies {
   api "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   api "junit:junit:${versions.junit}"
   api "org.hamcrest:hamcrest:${versions.hamcrest}"
-  api "org.apache.lucene:lucene-test-framework:${versions.lucene}"
-  api "org.apache.lucene:lucene-codecs:${versions.lucene}"
+  api libs.lucene.test.framework
+  api libs.lucene.codecs
   api "commons-logging:commons-logging:${versions.commonslogging}"
   api "commons-codec:commons-codec:${versions.commonscodec}"
 

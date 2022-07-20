@@ -8,10 +8,10 @@
 
 package org.elasticsearch.gradle.internal;
 
-import org.elasticsearch.gradle.VersionProperties;
 import org.gradle.api.GradleException;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.artifacts.VersionCatalogsExtension;
 import org.gradle.api.artifacts.dsl.RepositoryHandler;
 import org.gradle.api.artifacts.repositories.MavenArtifactRepository;
 
@@ -40,7 +40,15 @@ public class RepositoriesSetupPlugin implements Plugin<Project> {
         }
         repos.mavenCentral();
 
-        String luceneVersion = VersionProperties.getLucene();
+        // using rootproject due to https://github.com/gradle/gradle/issues/19347
+        // a solution could be just not using subprojects blocks which we want to get rid from anyhow
+        String luceneVersion = project.getRootProject()
+            .getExtensions()
+            .getByType(VersionCatalogsExtension.class)
+            .named("libs")
+            .findVersion("lucene")
+            .get()
+            .getRequiredVersion();
         if (luceneVersion.contains("-snapshot")) {
             // extract the revision number from the version with a regex matcher
             Matcher matcher = LUCENE_SNAPSHOT_REGEX.matcher(luceneVersion);

@@ -26,7 +26,7 @@ dependencies {
     exclude group: 'org.elasticsearch', module: 'elasticsearch-geo'
   }
   // lucene topology library that uses spherical geometry
-  testImplementation "org.apache.lucene:lucene-spatial3d:${versions.lucene}"
+  testImplementation libs.lucene.spatial3d
 }
 
 tasks.named('forbiddenApisMain').configure {

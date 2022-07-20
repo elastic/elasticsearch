@@ -14,7 +14,7 @@ esplugin {
 }
 
 dependencies {
-  api "org.apache.lucene:lucene-analysis-kuromoji:${versions.lucene}"
+  api libs.lucene.analysis.kuromoji
 }
 
 restResources {

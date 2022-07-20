@@ -14,6 +14,7 @@ import org.elasticsearch.gradle.internal.test.rest.CopyRestApiTask
 import org.elasticsearch.gradle.internal.test.rest.CopyRestTestsTask
 import org.gradle.api.Plugin
 import org.gradle.api.Project
+import org.gradle.api.artifacts.VersionCatalogsExtension
 import org.gradle.api.file.Directory
 import org.gradle.api.file.ProjectLayout
 import org.gradle.api.internal.file.FileOperations
@@ -46,6 +47,7 @@ class DocsTestPlugin implements Plugin<Project> {
         project.testClusters.matching { it.name.equals("yamlRestTest") }.configureEach { nameCustomization = { it.replace("yamlRestTest", "node") } }
         // Docs are published separately so no need to assemble
         project.tasks.named("assemble").configure {enabled = false }
+        def lucene = project.getExtensions().getByType(VersionCatalogsExtension.class).named("libs").findVersion("lucene").get().requiredVersion
         Map<String, String> commonDefaultSubstitutions = [
                 /* These match up with the asciidoc syntax for substitutions but
                  * the values may differ. In particular {version} needs to resolve
@@ -53,7 +55,7 @@ class DocsTestPlugin implements Plugin<Project> {
                  * the last released version for docs. */
             '\\{version\\}': Version.fromString(VersionProperties.elasticsearch).toString(),
             '\\{version_qualified\\}': VersionProperties.elasticsearch,
-            '\\{lucene_version\\}' : VersionProperties.lucene.replaceAll('-snapshot-\\w+$', ''),
+            '\\{lucene_version\\}' : lucene.replaceAll('-snapshot-\\w+$', ''),
             '\\{build_flavor\\}' : distribution,
             '\\{build_type\\}' : OS.conditionalString().onWindows({"zip"}).onUnix({"tar"}).supply(),
         ]

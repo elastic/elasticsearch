@@ -23,7 +23,7 @@ tasks.named("forbiddenApisMain").configure {
 }
 
 dependencies {
-  api "org.apache.lucene:lucene-analysis-icu:${versions.lucene}"
+  api libs.lucene.analysis.icu
   api "com.ibm.icu:icu4j:${versions.icu4j}"
 }
 

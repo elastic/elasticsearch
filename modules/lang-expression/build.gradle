@@ -15,8 +15,8 @@ esplugin {
 }
 
 dependencies {
-  api "org.apache.lucene:lucene-expressions:${versions.lucene}"
-  runtimeOnly "org.apache.lucene:lucene-codecs:${versions.lucene}"
+  api libs.lucene.expressions
+  runtimeOnly libs.lucene.codecs
   runtimeOnly 'org.antlr:antlr4-runtime:4.5.1-1'
   runtimeOnly 'org.ow2.asm:asm:7.2'
   runtimeOnly 'org.ow2.asm:asm-commons:7.2'

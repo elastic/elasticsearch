@@ -1,2 +1,38 @@
 [versions]
-elasticsearch = "9.3"
+lucene = "9.3.0"
+log4j = "2.18.0"
+ecsLogging = "1.2.0"
+
+[libraries]
+hdr-histogram = "org.hdrhistogram:HdrHistogram:2.1.9"
+hppc = "com.carrotsearch:hppc:0.8.1"
+jna = "net.java.dev.jna:jna:5.10.0"
+log4j2-ecs-layout = { group = "co.elastic.logging", name="log4j2-ecs-layout", version.ref="ecsLogging" }
+ecs-logging-core = { group = "co.elastic.logging", name="ecs-logging-core", version.ref="ecsLogging" }
+lucene-analysis-common = { group = "org.apache.lucene", name="lucene-analysis-common", version.ref="lucene" }
+lucene-analysis-icu = { group = "org.apache.lucene", name="lucene-analysis-icu", version.ref="lucene" }
+lucene-analysis-kuromoji = { group = "org.apache.lucene", name="lucene-analysis-kuromoji", version.ref="lucene" }
+lucene-analysis-morfologik = { group = "org.apache.lucene", name="lucene-analysis-morfologik", version.ref="lucene" }
+lucene-analysis-nori = { group = "org.apache.lucene", name="lucene-analysis-nori", version.ref="lucene" }
+lucene-analysis-phonetic = { group = "org.apache.lucene", name="lucene-analysis-phonetic", version.ref="lucene" }
+lucene-analysis-smartcn = { group = "org.apache.lucene", name="lucene-analysis-smartcn", version.ref="lucene" }
+lucene-analysis-stempel = { group = "org.apache.lucene", name="lucene-analysis-stempel", version.ref="lucene" }
+lucene-backward-codecs = { group = "org.apache.lucene", name="lucene-backward-codecs", version.ref="lucene" }
+lucene-codecs = { group = "org.apache.lucene", name="lucene-codecs", version.ref="lucene" }
+lucene-core = { group = "org.apache.lucene", name="lucene-core", version.ref="lucene" }
+lucene-expressions = { group = "org.apache.lucene", name="lucene-expressions", version.ref="lucene" }
+lucene-grouping = { group = "org.apache.lucene", name="lucene-grouping", version.ref="lucene" }
+lucene-highlighter = { group = "org.apache.lucene", name="lucene-highlighter", version.ref="lucene" }
+lucene-join = { group = "org.apache.lucene", name="lucene-join", version.ref="lucene" }
+lucene-memory = { group = "org.apache.lucene", name="lucene-memory", version.ref="lucene" }
+lucene-misc = { group = "org.apache.lucene", name="lucene-misc", version.ref="lucene" }
+lucene-queries = { group = "org.apache.lucene", name="lucene-queries", version.ref="lucene" }
+lucene-queryparser = { group = "org.apache.lucene", name="lucene-queryparser", version.ref="lucene" }
+lucene-sandbox = { group = "org.apache.lucene", name="lucene-sandbox", version.ref="lucene" }
+lucene-spatial3d = { group = "org.apache.lucene", name="lucene-spatial3d", version.ref="lucene" }
+lucene-spatial-extras = { group = "org.apache.lucene", name="lucene-spatial-extras", version.ref="lucene" }
+lucene-suggest = { group = "org.apache.lucene", name="lucene-suggest", version.ref="lucene" }
+lucene-test-framework = { group = "org.apache.lucene", name="lucene-test-framework", version.ref="lucene" }
+log4j-api = { group = "org.apache.logging.log4j", name="log4j-api", version.ref="log4j" }
+log4j-core = { group = "org.apache.logging.log4j", name="log4j-core", version.ref="log4j" }
+t-digest = "com.tdunning:t-digest:3.2"

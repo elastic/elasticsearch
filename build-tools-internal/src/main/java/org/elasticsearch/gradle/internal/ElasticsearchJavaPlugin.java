@@ -20,6 +20,7 @@ import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.artifacts.VersionCatalogsExtension;
 import org.gradle.api.plugins.BasePlugin;
 import org.gradle.api.plugins.JavaLibraryPlugin;
 import org.gradle.api.plugins.JavaPlugin;
@@ -106,7 +107,17 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
             manifestPlugin.add("Module-Origin", toStringable(BuildParams::getGitOrigin));
             manifestPlugin.add("Change", toStringable(BuildParams::getGitRevision));
             manifestPlugin.add("X-Compile-Elasticsearch-Version", toStringable(VersionProperties::getElasticsearch));
-            manifestPlugin.add("X-Compile-Lucene-Version", toStringable(VersionProperties::getLucene));
+            manifestPlugin.add(
+                "X-Compile-Lucene-Version",
+                toStringable(
+                    () -> project.getExtensions()
+                        .getByType(VersionCatalogsExtension.class)
+                        .named("libs")
+                        .findVersion("lucene")
+                        .get()
+                        .getRequiredVersion()
+                )
+            );
             manifestPlugin.add(
                 "X-Compile-Elasticsearch-Snapshot",
                 toStringable(() -> Boolean.toString(VersionProperties.isElasticsearchSnapshot()))

@@ -10,6 +10,14 @@ plugins {
   id "com.gradle.enterprise" version "3.8.1"
 }
 
+dependencyResolutionManagement {
+  versionCatalogs {
+    libs {
+      from(files("../../gradle/libs.versions.toml"))
+    }
+  }
+}
+
 // Include all subdirectories as example projects
 rootDir.listFiles().findAll { it.directory && new File(it, 'build.gradle').exists() }.each { subDir ->
   include ":${subDir.name}"

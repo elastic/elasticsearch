@@ -12,6 +12,9 @@ buildscript {
   }
 }
 
+// Same for Lucene, add the snapshot repo based on the currently used Lucene version
+def luceneVersion = libs.versions.lucene.get()
+
 subprojects {
   apply plugin: 'java'
 
@@ -30,9 +33,7 @@ subprojects {
       }
     }
 
-    // Same for Lucene, add the snapshot repo based on the currently used Lucene version
-    def luceneVersion = VersionProperties.getLucene()
-    if (luceneVersion.contains('-snapshot')) {
+     if (luceneVersion.contains('-snapshot')) {
       def matcher = luceneVersion =~ /[0-9\.]+-snapshot-([a-z0-9]+)/
       assert matcher.matches(): "Invalid Lucene snapshot version '${luceneVersion}'"
       maven {

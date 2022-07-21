@@ -400,7 +400,6 @@ public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
         assertFalse(response.timedOut());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86429")
     public void testWaitOnPrimaryShardThrottled() throws Exception {
 
         client().admin()

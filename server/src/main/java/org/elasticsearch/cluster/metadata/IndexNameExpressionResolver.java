@@ -46,6 +46,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.function.LongSupplier;
@@ -1115,6 +1116,101 @@ public class IndexNameExpressionResolver {
         }
     }
 
+    static final class ExplicitExpressionResolver {
+        private ExplicitExpressionResolver() {}
+
+        public static Resolved resolve(Context context, List<String> expressions, IndicesOptions options, Metadata metadata) {
+            Set<String> explicitNames = new HashSet<>(expressions.size());
+            List<String> wildcardsAndExclusions = new ArrayList<>(expressions.size());
+            boolean wildcardSeen = false;
+            for (String expression : expressions) {
+                validateResourceName(expression);
+                Optional<RuntimeException> availableException = checkResourceAvailable(
+                    expression,
+                    options.ignoreAliases(),
+                    context.includeDataStreams,
+                    metadata
+                );
+                if (availableException.isEmpty()) {
+                    // the resource exists and is available
+                    explicitNames.add(expression);
+                } else if (Regex.isSimpleMatchPattern(expression)) {
+                    wildcardSeen = true;
+                    // can be a wildcard exclusion, ie -*
+                    wildcardsAndExclusions.add(expression);
+                } else {
+                    // the resource does not exist and is not a wildcard
+                    String explicitExclusion = null;
+                    // it is only an exclusion if it follows a wildcard
+                    if (expression.charAt(0) == '-' && wildcardSeen) {
+                        explicitExclusion = expression.substring(1);
+                    }
+                    if (false == options.ignoreUnavailable()) {
+                        if (explicitExclusion != null) {
+                            Optional<RuntimeException> exclusionAvailableException = checkResourceAvailable(
+                                explicitExclusion,
+                                options.ignoreAliases(),
+                                context.includeDataStreams,
+                                metadata
+                            );
+                            if (exclusionAvailableException.isPresent()) {
+                                throw exclusionAvailableException.get();
+                            }
+                        } else {
+                            throw availableException.get();
+                        }
+                    }
+                    if (explicitExclusion != null) {
+                        wildcardsAndExclusions.add(expression);
+                        explicitNames.remove(explicitExclusion);
+                    } else {
+                        explicitNames.add(expression);
+                    }
+                }
+            }
+            return new Resolved(explicitNames, wildcardsAndExclusions);
+        }
+
+        private static void validateResourceName(String expression) {
+            if (Strings.isEmpty(expression)) {
+                throw indexNotFoundException(expression);
+            }
+            // Expressions can not start with an underscore. This is reserved for APIs. If the check gets here, the API
+            // does not exist and the path is interpreted as an expression. If the expression begins with an underscore,
+            // throw a specific error that is different from the [[IndexNotFoundException]], which is typically thrown
+            // if the expression can't be found.
+            if (expression.charAt(0) == '_') {
+                throw new InvalidIndexNameException(expression, "must not start with '_'.");
+            }
+        }
+
+        private static Optional<RuntimeException> checkResourceAvailable(
+            String resourceName,
+            boolean ignoreAliases,
+            boolean includeDataStreams,
+            Metadata metadata
+        ) {
+            IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(resourceName);
+            if (indexAbstraction == null) {
+                return Optional.of(indexNotFoundException(resourceName));
+            } else if (indexAbstraction.getType() == IndexAbstraction.Type.ALIAS && ignoreAliases) {
+                return Optional.of(aliasesNotSupportedException(resourceName));
+            } else if (indexAbstraction.isDataStreamRelated() && includeDataStreams == false) {
+                return Optional.of(indexNotFoundException(resourceName));
+            }
+            return Optional.empty();
+        }
+
+        record Resolved(Set<String> explicitNames, List<String> wildcardsAndExclusions) {}
+
+    }
+
+    private static IndexNotFoundException indexNotFoundException(String expression) {
+        IndexNotFoundException infe = new IndexNotFoundException(expression);
+        infe.setResources("index_or_alias", expression);
+        return infe;
+    }
+
     /**
      * Resolves alias/index name expressions with wildcards into the corresponding concrete indices/aliases
      */
@@ -1158,115 +1254,56 @@ public class IndexNameExpressionResolver {
                 return resolvedExpressions;
             }
 
-            Set<String> result = innerResolve(context, expressions, options, metadata);
-
-            if (result == null) {
-                return expressions;
+            ExplicitExpressionResolver.Resolved explicitsAndWildcards = ExplicitExpressionResolver.resolve(
+                context,
+                expressions,
+                options,
+                metadata
+            );
+            if (explicitsAndWildcards.wildcardsAndExclusions().isEmpty()) {
+                return new ArrayList<>(explicitsAndWildcards.explicitNames());
             }
-            if (result.isEmpty() && options.allowNoIndices() == false) {
+            Set<String> expandedWildcards = innerResolve(context, explicitsAndWildcards.wildcardsAndExclusions(), options, metadata);
+            if (expandedWildcards.isEmpty() && options.allowNoIndices() == false) {
                 IndexNotFoundException infe = new IndexNotFoundException((String) null);
-                infe.setResources("index_or_alias", expressions.toArray(new String[0]));
+                infe.setResources("index_or_alias", explicitsAndWildcards.wildcardsAndExclusions().toArray(new String[0]));
                 throw infe;
             }
-            return new ArrayList<>(result);
+            expandedWildcards.addAll(explicitsAndWildcards.explicitNames());
+            return new ArrayList<>(expandedWildcards);
         }
 
-        private static Set<String> innerResolve(Context context, List<String> expressions, IndicesOptions options, Metadata metadata) {
-            Set<String> result = null;
-            boolean wildcardSeen = false;
-            for (int i = 0; i < expressions.size(); i++) {
-                String expression = expressions.get(i);
-                if (Strings.isEmpty(expression)) {
-                    throw indexNotFoundException(expression);
-                }
-                validateAliasOrIndex(expression);
-                if (aliasOrIndexExists(context, options, metadata, expression)) {
-                    if (result != null) {
-                        result.add(expression);
-                    }
-                    continue;
-                }
-                final boolean add;
-                if (expression.charAt(0) == '-' && wildcardSeen) {
-                    add = false;
+        private static Set<String> innerResolve(
+            Context context,
+            List<String> wildcardsAndExclusions,
+            IndicesOptions options,
+            Metadata metadata
+        ) {
+            Set<String> result = new HashSet<>();
+            for (int i = 0; i < wildcardsAndExclusions.size(); i++) {
+                String expression = wildcardsAndExclusions.get(i);
+                boolean exclusion = expression.charAt(0) == '-' && i > 0;
+                if (exclusion) {
                     expression = expression.substring(1);
-                } else {
-                    add = true;
-                }
-                if (result == null) {
-                    // add all the previous ones...
-                    result = new HashSet<>(expressions.subList(0, i));
-                }
-                if (Regex.isSimpleMatchPattern(expression) == false) {
-                    // TODO why does wildcard resolver throw exceptions regarding non wildcarded expressions? This should not be done here.
-                    if (options.ignoreUnavailable() == false) {
-                        IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(expression);
-                        if (indexAbstraction == null) {
-                            throw indexNotFoundException(expression);
-                        } else if (indexAbstraction.getType() == IndexAbstraction.Type.ALIAS && options.ignoreAliases()) {
-                            throw aliasesNotSupportedException(expression);
-                        } else if (indexAbstraction.isDataStreamRelated() && context.includeDataStreams() == false) {
-                            throw indexNotFoundException(expression);
-                        }
-                    }
-                    if (add) {
-                        result.add(expression);
-                    } else {
+                    if (false == Regex.isSimpleMatchPattern(expression)) {
                         result.remove(expression);
+                        continue;
                     }
-                    continue;
                 }
-
-                final IndexMetadata.State excludeState = excludeState(options);
+                assert Regex.isSimpleMatchPattern(expression);
                 final Map<String, IndexAbstraction> matches = matches(context, metadata, expression);
-                Set<String> expand = expand(context, excludeState, matches, expression, options.expandWildcardsHidden());
-                if (add) {
-                    result.addAll(expand);
-                } else {
-                    result.removeAll(expand);
-                }
-                if (options.allowNoIndices() == false && matches.isEmpty()) {
+                if (false == options.allowNoIndices() && matches.isEmpty()) {
                     throw indexNotFoundException(expression);
                 }
-                if (Regex.isSimpleMatchPattern(expression)) {
-                    wildcardSeen = true;
+                final IndexMetadata.State excludeState = excludeState(options);
+                Set<String> expand = expand(context, excludeState, matches, expression, options.expandWildcardsHidden());
+                if (exclusion) {
+                    result.removeAll(expand);
+                } else {
+                    result.addAll(expand);
                 }
             }
             return result;
-        }
-
-        private static void validateAliasOrIndex(String expression) {
-            // Expressions can not start with an underscore. This is reserved for APIs. If the check gets here, the API
-            // does not exist and the path is interpreted as an expression. If the expression begins with an underscore,
-            // throw a specific error that is different from the [[IndexNotFoundException]], which is typically thrown
-            // if the expression can't be found.
-            if (expression.charAt(0) == '_') {
-                throw new InvalidIndexNameException(expression, "must not start with '_'.");
-            }
-        }
-
-        private static boolean aliasOrIndexExists(Context context, IndicesOptions options, Metadata metadata, String expression) {
-            IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(expression);
-            if (indexAbstraction == null) {
-                return false;
-            }
-
-            // treat aliases as unavailable indices when ignoreAliases is set to true (e.g. delete index and update aliases api)
-            if (indexAbstraction.getType() == IndexAbstraction.Type.ALIAS && options.ignoreAliases()) {
-                return false;
-            }
-
-            if (indexAbstraction.isDataStreamRelated() && context.includeDataStreams() == false) {
-                return false;
-            }
-
-            return true;
-        }
-
-        private static IndexNotFoundException indexNotFoundException(String expression) {
-            IndexNotFoundException infe = new IndexNotFoundException(expression);
-            infe.setResources("index_or_alias", expression);
-            return infe;
         }
 
         private static IndexMetadata.State excludeState(IndicesOptions options) {

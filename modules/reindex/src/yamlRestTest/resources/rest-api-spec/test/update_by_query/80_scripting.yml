@@ -150,11 +150,10 @@
             source: ctx.junk = "stuff"
 
 ---
-- skip:
-    version: " - 8.3.99"
-    reason: "error message changed in 8.4"
-
 "Setting bogus context is an error - 8.4":
+  - skip:
+      version: " - 8.3.99"
+      reason: "error message changed in 8.4"
   - do:
       index:
         index:  twitter
@@ -173,11 +172,10 @@
             source: ctx.junk = "stuff"
 
 ---
-- skip:
-    version: "8.4.0 -"
-    reason: "error message changed in 8.4"
-
 "Can't change _id":
+  - skip:
+      version: "8.4.0 -"
+      reason: "error message changed in 8.4"
   - do:
       index:
         index:  twitter
@@ -196,11 +194,10 @@
             source: ctx._id = "stuff"
 
 ---
-- skip:
-    version: " - 8.3.99"
-    reason: "error message changed in 8.4"
-
 "Can't change _id - 8.4":
+  - skip:
+      version: " - 8.3.99"
+      reason: "error message changed in 8.4"
   - do:
       index:
         index:  twitter
@@ -356,11 +353,10 @@
   - match: { hits.total: 0 }
 
 ---
-- skip:
-    version: "8.4.0 -"
-    reason: "error message changed in 8.4"
-
 "Set unsupported operation type":
+  - skip:
+      version: "8.4.0 -"
+      reason: "error message changed in 8.4"
   - do:
       index:
         index:  twitter
@@ -387,11 +383,10 @@
   - match: { error.reason: 'Operation type [junk] not allowed, only [noop, index, delete] are allowed' }
 
 ---
-- skip:
-    version: " - 8.3.99"
-    reason: "error message changed in 8.4"
-
 "Set unsupported operation type - 8.4":
+  - skip:
+      version: " - 8.3.99"
+      reason: "error message changed in 8.4"
   - do:
       index:
         index:  twitter

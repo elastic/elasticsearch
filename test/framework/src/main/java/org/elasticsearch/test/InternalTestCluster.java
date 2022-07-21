@@ -1674,6 +1674,7 @@ public final class InternalTestCluster extends TestCluster {
         ensureOpen();
         Optional<NodeAndClient> nodeToStop = nodes.values().stream().filter(n -> n.getName().equals(nodeName)).findFirst();
         if (nodeToStop.isPresent()) {
+            ensureNotTheLastMasterEligibleNode(nodeToStop.get());
             logger.info("Closing node [{}]", nodeToStop.get().name);
             stopNodesAndClient(nodeToStop.get());
             return true;
@@ -1689,19 +1690,23 @@ public final class InternalTestCluster extends TestCluster {
         ensureOpen();
         NodeAndClient nodeAndClient = getRandomNodeAndClient(nc -> filter.test(nc.node.settings()));
         if (nodeAndClient != null) {
-            if (nodePrefix.equals(ESIntegTestCase.SUITE_CLUSTER_NODE_PREFIX)
-                && nodeAndClient.nodeAndClientId() < sharedNodesSeeds.length
-                && nodeAndClient.isMasterEligible()
-                && autoManageMasterNodes
-                && nodes.values()
-                    .stream()
-                    .filter(NodeAndClient::isMasterEligible)
-                    .filter(n -> n.nodeAndClientId() < sharedNodesSeeds.length)
-                    .count() == 1) {
-                throw new AssertionError("Tried to stop the only master eligible shared node");
-            }
+            ensureNotTheLastMasterEligibleNode(nodeAndClient);
             logger.info("Closing filtered random node [{}] ", nodeAndClient.name);
             stopNodesAndClient(nodeAndClient);
+        }
+    }
+
+    private void ensureNotTheLastMasterEligibleNode(NodeAndClient nodeAndClient) {
+        if (nodePrefix.equals(ESIntegTestCase.SUITE_CLUSTER_NODE_PREFIX)
+            && nodeAndClient.nodeAndClientId() < sharedNodesSeeds.length
+            && nodeAndClient.isMasterEligible()
+            && autoManageMasterNodes
+            && nodes.values()
+                .stream()
+                .filter(NodeAndClient::isMasterEligible)
+                .filter(n -> n.nodeAndClientId() < sharedNodesSeeds.length)
+                .count() == 1) {
+            throw new AssertionError("Tried to stop the only master eligible shared node");
         }
     }
 

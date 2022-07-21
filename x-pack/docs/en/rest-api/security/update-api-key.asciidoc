@@ -1,0 +1,5 @@
+[role="xpack"]
+[[security-api-update-api-key]]
+=== Update API key information API
+
+coming::[8.4.0]

@@ -51,6 +51,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -68,12 +69,14 @@ import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTests;
+import org.elasticsearch.xpack.core.security.authc.RealmDomain;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -209,6 +212,8 @@ public class ApiKeyServiceTests extends ESTestCase {
             assertThat(bulkRequest.requests().get(0), instanceOf(IndexRequest.class));
             IndexRequest indexRequest = (IndexRequest) bulkRequest.requests().get(0);
             assertThat(indexRequest.id(), is(createApiKeyRequest.getId()));
+            // The index request has opType create so that it will *not* override any existing document
+            assertThat(indexRequest.opType(), is(DocWriteRequest.OpType.CREATE));
             bulkActionInvoked.set(true);
             return null;
         }).when(client).execute(eq(BulkAction.INSTANCE), any(BulkRequest.class), any());
@@ -1669,91 +1674,135 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(ex.getMessage(), containsString("cannot update legacy API key [" + apiKeyId + "] without name"));
     }
 
-    public void testBuildUpdatedDocument() throws IOException {
+    public void testMaybeBuildUpdatedDocument() throws IOException {
         final var apiKey = randomAlphaOfLength(16);
         final var hasher = getFastStoredHashAlgoForTests();
         final char[] hash = hasher.hash(new SecureString(apiKey.toCharArray()));
-
-        final var oldApiKeyDoc = buildApiKeyDoc(hash, randomBoolean() ? -1 : Instant.now().toEpochMilli(), false);
-
-        final Set<RoleDescriptor> newUserRoles = randomBoolean() ? Set.of() : Set.of(RoleDescriptorTests.randomRoleDescriptor());
-
-        final boolean nullKeyRoles = randomBoolean();
-        final List<RoleDescriptor> newKeyRoles;
-        if (nullKeyRoles) {
-            newKeyRoles = null;
-        } else {
-            newKeyRoles = List.of(RoleDescriptorTests.randomRoleDescriptor());
-        }
-
-        final var metadata = ApiKeyTests.randomMetadata();
-        final var version = Version.CURRENT;
-        final var authentication = randomValueOtherThanMany(
+        final var oldAuthentication = randomValueOtherThanMany(
             Authentication::isApiKey,
-            () -> AuthenticationTestHelper.builder().user(new User("user", "role")).build(false)
+            () -> AuthenticationTestHelper.builder()
+                .user(AuthenticationTestHelper.userWithRandomMetadataAndDetails("user", "role"))
+                .build(false)
+        );
+        final Set<RoleDescriptor> oldUserRoles = randomSet(0, 3, RoleDescriptorTests::randomRoleDescriptor);
+        final List<RoleDescriptor> oldKeyRoles = randomList(3, RoleDescriptorTests::randomRoleDescriptor);
+        final Map<String, Object> oldMetadata = ApiKeyTests.randomMetadata();
+        final Version oldVersion = VersionUtils.randomVersion(random());
+        final ApiKeyDoc oldApiKeyDoc = ApiKeyDoc.fromXContent(
+            XContentHelper.createParser(
+                XContentParserConfiguration.EMPTY,
+                BytesReference.bytes(
+                    ApiKeyService.newDocument(
+                        hash,
+                        randomAlphaOfLength(10),
+                        oldAuthentication,
+                        oldUserRoles,
+                        Instant.now(),
+                        randomBoolean() ? null : Instant.now(),
+                        oldKeyRoles,
+                        oldVersion,
+                        oldMetadata
+                    )
+                ),
+                XContentType.JSON
+            )
         );
 
-        final var keyDocSource = ApiKeyService.buildUpdatedDocument(
+        final boolean changeUserRoles = randomBoolean();
+        final boolean changeKeyRoles = randomBoolean();
+        final boolean changeMetadata = randomBoolean();
+        final boolean changeVersion = randomBoolean();
+        final boolean changeCreator = randomBoolean();
+        final Set<RoleDescriptor> newUserRoles = changeUserRoles
+            ? randomValueOtherThan(oldUserRoles, () -> randomSet(0, 3, RoleDescriptorTests::randomRoleDescriptor))
+            : oldUserRoles;
+        final List<RoleDescriptor> newKeyRoles = changeKeyRoles
+            ? randomValueOtherThan(oldKeyRoles, () -> randomList(0, 3, RoleDescriptorTests::randomRoleDescriptor))
+            : (randomBoolean() ? oldKeyRoles : null);
+        final Map<String, Object> newMetadata = changeMetadata
+            ? randomValueOtherThanMany(md -> md == null || md.equals(oldMetadata), ApiKeyTests::randomMetadata)
+            : (randomBoolean() ? oldMetadata : null);
+        final Version newVersion = changeVersion
+            ? randomValueOtherThan(oldVersion, () -> VersionUtils.randomVersion(random()))
+            : oldVersion;
+        final Authentication newAuthentication = changeCreator
+            ? randomValueOtherThanMany(
+                (auth -> auth.isApiKey() || auth.getEffectiveSubject().getUser().equals(oldAuthentication.getEffectiveSubject().getUser())),
+                () -> AuthenticationTestHelper.builder()
+                    .user(AuthenticationTestHelper.userWithRandomMetadataAndDetails("user", "role"))
+                    .build(false)
+            )
+            : oldAuthentication;
+        final var request = new UpdateApiKeyRequest(randomAlphaOfLength(10), newKeyRoles, newMetadata);
+        final var service = createApiKeyService();
+
+        final XContentBuilder builder = service.maybeBuildUpdatedDocument(
             oldApiKeyDoc,
-            authentication,
-            newUserRoles,
-            newKeyRoles,
-            version,
-            metadata
-        );
-        final var updatedApiKeyDoc = ApiKeyDoc.fromXContent(
-            XContentHelper.createParser(XContentParserConfiguration.EMPTY, BytesReference.bytes(keyDocSource), XContentType.JSON)
+            newVersion,
+            newAuthentication,
+            request,
+            newUserRoles
         );
 
-        assertEquals(oldApiKeyDoc.docType, updatedApiKeyDoc.docType);
-        assertEquals(oldApiKeyDoc.name, updatedApiKeyDoc.name);
-        assertEquals(oldApiKeyDoc.hash, updatedApiKeyDoc.hash);
-        assertEquals(oldApiKeyDoc.expirationTime, updatedApiKeyDoc.expirationTime);
-        assertEquals(oldApiKeyDoc.creationTime, updatedApiKeyDoc.creationTime);
-        assertEquals(oldApiKeyDoc.invalidated, updatedApiKeyDoc.invalidated);
-
-        final var service = createApiKeyService(Settings.EMPTY);
-        final var actualUserRoles = service.parseRoleDescriptorsBytes(
-            "",
-            updatedApiKeyDoc.limitedByRoleDescriptorsBytes,
-            RoleReference.ApiKeyRoleType.LIMITED_BY
-        );
-        assertEquals(newUserRoles.size(), actualUserRoles.size());
-        assertEquals(new HashSet<>(newUserRoles), new HashSet<>(actualUserRoles));
-
-        final var actualKeyRoles = service.parseRoleDescriptorsBytes(
-            "",
-            updatedApiKeyDoc.roleDescriptorsBytes,
-            RoleReference.ApiKeyRoleType.ASSIGNED
-        );
-        if (nullKeyRoles) {
-            assertEquals(
-                service.parseRoleDescriptorsBytes("", oldApiKeyDoc.roleDescriptorsBytes, RoleReference.ApiKeyRoleType.ASSIGNED),
-                actualKeyRoles
+        final boolean noop = (changeCreator || changeMetadata || changeKeyRoles || changeUserRoles || changeVersion) == false;
+        if (noop) {
+            assertNull(builder);
+        } else {
+            final ApiKeyDoc updatedApiKeyDoc = ApiKeyDoc.fromXContent(
+                XContentHelper.createParser(XContentParserConfiguration.EMPTY, BytesReference.bytes(builder), XContentType.JSON)
             );
-        } else {
-            assertEquals(newKeyRoles.size(), actualKeyRoles.size());
-            assertEquals(new HashSet<>(newKeyRoles), new HashSet<>(actualKeyRoles));
-        }
-        if (metadata == null) {
-            assertEquals(oldApiKeyDoc.metadataFlattened, updatedApiKeyDoc.metadataFlattened);
-        } else {
-            assertEquals(metadata, XContentHelper.convertToMap(updatedApiKeyDoc.metadataFlattened, true, XContentType.JSON).v2());
-        }
-
-        assertEquals(authentication.getEffectiveSubject().getUser().principal(), updatedApiKeyDoc.creator.getOrDefault("principal", null));
-        assertEquals(authentication.getEffectiveSubject().getUser().fullName(), updatedApiKeyDoc.creator.getOrDefault("fullName", null));
-        assertEquals(authentication.getEffectiveSubject().getUser().email(), updatedApiKeyDoc.creator.getOrDefault("email", null));
-        assertEquals(authentication.getEffectiveSubject().getUser().metadata(), updatedApiKeyDoc.creator.getOrDefault("metadata", null));
-        RealmRef realm = authentication.getEffectiveSubject().getRealm();
-        assertEquals(realm.getName(), updatedApiKeyDoc.creator.getOrDefault("realm", null));
-        assertEquals(realm.getType(), updatedApiKeyDoc.creator.getOrDefault("realm_type", null));
-        if (realm.getDomain() != null) {
-            @SuppressWarnings("unchecked")
-            final var actualDomain = (Map<String, Object>) updatedApiKeyDoc.creator.getOrDefault("realm_domain", null);
-            assertEquals(realm.getDomain().name(), actualDomain.get("name"));
-        } else {
-            assertFalse(updatedApiKeyDoc.creator.containsKey("realm_domain"));
+            assertEquals(oldApiKeyDoc.docType, updatedApiKeyDoc.docType);
+            assertEquals(oldApiKeyDoc.name, updatedApiKeyDoc.name);
+            assertEquals(oldApiKeyDoc.hash, updatedApiKeyDoc.hash);
+            assertEquals(oldApiKeyDoc.expirationTime, updatedApiKeyDoc.expirationTime);
+            assertEquals(oldApiKeyDoc.creationTime, updatedApiKeyDoc.creationTime);
+            assertEquals(oldApiKeyDoc.invalidated, updatedApiKeyDoc.invalidated);
+            assertEquals(newVersion.id, updatedApiKeyDoc.version);
+            final var actualUserRoles = service.parseRoleDescriptorsBytes(
+                "",
+                updatedApiKeyDoc.limitedByRoleDescriptorsBytes,
+                RoleReference.ApiKeyRoleType.LIMITED_BY
+            );
+            assertEquals(newUserRoles.size(), actualUserRoles.size());
+            assertEquals(new HashSet<>(newUserRoles), new HashSet<>(actualUserRoles));
+            final var actualKeyRoles = service.parseRoleDescriptorsBytes(
+                "",
+                updatedApiKeyDoc.roleDescriptorsBytes,
+                RoleReference.ApiKeyRoleType.ASSIGNED
+            );
+            if (changeKeyRoles == false) {
+                assertEquals(
+                    service.parseRoleDescriptorsBytes("", oldApiKeyDoc.roleDescriptorsBytes, RoleReference.ApiKeyRoleType.ASSIGNED),
+                    actualKeyRoles
+                );
+            } else {
+                assertEquals(newKeyRoles.size(), actualKeyRoles.size());
+                assertEquals(new HashSet<>(newKeyRoles), new HashSet<>(actualKeyRoles));
+            }
+            if (changeMetadata == false) {
+                assertEquals(oldApiKeyDoc.metadataFlattened, updatedApiKeyDoc.metadataFlattened);
+            } else {
+                assertEquals(newMetadata, XContentHelper.convertToMap(updatedApiKeyDoc.metadataFlattened, true, XContentType.JSON).v2());
+            }
+            assertEquals(newAuthentication.getEffectiveSubject().getUser().principal(), updatedApiKeyDoc.creator.get("principal"));
+            assertEquals(newAuthentication.getEffectiveSubject().getUser().fullName(), updatedApiKeyDoc.creator.get("full_name"));
+            assertEquals(newAuthentication.getEffectiveSubject().getUser().email(), updatedApiKeyDoc.creator.get("email"));
+            assertEquals(newAuthentication.getEffectiveSubject().getUser().metadata(), updatedApiKeyDoc.creator.get("metadata"));
+            final RealmRef realm = newAuthentication.getEffectiveSubject().getRealm();
+            assertEquals(realm.getName(), updatedApiKeyDoc.creator.get("realm"));
+            assertEquals(realm.getType(), updatedApiKeyDoc.creator.get("realm_type"));
+            if (realm.getDomain() != null) {
+                @SuppressWarnings("unchecked")
+                final var actualRealmDomain = RealmDomain.fromXContent(
+                    XContentHelper.mapToXContentParser(
+                        XContentParserConfiguration.EMPTY,
+                        (Map<String, Object>) updatedApiKeyDoc.creator.get("realm_domain")
+                    )
+                );
+                assertEquals(realm.getDomain(), actualRealmDomain);
+            } else {
+                assertFalse(updatedApiKeyDoc.creator.containsKey("realm_domain"));
+            }
         }
     }
 

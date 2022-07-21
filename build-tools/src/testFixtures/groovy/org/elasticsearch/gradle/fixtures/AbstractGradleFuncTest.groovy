@@ -47,9 +47,9 @@ abstract class AbstractGradleFuncTest extends Specification {
     }
 
     def cleanup() {
-        if (Boolean.getBoolean('test.keep.samplebuild')) {
+//        if (Boolean.getBoolean('test.keep.samplebuild')) {
             FileUtils.copyDirectory(testProjectDir.root, new File("build/test-debug/" + testProjectDir.root.name))
-        }
+//        }
     }
 
     File subProject(String subProjectPath) {
@@ -186,6 +186,23 @@ abstract class AbstractGradleFuncTest extends Specification {
         def dir = file(projectDir, path)
         dir.mkdirs()
         dir
+    }
+
+    void withVersionCatalogue() {
+        file('build.versions.toml') << '''\
+[libraries]
+checkstyle = "com.puppycrawl.tools:checkstyle:10.3"
+'''
+        settingsFile << '''
+            dependencyResolutionManagement {
+              versionCatalogs {
+                buildLibs {
+                  from(files("build.versions.toml"))
+                }
+              }
+            }
+            '''
+
     }
 
     static class ProjectConfigurer {

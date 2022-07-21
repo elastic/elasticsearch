@@ -271,9 +271,7 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
             }, state -> {
                 try {
                     var index = resolver.concreteSingleIndex(state, request);
-                    boolean b = state.routingTable().index(index).allPrimaryShardsActive();
-                    logger.info("---> {}", b);
-                    return b;
+                    return state.routingTable().index(index).allPrimaryShardsActive();
                 } catch (Exception e) {
                     return false;
                 }

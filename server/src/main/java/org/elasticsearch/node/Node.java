@@ -101,6 +101,7 @@ import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.HealthService;
+import org.elasticsearch.health.LocalHealthMonitor;
 import org.elasticsearch.health.metadata.HealthMetadataService;
 import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
@@ -925,6 +926,9 @@ public class Node implements Closeable {
             HealthMetadataService healthMetadataService = HealthNode.isEnabled()
                 ? new HealthMetadataService(clusterService, settings)
                 : null;
+            LocalHealthMonitor localHealthMonitor = HealthNode.isEnabled()
+                ? new LocalHealthMonitor(settings, clusterService, nodeService, threadPool)
+                : null;
 
             modules.add(b -> {
                 b.bind(Node.class).toInstance(this);
@@ -1012,6 +1016,7 @@ public class Node implements Closeable {
                 if (HealthNode.isEnabled()) {
                     b.bind(HealthNodeTaskExecutor.class).toInstance(healthNodeTaskExecutor);
                     b.bind(HealthMetadataService.class).toInstance(healthMetadataService);
+                    b.bind(LocalHealthMonitor.class).toInstance(localHealthMonitor);
                 }
             });
 

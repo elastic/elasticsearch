@@ -14,11 +14,14 @@ import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -29,26 +32,44 @@ import static org.hamcrest.Matchers.not;
 
 public class PluginDescriptorTests extends ESTestCase {
 
-    public void testReadFromProperties() throws Exception {
+    private static final Map<String, String> DESCRIPTOR_TEMPLATE = Map.of(
+        "name",
+        "my_plugin",
+        "description",
+        "fake desc",
+        "version",
+        "1.0",
+        "elasticsearch.version",
+        Version.CURRENT.toString(),
+        "java.version",
+        System.getProperty("java.specification.version"),
+        "classname",
+        "FakePlugin",
+        "modulename",
+        "org.mymodule"
+    );
+
+    PluginDescriptor mockDescriptor(String... additionalProps) throws IOException {
+        assert additionalProps.length % 2 == 0;
+        Map<String, String> propsMap = new HashMap<>(DESCRIPTOR_TEMPLATE);
+        for (int i = 0; i < additionalProps.length; i += 2) {
+            propsMap.put(additionalProps[i], additionalProps[i + 1]);
+        }
+        String[] props = new String[propsMap.size() * 2];
+        int i = 0;
+        for (var e : propsMap.entrySet()) {
+            props[i] = e.getKey();
+            props[i + 1] = e.getValue();
+            i += 2;
+        }
+
         Path pluginDir = createTempDir().resolve("fake-plugin");
-        PluginTestUtil.writePluginProperties(
-            pluginDir,
-            "description",
-            "fake desc",
-            "name",
-            "my_plugin",
-            "version",
-            "1.0",
-            "elasticsearch.version",
-            Version.CURRENT.toString(),
-            "java.version",
-            System.getProperty("java.specification.version"),
-            "classname",
-            "FakePlugin",
-            "modulename",
-            "org.mymodule"
-        );
-        PluginDescriptor info = PluginDescriptor.readFromProperties(pluginDir);
+        PluginTestUtil.writePluginProperties(pluginDir, props);
+        return PluginDescriptor.readFromProperties(pluginDir);
+    }
+
+    public void testReadFromProperties() throws Exception {
+        PluginDescriptor info = mockDescriptor();
         assertEquals("my_plugin", info.getName());
         assertEquals("fake desc", info.getDescription());
         assertEquals("1.0", info.getVersion());
@@ -58,241 +79,77 @@ public class PluginDescriptorTests extends ESTestCase {
     }
 
     public void testReadFromPropertiesNameMissing() throws Exception {
-        Path pluginDir = createTempDir().resolve("fake-plugin");
-        PluginTestUtil.writePluginProperties(pluginDir);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginDescriptor.readFromProperties(pluginDir));
+        var e = expectThrows(IllegalArgumentException.class, () -> mockDescriptor("name", null));
         assertThat(e.getMessage(), containsString("property [name] is missing in"));
 
-        PluginTestUtil.writePluginProperties(pluginDir, "name", "");
-        e = expectThrows(IllegalArgumentException.class, () -> PluginDescriptor.readFromProperties(pluginDir));
+        e = expectThrows(IllegalArgumentException.class, () -> mockDescriptor("name", ""));
         assertThat(e.getMessage(), containsString("property [name] is missing in"));
     }
 
     public void testReadFromPropertiesDescriptionMissing() throws Exception {
-        Path pluginDir = createTempDir().resolve("fake-plugin");
-        PluginTestUtil.writePluginProperties(pluginDir, "name", "fake-plugin");
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginDescriptor.readFromProperties(pluginDir));
+        var e = expectThrows(IllegalArgumentException.class, () -> mockDescriptor("description", null));
         assertThat(e.getMessage(), containsString("[description] is missing"));
     }
 
     public void testReadFromPropertiesVersionMissing() throws Exception {
-        Path pluginDir = createTempDir().resolve("fake-plugin");
-        PluginTestUtil.writePluginProperties(pluginDir, "description", "fake desc", "name", "fake-plugin");
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginDescriptor.readFromProperties(pluginDir));
+        var e = expectThrows(IllegalArgumentException.class, () -> mockDescriptor("version", null));
         assertThat(e.getMessage(), containsString("[version] is missing"));
     }
 
     public void testReadFromPropertiesElasticsearchVersionMissing() throws Exception {
-        Path pluginDir = createTempDir().resolve("fake-plugin");
-        PluginTestUtil.writePluginProperties(pluginDir, "description", "fake desc", "name", "my_plugin", "version", "1.0");
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginDescriptor.readFromProperties(pluginDir));
+        var e = expectThrows(IllegalArgumentException.class, () -> mockDescriptor("elasticsearch.version", null));
         assertThat(e.getMessage(), containsString("[elasticsearch.version] is missing"));
     }
 
     public void testReadFromPropertiesElasticsearchVersionEmpty() throws Exception {
-        Path pluginDir = createTempDir().resolve("fake-plugin");
-        PluginTestUtil.writePluginProperties(
-            pluginDir,
-            "description",
-            "fake desc",
-            "name",
-            "my_plugin",
-            "version",
-            "1.0",
-            "elasticsearch.version",
-            "  "
-        );
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginDescriptor.readFromProperties(pluginDir));
+        var e = expectThrows(IllegalArgumentException.class, () -> mockDescriptor("elasticsearch.version", " "));
         assertThat(e.getMessage(), containsString("[elasticsearch.version] is missing"));
     }
 
     public void testReadFromPropertiesJavaVersionMissing() throws Exception {
-        Path pluginDir = createTempDir().resolve("fake-plugin");
-        PluginTestUtil.writePluginProperties(
-            pluginDir,
-            "description",
-            "fake desc",
-            "name",
-            "my_plugin",
-            "elasticsearch.version",
-            Version.CURRENT.toString(),
-            "version",
-            "1.0"
-        );
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginDescriptor.readFromProperties(pluginDir));
+        var e = expectThrows(IllegalArgumentException.class, () -> mockDescriptor("java.version", null));
         assertThat(e.getMessage(), containsString("[java.version] is missing"));
     }
 
     public void testReadFromPropertiesBadJavaVersionFormat() throws Exception {
-        String pluginName = "fake-plugin";
-        Path pluginDir = createTempDir().resolve(pluginName);
-        PluginTestUtil.writePluginProperties(
-            pluginDir,
-            "description",
-            "fake desc",
-            "name",
-            pluginName,
-            "elasticsearch.version",
-            Version.CURRENT.toString(),
-            "java.version",
-            "1.7.0_80",
-            "classname",
-            "FakePlugin",
-            "version",
-            "1.0"
-        );
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginDescriptor.readFromProperties(pluginDir));
+        var e = expectThrows(IllegalArgumentException.class, () -> mockDescriptor("java.version", "1.7.0_80"));
         assertThat(e.getMessage(), equalTo("Invalid version string: '1.7.0_80'"));
     }
 
     public void testReadFromPropertiesBogusElasticsearchVersion() throws Exception {
-        Path pluginDir = createTempDir().resolve("fake-plugin");
-        PluginTestUtil.writePluginProperties(
-            pluginDir,
-            "description",
-            "fake desc",
-            "version",
-            "1.0",
-            "name",
-            "my_plugin",
-            "elasticsearch.version",
-            "bogus"
-        );
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginDescriptor.readFromProperties(pluginDir));
+        var e = expectThrows(IllegalArgumentException.class, () -> mockDescriptor("elasticsearch.version", "bogus"));
         assertThat(e.getMessage(), containsString("version needs to contain major, minor, and revision"));
     }
 
     public void testReadFromPropertiesJvmMissingClassname() throws Exception {
-        Path pluginDir = createTempDir().resolve("fake-plugin");
-        PluginTestUtil.writePluginProperties(
-            pluginDir,
-            "description",
-            "fake desc",
-            "name",
-            "my_plugin",
-            "version",
-            "1.0",
-            "elasticsearch.version",
-            Version.CURRENT.toString(),
-            "java.version",
-            System.getProperty("java.specification.version")
-        );
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginDescriptor.readFromProperties(pluginDir));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> mockDescriptor("classname", null));
         assertThat(e.getMessage(), containsString("property [classname] is missing"));
     }
 
     public void testReadFromPropertiesModulenameFallback() throws Exception {
-        Path pluginDir = createTempDir().resolve("fake-plugin");
-        PluginTestUtil.writePluginProperties(
-            pluginDir,
-            "description",
-            "fake desc",
-            "name",
-            "my_plugin",
-            "version",
-            "1.0",
-            "elasticsearch.version",
-            Version.CURRENT.toString(),
-            "java.version",
-            System.getProperty("java.specification.version"),
-            "classname",
-            "FakePlugin"
-        );
-        PluginDescriptor info = PluginDescriptor.readFromProperties(pluginDir);
+        PluginDescriptor info = mockDescriptor("modulename", null);
         assertThat(info.getModuleName().isPresent(), is(false));
         assertThat(info.getExtendedPlugins(), empty());
     }
 
     public void testReadFromPropertiesModulenameEmpty() throws Exception {
-        Path pluginDir = createTempDir().resolve("fake-plugin");
-        PluginTestUtil.writePluginProperties(
-            pluginDir,
-            "description",
-            "fake desc",
-            "name",
-            "my_plugin",
-            "version",
-            "1.0",
-            "elasticsearch.version",
-            Version.CURRENT.toString(),
-            "java.version",
-            System.getProperty("java.specification.version"),
-            "classname",
-            "FakePlugin",
-            "modulename",
-            " "
-        );
-        PluginDescriptor info = PluginDescriptor.readFromProperties(pluginDir);
+        PluginDescriptor info = mockDescriptor("modulename", " ");
         assertThat(info.getModuleName().isPresent(), is(false));
         assertThat(info.getExtendedPlugins(), empty());
     }
 
     public void testExtendedPluginsSingleExtension() throws Exception {
-        Path pluginDir = createTempDir().resolve("fake-plugin");
-        PluginTestUtil.writePluginProperties(
-            pluginDir,
-            "description",
-            "fake desc",
-            "name",
-            "my_plugin",
-            "version",
-            "1.0",
-            "elasticsearch.version",
-            Version.CURRENT.toString(),
-            "java.version",
-            System.getProperty("java.specification.version"),
-            "classname",
-            "FakePlugin",
-            "extended.plugins",
-            "foo"
-        );
-        PluginDescriptor info = PluginDescriptor.readFromProperties(pluginDir);
+        PluginDescriptor info = mockDescriptor("extended.plugins", "foo");
         assertThat(info.getExtendedPlugins(), contains("foo"));
     }
 
     public void testExtendedPluginsMultipleExtensions() throws Exception {
-        Path pluginDir = createTempDir().resolve("fake-plugin");
-        PluginTestUtil.writePluginProperties(
-            pluginDir,
-            "description",
-            "fake desc",
-            "name",
-            "my_plugin",
-            "version",
-            "1.0",
-            "elasticsearch.version",
-            Version.CURRENT.toString(),
-            "java.version",
-            System.getProperty("java.specification.version"),
-            "classname",
-            "FakePlugin",
-            "extended.plugins",
-            "foo,bar,baz"
-        );
-        PluginDescriptor info = PluginDescriptor.readFromProperties(pluginDir);
+        PluginDescriptor info = mockDescriptor("extended.plugins", "foo,bar,baz");
         assertThat(info.getExtendedPlugins(), contains("foo", "bar", "baz"));
     }
 
     public void testExtendedPluginsEmpty() throws Exception {
-        Path pluginDir = createTempDir().resolve("fake-plugin");
-        PluginTestUtil.writePluginProperties(
-            pluginDir,
-            "description",
-            "fake desc",
-            "name",
-            "my_plugin",
-            "version",
-            "1.0",
-            "elasticsearch.version",
-            Version.CURRENT.toString(),
-            "java.version",
-            System.getProperty("java.specification.version"),
-            "classname",
-            "FakePlugin",
-            "extended.plugins",
-            ""
-        );
-        PluginDescriptor info = PluginDescriptor.readFromProperties(pluginDir);
+        PluginDescriptor info = mockDescriptor("extended.plugins", "");
         assertThat(info.getExtendedPlugins(), empty());
     }
 
@@ -368,27 +225,7 @@ public class PluginDescriptorTests extends ESTestCase {
     }
 
     public void testUnknownProperties() throws Exception {
-        Path pluginDir = createTempDir().resolve("fake-plugin");
-        PluginTestUtil.writePluginProperties(
-            pluginDir,
-            "extra",
-            "property",
-            "unknown",
-            "property",
-            "description",
-            "fake desc",
-            "classname",
-            "Foo",
-            "name",
-            "my_plugin",
-            "version",
-            "1.0",
-            "elasticsearch.version",
-            Version.CURRENT.toString(),
-            "java.version",
-            System.getProperty("java.specification.version")
-        );
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginDescriptor.readFromProperties(pluginDir));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> mockDescriptor("extra", "property"));
         assertThat(e.getMessage(), containsString("Unknown properties for plugin [my_plugin] in plugin descriptor"));
     }
 

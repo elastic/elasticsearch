@@ -123,7 +123,6 @@ public class RandomSamplerAggregationBuilder extends AbstractAggregationBuilder<
             throw new IllegalArgumentException("[random_sampler] aggregation [" + getName() + "] must have [probability] set");
         }
         recursivelyCheckSubAggs(subfactoriesBuilder.getAggregatorFactories(), builder -> {
-            // TODO add a method or interface to aggregation builder that defaults to false
             if (builder.supportsSampling() == false) {
                 throw new IllegalArgumentException(
                     "[random_sampler] aggregation ["

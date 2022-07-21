@@ -692,7 +692,13 @@ public abstract class StreamOutput extends OutputStream {
             final Map<String, Object> map = (Map<String, Object>) v;
             o.writeVInt(map.size());
             for (Map.Entry<String, Object> entry : map.entrySet()) {
-                o.writeString(entry.getKey());
+                final Object key = entry.getKey();
+                if (key instanceof String keyAsString) {
+                    o.writeString(keyAsString);
+                } else {
+                    final String keyClass = key != null ? key.getClass().getCanonicalName() : "Unknown";
+                    throw new IllegalArgumentException("cannot write map with key type [" + keyClass + "]");
+                }
                 o.writeGenericValue(entry.getValue());
             }
         }),

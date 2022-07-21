@@ -152,9 +152,23 @@ public abstract class GeoPointFieldScript extends AbstractFieldScript {
 
     @Override
     protected void emitFromObject(Object value) {
-        if (value == null) {
+        if (value instanceof List<?> values) {
+            if (values.size() > 0 && values.get(0) instanceof Number) {
+                emitPoint(value);
+            } else {
+                for (Object point : values) {
+                    emitPoint(point);
+                }
+            }
+        } else {
+            emitPoint(value);
+        }
+    }
+
+    private void emitPoint(Object point) {
+        if (point != null) {
             try {
-                GeoPoint geoPoint = GeoUtils.parseGeoPoint(value, true);
+                GeoPoint geoPoint = GeoUtils.parseGeoPoint(point, true);
                 emit(geoPoint.lat(), geoPoint.lon());
             } catch (Exception e) {
                 emit(0, 0);

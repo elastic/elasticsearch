@@ -584,17 +584,21 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final String[] expectedRoles = randomArray(0, 4, String[]::new, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 4));
         final AuthorizationInfo authorizationInfo = () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, expectedRoles);
         final Authentication authentication = createAuthentication();
-
+        final ApiKeyMetadataWithSerialization metadataWithSerialization = randomApiKeyMetadataWithSerialization();
         CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest(keyName, keyRoleDescriptors, expiration);
         createApiKeyRequest.setRefreshPolicy(randomFrom(WriteRequest.RefreshPolicy.values()));
+        createApiKeyRequest.setMetadata(metadataWithSerialization.metadata());
         auditTrail.accessGranted(requestId, authentication, CreateApiKeyAction.NAME, createApiKeyRequest, authorizationInfo);
         String expectedCreateKeyAuditEventString = """
-            "create":{"apikey":{"id":"%s","name":"%s","expiration":%s,%s}}\
+            "create":{"apikey":{"id":"%s","name":"%s","expiration":%s,%s%s}}\
             """.formatted(
             createApiKeyRequest.getId(),
             keyName,
             expiration != null ? "\"" + expiration + "\"" : "null",
-            roleDescriptorsStringBuilder
+            roleDescriptorsStringBuilder,
+            createApiKeyRequest.getMetadata() == null || createApiKeyRequest.getMetadata().isEmpty()
+                ? ""
+                : ",\"metadata\":%s".formatted(metadataWithSerialization.serialization())
         );
         List<String> output = CapturingLogger.output(logger.getName(), Level.INFO);
         assertThat(output.size(), is(2));
@@ -613,22 +617,19 @@ public class LoggingAuditTrailTests extends ESTestCase {
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
 
         final String keyId = randomAlphaOfLength(10);
-        final MetadataWithSerialization metadataWithSerialization = randomMetadataWithSerialization();
         final var updateApiKeyRequest = new UpdateApiKeyRequest(
             keyId,
             randomBoolean() ? null : keyRoleDescriptors,
             metadataWithSerialization.metadata()
         );
         auditTrail.accessGranted(requestId, authentication, UpdateApiKeyAction.NAME, updateApiKeyRequest, authorizationInfo);
-        final String serializedRoleDescriptorsEntry = updateApiKeyRequest.getRoleDescriptors() == null
-            ? ""
-            : "," + roleDescriptorsStringBuilder;
-        final String serializedMetadataEntry = updateApiKeyRequest.getMetadata() == null
-            ? ""
-            : ",\"metadata\":%s".formatted(metadataWithSerialization.serialization());
         final var expectedUpdateKeyAuditEventString = """
             "change":{"apikey":{"id":"%s"%s%s}}\
-            """.formatted(keyId, serializedRoleDescriptorsEntry, serializedMetadataEntry);
+            """.formatted(
+            keyId,
+            updateApiKeyRequest.getRoleDescriptors() == null ? "" : "," + roleDescriptorsStringBuilder,
+            updateApiKeyRequest.getMetadata() == null ? "" : ",\"metadata\":%s".formatted(metadataWithSerialization.serialization())
+        );
         output = CapturingLogger.output(logger.getName(), Level.INFO);
         assertThat(output.size(), is(2));
         String generatedUpdateKeyAuditEventString = output.get(1);
@@ -664,8 +665,12 @@ public class LoggingAuditTrailTests extends ESTestCase {
             .append("\",\"expiration\":")
             .append(expiration != null ? "\"" + expiration + "\"" : "null")
             .append(",")
-            .append(roleDescriptorsStringBuilder)
-            .append("},\"grant\":{\"type\":");
+            .append(roleDescriptorsStringBuilder);
+        if (grantApiKeyRequest.getApiKeyRequest().getMetadata() != null
+            && grantApiKeyRequest.getApiKeyRequest().getMetadata().isEmpty() == false) {
+            grantKeyAuditEventStringBuilder.append(",\"metadata\":").append(metadataWithSerialization.serialization());
+        }
+        grantKeyAuditEventStringBuilder.append("},\"grant\":{\"type\":");
         if (grantApiKeyRequest.getGrant().getType() != null) {
             grantKeyAuditEventStringBuilder.append("\"").append(grantApiKeyRequest.getGrant().getType()).append("\"");
         } else {
@@ -2908,24 +2913,24 @@ public class LoggingAuditTrailTests extends ESTestCase {
         }
     }
 
-    private record MetadataWithSerialization(Map<String, Object> metadata, String serialization) {};
+    private record ApiKeyMetadataWithSerialization(Map<String, Object> metadata, String serialization) {};
 
-    private MetadataWithSerialization randomMetadataWithSerialization() {
+    private ApiKeyMetadataWithSerialization randomApiKeyMetadataWithSerialization() {
         final int metadataCase = randomInt(3);
         return switch (metadataCase) {
-            case 0 -> new MetadataWithSerialization(null, null);
-            case 1 -> new MetadataWithSerialization(Map.of(), "{}");
+            case 0 -> new ApiKeyMetadataWithSerialization(null, null);
+            case 1 -> new ApiKeyMetadataWithSerialization(Map.of(), "{}");
             case 2 -> {
                 final Map<String, Object> metadata = new TreeMap<>();
                 metadata.put("test", true);
                 metadata.put("ans", 42);
-                yield new MetadataWithSerialization(metadata, "{\"ans\":42,\"test\":true}");
+                yield new ApiKeyMetadataWithSerialization(metadata, "{\"ans\":42,\"test\":true}");
             }
             case 3 -> {
                 final Map<String, Object> metadata = new TreeMap<>();
                 metadata.put("ans", List.of(42, true));
                 metadata.put("other", Map.of("42", true));
-                yield new MetadataWithSerialization(metadata, "{\"ans\":[42,true],\"other\":{\"42\":true}}");
+                yield new ApiKeyMetadataWithSerialization(metadata, "{\"ans\":[42,true],\"other\":{\"42\":true}}");
             }
             default -> throw new IllegalStateException("Unexpected case number: " + metadataCase);
         };

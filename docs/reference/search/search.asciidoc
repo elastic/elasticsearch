@@ -483,7 +483,8 @@ A boost value greater than `1.0` increases the score. A boost value between
 experimental::[]
 [[search-api-knn]]
 `knn`::
-(Required, object) Defines the kNN query to run.
+(Optional, object) Defines the <<approximate-knn, approximate kNN search>> to
+run.
 +
 .Properties of `knn` object
 [%collapsible%open]

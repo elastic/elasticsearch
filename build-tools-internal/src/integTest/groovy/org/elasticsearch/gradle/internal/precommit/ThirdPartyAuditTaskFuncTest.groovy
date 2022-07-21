@@ -19,7 +19,7 @@ import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
 import org.gradle.testkit.runner.TaskOutcome
 
 
-import static org.elasticsearch.gradle.internal.test.TestClasspathUtils.setupJarJdkClasspath
+import static org.elasticsearch.gradle.fixtures.TestClasspathUtils.setupJarJdkClasspath
 
 class ThirdPartyAuditTaskFuncTest extends AbstractGradleFuncTest {
 

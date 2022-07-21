@@ -120,6 +120,7 @@ class BuildPluginFuncTest extends AbstractGradleFuncTest {
 
     def "applies checks"() {
         given:
+        withVersionCatalogue()
         setupJarHellJar(dir('local-repo/org/elasticsearch/elasticsearch-core/current/'))
         file("licenses/hamcrest-core-1.3.jar.sha1").text = "42a25dc3219429f0e5d060061f71acb49bf010a0"
         file("licenses/hamcrest-core-LICENSE.txt").text = EXAMPLE_LICENSE
@@ -148,7 +149,6 @@ class BuildPluginFuncTest extends AbstractGradleFuncTest {
         then:
         result.task(":licenseHeaders").outcome == TaskOutcome.SUCCESS
         result.task(":forbiddenPatterns").outcome == TaskOutcome.SUCCESS
-        result.task(":validateModule").outcome == TaskOutcome.SUCCESS
         result.task(":splitPackagesAudit").outcome == TaskOutcome.SUCCESS
         result.task(":validateElasticPom").outcome == TaskOutcome.SUCCESS
         // disabled but check for being on the task graph

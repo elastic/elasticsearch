@@ -539,6 +539,7 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
             // We can scale horizontally
             return maxLazyMLNodes > nodes.size()
                 // We can scale vertically
+                // TODO this currently only considers memory. We should also consider CPU when autoscaling by CPU is possible.
                 || (smallestMLNode.isEmpty() == false && smallestMLNode.getAsLong() < maxMLNodeSize);
         }
     }

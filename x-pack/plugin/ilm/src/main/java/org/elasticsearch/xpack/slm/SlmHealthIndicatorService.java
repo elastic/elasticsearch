@@ -24,6 +24,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
@@ -48,7 +49,7 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
         null
     );
 
-    public static final String ACTION_CHECK_RECENTLY_FAILED_SNAPSHOTS_HELP_URL = null;
+    public static final String ACTION_CHECK_RECENTLY_FAILED_SNAPSHOTS_HELP_URL = "https://ela.st/fix-recent-snapshot-failures";
     public static final UserAction.Definition ACTION_CHECK_RECENTLY_FAILED_SNAPSHOTS = new UserAction.Definition(
         "check_recent_snapshot_failures",
         """
@@ -116,7 +117,7 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
             List<SnapshotLifecyclePolicyMetadata> unhealthyPolicies = slmMetadata.getSnapshotConfigurations()
                 .values()
                 .stream()
-                .filter(this::snapshotFailuresExceedWarningCount)
+                .filter(metadata -> snapshotFailuresExceedWarningCount(failedSnapshotWarnThreshold, metadata))
                 .toList();
 
             if (unhealthyPolicies.size() > 0) {
@@ -153,7 +154,7 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
         }
     }
 
-    private boolean snapshotFailuresExceedWarningCount(SnapshotLifecyclePolicyMetadata policyMetadata) {
+    static boolean snapshotFailuresExceedWarningCount(long failedSnapshotWarnThreshold, SnapshotLifecyclePolicyMetadata policyMetadata) {
         SnapshotInvocationRecord lastFailure = policyMetadata.getLastFailure();
         if (lastFailure == null) {
             // No failures yet to act on
@@ -176,6 +177,13 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
         SnapshotLifecycleMetadata metadata
     ) {
         if (explain) {
+            Map<String, Long> unhealthyPolicyFailureCounts = unhealthyPolicies.stream()
+                .collect(
+                    Collectors.toMap(
+                        SnapshotLifecyclePolicyMetadata::getName,
+                        SnapshotLifecyclePolicyMetadata::getInvocationsSinceLastSuccess
+                    )
+                );
             return new SimpleHealthIndicatorDetails(
                 Map.of(
                     "slm_status",
@@ -183,7 +191,9 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
                     "policies",
                     metadata.getSnapshotConfigurations().size(),
                     "unhealthy_policies",
-                    unhealthyPolicies.size()
+                    unhealthyPolicies.size(),
+                    "invocations_since_last_success",
+                    unhealthyPolicyFailureCounts
                 )
             );
         } else {

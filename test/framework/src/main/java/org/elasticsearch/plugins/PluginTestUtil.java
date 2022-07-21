@@ -27,7 +27,10 @@ public class PluginTestUtil {
         Files.createDirectories(propertiesFile.getParent());
         Properties properties = new Properties();
         for (int i = 0; i < stringProps.length; i += 2) {
-            properties.put(stringProps[i], stringProps[i + 1]);
+            String value = stringProps[i + 1];
+            if (value != null) {
+                properties.put(stringProps[i], stringProps[i + 1]);
+            }
         }
         try (OutputStream out = Files.newOutputStream(propertiesFile)) {
             properties.store(out, "");

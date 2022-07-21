@@ -18,6 +18,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.hash.MessageDigests;
@@ -39,7 +40,6 @@ import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.support.CacheIteratorHelper;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
-import org.elasticsearch.xpack.security.authc.BytesKey;
 import org.elasticsearch.xpack.security.authc.support.ClaimParser;
 import org.elasticsearch.xpack.security.authc.support.DelegatedAuthorizationSupport;
 
@@ -118,8 +118,8 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     final ClaimParser claimParserName;
     final JwtRealmSettings.ClientAuthenticationType clientAuthenticationType;
     final SecureString clientAuthenticationSharedSecret;
-    final Cache<BytesKey, ExpiringUser> jwtCache;
-    final CacheIteratorHelper<BytesKey, ExpiringUser> jwtCacheHelper;
+    final Cache<BytesArray, ExpiringUser> jwtCache;
+    final CacheIteratorHelper<BytesArray, ExpiringUser> jwtCacheHelper;
     final List<String> allowedJwksAlgsPkc;
     final List<String> allowedJwksAlgsHmac;
     DelegatedAuthorizationSupport delegatedAuthorizationSupport = null;
@@ -203,11 +203,11 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
         }
     }
 
-    private Cache<BytesKey, ExpiringUser> buildJwtCache() {
+    private Cache<BytesArray, ExpiringUser> buildJwtCache() {
         final TimeValue jwtCacheTtl = super.config.getSetting(JwtRealmSettings.JWT_CACHE_TTL);
         final int jwtCacheSize = super.config.getSetting(JwtRealmSettings.JWT_CACHE_SIZE);
         if ((jwtCacheTtl.getNanos() > 0) && (jwtCacheSize > 0)) {
-            return CacheBuilder.<BytesKey, ExpiringUser>builder().setExpireAfterWrite(jwtCacheTtl).setMaximumWeight(jwtCacheSize).build();
+            return CacheBuilder.<BytesArray, ExpiringUser>builder().setExpireAfterWrite(jwtCacheTtl).setMaximumWeight(jwtCacheSize).build();
         }
         return null;
     }
@@ -419,7 +419,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
 
             // JWT cache
             final SecureString serializedJwt = jwtAuthenticationToken.getEndUserSignedJwt();
-            final BytesKey jwtCacheKey = (this.jwtCache == null) ? null : new BytesKey(sha256(serializedJwt));
+            final BytesArray jwtCacheKey = (this.jwtCache == null) ? null : new BytesArray(sha256(serializedJwt));
             if (jwtCacheKey != null) {
                 final ExpiringUser expiringUser = this.jwtCache.get(jwtCacheKey);
                 if (expiringUser == null) {

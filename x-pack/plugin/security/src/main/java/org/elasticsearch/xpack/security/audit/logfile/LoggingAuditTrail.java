@@ -1259,7 +1259,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             }
             if (updateApiKeyRequest.getMetadata() != null) {
                 // Include in entry even if metadata is empty. It's meaningful to track an empty metadata request parameter
-                // because it replaces old metadata associated with the API key
+                // because it replaces any metadata previously associated with the API key
                 builder.field("metadata", updateApiKeyRequest.getMetadata());
             }
             builder.endObject();

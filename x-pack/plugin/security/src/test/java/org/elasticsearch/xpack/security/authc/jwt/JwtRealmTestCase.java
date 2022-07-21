@@ -213,7 +213,7 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
     }
 
     protected void copyIssuerJwksToRealmConfig(final JwtIssuerAndRealm jwtIssuerAndRealm) throws Exception {
-        if ((jwtIssuerAndRealm.realm.isConfiguredJwkSetPkc) && (jwtIssuerAndRealm.realm.httpClient == null)) {
+        if ((jwtIssuerAndRealm.realm.isConfiguredJwkSetPkc) && (jwtIssuerAndRealm.realm.jwkSetPathUri == null)) {
             LOGGER.trace("Updating JwtRealm PKC public JWKSet local file");
             final Path path = PathUtils.get(jwtIssuerAndRealm.realm.jwkSetPath);
             Files.writeString(path, jwtIssuerAndRealm.issuer.encodedJwkSetPkcPublic);

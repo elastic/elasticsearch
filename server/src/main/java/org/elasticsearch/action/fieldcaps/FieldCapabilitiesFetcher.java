@@ -110,18 +110,19 @@ class FieldCapabilitiesFetcher {
         boolean includeParentObjects = checkIncludeParents(filters);
 
         Predicate<MappedFieldType> filter = buildFilter(indexFieldfilter, filters, types, context);
+        boolean isTimeSeriesIndex = context.getIndexSettings().getTimestampBounds() != null;
         Map<String, IndexFieldCapabilities> responseMap = new HashMap<>();
         for (String field : fieldNames) {
             MappedFieldType ft = context.getFieldType(field);
             if (filter.test(ft)) {
                 IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
                     field,
-                    ft.familyTypeName(),
+                    isTimeSeriesIndex && ft.getMetricType() != null ? ft.getMetricType().name() : ft.familyTypeName(),
                     context.isMetadataField(field),
                     ft.isSearchable(),
                     ft.isAggregatable(),
-                    ft.isDimension(),
-                    ft.getMetricType(),
+                    isTimeSeriesIndex ? ft.isDimension() : false,
+                    isTimeSeriesIndex ? ft.getMetricType() : null,
                     ft.meta()
                 );
                 responseMap.put(field, fieldCap);

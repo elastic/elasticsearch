@@ -137,11 +137,11 @@ field types are all described as the `keyword` type family.
 
 `time_series_dimension`::
   preview:[]
-  Whether this field is used as a time series dimension.
+  Whether this field is used as a time series dimension on all indices.
 
 `time_series_metric`::
   preview:[]
-  Contains metric type if this fields is used as a time series metrics, absent if the field is not used as metric.
+  Contains metric type if this fields is used as a time series metrics on all indices, absent if the field is not used as metric.
 
 `indices`::
   The list of indices where this field has the same type family, or null if all indices

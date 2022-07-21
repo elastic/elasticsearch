@@ -10,6 +10,6 @@ package org.elasticsearch.plugins.spi;
 
 import org.elasticsearch.plugins.Plugin;
 
-public class FooPlugin extends Plugin {
-    public FooPlugin() {}
+public class BarPlugin extends Plugin {
+    public BarPlugin() {}
 }

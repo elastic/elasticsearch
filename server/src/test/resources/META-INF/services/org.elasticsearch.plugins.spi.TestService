@@ -6,4 +6,4 @@
 # Side Public License, v 1.
 #
 
-org.elasticsearch.plugins.spi.FooTestService
+org.elasticsearch.plugins.spi.BarTestService

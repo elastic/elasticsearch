@@ -8,14 +8,14 @@
 
 package org.elasticsearch.plugins.spi;
 
-public class FooTestService implements TestService {
-    FooPlugin plugin;
+public class BarTestService implements TestService {
+    BarPlugin plugin;
 
     @SuppressWarnings("unused")
-    public FooTestService() {}
+    public BarTestService() {}
 
     @SuppressWarnings("unused")
-    public FooTestService(final FooPlugin plugin) {
+    public BarTestService(final BarPlugin plugin) {
         this.plugin = plugin;
     }
 

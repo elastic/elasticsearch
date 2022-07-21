@@ -109,13 +109,17 @@ public class MockPluginsService extends PluginsService {
 
             @SuppressWarnings("unchecked")
             Constructor<T>[] constructors = (Constructor<T>[]) extensionClass.getConstructors();
+            boolean compatible = true;
 
             for (var constructor : constructors) {
                 if (constructor.getParameterCount() == 1 && constructor.getParameterTypes()[0] != plugin.getClass()) {
-                    return Collections.emptyList();
+                    compatible = false;
+                    break;
                 }
             }
-            extensions.add(createExtension(extensionClass, extensionPointType, plugin));
+            if (compatible) {
+                extensions.add(createExtension(extensionClass, extensionPointType, plugin));
+            }
         }
         return extensions;
     }

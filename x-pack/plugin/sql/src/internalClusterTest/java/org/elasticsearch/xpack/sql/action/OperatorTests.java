@@ -40,7 +40,6 @@ import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 
 public class OperatorTests extends ESTestCase {
 
@@ -163,19 +162,24 @@ public class OperatorTests extends ESTestCase {
 
     public void testOperatorsWithPassthroughExchange() throws InterruptedException {
         ExchangeSource exchangeSource = new ExchangeSource();
-        Consumer<ExchangeSink> sinkFinished = sink -> { exchangeSource.finish(); };
+
         Driver driver1 = new Driver(
             List.of(
                 new RandomLongBlockSourceOperator(),
                 new LongTransformerOperator(0, i -> i + 1),
-                new LongGroupingOperator(1, BigArrays.NON_RECYCLING_INSTANCE),
-                new ExchangeSinkOperator(new ExchangeSink(new PassthroughExchanger(exchangeSource, Integer.MAX_VALUE), sinkFinished))
+                new ExchangeSinkOperator(
+                    new ExchangeSink(new PassthroughExchanger(exchangeSource, Integer.MAX_VALUE), sink -> exchangeSource.finish())
+                )
             ),
             () -> {}
         );
 
         Driver driver2 = new Driver(
-            List.of(new ExchangeSourceOperator(exchangeSource), new PageConsumerOperator(page -> logger.info("New page: {}", page))),
+            List.of(
+                new ExchangeSourceOperator(exchangeSource),
+                new LongGroupingOperator(1, BigArrays.NON_RECYCLING_INSTANCE),
+                new PageConsumerOperator(page -> logger.info("New page: {}", page))
+            ),
             () -> {}
         );
 
@@ -191,14 +195,6 @@ public class OperatorTests extends ESTestCase {
         ExchangeSource exchangeSource1 = new ExchangeSource();
         ExchangeSource exchangeSource2 = new ExchangeSource();
 
-        Consumer<ExchangeSink> sink1Finished = sink -> {
-            exchangeSource1.finish();
-            exchangeSource2.finish();
-        };
-
-        ExchangeSource exchangeSource3 = new ExchangeSource();
-        ExchangeSource exchangeSource4 = new ExchangeSource();
-
         Driver driver1 = new Driver(
             List.of(
                 new RandomLongBlockSourceOperator(),
@@ -206,12 +202,18 @@ public class OperatorTests extends ESTestCase {
                 new ExchangeSinkOperator(
                     new ExchangeSink(
                         new RandomExchanger(List.of(p -> exchangeSource1.addPage(p, () -> {}), p -> exchangeSource2.addPage(p, () -> {}))),
-                        sink1Finished
+                        sink -> {
+                            exchangeSource1.finish();
+                            exchangeSource2.finish();
+                        }
                     )
                 )
             ),
             () -> {}
         );
+
+        ExchangeSource exchangeSource3 = new ExchangeSource();
+        ExchangeSource exchangeSource4 = new ExchangeSource();
 
         Driver driver2 = new Driver(
             List.of(

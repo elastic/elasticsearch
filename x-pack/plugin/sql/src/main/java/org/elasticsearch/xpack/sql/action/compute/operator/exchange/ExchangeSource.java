@@ -18,6 +18,9 @@ import java.util.concurrent.LinkedBlockingDeque;
 
 /**
  * Source for exchanging data, which can be thought of as simple FIFO queues of pages.
+ *
+ * More details on how this integrates with other components can be found in the package documentation of
+ * {@link org.elasticsearch.xpack.sql.action.compute}
  */
 public class ExchangeSource {
 

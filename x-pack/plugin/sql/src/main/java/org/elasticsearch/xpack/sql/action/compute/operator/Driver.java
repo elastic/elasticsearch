@@ -22,6 +22,9 @@ import java.util.stream.Collectors;
  * operators.
  * The operator chain typically starts with a source operator (i.e. an operator that purely produces pages)
  * and ends with a sink operator (i.e. an operator that purely consumes pages).
+ *
+ * More details on how this integrates with other components can be found in the package documentation of
+ * {@link org.elasticsearch.xpack.sql.action.compute}
  */
 public class Driver implements Runnable {
 

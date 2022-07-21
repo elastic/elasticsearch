@@ -22,6 +22,9 @@ import java.util.Objects;
  * The number of blocks can be retrieved via {@link #getBlockCount()}, and the respective
  * blocks can be retrieved via their index {@link #getBlock(int)}. The index of these
  * blocks in the page are referred to as channels.
+ *
+ * More details on how this integrates with other components can be found in the package documentation of
+ * {@link org.elasticsearch.xpack.sql.action.compute}
  */
 public class Page {
 

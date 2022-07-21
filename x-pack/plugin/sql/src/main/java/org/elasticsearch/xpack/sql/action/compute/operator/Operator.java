@@ -16,6 +16,9 @@ import org.elasticsearch.xpack.sql.action.compute.data.Page;
  * Data is processed in smaller batches (termed {@link Page}s) that are passed to
  * (see {@link #addInput(Page)}) or retrieved from (see {@link #getOutput()} operators.
  * The component that's in charge of passing data between operators is the {@link Driver}.
+ *
+ * More details on how this integrates with other components can be found in the package documentation of
+ * {@link org.elasticsearch.xpack.sql.action.compute}
  */
 public interface Operator {
 

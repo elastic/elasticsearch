@@ -9,6 +9,7 @@
 package org.elasticsearch.gradle.internal.test;
 
 import net.bytebuddy.ByteBuddy;
+import net.bytebuddy.ClassFileVersion;
 import net.bytebuddy.description.modifier.Ownership;
 import net.bytebuddy.description.modifier.Visibility;
 import net.bytebuddy.description.type.TypeDescription;
@@ -35,7 +36,7 @@ public class TestClasspathUtils {
     }
 
     private static void generateJdkJarHellCheck(File targetDir, Implementation mainImplementation) {
-        DynamicType.Unloaded<?> dynamicType = new ByteBuddy().subclass(Object.class)
+        DynamicType.Unloaded<?> dynamicType = new ByteBuddy(ClassFileVersion.ofJavaVersion(8)).subclass(Object.class)
             .name("org.elasticsearch.jdk.JdkJarHellCheck")
             .defineMethod("main", void.class, Visibility.PUBLIC, Ownership.STATIC)
             .withParameters(String[].class)
@@ -50,7 +51,7 @@ public class TestClasspathUtils {
     }
 
     private static void genenerateJar(File projectRoot, Implementation mainImplementation) {
-        DynamicType.Unloaded<?> dynamicType = new ByteBuddy().subclass(Object.class)
+        DynamicType.Unloaded<?> dynamicType = new ByteBuddy(ClassFileVersion.ofJavaVersion(8)).subclass(Object.class)
             .name("org.elasticsearch.jdk.JdkJarHellCheck")
             .defineMethod("main", void.class, Visibility.PUBLIC, Ownership.STATIC)
             .withParameters(String[].class)

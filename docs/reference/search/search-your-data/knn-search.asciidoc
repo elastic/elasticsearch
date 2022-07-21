@@ -113,7 +113,7 @@ significantly increase search latency.
 +
 [source,console]
 ----
-GET product-index/_search
+POST product-index/_search
 {
   "query": {
     "script_score": {
@@ -190,11 +190,11 @@ PUT image-index
 ----
 POST image-index/_bulk?refresh=true
 { "index": { "_id": "1" } }
-{ "image-vector": [0.5, 0.1, 2.6], "title": "moose family", "file-type": "jpg" }
+{ "image-vector": [1, 5, -20], "title": "moose family", "file-type": "jpg" }
 { "index": { "_id": "2" } }
-{ "image-vector": [1.0, 0.8, -0.2], "title": "alpine lake", "file-type": "png" }
+{ "image-vector": [42, 8, -15], "title": "alpine lake", "file-type": "png" }
 { "index": { "_id": "3" } }
-{ "image-vector": [1.5, 1.1, 2.3], "title": "full moon", "file-type": "jpg" }
+{ "image-vector": [15, 11, 23], "title": "full moon", "file-type": "jpg" }
 ...
 ----
 //TEST[continued]
@@ -204,11 +204,11 @@ POST image-index/_bulk?refresh=true
 +
 [source,console]
 ----
-GET image-index/_search
+POST image-index/_search
 {
   "knn": {
     "field": "image-vector",
-    "query_vector": [-0.5, 90.0, -10, 14.8, -156.0],
+    "query_vector": [-5, 9, -12],
     "k": 10,
     "num_candidates": 100
   },
@@ -260,11 +260,11 @@ The following request performs an approximate kNN search filtered by the
 
 [source,console]
 ----
-GET image-index/_search
+POST image-index/_search
 {
   "knn": {
     "field": "image-vector",
-    "query_vector": [0.3, 0.1, 1.2],
+    "query_vector": [54, 10, -2],
     "k": 5,
     "num_candidates": 50,
     "filter": {
@@ -273,7 +273,8 @@ GET image-index/_search
       }
     }
   },
-  "fields": ["title"]
+  "fields": ["title"],
+  "_source": false
 }
 ----
 // TEST[continued]
@@ -294,14 +295,14 @@ GET image-index/_search
       "value": 1,
       "relation": "eq"
     },
-    "max_score": 0.2538071,
+    "max_score": 0.003144654,
     "hits": [
       {
         "_index": "image-index",
         "_id": "2",
-        "_score": 0.2538071,
-        "_source": {
-          "title": "alpine lake"
+        "_score": 0.003144654,
+        "fields": {
+          "title": ["alpine lake"]
         }
       }
     ]
@@ -319,17 +320,19 @@ You can perform 'hybrid retrieval' by providing both the
 
 [source,console]
 ----
-GET image-index/_search
+POST image-index/_search
 {
   "query": {
     "match": {
-      "title": "mountain lake"
-    },
-    "boost": 0.9
+      "title": {
+        "query": "mountain lake",
+        "boost": 0.9
+      }
+    }
   },
   "knn": {
     "field": "image-vector",
-    "query_vector": [0.3, 0.1, 0.25],
+    "query_vector": [54, 10, -2],
     "k": 5,
     "num_candidates": 50,
     "boost": 0.1
@@ -381,7 +384,7 @@ PUT image-index
     "properties": {
       "image-vector": {
         "type": "dense_vector",
-        "dims": 5,
+        "dims": 3,
         "index": true,
         "similarity": "l2_norm",
         "index_options": {

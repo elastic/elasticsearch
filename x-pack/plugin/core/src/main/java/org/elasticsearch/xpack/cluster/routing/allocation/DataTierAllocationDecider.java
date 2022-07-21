@@ -41,7 +41,7 @@ public final class DataTierAllocationDecider extends AllocationDecider {
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        return shouldFilter(shardRouting, node.node(), allocation);
+        return shouldFilter(allocation.metadata().getIndexSafe(shardRouting.index()), node.node(), allocation);
     }
 
     @Override
@@ -50,8 +50,8 @@ public final class DataTierAllocationDecider extends AllocationDecider {
     }
 
     @Override
-    public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        return shouldFilter(shardRouting, node.node(), allocation);
+    public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+        return shouldFilter(indexMetadata, node.node(), allocation);
     }
 
     @Override
@@ -59,8 +59,8 @@ public final class DataTierAllocationDecider extends AllocationDecider {
         return shouldFilter(indexMetadata, node.getRoles(), allocation);
     }
 
-    private Decision shouldFilter(ShardRouting shardRouting, DiscoveryNode node, RoutingAllocation allocation) {
-        return shouldFilter(allocation.metadata().getIndexSafe(shardRouting.index()), node.getRoles(), allocation);
+    private Decision shouldFilter(IndexMetadata indexMetadata, DiscoveryNode node, RoutingAllocation allocation) {
+        return shouldFilter(indexMetadata, node.getRoles(), allocation);
     }
 
     private static Decision shouldFilter(IndexMetadata indexMd, Set<DiscoveryNodeRole> roles, RoutingAllocation allocation) {
@@ -215,16 +215,26 @@ public final class DataTierAllocationDecider extends AllocationDecider {
     static boolean tierNodesPresent(String singleTier, Collection<DesiredNode> nodes) {
         assert singleTier.equals(DiscoveryNodeRole.DATA_ROLE.roleName()) || DataTier.validTierName(singleTier)
             : "tier " + singleTier + " is an invalid tier name";
-        return nodes.stream().anyMatch(node -> allocationAllowed(singleTier, node.getRoles()));
+        for (DesiredNode node : nodes) {
+            if (allocationAllowed(singleTier, node.getRoles())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     static boolean tierNodesPresent(String singleTier, DiscoveryNodes nodes) {
         assert singleTier.equals(DiscoveryNodeRole.DATA_ROLE.roleName()) || DataTier.validTierName(singleTier)
             : "tier " + singleTier + " is an invalid tier name";
-        return nodes.stream().anyMatch(node -> allocationAllowed(singleTier, node.getRoles()));
+        for (DiscoveryNode node : nodes) {
+            if (allocationAllowed(singleTier, node.getRoles())) {
+                return true;
+            }
+        }
+        return false;
     }
 
-    private static boolean allocationAllowed(String tierName, Set<DiscoveryNodeRole> roles) {
+    public static boolean allocationAllowed(String tierName, Set<DiscoveryNodeRole> roles) {
         assert Strings.hasText(tierName) : "tierName must be not null and non-empty, but was [" + tierName + "]";
 
         if (roles.contains(DiscoveryNodeRole.DATA_ROLE)) {

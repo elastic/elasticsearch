@@ -34,6 +34,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -307,4 +308,25 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         return CONTENT_TYPE;
     }
 
+    @Override
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        return (reader, docIdsInLeaf) -> new SourceLoader.SyntheticFieldLoader.Leaf() {
+            @Override
+            public boolean empty() {
+                return fieldType().value == null;
+            }
+
+            @Override
+            public boolean advanceToDoc(int docId) throws IOException {
+                return fieldType().value != null;
+            }
+
+            @Override
+            public void write(XContentBuilder b) throws IOException {
+                if (fieldType().value != null) {
+                    b.field(simpleName(), fieldType().value);
+                }
+            }
+        };
+    }
 }

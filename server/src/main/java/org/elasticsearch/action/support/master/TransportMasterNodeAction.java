@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -33,6 +34,7 @@ import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.node.NodeClosedException;
+import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -42,7 +44,9 @@ import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -146,15 +150,15 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
     }
 
     /**
-     * Override this method if the master node action also has an {@link org.elasticsearch.immutablestate.ImmutableClusterStateHandler}
+     * Override this method if the master node action also has an {@link ReservedClusterStateHandler}
      * interaction.
      * <p>
      * We need to check if certain settings or entities are allowed to be modified by the master node
-     * action, depending on if they are set as immutable in 'operator' mode (file based settings, modules, plugins).
+     * action, depending on if they are set as reserved in 'operator' mode (file based settings, modules, plugins).
      *
-     * @return an Optional of the {@link org.elasticsearch.immutablestate.ImmutableClusterStateHandler} name
+     * @return an Optional of the {@link ReservedClusterStateHandler} name
      */
-    protected Optional<String> immutableStateHandlerName() {
+    protected Optional<String> reservedStateHandlerName() {
         return Optional.empty();
     }
 
@@ -162,8 +166,8 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
      * Override this method to return the keys of the cluster state or cluster entities that are modified by
      * the Request object.
      * <p>
-     * This method is used by the immutable state handler logic (see {@link org.elasticsearch.immutablestate.ImmutableClusterStateHandler})
-     * to verify if the keys don't conflict with an existing key set as immutable.
+     * This method is used by the reserved state handler logic (see {@link ReservedClusterStateHandler})
+     * to verify if the keys don't conflict with an existing key set as reserved.
      *
      * @param request the TransportMasterNode request
      * @return set of String keys intended to be modified/set/deleted by this request
@@ -172,9 +176,39 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
         return Collections.emptySet();
     }
 
+    // package private for testing
+    void validateForImmutableState(Request request, ClusterState state) {
+        Optional<String> handlerName = reservedStateHandlerName();
+        assert handlerName.isPresent();
+
+        Set<String> modified = modifiedKeys(request);
+        List<String> errors = new ArrayList<>();
+
+        for (ReservedStateMetadata metadata : state.metadata().reservedStateMetadata().values()) {
+            Set<String> conflicts = metadata.conflicts(handlerName.get(), modified);
+            if (conflicts.isEmpty() == false) {
+                errors.add(format("[%s] set as read-only by [%s]", String.join(", ", conflicts), metadata.namespace()));
+            }
+        }
+
+        if (errors.isEmpty() == false) {
+            throw new IllegalArgumentException(
+                format("Failed to process request [%s] with errors: [%s]", request, String.join(", ", errors))
+            );
+        }
+    }
+
+    // package private for testing
+    boolean supportsImmutableState() {
+        return reservedStateHandlerName().isPresent();
+    }
+
     @Override
     protected void doExecute(Task task, final Request request, ActionListener<Response> listener) {
         ClusterState state = clusterService.state();
+        if (supportsImmutableState()) {
+            validateForImmutableState(request, state);
+        }
         logger.trace("starting processing request [{}] with cluster state version [{}]", request, state.version());
         if (task != null) {
             request.setParentTask(clusterService.localNode().getId(), task.getId());

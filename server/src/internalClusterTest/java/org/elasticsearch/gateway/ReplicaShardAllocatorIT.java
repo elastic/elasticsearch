@@ -293,7 +293,6 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         assertNoOpRecoveries(indexName);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86429")
     public void testPreferCopyWithHighestMatchingOperations() throws Exception {
         String indexName = "test";
         internalCluster().startMasterOnlyNode();
@@ -357,7 +356,9 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
             client().admin()
                 .cluster()
                 .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().putNull("cluster.routing.allocation.enable").build())
+                .setPersistentSettings(
+                    Settings.builder().put("cluster.routing.rebalance.enable", "none").putNull("cluster.routing.allocation.enable").build()
+                )
         );
         ensureGreen(indexName);
         assertThat(internalCluster().nodesInclude(indexName), allOf(hasItem(nodeWithHigherMatching), not(hasItem(nodeWithLowerMatching))));

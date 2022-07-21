@@ -212,7 +212,6 @@ public class ClusterRerouteIT extends ESIntegTestCase {
         rerouteWithAllocateLocalGateway(commonSettings);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86429")
     public void testDelayWithALargeAmountOfShards() throws Exception {
         Settings commonSettings = Settings.builder()
             .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 1)

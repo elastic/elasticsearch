@@ -12,6 +12,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -19,6 +20,7 @@ import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matcher;
@@ -58,7 +60,12 @@ public class AllocationDecidersTests extends ESTestCase {
             }
 
             @Override
-            public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+            public Decision canRemain(
+                IndexMetadata indexMetadata,
+                ShardRouting shardRouting,
+                RoutingNode node,
+                RoutingAllocation allocation
+            ) {
                 return Decision.YES;
             }
 
@@ -83,12 +90,19 @@ public class AllocationDecidersTests extends ESTestCase {
             }
         }));
 
-        ClusterState clusterState = ClusterState.builder(new ClusterName("test")).build();
+        IndexMetadata idx = IndexMetadata.builder("idx").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0).build();
+        IndexMetadata testIdx = IndexMetadata.builder("test")
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        ClusterState clusterState = ClusterState.builder(new ClusterName("test"))
+            .metadata(Metadata.builder().put(idx, false).put(testIdx, false).build())
+            .build();
         final RoutingAllocation allocation = new RoutingAllocation(deciders, clusterState, null, null, 0L);
 
         allocation.setDebugMode(mode);
-        final ShardRouting shardRouting = createShardRouting();
-        IndexMetadata idx = IndexMetadata.builder("idx").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0).build();
+        final ShardRouting shardRouting = createShardRouting(testIdx.getIndex());
 
         RoutingNode routingNode = RoutingNodesHelper.routingNode("testNode", null);
         verify(deciders.canAllocate(shardRouting, routingNode, allocation), matcher);
@@ -128,7 +142,12 @@ public class AllocationDecidersTests extends ESTestCase {
             }
 
             @Override
-            public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+            public Decision canRemain(
+                IndexMetadata indexMetadata,
+                ShardRouting shardRouting,
+                RoutingNode node,
+                RoutingAllocation allocation
+            ) {
                 return decisionOne;
             }
 
@@ -169,7 +188,12 @@ public class AllocationDecidersTests extends ESTestCase {
             }
 
             @Override
-            public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+            public Decision canRemain(
+                IndexMetadata indexMetadata,
+                ShardRouting shardRouting,
+                RoutingNode node,
+                RoutingAllocation allocation
+            ) {
                 return decision(allocation);
             }
 
@@ -206,14 +230,22 @@ public class AllocationDecidersTests extends ESTestCase {
             }
         }));
 
+        IndexMetadata testIdx = IndexMetadata.builder("test")
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+
         // no debug should just short-circuit to no, no matter what kind of no type return the first decider returns
-        final ShardRouting shardRouting = createShardRouting();
+        final ShardRouting shardRouting = createShardRouting(testIdx.getIndex());
         final RoutingNode routingNode = RoutingNodesHelper.routingNode("testNode", null);
-        final ClusterState clusterState = ClusterState.builder(new ClusterName("test")).build();
         final IndexMetadata indexMetadata = IndexMetadata.builder("idx")
             .settings(settings(Version.CURRENT))
             .numberOfShards(1)
             .numberOfReplicas(0)
+            .build();
+        final ClusterState clusterState = ClusterState.builder(new ClusterName("test"))
+            .metadata(Metadata.builder().put(testIdx, false).put(indexMetadata, false).build())
             .build();
 
         final RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, clusterState, null, null, 0L);
@@ -291,13 +323,17 @@ public class AllocationDecidersTests extends ESTestCase {
         );
     }
 
-    private static ShardRouting createShardRouting() {
+    private static ShardRouting createShardRouting(Index index) {
         return ShardRouting.newUnassigned(
-            new ShardId("test", "testUUID", 0),
+            new ShardId(index, 0),
             true,
             RecoverySource.ExistingStoreRecoverySource.INSTANCE,
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "_message")
         );
+    }
+
+    private static ShardRouting createShardRouting() {
+        return createShardRouting(new Index("test", "testUUID"));
     }
 
     private static RoutingAllocation createRoutingAllocation(AllocationDeciders deciders) {

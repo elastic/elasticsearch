@@ -32,7 +32,7 @@ public class UpsertCtxMapTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testSourceWrapping() {
         assertThat((Map<String, Object>) map.get("_source"), hasEntry("foo", "bar"));
-        assertThat(map.getSource(), hasEntry("foo", "bar"));
+        assertEquals("bar", map.getSource().get("foo"));
     }
 
     public void testGetters() {

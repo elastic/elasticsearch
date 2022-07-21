@@ -62,7 +62,11 @@ class IngestDocMetadata extends Metadata {
     }
 
     IngestDocMetadata(Map<String, Object> metadata, ZonedDateTime timestamp) {
-        super(metadata, PROPERTIES);
+        this(metadata, PROPERTIES, timestamp);
+    }
+
+    protected IngestDocMetadata(Map<String, Object> metadata, Map<String, FieldProperty<?>> properties, ZonedDateTime timestamp) {
+        super(metadata, properties);
         this.timestamp = timestamp;
     }
 
@@ -86,5 +90,10 @@ class IngestDocMetadata extends Metadata {
     @Override
     public ZonedDateTime getTimestamp() {
         return timestamp;
+    }
+
+    @Override
+    public IngestDocMetadata clone() {
+        return new IngestDocMetadata(map, properties, timestamp);
     }
 }

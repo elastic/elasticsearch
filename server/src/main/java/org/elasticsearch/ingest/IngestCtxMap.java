@@ -10,11 +10,12 @@ package org.elasticsearch.ingest;
 
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.script.CtxMap;
-import org.elasticsearch.script.Metadata;
+import org.elasticsearch.script.RestrictedMap;
 
 import java.time.ZonedDateTime;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Map containing ingest source and metadata.
@@ -29,7 +30,7 @@ import java.util.Map;
  *
  * The map is expected to be used by processors, server code should the typed getter and setters where possible.
  */
-class IngestCtxMap extends CtxMap {
+class IngestCtxMap extends CtxMap<IngestDocMetadata> {
 
     /**
      * Create an IngestCtxMap with the given metadata, source and default validators
@@ -52,7 +53,7 @@ class IngestCtxMap extends CtxMap {
      * @param source the source document map
      * @param metadata the metadata map
      */
-    IngestCtxMap(Map<String, Object> source, Metadata metadata) {
+    IngestCtxMap(Map<String, Object> source, IngestDocMetadata metadata) {
         super(source, metadata);
     }
 
@@ -75,12 +76,69 @@ class IngestCtxMap extends CtxMap {
 
     @Override
     public Map<String, Object> getSource() {
-        return source;
+        return source.asMap();
     }
 
     @Override
-    protected Map<String, Object> wrapSource(Map<String, Object> source) {
-        // Not wrapped in Ingest
-        return source;
+    protected RestrictedMap wrapSource(Map<String, Object> source) {
+        return new RawSourceMap(source);
+    }
+
+    public static class RawSourceMap implements RestrictedMap {
+        protected Map<String, Object> source;
+
+        RawSourceMap(Map<String, Object> source) {
+            this.source = source;
+        }
+
+        @Override
+        public boolean isAvailable(String key) {
+            return true;
+        }
+
+        @Override
+        public Object put(String key, Object value) {
+            return source;
+        }
+
+        @Override
+        public boolean containsKey(String key) {
+            return source.containsKey(key);
+        }
+
+        @Override
+        public boolean containsValue(Object value) {
+            return source.containsValue(value);
+        }
+
+        @Override
+        public Object get(String key) {
+            return source.get(key);
+        }
+
+        @Override
+        public Object remove(String key) {
+            return source.remove(key);
+        }
+
+        @Override
+        public Set<String> keySet() {
+            return source.keySet();
+        }
+
+        @Override
+        public int size() {
+            return source.size();
+        }
+
+        @Override
+        public RestrictedMap clone() {
+            return new RawSourceMap(new HashMap<>(source));
+        }
+
+        @Override
+        public Map<String, Object> asMap() {
+            return source;
+        }
     }
 }

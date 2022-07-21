@@ -34,7 +34,7 @@ public class UpdateCtxMapTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testSourceWrapping() {
         assertThat((Map<String, Object>) map.get("_source"), hasEntry("foo", "bar"));
-        assertThat(map.getSource(), hasEntry("foo", "bar"));
+        assertEquals("bar", map.getSource().get("foo"));
     }
 
     public void testGetters() {
@@ -95,5 +95,9 @@ public class UpdateCtxMapTests extends ESTestCase {
         assertEquals(4, zdt.getMonthValue());
         assertEquals(26, zdt.getDayOfMonth());
         assertEquals(1992, zdt.getYear());
+    }
+
+    public void testAddingJunkToCtx() {
+        map.put("junk", "stuff");
     }
 }

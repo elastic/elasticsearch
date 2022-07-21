@@ -136,7 +136,8 @@ public class PolicyStepsRegistry {
         }
 
         if (mapDiff.getUpserts().isEmpty() == false) {
-            for (LifecyclePolicyMetadata policyMetadata : mapDiff.getUpserts().values()) {
+            for (var entry : mapDiff.getUpserts()) {
+                LifecyclePolicyMetadata policyMetadata = entry.getValue();
                 LifecyclePolicySecurityClient policyClient = new LifecyclePolicySecurityClient(
                     client,
                     ClientHelper.INDEX_LIFECYCLE_ORIGIN,
@@ -368,9 +369,6 @@ public class PolicyStepsRegistry {
         final Step s = phaseSteps.stream().filter(step -> step.getKey().equals(stepKey)).findFirst().orElse(null);
         if (s != null) {
             cachedSteps.put(indexMetadata.getIndex(), Tuple.tuple(indexMetadata, s));
-            // assert that the cache works as expected -- that is, if we put something into the cache,
-            // we should get back the same thing if we were to invoke getStep again with the same arguments
-            assert s == getCachedStep(indexMetadata, stepKey) : "policy step registry cache failed sanity check";
         }
         return s;
     }

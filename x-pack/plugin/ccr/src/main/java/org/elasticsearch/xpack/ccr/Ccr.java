@@ -390,7 +390,6 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
         Repository.Factory repositoryFactory = (metadata) -> new CcrRepository(
             metadata,
             client,
-            ccrLicenseChecker,
             settings,
             ccrSettings.get(),
             clusterService.getClusterApplierService().threadPool()

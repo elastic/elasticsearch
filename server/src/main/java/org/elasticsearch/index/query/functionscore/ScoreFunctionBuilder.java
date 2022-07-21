@@ -61,7 +61,7 @@ public abstract class ScoreFunctionBuilder<FB extends ScoreFunctionBuilder<FB>> 
         return (FB) this;
     }
 
-    private Float checkWeight(Float weight) {
+    private static Float checkWeight(Float weight) {
         if (weight != null && Float.compare(weight, 0) < 0) {
             throw new IllegalArgumentException("[weight] cannot be negative for a filtering function");
         }

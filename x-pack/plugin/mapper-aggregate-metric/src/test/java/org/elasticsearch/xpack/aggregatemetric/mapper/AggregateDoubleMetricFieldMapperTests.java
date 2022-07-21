@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.aggregatemetric.mapper;
 
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
@@ -21,6 +21,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.aggregatemetric.AggregateMetricMapperPlugin;
 import org.hamcrest.Matchers;
+import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -526,11 +527,10 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
      *  sub-field, we override this method so that testExistsQueryMinimalMapping() passes successfully.
      */
     protected void assertExistsQuery(MappedFieldType fieldType, Query query, LuceneDocument fields) {
-        assertThat(query, Matchers.instanceOf(DocValuesFieldExistsQuery.class));
-        DocValuesFieldExistsQuery fieldExistsQuery = (DocValuesFieldExistsQuery) query;
+        assertThat(query, Matchers.instanceOf(FieldExistsQuery.class));
+        FieldExistsQuery fieldExistsQuery = (FieldExistsQuery) query;
         String defaultMetric = ((AggregateDoubleMetricFieldMapper.AggregateDoubleMetricFieldType) fieldType).getDefaultMetric().name();
         assertEquals("field." + defaultMetric, fieldExistsQuery.getField());
-        assertDocValuesField(fields, "field." + defaultMetric);
         assertNoFieldNamesField(fields);
     }
 
@@ -585,5 +585,15 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
                 containsString("Unknown value [unknown] for field [time_series_metric] - accepted values are [gauge, counter, summary]")
             );
         }
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected IngestScriptSupport ingestScriptSupport() {
+        throw new AssumptionViolatedException("not supported");
     }
 }

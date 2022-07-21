@@ -18,7 +18,6 @@ import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -258,7 +257,7 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
     }
 
     public ProvidedIdFieldMapper(BooleanSupplier fieldDataEnabled) {
-        super(new IdFieldType(fieldDataEnabled), Lucene.KEYWORD_ANALYZER);
+        super(new IdFieldType(fieldDataEnabled));
     }
 
     @Override
@@ -271,7 +270,17 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
     }
 
     @Override
-    public String documentDescription(SourceToParse source) {
-        return "document with id '" + source.id() + "'";
+    public String documentDescription(DocumentParserContext context) {
+        return "document with id '" + context.sourceToParse().id() + "'";
+    }
+
+    @Override
+    public String documentDescription(ParsedDocument parsedDocument) {
+        return "[" + parsedDocument.id() + "]";
+    }
+
+    @Override
+    public String reindexId(String id) {
+        return id;
     }
 }

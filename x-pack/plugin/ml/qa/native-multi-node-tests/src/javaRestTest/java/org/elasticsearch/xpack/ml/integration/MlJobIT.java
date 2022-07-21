@@ -213,7 +213,7 @@ public class MlJobIT extends ESRestTestCase {
                     aliasesResponse,
                     containsString(
                         """
-                            "%s":{"filter":{"term":{"job_id":{"value":"%s","boost":1.0}}},"is_hidden":true}""".formatted(
+                            "%s":{"filter":{"term":{"job_id":{"value":"%s"}}},"is_hidden":true}""".formatted(
                             AnomalyDetectorsIndex.jobResultsAliasedName(jobId1),
                             jobId1
                         )
@@ -225,7 +225,7 @@ public class MlJobIT extends ESRestTestCase {
                     aliasesResponse,
                     containsString(
                         """
-                            "%s":{"filter":{"term":{"job_id":{"value":"%s","boost":1.0}}},"is_hidden":true}""".formatted(
+                            "%s":{"filter":{"term":{"job_id":{"value":"%s"}}},"is_hidden":true}""".formatted(
                             AnomalyDetectorsIndex.jobResultsAliasedName(jobId2),
                             jobId2
                         )
@@ -908,7 +908,7 @@ public class MlJobIT extends ESRestTestCase {
         }
 
         String expectedReadAliasString = """
-            "%s":{"filter":{"term":{"job_id":{"value":"%s","boost":1.0}}},"is_hidden":true}""".formatted(
+            "%s":{"filter":{"term":{"job_id":{"value":"%s"}}},"is_hidden":true}""".formatted(
             AnomalyDetectorsIndex.jobResultsAliasedName(jobId),
             jobId
         );

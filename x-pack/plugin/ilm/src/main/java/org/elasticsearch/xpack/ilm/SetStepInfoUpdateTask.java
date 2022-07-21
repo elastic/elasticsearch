@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ilm;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -21,6 +20,8 @@ import org.elasticsearch.xpack.core.ilm.Step;
 
 import java.io.IOException;
 import java.util.Objects;
+
+import static org.elasticsearch.core.Strings.format;
 
 public class SetStepInfoUpdateTask extends IndexLifecycleClusterStateUpdateTask {
 
@@ -50,8 +51,8 @@ public class SetStepInfoUpdateTask extends IndexLifecycleClusterStateUpdateTask 
             // Index must have been since deleted, ignore it
             return currentState;
         }
-        LifecycleExecutionState indexILMData = idxMeta.getLifecycleExecutionState();
-        if (policy.equals(idxMeta.getLifecyclePolicyName()) && Objects.equals(currentStepKey, Step.getCurrentStepKey(indexILMData))) {
+        LifecycleExecutionState lifecycleState = idxMeta.getLifecycleExecutionState();
+        if (policy.equals(idxMeta.getLifecyclePolicyName()) && Objects.equals(currentStepKey, Step.getCurrentStepKey(lifecycleState))) {
             return IndexLifecycleTransition.addStepInfoToClusterState(index, currentState, stepInfo);
         } else {
             // either the policy has changed or the step is now
@@ -64,12 +65,7 @@ public class SetStepInfoUpdateTask extends IndexLifecycleClusterStateUpdateTask 
     @Override
     public void handleFailure(Exception e) {
         logger.warn(
-            new ParameterizedMessage(
-                "policy [{}] for index [{}] failed trying to set step info for step [{}].",
-                policy,
-                index,
-                currentStepKey
-            ),
+            () -> format("policy [%s] for index [%s] failed trying to set step info for step [%s].", policy, index, currentStepKey),
             e
         );
     }

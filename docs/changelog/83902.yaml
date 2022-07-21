@@ -1,5 +1,0 @@
-pr: 83902
-summary: Extract agg bounds from queries in FILTER
-area: Aggregations
-type: enhancement
-issues: []

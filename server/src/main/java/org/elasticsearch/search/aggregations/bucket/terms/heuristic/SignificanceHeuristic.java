@@ -27,7 +27,7 @@ public abstract class SignificanceHeuristic implements NamedWriteable, ToXConten
      */
     public abstract double getScore(long subsetFreq, long subsetSize, long supersetFreq, long supersetSize);
 
-    protected void checkFrequencyValidity(
+    protected static void checkFrequencyValidity(
         long subsetFreq,
         long subsetSize,
         long supersetFreq,

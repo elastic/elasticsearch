@@ -267,7 +267,7 @@ public class DocValueFormatTests extends ESTestCase {
             zone,
             Resolution.MILLISECONDS
         );
-        long millis = randomNonNegativeLong();
+        long millis = randomLong();
         // Convert to seconds
         millis -= (millis % 1000);
         assertEquals(
@@ -284,7 +284,7 @@ public class DocValueFormatTests extends ESTestCase {
             zone,
             Resolution.MILLISECONDS
         );
-        long millis = randomNonNegativeLong();
+        long millis = randomLong();
         assertEquals(
             "failed formatting for tz " + zone,
             millis,

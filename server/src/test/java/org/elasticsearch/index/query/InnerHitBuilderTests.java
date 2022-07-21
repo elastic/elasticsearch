@@ -159,15 +159,15 @@ public class InnerHitBuilderTests extends ESTestCase {
         FetchSourceContext randomFetchSourceContext;
         int randomInt = randomIntBetween(0, 2);
         if (randomInt == 0) {
-            randomFetchSourceContext = new FetchSourceContext(true, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY);
+            randomFetchSourceContext = FetchSourceContext.FETCH_SOURCE;
         } else if (randomInt == 1) {
-            randomFetchSourceContext = new FetchSourceContext(
+            randomFetchSourceContext = FetchSourceContext.of(
                 true,
                 generateRandomStringArray(12, 16, false),
                 generateRandomStringArray(12, 16, false)
             );
         } else {
-            randomFetchSourceContext = new FetchSourceContext(randomBoolean());
+            randomFetchSourceContext = FetchSourceContext.of(randomBoolean());
         }
         innerHits.setFetchSourceContext(randomFetchSourceContext);
         if (randomBoolean()) {
@@ -229,9 +229,9 @@ public class InnerHitBuilderTests extends ESTestCase {
         modifiers.add(() -> copy.setFetchSourceContext(randomValueOtherThan(copy.getFetchSourceContext(), () -> {
             FetchSourceContext randomFetchSourceContext;
             if (randomBoolean()) {
-                randomFetchSourceContext = new FetchSourceContext(randomBoolean());
+                randomFetchSourceContext = FetchSourceContext.of(randomBoolean());
             } else {
-                randomFetchSourceContext = new FetchSourceContext(
+                randomFetchSourceContext = FetchSourceContext.of(
                     true,
                     generateRandomStringArray(12, 16, false),
                     generateRandomStringArray(12, 16, false)

@@ -25,8 +25,6 @@ import java.util.function.BiFunction;
 
 final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<DfsSearchResult> {
 
-    private final SearchPhaseController searchPhaseController;
-
     private final QueryPhaseResultConsumer queryPhaseResultConsumer;
 
     SearchDfsQueryThenFetchAsyncAction(
@@ -35,7 +33,6 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
         final BiFunction<String, String, Transport.Connection> nodeIdToConnection,
         final Map<String, AliasFilter> aliasFilter,
         final Map<String, Float> concreteIndexBoosts,
-        final SearchPhaseController searchPhaseController,
         final Executor executor,
         final QueryPhaseResultConsumer queryPhaseResultConsumer,
         final SearchRequest request,
@@ -65,7 +62,6 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
             clusters
         );
         this.queryPhaseResultConsumer = queryPhaseResultConsumer;
-        this.searchPhaseController = searchPhaseController;
         SearchProgressListener progressListener = task.getProgressListener();
         if (progressListener != SearchProgressListener.NOOP) {
             notifyListShards(progressListener, clusters, request.source());
@@ -89,13 +85,13 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
     @Override
     protected SearchPhase getNextPhase(final SearchPhaseResults<DfsSearchResult> results, SearchPhaseContext context) {
         final List<DfsSearchResult> dfsSearchResults = results.getAtomicArray().asList();
-        final AggregatedDfs aggregatedDfs = searchPhaseController.aggregateDfs(dfsSearchResults);
+        final AggregatedDfs aggregatedDfs = SearchPhaseController.aggregateDfs(dfsSearchResults);
 
         return new DfsQueryPhase(
             dfsSearchResults,
             aggregatedDfs,
             queryPhaseResultConsumer,
-            (queryResults) -> new FetchSearchPhase(queryResults, searchPhaseController, aggregatedDfs, context),
+            (queryResults) -> new FetchSearchPhase(queryResults, aggregatedDfs, context),
             context
         );
     }

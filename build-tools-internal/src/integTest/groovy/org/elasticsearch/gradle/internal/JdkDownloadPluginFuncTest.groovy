@@ -147,6 +147,7 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
             plugins {
              id 'elasticsearch.jdk-download'
             }
+            import org.elasticsearch.gradle.internal.Jdk
             apply plugin: 'base'
             apply plugin: 'elasticsearch.jdk-download'
 
@@ -158,11 +159,18 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
                 architecture = "x64"
               }
             }
-
-            tasks.register("getJdk") {
+            
+            tasks.register("getJdk", PrintJdk) {
                 dependsOn jdks.myJdk
-                doLast {
-                    println "JDK HOME: " + jdks.myJdk
+                jdkPath = jdks.myJdk.getPath()
+            }
+
+            class PrintJdk extends DefaultTask {
+                @Input
+                String jdkPath
+                
+                @TaskAction void print() {
+                    println "JDK HOME: " + jdkPath
                 }
             }
         """
@@ -206,7 +214,7 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
             final String module = isMac(platform) ? "mac" : platform;
             return "/jdk-" + version + "/" + module + "/${arch}/jdk/hotspot/normal/adoptium";
         } else if (vendor.equals(VENDOR_OPENJDK)) {
-            final String effectivePlatform = isMac(platform) ? "osx" : platform;
+            final String effectivePlatform = isMac(platform) ? "macos" : platform;
             final boolean isOld = version.equals(OPENJDK_VERSION_OLD);
             final String versionPath = isOld ? "jdk1/99" : "jdk12.0.1/123456789123456789123456789abcde/99";
             final String filename = "openjdk-" + (isOld ? "1" : "12.0.1") + "_" + effectivePlatform + "-x64_bin." + extension(platform);
@@ -215,12 +223,19 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
     }
 
     private static byte[] filebytes(final String vendor, final String platform) throws IOException {
-        final String effectivePlatform = isMac(platform) ? "osx" : platform;
+        final String effectivePlatform = getPlatform(vendor, platform);
         if (vendor.equals(VENDOR_ADOPTIUM)) {
             return JdkDownloadPluginFuncTest.class.getResourceAsStream("fake_adoptium_" + effectivePlatform + "." + extension(platform)).getBytes()
         } else if (vendor.equals(VENDOR_OPENJDK)) {
             JdkDownloadPluginFuncTest.class.getResourceAsStream("fake_openjdk_" + effectivePlatform + "." + extension(platform)).getBytes()
         }
+    }
+
+    private static String getPlatform(String vendor, String platform) {
+        if (isMac(platform)) {
+            return vendor.equals(VENDOR_ADOPTIUM) ? "osx" : "macos";
+        }
+        return platform;
     }
 
     private static boolean isMac(String platform) {

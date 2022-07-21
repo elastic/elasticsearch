@@ -24,9 +24,9 @@ PUT /_internal/desired_nodes/<history_id>/<version>
                  "node.attr.data" : "hot",
                  "node.attr.logical_availability_zone" : "zone-0"
             },
-            "processors" : 8,
+            "processors" : 8.0,
             "memory" : "58gb",
-            "storage" : "1700gb",
+            "storage" : "2tb",
             "node_version" : "{version}"
         }
     ]
@@ -77,9 +77,9 @@ PUT /_internal/desired_nodes/Ywkh3INLQcuPT49f6kcppA/100
                  "node.attr.data" : "hot",
                  "node.attr.logical_availability_zone" : "zone-0"
             },
-            "processors" : 8,
+            "processors" : 8.0,
             "memory" : "58gb",
-            "storage" : "1700gb",
+            "storage" : "2tb",
             "node_version" : "{version}"
         }
     ]
@@ -93,6 +93,34 @@ The API returns the following result:
 --------------------------------------------------
 {
   "replaced_existing_history_id": false
+}
+--------------------------------------------------
+
+Additionally, it is possible to specify a processors range.
+This is helpful in environments where Elasticsearch nodes can
+be deployed in hosts where the number of processors that the
+Elasticsearch process can use is guaranteed to be at least the
+lower range and up to the upper range. This is a common scenario
+in Linux deployments where cgroups is used.
+[source,console]
+--------------------------------------------------
+PUT /_internal/desired_nodes/Ywkh3INLQcuPT49f6kcppA/101
+{
+    "nodes" : [
+        {
+            "settings" : {
+                 "node.name" : "instance-000187",
+                 "node.external_id": "instance-000187",
+                 "node.roles" : ["data_hot", "master"],
+                 "node.attr.data" : "hot",
+                 "node.attr.logical_availability_zone" : "zone-0"
+            },
+            "processors_range" : {"min": 8.0, "max": 10.0},
+            "memory" : "58gb",
+            "storage" : "2tb",
+            "node_version" : "{version}"
+        }
+    ]
 }
 --------------------------------------------------
 

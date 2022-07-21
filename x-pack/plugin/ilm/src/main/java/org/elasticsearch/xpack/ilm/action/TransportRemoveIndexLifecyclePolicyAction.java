@@ -11,7 +11,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -62,7 +61,7 @@ public class TransportRemoveIndexLifecyclePolicyAction extends TransportMasterNo
     @Override
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
         final Index[] indices = indexNameExpressionResolver.concreteIndices(state, request.indicesOptions(), true, request.indices());
-        clusterService.submitStateUpdateTask("remove-lifecycle-for-index", new ClusterStateUpdateTask(request.masterNodeTimeout()) {
+        submitUnbatchedTask("remove-lifecycle-for-index", new ClusterStateUpdateTask(request.masterNodeTimeout()) {
 
             private final List<String> failedIndexes = new ArrayList<>();
 
@@ -80,12 +79,12 @@ public class TransportRemoveIndexLifecyclePolicyAction extends TransportMasterNo
             public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 listener.onResponse(new Response(failedIndexes));
             }
-        }, newExecutor());
+        });
     }
 
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
-    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
-        return ClusterStateTaskExecutor.unbatched();
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
 }

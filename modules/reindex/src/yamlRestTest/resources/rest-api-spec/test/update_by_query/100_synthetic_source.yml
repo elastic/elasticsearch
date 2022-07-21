@@ -1,0 +1,58 @@
+update:
+  - do:
+      indices.create:
+        index: synthetic
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              kwd:
+                type: keyword
+
+  - do:
+      bulk:
+        refresh: true
+        index: synthetic
+        body:
+          - '{"index": {}}'
+          - '{"kwd": "aaa", "int": 1}'
+          - '{"index": {}}'
+          - '{"kwd": "bbb", "int": 2}'
+          - '{"index": {}}'
+          - '{"kwd": "ccc", "int": 3}'
+          - '{"index": {}}'
+          - '{"kwd": "ccc", "int": 4}'
+          - '{"index": {}}'
+          - '{"kwd": "aaa", "int": 5}'
+
+  - do:
+      update_by_query:
+        index: synthetic
+        refresh: true
+        body:
+          script:
+            lang: painless
+            source: ctx._source.int += 1
+
+  - do:
+      search:
+        index: synthetic
+        body:
+          size: 0
+          aggs:
+            kwd:
+              terms:
+                field: kwd
+              aggs:
+                sum:
+                  sum:
+                    field: int
+  - match:  {hits.total.value: 5}
+  - length: {aggregations.kwd.buckets: 3}
+  - match:  {aggregations.kwd.buckets.0.key: aaa}
+  - match:  {aggregations.kwd.buckets.0.sum.value: 8}
+  - match:  {aggregations.kwd.buckets.1.key: ccc}
+  - match:  {aggregations.kwd.buckets.1.sum.value: 9}
+  - match:  {aggregations.kwd.buckets.2.key: bbb}
+  - match:  {aggregations.kwd.buckets.2.sum.value: 3}

@@ -47,6 +47,16 @@ public final class H3 {
         return Long.parseUnsignedLong(h3Address, 16);
     }
 
+    /** returns the resolution of the provided H3 cell */
+    public static int getResolution(long h3) {
+        return H3Index.H3_get_resolution(h3);
+    }
+
+    /** returns the resolution of the provided H3 cell in string format */
+    public static int getResolution(String h3Address) {
+        return getResolution(stringToH3(h3Address));
+    }
+
     /** determines if an H3 cell is a pentagon */
     public static boolean isPentagon(long h3) {
         return H3Index.H3_is_pentagon(h3);

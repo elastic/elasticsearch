@@ -28,6 +28,7 @@ import java.nio.file.StandardCopyOption;
 
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class ConfigDatabasesTests extends ESTestCase {
@@ -100,12 +101,15 @@ public class ConfigDatabasesTests extends ESTestCase {
             assertThat(loader.getDatabaseType(), equalTo("GeoLite2-ASN"));
 
             loader = configDatabases.getDatabase("GeoLite2-City.mmdb");
+            assertThat(loader, notNullValue());
             assertThat(loader.getDatabaseType(), equalTo("GeoLite2-City"));
 
             loader = configDatabases.getDatabase("GeoLite2-Country.mmdb");
+            assertThat(loader, notNullValue());
             assertThat(loader.getDatabaseType(), equalTo("GeoLite2-Country"));
 
             loader = configDatabases.getDatabase("GeoIP2-City.mmdb");
+            assertThat(loader, notNullValue());
             assertThat(loader.getDatabaseType(), equalTo("GeoIP2-City"));
         });
     }

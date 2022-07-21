@@ -64,7 +64,7 @@ public class IndicesAccessControl {
         return granted;
     }
 
-    public Collection<?> getDeniedIndices() {
+    public Collection<String> getDeniedIndices() {
         return this.indexPermissions.entrySet()
             .stream()
             .filter(e -> e.getValue().granted == false)

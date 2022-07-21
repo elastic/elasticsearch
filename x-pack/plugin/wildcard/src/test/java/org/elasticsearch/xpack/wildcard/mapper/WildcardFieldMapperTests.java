@@ -23,7 +23,7 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -69,6 +69,7 @@ import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.wildcard.Wildcard;
 import org.elasticsearch.xpack.wildcard.mapper.WildcardFieldMapper.Builder;
+import org.junit.AssumptionViolatedException;
 import org.junit.Before;
 import org.mockito.Mockito;
 
@@ -547,7 +548,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         String superfastRegexes[] = { ".*", "(foo|bar|.*)", "@" };
         for (String regex : superfastRegexes) {
             Query wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(regex, RegExp.ALL, 0, 20000, null, MOCK_CONTEXT);
-            assertTrue(regex + "should have been accelerated", wildcardFieldQuery instanceof DocValuesFieldExistsQuery);
+            assertTrue(regex + "should have been accelerated", wildcardFieldQuery instanceof FieldExistsQuery);
         }
         String matchNoDocsRegexes[] = { "" };
         for (String regex : matchNoDocsRegexes) {
@@ -602,7 +603,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         String suboptimalTests[][] = {
             // TODO short wildcards like a* OR b* aren't great so we just drop them.
             // Ideally we would attach to successors to create (acd OR bcd)
-            { "[ab]cd", "+(+cc_ +c__) +*:*" } };
+            { "[ab]cd", "+cc_ +c__" } };
         for (String[] test : suboptimalTests) {
             String regex = test[0];
             String expectedAccelerationQueryString = test[1].replaceAll("_", "" + WildcardFieldMapper.TOKEN_START_OR_END_CHAR);
@@ -626,7 +627,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             Query wildcardFieldQuery = wildcardFieldType.fieldType().wildcardQuery(pattern, null, MOCK_CONTEXT);
             assertTrue(
                 pattern + " was not a pure match all query " + formatQuery(wildcardFieldQuery),
-                wildcardFieldQuery instanceof DocValuesFieldExistsQuery
+                wildcardFieldQuery instanceof FieldExistsQuery
             );
         }
 
@@ -1203,5 +1204,15 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     @Override
     protected boolean dedupAfterFetch() {
         return true;
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected IngestScriptSupport ingestScriptSupport() {
+        throw new AssumptionViolatedException("not supported");
     }
 }

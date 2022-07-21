@@ -173,10 +173,15 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
 
     @Override
     protected void shardOperation(final UpdateRequest request, final ActionListener<UpdateResponse> listener) {
-        shardOperation(request, listener, 0);
+        try {
+            shardOperation(request, listener, 0);
+        } catch (IOException e) {
+            listener.onFailure(e);
+        }
     }
 
-    protected void shardOperation(final UpdateRequest request, final ActionListener<UpdateResponse> listener, final int retryCount) {
+    protected void shardOperation(final UpdateRequest request, final ActionListener<UpdateResponse> listener, final int retryCount)
+        throws IOException {
         final ShardId shardId = request.getShardId();
         final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         final IndexShard indexShard = indexService.getShard(shardId.getId());

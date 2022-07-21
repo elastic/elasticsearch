@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.GatewayAllocator;
@@ -51,9 +50,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         ClusterSettings.BUILT_IN_CLUSTER_SETTINGS
     );
 
-    public static final SnapshotsInfoService SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES = () -> new SnapshotShardSizeInfo(
-        ImmutableOpenMap.of()
-    ) {
+    public static final SnapshotsInfoService SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES = () -> new SnapshotShardSizeInfo(Map.of()) {
         @Override
         public Long getShardSize(ShardRouting shardRouting) {
             assert shardRouting.recoverySource().getType() == RecoverySource.Type.SNAPSHOT

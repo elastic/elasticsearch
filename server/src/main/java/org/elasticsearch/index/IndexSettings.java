@@ -15,6 +15,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.AbstractScopedSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -347,7 +348,7 @@ public final class IndexSettings {
      **/
     public static final Setting<TimeValue> INDEX_TRANSLOG_RETENTION_AGE_SETTING = Setting.timeSetting(
         "index.translog.retention.age",
-        settings -> TimeValue.MINUS_ONE,
+        TimeValue.MINUS_ONE,
         TimeValue.MINUS_ONE,
         Property.Dynamic,
         Property.IndexScope
@@ -537,15 +538,6 @@ public final class IndexSettings {
         Property.Final
     );
 
-    public static final Setting<TimeValue> LOOK_AHEAD_TIME = Setting.timeSetting(
-        "index.look_ahead_time",
-        TimeValue.timeValueHours(2),
-        TimeValue.timeValueMinutes(1),
-        TimeValue.timeValueDays(7),
-        Property.IndexScope,
-        Property.Final
-    );
-
     private final Index index;
     private final Version version;
     private final Logger logger;
@@ -560,7 +552,7 @@ public final class IndexSettings {
      * The bounds for {@code @timestamp} on this index or
      * {@code null} if there are no bounds.
      */
-    private final TimestampBounds timestampBounds;
+    private volatile TimestampBounds timestampBounds;
 
     // volatile fields are updated via #updateIndexMetadata(IndexMetadata) under lock
     private volatile Settings settings;
@@ -705,7 +697,13 @@ public final class IndexSettings {
         this.indexMetadata = indexMetadata;
         numberOfShards = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, null);
         mode = isTimeSeriesModeEnabled() ? scopedSettings.get(MODE) : IndexMode.STANDARD;
-        this.timestampBounds = mode.getTimestampBound(scopedSettings);
+        this.timestampBounds = mode.getTimestampBound(indexMetadata);
+        if (timestampBounds != null) {
+            scopedSettings.addSettingsUpdateConsumer(
+                IndexSettings.TIME_SERIES_END_TIME,
+                endTime -> { this.timestampBounds = TimestampBounds.updateEndTime(this.timestampBounds, endTime); }
+            );
+        }
         this.searchThrottled = INDEX_SEARCH_THROTTLED.get(settings);
         this.queryStringLenient = QUERY_STRING_LENIENT_SETTING.get(settings);
         this.queryStringAnalyzeWildcard = QUERY_STRING_ANALYZE_WILDCARD.get(nodeSettings);
@@ -983,7 +981,9 @@ public final class IndexSettings {
         if (left.equals(right)) {
             return true;
         }
-        return left.getByPrefix(IndexMetadata.INDEX_SETTING_PREFIX).equals(right.getByPrefix(IndexMetadata.INDEX_SETTING_PREFIX));
+        return left.getByPrefix(IndexMetadata.INDEX_SETTING_PREFIX).equals(right.getByPrefix(IndexMetadata.INDEX_SETTING_PREFIX))
+            && left.getByPrefix(AbstractScopedSettings.ARCHIVED_SETTINGS_PREFIX)
+                .equals(right.getByPrefix(AbstractScopedSettings.ARCHIVED_SETTINGS_PREFIX));
     }
 
     /**

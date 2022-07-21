@@ -82,8 +82,6 @@ public class SystemIndicesQA extends Plugin implements SystemIndexPlugin, Action
                 .setDescription("internal unmanaged system index")
                 .setType(SystemIndexDescriptor.Type.INTERNAL_UNMANAGED)
                 .setOrigin("qa")
-                .setVersionMetaKey("version")
-                .setPrimaryIndex(".internal-unmanaged-index-" + Version.CURRENT.major)
                 .setAliasName(".internal-unmanaged-alias")
                 .build(),
             SystemIndexDescriptor.builder()

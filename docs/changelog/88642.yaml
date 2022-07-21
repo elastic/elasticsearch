@@ -1,5 +1,5 @@
 pr: 88642
-summary: Audit log `metadata` for API key updates
+summary: Include API key metadata in audit log when an API key is created, granted, or updated
 area: Audit
 type: enhancement
 issues: []

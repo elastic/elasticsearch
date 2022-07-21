@@ -81,6 +81,14 @@ public class RemoteClusterServiceTests extends ESTestCase {
         assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(RemoteConnectionStrategy.REMOTE_CONNECTION_MODE));
         assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(SniffConnectionStrategy.REMOTE_CONNECTIONS_PER_CLUSTER));
         assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS));
+        assertTrue(
+            (ClusterSettings.CCX2_FEATURE_FLAG_ENABLED
+                && ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(SniffConnectionStrategy.REMOTE_CLUSTER_OPTIONAL_CREDENTIAL))
+                || (ClusterSettings.CCX2_FEATURE_FLAG_ENABLED == false
+                    && ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(
+                        SniffConnectionStrategy.REMOTE_CLUSTER_OPTIONAL_CREDENTIAL
+                    ) == false)
+        );
         assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(SniffConnectionStrategy.REMOTE_NODE_CONNECTIONS));
         assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(ProxyConnectionStrategy.PROXY_ADDRESS));
         assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(ProxyConnectionStrategy.REMOTE_SOCKET_CONNECTIONS));
@@ -108,6 +116,40 @@ public class RemoteClusterServiceTests extends ESTestCase {
                 .forEach(setting -> setting.get(brokenPortSettings))
         );
         assertEquals("failed to parse port", e.getMessage());
+    }
+
+    public void testRemoteClusterOptionalCredentialSettingValues() {
+        assumeTrue("Skipped test because CCx2 feature flag is not enabled", ClusterSettings.CCX2_FEATURE_FLAG_ENABLED);
+        // simple validation
+        Settings settings = Settings.builder()
+            .put("cluster.remote.foo.optional_credential", "apikey1")
+            .put("cluster.remote.bar.optional_credential", "apikey2")
+            .put("cluster.remote.emptystring.optional_credential", "")
+            .put("cluster.remote.nullstring.optional_credential", (String) null)
+            .build();
+        SniffConnectionStrategy.REMOTE_CLUSTER_OPTIONAL_CREDENTIAL.getAllConcreteSettings(settings)
+            .forEach(setting -> setting.get(settings));
+    }
+
+    public void testRemoteClusterOptionalCredentialSettingDependencies() {
+        assumeTrue("Skipped test because CCx2 feature flag is not enabled", ClusterSettings.CCX2_FEATURE_FLAG_ENABLED);
+        AbstractScopedSettings service = new ClusterSettings(
+            Settings.EMPTY,
+            new HashSet<>(
+                Arrays.asList(SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS, SniffConnectionStrategy.REMOTE_CLUSTER_OPTIONAL_CREDENTIAL)
+            )
+        );
+        {
+            Settings missingDependentSetting = Settings.builder().put("cluster.remote.foo.optional_credential", randomBoolean()).build();
+            IllegalArgumentException iae = expectThrows(
+                IllegalArgumentException.class,
+                () -> service.validate(missingDependentSetting, true)
+            );
+            assertEquals(
+                "missing required setting [cluster.remote.foo.seeds] for setting [cluster.remote.foo.optional_credential]",
+                iae.getMessage()
+            );
+        }
     }
 
     public void testGroupClusterIndices() throws IOException {

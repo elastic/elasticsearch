@@ -8,6 +8,7 @@
 package org.elasticsearch.common.settings;
 
 import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.Build;
 import org.elasticsearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.elasticsearch.action.search.TransportSearchAction;
@@ -126,6 +127,10 @@ import java.util.stream.Stream;
  * Encapsulates all valid cluster level settings.
  */
 public final class ClusterSettings extends AbstractScopedSettings {
+
+    // CCX 2.0 = Cross Cluster Search (CCS) 2.0 || Cross Cluster Replication (CCR) 2.0
+    public static final boolean CCX2_FEATURE_FLAG_ENABLED = Build.CURRENT.isSnapshot()
+        || "true".equals(System.getProperty("es.ccx2_feature_flag_enabled"));
 
     public ClusterSettings(final Settings nodeSettings, final Set<Setting<?>> settingsSet) {
         this(nodeSettings, settingsSet, Collections.emptySet());
@@ -329,6 +334,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         ProxyConnectionStrategy.SERVER_NAME,
         SniffConnectionStrategy.REMOTE_CLUSTERS_PROXY,
         SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS,
+        SniffConnectionStrategy.REMOTE_CLUSTER_OPTIONAL_CREDENTIAL,
         SniffConnectionStrategy.REMOTE_NODE_CONNECTIONS,
         TransportCloseIndexAction.CLUSTER_INDICES_CLOSE_ENABLE_SETTING,
         ShardsLimitAllocationDecider.CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING,
@@ -525,7 +531,13 @@ public final class ClusterSettings extends AbstractScopedSettings {
         MasterHistory.MAX_HISTORY_AGE_SETTING,
         ReadinessService.PORT,
         HealthNode.isEnabled() ? HealthNodeTaskExecutor.ENABLED_SETTING : null
-    ).filter(Objects::nonNull).collect(Collectors.toSet());
+    )
+        .filter(Objects::nonNull)
+        .filter(
+            setting -> ClusterSettings.CCX2_FEATURE_FLAG_ENABLED
+                || setting.equals(SniffConnectionStrategy.REMOTE_CLUSTER_OPTIONAL_CREDENTIAL) == false
+        )
+        .collect(Collectors.toSet());
 
     static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.emptyList();
 

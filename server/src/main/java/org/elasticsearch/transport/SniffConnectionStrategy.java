@@ -23,6 +23,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -62,6 +63,13 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
             parsePort(s);
             return s;
         }, new StrategyValidator<>(ns, key, ConnectionStrategy.SNIFF), Setting.Property.Dynamic, Setting.Property.NodeScope)
+    );
+
+    public static final Setting.AffixSetting<String> REMOTE_CLUSTER_OPTIONAL_CREDENTIAL = Setting.affixKeySetting(
+        "cluster.remote.",
+        "optional_credential",
+        key -> Setting.simpleString(key, v -> {}, Setting.Property.Dynamic, Setting.Property.NodeScope, Setting.Property.Filtered),
+        () -> REMOTE_CLUSTER_SEEDS
     );
 
     /**
@@ -107,13 +115,13 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
             Setting.Property.NodeScope
         )
     );
-
     static final int CHANNELS_PER_CONNECTION = 6;
 
     private static final Predicate<DiscoveryNode> DEFAULT_NODE_PREDICATE = (node) -> Version.CURRENT.isCompatible(node.getVersion())
         && (node.isMasterNode() == false || node.canContainData() || node.isIngestNode());
 
     private final List<String> configuredSeedNodes;
+    private final String configuredOptionalCredential;
     private final List<Supplier<DiscoveryNode>> seedNodes;
     private final int maxNumRemoteConnections;
     private final Predicate<DiscoveryNode> nodePredicate;
@@ -134,7 +142,10 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
             settings,
             REMOTE_NODE_CONNECTIONS.getConcreteSettingForNamespace(clusterAlias).get(settings),
             getNodePredicate(settings),
-            REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace(clusterAlias).get(settings)
+            REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace(clusterAlias).get(settings),
+            ClusterSettings.CCX2_FEATURE_FLAG_ENABLED
+                ? REMOTE_CLUSTER_OPTIONAL_CREDENTIAL.getConcreteSettingForNamespace(clusterAlias).get(settings)
+                : null
         );
     }
 
@@ -146,7 +157,8 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         Settings settings,
         int maxNumRemoteConnections,
         Predicate<DiscoveryNode> nodePredicate,
-        List<String> configuredSeedNodes
+        List<String> configuredSeedNodes,
+        String configuredOptionalCredential
     ) {
         this(
             clusterAlias,
@@ -157,6 +169,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
             maxNumRemoteConnections,
             nodePredicate,
             configuredSeedNodes,
+            configuredOptionalCredential,
             configuredSeedNodes.stream()
                 .map(seedAddress -> (Supplier<DiscoveryNode>) () -> resolveSeedNode(clusterAlias, seedAddress, proxyAddress))
                 .toList()
@@ -172,6 +185,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         int maxNumRemoteConnections,
         Predicate<DiscoveryNode> nodePredicate,
         List<String> configuredSeedNodes,
+        String configuredOptionalCredential,
         List<Supplier<DiscoveryNode>> seedNodes
     ) {
         super(clusterAlias, transportService, connectionManager, settings);
@@ -179,6 +193,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         this.maxNumRemoteConnections = maxNumRemoteConnections;
         this.nodePredicate = nodePredicate;
         this.configuredSeedNodes = configuredSeedNodes;
+        this.configuredOptionalCredential = configuredOptionalCredential;
         this.seedNodes = seedNodes;
     }
 
@@ -200,8 +215,10 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         String proxy = REMOTE_CLUSTERS_PROXY.getConcreteSettingForNamespace(clusterAlias).get(newSettings);
         List<String> addresses = REMOTE_CLUSTER_SEEDS.getConcreteSettingForNamespace(clusterAlias).get(newSettings);
         int nodeConnections = REMOTE_NODE_CONNECTIONS.getConcreteSettingForNamespace(clusterAlias).get(newSettings);
+        String optionalCredential = REMOTE_CLUSTER_OPTIONAL_CREDENTIAL.getConcreteSettingForNamespace(clusterAlias).get(newSettings);
         return nodeConnections != maxNumRemoteConnections
             || seedsChanged(configuredSeedNodes, addresses)
+            || (ClusterSettings.CCX2_FEATURE_FLAG_ENABLED && optionalCredentialChanged(configuredOptionalCredential, optionalCredential))
             || proxyChanged(proxyAddress, proxy);
     }
 
@@ -506,6 +523,14 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
         Set<String> oldSeeds = new HashSet<>(oldSeedNodes);
         Set<String> newSeeds = new HashSet<>(newSeedNodes);
         return oldSeeds.equals(newSeeds) == false;
+    }
+
+    private static boolean optionalCredentialChanged(String oldOptionalCredential, String newOptionalCredential) {
+        if (oldOptionalCredential == null || oldOptionalCredential.isEmpty()) {
+            return (newOptionalCredential == null || newOptionalCredential.isEmpty()) == false;
+        }
+
+        return Objects.equals(oldOptionalCredential, newOptionalCredential) == false;
     }
 
     private static boolean proxyChanged(String oldProxy, String newProxy) {

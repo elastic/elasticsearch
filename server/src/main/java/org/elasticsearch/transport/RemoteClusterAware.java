@@ -112,6 +112,9 @@ public abstract class RemoteClusterAware {
             ProxyConnectionStrategy.REMOTE_SOCKET_CONNECTIONS,
             ProxyConnectionStrategy.SERVER_NAME
         );
+        if (ClusterSettings.CCX2_FEATURE_FLAG_ENABLED) {
+            remoteClusterSettings.add(SniffConnectionStrategy.REMOTE_CLUSTER_OPTIONAL_CREDENTIAL);
+        }
         clusterSettings.addAffixGroupUpdateConsumer(remoteClusterSettings, this::validateAndUpdateRemoteCluster);
     }
 

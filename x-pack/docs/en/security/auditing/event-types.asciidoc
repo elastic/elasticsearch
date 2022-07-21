@@ -228,7 +228,9 @@ event action.
 ["read","maintenance"]},{"names":["in*","alias*"],"privileges":["read"],
 "field_security":{"grant":["field1*","@timestamp"],"except":["field11"]}}],
 "applications":[],"run_as":[]},{"cluster":["all"],"indices":[{"names":
-["index-b*"],"privileges":["all"]}],"applications":[],"run_as":[]}]}}}
+["index-b*"],"privileges":["all"]}],"applications":[],"run_as":[]}],
+"metadata":{"application":"my-application","environment":{"level": 1,
+"tags":["dev","staging"]}}}}}
 ====
 
 [[event-change-apikey]]

@@ -20,9 +20,11 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xcontent.XContentType;
+import static org.elasticsearch.xcontent.XContentType.JSON;
 
+import java.io.BufferedInputStream;
 import java.io.IOException;
+import java.nio.file.ClosedWatchServiceException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardWatchEventKinds;
@@ -49,7 +51,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
     private static final String NAMESPACE = "file_settings";
 
     private final ReservedClusterStateService stateService;
-    private final Environment environment;
+    private final Path operatorSettingsDir;
 
     private WatchService watchService; // null;
     private CountDownLatch watcherThreadLatch;
@@ -74,14 +76,16 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
      */
     public FileSettingsService(ClusterService clusterService, ReservedClusterStateService stateService, Environment environment) {
         this.stateService = stateService;
-        this.environment = environment;
+
+        String dirPath = OPERATOR_DIRECTORY.get(environment.settings());
+        this.operatorSettingsDir = environment.configFile().toAbsolutePath().resolve(dirPath);
+
         clusterService.addListener(this);
     }
 
     // package private for testing
     Path operatorSettingsDir() {
-        String dirPath = OPERATOR_DIRECTORY.get(environment.settings());
-        return environment.configFile().toAbsolutePath().resolve(dirPath);
+        return operatorSettingsDir;
     }
 
     // package private for testing
@@ -156,7 +160,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
 
         Path settingsDir = operatorSettingsDir();
 
-        /**
+        /*
          * We essentially watch for two things:
          *  - the creation of the operator directory (if it doesn't exist), symlink changes to the operator directory
          *  - any changes to files inside the operator directory if it exists, filtering for settings.json
@@ -166,15 +170,15 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
             if (Files.exists(settingsDir)) {
                 Path settingsFilePath = operatorSettingsFile();
                 if (Files.exists(settingsFilePath)) {
-                    logger.info("found initial operator settings file [{}], applying...", settingsFilePath);
+                    logger.debug("found initial operator settings file [{}], applying...", settingsFilePath);
                     // we make a distinction here for startup, so that if we had operator settings before the node started
                     // we would fail startup.
                     processFileSettings(settingsFilePath, onStartup);
                 }
                 enableSettingsWatcher(settingsDir);
             } else {
-                logger.info("operator settings directory [{}] not found, will watch for its creation...", settingsDir);
-                enableSettingsWatcher(environment.configFile());
+                logger.debug("operator settings directory [{}] not found, will watch for its creation...", settingsDir);
+                enableSettingsWatcher(operatorSettingsDir().getParent());
             }
         } catch (Exception e) {
             if (watchService != null) {
@@ -224,18 +228,17 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
                                 processFileSettings(path, false);
                             }
                         } catch (Exception e) {
-                            logger.warn("unable to watch or read operator settings file", e);
+                            logger.warn("error processing operator settings file", e);
                         }
                     } else {
                         key.pollEvents();
                         key.reset();
                     }
                 }
-            } catch (Exception e) {
-                if (logger.isDebugEnabled()) {
-                    logger.debug("encountered exception watching", e);
-                }
+            } catch (ClosedWatchServiceException closedWatchServiceException) {
                 logger.info("shutting down watcher thread");
+            } catch (Exception e) {
+                logger.error("shutting down watcher thread with exception", e);
             } finally {
                 watcherThreadLatch.countDown();
             }
@@ -251,7 +254,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
                     watcherThreadLatch.await();
                 }
             } catch (IOException | InterruptedException e) {
-                logger.info("encountered exception while closing watch service", e);
+                logger.warn("encountered exception while closing watch service", e);
             } finally {
                 watchService = null;
                 logger.info("watcher service stopped");
@@ -270,24 +273,22 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         );
     }
 
-    void processFileSettings(Path path, boolean onStartup) {
+    void processFileSettings(Path path, boolean onStartup) throws IOException {
         logger.info("processing path [{}] for [{}]", path, NAMESPACE);
-        try (
-            XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, Files.newInputStream(path))
-        ) {
-            stateService.process(NAMESPACE, parser, (e) -> {
-                if (e != null) {
-                    // If we encountered an exception trying to apply the operator state at
-                    // startup time, we throw an error to force Elasticsearch to exit.
-                    if (onStartup) {
-                        throw new OperatorConfigurationError("Error applying operator settings", e);
-                    } else {
-                        logger.error("Error processing operator settings json file", e);
+        try (var json = new BufferedInputStream(Files.newInputStream(path))) {
+            try (XContentParser parser = JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {
+                stateService.process(NAMESPACE, parser, (e) -> {
+                    if (e != null) {
+                        // If we encountered an exception trying to apply the operator state at
+                        // startup time, we throw an error to force Elasticsearch to exit.
+                        if (onStartup) {
+                            throw new OperatorConfigurationError("Error applying operator settings", e);
+                        } else {
+                            logger.error("Error processing operator settings json file", e);
+                        }
                     }
-                }
-            });
-        } catch (Exception e) {
-            logger.error("Error processing operator settings json file", e);
+                });
+            }
         }
     }
 

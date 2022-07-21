@@ -943,6 +943,12 @@ public class Node implements Closeable {
                 ? new HealthMetadataService(clusterService, settings)
                 : null;
 
+            FileSettingsService fileSettingsService = new FileSettingsService(
+                clusterService,
+                actionModule.getReservedClusterStateService(),
+                environment
+            );
+
             modules.add(b -> {
                 b.bind(Node.class).toInstance(this);
                 b.bind(NodeService.class).toInstance(nodeService);
@@ -1030,16 +1036,12 @@ public class Node implements Closeable {
                     b.bind(HealthNodeTaskExecutor.class).toInstance(healthNodeTaskExecutor);
                     b.bind(HealthMetadataService.class).toInstance(healthMetadataService);
                 }
+                b.bind(FileSettingsService.class).toInstance(fileSettingsService);
             });
 
             if (ReadinessService.enabled(environment)) {
                 modules.add(b -> b.bind(ReadinessService.class).toInstance(new ReadinessService(clusterService, environment)));
             }
-
-            modules.add(
-                b -> b.bind(FileSettingsService.class)
-                    .toInstance(new FileSettingsService(clusterService, actionModule.getReservedClusterStateService(), environment))
-            );
 
             injector = modules.createInjector();
 

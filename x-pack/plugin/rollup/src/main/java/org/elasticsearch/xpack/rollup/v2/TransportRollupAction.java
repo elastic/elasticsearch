@@ -461,7 +461,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
          * of the first index that we initially rolled up.
          */
         if (IndexMetadata.INDEX_ROLLUP_SOURCE_UUID.exists(sourceIndexMetadata.getSettings()) == false
-            || IndexMetadata.INDEX_ROLLUP_SOURCE_UUID.exists(sourceIndexMetadata.getSettings()) == false) {
+            || IndexMetadata.INDEX_ROLLUP_SOURCE_NAME.exists(sourceIndexMetadata.getSettings()) == false) {
             Index sourceIndex = sourceIndexMetadata.getIndex();
             targetSettings.put(IndexMetadata.INDEX_ROLLUP_SOURCE_NAME.getKey(), sourceIndex.getName())
                 .put(IndexMetadata.INDEX_ROLLUP_SOURCE_UUID.getKey(), sourceIndex.getUUID());

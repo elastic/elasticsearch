@@ -98,21 +98,7 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
         if (errors.isEmpty() == false) {
             // Check if we had previous error metadata with version information, don't spam with cluster state updates, if the
             // version hasn't been updated.
-            logger.error("Error processing state change request for [{}] with the following errors [{}]", namespace, errors);
-            if (existingMetadata != null
-                && existingMetadata.errorMetadata() != null
-                && existingMetadata.errorMetadata().version() >= reservedStateVersion.version()) {
-
-                logger.info(
-                    () -> format(
-                        "Not updating error state because version [%s] is less or equal to the last state error version [%s]",
-                        reservedStateVersion.version(),
-                        existingMetadata.errorMetadata().version()
-                    )
-                );
-
-                return currentState;
-            }
+            logger.debug("Error processing state change request for [{}] with the following errors [{}]", namespace, errors);
 
             errorReporter.accept(
                 new ErrorState(namespace, reservedStateVersion.version(), errors, ReservedStateErrorMetadata.ErrorKind.VALIDATION)

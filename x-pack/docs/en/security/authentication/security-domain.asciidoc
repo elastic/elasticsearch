@@ -125,7 +125,7 @@ When adding realms to a security domain, avoid authenticating with a newly-added
 
 Removing realms from a security domain can lead to unexpected behaviors
 and is not recommended.
-Resources created before the removal can be owned by different users depending on the resource type:
+Resources created or updated before the removal can be owned by different users depending on the resource type:
 
 - <<user-profile,User profiles>> are owned by the user for whom the profile was last
 <<security-api-activate-user-profile,activated>>.

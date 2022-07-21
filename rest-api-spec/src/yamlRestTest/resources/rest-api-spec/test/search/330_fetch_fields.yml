@@ -1068,9 +1068,6 @@ test fetching metadata fields:
 
 ---
 fetch geo_point:
-  - skip:
-      features: close_to
-
   - do:
       indices.create:
         index: test

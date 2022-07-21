@@ -135,7 +135,7 @@ public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPo
         double pivotDouble = DistanceUnit.DEFAULT.parse(pivot, DistanceUnit.DEFAULT);
         return new GeoPointScriptFieldDistanceFeatureQuery(
             script,
-            valuesEncodedAsLong(context),
+            valuesEncodedAsLong(context.lookup(), name(), leafFactory(context)::newInstance),
             name(),
             originGeoPoint.lat(),
             originGeoPoint.lon(),
@@ -143,19 +143,30 @@ public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPo
         );
     }
 
-    private Function<LeafReaderContext, AbstractLongFieldScript> valuesEncodedAsLong(SearchExecutionContext context) {
-        GeoPointFieldScript.LeafFactory leafFactory = leafFactory(context);
+    public static Function<LeafReaderContext, AbstractLongFieldScript> valuesEncodedAsLong(
+        SearchLookup lookup,
+        String name,
+        Function<LeafReaderContext, GeoPointFieldScript> delegateLeafFactory
+    ) {
         return ctx -> {
-            GeoPointFieldScript script = leafFactory.newInstance(ctx);
-            return new AbstractLongFieldScript(name(), Map.of(), context.lookup(), ctx) {
+            GeoPointFieldScript script = delegateLeafFactory.apply(ctx);
+            return new AbstractLongFieldScript(name, Map.of(), lookup, ctx) {
+                private int docId;
+
                 @Override
                 protected void emitFromObject(Object v) {
                     throw new UnsupportedOperationException();
                 }
 
                 @Override
+                public void setDocument(int docID) {
+                    super.setDocument(docID);
+                    this.docId = docID;
+                }
+
+                @Override
                 public void execute() {
-                    script.execute();
+                    script.runForDoc(docId);
                     for (int i = 0; i < script.count(); i++) {
                         int latitudeEncoded = GeoEncodingUtils.encodeLatitude(script.lats()[i]);
                         int longitudeEncoded = GeoEncodingUtils.encodeLongitude(script.lons()[i]);

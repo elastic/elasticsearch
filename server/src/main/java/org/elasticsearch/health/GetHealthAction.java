@@ -28,6 +28,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.Objects;
 
 public class GetHealthAction extends ActionType<GetHealthAction.Response> {
@@ -66,6 +67,13 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
 
         public HealthStatus getStatus() {
             return status;
+        }
+
+        public HealthIndicatorResult findIndicator(String name) {
+            return indicatorResults.stream()
+                .filter(c -> Objects.equals(c.name(), name))
+                .findFirst()
+                .orElseThrow(() -> new NoSuchElementException("Indicator [" + name + "] is not found"));
         }
 
         @Override
@@ -153,7 +161,11 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
         @Override
         protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
             listener.onResponse(
-                new Response(clusterService.getClusterName(), healthService.getHealth(request.indicatorName, request.explain), true)
+                new Response(
+                    clusterService.getClusterName(),
+                    healthService.getHealth(request.indicatorName, request.explain),
+                    request.indicatorName == null
+                )
             );
         }
     }

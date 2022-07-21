@@ -86,17 +86,6 @@ public class RoutingAllocation {
         this(deciders, null, clusterState, clusterInfo, shardSizeInfo, currentNanoTime, false, null);
     }
 
-    public RoutingAllocation(
-        AllocationDeciders deciders,
-        @Nullable RoutingNodes routingNodes,
-        ClusterState clusterState,
-        ClusterInfo clusterInfo,
-        SnapshotShardSizeInfo shardSizeInfo,
-        long currentNanoTime
-    ) {
-        this(deciders, routingNodes, clusterState, clusterInfo, shardSizeInfo, currentNanoTime, false, null);
-    }
-
     /**
      * Creates a new {@link RoutingAllocation}
      * @param deciders {@link AllocationDeciders} to used to make decisions for routing allocations
@@ -373,6 +362,10 @@ public class RoutingAllocation {
      */
     public boolean isSimulating() {
         return isSimulating;
+    }
+
+    public String getReason() {
+        return reason;
     }
 
     public RoutingAllocation immutableClone() {

@@ -254,7 +254,7 @@ public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
             public Long getShardSize(ShardRouting shardRouting) {
                 return shardSize;
             }
-        }, TimeUnit.MILLISECONDS.toNanos(deterministicTaskQueue.getCurrentTimeMillis()));
+        }, TimeUnit.MILLISECONDS.toNanos(deterministicTaskQueue.getCurrentTimeMillis()), null);
     }
 
     private static void allocateAllUnassigned(RoutingAllocation allocation, ExistingShardsAllocator allocator) {

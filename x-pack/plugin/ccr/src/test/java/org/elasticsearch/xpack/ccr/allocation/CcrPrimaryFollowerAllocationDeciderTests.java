@@ -187,7 +187,8 @@ public class CcrPrimaryFollowerAllocationDeciderTests extends ESAllocationTestCa
             clusterState,
             ClusterInfo.EMPTY,
             SnapshotShardSizeInfo.EMPTY,
-            System.nanoTime()
+            System.nanoTime(),
+            null
         );
         routingAllocation.debugDecision(true);
         return decider.canAllocate(shardRouting, RoutingNodesHelper.routingNode(node.getId(), node), routingAllocation);

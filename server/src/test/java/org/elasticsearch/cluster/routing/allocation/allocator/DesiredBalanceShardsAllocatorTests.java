@@ -410,7 +410,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESTestCase {
             createIndexState,
             ClusterInfo.EMPTY,
             SnapshotShardSizeInfo.EMPTY,
-            System.nanoTime()
+            System.nanoTime(),
+            null
         );
 
         desiredBalanceShardsAllocator.allocate(

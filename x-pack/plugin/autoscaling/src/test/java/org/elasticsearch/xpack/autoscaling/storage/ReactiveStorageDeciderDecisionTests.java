@@ -489,7 +489,8 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
             state,
             createClusterInfo(state),
             null,
-            System.nanoTime()
+            System.nanoTime(),
+            null
         );
     }
 

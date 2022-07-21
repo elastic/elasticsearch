@@ -580,7 +580,8 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
             state,
             ClusterInfo.EMPTY,
             SnapshotShardSizeInfo.EMPTY,
-            System.nanoTime()
+            System.nanoTime(),
+            null
         );
     }
 
@@ -624,7 +625,8 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
             state,
             ClusterInfo.EMPTY,
             SnapshotShardSizeInfo.EMPTY,
-            System.nanoTime()
+            System.nanoTime(),
+            null
         );
     }
 

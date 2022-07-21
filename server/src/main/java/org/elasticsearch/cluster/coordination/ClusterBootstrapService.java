@@ -147,6 +147,7 @@ public class ClusterBootstrapService implements Coordinator.PeerFinderListener {
         }
     }
 
+    @Override
     public void onFoundPeersUpdated() {
         final Set<DiscoveryNode> nodes = getDiscoveredNodes();
         if (bootstrappingPermitted.get()

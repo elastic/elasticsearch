@@ -28,7 +28,7 @@ To update an API key, the owner user's credentials are required.
 Use this API to update API keys created by the <<security-api-create-api-key,create API Key>> or <<security-api-grant-api-key,grant API Key>> APIs.
 It's not possible to update expired API keys, or API keys that have been invalidated by <<security-api-invalidate-api-key,invalidate API Key>>.
 
-This API supports updates to an API key's access scope, i.e., its permissions, and its metadata.
+This API supports updates to an API key's access scope and metadata.
 The access scope of an API key is derived from the <<security-api-update-api-key-api-key-role-descriptors,`role_descriptors`>> you specify in the request, and a snapshot of the owner user's permissions at the time of the request.
 The snapshot of the owner's permissions is updated automatically on every call.
 

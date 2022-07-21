@@ -462,7 +462,14 @@ public class TrainedModelAssignmentRebalancerTests extends ESTestCase {
         int numberOfAllocations,
         int threadsPerAllocation
     ) {
-        return new StartTrainedModelDeploymentAction.TaskParams(modelId, modelSize, threadsPerAllocation, numberOfAllocations, 1024);
+        return new StartTrainedModelDeploymentAction.TaskParams(
+            modelId,
+            modelSize,
+            threadsPerAllocation,
+            numberOfAllocations,
+            1024,
+            ByteSizeValue.ofBytes(modelSize)
+        );
     }
 
     private static DiscoveryNode buildNode(String name, long nativeMemory, int allocatedProcessors) {

@@ -152,27 +152,14 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
         // instance
         assert routingNodes.readOnly : "tried to create a mutable copy from a mutable instance";
         this.readOnly = false;
-        this.nodesToShards = Maps.newMapWithExpectedSize(routingNodes.nodesToShards.size());
-        for (Map.Entry<String, RoutingNode> entry : routingNodes.nodesToShards.entrySet()) {
-            this.nodesToShards.put(entry.getKey(), entry.getValue().copy());
-        }
-        this.assignedShards = Maps.newMapWithExpectedSize(routingNodes.assignedShards.size());
-        for (Map.Entry<ShardId, List<ShardRouting>> entry : routingNodes.assignedShards.entrySet()) {
-            this.assignedShards.put(entry.getKey(), new ArrayList<>(entry.getValue()));
-        }
+        this.nodesToShards = Maps.copyOf(routingNodes.nodesToShards, RoutingNode::copy);
+        this.assignedShards = Maps.copyOf(routingNodes.assignedShards, ArrayList::new);
         this.unassignedShards = routingNodes.unassignedShards.copyFor(this);
-
         this.inactivePrimaryCount = routingNodes.inactivePrimaryCount;
         this.inactiveShardCount = routingNodes.inactiveShardCount;
         this.relocatingShards = routingNodes.relocatingShards;
-        this.attributeValuesByAttribute = Maps.newMapWithExpectedSize(routingNodes.attributeValuesByAttribute.size());
-        for (Map.Entry<String, Set<String>> entry : routingNodes.attributeValuesByAttribute.entrySet()) {
-            this.attributeValuesByAttribute.put(entry.getKey(), new HashSet<>(entry.getValue()));
-        }
-        this.recoveriesPerNode = Maps.newMapWithExpectedSize(routingNodes.recoveriesPerNode.size());
-        for (Map.Entry<String, Recoveries> entry : routingNodes.recoveriesPerNode.entrySet()) {
-            this.recoveriesPerNode.put(entry.getKey(), entry.getValue().copy());
-        }
+        this.attributeValuesByAttribute = Maps.copyOf(routingNodes.attributeValuesByAttribute, HashSet::new);
+        this.recoveriesPerNode = Maps.copyOf(routingNodes.recoveriesPerNode, Recoveries::copy);
     }
 
     /**

@@ -33,7 +33,6 @@ junit5-vintage = { group = "org.junit.vintage", name="junit-vintage-engine", ver
 maven-model = "org.apache.maven:maven-model:3.6.2"
 mockito-core = "org.mockito:mockito-core:1.9.5"
 nebula-info = "com.netflix.nebula:gradle-info-plugin:11.3.3"
-randomized-runner = "com.carrotsearch.randomizedtesting:randomizedtesting-runner:2.7.7"
 shadow-plugin = "gradle.plugin.com.github.johnrengelman:shadow:7.1.2"
 spock-core = { group = "org.spockframework", name="spock-core", version.ref="spock" }
 spock-junit4 = { group = "org.spockframework", name="spock-junit4", version.ref="spock" }

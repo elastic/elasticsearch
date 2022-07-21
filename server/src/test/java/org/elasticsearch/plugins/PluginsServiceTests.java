@@ -16,6 +16,8 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.plugins.spi.FooPlugin;
+import org.elasticsearch.plugins.spi.FooTestService;
 import org.elasticsearch.plugins.spi.TestService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.PrivilegedOperations;
@@ -695,6 +697,34 @@ public class PluginsServiceTests extends ESTestCase {
         }
     }
 
+    // The mock node loads plugins in the same class loader, make sure we can find the appropriate
+    // plugin to use in the constructor in that case too
+    public void testLoadServiceProvidersInSameClassLoader() {
+        PluginsService service = newMockPluginsService(List.of(FooPlugin.class, PluginOther.class));
+
+        // There's only one TestService implementation, FooTestService which uses FooPlugin in the constructor.
+        // We should find only one instance of this service when we load with two plugins in the same class loader.
+        @SuppressWarnings("unchecked")
+        List<TestService> testServices = (List<TestService>) service.loadServiceProviders(TestService.class);
+        assertEquals(1, testServices.size());
+
+        var fooPlugin = (FooPlugin) service.plugins().stream().filter(p -> p.instance() instanceof FooPlugin).findAny().get().instance();
+        var othPlugin = (PluginOther) service.plugins()
+            .stream()
+            .filter(p -> p.instance() instanceof PluginOther)
+            .findAny()
+            .get()
+            .instance();
+
+        // We shouldn't find the FooTestService implementation with PluginOther
+        assertEquals(List.of(), MockPluginsService.createExtensions(TestService.class, othPlugin));
+
+        // We should find the FooTestService implementation when we use FooPlugin, because it matches the constructor arg.
+        var providers = MockPluginsService.createExtensions(TestService.class, fooPlugin);
+        assertEquals(1, providers.size());
+        assertTrue(providers.get(0) instanceof FooTestService);
+    }
+
     private static class TestExtensiblePlugin extends Plugin implements ExtensiblePlugin {
         private List<TestExtensionPoint> extensions;
 
@@ -733,5 +763,9 @@ public class PluginsServiceTests extends ESTestCase {
         public ThrowingConstructorExtension() {
             throw new IllegalArgumentException("test constructor failure");
         }
+    }
+
+    public static class PluginOther extends Plugin {
+        public PluginOther() {}
     }
 }

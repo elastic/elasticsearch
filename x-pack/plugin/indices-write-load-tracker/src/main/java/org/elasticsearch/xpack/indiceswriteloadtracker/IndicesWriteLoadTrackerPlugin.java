@@ -64,7 +64,11 @@ public class IndicesWriteLoadTrackerPlugin extends Plugin implements SystemIndex
             xContentRegistry
         );
         registry.initialize();
-        final var indicesWriteLoadStatsCollector = new IndicesWriteLoadStatsCollector(clusterService, System::nanoTime);
+        final var indicesWriteLoadStatsCollector = new IndicesWriteLoadStatsCollector(
+            clusterService,
+            nodeEnvironment.nodeId(),
+            System::nanoTime
+        );
         indicesWriteLoadsStatsCollectorRef.set(indicesWriteLoadStatsCollector);
         final var indicesWriteLoadStatsService = IndicesWriteLoadStatsService.create(
             indicesWriteLoadStatsCollector,

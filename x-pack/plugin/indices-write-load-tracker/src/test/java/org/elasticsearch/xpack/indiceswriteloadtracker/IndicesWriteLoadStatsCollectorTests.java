@@ -63,14 +63,18 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.closeTo;
@@ -80,127 +84,78 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
     public void testRegularIndicesLoadIsNotTracked() throws Exception {
-        final var samplingFrequency = TimeValue.timeValueSeconds(1);
         try (var shardRef = createRegularIndexShard()) {
             final var shard = shardRef.shard();
 
-            final var indicesWriteLoadStatsCollector = new IndicesWriteLoadStatsCollector(
-                mock(ClusterService.class),
-                fakeClock(samplingFrequency)
-            ) {
-                @Override
-                String getParentDataStreamName(String indexName) {
-                    assert false : "unexpected call";
-                    return "";
-                }
-            };
-            indicesWriteLoadStatsCollector.afterIndexShardStarted(shard);
+            final var samplingFrequency = TimeValue.timeValueSeconds(1);
+            final var indicesWriteLoadStatsCollector = createIndicesWriteLoadStatsCollector(shard, samplingFrequency);
 
-            for (int i = 0; i < 10; i++) {
+            for (int i = 0; i < 2; i++) {
                 indexDocs(shard, randomIntBetween(1, 10));
                 indicesWriteLoadStatsCollector.collectWriteLoadStats();
-                assertThat(shard.getTotalIndexingTimeInNanos(), is(greaterThan(0L)));
+                assertThat(shard.getTotalIndexingTimeInNanos(), is(equalTo(0L)));
             }
-            final var shardLoadHistogramSnapshots = indicesWriteLoadStatsCollector.getWriteLoadHistogramSnapshotsAndReset();
-            assertThat(shardLoadHistogramSnapshots, is(empty()));
-        }
-    }
-
-    public void testFsyncIsTracked() throws Exception {
-        final var samplingFrequency = TimeValue.timeValueSeconds(1);
-        try (var shardRef = createDataStreamShard()) {
-            final var shard = shardRef.shard();
-
-            final var clusterService = mock(ClusterService.class);
-            final var clusterState = clusterStateWithShardDataStream(shard);
-            when(clusterService.state()).thenReturn(clusterState);
-            final var indicesWriteLoadStatsCollector = new IndicesWriteLoadStatsCollector(clusterService, fakeClock(samplingFrequency));
-            indicesWriteLoadStatsCollector.afterIndexShardStarted(shard);
-
-            int numberOfProcessors = randomIntBetween(2, 4);
-            final int maxCPUsUsed = randomIntBetween(1, numberOfProcessors);
-            for (int i = 0; i < 60; i++) {
-                if (randomBoolean()) {
-                    // Simulate a few bulk operations running concurrently taking maxCPUsUsed
-                    for (int j = 0; j < maxCPUsUsed; j++) {
-                        int numDocs = randomIntBetween(1, 10);
-                        indexDocs(shard, numDocs);
-                    }
-                } else {
-                    // Otherwise, simulate a few quick indexing ops
-                    indexDocs(shard, randomIntBetween(1, 20));
-                }
-
-                indicesWriteLoadStatsCollector.collectWriteLoadStats();
-            }
-
-            {
-                final var shardLoadHistogramSnapshots = indicesWriteLoadStatsCollector.getWriteLoadHistogramSnapshotsAndReset();
-
-                assertThat(shardLoadHistogramSnapshots, hasSize(1));
-                final var shardWriteLoadHistogramSnapshot = shardLoadHistogramSnapshots.get(0);
-                final var indexingLoadHistogramSnapshot = shardWriteLoadHistogramSnapshot.indexLoadHistogramSnapshot();
-                assertThat(indexingLoadHistogramSnapshot.max(), is(closeTo(maxCPUsUsed, 0.5)));
-                assertThat(indexingLoadHistogramSnapshot.p90(), is(lessThanOrEqualTo(indexingLoadHistogramSnapshot.max())));
-                assertThat(indexingLoadHistogramSnapshot.p50(), is(lessThanOrEqualTo(indexingLoadHistogramSnapshot.p90())));
-            }
-
-            {
-                // We didn't have any readings after the previous reset
-                final var shardLoadHistogramSnapshots = indicesWriteLoadStatsCollector.getWriteLoadHistogramSnapshotsAndReset();
-
-                assertThat(shardLoadHistogramSnapshots, hasSize(1));
-                final var shardWriteLoadHistogramSnapshot = shardLoadHistogramSnapshots.get(0);
-                final var indexingLoadHistogramSnapshot = shardWriteLoadHistogramSnapshot.indexLoadHistogramSnapshot();
-                assertThat(indexingLoadHistogramSnapshot.max(), is(equalTo(0.0)));
-                assertThat(indexingLoadHistogramSnapshot.p90(), is(equalTo(0.0)));
-                assertThat(indexingLoadHistogramSnapshot.p50(), is(equalTo(0.0)));
-            }
+            final var shardWriteLoadHistogramSnapshots = indicesWriteLoadStatsCollector.getWriteLoadHistogramSnapshotsAndReset();
+            assertThat(shardWriteLoadHistogramSnapshots, is(empty()));
         }
     }
 
     public void testIndexingLoadTracking() throws Exception {
-        final var samplingFrequency = TimeValue.timeValueSeconds(1);
-        try (var shardRef = createDataStreamShard()) {
+        final AtomicReference<Runnable> sleepTimePerDocumentToken = new AtomicReference<>(() -> {});
+        // Use a custom analyzer that executes the given runnable
+        // during the analysis phase, this allows simulating long
+        // indexing operations
+        final var analyzer = new SleepingAnalyzer(sleepTimePerDocumentToken);
+
+        try (var shardRef = createDataStreamShardWithAnalyzer(analyzer)) {
             final var shard = shardRef.shard();
 
-            final var clusterService = mock(ClusterService.class);
-            final var clusterState = clusterStateWithShardDataStream(shard);
-            when(clusterService.state()).thenReturn(clusterState);
-            final var indicesWriteLoadStatsCollector = new IndicesWriteLoadStatsCollector(clusterService, fakeClock(samplingFrequency));
-            indicesWriteLoadStatsCollector.afterIndexShardStarted(shard);
+            final var samplingFrequency = TimeValue.timeValueMillis(500);
+            final var indicesWriteLoadStatsCollector = createIndicesWriteLoadStatsCollector(shard, samplingFrequency);
 
             long previousTotalIndexingTimeNanos = 0;
             int numberOfProcessors = randomIntBetween(2, 4);
             final int maxCPUsUsed = randomIntBetween(1, numberOfProcessors);
+
             for (int i = 0; i < 2; i++) {
-                indexDocs(shard, maxCPUsUsed);
+                int samplingFrequencyInMillis = (int) samplingFrequency.millis();
+                int remainingIndexingTime = maxCPUsUsed * (samplingFrequencyInMillis - 40);
+                final List<Integer> indexTime = new ArrayList<>();
+                while (remainingIndexingTime > 0) {
+                    int opTime = randomIntBetween(1, remainingIndexingTime);
+                    indexTime.add(opTime);
+                    remainingIndexingTime -= opTime;
+                }
+
+                final var iter = indexTime.iterator();
+
+                sleepTimePerDocumentToken.set(() -> {
+                    if (iter.hasNext()) {
+                        sleep(iter.next());
+                    }
+                });
+
+                int numDocs = indexTime.size();
+
+                indexDocs(shard, numDocs);
                 indicesWriteLoadStatsCollector.collectWriteLoadStats();
                 final long totalIndexingTimeInNanos = shard.getTotalIndexingTimeInNanos();
                 assertThat(totalIndexingTimeInNanos, is(greaterThan(previousTotalIndexingTimeNanos)));
                 previousTotalIndexingTimeNanos = totalIndexingTimeInNanos;
             }
-            // for (int i = 0; i < 60; i++) {
-            // if (randomBoolean()) {
-            // fakeClock.setTickValue(samplingFrequency);
-            // // Simulate a few bulk operations running concurrently taking maxCPUsUsed
-            // for (int j = 0; j < maxCPUsUsed; j++) {
-            // int numDocs = randomIntBetween(1, 10);
-            // indexDocs(shard, numDocs);
-            // }
-            // } else {
-            // // Otherwise, simulate a few quick indexing ops
-            // fakeClock.setTickValue(TimeValue.timeValueMillis(randomIntBetween(1, 20)));
-            // indexDocs(shard, randomIntBetween(1, 20));
-            // }
-            //
-            // indicesWriteLoadStatsCollector.collectWriteLoadStats();
-            // }
+
+            // Run a few fast operations to bring down the median
+            for (int i = 0; i < 4; i++) {
+                sleepTimePerDocumentToken.set(() -> {});
+                indexDocs(shard, randomIntBetween(10, 30));
+                indicesWriteLoadStatsCollector.collectWriteLoadStats();
+            }
 
             {
                 final var shardLoadHistogramSnapshots = indicesWriteLoadStatsCollector.getWriteLoadHistogramSnapshotsAndReset();
@@ -208,49 +163,101 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
                 assertThat(shardLoadHistogramSnapshots, hasSize(1));
                 final var shardWriteLoadHistogramSnapshot = shardLoadHistogramSnapshots.get(0);
                 final var indexingLoadHistogramSnapshot = shardWriteLoadHistogramSnapshot.indexLoadHistogramSnapshot();
-                assertThat(indexingLoadHistogramSnapshot.max(), is(closeTo(maxCPUsUsed, 0.5)));
-                assertThat(indexingLoadHistogramSnapshot.p90(), is(lessThanOrEqualTo(indexingLoadHistogramSnapshot.max())));
-                assertThat(indexingLoadHistogramSnapshot.p50(), is(lessThanOrEqualTo(indexingLoadHistogramSnapshot.p90())));
+
+                assertMaxIsCloseTo(indexingLoadHistogramSnapshot, maxCPUsUsed, 0.3);
+                assertThat(indexingLoadHistogramSnapshot.p50(), is(closeTo(0.0, 0.1)));
+                // ensure that we never measure more than the number of processors
+                assertThat(indexingLoadHistogramSnapshot.max(), is(lessThanOrEqualTo((double) numberOfProcessors)));
             }
 
             {
                 // We didn't have any readings after the previous reset
+                final var shardLoadHistogramSnapshots = getWriteLoadHistogram(indicesWriteLoadStatsCollector);
+                final var shardWriteLoadHistogramSnapshot = shardLoadHistogramSnapshots.get(shard.shardId().getIndexName());
+                final var indexingLoadHistogramSnapshot = shardWriteLoadHistogramSnapshot.indexLoadHistogramSnapshot();
+
+                assertThat(indexingLoadHistogramSnapshot.max(), is(equalTo(0.0)));
+                assertThat(indexingLoadHistogramSnapshot.p99(), is(equalTo(0.0)));
+                assertThat(indexingLoadHistogramSnapshot.p90(), is(equalTo(0.0)));
+                assertThat(indexingLoadHistogramSnapshot.p50(), is(equalTo(0.0)));
+            }
+        }
+    }
+
+    public void testFsyncIsAccountedInIndexingWriteLoad() throws Exception {
+        final AtomicLong timeToSleepBeforeFsync = new AtomicLong(0);
+        final Runnable runBeforeFsync = () -> sleep(timeToSleepBeforeFsync.get());
+        try (var shardRef = createDataStreamShardWithFSyncNotifier(runBeforeFsync)) {
+            final var shard = shardRef.shard();
+
+            final var samplingFrequency = TimeValue.timeValueMillis(500);
+            final var indicesWriteLoadStatsCollector = createIndicesWriteLoadStatsCollector(shard, samplingFrequency);
+
+            for (int i = 0; i < 5; i++) {
+                indexDocs(shard, randomIntBetween(20, 30));
+                indicesWriteLoadStatsCollector.collectWriteLoadStats();
+            }
+
+            // Ensure that the max write load with fast fsyncs is really low
+            {
                 final var shardLoadHistogramSnapshots = indicesWriteLoadStatsCollector.getWriteLoadHistogramSnapshotsAndReset();
 
                 assertThat(shardLoadHistogramSnapshots, hasSize(1));
                 final var shardWriteLoadHistogramSnapshot = shardLoadHistogramSnapshots.get(0);
                 final var indexingLoadHistogramSnapshot = shardWriteLoadHistogramSnapshot.indexLoadHistogramSnapshot();
-                assertThat(indexingLoadHistogramSnapshot.max(), is(equalTo(0.0)));
-                assertThat(indexingLoadHistogramSnapshot.p90(), is(equalTo(0.0)));
-                assertThat(indexingLoadHistogramSnapshot.p50(), is(equalTo(0.0)));
+
+                assertMaxIsCloseTo(indexingLoadHistogramSnapshot, 0.1, 0.1);
             }
 
-            shard.refresh("test");
+            timeToSleepBeforeFsync.set(samplingFrequency.millis());
 
-            indexDocs(shard, 1);
+            // Run a few bulk operations with a slow fsync that would increase the max cpu usage
+            for (int i = 0; i < 2; i++) {
+                indexDocs(shard, randomIntBetween(1, 20));
+                indicesWriteLoadStatsCollector.collectWriteLoadStats();
+            }
 
-            shard.forceMerge(new ForceMergeRequest().maxNumSegments(1));
+            {
+                final var shardLoadHistogramSnapshots = indicesWriteLoadStatsCollector.getWriteLoadHistogramSnapshotsAndReset();
+
+                assertThat(shardLoadHistogramSnapshots, hasSize(1));
+                final var shardWriteLoadHistogramSnapshot = shardLoadHistogramSnapshots.get(0);
+                final var indexingLoadHistogramSnapshot = shardWriteLoadHistogramSnapshot.indexLoadHistogramSnapshot();
+
+                assertMaxIsCloseTo(indexingLoadHistogramSnapshot, 1, 0.1);
+            }
         }
     }
 
     public void testRefreshLoadTracking() throws Exception {
-        final var samplingFrequency = TimeValue.timeValueSeconds(1);
-        try (var shardRef = createDataStreamShard()) {
+        final AtomicReference<Consumer<String>> runBeforeCreateOutput = new AtomicReference<>((fileName) -> {});
+        final Function<Directory, Directory> directoryWrapper = (directory -> new FilterDirectory(directory) {
+            @Override
+            public IndexOutput createOutput(String name, IOContext context) throws IOException {
+                runBeforeCreateOutput.get().accept(name);
+                return super.createOutput(name, context);
+            }
+        });
+
+        try (var shardRef = createDataStreamShardWithDirectoryWrapper(directoryWrapper)) {
             final var shard = shardRef.shard();
 
-            final var clusterService = mock(ClusterService.class);
-            final var clusterState = clusterStateWithShardDataStream(shard);
-            when(clusterService.state()).thenReturn(clusterState);
-            final var indicesWriteLoadStatsCollector = new IndicesWriteLoadStatsCollector(clusterService, fakeClock(samplingFrequency));
-            indicesWriteLoadStatsCollector.afterIndexShardStarted(shard);
+            final var samplingFrequency = TimeValue.timeValueMillis(500);
+            final var indicesWriteLoadStatsCollector = createIndicesWriteLoadStatsCollector(shard, samplingFrequency);
 
-            indexDocs(shard, 1);
+            final long initialTotalRefreshTime = shard.getTotalRefreshTimeInNanos();
+
+            indexDocs(shard, randomIntBetween(10, 20));
             indicesWriteLoadStatsCollector.collectWriteLoadStats();
 
-            // .put(IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING.getKey(), "1kb")
-
-            SlowDirectory.slow.set(true);
+            runBeforeCreateOutput.set((fileName) -> {
+                if (fileName.endsWith(".si")) {
+                    sleep(samplingFrequency.millis() - 40);
+                }
+            });
             shard.refresh("test");
+
+            assertThat(shard.getTotalRefreshTimeInNanos(), is(greaterThan(initialTotalRefreshTime)));
 
             indicesWriteLoadStatsCollector.collectWriteLoadStats();
 
@@ -259,101 +266,75 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
             assertThat(shardLoadHistograms, hasSize(1));
             final var shardWriteLoadDistribution = shardLoadHistograms.get(0);
 
-            // assertThat(shardWriteLoadDistribution.indexLoadHistogramSnapshot().max(), is(greaterThan(0.0)));
-
-            assertThat(shardWriteLoadDistribution.refreshLoadHistogramSnapshot().max(), is(closeTo(2.0, 0.5)));
-            assertThat(
-                shardWriteLoadDistribution.refreshLoadHistogramSnapshot().p90(),
-                is(lessThanOrEqualTo(shardWriteLoadDistribution.refreshLoadHistogramSnapshot().max()))
-            );
-            assertThat(
-                shardWriteLoadDistribution.refreshLoadHistogramSnapshot().p50(),
-                is(lessThanOrEqualTo(shardWriteLoadDistribution.refreshLoadHistogramSnapshot().p90()))
-            );
+            final HistogramSnapshot refreshLoadHistogramSnapshot = shardWriteLoadDistribution.refreshLoadHistogramSnapshot();
+            assertMaxIsCloseTo(refreshLoadHistogramSnapshot, 1.0, 0.2);
         }
     }
 
     public void testMergeLoadTracking() throws Exception {
-        // fail("configure merges to wait until force merge");
-        final var samplingFrequency = TimeValue.timeValueSeconds(1);
-
-        try (var shardRef = createDataStreamShard(SlowDirectory::new)) {
+        final AtomicReference<Consumer<String>> runBeforeCreateOutput = new AtomicReference<>((fileName) -> {});
+        final Function<Directory, Directory> directoryWrapper = (directory -> new FilterDirectory(directory) {
+            @Override
+            public IndexOutput createOutput(String name, IOContext context) throws IOException {
+                runBeforeCreateOutput.get().accept(name);
+                return super.createOutput(name, context);
+            }
+        });
+        try (var shardRef = createDataStreamShardWithDirectoryWrapper(directoryWrapper)) {
             final var shard = shardRef.shard();
 
-            final var clusterState = clusterStateWithShardDataStream(shard);
-            final var clusterService = mock(ClusterService.class);
-            when(clusterService.state()).thenReturn(clusterState);
-            final var indicesWriteLoadStatsCollector = new IndicesWriteLoadStatsCollector(clusterService, fakeClock(samplingFrequency));
-            indicesWriteLoadStatsCollector.afterIndexShardStarted(shard);
+            final var samplingFrequency = TimeValue.timeValueMillis(500);
+            final var indicesWriteLoadStatsCollector = createIndicesWriteLoadStatsCollector(shard, samplingFrequency);
 
-            for (int i = 0; i < 2; i++) {
-                indexDocs(shard, randomIntBetween(1, 20), false);
+            final int numberOfSegments = randomIntBetween(2, 4);
+            for (int i = 0; i < numberOfSegments; i++) {
+                indexDocs(shard, randomIntBetween(1, 20));
                 shard.refresh("test");
 
                 indicesWriteLoadStatsCollector.collectWriteLoadStats();
             }
             assertThat(shard.getTotalMergeTimeInNanos(), is(equalTo(0L)));
 
-            SlowDirectory.slow.set(true);
+            runBeforeCreateOutput.set(fileName -> {
+                if (fileName.endsWith(".si")) {
+                    sleep(samplingFrequency.millis() - 20);
+                }
+            });
+            shard.forceMerge(new ForceMergeRequest().maxNumSegments(1).flush(false));
 
-            shard.forceMerge(new ForceMergeRequest().maxNumSegments(1));
+            assertThat(shard.getTotalMergeTimeInNanos(), is(greaterThan(0L)));
 
             indicesWriteLoadStatsCollector.collectWriteLoadStats();
-
-            // Now force-merge every second and every force-merge should take 1 second
-
-            // assertThat(shard.getTotalMergeTimeInMillis(), is(equalTo(TimeValue.timeValueSeconds(numTicks).millis())));
 
             final var shardLoadHistograms = indicesWriteLoadStatsCollector.getWriteLoadHistogramSnapshotsAndReset();
 
             assertThat(shardLoadHistograms, hasSize(1));
             final var shardWriteLoadDistribution = shardLoadHistograms.get(0);
 
-            assertThat(shardWriteLoadDistribution.mergeLoadHistogramSnapshot().max(), is(closeTo(2.0, 0.1)));
+            assertThat(shardWriteLoadDistribution.mergeLoadHistogramSnapshot().max(), is(closeTo(1.0, 0.1)));
         }
     }
 
     public void testDeleteTimeIsTracked() throws Exception {
-        final var samplingFrequency = TimeValue.timeValueSeconds(1);
         try (var shardRef = createDataStreamShard()) {
             final var shard = shardRef.shard();
 
-            final var clusterState = clusterStateWithShardDataStream(shard);
-            final var clusterService = mock(ClusterService.class);
-            when(clusterService.state()).thenReturn(clusterState);
-            final var indicesWriteLoadStatsCollector = new IndicesWriteLoadStatsCollector(clusterService, fakeClock(samplingFrequency));
-            indicesWriteLoadStatsCollector.afterIndexShardStarted(shard);
+            final var docIds = indexDocs(shard, 1000);
 
-            final var docIds = indexDocs(shard, 500, false);
-
-            indicesWriteLoadStatsCollector.collectWriteLoadStats();
-
-            indicesWriteLoadStatsCollector.getWriteLoadHistogramSnapshotsAndReset();
+            final long totalIndexingTimeBeforeDeleteDocs = shard.getTotalIndexingTimeInNanos();
 
             deleteDocs(shard, docIds);
 
-            indicesWriteLoadStatsCollector.collectWriteLoadStats();
-
-            final var shardLoadHistograms = indicesWriteLoadStatsCollector.getWriteLoadHistogramSnapshotsAndReset();
-
-            assertThat(shardLoadHistograms, hasSize(1));
-            final var shardWriteLoadDistribution = shardLoadHistograms.get(0);
-
-            double max = shardWriteLoadDistribution.indexLoadHistogramSnapshot().max();
-            assertThat(max, is(greaterThan(0.0)));
+            assertThat(shard.getTotalIndexingTimeInNanos(), is(greaterThan(totalIndexingTimeBeforeDeleteDocs)));
         }
     }
 
     public void testShardLoadDistributionInfoIsClearedAfterDeletion() throws Exception {
-        final var samplingFrequency = TimeValue.timeValueSeconds(1);
         try (var shardRef = createDataStreamShard()) {
             final var shard = shardRef.shard();
 
-            final var clusterState = clusterStateWithShardDataStream(shard);
-            final var clusterService = mock(ClusterService.class);
-            when(clusterService.state()).thenReturn(clusterState);
-            final var indicesWriteLoadStatsCollector = new IndicesWriteLoadStatsCollector(clusterService, fakeClock(samplingFrequency));
-            indicesWriteLoadStatsCollector.afterIndexShardStarted(shard);
+            final var samplingFrequency = TimeValue.timeValueSeconds(1);
+            final var indicesWriteLoadStatsCollector = createIndicesWriteLoadStatsCollector(shard, samplingFrequency);
 
             for (int i = 0; i < 60; i++) {
                 indexDocs(shard, randomIntBetween(1, 20));
@@ -384,7 +365,6 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
             final var rolledOverShard = rolledOverDataStreamShardRef.shard();
             final var rolledOverIndex = rolledOverShard.shardId().getIndex();
 
-            final AtomicReference<List<IndexShard>> shardsProvider = new AtomicReference<>(List.of(firstDataStreamShard));
             final var clusterService = mock(ClusterService.class);
             final var clusterState = ClusterState.builder(new ClusterName("cluster"))
                 .metadata(
@@ -403,7 +383,11 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
                 .build();
             when(clusterService.state()).thenReturn(clusterState);
 
-            final var indicesWriteLoadStatsCollector = new IndicesWriteLoadStatsCollector(clusterService, fakeClock(samplingFrequency));
+            final var indicesWriteLoadStatsCollector = new IndicesWriteLoadStatsCollector(
+                clusterService,
+                "nodeId",
+                fakeClock(samplingFrequency)
+            );
             indicesWriteLoadStatsCollector.afterIndexShardStarted(firstDataStreamShard);
 
             for (int i = 0; i < 60; i++) {
@@ -449,38 +433,159 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
                 indicesWriteLoadStatsCollector.collectWriteLoadStats();
             }
 
-            final var writeLoadHistogramAfterRollOver = indicesWriteLoadStatsCollector.getWriteLoadHistogramSnapshotsAndReset();
-            assertThat(writeLoadHistogramAfterRollOver, hasSize(2));
-            assertThat(
-                writeLoadHistogramAfterRollOver.stream().anyMatch(s -> s.shardId().getIndex().equals(firstDataStreamIndex)),
-                is(true)
-            );
-            assertThat(writeLoadHistogramAfterRollOver.stream().anyMatch(s -> s.shardId().getIndex().equals(rolledOverIndex)), is(true));
+            final Map<String, ShardWriteLoadHistogramSnapshot> writeLoadHistogramAfterRollOver = indicesWriteLoadStatsCollector
+                .getWriteLoadHistogramSnapshotsAndReset()
+                .stream()
+                .collect(Collectors.toMap(histogramSnapshot -> histogramSnapshot.shardId().getIndexName(), Function.identity()));
 
-            final var writeLoadAfterRolloverCleanup = indicesWriteLoadStatsCollector.getWriteLoadHistogramSnapshotsAndReset();
-            assertThat(writeLoadAfterRolloverCleanup, hasSize(1));
-            final var shardWriteLoadHistogramAfterRollover = writeLoadAfterRolloverCleanup.get(0);
-            assertThat(shardWriteLoadHistogramAfterRollover.shardId(), is(equalTo(rolledOverShard.shardId())));
+            assertThat(writeLoadHistogramAfterRollOver.entrySet(), hasSize(2));
+            assertThat(writeLoadHistogramAfterRollOver.get(firstDataStreamIndex.getName()), is(notNullValue()));
+            assertThat(writeLoadHistogramAfterRollOver.get(rolledOverIndex.getName()), is(notNullValue()));
+
+            final Map<String, ShardWriteLoadHistogramSnapshot> writeLoadAfterRolloverCleanup = indicesWriteLoadStatsCollector
+                .getWriteLoadHistogramSnapshotsAndReset()
+                .stream()
+                .collect(Collectors.toMap(histogramSnapshot -> histogramSnapshot.shardId().getIndexName(), Function.identity()));
+
+            assertThat(writeLoadAfterRolloverCleanup.entrySet(), hasSize(1));
+
+            final ShardWriteLoadHistogramSnapshot rolledOverIndexHistogram = writeLoadHistogramAfterRollOver.get(rolledOverIndex.getName());
+            assertThat(rolledOverIndexHistogram, is(notNullValue()));
+            assertThat(rolledOverIndexHistogram.shardId(), is(equalTo(rolledOverShard.shardId())));
         }
     }
 
-    private ClusterState clusterStateWithShardDataStream(IndexShard shard) {
-        final var index = shard.shardId().getIndex();
-        return ClusterState.builder(new ClusterName("cluster"))
-            .metadata(
-                Metadata.builder()
-                    .put(getDataStream(index))
-                    .put(
-                        IndexMetadata.builder(index.getName())
-                            .settings(settings(Version.CURRENT))
-                            .numberOfShards(1)
-                            .numberOfReplicas(0)
-                            .build(),
-                        false
-                    )
-                    .build()
-            )
-            .build();
+    public void testWriteLoadIsAggregatedAtNodeLevel() throws Exception {
+        final AtomicReference<Runnable> sleepTimePerDocumentToken = new AtomicReference<>(() -> {});
+        // Use a custom analyzer that executes the given runnable
+        // during the analysis phase, this allows simulating long
+        // indexing operations
+        final var analyzer = new SleepingAnalyzer(sleepTimePerDocumentToken);
+
+        try (var shard1Ref = createDataStreamShardWithAnalyzer(analyzer); var shard2Ref = createDataStreamShardWithAnalyzer(analyzer)) {
+            final var shard1 = shard1Ref.shard();
+            final var index1 = shard1.shardId().getIndex();
+
+            final var shard2 = shard2Ref.shard();
+            final var index2 = shard2.shardId().getIndex();
+
+            final var clusterService = mock(ClusterService.class);
+            final var clusterState = ClusterState.builder(new ClusterName("cluster"))
+                .metadata(
+                    Metadata.builder()
+                        .put(getDataStream(index1))
+                        .put(getDataStream(index2))
+                        .put(
+                            IndexMetadata.builder(index1.getName())
+                                .settings(settings(Version.CURRENT))
+                                .numberOfShards(1)
+                                .numberOfReplicas(0)
+                                .build(),
+                            false
+                        )
+                        .put(
+                            IndexMetadata.builder(index2.getName())
+                                .settings(settings(Version.CURRENT))
+                                .numberOfShards(1)
+                                .numberOfReplicas(0)
+                                .build(),
+                            false
+                        )
+                        .build()
+                )
+                .build();
+            when(clusterService.state()).thenReturn(clusterState);
+
+            final var samplingFrequency = TimeValue.timeValueMillis(500);
+            final var indicesWriteLoadStatsCollector = new IndicesWriteLoadStatsCollector(
+                clusterService,
+                "nodeId",
+                fakeClock(samplingFrequency)
+            );
+            indicesWriteLoadStatsCollector.afterIndexShardStarted(shard1);
+            indicesWriteLoadStatsCollector.afterIndexShardStarted(shard2);
+
+            sleepTimePerDocumentToken.set(() -> sleep(10));
+
+            for (int i = 0; i < 2; i++) {
+                indexDocs(shard1, randomIntBetween(10, 20));
+                indexDocs(shard2, randomIntBetween(10, 20));
+                indicesWriteLoadStatsCollector.collectWriteLoadStats();
+            }
+
+            final var indicesWriteLoadHistogramSnapshots = indicesWriteLoadStatsCollector.getWriteLoadHistogramSnapshotsAndReset();
+            final var totalMaxIndexingWriteLoad = indicesWriteLoadHistogramSnapshots.stream()
+                .mapToDouble(writeLoad -> writeLoad.indexLoadHistogramSnapshot().max())
+                .sum();
+            assertThat(totalMaxIndexingWriteLoad, is(greaterThan(0.0)));
+            final var nodeWriteLoadHistogramSnapshot = indicesWriteLoadStatsCollector.getNodeWriteLoadHistogramSnapshotAndReset();
+
+            assertThat(nodeWriteLoadHistogramSnapshot.indexLoadHistogramSnapshot().max(), is(closeTo(totalMaxIndexingWriteLoad, 0.1)));
+        }
+    }
+
+    public void testLongRunningOperation() throws Exception {
+        final AtomicReference<Runnable> sleepTimePerDocumentToken = new AtomicReference<>(() -> {});
+        // Use a custom analyzer that executes the given runnable
+        // during the analysis phase, this allows simulating long
+        // indexing operations
+        final var analyzer = new SleepingAnalyzer(sleepTimePerDocumentToken);
+        try (var shardRef = createDataStreamShardWithAnalyzer(analyzer)) {
+            var shard = shardRef.shard();
+
+            final var samplingFrequency = TimeValue.timeValueMillis(100);
+            final var indicesWriteLoadStatsCollector = createIndicesWriteLoadStatsCollector(shard, samplingFrequency);
+
+            sleepTimePerDocumentToken.set(() -> sleep(500));
+
+            final AtomicBoolean run = new AtomicBoolean(true);
+
+            final var samplingThread = new Thread(() -> {
+                while (run.get()) {
+                    indicesWriteLoadStatsCollector.collectWriteLoadStats();
+                    sleep(95);
+                }
+            });
+
+            samplingThread.start();
+            indexDocs(shard, 1);
+            run.set(false);
+            samplingThread.join();
+
+            final var nodeWriteLoadHistogramSnapshot = indicesWriteLoadStatsCollector.getNodeWriteLoadHistogramSnapshotAndReset();
+            assertThat(nodeWriteLoadHistogramSnapshot.indexLoadHistogramSnapshot().max(), is(closeTo(1.0, 0.1)));
+        }
+    }
+
+    private Map<String, ShardWriteLoadHistogramSnapshot> getWriteLoadHistogram(IndicesWriteLoadStatsCollector collector) {
+        return collector.getWriteLoadHistogramSnapshotsAndReset()
+            .stream()
+            .collect(Collectors.toMap(histogram -> histogram.shardId().getIndexName(), Function.identity()));
+    }
+
+    private void assertMaxIsCloseTo(HistogramSnapshot histogramSnapshot, double expected, double error) {
+        assertThat(histogramSnapshot.max(), is(closeTo(expected, error)));
+        assertThat(histogramSnapshot.p99(), is(lessThanOrEqualTo(histogramSnapshot.max())));
+        assertThat(histogramSnapshot.p90(), is(lessThanOrEqualTo(histogramSnapshot.p99())));
+        assertThat(histogramSnapshot.p50(), is(lessThanOrEqualTo(histogramSnapshot.p90())));
+    }
+
+    private IndicesWriteLoadStatsCollector createIndicesWriteLoadStatsCollector(IndexShard shard, TimeValue samplingFrequency) {
+        final var clusterService = getClusterServiceWithClusterStateIncludingShard(shard);
+        final var indicesWriteLoadStatsCollector = new IndicesWriteLoadStatsCollector(
+            clusterService,
+            "nodeId",
+            fakeClock(samplingFrequency)
+        );
+        indicesWriteLoadStatsCollector.afterIndexShardStarted(shard);
+        return indicesWriteLoadStatsCollector;
+    }
+
+    private ClusterService getClusterServiceWithClusterStateIncludingShard(IndexShard shard) {
+        final var clusterService = mock(ClusterService.class);
+        final var clusterState = clusterStateWithShardIndex(shard);
+        when(clusterService.state()).thenReturn(clusterState);
+        return clusterService;
     }
 
     private DataStream getDataStream(Index... indices) {
@@ -497,6 +602,21 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
         );
     }
 
+    private ClusterState clusterStateWithShardIndex(IndexShard shard) {
+        final var index = shard.shardId().getIndex();
+        final Metadata.Builder metadata = Metadata.builder()
+            .put(
+                IndexMetadata.builder(index.getName()).settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0).build(),
+                false
+            );
+
+        if (shard.isDataStreamIndex()) {
+            metadata.put(getDataStream(index));
+        }
+
+        return ClusterState.builder(new ClusterName("cluster")).metadata(metadata).build();
+    }
+
     record ShardRef(IndexShard shard) implements AutoCloseable {
         @Override
         public void close() throws IOException {
@@ -505,15 +625,23 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
     }
 
     private ShardRef createDataStreamShard() throws Exception {
-        return createShard(true, new SleepingAnalyzer(), () -> {}, d -> d);
+        return createShard(true, null, () -> {}, Function.identity());
     }
 
-    private ShardRef createDataStreamShard(Function<Directory, Directory> directoryWrapper) throws Exception {
+    private ShardRef createDataStreamShardWithAnalyzer(Analyzer analyzer) throws Exception {
+        return createShard(true, analyzer, () -> {}, Function.identity());
+    }
+
+    private ShardRef createDataStreamShardWithFSyncNotifier(Runnable fsync) throws Exception {
+        return createShard(true, null, fsync, Function.identity());
+    }
+
+    private ShardRef createDataStreamShardWithDirectoryWrapper(Function<Directory, Directory> directoryWrapper) throws Exception {
         return createShard(true, null, () -> {}, directoryWrapper);
     }
 
     private ShardRef createRegularIndexShard() throws Exception {
-        return createShard(false, new SleepingAnalyzer(), () -> {}, d -> d);
+        return createShard(false, null, () -> {}, Function.identity());
     }
 
     private ShardRef createShard(
@@ -633,27 +761,21 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
         return new ShardRef(shard);
     }
 
-    static class SlowDirectory extends FilterDirectory {
-        SlowDirectory(Directory in) {
-            super(in);
-        }
-
-        static final AtomicBoolean slow = new AtomicBoolean();
-
-        @Override
-        public IndexOutput createOutput(String name, IOContext context) throws IOException {
-            if (slow.compareAndSet(true, false)) {
-                try {
-                    Thread.sleep(2000);
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                }
-            }
-            return super.createOutput(name, context);
+    private static void sleep(long time) {
+        try {
+            Thread.sleep(time);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
         }
     }
 
     static class SleepingAnalyzer extends Analyzer {
+        private final AtomicReference<Runnable> perTokenOp;
+
+        SleepingAnalyzer(AtomicReference<Runnable> perTokenOp) {
+            this.perTokenOp = perTokenOp;
+        }
+
         @Override
         protected TokenStreamComponents createComponents(String fieldName) {
             Tokenizer tokenizer = new StandardTokenizer();
@@ -663,12 +785,7 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
                     boolean hasMoreTokens = input.incrementToken();
 
                     if (hasMoreTokens) {
-                        try {
-                            Thread.sleep(1000);
-                        } catch (InterruptedException e) {
-                            Thread.currentThread().interrupt();
-                            throw new AssertionError(e);
-                        }
+                        perTokenOp.get().run();
                     }
 
                     return hasMoreTokens;
@@ -679,13 +796,9 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
     }
 
     private List<String> indexDocs(IndexShard shard, int numDocs) throws Exception {
-        return indexDocs(shard, numDocs, true);
-    }
-
-    private List<String> indexDocs(IndexShard shard, int numDocs, boolean slowIndexing) throws Exception {
         BulkItemRequest[] bulkItemRequests = new BulkItemRequest[numDocs];
         for (int i = 0; i < numDocs; i++) {
-            String source = slowIndexing ? "{\"@timestamp\": \"2020-12-12\", \"test\": \"test\"}" : "{\"@timestamp\": \"2020-12-12\"}";
+            String source = "{\"@timestamp\": \"2020-12-12\", \"test\": \"test\"}";
             bulkItemRequests[i] = new BulkItemRequest(
                 i,
                 new IndexRequest(shard.shardId().getIndexName()).source(source, XContentType.JSON).id(UUIDs.randomBase64UUID())

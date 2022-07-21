@@ -32,11 +32,10 @@ class IndicesWriteLoadStatsCollector implements IndexEventListener {
     private final ConcurrentMap<ShardId, ShardWriteLoadHistogram> histograms = ConcurrentCollections.newConcurrentMap();
     private final NodeWriteLoadHistogram nodeWriteLoadHistogram;
 
-    IndicesWriteLoadStatsCollector(ClusterService clusterService, LongSupplier relativeTimeInNanosSupplier) {
+    IndicesWriteLoadStatsCollector(ClusterService clusterService, String nodeId, LongSupplier relativeTimeInNanosSupplier) {
         this.clusterService = clusterService;
         this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
-        // TODO: Provide node id
-        this.nodeWriteLoadHistogram = new NodeWriteLoadHistogram("fakeId");
+        this.nodeWriteLoadHistogram = new NodeWriteLoadHistogram(nodeId);
     }
 
     void collectWriteLoadStats() {
@@ -56,7 +55,7 @@ class IndicesWriteLoadStatsCollector implements IndexEventListener {
     }
 
     @Nullable
-    String getParentDataStreamName(String indexName) {
+    private String getParentDataStreamName(String indexName) {
         IndexAbstraction indexAbstraction = clusterService.state().getMetadata().getIndicesLookup().get(indexName);
         IndexAbstraction.DataStream parentDataStream = indexAbstraction.getParentDataStream();
         return parentDataStream != null ? parentDataStream.getName() : null;

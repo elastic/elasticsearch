@@ -26,6 +26,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -59,6 +60,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
 import java.util.function.LongSupplier;
+import java.util.stream.Collectors;
 
 import static java.lang.Math.max;
 import static java.lang.Math.min;
@@ -845,15 +847,42 @@ public abstract class AbstractAsyncBulkByScrollAction<
                 return request;
             }
 
-            CtxMap<T> ctxMap = execute(doc, request.getSource());
+            Map<String, Object> source = Maps.newHashMapWithExpectedSize(1);
+            source.put("_source", request.getSource());
+
+            CtxMap<T> ctxMap = execute(doc, source);
 
             T metadata = ctxMap.getMetadata();
 
-            request.setSource(ctxMap.getSource());
+            request.setSource(extractSource(ctxMap.getSourceWrapper()));
 
             updateRequest(request, metadata);
 
             return requestFromOp(request, metadata.getOp());
+        }
+
+        @SuppressWarnings("unchecked")
+        protected Map<String, Object> extractSource(Map<String, Object> sourceWrapper) {
+            Object rawSource = sourceWrapper.get("_source");
+            if (rawSource == null) {
+                throw new IllegalStateException("missing source");
+            } else if (sourceWrapper.size() > 1) {
+                throw new IllegalStateException(
+                    "unexpected top level keys ["
+                        + sourceWrapper.keySet()
+                            .stream()
+                            .filter(k -> "_source".equals(k) == false)
+                            .sorted()
+                            .collect(Collectors.joining(", "))
+                        + "]"
+                );
+            }
+            if (rawSource instanceof Map<?, ?> source) {
+                return (Map<String, Object>) source;
+            }
+            throw new IllegalStateException(
+                "unexpected type for _source [" + rawSource + "] expected Map, but got [" + rawSource.getClass().getName() + "]"
+            );
         }
 
         protected RequestWrapper<?> requestFromOp(RequestWrapper<?> request, String op) {

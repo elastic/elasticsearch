@@ -69,6 +69,13 @@ public class CtxMap<T extends Metadata> extends AbstractMap<String, Object> {
     }
 
     /**
+     * Get the wrapper around source
+     */
+    public Map<String, Object> getSourceWrapper() {
+        return source;
+    }
+
+    /**
      * get the metadata map, if externally modified then the guarantees of this class are not enforced
      */
     public T getMetadata() {

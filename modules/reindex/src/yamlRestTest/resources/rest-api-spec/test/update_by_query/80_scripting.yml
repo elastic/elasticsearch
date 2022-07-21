@@ -160,7 +160,7 @@
       indices.refresh: {}
 
   - do:
-      catch: /Modifying \[_id\] not allowed/
+      catch: /_id cannot be updated/
       update_by_query:
         index: twitter
         body:

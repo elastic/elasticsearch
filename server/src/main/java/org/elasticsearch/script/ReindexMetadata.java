@@ -17,7 +17,7 @@ import java.util.Set;
 
 /**
  * Metadata for the {@link ReindexScript} context.
- * _index, _id, _version, _routing are all read-write and nullable.
+ * _index, _id, _version, _routing are all read-write.  _id, _version and _routing are also nullable.
  * _now is millis since epoch and read-only
  * op is read-write one of 'index', 'noop', 'delete'
  *
@@ -31,9 +31,9 @@ public class ReindexMetadata extends Metadata {
     private static final Metadata.FieldProperty<String> WritableStringField = StringField.withWritable();
     static final Map<String, FieldProperty<?>> PROPERTIES = Map.of(
         INDEX,
-        WritableStringField,
+        AnyField.withWritable(),
         ID,
-        WritableStringField.withNullable(),
+        AnyField.withWritable().withNullable(),
         VERSION,
         LongField.withWritable().withNullable(),
         ROUTING,

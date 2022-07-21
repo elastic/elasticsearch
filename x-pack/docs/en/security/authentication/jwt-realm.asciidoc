@@ -12,7 +12,11 @@ between the _client_ that is connecting to {es}, and the _user_ on whose behalf
 the request should run. The JWT identifies the user, and a separate credential
 is used to authenticate the client.
 
-A common scenario that uses JWTs is when an existing front-end application uses
+TIP: If JWTs are issued for the client, then the client is the JWT user.
+To identify a different user, use the `es-security-runas-user` header.
+See <<jwt-realm-runas>>.
+
+A common scenario for JWTs is when an existing front-end application uses
 OpenID Connect (OIDC) as an authentication method, and then accesses {es}
 on behalf of the authenticated user.
 
@@ -27,7 +31,7 @@ _ID token_, which uses the JWT format. If the ID token is presented to a JWT
 realm, {es} can use it to authenticate, identify, and authorize an individual
 user.
 
-NOTE: Because JWTs are external to {es}, you can define a custom workflow
+NOTE: Because JWTs are obtained external to {es}, you can define a custom workflow
 instead of using the OIDC workflow. However, the JWT format must still be JSON
 Web Signature (JWS). The JWS header and JWS signature are validated using OIDC
 ID token validation rules.
@@ -196,6 +200,10 @@ NOTE: You can relax validation of any of the time-based claims by setting
 validating JWTs with respect to their authentication time (`auth_time`),
 creation (`iat`), not before (`nbf`), and expiration times (`exp`).
 
+`iss`::
+(Required, String) Denotes the issuer that created the ID token. The value must
+be an exact, case-sensitive match to the value in the `allowed_issuer` setting.
+
 `aud`::
 (Required, String) Indicates the audiences that the ID token is for, expressed as a
 comma-separated value (CSV). One of the values must be an exact, case-sensitive
@@ -208,10 +216,6 @@ milliseconds since epoch.
 `iat`::
 (Required, integer) Time that the ID token was issued, expressed in UTC
 milliseconds since epoch.
-
-`iss`::
-(Required, String) Denotes the issuer that created the ID token. The value must
-be an exact, case-sensitive match to the value in the `allowed_issuer` setting.
 
 `nbf`::
 (Optional, integer) Indicates the time before which the JWT must not be accepted,
@@ -259,7 +263,7 @@ setting `claims.dn_pattern` to extract a substring value.
 ==== JWT realm authorization
 The JWT realm supports authorization with the create or update role mappings API,
 or delegating authorization to another realm. You cannot use these methods
-simultaneously, so choose whichever works best for your environment. 
+simultaneously, so choose whichever works best for your environment.
 
 IMPORTANT: You cannot map roles in the JWT realm using the `role_mapping.yml`
 file.
@@ -352,7 +356,7 @@ linked to realm `native1`.
 
 [[jwt-realm-runas]]
 ===== Applying the `run_as` privilege to JWT realm users
-{es} can retrieve roles for a JWT user through either role mapping or 
+{es} can retrieve roles for a JWT user through either role mapping or
 delegated authorization. Regardless of which option you choose, you can apply the
 <<run-as-privilege-apply,`run_as` privilege>> to a role so that a user can
 submit authenticated requests to "run as" a different user. To submit requests as
@@ -415,7 +419,7 @@ the `jwt_role1` role that you mapped to this user in the JWT realm:
 "metadata":{"jwt_claim_email":"user2@something.example.com","jwt_claim_aud":["es01","es02","es03"],
 "jwt_claim_sub":"user2","jwt_claim_iss":"my-issuer"},"enabled":true,"authentication_realm":
 {"name":"jwt2","type":"jwt"},"lookup_realm":{"name":"jwt2","type":"jwt"},"authentication_type":"realm"}
-% 
+%
 ----
 
 If you want to specify a request as the `run_as` user, include the
@@ -435,8 +439,29 @@ and {es} used the `jwt_role1` role:
 ----
 {"username":"user123_runas","roles":["jwt_role1"],"full_name":null,"email":null,"metadata":{},
 "enabled":true,"authentication_realm":{"name":"jwt2","type":"jwt"},"lookup_realm":{"name":"native",
-"type":"native"},"authentication_type":"realm"}% 
+"type":"native"},"authentication_type":"realm"}%
 ----
+
+[[jwt-realm-jwkset-reloading]]
+===== JWKSet reloading
+{es} loads PKC JWKSet, HMAC JWKSet, and HMAC OIDC JWK at startup. Load failures, parse errors,
+and configuration errors will prevent a node from starting (and restarting).
+
+At runtime, JWT realms can also reload PKC JWKSet. Reloading of RSA and EC public keys is
+supported for HTTPS URL or local file only.
+
+CAUTION: HMAC reloading from {es} keystore is not supported at this time.
+
+JWT issuers may rotate their PKC JWKs frequently (ex: daily). Since frequent {es} restarts are
+undesirable, PKC JWKSet reloads are supported at runtime. PKC JWKSet reload is triggered by
+signature validation failure.
+
+IMPORTANT: All other validations must pass before a signature failure can trigger a PKC JWKSet reload.
+Client authentication is strongly recommended. Narrow scope for allowed algorithms, allowed issuer,
+allowed audiences, and clock skew are also strongly recommended.
+
+If concurrent JWT authentication signature failures trigger reloads within an {es} node, a single
+reload is done. If consecutive requests trigger reloads, each one triggers a reload attempt.
 
 [[hmac-oidc-example]]
 ==== Authorizing to the JWT realm with an OIDC HMAC key
@@ -477,7 +502,7 @@ xpack.security.authc.realms.jwt.jwt8.client_authentication.type: shared_secret
 realm chain on {ecloud}.
 
 ===== JWT realm secure settings
-After defining the realm settings, use the 
+After defining the realm settings, use the
 {ref}/elasticsearch-keystore.html[`elasticsearch-keystore`] tool to add the
 following secure settings to the {es} keystore. In {ecloud}, you define settings
 for the {es} keystore under **Security** in your deployment.
@@ -536,5 +561,5 @@ JWT realm itself.
 "metadata":{"jwt_claim_email":"user2@something.example.com","jwt_claim_aud":["es01","es02","es03"],
 "jwt_claim_sub":"user2","jwt_claim_iss":"my-issuer"},"enabled":true,"authentication_realm":
 {"name":"jwt2","type":"jwt"},"lookup_realm":{"name":"jwt2","type":"jwt"},"authentication_type":"realm"}
-% 
+%
 ----

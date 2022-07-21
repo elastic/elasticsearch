@@ -62,6 +62,7 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.mock;
@@ -751,64 +752,16 @@ public class RestControllerTests extends ESTestCase {
      * and the exception is captured in the span.
      */
     public void testDispatchUnsupportedHttpMethodTracesException() {
-        final RestRequest request = RestRequest.request(parserConfig(), new HttpRequest() {
+        final RestRequest request = new FakeRestRequest() {
             @Override
-            public RestRequest.Method method() {
+            public Method method() {
                 throw new IllegalArgumentException("test");
             }
-
-            @Override
-            public String uri() {
-                return "/";
-            }
-
-            @Override
-            public BytesReference content() {
-                return BytesArray.EMPTY;
-            }
-
-            @Override
-            public Map<String, List<String>> getHeaders() {
-                return Map.of();
-            }
-
-            @Override
-            public List<String> strictCookies() {
-                return null;
-            }
-
-            @Override
-            public HttpVersion protocolVersion() {
-                return randomFrom(HttpVersion.values());
-            }
-
-            @Override
-            public HttpRequest removeHeader(String header) {
-                return this;
-            }
-
-            @Override
-            public HttpResponse createResponse(RestStatus status, BytesReference content) {
-                return null;
-            }
-
-            @Override
-            public void release() {}
-
-            @Override
-            public HttpRequest releaseAndCopy() {
-                return this;
-            }
-
-            @Override
-            public Exception getInboundException() {
-                return null;
-            }
-        }, null);
+        };
 
         final AssertingChannel channel = new AssertingChannel(request, true, RestStatus.METHOD_NOT_ALLOWED);
         restController.dispatchRequest(request, channel, client.threadPool().getThreadContext());
-        verify(tracer).onTraceStarted(any(), eq("rest-" + channel.request().getRequestId()), eq("/"), anyMap());
+        verify(tracer).onTraceStarted(any(), anyString(), anyString(), anyMap());
         verify(tracer).onTraceException(any(), any(IllegalArgumentException.class));
     }
 

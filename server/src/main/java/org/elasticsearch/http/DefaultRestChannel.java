@@ -91,7 +91,7 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
 
         final String traceId = "rest-" + this.request.getRequestId();
 
-        final ArrayList<Releasable> toClose = new ArrayList<>(3);
+        final ArrayList<Releasable> toClose = new ArrayList<>(4);
         if (HttpUtils.shouldCloseConnection(httpRequest)) {
             toClose.add(() -> CloseableChannel.closeChannel(httpChannel));
         }

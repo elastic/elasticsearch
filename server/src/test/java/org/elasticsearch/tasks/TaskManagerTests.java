@@ -15,6 +15,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.TransportTasksActionTests;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -346,16 +347,7 @@ public class TaskManagerTests extends ESTestCase {
                 }
             },
             null,
-            new ActionListener<>() {
-
-                @Override
-                public void onResponse(ActionResponse response) {}
-
-                @Override
-                public void onFailure(Exception e) {
-                    throw new AssertionError(e);
-                }
-            }
+            ActionTestUtils.assertNoFailureListener(r -> {})
         );
 
         verify(mockTracer).onTraceStarted(any(), eq("task-" + task.getId()), eq("actionName"), anyMap());

@@ -27,6 +27,12 @@ import java.util.Map;
  * You can add additional data to a span using the {@code setAttribute(...)}
  * methods, e.g.  {@link #setAttribute(String, String, String)}. This allows you
  * to attach data that is not available when the span is opened.
+ * <p>
+ * <b>Implementation node:</b> tracers have similar performance requirements to loggers,
+ * in that they may be called in performance-sensitive locations. For example, network
+ * requests must be queued on separate threads, in order to avoid blocking any
+ * calling threads. Care should be taken to avoid allocating an excessive number of
+ * objects.
  */
 public interface Tracer {
 

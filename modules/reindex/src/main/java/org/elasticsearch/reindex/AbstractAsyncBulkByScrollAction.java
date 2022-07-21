@@ -864,7 +864,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
                 throw new IllegalStateException("missing source");
             } else if (sourceWrapper.size() > 1) {
                 throw new IllegalStateException(
-                    "unexpected top level keys ["
+                    "Invalid fields added to context ["
                         + sourceWrapper.keySet()
                             .stream()
                             .filter(k -> "_source".equals(k) == false)

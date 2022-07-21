@@ -150,7 +150,57 @@
             source: ctx.junk = "stuff"
 
 ---
+- skip:
+    version: " - 8.3.99"
+    reason: "error message changed in 8.4"
+
+"Setting bogus context is an error - 8.4":
+  - do:
+      index:
+        index:  twitter
+        id:     "1"
+        body:   { "user": "kimchy" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      catch: /unexpected top level keys \[junk\]/
+      update_by_query:
+        index: twitter
+        body:
+          script:
+            lang: painless
+            source: ctx.junk = "stuff"
+
+---
+- skip:
+    version: "8.4.0 -"
+    reason: "error message changed in 8.4"
+
 "Can't change _id":
+  - do:
+      index:
+        index:  twitter
+        id:     "1"
+        body:   { "user": "kimchy" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      catch: /Modifying \[_id\] not allowed/
+      update_by_query:
+        index: twitter
+        body:
+          script:
+            lang: painless
+            source: ctx._id = "stuff"
+
+---
+- skip:
+    version: " - 8.3.99"
+    reason: "error message changed in 8.4"
+
+"Can't change _id - 8.4":
   - do:
       index:
         index:  twitter
@@ -306,6 +356,10 @@
   - match: { hits.total: 0 }
 
 ---
+- skip:
+    version: "8.4.0 -"
+    reason: "error message changed in 8.4"
+
 "Set unsupported operation type":
   - do:
       index:
@@ -331,6 +385,37 @@
             source: if (ctx._source.user == "kimchy") {ctx.op = "index"} else {ctx.op = "junk"}
 
   - match: { error.reason: 'Operation type [junk] not allowed, only [noop, index, delete] are allowed' }
+
+---
+- skip:
+    version: " - 8.3.99"
+    reason: "error message changed in 8.4"
+
+"Set unsupported operation type - 8.4":
+  - do:
+      index:
+        index:  twitter
+        id:     "1"
+        body:   { "user": "kimchy" }
+  - do:
+      index:
+        index:  twitter
+        id:     "2"
+        body:   { "user": "foo" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      catch: bad_request
+      update_by_query:
+        refresh: true
+        index:   twitter
+        body:
+          script:
+            lang: painless
+            source: if (ctx._source.user == "kimchy") {ctx.op = "index"} else {ctx.op = "junk"}
+
+  - match: { error.reason: '[op] must be one of delete, index, noop, not [junk]' }
 
 ---
 "Update all docs with one deletion and one noop using a stored script":

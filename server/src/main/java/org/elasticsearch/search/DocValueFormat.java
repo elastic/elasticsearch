@@ -711,11 +711,13 @@ public interface DocValueFormat extends NamedWriteable {
 
                 if (v instanceof String s) {
                     builder.addString(f, s);
-                } else if (v instanceof Long || v instanceof Integer) {
-                    builder.addLong(f, (Long) v);
+                } else if (v instanceof Long l) {
+                    builder.addLong(f, l);
+                } else if (v instanceof Integer i) {
+                    builder.addLong(f, i.longValue());
                 } else if (v instanceof BigInteger ul) {
-                    long l = ul.longValue();
-                    builder.addUnsignedLong(f, l);
+                    long ll = UNSIGNED_LONG_SHIFTED.parseLong(ul.toString(), false, () -> 0L);
+                    builder.addUnsignedLong(f, ll);
                 } else {
                     throw new IllegalArgumentException("Unexpected value in tsid object [" + v + "]");
                 }

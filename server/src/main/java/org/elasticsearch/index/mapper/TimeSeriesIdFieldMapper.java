@@ -29,7 +29,6 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
-import java.math.BigInteger;
 import java.net.InetAddress;
 import java.time.ZoneId;
 import java.util.Collections;
@@ -173,7 +172,8 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
                     case (byte) 'l' -> // parse a long
                         result.put(name, in.readLong());
                     case (byte) 'u' -> { // parse an unsigned_long
-                        result.put(name, BigInteger.valueOf(in.readLong()));
+                        Object ul = DocValueFormat.UNSIGNED_LONG_SHIFTED.format(in.readLong());
+                        result.put(name, ul);
                     }
                     default -> throw new IllegalArgumentException("Cannot parse [" + name + "]: Unknown type [" + type + "]");
                 }
@@ -264,8 +264,14 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         @Override
         public void addUnsignedLong(String fieldName, long value) {
             try (BytesStreamOutput out = new BytesStreamOutput()) {
-                out.write((byte) 'u');
-                out.writeLong(value);
+                Object ul = DocValueFormat.UNSIGNED_LONG_SHIFTED.format(value);
+                if (ul instanceof Long l) {
+                    out.write((byte) 'l');
+                    out.writeLong(l);
+                } else {
+                    out.write((byte) 'u');
+                    out.writeLong(value);
+                }
                 add(fieldName, out.bytes());
             } catch (IOException e) {
                 throw new IllegalArgumentException("Dimension field cannot be serialized.", e);

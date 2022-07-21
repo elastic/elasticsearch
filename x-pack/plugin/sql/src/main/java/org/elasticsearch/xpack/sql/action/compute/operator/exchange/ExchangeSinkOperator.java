@@ -5,50 +5,44 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.sql.action.compute.exchange;
+package org.elasticsearch.xpack.sql.action.compute.operator.exchange;
 
 import org.elasticsearch.action.support.ListenableActionFuture;
-import org.elasticsearch.xpack.sql.action.compute.Operator;
-import org.elasticsearch.xpack.sql.action.compute.Page;
+import org.elasticsearch.xpack.sql.action.compute.data.Page;
+import org.elasticsearch.xpack.sql.action.compute.operator.Operator;
 
-public class ExchangeSourceOperator implements Operator {
+/**
+ * Sink operator implementation that pushes data to an {@link ExchangeSink}
+ */
+public class ExchangeSinkOperator implements Operator {
 
-    private final ExchangeSource source;
+    private final ExchangeSink sink;
+
     private ListenableActionFuture<Void> isBlocked = NOT_BLOCKED;
 
-    public ExchangeSourceOperator(ExchangeSource source) {
-        this.source = source;
+    public ExchangeSinkOperator(ExchangeSink sink) {
+        this.sink = sink;
     }
 
     @Override
     public Page getOutput() {
-        return source.removePage();
+        return null;
     }
 
     @Override
     public boolean isFinished() {
-        return source.isFinished();
+        return sink.isFinished();
     }
 
     @Override
     public void finish() {
-        source.finish();
-    }
-
-    @Override
-    public boolean needsInput() {
-        return false;
-    }
-
-    @Override
-    public void addInput(Page page) {
-        throw new UnsupportedOperationException();
+        sink.finish();
     }
 
     @Override
     public ListenableActionFuture<Void> isBlocked() {
         if (isBlocked.isDone()) {
-            isBlocked = source.waitForReading();
+            isBlocked = sink.waitForWriting();
             if (isBlocked.isDone()) {
                 isBlocked = NOT_BLOCKED;
             }
@@ -57,7 +51,17 @@ public class ExchangeSourceOperator implements Operator {
     }
 
     @Override
+    public boolean needsInput() {
+        return isFinished() == false && isBlocked().isDone();
+    }
+
+    @Override
+    public void addInput(Page page) {
+        sink.addPage(page);
+    }
+
+    @Override
     public void close() {
-        source.close();
+        finish();
     }
 }

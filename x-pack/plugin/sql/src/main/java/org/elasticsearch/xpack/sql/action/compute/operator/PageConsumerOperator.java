@@ -5,10 +5,15 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.sql.action.compute;
+package org.elasticsearch.xpack.sql.action.compute.operator;
+
+import org.elasticsearch.xpack.sql.action.compute.data.Page;
 
 import java.util.function.Consumer;
 
+/**
+ * Sink operator that's useful for passing off pages to a {@link Consumer}.
+ */
 public class PageConsumerOperator implements Operator {
 
     private final Consumer<Page> pageConsumer;

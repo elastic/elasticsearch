@@ -5,11 +5,18 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.sql.action.compute;
+package org.elasticsearch.xpack.sql.action.compute.operator;
+
+import org.elasticsearch.xpack.sql.action.compute.data.Block;
+import org.elasticsearch.xpack.sql.action.compute.data.LongBlock;
+import org.elasticsearch.xpack.sql.action.compute.data.Page;
 
 import java.util.function.LongFunction;
 
-public class LongTransformer implements Operator {
+/**
+ * Streaming operator that applies a long-value transformation to a given field
+ */
+public class LongTransformerOperator implements Operator {
 
     private final int channel;
     private final LongFunction<Long> longTransformer;
@@ -18,7 +25,7 @@ public class LongTransformer implements Operator {
 
     Page lastInput;
 
-    public LongTransformer(int channel, LongFunction<Long> longTransformer) {
+    public LongTransformerOperator(int channel, LongFunction<Long> longTransformer) {
         this.channel = channel;
         this.longTransformer = longTransformer;
     }

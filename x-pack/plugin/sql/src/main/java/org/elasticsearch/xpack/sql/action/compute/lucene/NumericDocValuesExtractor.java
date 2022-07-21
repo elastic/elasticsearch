@@ -5,17 +5,27 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.sql.action.compute;
+package org.elasticsearch.xpack.sql.action.compute.lucene;
 
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.elasticsearch.xpack.sql.action.compute.data.ConstantIntBlock;
+import org.elasticsearch.xpack.sql.action.compute.data.IntBlock;
+import org.elasticsearch.xpack.sql.action.compute.data.LongBlock;
+import org.elasticsearch.xpack.sql.action.compute.data.Page;
+import org.elasticsearch.xpack.sql.action.compute.operator.Operator;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 
+/**
+ * Operator that extracts numeric doc values from Lucene
+ * out of pages that have been produced by {@link LuceneCollector}
+ * and outputs them to a new column.
+ */
 public class NumericDocValuesExtractor implements Operator {
 
     private final IndexReader indexReader;
@@ -30,6 +40,13 @@ public class NumericDocValuesExtractor implements Operator {
 
     boolean finished;
 
+    /**
+     * Creates a new extractor
+     * @param indexReader the index reader to use for extraction
+     * @param docChannel the channel that contains the doc ids
+     * @param leafOrdChannel the channel that contains the segment ordinal
+     * @param field the lucene field to use
+     */
     public NumericDocValuesExtractor(IndexReader indexReader, int docChannel, int leafOrdChannel, String field) {
         this.indexReader = indexReader;
         this.docChannel = docChannel;

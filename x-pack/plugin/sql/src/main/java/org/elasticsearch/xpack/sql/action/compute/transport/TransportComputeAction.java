@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.sql.action.compute;
+package org.elasticsearch.xpack.sql.action.compute.transport;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
@@ -32,10 +32,17 @@ import org.elasticsearch.search.query.QueryPhase;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.sql.action.compute.exchange.ExchangeSink;
-import org.elasticsearch.xpack.sql.action.compute.exchange.ExchangeSource;
-import org.elasticsearch.xpack.sql.action.compute.exchange.ExchangeSourceOperator;
-import org.elasticsearch.xpack.sql.action.compute.exchange.PassthroughExchanger;
+import org.elasticsearch.xpack.sql.action.compute.lucene.LuceneCollector;
+import org.elasticsearch.xpack.sql.action.compute.lucene.NumericDocValuesExtractor;
+import org.elasticsearch.xpack.sql.action.compute.operator.Driver;
+import org.elasticsearch.xpack.sql.action.compute.operator.LongGroupingOperator;
+import org.elasticsearch.xpack.sql.action.compute.operator.LongMaxOperator;
+import org.elasticsearch.xpack.sql.action.compute.operator.LongTransformerOperator;
+import org.elasticsearch.xpack.sql.action.compute.operator.PageConsumerOperator;
+import org.elasticsearch.xpack.sql.action.compute.operator.exchange.ExchangeSink;
+import org.elasticsearch.xpack.sql.action.compute.operator.exchange.ExchangeSource;
+import org.elasticsearch.xpack.sql.action.compute.operator.exchange.ExchangeSourceOperator;
+import org.elasticsearch.xpack.sql.action.compute.operator.exchange.PassthroughExchanger;
 import org.elasticsearch.xpack.sql.querydsl.agg.Aggs;
 
 import java.io.IOException;
@@ -117,14 +124,17 @@ public class TransportComputeAction extends TransportSingleShardAction<ComputeRe
             Aggs aggs = request.aggs;
 
             // only release search context once driver actually completed
-            Driver driver = new Driver(List.of(
-                new ExchangeSourceOperator(luceneExchangeSource),
-                new NumericDocValuesExtractor(context.getSearchExecutionContext().getIndexReader(), 0, 1, "count"),
-                new LongTransformer(2, i -> i + 1),
-                new LongGroupingOperator(3, BigArrays.NON_RECYCLING_INSTANCE),
-                new LongMaxOperator(4),
-                new PageConsumerOperator(request.getPageConsumer())),
-                () -> Releasables.close(context));
+            Driver driver = new Driver(
+                List.of(
+                    new ExchangeSourceOperator(luceneExchangeSource),
+                    new NumericDocValuesExtractor(context.getSearchExecutionContext().getIndexReader(), 0, 1, "count"),
+                    new LongTransformerOperator(2, i -> i + 1),
+                    new LongGroupingOperator(3, BigArrays.NON_RECYCLING_INSTANCE),
+                    new LongMaxOperator(4),
+                    new PageConsumerOperator(request.getPageConsumer())
+                ),
+                () -> Releasables.close(context)
+            );
 
             threadPool.generic().execute(driver);
 

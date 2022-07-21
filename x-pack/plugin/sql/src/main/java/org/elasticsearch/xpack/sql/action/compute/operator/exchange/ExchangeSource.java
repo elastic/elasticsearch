@@ -5,17 +5,20 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.sql.action.compute.exchange;
+package org.elasticsearch.xpack.sql.action.compute.operator.exchange;
 
 import org.elasticsearch.action.support.ListenableActionFuture;
-import org.elasticsearch.xpack.sql.action.compute.Operator;
-import org.elasticsearch.xpack.sql.action.compute.Page;
+import org.elasticsearch.xpack.sql.action.compute.data.Page;
+import org.elasticsearch.xpack.sql.action.compute.operator.Operator;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingDeque;
 
+/**
+ * Source for exchanging data, which can be thought of as simple FIFO queues of pages.
+ */
 public class ExchangeSource {
 
     private final BlockingQueue<PageReference> buffer = new LinkedBlockingDeque<>();
@@ -23,10 +26,10 @@ public class ExchangeSource {
     private volatile boolean finishing;
     private ListenableActionFuture<Void> notEmptyFuture;
 
-    public ExchangeSource() {
-
-    }
-
+    /**
+     * adds a new page to the FIFO queue, and registers a Runnable that is called once the page has been removed from the queue
+     * (see {@link #removePage()}).
+     */
     public void addPage(Page page, Runnable onRelease) {
         ListenableActionFuture<Void> notEmptyFuture = null;
         synchronized (this) {
@@ -46,6 +49,9 @@ public class ExchangeSource {
         }
     }
 
+    /**
+     * Removes a page from the FIFO queue
+     */
     public Page removePage() {
         PageReference page = buffer.poll();
         if (page != null) {
@@ -56,6 +62,9 @@ public class ExchangeSource {
         }
     }
 
+    /**
+     * Whether all processing has completed
+     */
     public boolean isFinished() {
         if (finishing == false) {
             return false;
@@ -65,6 +74,9 @@ public class ExchangeSource {
         }
     }
 
+    /**
+     * Notifies the source that no more pages will be added (see {@link #addPage(Page, Runnable)})
+     */
     public void finish() {
         ListenableActionFuture<Void> notEmptyFuture;
         synchronized (this) {
@@ -84,8 +96,10 @@ public class ExchangeSource {
         }
     }
 
-    public ListenableActionFuture<Void> waitForReading()
-    {
+    /**
+     * Allows callers to stop reading from the source when it's blocked
+     */
+    public ListenableActionFuture<Void> waitForReading() {
         // Fast path, definitely not blocked
         if (finishing || (buffer.isEmpty() == false)) {
             return Operator.NOT_BLOCKED;
@@ -104,6 +118,9 @@ public class ExchangeSource {
         }
     }
 
+    /**
+     * Called when source is no longer used. Cleans up all resources.
+     */
     public void close() {
         List<PageReference> remainingPages = new ArrayList<>();
         ListenableActionFuture<Void> notEmptyFuture;

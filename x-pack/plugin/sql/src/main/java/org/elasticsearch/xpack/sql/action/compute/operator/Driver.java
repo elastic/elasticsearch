@@ -5,39 +5,61 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.sql.action.compute;
+package org.elasticsearch.xpack.sql.action.compute.operator;
 
 import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xpack.sql.action.compute.data.Page;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
+/**
+ * A driver operates single-threadedly on a simple chain of {@link Operator}s, passing
+ * {@link Page}s from one operator to the next. It also controls the lifecycle of the
+ * operators.
+ * The operator chain typically starts with a source operator (i.e. an operator that purely produces pages)
+ * and ends with a sink operator (i.e. an operator that purely consumes pages).
+ */
 public class Driver implements Runnable {
 
     private final List<Operator> activeOperators;
     private final Releasable releasable;
 
+    /**
+     * Creates a new driver with a chain of operators.
+     * @param operators  the chain of operators to execute
+     * @param releasable a {@link Releasable} to invoked once the chain of operators has run to completion
+     */
     public Driver(List<Operator> operators, Releasable releasable) {
         this.activeOperators = new ArrayList<>(operators);
         this.releasable = releasable;
     }
 
+    /**
+     * Convenience method to run the chain of operators to completion. Does not leverage
+     * the non-blocking nature of operators, but keeps busy-spinning when an operator is
+     * blocked.
+     */
+    @Override
     public void run() {
-        while (isFinished() == false) {
-            runLoopIteration();
-        }
-        releasable.close();
+        while (run(TimeValue.MAX_VALUE, Integer.MAX_VALUE) != Operator.NOT_BLOCKED)
+            ;
     }
 
+    /**
+     * Runs computations on the chain of operators for a given maximum amount of time or iterations.
+     * Returns a blocked future when the chain of operators is blocked, allowing the caller
+     * thread to do other work instead of blocking or busy-spinning on the blocked operator.
+     */
     public ListenableActionFuture<Void> run(TimeValue maxTime, int maxIterations) {
         long maxTimeNanos = maxTime.nanos();
         long startTime = System.nanoTime();
         int iter = 0;
         while (isFinished() == false) {
-            ListenableActionFuture<Void> fut = runLoopIteration();
+            ListenableActionFuture<Void> fut = runSingleLoopIteration();
             if (fut.isDone() == false) {
                 return fut;
             }
@@ -55,11 +77,14 @@ public class Driver implements Runnable {
         return Operator.NOT_BLOCKED;
     }
 
+    /**
+     * Whether the driver has run the chain of operators to completion.
+     */
     public boolean isFinished() {
         return activeOperators.isEmpty();
     }
 
-    private ListenableActionFuture<Void> runLoopIteration() {
+    private ListenableActionFuture<Void> runSingleLoopIteration() {
 
         boolean movedPage = false;
 
@@ -76,10 +101,6 @@ public class Driver implements Runnable {
                 Page page = op.getOutput();
                 if (page != null && page.getPositionCount() != 0) {
                     nextOp.addInput(page);
-                    movedPage = true;
-                }
-
-                if (op instanceof SourceOperator) {
                     movedPage = true;
                 }
             }
@@ -106,10 +127,9 @@ public class Driver implements Runnable {
         }
 
         if (movedPage == false) {
-            return oneOf(activeOperators.stream()
-                .map(Operator::isBlocked)
-                .filter(laf -> laf.isDone() == false)
-                .collect(Collectors.toList()));
+            return oneOf(
+                activeOperators.stream().map(Operator::isBlocked).filter(laf -> laf.isDone() == false).collect(Collectors.toList())
+            );
         }
         return Operator.NOT_BLOCKED;
     }

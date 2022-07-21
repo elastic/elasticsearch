@@ -53,9 +53,9 @@ import org.elasticsearch.xpack.ql.index.IndexResolver;
 import org.elasticsearch.xpack.ql.type.Schema;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.action.compute.ComputeAction;
-import org.elasticsearch.xpack.sql.action.compute.ComputeRequest;
-import org.elasticsearch.xpack.sql.action.compute.ComputeResponse;
+import org.elasticsearch.xpack.sql.action.compute.transport.ComputeAction;
+import org.elasticsearch.xpack.sql.action.compute.transport.ComputeRequest;
+import org.elasticsearch.xpack.sql.action.compute.transport.ComputeResponse;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
 import org.elasticsearch.xpack.sql.execution.search.extractor.CompositeKeyExtractor;
 import org.elasticsearch.xpack.sql.execution.search.extractor.FieldHitExtractor;
@@ -94,7 +94,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;
@@ -158,7 +157,7 @@ public class Querier {
                     }
                 ),
 
-            new ActionListener<>() {
+                new ActionListener<>() {
                     @Override
                     public void onResponse(ComputeResponse computeResponse) {
                         // ok, ignore, above listener takes care of it

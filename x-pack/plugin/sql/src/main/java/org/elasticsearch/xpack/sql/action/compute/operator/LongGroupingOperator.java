@@ -5,11 +5,17 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.sql.action.compute;
+package org.elasticsearch.xpack.sql.action.compute.operator;
 
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongHash;
+import org.elasticsearch.xpack.sql.action.compute.data.LongBlock;
+import org.elasticsearch.xpack.sql.action.compute.data.Page;
 
+/**
+ * Group operator that adds grouping information to pages
+ * based on a long field.
+ */
 public class LongGroupingOperator implements Operator {
 
     private final int channel;

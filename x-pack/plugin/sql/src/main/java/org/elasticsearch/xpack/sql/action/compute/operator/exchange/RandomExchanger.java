@@ -5,16 +5,19 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.sql.action.compute.exchange;
+package org.elasticsearch.xpack.sql.action.compute.operator.exchange;
 
 import org.elasticsearch.action.support.ListenableActionFuture;
-import org.elasticsearch.xpack.sql.action.compute.Operator;
-import org.elasticsearch.xpack.sql.action.compute.Page;
+import org.elasticsearch.xpack.sql.action.compute.data.Page;
+import org.elasticsearch.xpack.sql.action.compute.operator.Operator;
 
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Consumer;
 
+/**
+ * Exchanger implementation that randomly hands off the data to various exchange sources.
+ */
 public class RandomExchanger implements Exchanger {
 
     private final List<Consumer<Page>> buffers;

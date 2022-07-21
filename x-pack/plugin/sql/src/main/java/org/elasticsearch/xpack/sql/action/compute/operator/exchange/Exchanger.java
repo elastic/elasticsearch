@@ -5,26 +5,15 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.sql.action.compute.exchange;
+package org.elasticsearch.xpack.sql.action.compute.operator.exchange;
 
 import org.elasticsearch.action.support.ListenableActionFuture;
-import org.elasticsearch.xpack.sql.action.compute.Page;
+import org.elasticsearch.xpack.sql.action.compute.data.Page;
 
-import static org.elasticsearch.xpack.sql.action.compute.Operator.NOT_BLOCKED;
-
+/**
+ * Exchangers provide different means for handing off data to exchange sources, e.g. allow multiplexing.
+ */
 public interface Exchanger {
-
-    Exchanger FINISHED = new Exchanger()
-    {
-        @Override
-        public void accept(Page page) {}
-
-        @Override
-        public ListenableActionFuture<Void> waitForWriting()
-        {
-            return NOT_BLOCKED;
-        }
-    };
 
     void accept(Page page);
 

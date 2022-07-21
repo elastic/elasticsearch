@@ -5,14 +5,18 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.sql.action.compute.exchange;
+package org.elasticsearch.xpack.sql.action.compute.operator.exchange;
 
-import org.elasticsearch.xpack.sql.action.compute.Operator;
-import org.elasticsearch.xpack.sql.action.compute.Page;
+import org.elasticsearch.xpack.sql.action.compute.data.Page;
+import org.elasticsearch.xpack.sql.action.compute.operator.Operator;
 
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
+/**
+ * Source operator implementation that interleaves the data from different exchange sources in
+ * random fashion.
+ */
 public class RandomUnionSourceOperator implements Operator {
 
     private final List<ExchangeSource> sources;

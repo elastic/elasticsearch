@@ -5,14 +5,17 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.sql.action.compute.exchange;
+package org.elasticsearch.xpack.sql.action.compute.operator.exchange;
 
 import org.elasticsearch.action.support.ListenableActionFuture;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.elasticsearch.xpack.sql.action.compute.Operator.NOT_BLOCKED;
+import static org.elasticsearch.xpack.sql.action.compute.operator.Operator.NOT_BLOCKED;
 
+/**
+ * Allows bounding the number of in-flight pages in {@link PassthroughExchanger}
+ */
 public class ExchangeMemoryManager {
     private final int bufferMaxPages;
 

@@ -5,13 +5,22 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.sql.action.compute;
+package org.elasticsearch.xpack.sql.action.compute.lucene;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.SimpleCollector;
-import org.elasticsearch.xpack.sql.action.compute.exchange.ExchangeSink;
+import org.elasticsearch.xpack.sql.action.compute.data.ConstantIntBlock;
+import org.elasticsearch.xpack.sql.action.compute.data.IntBlock;
+import org.elasticsearch.xpack.sql.action.compute.data.Page;
+import org.elasticsearch.xpack.sql.action.compute.operator.exchange.ExchangeSink;
 
+/**
+ * Lucene {@link org.apache.lucene.search.Collector} that turns collected docs
+ * into {@link Page}s and sends them to an {@link ExchangeSink}. The pages
+ * contain a block with the doc ids as well as block with the corresponding
+ * segment ordinal where the doc was collected from.
+ */
 public class LuceneCollector extends SimpleCollector {
     private static final int PAGE_SIZE = 4096;
 
@@ -66,6 +75,9 @@ public class LuceneCollector extends SimpleCollector {
         return ScoreMode.COMPLETE_NO_SCORES;
     }
 
+    /**
+     * should be called once collection has completed
+     */
     public void finish() {
         createPage();
         exchangeSink.finish();

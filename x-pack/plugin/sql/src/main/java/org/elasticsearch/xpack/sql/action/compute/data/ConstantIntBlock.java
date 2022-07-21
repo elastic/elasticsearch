@@ -5,8 +5,11 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.sql.action.compute;
+package org.elasticsearch.xpack.sql.action.compute.data;
 
+/**
+ * Block implementation that stores a constant integer value
+ */
 public class ConstantIntBlock extends Block {
     private final int constant;
 
@@ -22,8 +25,6 @@ public class ConstantIntBlock extends Block {
 
     @Override
     public String toString() {
-        return "ConstantIntBlock{" +
-            "constant=" + constant +
-            '}';
+        return "ConstantIntBlock{" + "constant=" + constant + '}';
     }
 }

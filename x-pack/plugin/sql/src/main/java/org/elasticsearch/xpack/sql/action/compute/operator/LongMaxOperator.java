@@ -5,8 +5,17 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.sql.action.compute;
+package org.elasticsearch.xpack.sql.action.compute.operator;
 
+import org.elasticsearch.xpack.sql.action.compute.data.Block;
+import org.elasticsearch.xpack.sql.action.compute.data.LongBlock;
+import org.elasticsearch.xpack.sql.action.compute.data.Page;
+
+/**
+ * Operator that computes the max value of a long field
+ * and outputs a page at the end that contains that max value.
+ * Only outputs page once all input pages are consumed.
+ */
 public class LongMaxOperator implements Operator {
     boolean finished;
     boolean returnedResult;
@@ -21,7 +30,7 @@ public class LongMaxOperator implements Operator {
     public Page getOutput() {
         if (finished && returnedResult == false) {
             returnedResult = true;
-            return new Page(new LongBlock(new long[] {max}, 1));
+            return new Page(new LongBlock(new long[] { max }, 1));
         }
         return null;
     }

@@ -5,12 +5,13 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.sql.action.compute;
+package org.elasticsearch.xpack.sql.action.compute.transport;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xpack.sql.action.compute.data.Page;
 import org.elasticsearch.xpack.sql.querydsl.agg.Aggs;
 
 import java.util.function.Consumer;

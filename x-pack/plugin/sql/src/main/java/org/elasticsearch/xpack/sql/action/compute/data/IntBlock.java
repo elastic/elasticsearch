@@ -5,28 +5,28 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.sql.action.compute;
+package org.elasticsearch.xpack.sql.action.compute.data;
 
 import java.util.Arrays;
 
-public class LongBlock extends Block {
+/**
+ * Block implementation that stores a list of integers
+ */
+public class IntBlock extends Block {
+    private final int[] values;
 
-    private final long[] values;
-
-    public LongBlock(long[] values, int positionCount) {
+    public IntBlock(int[] values, int positionCount) {
         super(positionCount);
         this.values = values;
     }
 
     @Override
-    public long getLong(int position) {
+    public int getInt(int position) {
         return values[position];
     }
 
     @Override
     public String toString() {
-        return "LongBlock{" +
-            "values=" + Arrays.toString(values) +
-            '}';
+        return "IntBlock{" + "values=" + Arrays.toString(values) + '}';
     }
 }

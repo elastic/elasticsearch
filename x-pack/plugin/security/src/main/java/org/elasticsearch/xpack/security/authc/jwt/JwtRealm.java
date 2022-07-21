@@ -481,7 +481,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                 final Date now = new Date();
                 if (LOGGER.isDebugEnabled()) {
                     LOGGER.debug(
-                        "Realm [{}] JWT parse succeeded for token=[{}]."
+                        "Realm [{}] JWT parse succeeded for token=[{}]. "
                             + "Validating JWT, now [{}], alg [{}], issuer [{}], audiences [{}], kty [{}],"
                             + " auth_time [{}], iat [{}], nbf [{}], exp [{}], kid [{}], jti [{}]",
                         super.name(),

@@ -94,9 +94,7 @@ public final class ShardSnapshotWorkerPool {
             assert workerCount > 0;
 
             workerCount--;
-            if (workerCount < maxWorkers && (shardsToSnapshot.isEmpty() == false || filesToSnapshot.isEmpty() == false)) {
-                ensureEnoughWorkers();
-            }
+            ensureEnoughWorkers();
         }
     }
 

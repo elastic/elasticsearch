@@ -1,5 +1,5 @@
 pr: 88209
-summary: Fork off shard snapshot calls in parallel
+summary: Parallelize unchanged shard snapshots and limit number of parallel file snapshots
 area: Snapshot/Restore
 type: enhancement
 issues:

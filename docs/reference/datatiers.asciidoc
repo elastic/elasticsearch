@@ -56,7 +56,12 @@ of a data stream are automatically allocated to the content tier.
 
 // tag::hot-tier[]
 The hot tier is the {es} entry point for timestamped data and holds your most-recent,
+<<<<<<< HEAD
 most-frequently-searched time series data.
+=======
+most-frequently-searched timestamped data.
+
+>>>>>>> fd49e71556ed328e31c168fc4cae7598c58740b7
 Nodes in the hot tier need to be fast for both reads and writes,
 which requires more hardware resources and faster storage (SSDs).
 For resiliency, indices in the hot tier should be configured to use one or more replicas.

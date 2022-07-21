@@ -18,7 +18,6 @@ import static java.net.HttpURLConnection.HTTP_CREATED
 import static java.net.HttpURLConnection.HTTP_INTERNAL_ERROR
 import static org.elasticsearch.gradle.fixtures.WiremockFixture.PUT
 import static org.elasticsearch.gradle.fixtures.WiremockFixture.withWireMock
-import static org.elasticsearch.gradle.internal.snyk.UploadSnykDependenciesGraph.GRADLE_GRAPH_ENDPOINT
 
 class SnykDependencyMonitoringGradlePluginFuncTest extends AbstractGradleInternalPluginFuncTest {
 
@@ -192,7 +191,7 @@ class SnykDependencyMonitoringGradlePluginFuncTest extends AbstractGradleInterna
         result.output.contains("Snyk API call response status: 201")
 
         when:
-        result = withWireMock(PUT, GRADLE_GRAPH_ENDPOINT, "Internal Error", HTTP_INTERNAL_ERROR) { server ->
+        result = withWireMock(PUT, "/api/v1/monitor/gradle/graph", "Internal Error", HTTP_INTERNAL_ERROR) { server ->
             buildFile << """
             tasks.named('uploadSnykDependencyGraph').configure {
                 getUrl().set('${server.baseUrl()}/api/v1/monitor/gradle/graph')

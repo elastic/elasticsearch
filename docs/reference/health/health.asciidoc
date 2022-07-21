@@ -201,8 +201,6 @@ for health status set `explain` to `false` to disable the more expensive analysi
     (string) A link to additional troubleshooting information for this user action.
 ========
 =======
-======
-=====
 ====
 
 [role="child_attributes"]

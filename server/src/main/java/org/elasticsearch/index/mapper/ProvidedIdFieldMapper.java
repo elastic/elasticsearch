@@ -137,7 +137,11 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+        public IndexFieldData.Builder fielddataBuilder(
+            String fullyQualifiedIndexName,
+            Supplier<SearchLookup> searchLookup,
+            FielddataType type
+        ) {
             if (fieldDataEnabled.getAsBoolean() == false) {
                 throw new IllegalArgumentException(
                     "Fielddata access on the _id field is disallowed, "

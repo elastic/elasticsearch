@@ -44,7 +44,7 @@ import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.TriFunction;
+import org.elasticsearch.common.QuadFunction;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -1075,27 +1075,21 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build()
         );
         BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(idxSettings, Mockito.mock(BitsetFilterCache.Listener.class));
-        TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataLookup = (
-            fieldType,
-            fieldIndexName,
-            searchLookup) -> {
-            IndexFieldData.Builder builder = fieldType.fielddataBuilder(fieldIndexName, searchLookup);
-            return builder.build(new IndexFieldDataCache.None(), null);
-        };
-        TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> scriptIndexFieldDataLookup = (
-            fieldType,
-            fieldIndexName,
-            searchLookup) -> {
-            IndexFieldData.Builder builder = fieldType.scriptFielddataBuilder(fieldIndexName, searchLookup);
-            return builder.build(new IndexFieldDataCache.None(), null);
-        };
+        QuadFunction<
+            MappedFieldType,
+            String,
+            Supplier<SearchLookup>,
+            MappedFieldType.FielddataType,
+            IndexFieldData<?>> indexFieldDataLookup = (fieldType, fieldIndexName, searchLookup, fielddataType) -> {
+                IndexFieldData.Builder builder = fieldType.fielddataBuilder(fieldIndexName, searchLookup, fielddataType);
+                return builder.build(new IndexFieldDataCache.None(), null);
+            };
         return new SearchExecutionContext(
             0,
             0,
             idxSettings,
             bitsetFilterCache,
             indexFieldDataLookup,
-            scriptIndexFieldDataLookup,
             null,
             null,
             null,

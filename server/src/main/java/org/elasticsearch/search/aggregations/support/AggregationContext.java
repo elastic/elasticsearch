@@ -435,7 +435,7 @@ public abstract class AggregationContext implements Releasable {
 
         @Override
         protected IndexFieldData<?> buildFieldData(MappedFieldType ft) {
-            return context.getForField(ft);
+            return context.getForField(ft, MappedFieldType.FielddataType.SEARCH);
         }
 
         @Override

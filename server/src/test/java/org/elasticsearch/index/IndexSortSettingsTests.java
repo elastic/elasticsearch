@@ -132,7 +132,11 @@ public class IndexSortSettingsTests extends ESTestCase {
             }
 
             @Override
-            public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+            public IndexFieldData.Builder fielddataBuilder(
+                String fullyQualifiedIndexName,
+                Supplier<SearchLookup> searchLookup,
+                MappedFieldType.FielddataType type
+            ) {
                 searchLookup.get();
                 return null;
             }
@@ -216,6 +220,6 @@ public class IndexSortSettingsTests extends ESTestCase {
         IndicesFieldDataCache cache = new IndicesFieldDataCache(indexSettings.getSettings(), null);
         NoneCircuitBreakerService circuitBreakerService = new NoneCircuitBreakerService();
         IndexFieldDataService indexFieldDataService = new IndexFieldDataService(indexSettings, cache, circuitBreakerService);
-        return config.buildIndexSort(lookup::get, (ft, s) -> indexFieldDataService.getForField(ft, "index", s));
+        return config.buildIndexSort(lookup::get, (ft, s, fdt) -> indexFieldDataService.getForField(ft, "index", s, fdt));
     }
 }

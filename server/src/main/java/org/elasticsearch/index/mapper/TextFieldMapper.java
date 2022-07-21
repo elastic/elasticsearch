@@ -894,7 +894,11 @@ public class TextFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+        public IndexFieldData.Builder fielddataBuilder(
+            String fullyQualifiedIndexName,
+            Supplier<SearchLookup> searchLookup,
+            FielddataType type
+        ) {
             if (fielddata == false) {
                 throw new IllegalArgumentException(
                     "Text fields are not optimised for operations that require per-document "

@@ -101,45 +101,29 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
     public <IFD extends IndexFieldData<?>> IFD getForField(
         MappedFieldType fieldType,
         String fullyQualifiedIndexName,
-        Supplier<SearchLookup> searchLookup
+        Supplier<SearchLookup> searchLookup,
+        MappedFieldType.FielddataType fielddataType
     ) {
         final String fieldName = fieldType.name();
-        IndexFieldData.Builder builder = fieldType.fielddataBuilder(fullyQualifiedIndexName, searchLookup);
-        IndexFieldDataCache cache = getFieldDataCache(fieldName);
-        return (IFD) builder.build(cache, circuitBreakerService);
-    }
+        IndexFieldData.Builder builder = fieldType.fielddataBuilder(fullyQualifiedIndexName, searchLookup, fielddataType);
 
-    /**
-     * Returns fielddata for the provided script field type, given the provided fully qualified index name,
-     * while also making a {@link SearchLookup} supplier available that is required for runtime fields.
-     */
-    @SuppressWarnings("unchecked")
-    public <IFD extends IndexFieldData<?>> IFD getForScriptField(
-        MappedFieldType fieldType,
-        String fullyQualifiedIndexName,
-        Supplier<SearchLookup> searchLookup
-    ) {
-        final String fieldName = fieldType.name();
-        IndexFieldData.Builder builder = fieldType.scriptFielddataBuilder(fullyQualifiedIndexName, searchLookup);
-        IndexFieldDataCache cache = getFieldDataCache(fieldName);
-        return (IFD) builder.build(cache, circuitBreakerService);
-    }
-
-    private synchronized IndexFieldDataCache getFieldDataCache(String fieldName) {
-        IndexFieldDataCache cache = fieldDataCaches.get(fieldName);
-        if (cache == null) {
-            String cacheType = indexSettings.getValue(INDEX_FIELDDATA_CACHE_KEY);
-            if (FIELDDATA_CACHE_VALUE_NODE.equals(cacheType)) {
-                cache = indicesFieldDataCache.buildIndexFieldDataCache(listener, index(), fieldName);
-            } else if ("none".equals(cacheType)) {
-                cache = new IndexFieldDataCache.None();
-            } else {
-                throw new IllegalArgumentException("cache type not supported [" + cacheType + "] for field [" + fieldName + "]");
+        IndexFieldDataCache cache;
+        synchronized (this) {
+            cache = fieldDataCaches.get(fieldName);
+            if (cache == null) {
+                String cacheType = indexSettings.getValue(INDEX_FIELDDATA_CACHE_KEY);
+                if (FIELDDATA_CACHE_VALUE_NODE.equals(cacheType)) {
+                    cache = indicesFieldDataCache.buildIndexFieldDataCache(listener, index(), fieldName);
+                } else if ("none".equals(cacheType)) {
+                    cache = new IndexFieldDataCache.None();
+                } else {
+                    throw new IllegalArgumentException("cache type not supported [" + cacheType + "] for field [" + fieldName + "]");
+                }
+                fieldDataCaches.put(fieldName, cache);
             }
-            fieldDataCaches.put(fieldName, cache);
         }
 
-        return cache;
+        return (IFD) builder.build(cache, circuitBreakerService);
     }
 
     /**

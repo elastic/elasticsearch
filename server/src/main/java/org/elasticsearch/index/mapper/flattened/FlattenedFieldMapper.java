@@ -352,7 +352,11 @@ public final class FlattenedFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+        public IndexFieldData.Builder fielddataBuilder(
+            String fullyQualifiedIndexName,
+            Supplier<SearchLookup> searchLookup,
+            FielddataType type
+        ) {
             failIfNoDocValues();
             return new KeyedFlattenedFieldData.Builder(name(), key, (dv, n) -> new FlattenedDocValuesField(FieldData.toString(dv), n));
         }
@@ -633,7 +637,11 @@ public final class FlattenedFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+        public IndexFieldData.Builder fielddataBuilder(
+            String fullyQualifiedIndexName,
+            Supplier<SearchLookup> searchLookup,
+            FielddataType type
+        ) {
             failIfNoDocValues();
             return new SortedSetOrdinalsIndexFieldData.Builder(
                 name(),

@@ -198,7 +198,6 @@ public class MetricFieldProducerTests extends AggregatorTestCase {
             null,
             null,
             null,
-            null,
             () -> 0L,
             null,
             null,

@@ -111,7 +111,11 @@ public class RankFeatureFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+        public IndexFieldData.Builder fielddataBuilder(
+            String fullyQualifiedIndexName,
+            Supplier<SearchLookup> searchLookup,
+            MappedFieldType.FielddataType type
+        ) {
             throw new IllegalArgumentException("[rank_feature] fields do not support sorting, scripting or aggregating");
         }
 

@@ -369,24 +369,30 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-            failIfNoDocValues();
-            return new AbstractLatLonPointIndexFieldData.Builder(name(), CoreValuesSourceType.GEOPOINT, GeoPointDocValuesField::new);
-        }
-
-        @Override
-        public IndexFieldData.Builder scriptFielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-            if (hasDocValues()) {
-                return fielddataBuilder(fullyQualifiedIndexName, searchLookup);
+        public IndexFieldData.Builder fielddataBuilder(
+            String fullyQualifiedIndexName,
+            Supplier<SearchLookup> searchLookup,
+            FielddataType type
+        ) {
+            if (type == FielddataType.SEARCH) {
+                failIfNoDocValues();
             }
 
-            return new SourceValueFetcherMultiGeoPointIndexFieldData.Builder(
-                name(),
-                CoreValuesSourceType.GEOPOINT,
-                valueFetcher(searchLookup.get().sourcePaths(name()), null, null),
-                searchLookup.get().source(),
-                GeoPointDocValuesField::new
-            );
+            if ((type == FielddataType.SEARCH || type == FielddataType.SCRIPT) && hasDocValues()) {
+                return new AbstractLatLonPointIndexFieldData.Builder(name(), CoreValuesSourceType.GEOPOINT, GeoPointDocValuesField::new);
+            }
+
+            if (type == FielddataType.SCRIPT) {
+                return new SourceValueFetcherMultiGeoPointIndexFieldData.Builder(
+                    name(),
+                    CoreValuesSourceType.GEOPOINT,
+                    valueFetcher(searchLookup.get().sourcePaths(name()), null, null),
+                    searchLookup.get().source(),
+                    GeoPointDocValuesField::new
+                );
+            }
+
+            throw new IllegalStateException("unknown field data type [" + type.name() + "]");
         }
 
         @Override

@@ -100,7 +100,11 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
     }
 
     @Override
-    public StringScriptFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+    public StringScriptFieldData.Builder fielddataBuilder(
+        String fullyQualifiedIndexName,
+        Supplier<SearchLookup> searchLookup,
+        FielddataType type
+    ) {
         return new StringScriptFieldData.Builder(name(), leafFactory(searchLookup.get()), KeywordDocValuesField::new);
     }
 

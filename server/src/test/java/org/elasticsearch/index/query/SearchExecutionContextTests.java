@@ -149,7 +149,7 @@ public class SearchExecutionContextTests extends ESTestCase {
 
         IndexFieldMapper mapper = new IndexFieldMapper();
 
-        IndexFieldData<?> forField = context.getForField(mapper.fieldType());
+        IndexFieldData<?> forField = context.getForField(mapper.fieldType(), MappedFieldType.FielddataType.SEARCH);
         String expected = clusterAlias == null
             ? context.getIndexSettings().getIndexMetadata().getIndex().getName()
             : clusterAlias + ":" + context.getIndexSettings().getIndex().getName();
@@ -178,7 +178,6 @@ public class SearchExecutionContextTests extends ESTestCase {
             0,
             0,
             indexSettings,
-            null,
             null,
             null,
             null,
@@ -427,8 +426,11 @@ public class SearchExecutionContextTests extends ESTestCase {
             0,
             indexSettings,
             null,
-            (mappedFieldType, idxName, searchLookup) -> mappedFieldType.fielddataBuilder(idxName, searchLookup).build(null, null),
-            (mappedFieldType, idxName, searchLookup) -> mappedFieldType.scriptFielddataBuilder(idxName, searchLookup).build(null, null),
+            (mappedFieldType, idxName, searchLookup, fielddataType) -> mappedFieldType.fielddataBuilder(
+                idxName,
+                searchLookup,
+                fielddataType
+            ).build(null, null),
             mapperService,
             mappingLookup,
             null,
@@ -484,7 +486,11 @@ public class SearchExecutionContextTests extends ESTestCase {
     private static RuntimeField runtimeField(String name, BiFunction<LeafSearchLookup, Integer, String> runtimeDocValues) {
         TestRuntimeField.TestRuntimeFieldType fieldType = new TestRuntimeField.TestRuntimeFieldType(name, null) {
             @Override
-            public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+            public IndexFieldData.Builder fielddataBuilder(
+                String fullyQualifiedIndexName,
+                Supplier<SearchLookup> searchLookup,
+                MappedFieldType.FielddataType type
+            ) {
                 return (cache, breakerService) -> new IndexFieldData<>() {
                     @Override
                     public String getFieldName() {
@@ -600,9 +606,9 @@ public class SearchExecutionContextTests extends ESTestCase {
                 MappedFieldType fieldType = searchExecutionContext.getFieldType(field);
                 IndexFieldData<?> indexFieldData;
                 if (randomBoolean()) {
-                    indexFieldData = searchExecutionContext.getForField(fieldType);
+                    indexFieldData = searchExecutionContext.getForField(fieldType, MappedFieldType.FielddataType.SEARCH);
                 } else {
-                    indexFieldData = searchExecutionContext.lookup().getForField(fieldType);
+                    indexFieldData = searchExecutionContext.lookup().getForField(fieldType, MappedFieldType.FielddataType.SEARCH);
                 }
                 searcher.search(query, new Collector() {
                     @Override

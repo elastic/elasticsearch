@@ -288,7 +288,11 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+        public IndexFieldData.Builder fielddataBuilder(
+            String fullyQualifiedIndexName,
+            Supplier<SearchLookup> searchLookup,
+            MappedFieldType.FielddataType type
+        ) {
             failIfNoDocValues();
             return (cache, breakerService) -> {
                 final IndexNumericFieldData signedLongValues = new SortedNumericIndexFieldData.Builder(

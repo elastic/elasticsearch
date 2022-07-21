@@ -682,38 +682,44 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-            failIfNoDocValues();
-            return new SortedSetOrdinalsIndexFieldData.Builder(
-                name(),
-                CoreValuesSourceType.KEYWORD,
-                (dv, n) -> new KeywordDocValuesField(FieldData.toString(dv), n)
-            );
-        }
-
-        @Override
-        public IndexFieldData.Builder scriptFielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-            if (hasDocValues()) {
-                return fielddataBuilder(fullyQualifiedIndexName, searchLookup);
+        public IndexFieldData.Builder fielddataBuilder(
+            String fullyQualifiedIndexName,
+            Supplier<SearchLookup> searchLookup,
+            FielddataType type
+        ) {
+            if (type == FielddataType.SEARCH) {
+                failIfNoDocValues();
             }
 
-            return new SourceValueFetcherSortedBinaryIndexFieldData.Builder(
-                name(),
-                CoreValuesSourceType.KEYWORD,
-                new SourceValueFetcher(searchLookup.get().sourcePaths(name()), nullValue) {
-                    @Override
-                    protected String parseSourceValue(Object value) {
-                        String keywordValue = value.toString();
-                        if (keywordValue.length() > ignoreAbove) {
-                            return null;
-                        }
+            if ((type == FielddataType.SEARCH || type == FielddataType.SCRIPT) && hasDocValues()) {
+                return new SortedSetOrdinalsIndexFieldData.Builder(
+                    name(),
+                    CoreValuesSourceType.KEYWORD,
+                    (dv, n) -> new KeywordDocValuesField(FieldData.toString(dv), n)
+                );
+            }
 
-                        return normalizeValue(normalizer(), name(), keywordValue);
-                    }
-                },
-                searchLookup.get().source(),
-                KeywordDocValuesField::new
-            );
+            if (type == FielddataType.SCRIPT) {
+                return new SourceValueFetcherSortedBinaryIndexFieldData.Builder(
+                    name(),
+                    CoreValuesSourceType.KEYWORD,
+                    new SourceValueFetcher(searchLookup.get().sourcePaths(name()), nullValue) {
+                        @Override
+                        protected String parseSourceValue(Object value) {
+                            String keywordValue = value.toString();
+                            if (keywordValue.length() > ignoreAbove) {
+                                return null;
+                            }
+
+                            return normalizeValue(normalizer(), name(), keywordValue);
+                        }
+                    },
+                    searchLookup.get().source(),
+                    KeywordDocValuesField::new
+                );
+            }
+
+            throw new IllegalStateException("unknown field data type [" + type.name() + "]");
         }
 
         @Override

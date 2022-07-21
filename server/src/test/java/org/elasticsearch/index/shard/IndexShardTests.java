@@ -2668,7 +2668,8 @@ public class IndexShardTests extends IndexShardTestCase {
         IndexFieldData.Global<?> ifd = indexFieldDataService.getForField(
             foo,
             "test",
-            () -> { throw new UnsupportedOperationException("search lookup not available"); }
+            () -> { throw new UnsupportedOperationException("search lookup not available"); },
+            MappedFieldType.FielddataType.SEARCH
         );
         FieldDataStats before = shard.fieldData().stats("foo");
         assertThat(before.getMemorySizeInBytes(), equalTo(0L));

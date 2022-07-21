@@ -87,8 +87,7 @@ public class ScriptScoreBenchmark {
     private final CircuitBreakerService breakerService = new NoneCircuitBreakerService();
     private SearchLookup lookup = new SearchLookup(
         fieldTypes::get,
-        (mft, lookup) -> mft.fielddataBuilder("test", lookup).build(fieldDataCache, breakerService),
-        (mft, lookup) -> mft.scriptFielddataBuilder("test", lookup).build(fieldDataCache, breakerService),
+        (mft, lookup, fdt) -> mft.fielddataBuilder("test", lookup, fdt).build(fieldDataCache, breakerService),
         sourcePaths::get
     );
 
@@ -155,7 +154,7 @@ public class ScriptScoreBenchmark {
     private ScoreScript.Factory bareMetalScript() {
         return (params, lookup) -> {
             MappedFieldType type = fieldTypes.get("n");
-            IndexNumericFieldData ifd = (IndexNumericFieldData) lookup.getForField(type);
+            IndexNumericFieldData ifd = (IndexNumericFieldData) lookup.getForField(type, MappedFieldType.FielddataType.SEARCH);
             return new ScoreScript.LeafFactory() {
                 @Override
                 public ScoreScript newInstance(DocReader docReader) throws IOException {

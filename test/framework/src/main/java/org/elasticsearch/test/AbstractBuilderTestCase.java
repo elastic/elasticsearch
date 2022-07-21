@@ -495,7 +495,6 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 idxSettings,
                 bitsetFilterCache,
                 indexFieldDataService::getForField,
-                indexFieldDataService::getForScriptField,
                 mapperService,
                 mapperService.mappingLookup(),
                 similarityService,

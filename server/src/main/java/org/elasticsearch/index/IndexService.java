@@ -205,7 +205,12 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 this.indexSortSupplier = () -> indexSettings.getIndexSortConfig()
                     .buildIndexSort(
                         mapperService::fieldType,
-                        (fieldType, searchLookup) -> indexFieldData.getForField(fieldType, indexFieldData.index().getName(), searchLookup)
+                        (fieldType, searchLookup, fielddataType) -> indexFieldData.getForField(
+                            fieldType,
+                            indexFieldData.index().getName(),
+                            searchLookup,
+                            fielddataType
+                        )
                     );
             } else {
                 this.indexSortSupplier = () -> null;
@@ -621,7 +626,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             indexSettings,
             indexCache.bitsetFilterCache(),
             indexFieldData::getForField,
-            indexFieldData::getForScriptField,
             mapperService(),
             mapperService().mappingLookup(),
             similarityService(),

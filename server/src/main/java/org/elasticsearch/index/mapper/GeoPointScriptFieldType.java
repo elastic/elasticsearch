@@ -94,7 +94,11 @@ public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPo
     }
 
     @Override
-    public GeoPointScriptFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+    public GeoPointScriptFieldData.Builder fielddataBuilder(
+        String fullyQualifiedIndexName,
+        Supplier<SearchLookup> searchLookup,
+        FielddataType type
+    ) {
         return new GeoPointScriptFieldData.Builder(name(), leafFactory(searchLookup.get()), GeoPointDocValuesField::new);
     }
 

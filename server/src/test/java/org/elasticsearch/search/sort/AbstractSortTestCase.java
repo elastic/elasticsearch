@@ -12,7 +12,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.TriFunction;
+import org.elasticsearch.common.QuadFunction;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -189,20 +189,15 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build()
         );
         BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(idxSettings, Mockito.mock(BitsetFilterCache.Listener.class));
-        TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataLookup = (
-            fieldType,
-            fieldIndexName,
-            searchLookup) -> {
-            IndexFieldData.Builder builder = fieldType.fielddataBuilder(fieldIndexName, searchLookup);
-            return builder.build(new IndexFieldDataCache.None(), null);
-        };
-        TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> scriptIndexFieldDataLookup = (
-            fieldType,
-            fieldIndexName,
-            searchLookup) -> {
-            IndexFieldData.Builder builder = fieldType.scriptFielddataBuilder(fieldIndexName, searchLookup);
-            return builder.build(new IndexFieldDataCache.None(), null);
-        };
+        QuadFunction<
+            MappedFieldType,
+            String,
+            Supplier<SearchLookup>,
+            MappedFieldType.FielddataType,
+            IndexFieldData<?>> indexFieldDataLookup = (fieldType, fieldIndexName, searchLookup, fielddataType) -> {
+                IndexFieldData.Builder builder = fieldType.fielddataBuilder(fieldIndexName, searchLookup, fielddataType);
+                return builder.build(new IndexFieldDataCache.None(), null);
+            };
         NestedLookup nestedLookup = NestedLookup.build(
             List.of(new NestedObjectMapper.Builder("path", Version.CURRENT).build(MapperBuilderContext.ROOT))
         );
@@ -212,7 +207,6 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             idxSettings,
             bitsetFilterCache,
             indexFieldDataLookup,
-            scriptIndexFieldDataLookup,
             null,
             null,
             null,

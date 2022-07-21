@@ -220,7 +220,11 @@ public class RangeFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+        public IndexFieldData.Builder fielddataBuilder(
+            String fullyQualifiedIndexName,
+            Supplier<SearchLookup> searchLookup,
+            FielddataType type
+        ) {
             failIfNoDocValues();
             return new BinaryIndexFieldData.Builder(name(), CoreValuesSourceType.RANGE);
         }

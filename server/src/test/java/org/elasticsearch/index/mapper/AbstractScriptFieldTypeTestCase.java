@@ -202,8 +202,7 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         when(context.allowExpensiveQueries()).thenReturn(allowExpensiveQueries);
         SearchLookup lookup = new SearchLookup(
             context::getFieldType,
-            (mft, lookupSupplier) -> mft.fielddataBuilder("test", lookupSupplier).build(null, null),
-            (mft, lookupSupplier) -> mft.scriptFielddataBuilder("test", lookupSupplier).build(null, null),
+            (mft, lookupSupplier, fdt) -> mft.fielddataBuilder("test", lookupSupplier, fdt).build(null, null),
             context::sourcePath
         );
         when(context.lookup()).thenReturn(lookup);

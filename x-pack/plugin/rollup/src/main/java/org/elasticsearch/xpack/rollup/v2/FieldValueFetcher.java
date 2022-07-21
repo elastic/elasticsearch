@@ -109,7 +109,7 @@ class FieldValueFetcher {
             if (fieldType == null) {
                 throw new IllegalArgumentException("Unknown field: [" + field + "]");
             }
-            IndexFieldData<?> fieldData = context.getForField(fieldType);
+            IndexFieldData<?> fieldData = context.getForField(fieldType, MappedFieldType.FielddataType.SEARCH);
             fetchers.add(new FieldValueFetcher(field, fieldType, fieldData, getValidator(field)));
         }
         return Collections.unmodifiableList(fetchers);

@@ -73,7 +73,8 @@ public class FlattenedIndexFieldDataTests extends ESSingleNodeTestCase {
         IndexFieldData<?> ifd1 = ifdService.getForField(
             fieldType1,
             "test",
-            () -> { throw new UnsupportedOperationException("search lookup not available"); }
+            () -> { throw new UnsupportedOperationException("search lookup not available"); },
+            MappedFieldType.FielddataType.SEARCH
         );
         assertTrue(ifd1 instanceof KeyedFlattenedFieldData);
 
@@ -87,7 +88,8 @@ public class FlattenedIndexFieldDataTests extends ESSingleNodeTestCase {
         IndexFieldData<?> ifd2 = ifdService.getForField(
             fieldType2,
             "test",
-            () -> { throw new UnsupportedOperationException("search lookup not available"); }
+            () -> { throw new UnsupportedOperationException("search lookup not available"); },
+            MappedFieldType.FielddataType.SEARCH
         );
         assertTrue(ifd2 instanceof KeyedFlattenedFieldData);
 

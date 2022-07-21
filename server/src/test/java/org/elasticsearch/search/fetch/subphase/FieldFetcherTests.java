@@ -13,8 +13,8 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.QuadFunction;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
@@ -235,7 +235,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
                 new FieldAndFormat("_ignored", null)
             );
             FieldFetcher fieldFetcher = FieldFetcher.create(
-                newSearchExecutionContext(mapperService, (ft, index, sl) -> fieldDataLookup().apply(ft, sl)),
+                newSearchExecutionContext(mapperService, (ft, index, sl, ftd) -> fieldDataLookup().apply(ft, sl, ftd)),
                 fieldList
             );
             IndexSearcher searcher = newSearcher(iw);
@@ -1123,7 +1123,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         MapperService mapperService = createMapperService(mapping);
         SearchExecutionContext searchExecutionContext = newSearchExecutionContext(
             mapperService,
-            (ft, index, sl) -> fieldDataLookup().apply(ft, sl)
+            (ft, index, sl, ftd) -> fieldDataLookup().apply(ft, sl, ftd)
         );
         withLuceneIndex(mapperService, iw -> iw.addDocument(new LuceneDocument()), iw -> {
             FieldFetcher fieldFetcher = FieldFetcher.create(searchExecutionContext, fieldAndFormatList("runtime_field", null, false));
@@ -1152,7 +1152,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         MapperService mapperService = createMapperService(mapping);
         SearchExecutionContext searchExecutionContext = newSearchExecutionContext(
             mapperService,
-            (ft, index, sl) -> fieldDataLookup().apply(ft, sl)
+            (ft, index, sl, ftd) -> fieldDataLookup().apply(ft, sl, ftd)
         );
         withLuceneIndex(mapperService, iw -> {
             ParsedDocument parsedDocument = mapperService.documentMapper().parse(source("{}"));
@@ -1239,7 +1239,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
 
     private static SearchExecutionContext newSearchExecutionContext(
         MapperService mapperService,
-        TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataLookup
+        QuadFunction<MappedFieldType, String, Supplier<SearchLookup>, MappedFieldType.FielddataType, IndexFieldData<?>> indexFieldDataLookup
     ) {
         Settings settings = Settings.builder()
             .put("index.version.created", Version.CURRENT)
@@ -1255,7 +1255,6 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             indexSettings,
             null,
             indexFieldDataLookup,
-            null,
             mapperService,
             mapperService.mappingLookup(),
             null,

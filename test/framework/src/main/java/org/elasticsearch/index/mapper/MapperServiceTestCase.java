@@ -21,6 +21,7 @@ import org.apache.lucene.util.Accountable;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -76,7 +77,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -450,7 +450,8 @@ public abstract class MapperServiceTestCase extends ESTestCase {
 
             @Override
             protected IndexFieldData<?> buildFieldData(MappedFieldType ft) {
-                return ft.fielddataBuilder("test", null).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
+                return ft.fielddataBuilder("test", null, MappedFieldType.FielddataType.SEARCH)
+                    .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
             }
 
             @Override
@@ -624,9 +625,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
 
             }
         }),
-            (ft, idxName, lookup) -> ft.fielddataBuilder(idxName, lookup)
-                .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService()),
-            (ft, idxName, lookup) -> ft.scriptFielddataBuilder(idxName, lookup)
+            (ft, idxName, lookup, fdt) -> ft.fielddataBuilder(idxName, lookup, fdt)
                 .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService()),
             mapperService,
             mapperService.mappingLookup(),
@@ -645,13 +644,8 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         );
     }
 
-    protected BiFunction<MappedFieldType, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataLookup() {
-        return (mft, lookupSource) -> mft.fielddataBuilder("test", lookupSource)
-            .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
-    }
-
-    protected BiFunction<MappedFieldType, Supplier<SearchLookup>, IndexFieldData<?>> scriptFieldDataLookup() {
-        return (mft, lookupSource) -> mft.scriptFielddataBuilder("test", lookupSource)
+    protected TriFunction<MappedFieldType, Supplier<SearchLookup>, MappedFieldType.FielddataType, IndexFieldData<?>> fieldDataLookup() {
+        return (mft, lookupSource, fdt) -> mft.fielddataBuilder("test", lookupSource, fdt)
             .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
     }
 

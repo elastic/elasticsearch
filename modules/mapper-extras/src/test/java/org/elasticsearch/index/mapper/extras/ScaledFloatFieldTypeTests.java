@@ -191,7 +191,8 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
             );
             IndexNumericFieldData fielddata = (IndexNumericFieldData) f1.fielddataBuilder(
                 "index",
-                () -> { throw new UnsupportedOperationException(); }
+                () -> { throw new UnsupportedOperationException(); },
+                MappedFieldType.FielddataType.SEARCH
             ).build(null, null);
             assertEquals(fielddata.getNumericType(), IndexNumericFieldData.NumericType.DOUBLE);
             LeafNumericFieldData leafFieldData = fielddata.load(reader.leaves().get(0));
@@ -205,8 +206,11 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
                 "scaled_float2",
                 scalingFactor
             );
-            fielddata = (IndexNumericFieldData) f2.fielddataBuilder("index", () -> { throw new UnsupportedOperationException(); })
-                .build(null, null);
+            fielddata = (IndexNumericFieldData) f2.fielddataBuilder(
+                "index",
+                () -> { throw new UnsupportedOperationException(); },
+                MappedFieldType.FielddataType.SEARCH
+            ).build(null, null);
             leafFieldData = fielddata.load(reader.leaves().get(0));
             values = leafFieldData.getDoubleValues();
             assertTrue(values.advanceExact(0));

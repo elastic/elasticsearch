@@ -102,7 +102,11 @@ public final class BooleanScriptFieldType extends AbstractScriptFieldType<Boolea
     }
 
     @Override
-    public BooleanScriptFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+    public BooleanScriptFieldData.Builder fielddataBuilder(
+        String fullyQualifiedIndexName,
+        Supplier<SearchLookup> searchLookup,
+        FielddataType type
+    ) {
         return new BooleanScriptFieldData.Builder(name(), leafFactory(searchLookup.get()), BooleanDocValuesField::new);
     }
 

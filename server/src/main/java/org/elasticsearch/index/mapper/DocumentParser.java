@@ -141,9 +141,7 @@ public final class DocumentParser {
         }
         SearchLookup searchLookup = new SearchLookup(
             context.mappingLookup().indexTimeLookup()::get,
-            (ft, lookup) -> ft.fielddataBuilder(context.indexSettings().getIndex().getName(), lookup)
-                .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService()),
-            (ft, lookup) -> ft.scriptFielddataBuilder(context.indexSettings().getIndex().getName(), lookup)
+            (ft, lookup, ftd) -> ft.fielddataBuilder(context.indexSettings().getIndex().getName(), lookup, ftd)
                 .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService()),
             context.mappingLookup()::sourcePaths
         );

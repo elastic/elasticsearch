@@ -13,6 +13,7 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSortField;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
@@ -29,7 +30,6 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -205,7 +205,7 @@ public final class IndexSortConfig {
      */
     public Sort buildIndexSort(
         Function<String, MappedFieldType> fieldTypeLookup,
-        BiFunction<MappedFieldType, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataLookup
+        TriFunction<MappedFieldType, Supplier<SearchLookup>, MappedFieldType.FielddataType, IndexFieldData<?>> fieldDataLookup
     ) {
         if (hasIndexSort() == false) {
             return null;
@@ -249,7 +249,8 @@ public final class IndexSortConfig {
             try {
                 fieldData = fieldDataLookup.apply(
                     ft,
-                    () -> { throw new UnsupportedOperationException("index sorting not supported on runtime field [" + ft.name() + "]"); }
+                    () -> { throw new UnsupportedOperationException("index sorting not supported on runtime field [" + ft.name() + "]"); },
+                    MappedFieldType.FielddataType.SEARCH
                 );
             } catch (Exception e) {
                 throw new IllegalArgumentException("docvalues not found for index sort field:[" + sortSpec.field + "]", e);

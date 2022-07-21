@@ -52,8 +52,7 @@ public class ExpressionFieldScriptTests extends ESTestCase {
         service = new ExpressionScriptEngine();
         lookup = new SearchLookup(
             field -> field.equals("field") ? fieldType : null,
-            (ignored, _lookup) -> fieldData,
-            (ignored, _lookup) -> fieldData,
+            (ignored, _lookup, fdt) -> fieldData,
             field -> field.equals("field") ? Set.of("field") : null
         );
     }

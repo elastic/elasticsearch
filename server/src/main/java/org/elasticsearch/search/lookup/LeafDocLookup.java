@@ -23,13 +23,13 @@ import java.security.PrivilegedAction;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 
 public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
 
     private final Function<String, MappedFieldType> fieldTypeLookup;
-    private final Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup;
-    private final Function<MappedFieldType, IndexFieldData<?>> scriptFieldDataLookup;
+    private final BiFunction<MappedFieldType, MappedFieldType.FielddataType, IndexFieldData<?>> fieldDataLookup;
     private final LeafReaderContext reader;
 
     private int docId = -1;
@@ -38,13 +38,11 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
 
     LeafDocLookup(
         Function<String, MappedFieldType> fieldTypeLookup,
-        Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup,
-        Function<MappedFieldType, IndexFieldData<?>> scriptFieldDataLookup,
+        BiFunction<MappedFieldType, MappedFieldType.FielddataType, IndexFieldData<?>> fieldDataLookup,
         LeafReaderContext reader
     ) {
         this.fieldTypeLookup = fieldTypeLookup;
         this.fieldDataLookup = fieldDataLookup;
-        this.scriptFieldDataLookup = scriptFieldDataLookup;
         this.reader = reader;
     }
 
@@ -52,11 +50,11 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
         this.docId = docId;
     }
 
-    protected DocValuesScriptFieldFactory getScriptFieldFactory(String fieldName, Function<MappedFieldType, IndexFieldData<?>> lookup) {
+    protected DocValuesScriptFieldFactory getScriptFieldFactory(String fieldName, MappedFieldType.FielddataType options) {
         DocValuesScriptFieldFactory factory = localCacheScriptFieldData.get(fieldName);
 
         // do not use cached source fallback fields for old style doc access
-        if (lookup == fieldDataLookup && factory instanceof SourceValueFetcherIndexFieldData.ValueFetcherDocValues) {
+        if (options == MappedFieldType.FielddataType.SEARCH && factory instanceof SourceValueFetcherIndexFieldData.ValueFetcherDocValues) {
             factory = null;
         }
 
@@ -72,7 +70,7 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
             factory = AccessController.doPrivileged(new PrivilegedAction<DocValuesScriptFieldFactory>() {
                 @Override
                 public DocValuesScriptFieldFactory run() {
-                    return lookup.apply(fieldType).load(reader).getScriptFieldFactory(fieldName);
+                    return fieldDataLookup.apply(fieldType, options).load(reader).getScriptFieldFactory(fieldName);
                 }
             });
 
@@ -89,12 +87,12 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
     }
 
     public Field<?> getScriptField(String fieldName) {
-        return getScriptFieldFactory(fieldName, scriptFieldDataLookup).toScriptField();
+        return getScriptFieldFactory(fieldName, MappedFieldType.FielddataType.SCRIPT).toScriptField();
     }
 
     @Override
     public ScriptDocValues<?> get(Object key) {
-        return getScriptFieldFactory(key.toString(), fieldDataLookup).toScriptDocValues();
+        return getScriptFieldFactory(key.toString(), MappedFieldType.FielddataType.SEARCH).toScriptDocValues();
     }
 
     @Override

@@ -1423,30 +1423,36 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-            failIfNoDocValues();
-            return type.getFieldDataBuilder(name());
-        }
-
-        @Override
-        public IndexFieldData.Builder scriptFielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-            if (hasDocValues()) {
-                return type.getFieldDataBuilder(name());
+        public IndexFieldData.Builder fielddataBuilder(
+            String fullyQualifiedIndexName,
+            Supplier<SearchLookup> searchLookup,
+            FielddataType type
+        ) {
+            if (type == FielddataType.SEARCH) {
+                failIfNoDocValues();
             }
 
-            return type.getValueFetcherFieldDataBuilder(
-                name(),
-                searchLookup.get().source(),
-                new SourceValueFetcher(searchLookup.get().sourcePaths(name()), nullValue) {
-                    @Override
-                    protected Object parseSourceValue(Object value) {
-                        if (value.equals("")) {
-                            return nullValue;
+            if ((type == FielddataType.SEARCH || type == FielddataType.SCRIPT) && hasDocValues()) {
+                return this.type.getFieldDataBuilder(name());
+            }
+
+            if (type == FielddataType.SCRIPT) {
+                return this.type.getValueFetcherFieldDataBuilder(
+                    name(),
+                    searchLookup.get().source(),
+                    new SourceValueFetcher(searchLookup.get().sourcePaths(name()), nullValue) {
+                        @Override
+                        protected Object parseSourceValue(Object value) {
+                            if (value.equals("")) {
+                                return nullValue;
+                            }
+                            return NumberFieldType.this.type.parse(value, coerce);
                         }
-                        return type.parse(value, coerce);
                     }
-                }
-            );
+                );
+            }
+
+            throw new IllegalStateException("unknown field data type [" + type.name() + "]");
         }
 
         @Override

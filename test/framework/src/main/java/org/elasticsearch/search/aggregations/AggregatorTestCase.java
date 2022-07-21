@@ -44,8 +44,8 @@ import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.QuadFunction;
 import org.elasticsearch.common.TriConsumer;
-import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -292,15 +292,11 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 .map(ft -> new FieldAliasMapper(ft.name() + "-alias", ft.name() + "-alias", ft.name()))
                 .collect(toList())
         );
-        TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataBuilder = (
+        QuadFunction<MappedFieldType, String, Supplier<SearchLookup>, MappedFieldType.FielddataType, IndexFieldData<?>> fieldDataBuilder = (
             fieldType,
             s,
-            searchLookup) -> fieldType.fielddataBuilder(indexSettings.getIndex().getName(), searchLookup)
-                .build(new IndexFieldDataCache.None(), breakerService);
-        TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> scriptFieldDataBuilder = (
-            fieldType,
-            s,
-            searchLookup) -> fieldType.fielddataBuilder(indexSettings.getIndex().getName(), searchLookup)
+            searchLookup,
+            fdt) -> fieldType.fielddataBuilder(indexSettings.getIndex().getName(), searchLookup, fdt)
                 .build(new IndexFieldDataCache.None(), breakerService);
         BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(indexSettings, new BitsetFilterCache.Listener() {
             @Override
@@ -315,7 +311,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
             indexSettings,
             bitsetFilterCache,
             fieldDataBuilder,
-            scriptFieldDataBuilder,
             null,
             mappingLookup,
             null,
@@ -1057,7 +1052,9 @@ public abstract class AggregatorTestCase extends ESTestCase {
     }
 
     private ValuesSourceType fieldToVST(MappedFieldType fieldType) {
-        return fieldType.fielddataBuilder("", () -> { throw new UnsupportedOperationException(); }).build(null, null).getValuesSourceType();
+        return fieldType.fielddataBuilder("", () -> { throw new UnsupportedOperationException(); }, MappedFieldType.FielddataType.SEARCH)
+            .build(null, null)
+            .getValuesSourceType();
     }
 
     /**

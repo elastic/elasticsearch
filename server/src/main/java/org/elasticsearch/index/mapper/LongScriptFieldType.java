@@ -92,7 +92,11 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
     }
 
     @Override
-    public LongScriptFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+    public LongScriptFieldData.Builder fielddataBuilder(
+        String fullyQualifiedIndexName,
+        Supplier<SearchLookup> searchLookup,
+        FielddataType type
+    ) {
         return new LongScriptFieldData.Builder(name(), leafFactory(searchLookup.get()), LongDocValuesField::new);
     }
 

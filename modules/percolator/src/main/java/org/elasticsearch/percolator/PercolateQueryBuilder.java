@@ -640,8 +640,12 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
 
             @Override
             @SuppressWarnings("unchecked")
-            public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType) {
-                IndexFieldData.Builder builder = fieldType.fielddataBuilder(delegate.getFullyQualifiedIndex().getName(), delegate::lookup);
+            public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType, MappedFieldType.FielddataType fielddataType) {
+                IndexFieldData.Builder builder = fieldType.fielddataBuilder(
+                    delegate.getFullyQualifiedIndex().getName(),
+                    delegate::lookup,
+                    fielddataType
+                );
                 IndexFieldDataCache cache = new IndexFieldDataCache.None();
                 CircuitBreakerService circuitBreaker = new NoneCircuitBreakerService();
                 return (IFD) builder.build(cache, circuitBreaker);

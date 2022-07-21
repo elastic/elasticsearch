@@ -18,7 +18,7 @@ public class SparseVectorFieldTypeTests extends FieldTypeTestCase {
     public void testDocValuesDisabled() {
         MappedFieldType fieldType = new SparseVectorFieldMapper.SparseVectorFieldType("field", Collections.emptyMap());
         assertFalse(fieldType.hasDocValues());
-        expectThrows(IllegalArgumentException.class, () -> fieldType.fielddataBuilder("index", null));
+        expectThrows(IllegalArgumentException.class, () -> fieldType.fielddataBuilder("index", null, MappedFieldType.FielddataType.SEARCH));
     }
 
     public void testIsNotAggregatable() {

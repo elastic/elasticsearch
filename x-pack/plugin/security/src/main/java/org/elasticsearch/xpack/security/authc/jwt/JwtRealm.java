@@ -67,8 +67,8 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     // Cached authenticated users, and adjusted JWT expiration date (=exp+skew) for checking if the JWT expired before the cache entry
     record ExpiringUser(User user, Date exp) {
         ExpiringUser {
-            assert user != null : "User must not be null";
-            assert exp != null : "Expiration date must not be null";
+            Objects.requireNonNull(user, "User must not be null");
+            Objects.requireNonNull(exp, "Expiration date must not be null");
         }
     }
 

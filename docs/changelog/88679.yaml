@@ -1,0 +1,5 @@
+pr: 88679
+summary: Make `random_sampler` aggregation generally available
+area: Aggregations
+type: feature
+issues: []

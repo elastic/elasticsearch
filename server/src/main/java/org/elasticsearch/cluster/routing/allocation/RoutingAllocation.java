@@ -62,6 +62,8 @@ public class RoutingAllocation {
 
     private final long currentNanoTime;
     private final boolean isSimulating;
+    @Nullable
+    private final String reason;
 
     private final IndexMetadataUpdater indexMetadataUpdater = new IndexMetadataUpdater();
     private final RoutingNodesChangedObserver nodesChangedObserver = new RoutingNodesChangedObserver();
@@ -81,7 +83,18 @@ public class RoutingAllocation {
         SnapshotShardSizeInfo shardSizeInfo,
         long currentNanoTime
     ) {
-        this(deciders, null, clusterState, clusterInfo, shardSizeInfo, currentNanoTime);
+        this(deciders, null, clusterState, clusterInfo, shardSizeInfo, currentNanoTime, false, null);
+    }
+
+    public RoutingAllocation(
+        AllocationDeciders deciders,
+        @Nullable RoutingNodes routingNodes,
+        ClusterState clusterState,
+        ClusterInfo clusterInfo,
+        SnapshotShardSizeInfo shardSizeInfo,
+        long currentNanoTime
+    ) {
+        this(deciders, routingNodes, clusterState, clusterInfo, shardSizeInfo, currentNanoTime, false, null);
     }
 
     /**
@@ -92,6 +105,7 @@ public class RoutingAllocation {
      * @param clusterInfo information about node disk usage and shard disk usage
      * @param shardSizeInfo information about snapshot shard sizes
      * @param currentNanoTime the nano time to use for all delay allocation calculation (typically {@link System#nanoTime()})
+     * @param reason for the allocation cycle
      */
     public RoutingAllocation(
         AllocationDeciders deciders,
@@ -99,9 +113,10 @@ public class RoutingAllocation {
         ClusterState clusterState,
         ClusterInfo clusterInfo,
         SnapshotShardSizeInfo shardSizeInfo,
-        long currentNanoTime
+        long currentNanoTime,
+        @Nullable String reason
     ) {
-        this(deciders, routingNodes, clusterState, clusterInfo, shardSizeInfo, currentNanoTime, false);
+        this(deciders, routingNodes, clusterState, clusterInfo, shardSizeInfo, currentNanoTime, false, reason);
     }
 
     /**
@@ -111,6 +126,7 @@ public class RoutingAllocation {
      * @param clusterState cluster state before rerouting
      * @param currentNanoTime the nano time to use for all delay allocation calculation (typically {@link System#nanoTime()})
      * @param isSimulating {@code true} if "transient" deciders should be ignored because we are simulating the final allocation
+     * @param reason for the allocation cycle
      */
     private RoutingAllocation(
         AllocationDeciders deciders,
@@ -119,7 +135,8 @@ public class RoutingAllocation {
         ClusterInfo clusterInfo,
         SnapshotShardSizeInfo shardSizeInfo,
         long currentNanoTime,
-        boolean isSimulating
+        boolean isSimulating,
+        @Nullable String reason
     ) {
         this.deciders = deciders;
         this.routingNodes = routingNodes;
@@ -128,6 +145,7 @@ public class RoutingAllocation {
         this.shardSizeInfo = shardSizeInfo;
         this.currentNanoTime = currentNanoTime;
         this.isSimulating = isSimulating;
+        this.reason = reason;
         Map<String, SingleNodeShutdownMetadata> targetNameToShutdown = new HashMap<>();
         for (SingleNodeShutdownMetadata shutdown : clusterState.metadata().nodeShutdowns().values()) {
             if (shutdown.getType() == SingleNodeShutdownMetadata.Type.REPLACE) {
@@ -369,7 +387,8 @@ public class RoutingAllocation {
             clusterInfo,
             shardSizeInfo,
             currentNanoTime,
-            true
+            true,
+            reason
         );
     }
 

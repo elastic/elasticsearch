@@ -34,9 +34,8 @@ The snapshot of the owner's permissions is updated automatically on every call.
 
 [IMPORTANT]
 ====
-A call to this API might change the API key's access scope, even if you don't specify new
-<<security-api-update-api-key-api-key-role-descriptors,`role_descriptors`>> in the request.
-This behavior can occur if the owner user's permissions have changed since the last modification of the API key.
+If you don't specify `role_descriptors` in the request, a call to this API might still change the API key's access scope.
+This change can occur if the owner user's permissions have changed since the API key was created or last modified.
 ====
 
 [[security-api-update-api-key-path-params]]

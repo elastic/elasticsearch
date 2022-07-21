@@ -153,7 +153,7 @@ public class RolloverActionTests extends AbstractActionTestCase<RolloverAction> 
         RolloverAction deserializedInstance = copyInstance(instance, Version.V_8_1_0);
         assertThat(deserializedInstance.getMaxPrimaryShardDocs(), nullValue());
 
-        // But not if maxSize is also specified:
+        // But not if maxDocs is also specified:
         instance = new RolloverAction(null, null, null, 2L, 1L, null, null, null);
         deserializedInstance = copyInstance(instance, Version.V_8_1_0);
         assertThat(deserializedInstance.getMaxPrimaryShardDocs(), nullValue());

@@ -163,6 +163,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener, Coo
         this.unacceptableNullTransitions = NO_MASTER_TRANSITIONS_THRESHOLD_SETTING.get(clusterService.getSettings());
         this.unacceptableIdentityChanges = IDENTITY_CHANGES_THRESHOLD_SETTING.get(clusterService.getSettings());
         clusterService.addListener(this);
+        coordinator.addPeerFinderListener(this);
     }
 
     /**

@@ -410,4 +410,43 @@ public class GetGlobalCheckpointsActionIT extends ESIntegTestCase {
         );
         assertEquals("Primary shards were not active within timeout [timeout=" + timeout + ", shards=1, active=0]", exception.getMessage());
     }
+
+    public void testWaitOnPrimaryShardsReady() throws Exception {
+        String indexName = "not-assigned";
+        final GetGlobalCheckpointsAction.Request request = new GetGlobalCheckpointsAction.Request(
+            indexName,
+            true,
+            true,
+            EMPTY_ARRAY,
+            TEN_SECONDS
+        );
+        client().admin()
+            .indices()
+            .prepareCreate(indexName)
+            .setWaitForActiveShards(ActiveShardCount.NONE)
+            .setSettings(
+                Settings.builder()
+                    .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
+                    .put("index.number_of_shards", 1)
+                    .put("index.number_of_replicas", 0)
+                    .put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "node", "none")
+            )
+            .get();
+
+        long start = System.nanoTime();
+        ActionFuture<GetGlobalCheckpointsAction.Response> future = client().execute(GetGlobalCheckpointsAction.INSTANCE, request);
+        Thread.sleep(randomIntBetween(10, 100));
+        client().admin()
+            .indices()
+            .prepareUpdateSettings(indexName)
+            .setSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "node", ""))
+            .get();
+        client().prepareIndex(indexName).setId(Integer.toString(0)).setSource("{}", XContentType.JSON).get();
+
+        GetGlobalCheckpointsAction.Response response = future.actionGet();
+        long elapsed = TimeValue.timeValueNanos(System.nanoTime() - start).seconds();
+        assertThat(elapsed, lessThanOrEqualTo(TEN_SECONDS.seconds()));
+        assertThat(response.globalCheckpoints()[0], equalTo(0L));
+        assertFalse(response.timedOut());
+    }
 }

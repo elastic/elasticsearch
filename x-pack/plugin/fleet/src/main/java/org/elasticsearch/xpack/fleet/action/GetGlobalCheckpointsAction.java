@@ -221,13 +221,25 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
                         var index = resolver.concreteSingleIndex(state, request);
                         long elapsedNanos = System.nanoTime() - startNanos;
                         long remainingNanos = request.timeout().nanos() - elapsedNanos;
-                        new CheckpointFetcher(
-                            client,
-                            request,
-                            listener,
-                            state.getMetadata().index(index),
-                            TimeValue.timeValueNanos(remainingNanos)
-                        ).run();
+                        if (remainingNanos > 0) {
+                            new CheckpointFetcher(
+                                client,
+                                request,
+                                listener,
+                                state.getMetadata().index(index),
+                                TimeValue.timeValueNanos(remainingNanos)
+                            ).run();
+                        } else {
+                            listener.onFailure(
+                                new UnavailableShardsException(
+                                    null,
+                                    "Primary shards were not active within timeout [timeout={}, shards={}, active={}]",
+                                    request.timeout(),
+                                    state.getMetadata().index(index).getNumberOfShards(),
+                                    state.routingTable().index(index).primaryShardsActive()
+                                )
+                            );
+                        }
                     } catch (Exception e) {
                         listener.onFailure(e);
                     }
@@ -235,10 +247,9 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
 
                 @Override
                 public void onTimeout(TimeValue timeout) {
-                    final ClusterState state = clusterService.state();
-                    final Index index;
                     try {
-                        index = resolver.concreteSingleIndex(state, request);
+                        var state = clusterService.state();
+                        var index = resolver.concreteSingleIndex(state, request);
                         listener.onFailure(
                             new UnavailableShardsException(
                                 null,
@@ -260,7 +271,9 @@ public class GetGlobalCheckpointsAction extends ActionType<GetGlobalCheckpointsA
             }, state -> {
                 try {
                     var index = resolver.concreteSingleIndex(state, request);
-                    return state.routingTable().index(index).allPrimaryShardsActive();
+                    boolean b = state.routingTable().index(index).allPrimaryShardsActive();
+                    logger.info("---> {}", b);
+                    return b;
                 } catch (Exception e) {
                     return false;
                 }

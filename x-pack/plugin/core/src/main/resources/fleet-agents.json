@@ -1,6 +1,7 @@
 {
   "settings": {
-    "auto_expand_replicas": "0-1"
+    "auto_expand_replicas": "0-1",
+    "routing.allocation.include._tier_preference": "data_hot"
   },
   "mappings": {
     "_doc" : {

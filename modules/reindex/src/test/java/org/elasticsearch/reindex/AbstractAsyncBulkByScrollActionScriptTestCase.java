@@ -82,7 +82,7 @@ public abstract class AbstractAsyncBulkByScrollActionScriptTestCase<
             applyScript((Map<String, Object> ctx) -> ctx.put("junk", "junk"));
             fail("Expected error");
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("unexpected top level keys [junk]"));
+            assertThat(e.getMessage(), equalTo("Invalid fields added to context [junk]"));
         }
     }
 

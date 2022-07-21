@@ -162,6 +162,11 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             this.clientAuthenticationSharedSecret
         );
 
+        // Split configured signature algorithms by PKC and HMAC. Useful during validation, error logging, and JWK vs Alg filtering.
+        final List<String> algs = super.config.getSetting(JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS);
+        this.allowedJwksAlgsHmac = algs.stream().filter(JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_HMAC::contains).toList();
+        this.allowedJwksAlgsPkc = algs.stream().filter(JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_PKC::contains).toList();
+
         // PKC JWKSet can be URL, file, or not set; only initialize HTTP client if PKC JWKSet is a URL.
         this.jwkSetPath = super.config.getSetting(JwtRealmSettings.PKC_JWKSET_PATH);
         this.isConfiguredJwkSetPkc = Strings.hasText(this.jwkSetPath);
@@ -178,11 +183,6 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                     + "] must be set"
             );
         }
-
-        // Split configured signature algorithms by PKC and HMAC. Useful during validation, error logging, and JWK vs Alg filtering.
-        final List<String> algs = super.config.getSetting(JwtRealmSettings.ALLOWED_SIGNATURE_ALGORITHMS);
-        this.allowedJwksAlgsHmac = algs.stream().filter(JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_HMAC::contains).toList();
-        this.allowedJwksAlgsPkc = algs.stream().filter(JwtRealmSettings.SUPPORTED_SIGNATURE_ALGORITHMS_PKC::contains).toList();
 
         if (this.isConfiguredJwkSetPkc) {
             final URI jwkSetPathUri = JwtUtil.parseHttpsUri(jwkSetPath);
@@ -210,15 +210,6 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             this.close();
             throw t;
         }
-    }
-
-    private Cache<BytesArray, ExpiringUser> buildJwtCache() {
-        final TimeValue jwtCacheTtl = super.config.getSetting(JwtRealmSettings.JWT_CACHE_TTL);
-        final int jwtCacheSize = super.config.getSetting(JwtRealmSettings.JWT_CACHE_SIZE);
-        if ((jwtCacheTtl.getNanos() > 0) && (jwtCacheSize > 0)) {
-            return CacheBuilder.<BytesArray, ExpiringUser>builder().setExpireAfterWrite(jwtCacheTtl).setMaximumWeight(jwtCacheSize).build();
-        }
-        return null;
     }
 
     private ContentAndJwksAlgs parseJwksAlgsHmac() {
@@ -273,6 +264,15 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             this.jwkSetLoader.load(future);
             return future.actionGet();
         }
+    }
+
+    private Cache<BytesArray, ExpiringUser> buildJwtCache() {
+        final TimeValue jwtCacheTtl = super.config.getSetting(JwtRealmSettings.JWT_CACHE_TTL);
+        final int jwtCacheSize = super.config.getSetting(JwtRealmSettings.JWT_CACHE_SIZE);
+        if ((jwtCacheTtl.getNanos() > 0) && (jwtCacheSize > 0)) {
+            return CacheBuilder.<BytesArray, ExpiringUser>builder().setExpireAfterWrite(jwtCacheTtl).setMaximumWeight(jwtCacheSize).build();
+        }
+        return null;
     }
 
     private void verifyAnyAvailableJwkAndAlgPair() {

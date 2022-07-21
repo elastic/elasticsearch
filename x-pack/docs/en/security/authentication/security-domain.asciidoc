@@ -22,7 +22,7 @@ Some types of resources in {es} are owned by a single user, such as
 <<async-search,async search contexts>>, <<security-api-create-api-key,API keys>>,
 and <<user-profile,user profiles>>. When a user creates a resource, {es}
 captures the user's username and realm information as part of the resource's
-metadata. Likewise, if a user updates a resource, such as an <<security-api-update-api-key,API key>>,
+metadata. Likewise, if a user updates a resource, such as an API key,
 {es} automatically re-captures the user's current realm information.
 
 When a user later attempts to access the resource, {es} compares
@@ -131,9 +131,9 @@ Resources created before the removal can be owned by different users depending o
 <<security-api-activate-user-profile,activated>>.
 For users whose realms are no longer in the same domain as the owner user, a new user profile
 will be created for them next time the activate user profile API is called.
-- Resources such as API keys are owned by the user who originally created them.
-- Users can only <<security-api-update-api-key,update the API keys>> they own.
-If the realm associated with an API key is removed from the owner user's domain, the user loses the ability to update the API key.
+- An API key is owned by the user who originally created or last updated it. Users whose realms are no longer in the same
+domain as the owner user, will no longer be able to update the API key or perform queries on it that require ownership.
+- Resources such as async search contexts are owned by the user who originally created them.
 
 Instead of removing realms, consider disabling them and keeping them as part of the security domain.
 Under all circumstances, resource sharing across realms is only possible between users with the same username.

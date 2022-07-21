@@ -10,6 +10,7 @@ package org.elasticsearch.cluster.routing.allocation.allocator;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterInfo;
+import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -17,16 +18,20 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.AllocationId;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
@@ -37,6 +42,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_VERSION_CREATED;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
@@ -366,6 +372,132 @@ public class DesiredBalanceComputerTests extends ESTestCase {
         assertDesiredAssignments(desiredBalance, Map.of());
     }
 
+    public void testDesiredBalanceShouldConvergeInABigCluster() {
+        var nodes = randomIntBetween(3, 7);
+        var nodeIds = new ArrayList<String>(nodes);
+        var discoveryNodesBuilder = DiscoveryNodes.builder();
+        for (int node = 0; node < nodes; node++) {
+            var nodeId = "node-" + node;
+            nodeIds.add(nodeId);
+            discoveryNodesBuilder.add(
+                new DiscoveryNode(
+                    nodeId,
+                    nodeId,
+                    UUIDs.randomBase64UUID(random()),
+                    buildNewFakeTransportAddress(),
+                    Map.of(),
+                    DiscoveryNodeRole.roles(),
+                    Version.CURRENT
+                )
+            );
+        }
+
+        var indices = scaledRandomIntBetween(1, 1000);
+        var totalShards = 0;
+        var metadataBuilder = Metadata.builder();
+        var routingTableBuilder = RoutingTable.builder();
+        for (int i = 0; i < indices; i++) {
+            var indexName = "index-" + i;
+            var shards = randomIntBetween(1, 10);
+            var replicas = randomIntBetween(1, nodes - 1);
+            totalShards += shards * (replicas + 1);
+            var inSyncIds = randomList(shards * (replicas + 1), shards * (replicas + 1), () -> UUIDs.randomBase64UUID(random()));
+
+            var indexMetadataBuilder = IndexMetadata.builder(indexName)
+                .settings(
+                    Settings.builder()
+                        .put("index.number_of_shards", shards)
+                        .put("index.number_of_replicas", replicas)
+                        .put("index.version.created", Version.CURRENT)
+                        .build()
+                );
+            for (int shard = 0; shard < shards; shard++) {
+                indexMetadataBuilder.putInSyncAllocationIds(
+                    shard,
+                    Set.copyOf(inSyncIds.subList(shard * (replicas + 1), (shard + 1) * (replicas + 1)))
+                );
+            }
+            metadataBuilder.put(indexMetadataBuilder);
+
+            var indexId = metadataBuilder.get(indexName).getIndex();
+            var indexRoutingTableBuilder = IndexRoutingTable.builder(indexId);
+
+            for (int shard = 0; shard < shards; shard++) {
+                var remainingNodeIds = new ArrayList<>(nodeIds);
+                remainingNodeIds.add(null);// disconnected node
+                var shardId = new ShardId(indexId, shard);
+                var primaryNodeId = pickAndRemoveRandomValueFrom(remainingNodeIds);
+                indexRoutingTableBuilder.addShard(
+                    TestShardRouting.newShardRouting(
+                        shardId,
+                        primaryNodeId,
+                        null,
+                        true,
+                        primaryNodeId == null ? ShardRoutingState.UNASSIGNED : ShardRoutingState.STARTED,
+                        AllocationId.newInitializing(inSyncIds.get(shard * (replicas + 1)))
+                    )
+                );
+                for (int replica = 0; replica < replicas; replica++) {
+                    var replicaNodeId = pickAndRemoveRandomValueFrom(remainingNodeIds);
+                    indexRoutingTableBuilder.addShard(
+                        TestShardRouting.newShardRouting(
+                            shardId,
+                            replicaNodeId,
+                            null,
+                            false,
+                            replicaNodeId == null ? ShardRoutingState.UNASSIGNED : ShardRoutingState.STARTED,
+                            AllocationId.newInitializing(inSyncIds.get(shard * (replicas + 1) + 1 + replica))
+                        )
+                    );
+                }
+            }
+            routingTableBuilder.add(indexRoutingTableBuilder);
+        }
+
+        var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(discoveryNodesBuilder)
+            .metadata(metadataBuilder)
+            .routingTable(routingTableBuilder)
+            .build();
+
+        var iteration = new AtomicInteger(0);
+
+        var input = new DesiredBalanceInput(randomInt(), routingAllocationWithDecidersOf(clusterState), List.of());
+        var desiredBalance = new DesiredBalanceComputer(new BalancedShardsAllocator(Settings.EMPTY)).compute(
+            DesiredBalance.INITIAL,
+            input,
+            ignored -> iteration.incrementAndGet() < 1000
+        );
+
+        try {
+            assertThat(
+                "Balance should converge, but exited by the iteration limit",
+                desiredBalance.lastConvergedIndex(),
+                equalTo(input.index())
+            );
+            logger.info(
+                "Balance converged after [{}] iterations for [{}] nodes and [{}] total shards",
+                iteration.get(),
+                nodes,
+                totalShards
+            );
+        } catch (AssertionError e) {
+            logger.error(
+                "Failed to converge desired balance for [{}] nodes and [{}] total shards:\n {}",
+                nodes,
+                totalShards,
+                clusterState.getRoutingNodes()
+            );
+            throw e;
+        }
+    }
+
+    private String pickAndRemoveRandomValueFrom(List<String> values) {
+        var value = randomFrom(values);
+        values.remove(value);
+        return value;
+    }
+
     static ClusterState createInitialClusterState() {
         return createInitialClusterState(3);
     }
@@ -448,5 +580,21 @@ public class DesiredBalanceComputerTests extends ESTestCase {
 
     private static RoutingAllocation routingAllocationOf(ClusterState clusterState) {
         return new RoutingAllocation(new AllocationDeciders(List.of()), clusterState, ClusterInfo.EMPTY, SnapshotShardSizeInfo.EMPTY, 0L);
+    }
+
+    private static RoutingAllocation routingAllocationWithDecidersOf(ClusterState clusterState) {
+        return new RoutingAllocation(
+            new AllocationDeciders(
+                ClusterModule.createAllocationDeciders(
+                    Settings.EMPTY,
+                    new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                    List.of()
+                )
+            ),
+            clusterState,
+            ClusterInfo.EMPTY,
+            SnapshotShardSizeInfo.EMPTY,
+            0L
+        );
     }
 }

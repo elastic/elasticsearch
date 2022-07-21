@@ -265,6 +265,7 @@ public class Constants {
         "cluster:monitor/nodes/stats",
         "cluster:monitor/nodes/usage",
         "cluster:monitor/remote/info",
+        "cluster:monitor/nodes/prevalidate_removal",
         "cluster:monitor/settings",
         "cluster:monitor/state",
         "cluster:monitor/stats",

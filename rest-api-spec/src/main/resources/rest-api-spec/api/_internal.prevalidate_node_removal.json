@@ -1,0 +1,29 @@
+{
+  "_internal.prevalidate_node_removal": {
+    "documentation":{
+      "url": null,
+      "description":""
+    },
+    "stability":"experimental",
+    "visibility":"private",
+    "headers":{
+      "accept": [ "application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_internal/prevalidate_node_removal",
+          "methods":[
+            "GET"
+          ]
+        }
+      ]
+    },
+    "params":{
+      "node_id":{
+        "type":"string",
+        "description":""
+      }
+    }
+  }
+}

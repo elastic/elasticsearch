@@ -38,6 +38,7 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
@@ -65,7 +66,7 @@ import java.util.stream.Collectors;
  * Since this service needs to be able to run when there is no master at all, it does not depend on the dedicated health node (which
  * requires the existence of a master).
  */
-public class CoordinationDiagnosticsService implements ClusterStateListener {
+public class CoordinationDiagnosticsService implements ClusterStateListener, Coordinator.PeerFinderListener {
     private final ClusterService clusterService;
     private final TransportService transportService;
     private final Coordinator coordinator;
@@ -102,15 +103,20 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
     /*
      * This is a list of tasks that are periodically reaching out to a master eligible node to get its CoordinationDiagnosticsResult for
      * diagnosis.
-     * The field is accessed (reads/writes) from multiple threads, but the reference itself is only ever changed on the cluster change
-     * event thread.
+     * The field is accessed (reads/writes) from multiple threads, and is also reassigned on multiple threads.
      */
-    private List<Scheduler.Cancellable> remoteStableMasterHealthIndicatorTasks = null;
+    private volatile List<Scheduler.Cancellable> remoteStableMasterHealthIndicatorTasks = null;
     /*
      * This field holds the result of the tasks in the remoteStableMasterHealthIndicatorTasks field above. The field is accessed
-     * (reads/writes) from multiple threads, but the reference itself is only ever changed on the cluster change event thread.
+     * (reads/writes) from multiple threads, and is also reassigned on multiple threads.
      */
     private volatile AtomicReference<RemoteMasterHealthResult> remoteCoordinationDiagnosisResult = new AtomicReference<>();
+
+    /*
+     * The previous two variables (remoteStableMasterHealthIndicatorTasks and remoteCoordinationDiagnosisResult) are reassigned on
+     * multiple threads. This mutex is used to protect those reassignments.
+     */
+    private final Object remoteDiagnosticsMutex = new Object();
 
     /**
      * This is the default amount of time we look back to see if we have had a master at all, before moving on with other checks
@@ -469,16 +475,6 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
         } else {
             cancelPollingClusterFormationInfo();
         }
-        /*
-         * This begins polling a random master-eligible node for its result from this service. However there's a 10-second delay before it
-         * starts, so in the normal situation where during a master transition it flips from master1 -> null -> master2, it the
-         * polling tasks will be canceled before any requests are actually made.
-         */
-        if (currentMaster == null && clusterService.localNode().isMasterNode() == false) {
-            beginPollingRemoteStableMasterHealthIndicatorService();
-        } else {
-            cancelPollingRemoteStableMasterHealthIndicatorService();
-        }
     }
 
     /**
@@ -617,14 +613,16 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
         }, new TimeValue(10, TimeUnit.SECONDS), ThreadPool.Names.SAME);
     }
 
-    private void beginPollingRemoteStableMasterHealthIndicatorService() {
-        assert ThreadPool.assertCurrentThreadPool(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME);
-        cancelPollingRemoteStableMasterHealthIndicatorService();
-        List<Scheduler.Cancellable> cancellables = new CopyOnWriteArrayList<>();
-        AtomicReference<RemoteMasterHealthResult> resultReference = new AtomicReference<>();
-        beginPollingRemoteStableMasterHealthIndicatorService(getMasterEligibleNodes(), resultReference::set, cancellables::add);
-        remoteStableMasterHealthIndicatorTasks = cancellables;
-        remoteCoordinationDiagnosisResult = resultReference;
+    private void beginPollingRemoteStableMasterHealthIndicatorService(Collection<DiscoveryNode> masterEligibleNodes) {
+        synchronized (remoteDiagnosticsMutex) {
+            if (remoteStableMasterHealthIndicatorTasks == null) {
+                List<Scheduler.Cancellable> cancellables = new CopyOnWriteArrayList<>();
+                AtomicReference<RemoteMasterHealthResult> resultReference = new AtomicReference<>();
+                beginPollingRemoteStableMasterHealthIndicatorService(masterEligibleNodes, resultReference::set, cancellables::add);
+                remoteStableMasterHealthIndicatorTasks = cancellables;
+                remoteCoordinationDiagnosisResult = resultReference;
+            }
+        }
     }
 
     /**
@@ -735,10 +733,36 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
     }
 
     private void cancelPollingRemoteStableMasterHealthIndicatorService() {
-        if (remoteStableMasterHealthIndicatorTasks != null) {
-            remoteStableMasterHealthIndicatorTasks.forEach(Scheduler.Cancellable::cancel);
-            remoteStableMasterHealthIndicatorTasks = null;
-            remoteCoordinationDiagnosisResult = new AtomicReference<>();
+        synchronized (remoteDiagnosticsMutex) {
+            if (remoteStableMasterHealthIndicatorTasks != null) {
+                remoteStableMasterHealthIndicatorTasks.forEach(Scheduler.Cancellable::cancel);
+                remoteStableMasterHealthIndicatorTasks = null;
+                remoteCoordinationDiagnosisResult = new AtomicReference<>();
+            }
+        }
+    }
+
+    @Override
+    public void onFoundPeersUpdated() {
+        /*
+         * If we are on a non-master-eligible node, and the list of peers in PeerFinder is non-empty, that implies that there is
+         * currently no master node elected.
+         * This begins polling a random master-eligible node for its result from this service. However there's a 10-second delay before it
+         * starts, so in the normal situation where during a master transition it flips from master1 -> null -> master2, it the
+         * polling tasks will be canceled before any requests are actually made.
+         * Note that this method can be called from multiple threads.
+         */
+        if (clusterService.localNode().isMasterNode() == false) {
+            /*
+             * Note that PeerFinder (the source of master eligible nodes) could be updating the master eligible nodes on a different
+             * thread, so making a copy here so that it doesn't change for the short duration of this method.
+             */
+            List<DiscoveryNode> masterEligibleNodes = new ArrayList<>(getMasterEligibleNodes());
+            if (masterEligibleNodes.isEmpty()) {
+                cancelPollingRemoteStableMasterHealthIndicatorService();
+            } else {
+                beginPollingRemoteStableMasterHealthIndicatorService(masterEligibleNodes);
+            }
         }
     }
 

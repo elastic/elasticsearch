@@ -1262,15 +1262,16 @@ public class IndexNameExpressionResolver {
             );
             if (explicitsAndWildcards.wildcardsAndExclusions().isEmpty()) {
                 return new ArrayList<>(explicitsAndWildcards.explicitNames());
+            } else {
+                Set<String> expandedWildcards = innerResolve(context, explicitsAndWildcards.wildcardsAndExclusions(), options, metadata);
+                if (expandedWildcards.isEmpty() && options.allowNoIndices() == false) {
+                    IndexNotFoundException infe = new IndexNotFoundException((String) null);
+                    infe.setResources("index_or_alias", explicitsAndWildcards.wildcardsAndExclusions().toArray(new String[0]));
+                    throw infe;
+                }
+                expandedWildcards.addAll(explicitsAndWildcards.explicitNames());
+                return new ArrayList<>(expandedWildcards);
             }
-            Set<String> expandedWildcards = innerResolve(context, explicitsAndWildcards.wildcardsAndExclusions(), options, metadata);
-            if (expandedWildcards.isEmpty() && options.allowNoIndices() == false) {
-                IndexNotFoundException infe = new IndexNotFoundException((String) null);
-                infe.setResources("index_or_alias", explicitsAndWildcards.wildcardsAndExclusions().toArray(new String[0]));
-                throw infe;
-            }
-            expandedWildcards.addAll(explicitsAndWildcards.explicitNames());
-            return new ArrayList<>(expandedWildcards);
         }
 
         private static Set<String> innerResolve(

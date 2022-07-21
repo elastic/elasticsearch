@@ -374,7 +374,7 @@ public class Reindexer {
             }
         }
 
-        class ReindexScriptApplier extends ScriptApplier<ReindexMetadata> {
+        static class ReindexScriptApplier extends ScriptApplier<ReindexMetadata> {
             private ReindexScript.Factory reindex;
 
             ReindexScriptApplier(

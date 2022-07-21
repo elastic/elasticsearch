@@ -847,10 +847,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
                 return request;
             }
 
-            Map<String, Object> source = Maps.newHashMapWithExpectedSize(1);
-            source.put("_source", request.getSource());
-
-            CtxMap<T> ctxMap = execute(doc, source);
+            CtxMap<T> ctxMap = execute(doc, request.getSource());
 
             T metadata = ctxMap.getMetadata();
 

@@ -47,9 +47,8 @@ This behavior can occur if the owner user's permissions have changed since the l
 
 [[security-api-update-api-key-request-body]]
 ==== {api-request-body-title}
-(Optional)
 
-You can specify the following optional parameters in the request body.
+You can specify the following parameters in the request body, which is optional.
 
 [[security-api-update-api-key-api-key-role-descriptors]]
 `role_descriptors`::

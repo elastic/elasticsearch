@@ -75,8 +75,8 @@ public class MetadataUpdateSettingsService {
             for (final var taskContext : taskContexts) {
                 try {
                     final var task = taskContext.getTask();
-                    state = task.execute(state, taskContext);
-                    taskContext.success(task.getAckListener());
+                    state = task.execute(state);
+                    taskContext.success(task);
                 } catch (Exception e) {
                     taskContext.onFailure(e);
                 }
@@ -89,13 +89,38 @@ public class MetadataUpdateSettingsService {
         };
     }
 
-    private final class UpdateSettingsTask implements ClusterStateTaskListener {
+    private final class UpdateSettingsTask implements ClusterStateAckListener, ClusterStateTaskListener {
         private final UpdateSettingsClusterStateUpdateRequest request;
         private final ActionListener<AcknowledgedResponse> listener;
 
         private UpdateSettingsTask(UpdateSettingsClusterStateUpdateRequest request, ActionListener<AcknowledgedResponse> listener) {
             this.request = request;
             this.listener = listener;
+        }
+
+        @Override
+        public boolean mustAck(DiscoveryNode discoveryNode) {
+            return true;
+        }
+
+        @Override
+        public void onAllNodesAcked() {
+            listener.onResponse(AcknowledgedResponse.of(true));
+        }
+
+        @Override
+        public void onAckFailure(Exception e) {
+            listener.onFailure(e);
+        }
+
+        @Override
+        public void onAckTimeout() {
+            listener.onResponse(AcknowledgedResponse.of(false));
+        }
+
+        @Override
+        public TimeValue ackTimeout() {
+            return request.ackTimeout();
         }
 
         @Override
@@ -108,36 +133,7 @@ public class MetadataUpdateSettingsService {
             assert false : "should not be called";
         }
 
-        private ClusterStateAckListener getAckListener() {
-            return new ClusterStateAckListener() {
-                @Override
-                public boolean mustAck(DiscoveryNode discoveryNode) {
-                    return true;
-                }
-
-                @Override
-                public void onAllNodesAcked() {
-                    listener.onResponse(AcknowledgedResponse.of(true));
-                }
-
-                @Override
-                public void onAckFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-
-                @Override
-                public void onAckTimeout() {
-                    listener.onResponse(AcknowledgedResponse.of(false));
-                }
-
-                @Override
-                public TimeValue ackTimeout() {
-                    return request.ackTimeout();
-                }
-            };
-        }
-
-        ClusterState execute(ClusterState currentState, ClusterStateTaskExecutor.TaskContext<UpdateSettingsTask> taskContext) {
+        ClusterState execute(ClusterState currentState) {
             final Settings normalizedSettings = Settings.builder()
                 .put(request.settings())
                 .normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX)
@@ -188,17 +184,9 @@ public class MetadataUpdateSettingsService {
             }
 
             if (skippedSettings.isEmpty() == false && openIndices.isEmpty() == false) {
-                taskContext.onFailure(
-                    new IllegalArgumentException(
-                        String.format(
-                            Locale.ROOT,
-                            "Can't update non dynamic settings [%s] for open indices %s",
-                            skippedSettings,
-                            openIndices
-                        )
-                    )
+                throw new IllegalArgumentException(
+                    String.format(Locale.ROOT, "Can't update non dynamic settings [%s] for open indices %s", skippedSettings, openIndices)
                 );
-                return currentState;
             }
 
             if (IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.exists(openSettings)) {
@@ -298,8 +286,7 @@ public class MetadataUpdateSettingsService {
                     indicesService.verifyIndexMetadata(updatedMetadata, updatedMetadata);
                 }
             } catch (IOException ex) {
-                taskContext.onFailure(ExceptionsHelper.convertToElastic(ex));
-                return currentState;
+                throw ExceptionsHelper.convertToElastic(ex);
             }
 
             return updatedState;

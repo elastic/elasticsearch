@@ -17,6 +17,7 @@ import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.rest.AbstractRestChannel;
@@ -51,8 +52,10 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
     private final ThreadContext threadContext;
     private final HttpChannel httpChannel;
     private final CorsHandler corsHandler;
-    private final HttpTracer httpTracer;
     private final Tracer tracer;
+
+    @Nullable
+    private final HttpTracer httpTracer;
 
     DefaultRestChannel(
         HttpChannel httpChannel,
@@ -62,7 +65,7 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
         HttpHandlingSettings settings,
         ThreadContext threadContext,
         CorsHandler corsHandler,
-        HttpTracer httpTracer,
+        @Nullable HttpTracer httpTracer,
         Tracer tracer
     ) {
         super(request, settings.detailedErrorsEnabled());
@@ -83,8 +86,7 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
 
     @Override
     public void sendResponse(RestResponse restResponse) {
-        // We're sending a response so we know we won't be needing
-        // the request content again and release it
+        // We're sending a response so we know we won't be needing the request content again and release it
         httpRequest.release();
 
         final String traceId = "rest-" + this.request.getRequestId();
@@ -93,14 +95,11 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
         if (HttpUtils.shouldCloseConnection(httpRequest)) {
             toClose.add(() -> CloseableChannel.closeChannel(httpChannel));
         }
+        toClose.add(() -> tracer.onTraceStopped(traceId));
 
         boolean success = false;
         String opaque = null;
         String contentLength = null;
-        final Runnable onFinish = () -> {
-            Releasables.close(toClose);
-            tracer.onTraceStopped(traceId);
-        };
 
         try {
             final BytesReference content = restResponse.content();
@@ -144,14 +143,14 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
             restResponse.getHeaders()
                 .forEach((key, values) -> tracer.setAttribute(traceId, "http.response.headers." + key, String.join("; ", values)));
 
-            ActionListener<Void> listener = ActionListener.wrap(onFinish);
+            ActionListener<Void> listener = ActionListener.wrap(() -> Releasables.close(toClose));
             try (ThreadContext.StoredContext existing = threadContext.stashContext()) {
                 httpChannel.sendResponse(httpResponse, listener);
             }
             success = true;
         } finally {
             if (success == false) {
-                onFinish.run();
+                Releasables.close(toClose);
             }
             if (httpTracer != null) {
                 httpTracer.traceResponse(restResponse, httpChannel, contentLength, opaque, request.getRequestId(), success);

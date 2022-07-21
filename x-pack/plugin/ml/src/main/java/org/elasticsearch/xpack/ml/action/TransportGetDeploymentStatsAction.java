@@ -143,7 +143,8 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
                 TrainedModelAssignment trainedModelAssignment = assignment.getModelAssignment(stats.getModelId());
                 if (trainedModelAssignment != null) {
                     stats.setState(trainedModelAssignment.getAssignmentState()).setReason(trainedModelAssignment.getReason().orElse(null));
-                    if (trainedModelAssignment.getNodeRoutingTable()
+                    if (trainedModelAssignment.getNodeRoutingTable().isEmpty() == false &&
+                        trainedModelAssignment.getNodeRoutingTable()
                         .values()
                         .stream()
                         .allMatch(ri -> ri.getState().equals(RoutingState.FAILED))) {

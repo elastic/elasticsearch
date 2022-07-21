@@ -1,0 +1,6 @@
+pr: 88675
+summary: Upgrade to OpenJDK 18.0.2+9
+area: Packaging
+type: upgrade
+issues:
+ - 88673

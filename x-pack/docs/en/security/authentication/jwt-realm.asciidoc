@@ -450,7 +450,7 @@ PKC JSON Web Token Key Sets (JWKS) can contain public RSA and EC keys. HMAC JWKS
 JWT issuers typically rotate PKC JWKS more frequently (such as daily), because RSA and EC public keys are
 designed to be easier to distribute than secret keys like HMAC.
 
-JWT realms load a PKC JWKS, and a HMAC JWKS or HMAC UTF-8 JWK, at startup.
+JWT realms load a PKC JWKS, and an HMAC JWKS or HMAC UTF-8 JWK, at startup.
 JWT realms can also reload PKC JWKS contents at runtime; reload is triggered by signature validation failures.
 
 CAUTION: HMAC JWKS or HMAC UTF-8 JWK reloading is not supported at this time.

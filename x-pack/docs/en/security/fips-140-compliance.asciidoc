@@ -161,7 +161,7 @@ however you should carefully assess performance impact first. Depending
 on your deployment, the overhead of `PBKDF2` could undo most of the
 performance gain of using a cache.
 
-You should set all `cache.hash_algo` settings to `ssha256` or leave
+Either set all `cache.hash_algo` settings to `ssha256` or leave
 them undefined, since `ssha256` is the default value for all
 `cache.hash_algo` settings. See <<hashing-settings>>.
 

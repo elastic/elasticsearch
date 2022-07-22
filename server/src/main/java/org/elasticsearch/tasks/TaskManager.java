@@ -145,10 +145,21 @@ public class TaskManager implements ClusterStateApplier {
             registerCancellableTask(task);
         } else {
             Task previousTask = tasks.put(task.getId(), task);
-            tracer.onTraceStarted(threadContext, task);
             assert previousTask == null;
+            startTrace(threadContext, task);
         }
         return task;
+    }
+
+    private void startTrace(ThreadContext threadContext, Task task) {
+        TaskId parentTask = task.getParentTaskId();
+        Map<String, Object> attributes = Map.of(
+            Tracer.AttributeKeys.TASK_ID,
+            task.getId(),
+            Tracer.AttributeKeys.PARENT_TASK_ID,
+            parentTask.toString()
+        );
+        tracer.onTraceStarted(threadContext, "task-" + task.getId(), task.getAction(), attributes);
     }
 
     public <Request extends ActionRequest, Response extends ActionResponse> Task registerAndExecute(
@@ -209,7 +220,7 @@ public class TaskManager implements ClusterStateApplier {
         CancellableTask cancellableTask = (CancellableTask) task;
         CancellableTaskHolder holder = new CancellableTaskHolder(cancellableTask);
         cancellableTasks.put(task, holder);
-        tracer.onTraceStarted(threadPool.getThreadContext(), task);
+        startTrace(threadPool.getThreadContext(), task);
         // Check if this task was banned before we start it. The empty check is used to avoid
         // computing the hash code of the parent taskId as most of the time bannedParents is empty.
         if (task.getParentTaskId().isSet() && bannedParents.isEmpty() == false) {
@@ -264,7 +275,7 @@ public class TaskManager implements ClusterStateApplier {
                 return removedTask;
             }
         } finally {
-            tracer.onTraceStopped(task);
+            tracer.onTraceStopped("task-" + task.getId());
         }
     }
 

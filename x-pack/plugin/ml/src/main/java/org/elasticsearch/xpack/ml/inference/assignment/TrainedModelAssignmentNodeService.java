@@ -357,7 +357,8 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
                                 trainedModelAssignment.getTaskParams().getModelBytes(),
                                 trainedModelAssignment.getTaskParams().getThreadsPerAllocation(),
                                 routingInfo.getCurrentAllocations(),
-                                trainedModelAssignment.getTaskParams().getQueueCapacity()
+                                trainedModelAssignment.getTaskParams().getQueueCapacity(),
+                                trainedModelAssignment.getTaskParams().getCacheSize().orElse(null)
                             )
                         );
                     }

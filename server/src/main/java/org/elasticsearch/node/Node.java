@@ -101,6 +101,7 @@ import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.HealthService;
+import org.elasticsearch.health.metadata.HealthMetadataService;
 import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
 import org.elasticsearch.http.HttpServerTransport;
@@ -509,8 +510,11 @@ public class Node implements Closeable {
                 SystemIndexMigrationExecutor.getNamedWriteables().stream()
             ).flatMap(Function.identity()).toList();
             final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(namedWriteables);
-            Stream<NamedXContentRegistry.Entry> healthNodeSelectorTaskNamedXContentParsers = HealthNode.isEnabled()
+            Stream<NamedXContentRegistry.Entry> healthNodeTaskNamedXContentParsers = HealthNode.isEnabled()
                 ? HealthNodeTaskExecutor.getNamedXContentParsers().stream()
+                : Stream.empty();
+            Stream<NamedXContentRegistry.Entry> healthMetadataNamedXContentParsers = HealthNode.isEnabled()
+                ? HealthMetadataService.getNamedXContentParsers().stream()
                 : Stream.empty();
             NamedXContentRegistry xContentRegistry = new NamedXContentRegistry(
                 Stream.of(
@@ -520,7 +524,8 @@ public class Node implements Closeable {
                     pluginsService.flatMap(Plugin::getNamedXContent),
                     ClusterModule.getNamedXWriteables().stream(),
                     SystemIndexMigrationExecutor.getNamedXContentParsers().stream(),
-                    healthNodeSelectorTaskNamedXContentParsers
+                    healthNodeTaskNamedXContentParsers,
+                    healthMetadataNamedXContentParsers
                 ).flatMap(Function.identity()).collect(toList())
             );
             final List<SystemIndices.Feature> features = pluginsService.filterPlugins(SystemIndexPlugin.class).stream().map(plugin -> {
@@ -719,7 +724,8 @@ public class Node implements Closeable {
                 client,
                 circuitBreakerService,
                 usageService,
-                systemIndices
+                systemIndices,
+                tracer
             );
             modules.add(actionModule);
 
@@ -924,10 +930,14 @@ public class Node implements Closeable {
             MasterHistoryService masterHistoryService = new MasterHistoryService(transportService, threadPool, clusterService);
             CoordinationDiagnosticsService coordinationDiagnosticsService = new CoordinationDiagnosticsService(
                 clusterService,
+                transportService,
                 discoveryModule.getCoordinator(),
                 masterHistoryService
             );
             HealthService healthService = createHealthService(clusterService, clusterModule, coordinationDiagnosticsService);
+            HealthMetadataService healthMetadataService = HealthNode.isEnabled()
+                ? new HealthMetadataService(clusterService, settings)
+                : null;
 
             modules.add(b -> {
                 b.bind(Node.class).toInstance(this);
@@ -1014,6 +1024,7 @@ public class Node implements Closeable {
                 b.bind(CoordinationDiagnosticsService.class).toInstance(coordinationDiagnosticsService);
                 if (HealthNode.isEnabled()) {
                     b.bind(HealthNodeTaskExecutor.class).toInstance(healthNodeTaskExecutor);
+                    b.bind(HealthMetadataService.class).toInstance(healthMetadataService);
                 }
                 b.bind(Tracer.class).toInstance(tracer);
             });

@@ -32,6 +32,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -46,6 +47,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -60,10 +62,14 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class RestControllerTests extends ESTestCase {
 
@@ -73,6 +79,7 @@ public class RestControllerTests extends ESTestCase {
     private HierarchyCircuitBreakerService circuitBreakerService;
     private UsageService usageService;
     private NodeClient client;
+    private Tracer tracer;
 
     @Before
     public void setup() {
@@ -91,7 +98,8 @@ public class RestControllerTests extends ESTestCase {
 
         HttpServerTransport httpServerTransport = new TestHttpServerTransport();
         client = new NoOpNodeClient(this.getTestName());
-        restController = new RestController(Collections.emptySet(), null, client, circuitBreakerService, usageService);
+        tracer = mock(Tracer.class);
+        restController = new RestController(Collections.emptySet(), null, client, circuitBreakerService, usageService, tracer);
         restController.registerHandler(
             new Route(GET, "/"),
             (request, channel, client) -> channel.sendResponse(
@@ -115,7 +123,7 @@ public class RestControllerTests extends ESTestCase {
         Set<RestHeaderDefinition> headers = new HashSet<>(
             Arrays.asList(new RestHeaderDefinition("header.1", true), new RestHeaderDefinition("header.2", true))
         );
-        final RestController restController = new RestController(headers, null, null, circuitBreakerService, usageService);
+        final RestController restController = new RestController(headers, null, null, circuitBreakerService, usageService, tracer);
         Map<String, List<String>> restHeaders = new HashMap<>();
         restHeaders.put("header.1", Collections.singletonList("true"));
         restHeaders.put("header.2", Collections.singletonList("true"));
@@ -141,7 +149,7 @@ public class RestControllerTests extends ESTestCase {
         Set<RestHeaderDefinition> headers = new HashSet<>(
             Arrays.asList(new RestHeaderDefinition("header.1", true), new RestHeaderDefinition("header.2", false))
         );
-        final RestController restController = new RestController(headers, null, null, circuitBreakerService, usageService);
+        final RestController restController = new RestController(headers, null, null, circuitBreakerService, usageService, tracer);
         Map<String, List<String>> restHeaders = new HashMap<>();
         restHeaders.put("header.1", Collections.singletonList("boo"));
         restHeaders.put("header.2", List.of("foo", "bar"));
@@ -152,13 +160,42 @@ public class RestControllerTests extends ESTestCase {
     }
 
     /**
+     * Check that dispatching a request causes a trace span to be started.
+     */
+    public void testDispatchStartsTrace() {
+        final ThreadContext threadContext = client.threadPool().getThreadContext();
+        final RestController restController = new RestController(Set.of(), null, null, circuitBreakerService, usageService, tracer);
+        RestRequest fakeRequest = new FakeRestRequest.Builder(xContentRegistry()).build();
+        final RestController spyRestController = spy(restController);
+        when(spyRestController.getAllHandlers(null, fakeRequest.rawPath())).thenReturn(new Iterator<>() {
+            @Override
+            public boolean hasNext() {
+                return false;
+            }
+
+            @Override
+            public MethodHandlers next() {
+                return new MethodHandlers("/").addMethod(GET, RestApiVersion.current(), (request, channel, client) -> {});
+            }
+        });
+        AssertingChannel channel = new AssertingChannel(fakeRequest, false, RestStatus.BAD_REQUEST);
+        restController.dispatchRequest(fakeRequest, channel, threadContext);
+        verify(tracer).onTraceStarted(
+            eq(threadContext),
+            eq("rest-" + channel.request().getRequestId()),
+            eq("GET /"),
+            eq(Map.of("http.method", "GET", "http.flavour", "1.1", "http.url", "/"))
+        );
+    }
+
+    /**
      * Check that the REST controller picks up and propagates W3C trace context headers via the {@link ThreadContext}.
      * @see <a href="https://www.w3.org/TR/trace-context/">Trace Context - W3C Recommendation</a>
      */
     public void testTraceParentAndTraceId() {
         final ThreadContext threadContext = client.threadPool().getThreadContext();
-        Set<RestHeaderDefinition> headers = new HashSet<>(Arrays.asList(new RestHeaderDefinition(Task.TRACE_PARENT_HTTP_HEADER, false)));
-        final RestController restController = new RestController(headers, null, null, circuitBreakerService, usageService);
+        Set<RestHeaderDefinition> headers = Set.of(new RestHeaderDefinition(Task.TRACE_PARENT_HTTP_HEADER, false));
+        final RestController restController = new RestController(headers, null, null, circuitBreakerService, usageService, tracer);
         Map<String, List<String>> restHeaders = new HashMap<>();
         final String traceParentValue = "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01";
         restHeaders.put(Task.TRACE_PARENT_HTTP_HEADER, Collections.singletonList(traceParentValue));
@@ -179,7 +216,7 @@ public class RestControllerTests extends ESTestCase {
         Set<RestHeaderDefinition> headers = new HashSet<>(
             Arrays.asList(new RestHeaderDefinition("header.1", true), new RestHeaderDefinition("header.2", false))
         );
-        final RestController restController = new RestController(headers, null, client, circuitBreakerService, usageService);
+        final RestController restController = new RestController(headers, null, client, circuitBreakerService, usageService, tracer);
         Map<String, List<String>> restHeaders = new HashMap<>();
         restHeaders.put("header.1", Collections.singletonList("boo"));
         restHeaders.put("header.2", List.of("foo", "foo"));
@@ -250,7 +287,7 @@ public class RestControllerTests extends ESTestCase {
     }
 
     public void testRegisterSecondMethodWithDifferentNamedWildcard() {
-        final RestController restController = new RestController(null, null, null, circuitBreakerService, usageService);
+        final RestController restController = new RestController(null, null, null, circuitBreakerService, usageService, tracer);
 
         RestRequest.Method firstMethod = randomFrom(RestRequest.Method.values());
         RestRequest.Method secondMethod = randomFrom(Arrays.stream(RestRequest.Method.values()).filter(m -> m != firstMethod).toList());
@@ -277,7 +314,7 @@ public class RestControllerTests extends ESTestCase {
         final RestController restController = new RestController(Collections.emptySet(), h -> {
             assertSame(handler, h);
             return (RestRequest request, RestChannel channel, NodeClient client) -> wrapperCalled.set(true);
-        }, client, circuitBreakerService, usageService);
+        }, client, circuitBreakerService, usageService, tracer);
         restController.registerHandler(new Route(GET, "/wrapped"), handler);
         RestRequest request = testRestRequest("/wrapped", "{}", XContentType.JSON);
         AssertingChannel channel = new AssertingChannel(request, true, RestStatus.BAD_REQUEST);
@@ -340,7 +377,7 @@ public class RestControllerTests extends ESTestCase {
         String content = randomAlphaOfLength((int) Math.round(BREAKER_LIMIT.getBytes() / inFlightRequestsBreaker.getOverhead()));
         RestRequest request = testRestRequest("/", content, null);
         AssertingChannel channel = new AssertingChannel(request, true, RestStatus.NOT_ACCEPTABLE);
-        restController = new RestController(Collections.emptySet(), null, null, circuitBreakerService, usageService);
+        restController = new RestController(Collections.emptySet(), null, null, circuitBreakerService, usageService, tracer);
         restController.registerHandler(
             new Route(GET, "/"),
             (r, c, client) -> c.sendResponse(new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY))
@@ -682,9 +719,34 @@ public class RestControllerTests extends ESTestCase {
         assertThat(channel.getRestResponse().getHeaders().get("Allow"), hasItem(equalTo(GET.toString())));
     }
 
+    /**
+     * Check that when dispatching a request, if an IllegalArgumentException is thrown, then a trace span is started
+     * and the exception is captured in the span.
+     */
+    public void testDispatchUnsupportedHttpMethodTracesException() {
+        final RestRequest request = new FakeRestRequest() {
+            @Override
+            public Method method() {
+                throw new IllegalArgumentException("test");
+            }
+        };
+
+        final AssertingChannel channel = new AssertingChannel(request, true, RestStatus.METHOD_NOT_ALLOWED);
+        restController.dispatchRequest(request, channel, client.threadPool().getThreadContext());
+        verify(tracer).onTraceStarted(any(), anyString(), anyString(), anyMap());
+        verify(tracer).onTraceException(any(), any(IllegalArgumentException.class));
+    }
+
     public void testDispatchCompatibleHandler() {
 
-        RestController restController = new RestController(Collections.emptySet(), null, client, circuitBreakerService, usageService);
+        RestController restController = new RestController(
+            Collections.emptySet(),
+            null,
+            client,
+            circuitBreakerService,
+            usageService,
+            tracer
+        );
 
         final RestApiVersion version = RestApiVersion.minimumSupported();
 
@@ -706,28 +768,16 @@ public class RestControllerTests extends ESTestCase {
         assertTrue(channel.getSendResponseCalled());
     }
 
-    /**
-     * Check that the REST controller initiates tracing on REST channels.
-     */
-    public void testDispatchStartsTracingOnChannels() {
-        RestController restController = new RestController(Collections.emptySet(), null, client, circuitBreakerService, usageService);
-
-        RestRequest fakeRequest = requestWithContent(randomCompatibleMediaType(RestApiVersion.minimumSupported()));
-        AssertingChannel channel = new AssertingChannel(fakeRequest, true, RestStatus.OK);
-
-        RestHandler handler = (request, channel1, client) -> channel1.sendResponse(
-            new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY)
-        );
-        restController.registerHandler(GET, "/foo", RestApiVersion.minimumSupported(), handler);
-
-        restController.dispatchRequest(fakeRequest, channel, new ThreadContext(Settings.EMPTY));
-
-        assertThat("Expected tracing to have started on REST channel", channel.traceStarted, is(true));
-    }
-
     public void testDispatchCompatibleRequestToNewlyAddedHandler() {
 
-        RestController restController = new RestController(Collections.emptySet(), null, client, circuitBreakerService, usageService);
+        RestController restController = new RestController(
+            Collections.emptySet(),
+            null,
+            client,
+            circuitBreakerService,
+            usageService,
+            tracer
+        );
 
         final RestApiVersion version = RestApiVersion.minimumSupported();
 
@@ -762,7 +812,14 @@ public class RestControllerTests extends ESTestCase {
     }
 
     public void testCurrentVersionVNDMediaTypeIsNotUsingCompatibility() {
-        RestController restController = new RestController(Collections.emptySet(), null, client, circuitBreakerService, usageService);
+        RestController restController = new RestController(
+            Collections.emptySet(),
+            null,
+            client,
+            circuitBreakerService,
+            usageService,
+            tracer
+        );
 
         final RestApiVersion version = RestApiVersion.current();
 
@@ -787,7 +844,14 @@ public class RestControllerTests extends ESTestCase {
     }
 
     public void testCustomMediaTypeValidation() {
-        RestController restController = new RestController(Collections.emptySet(), null, client, circuitBreakerService, usageService);
+        RestController restController = new RestController(
+            Collections.emptySet(),
+            null,
+            client,
+            circuitBreakerService,
+            usageService,
+            tracer
+        );
 
         final String mediaType = "application/x-protobuf";
         FakeRestRequest fakeRestRequest = requestWithContent(mediaType);
@@ -813,7 +877,14 @@ public class RestControllerTests extends ESTestCase {
     }
 
     public void testBrowserSafelistedContentTypesAreRejected() {
-        RestController restController = new RestController(Collections.emptySet(), null, client, circuitBreakerService, usageService);
+        RestController restController = new RestController(
+            Collections.emptySet(),
+            null,
+            client,
+            circuitBreakerService,
+            usageService,
+            tracer
+        );
 
         final String mediaType = randomFrom(RestController.SAFELISTED_MEDIA_TYPES);
         FakeRestRequest fakeRestRequest = requestWithContent(mediaType);
@@ -867,8 +938,6 @@ public class RestControllerTests extends ESTestCase {
 
         private final RestStatus expectedStatus;
         private final AtomicReference<RestResponse> responseReference = new AtomicReference<>();
-        private boolean traceStarted = false;
-        private boolean traceStopped = false;
 
         public AssertingChannel(RestRequest request, boolean detailedErrorsEnabled, RestStatus expectedStatus) {
             super(request, detailedErrorsEnabled);
@@ -887,21 +956,6 @@ public class RestControllerTests extends ESTestCase {
 
         boolean getSendResponseCalled() {
             return getRestResponse() != null;
-        }
-
-        @Override
-        public void startTrace() {
-            traceStarted = true;
-        }
-
-        @Override
-        public void stopTrace() {
-            assertThat("tried to stop a trace but it wasn't started", traceStarted, is(true));
-            traceStopped = true;
-        }
-
-        public boolean isTraceComplete() {
-            return traceStarted && traceStopped;
         }
     }
 

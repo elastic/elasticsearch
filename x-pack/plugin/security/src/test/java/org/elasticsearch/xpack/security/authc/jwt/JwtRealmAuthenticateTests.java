@@ -166,8 +166,6 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
         // Original JWT continues working, because JWT realm still has original JWKs cached in memory.
         // - jwtJwks1(PKC): Pass (Original PKC JWKs are still in the realm)
         // - jwtJwks1(HMAC): Pass (Original HMAC JWKs are still in the realm)
-        // - jwtJwks1(PKC): Pass (Original PKC JWKs are still in the realm)
-        // - jwtJwks1(HMAC): Pass (Original HMAC JWKs are still in the realm)
         this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwtJwks1, clientSecret, jwtAuthcRange);
         LOGGER.debug("JWT 1 still worked, because JWT realm has old JWKs cached in memory");
 

@@ -233,7 +233,6 @@ public class DiskThresholdDecider extends AllocationDecider {
             && shardRouting.active() == false
             && shardRouting.recoverySource().getType() == RecoverySource.Type.EMPTY_STORE;
 
-        // checks for exact byte comparisons
         if (freeBytes < diskThresholdSettings.getFreeBytesThresholdLowStage(total).getBytes()) {
             if (skipLowThresholdChecks == false) {
                 if (logger.isDebugEnabled()) {

@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -177,25 +178,27 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
         SnapshotLifecycleMetadata metadata
     ) {
         if (explain) {
-            Map<String, Long> unhealthyPolicyFailureCounts = unhealthyPolicies.stream()
-                .collect(
-                    Collectors.toMap(
-                        SnapshotLifecyclePolicyMetadata::getName,
-                        SnapshotLifecyclePolicyMetadata::getInvocationsSinceLastSuccess
+            Map<String, Object> details = new LinkedHashMap<>();
+            details.put("slm_status", metadata.getOperationMode());
+            details.put("policies", metadata.getSnapshotConfigurations().size());
+            if (unhealthyPolicies.size() > 0) {
+                details.put(
+                    "unhealthy_policies",
+                    Map.of(
+                        "count",
+                        unhealthyPolicies.size(),
+                        "invocations_since_last_success",
+                        unhealthyPolicies.stream()
+                            .collect(
+                                Collectors.toMap(
+                                    SnapshotLifecyclePolicyMetadata::getName,
+                                    SnapshotLifecyclePolicyMetadata::getInvocationsSinceLastSuccess
+                                )
+                            )
                     )
                 );
-            return new SimpleHealthIndicatorDetails(
-                Map.of(
-                    "slm_status",
-                    metadata.getOperationMode(),
-                    "policies",
-                    metadata.getSnapshotConfigurations().size(),
-                    "unhealthy_policies",
-                    unhealthyPolicies.size(),
-                    "invocations_since_last_success",
-                    unhealthyPolicyFailureCounts
-                )
-            );
+            }
+            return new SimpleHealthIndicatorDetails(details);
         } else {
             return HealthIndicatorDetails.EMPTY;
         }

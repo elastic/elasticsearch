@@ -113,7 +113,7 @@ keys must have corresponding length according to the following table:
 |=======================
 
 [discrete]
-==== Stored Password Hashing
+==== Stored password hashing
 [[fips-stored-password-hashing]]
 
 While {es} offers a number of algorithms for securely hashing credentials

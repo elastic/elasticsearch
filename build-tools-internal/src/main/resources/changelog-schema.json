@@ -24,6 +24,7 @@
             "Audit",
             "Authentication",
             "Authorization",
+            "AutoConfiguration",
             "Autoscaling",
             "CAT APIs",
             "CCR",

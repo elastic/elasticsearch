@@ -20,7 +20,7 @@
         body:  { "foo": "hello world" }
         # make this doc visible in index stats
         refresh: true
- 
+
   - do:
       get:
         index: logs_search

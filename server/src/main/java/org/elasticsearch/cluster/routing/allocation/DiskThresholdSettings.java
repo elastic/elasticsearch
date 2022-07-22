@@ -183,6 +183,7 @@ public class DiskThresholdSettings {
                 }
             } else {
                 final String message = String.format(
+                    Locale.ROOT,
                     "unable to consistently parse [%s=%s], [%s=%s], and [%s=%s] as percentage or bytes",
                     CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(),
                     low.getStringRep(),

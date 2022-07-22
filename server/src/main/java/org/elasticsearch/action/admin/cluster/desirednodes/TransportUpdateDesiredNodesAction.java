@@ -181,24 +181,27 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
             final var initialDesiredNodes = DesiredNodesMetadata.fromClusterState(currentState).getLatestDesiredNodes();
             var desiredNodes = initialDesiredNodes;
             for (final var taskContext : taskContexts) {
-
+                final UpdateDesiredNodesRequest request = taskContext.getTask().request();
+                if (request.isDryRun()) {
+                    try {
+                        updateDesiredNodes(desiredNodes, request);
+                        taskContext.success(() -> taskContext.getTask().listener().onResponse(new UpdateDesiredNodesResponse(false, true)));
+                    } catch (Exception e) {
+                        taskContext.onFailure(e);
+                    }
+                    continue;
+                }
                 final var previousDesiredNodes = desiredNodes;
-                DesiredNodes newDesiredNodes;
                 try {
-                    newDesiredNodes = updateDesiredNodes(desiredNodes, taskContext.getTask().request());
+                    desiredNodes = updateDesiredNodes(desiredNodes, request);
                 } catch (Exception e) {
                     taskContext.onFailure(e);
                     continue;
                 }
-                if (taskContext.getTask().request().isDryRun() == false) {
-                    desiredNodes = newDesiredNodes;
-                }
                 final var replacedExistingHistoryId = previousDesiredNodes != null
-                    && previousDesiredNodes.hasSameHistoryId(newDesiredNodes) == false;
+                    && previousDesiredNodes.hasSameHistoryId(desiredNodes) == false;
                 taskContext.success(
-                    () -> taskContext.getTask()
-                        .listener()
-                        .onResponse(new UpdateDesiredNodesResponse(replacedExistingHistoryId, taskContext.getTask().request().isDryRun()))
+                    () -> taskContext.getTask().listener().onResponse(new UpdateDesiredNodesResponse(replacedExistingHistoryId, false))
                 );
             }
 

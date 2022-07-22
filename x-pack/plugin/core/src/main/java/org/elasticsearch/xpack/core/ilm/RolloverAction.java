@@ -230,7 +230,7 @@ public class RolloverAction implements LifecycleAction {
 
     @Override
     public int hashCode() {
-        return Objects.hash(maxSize, maxPrimaryShardSize, maxAge, maxDocs);
+        return Objects.hash(maxSize, maxPrimaryShardSize, maxAge, maxDocs, maxPrimaryShardDocs);
     }
 
     @Override
@@ -245,7 +245,8 @@ public class RolloverAction implements LifecycleAction {
         return Objects.equals(maxSize, other.maxSize)
             && Objects.equals(maxPrimaryShardSize, other.maxPrimaryShardSize)
             && Objects.equals(maxAge, other.maxAge)
-            && Objects.equals(maxDocs, other.maxDocs);
+            && Objects.equals(maxDocs, other.maxDocs)
+            && Objects.equals(maxPrimaryShardDocs, other.maxPrimaryShardDocs);
     }
 
     @Override

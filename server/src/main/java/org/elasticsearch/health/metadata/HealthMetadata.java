@@ -158,11 +158,11 @@ public final class HealthMetadata extends AbstractNamedDiffable<Metadata.Custom>
 
         static {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), HIGH_WATERMARK_FIELD);
-            PARSER.declareString(ConstructingObjectParser.constructorArg(), HIGH_MAX_HEADROOM_FIELD);
             PARSER.declareString(ConstructingObjectParser.constructorArg(), FLOOD_STAGE_WATERMARK_FIELD);
-            PARSER.declareString(ConstructingObjectParser.constructorArg(), FLOOD_STAGE_MAX_HEADROOM_FIELD);
             PARSER.declareString(ConstructingObjectParser.constructorArg(), FROZEN_FLOOD_STAGE_WATERMARK_FIELD);
             PARSER.declareString(ConstructingObjectParser.constructorArg(), FROZEN_FLOOD_STAGE_MAX_HEADROOM_FIELD);
+            PARSER.declareString(ConstructingObjectParser.constructorArg(), HIGH_MAX_HEADROOM_FIELD);
+            PARSER.declareString(ConstructingObjectParser.constructorArg(), FLOOD_STAGE_MAX_HEADROOM_FIELD);
         }
 
         static Disk readFrom(StreamInput in) throws IOException {

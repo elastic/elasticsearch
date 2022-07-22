@@ -453,7 +453,7 @@ designed to be easier to distribute than secret keys like HMAC.
 JWT realms load a PKC JWKS, and an HMAC JWKS or HMAC UTF-8 JWK, at startup.
 JWT realms can also reload PKC JWKS contents at runtime; reload is triggered by signature validation failures.
 
-CAUTION: HMAC JWKS or HMAC UTF-8 JWK reloading is not supported at this time.
+NOTE: HMAC JWKS or HMAC UTF-8 JWK reloading is not supported at this time.
 
 Load failures, parse errors, and configuration errors prevent a node from starting (and restarting).
 However, runtime PKC reload errors and recoveries are handled gracefully.

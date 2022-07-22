@@ -14,11 +14,11 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RelativeByteSizeValue;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 
 import java.util.Iterator;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -236,8 +236,7 @@ public class DiskThresholdSettings {
                     );
                 }
             } else {
-                final String message = String.format(
-                    Locale.ROOT,
+                final String message = Strings.format(
                     "unable to consistently parse [%s=%s], [%s=%s], and [%s=%s] as percentage or bytes",
                     CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(),
                     low.getStringRep(),

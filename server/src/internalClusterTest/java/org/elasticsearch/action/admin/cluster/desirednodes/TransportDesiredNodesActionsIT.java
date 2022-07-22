@@ -108,7 +108,8 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
         final var equivalentUpdateRequest = new UpdateDesiredNodesRequest(
             updateDesiredNodesRequest.getHistoryID(),
             updateDesiredNodesRequest.getVersion(),
-            desiredNodesList
+            desiredNodesList,
+            false
         );
 
         updateDesiredNodes(equivalentUpdateRequest);
@@ -125,7 +126,8 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
         final var backwardsUpdateDesiredNodesRequest = new UpdateDesiredNodesRequest(
             updateDesiredNodesRequest.getHistoryID(),
             updateDesiredNodesRequest.getVersion() - 1,
-            updateDesiredNodesRequest.getNodes()
+            updateDesiredNodesRequest.getNodes(),
+            false
         );
 
         final VersionConflictException exception = expectThrows(
@@ -142,7 +144,8 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
         final var updateDesiredNodesRequestWithSameHistoryIdAndVersionAndDifferentSpecs = new UpdateDesiredNodesRequest(
             updateDesiredNodesRequest.getHistoryID(),
             updateDesiredNodesRequest.getVersion(),
-            randomList(1, 10, DesiredNodesTestCase::randomDesiredNode)
+            randomList(1, 10, DesiredNodesTestCase::randomDesiredNode),
+            false
         );
 
         final IllegalArgumentException exception = expectThrows(
@@ -265,7 +268,8 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
                         Settings.builder().put(NODE_PROCESSORS_SETTING.getKey(), numProcessors + 1).build(),
                         numProcessors
                     )
-                )
+                ),
+                false
             );
 
             final IllegalArgumentException exception = expectThrows(
@@ -302,7 +306,8 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
                         Settings.builder().put(NODE_PROCESSORS_SETTING.getKey(), numProcessors).build(),
                         numProcessors
                     )
-                )
+                ),
+                false
             );
 
             updateDesiredNodes(updateDesiredNodesRequest);
@@ -414,7 +419,8 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
         return new UpdateDesiredNodesRequest(
             UUIDs.randomBase64UUID(),
             randomIntBetween(2, 20),
-            randomList(2, 10, () -> randomDesiredNode(version, settings))
+            randomList(2, 10, () -> randomDesiredNode(version, settings)),
+            false
         );
     }
 

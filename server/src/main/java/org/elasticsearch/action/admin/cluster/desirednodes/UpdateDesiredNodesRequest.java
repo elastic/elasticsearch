@@ -42,10 +42,6 @@ public class UpdateDesiredNodesRequest extends AcknowledgedRequest<UpdateDesired
         PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> DesiredNode.fromXContent(p), NODES_FIELD);
     }
 
-    public UpdateDesiredNodesRequest(String historyID, long version, List<DesiredNode> nodes) {
-        this(historyID, version, nodes, false);
-    }
-
     public UpdateDesiredNodesRequest(String historyID, long version, List<DesiredNode> nodes, boolean dryRun) {
         assert historyID != null;
         assert nodes != null;

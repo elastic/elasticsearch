@@ -307,13 +307,13 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 rolloverRequest.getConditions().values(),
                 buildStats(currentState.metadata().index(sourceIndexName), rolloverTask.statsResponse())
             );
-            final List<Condition<?>> metConditions = rolloverRequest.getConditions()
-                .values()
-                .stream()
-                .filter(condition -> postConditionResults.get(condition.toString()))
-                .toList();
 
-            if (postConditionResults.size() == 0 || metConditions.size() > 0) {
+            if (rolloverRequest.areConditionsMet(postConditionResults)) {
+                final List<Condition<?>> metConditions = rolloverRequest.getConditions()
+                    .values()
+                    .stream()
+                    .filter(condition -> postConditionResults.get(condition.toString()))
+                    .toList();
 
                 // Perform the actual rollover
                 final var rolloverResult = rolloverService.rolloverClusterState(

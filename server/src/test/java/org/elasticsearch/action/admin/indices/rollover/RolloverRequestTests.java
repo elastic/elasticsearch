@@ -65,12 +65,14 @@ public class RolloverRequestTests extends ESTestCase {
             .field("max_primary_shard_docs", 10)
             .field("min_age", "10d")
             .field("min_docs", 100)
+            .field("min_size", "45gb")
             .field("min_primary_shard_size", "55gb")
+            .field("min_primary_shard_docs", 10)
             .endObject()
             .endObject();
         request.fromXContent(false, createParser(builder));
         Map<String, Condition<?>> conditions = request.getConditions();
-        assertThat(conditions.size(), equalTo(8));
+        assertThat(conditions.size(), equalTo(10));
         MaxAgeCondition maxAgeCondition = (MaxAgeCondition) conditions.get(MaxAgeCondition.NAME);
         assertThat(maxAgeCondition.value.getMillis(), equalTo(TimeValue.timeValueHours(24 * 10).getMillis()));
         MaxDocsCondition maxDocsCondition = (MaxDocsCondition) conditions.get(MaxDocsCondition.NAME);
@@ -160,7 +162,13 @@ public class RolloverRequestTests extends ESTestCase {
         originalRequest.addMaxIndexDocsCondition(randomNonNegativeLong());
         originalRequest.addMaxIndexAgeCondition(TimeValue.timeValueNanos(randomNonNegativeLong()));
         originalRequest.addMaxIndexSizeCondition(new ByteSizeValue(randomNonNegativeLong()));
+        originalRequest.addMaxPrimaryShardSizeCondition(new ByteSizeValue(randomNonNegativeLong()));
         originalRequest.addMaxPrimaryShardDocsCondition(randomNonNegativeLong());
+        originalRequest.addMinIndexDocsCondition(randomNonNegativeLong());
+        originalRequest.addMinIndexAgeCondition(TimeValue.timeValueNanos(randomNonNegativeLong()));
+        originalRequest.addMinIndexSizeCondition(new ByteSizeValue(randomNonNegativeLong()));
+        originalRequest.addMinPrimaryShardSizeCondition(new ByteSizeValue(randomNonNegativeLong()));
+        originalRequest.addMinPrimaryShardDocsCondition(randomNonNegativeLong());
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             originalRequest.writeTo(out);
             BytesReference bytes = out.bytes();
@@ -171,7 +179,7 @@ public class RolloverRequestTests extends ESTestCase {
                 for (Map.Entry<String, Condition<?>> entry : cloneRequest.getConditions().entrySet()) {
                     Condition<?> condition = originalRequest.getConditions().get(entry.getKey());
                     // here we compare the string representation as there is some information loss when serializing
-                    // and de-serializing MaxAgeCondition
+                    // and de-serializing MaxAgeCondition/MinAgeCondition
                     assertEquals(condition.toString(), entry.getValue().toString());
                 }
             }
@@ -318,8 +326,11 @@ public class RolloverRequestTests extends ESTestCase {
         (request) -> request.addMaxIndexSizeCondition(new ByteSizeValue(randomNonNegativeLong())),
         (request) -> request.addMaxIndexAgeCondition(new TimeValue(randomNonNegativeLong())),
         (request) -> request.addMaxPrimaryShardSizeCondition(new ByteSizeValue(randomNonNegativeLong())),
+        (request) -> request.addMaxPrimaryShardDocsCondition(randomNonNegativeLong()),
         (request) -> request.addMinIndexDocsCondition(randomNonNegativeLong()),
+        (request) -> request.addMinIndexSizeCondition(new ByteSizeValue(randomNonNegativeLong())),
+        (request) -> request.addMinIndexAgeCondition(new TimeValue(randomNonNegativeLong())),
         (request) -> request.addMinPrimaryShardSizeCondition(new ByteSizeValue(randomNonNegativeLong())),
-        (request) -> request.addMinIndexAgeCondition(new TimeValue(randomNonNegativeLong()))
+        (request) -> request.addMinPrimaryShardDocsCondition(randomNonNegativeLong())
     );
 }

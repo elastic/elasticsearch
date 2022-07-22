@@ -16,7 +16,9 @@ import org.elasticsearch.action.admin.indices.rollover.MaxPrimaryShardSizeCondit
 import org.elasticsearch.action.admin.indices.rollover.MaxSizeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MinAgeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MinDocsCondition;
+import org.elasticsearch.action.admin.indices.rollover.MinPrimaryShardDocsCondition;
 import org.elasticsearch.action.admin.indices.rollover.MinPrimaryShardSizeCondition;
+import org.elasticsearch.action.admin.indices.rollover.MinSizeCondition;
 import org.elasticsearch.action.resync.TransportResyncReplicationAction;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -99,7 +101,9 @@ public class IndicesModule extends AbstractModule {
         return Arrays.asList(
             new NamedWriteableRegistry.Entry(Condition.class, MinAgeCondition.NAME, MinAgeCondition::new),
             new NamedWriteableRegistry.Entry(Condition.class, MinDocsCondition.NAME, MinDocsCondition::new),
+            new NamedWriteableRegistry.Entry(Condition.class, MinSizeCondition.NAME, MinSizeCondition::new),
             new NamedWriteableRegistry.Entry(Condition.class, MinPrimaryShardSizeCondition.NAME, MinPrimaryShardSizeCondition::new),
+            new NamedWriteableRegistry.Entry(Condition.class, MinPrimaryShardDocsCondition.NAME, MinPrimaryShardDocsCondition::new),
             new NamedWriteableRegistry.Entry(Condition.class, MaxAgeCondition.NAME, MaxAgeCondition::new),
             new NamedWriteableRegistry.Entry(Condition.class, MaxDocsCondition.NAME, MaxDocsCondition::new),
             new NamedWriteableRegistry.Entry(Condition.class, MaxSizeCondition.NAME, MaxSizeCondition::new),

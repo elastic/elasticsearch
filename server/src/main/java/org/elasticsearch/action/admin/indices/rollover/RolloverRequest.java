@@ -53,7 +53,9 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     private static final ParseField MAX_PRIMARY_SHARD_DOCS_CONDITION = new ParseField(MaxPrimaryShardDocsCondition.NAME);
     private static final ParseField MIN_AGE_CONDITION = new ParseField(MinAgeCondition.NAME);
     private static final ParseField MIN_DOCS_CONDITION = new ParseField(MinDocsCondition.NAME);
+    private static final ParseField MIN_SIZE_CONDITION = new ParseField(MinSizeCondition.NAME);
     private static final ParseField MIN_PRIMARY_SHARD_SIZE_CONDITION = new ParseField(MinPrimaryShardSizeCondition.NAME);
+    private static final ParseField MIN_PRIMARY_SHARD_DOCS_CONDITION = new ParseField(MinPrimaryShardDocsCondition.NAME);
 
     static {
         CONDITION_PARSER.declareString(
@@ -92,10 +94,21 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         );
         CONDITION_PARSER.declareString(
             (conditions, s) -> conditions.put(
+                MinSizeCondition.NAME,
+                new MinSizeCondition(ByteSizeValue.parseBytesSizeValue(s, MinSizeCondition.NAME))
+            ),
+            MIN_SIZE_CONDITION
+        );
+        CONDITION_PARSER.declareString(
+            (conditions, s) -> conditions.put(
                 MinPrimaryShardSizeCondition.NAME,
                 new MinPrimaryShardSizeCondition(ByteSizeValue.parseBytesSizeValue(s, MinPrimaryShardSizeCondition.NAME))
             ),
             MIN_PRIMARY_SHARD_SIZE_CONDITION
+        );
+        CONDITION_PARSER.declareLong(
+            (conditions, value) -> conditions.put(MinPrimaryShardDocsCondition.NAME, new MinPrimaryShardDocsCondition(value)),
+            MIN_PRIMARY_SHARD_DOCS_CONDITION
         );
 
         PARSER.declareField(
@@ -317,6 +330,17 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     }
 
     /**
+     * Adds a size-based required condition to check if the index size is at least <code>size</code>.
+     */
+    public void addMinIndexSizeCondition(ByteSizeValue size) {
+        MinSizeCondition minSizeCondition = new MinSizeCondition(size);
+        if (this.conditions.containsKey(minSizeCondition.name)) {
+            throw new IllegalArgumentException(minSizeCondition + " condition is already set");
+        }
+        this.conditions.put(minSizeCondition.name, minSizeCondition);
+    }
+
+    /**
      * Adds a size-based required condition to check if the size of the largest primary shard is at least <code>size</code>.
      */
     public void addMinPrimaryShardSizeCondition(ByteSizeValue size) {
@@ -325,6 +349,17 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
             throw new IllegalArgumentException(minPrimaryShardSizeCondition + " condition is already set");
         }
         this.conditions.put(minPrimaryShardSizeCondition.name, minPrimaryShardSizeCondition);
+    }
+
+    /**
+     * Adds a size-based required condition to check if the docs of the largest primary shard has at least <code>numDocs</code>
+     */
+    public void addMinPrimaryShardDocsCondition(long numDocs) {
+        MinPrimaryShardDocsCondition minPrimaryShardDocsCondition = new MinPrimaryShardDocsCondition(numDocs);
+        if (this.conditions.containsKey(minPrimaryShardDocsCondition.name)) {
+            throw new IllegalArgumentException(minPrimaryShardDocsCondition.name + " condition is already set");
+        }
+        this.conditions.put(minPrimaryShardDocsCondition.name, minPrimaryShardDocsCondition);
     }
 
     public boolean isDryRun() {

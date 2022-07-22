@@ -67,7 +67,7 @@ public class ChangePolicyForIndexIT extends ESRestTestCase {
             new Phase(
                 "hot",
                 TimeValue.ZERO,
-                singletonMap(RolloverAction.NAME, new RolloverAction(null, null, null, 1L, null, null, null, null))
+                singletonMap(RolloverAction.NAME, new RolloverAction(null, null, null, 1L, null, null, null, null, null, null))
             )
         );
         phases1.put(
@@ -85,7 +85,7 @@ public class ChangePolicyForIndexIT extends ESRestTestCase {
             new Phase(
                 "hot",
                 TimeValue.ZERO,
-                singletonMap(RolloverAction.NAME, new RolloverAction(null, null, null, 1000L, null, null, null, null))
+                singletonMap(RolloverAction.NAME, new RolloverAction(null, null, null, 1000L, null, null, null, null, null, null))
             )
         );
         phases2.put(
@@ -178,7 +178,7 @@ public class ChangePolicyForIndexIT extends ESRestTestCase {
         String indexName = "test-000001";
         String policyName = "rolloverPolicy";
         String alias = "thealias";
-        createNewSingletonPolicy(client(), policyName, "hot", new RolloverAction(null, null, null, 1L, null, null, null, null));
+        createNewSingletonPolicy(client(), policyName, "hot", new RolloverAction(null, null, null, 1L, null, null, null, null, null, null));
 
         createIndexWithSettings(
             client(),

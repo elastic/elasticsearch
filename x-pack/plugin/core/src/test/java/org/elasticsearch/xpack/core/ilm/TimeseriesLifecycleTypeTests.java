@@ -71,6 +71,8 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         null,
         null,
         null,
+        null,
+        null,
         null
     );
     private static final ShrinkAction TEST_SHRINK_ACTION = new ShrinkAction(1, null);
@@ -325,7 +327,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
                 TimeValue.ZERO,
                 Map.of(
                     RolloverAction.NAME,
-                    new RolloverAction(null, null, null, 1L, null, null, null, null),
+                    new RolloverAction(null, null, null, 1L, null, null, null, null, null, null),
                     SearchableSnapshotAction.NAME,
                     new SearchableSnapshotAction(randomAlphaOfLengthBetween(4, 10))
                 )
@@ -1102,6 +1104,8 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
                     TimeValue.ZERO,
                     1L,
                     1L,
+                    null,
+                    null,
                     null,
                     null,
                     null

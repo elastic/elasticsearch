@@ -29,6 +29,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Map;
 import java.util.function.Predicate;
 
@@ -367,7 +368,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     }
 
     public Map<String, Condition<?>> getConditions() {
-        return conditions;
+        return Collections.unmodifiableMap(conditions);
     }
 
     public String getRolloverTarget() {

@@ -34,7 +34,6 @@ import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
-import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
 import org.junit.Before;
@@ -177,7 +176,7 @@ public class ReplicaShardAllocatorSyncIdIT extends ESIntegTestCase {
         }
         ensureGlobalCheckpointAdvancedAndSynced(indexName);
         syncFlush(indexName);
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeWithReplica));
+        internalCluster().stopNode(nodeWithReplica);
         // Wait until the peer recovery retention leases of the offline node are expired
         assertBusy(() -> {
             for (ShardStats shardStats : client().admin().indices().prepareStats(indexName).get().getShards()) {

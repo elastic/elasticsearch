@@ -59,7 +59,6 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
@@ -1675,6 +1674,7 @@ public final class InternalTestCluster extends TestCluster {
         ensureOpen();
         Optional<NodeAndClient> nodeToStop = nodes.values().stream().filter(n -> n.getName().equals(nodeName)).findFirst();
         if (nodeToStop.isPresent()) {
+            ensureNotTheLastMasterEligibleNode(nodeToStop.get());
             logger.info("Closing node [{}]", nodeToStop.get().name);
             stopNodesAndClient(nodeToStop.get());
             return true;
@@ -1690,19 +1690,23 @@ public final class InternalTestCluster extends TestCluster {
         ensureOpen();
         NodeAndClient nodeAndClient = getRandomNodeAndClient(nc -> filter.test(nc.node.settings()));
         if (nodeAndClient != null) {
-            if (nodePrefix.equals(ESIntegTestCase.SUITE_CLUSTER_NODE_PREFIX)
-                && nodeAndClient.nodeAndClientId() < sharedNodesSeeds.length
-                && nodeAndClient.isMasterEligible()
-                && autoManageMasterNodes
-                && nodes.values()
-                    .stream()
-                    .filter(NodeAndClient::isMasterEligible)
-                    .filter(n -> n.nodeAndClientId() < sharedNodesSeeds.length)
-                    .count() == 1) {
-                throw new AssertionError("Tried to stop the only master eligible shared node");
-            }
+            ensureNotTheLastMasterEligibleNode(nodeAndClient);
             logger.info("Closing filtered random node [{}] ", nodeAndClient.name);
             stopNodesAndClient(nodeAndClient);
+        }
+    }
+
+    private void ensureNotTheLastMasterEligibleNode(NodeAndClient nodeAndClient) {
+        if (nodePrefix.equals(ESIntegTestCase.SUITE_CLUSTER_NODE_PREFIX)
+            && nodeAndClient.nodeAndClientId() < sharedNodesSeeds.length
+            && nodeAndClient.isMasterEligible()
+            && autoManageMasterNodes
+            && nodes.values()
+                .stream()
+                .filter(NodeAndClient::isMasterEligible)
+                .filter(n -> n.nodeAndClientId() < sharedNodesSeeds.length)
+                .count() == 1) {
+            throw new AssertionError("Tried to stop the only master eligible shared node");
         }
     }
 
@@ -2382,14 +2386,6 @@ public final class InternalTestCluster extends TestCluster {
     @Override
     public NamedWriteableRegistry getNamedWriteableRegistry() {
         return getInstance(NamedWriteableRegistry.class);
-    }
-
-    /**
-     * Returns a predicate that only accepts settings of nodes with one of the given names.
-     */
-    public static Predicate<Settings> nameFilter(String... nodeNames) {
-        final Set<String> nodes = Sets.newHashSet(nodeNames);
-        return settings -> nodes.contains(settings.get("node.name"));
     }
 
     /**

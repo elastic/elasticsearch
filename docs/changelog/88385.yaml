@@ -1,5 +1,6 @@
 pr: 88385
-summary: Test balance improves after rebalancing
+summary: Prevent re-balancing using outdated node weights in case 2 or more shards movements in a row for a single index were simulated due to THROTTLE.
 area: Allocation
 type: bug
-issues: []
+issues:
+ - 88384

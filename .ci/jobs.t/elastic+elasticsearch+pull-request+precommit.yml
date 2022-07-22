@@ -20,8 +20,6 @@
           cancel-builds-on-update: true
           white-list-labels:
             - '>test-mute'
-          black-list-target-branches:
-            - feature/desired-balance-allocator
     builders:
       - inject:
           properties-file: '.ci/java-versions.properties'

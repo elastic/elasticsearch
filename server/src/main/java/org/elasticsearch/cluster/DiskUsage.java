@@ -97,7 +97,7 @@ public class DiskUsage implements ToXContentFragment, Writeable {
         if (totalBytes == 0) {
             return 100.0;
         }
-        return 100.0 * ((double) freeBytes / totalBytes);
+        return 100.0 * freeBytes / totalBytes;
     }
 
     public double getUsedDiskAsPercentage() {

@@ -33,9 +33,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
-
 public class IndicesWriteLoadStatsServiceTests extends ESTestCase {
-
     public void testSamplingAndStoreAreScheduled() throws Exception {
         final var samplingFrequency = TimeValue.timeValueSeconds(2);
         final var storeFrequency = TimeValue.timeValueMinutes(1);

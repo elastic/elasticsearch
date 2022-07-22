@@ -158,7 +158,7 @@ class IndicesWriteLoadStatsService extends AbstractLifecycleComponent {
     }
 
     private void storeWriteLoadDistributions() {
-        // assert currentThreadIsWriterLoadCollectorThreadOrTestThread() : Thread.currentThread().getName();
+        assert currentThreadIsWriterLoadCollectorThreadOrTestThread() : Thread.currentThread().getName();
 
         if (enabled == false) {
             return;
@@ -205,6 +205,6 @@ class IndicesWriteLoadStatsService extends AbstractLifecycleComponent {
             return;
         }
 
-        scheduledStore = threadPool.schedule(this::storeWriteLoadDistributions, storeFrequency, ThreadPool.Names.GENERIC);
+        scheduledStore = threadPool.schedule(this::storeWriteLoadDistributions, storeFrequency, WRITE_LOAD_COLLECTOR_THREAD_POOL_NAME);
     }
 }

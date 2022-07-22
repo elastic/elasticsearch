@@ -15,6 +15,7 @@ import org.elasticsearch.script.RestrictedMap;
 import java.time.ZonedDateTime;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -84,6 +85,11 @@ class IngestCtxMap extends CtxMap<IngestDocMetadata> {
         return new RawSourceMap(source);
     }
 
+    /**
+     * RawSourceMap adapts a normal map to the {@link RestrictedMap} interface.
+     * The ingest context does not access source via _source, as other update contexts,
+     * so there is no need to protect the source map.
+     */
     public static class RawSourceMap implements RestrictedMap {
         protected Map<String, Object> source;
 
@@ -98,7 +104,7 @@ class IngestCtxMap extends CtxMap<IngestDocMetadata> {
 
         @Override
         public Object put(String key, Object value) {
-            return source;
+            return source.put(key, value);
         }
 
         @Override
@@ -139,6 +145,24 @@ class IngestCtxMap extends CtxMap<IngestDocMetadata> {
         @Override
         public Map<String, Object> asMap() {
             return source;
+        }
+
+        @Override
+        public void clear() {
+            source.clear();
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if ((o instanceof RawSourceMap) == false) return false;
+            RawSourceMap that = (RawSourceMap) o;
+            return source.equals(that.source);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(source);
         }
     }
 }

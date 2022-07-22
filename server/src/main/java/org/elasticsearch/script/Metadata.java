@@ -239,6 +239,13 @@ public class Metadata implements RestrictedMap {
         return new Metadata(new HashMap<>(map), properties);
     }
 
+    @Override
+    public void clear() {
+        for (String key : keySet()) {
+            remove(key);
+        }
+    }
+
     /**
      * Get the backing map, if modified then the guarantees of this class may not hold
      */

@@ -38,4 +38,6 @@ public interface RestrictedMap {
     RestrictedMap clone();
 
     Map<String, Object> asMap();
+
+    void clear();
 }

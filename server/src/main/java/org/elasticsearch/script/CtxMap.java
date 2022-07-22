@@ -74,8 +74,7 @@ public class CtxMap<T extends Metadata> extends AbstractMap<String, Object> {
      */
     @Override
     public Set<Map.Entry<String, Object>> entrySet() {
-        // Make a copy of the Metadata.keySet() to avoid a ConcurrentModificationException when removing a value from the iterator
-        return new EntrySet(source.keySet(), new HashSet<>(metadata.keySet()));
+        return new EntrySet();
     }
 
     /**
@@ -114,13 +113,8 @@ public class CtxMap<T extends Metadata> extends AbstractMap<String, Object> {
      */
     @Override
     public void clear() {
-        // AbstractMap uses entrySet().clear(), it should be quicker to run through the validators, then call the wrapped maps clear
-        for (String key : metadata.keySet()) {
-            metadata.remove(key);
-        }
-        for (String key : source.keySet()) {
-            source.remove(key);
-        }
+        metadata.clear();
+        source.clear();
     }
 
     @Override
@@ -169,9 +163,10 @@ public class CtxMap<T extends Metadata> extends AbstractMap<String, Object> {
         Set<String> sourceKeys;
         Set<String> metadataKeys;
 
-        EntrySet(Set<String> sourceKeys, Set<String> metadataKeys) {
-            this.sourceKeys = sourceKeys;
-            this.metadataKeys = metadataKeys;
+        EntrySet() {
+            // Make a copy of the keySets to avoid a ConcurrentModificationException when removing a value from the iterator
+            this.sourceKeys = new HashSet<>(source.keySet());
+            this.metadataKeys = new HashSet<>(metadata.keySet());
         }
 
         @Override
@@ -253,7 +248,7 @@ public class CtxMap<T extends Metadata> extends AbstractMap<String, Object> {
     }
 
     /**
-     * Map.Entry that stores metadata key and calls into {@link #metadata} for {@link #setValue}
+     * Map.Entry that stores the key and calls into the map for {@link #setValue}
      */
     static class Entry implements Map.Entry<String, Object> {
         final RestrictedMap map;
@@ -294,6 +289,10 @@ public class CtxMap<T extends Metadata> extends AbstractMap<String, Object> {
         return Objects.hash(source, metadata);
     }
 
+    /**
+     * Ensures that the source map has a single key "_source" and a value that
+     * is a map.  Rejects all invalid update attempts with {@link IllegalArgumentException}.
+     */
     public static class RestrictedSourceMap implements RestrictedMap {
         protected static final String SOURCE = "_source";
         protected Map<String, Object> source;
@@ -373,6 +372,24 @@ public class CtxMap<T extends Metadata> extends AbstractMap<String, Object> {
         @Override
         public Map<String, Object> asMap() {
             return source;
+        }
+
+        @Override
+        public void clear() {
+            throw new IllegalArgumentException("cannot remove [" + SOURCE + "]");
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if ((o instanceof RestrictedSourceMap) == false) return false;
+            RestrictedSourceMap that = (RestrictedSourceMap) o;
+            return source.equals(that.source);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(source);
         }
     }
 }

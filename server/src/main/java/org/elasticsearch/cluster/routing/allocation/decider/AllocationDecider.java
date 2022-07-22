@@ -147,7 +147,7 @@ public abstract class AllocationDecider {
      * Returns a {@code empty()} if shard could be initially allocated anywhere or {@code Option.of(Set.of(nodeIds))} if shard could be
      * initially allocated only on subset of a nodes.
      *
-     * This might be required for splitting or shrinking index as resulting shards have to be on the same node as shard being resized or split.
+     * This might be required for splitting or shrinking index as resulting shards have to be on the same node as a source shard.
      */
     public Optional<Set<String>> getForcedInitialShardAllocationToNodes(ShardRouting shardRouting, RoutingAllocation allocation) {
         return Optional.empty();

@@ -65,6 +65,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -148,8 +149,8 @@ public class FsRepositoryTests extends ESTestCase {
             IndexCommit incIndexCommit = Lucene.getIndexCommit(Lucene.readSegmentInfos(store.directory()), store.directory());
             Collection<String> commitFileNames = incIndexCommit.getFileNames();
             final PlainActionFuture<ShardSnapshotResult> future2 = PlainActionFuture.newFuture();
-            IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing(shardGeneration);
             runGeneric(threadPool, () -> {
+                IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing(shardGeneration);
                 repository.snapshotShard(
                     new SnapshotShardContext(
                         store,
@@ -164,11 +165,11 @@ public class FsRepositoryTests extends ESTestCase {
                         future2
                     )
                 );
+                future2.actionGet();
+                IndexShardSnapshotStatus.Copy copy = snapshotStatus.asCopy();
+                assertEquals(2, copy.getIncrementalFileCount());
+                assertEquals(commitFileNames.size(), copy.getTotalFileCount());
             });
-            future2.actionGet();
-            IndexShardSnapshotStatus.Copy copy = snapshotStatus.asCopy();
-            assertEquals(2, copy.getIncrementalFileCount());
-            assertEquals(commitFileNames.size(), copy.getTotalFileCount());
 
             // roll back to the first snap and then incrementally restore
             RecoveryState firstState = new RecoveryState(routing, localNode, null);
@@ -200,8 +201,16 @@ public class FsRepositoryTests extends ESTestCase {
         }
     }
 
-    private void runGeneric(ThreadPool threadPool, Runnable runnable) {
-        threadPool.generic().execute(runnable);
+    private void runGeneric(ThreadPool threadPool, Runnable runnable) throws InterruptedException {
+        CountDownLatch latch = new CountDownLatch(1);
+        threadPool.generic().submit(() -> {
+            try {
+                runnable.run();
+            } finally {
+                latch.countDown();
+            }
+        });
+        latch.await();
     }
 
     private void deleteRandomDoc(Directory directory) throws IOException {

@@ -63,4 +63,9 @@ public class GeoDistanceQueryBuilderGeoShapeTests extends GeoDistanceQueryBuilde
         assertEquals(GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType.class, fieldType.getClass());
         assertEquals(IndexOrDocValuesQuery.class, query.getClass());
     }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/88712")
+    public void testToQuery() throws IOException {
+        super.testToQuery();
+    }
 }

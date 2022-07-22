@@ -1,5 +1,5 @@
 pr: 88740
 summary: "Script: `UpdateByQuery` can read doc version if requested"
-area: "Distributed, Infra/Scripting"
+area: "Infra/Scripting"
 type: bug
 issues: []

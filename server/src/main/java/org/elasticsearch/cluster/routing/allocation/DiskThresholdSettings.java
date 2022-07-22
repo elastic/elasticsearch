@@ -110,7 +110,7 @@ public class DiskThresholdSettings {
             if (CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_WATERMARK_SETTING.exists(settings)) {
                 return "-1";
             } else {
-                return "20gb";
+                return "20GB";
             }
         },
         (s) -> ByteSizeValue.parseBytesSizeValue(s, "cluster.routing.allocation.disk.watermark.flood_stage.frozen.max_headroom"),

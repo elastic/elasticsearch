@@ -259,34 +259,20 @@ public class DiskThresholdSettings {
         return getFreeBytesThreshold(total, frozenFloodStageWatermark, frozenFloodStageMaxHeadroom);
     }
 
-    private ByteSizeValue getMinimumTotalSizeForBelowWatermark(
-        ByteSizeValue used,
-        RelativeByteSizeValue watermark,
-        ByteSizeValue maxHeadroom
-    ) {
+    public ByteSizeValue getMinimumTotalSizeForBelowLowWatermark(ByteSizeValue used) {
         // If watermark is absolute, simply return total disk = used disk + free disk, where free disk bytes is the watermark value.
-        if (watermark.isAbsolute()) {
-            return ByteSizeValue.ofBytes(watermark.getAbsolute().getBytes() + used.getBytes());
+        if (lowStageWatermark.isAbsolute()) {
+            return ByteSizeValue.ofBytes(lowStageWatermark.getAbsolute().getBytes() + used.getBytes());
         }
 
         // If watermark is percentage/ratio, calculate the total needed disk space.
-        // This may not be the minimum, due to the possible max headroom value which can cap the free disk space required.
-        double ratioThreshold = watermark.getRatio().getAsRatio();
+        double ratioThreshold = lowStageWatermark.getRatio().getAsRatio();
         if (ratioThreshold >= 0.0 && ratioThreshold < 1.0) {
             ByteSizeValue totalBytes = ByteSizeValue.ofBytes((long) Math.ceil(used.getBytes() / ratioThreshold));
-
-            // Now calculate the minimum free bytes, taking into account the possible max headroom value as well.
-            ByteSizeValue minimumFreeBytes = getFreeBytesThreshold(totalBytes, watermark, maxHeadroom);
-
-            // Finally return used + minimum free bytes
-            return ByteSizeValue.ofBytes(minimumFreeBytes.getBytes() + used.getBytes());
+            return totalBytes;
         } else {
             return used;
         }
-    }
-
-    public ByteSizeValue getMinimumTotalSizeForBelowLowWatermark(ByteSizeValue used) {
-        return getMinimumTotalSizeForBelowWatermark(used, lowStageWatermark, ByteSizeValue.ofBytes(-1));
     }
 
     public boolean isEnabled() {

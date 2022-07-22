@@ -229,8 +229,9 @@ public class JwtValidateUtil {
      * @throws Exception Error if JWKs fail to validate the Signed JWT.
      */
     public static void validateSignature(final SignedJWT jwt, final List<JWK> jwks) throws Exception {
-        if (jwks == null || jwks.isEmpty()) {
-            throw new ElasticsearchException("Verify requires a non-empty JWK list, jwks: [{}].", jwks);
+        assert jwks != null : "Verify requires a non-null JWK list";
+        if (jwks.isEmpty()) {
+            throw new ElasticsearchException("Verify requires a non-empty JWK list");
         }
         final String id = jwt.getHeader().getKeyID();
         final JWSAlgorithm alg = jwt.getHeader().getAlgorithm();

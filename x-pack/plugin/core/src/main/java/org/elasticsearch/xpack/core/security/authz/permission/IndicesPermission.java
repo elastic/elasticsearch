@@ -15,6 +15,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
@@ -373,24 +374,24 @@ public final class IndicesPermission {
         }
 
         final Map<String, IndexResource> resources = Maps.newMapWithExpectedSize(requestedIndicesOrAliases.size());
-        int totalResourceCount = 0;
+        final int[] totalResourceCountHolder = new int[] { 0 };
 
         for (String indexOrAlias : requestedIndicesOrAliases) {
             final IndexResource resource = new IndexResource(indexOrAlias, lookup.get(indexOrAlias));
             resources.put(resource.name, resource);
-            totalResourceCount += resource.size();
+            totalResourceCountHolder[0] += resource.size();
         }
 
         final boolean overallGranted = isActionGranted(action, resources);
 
-        final Map<String, IndicesAccessControl.IndexAccessControl> indexPermissions = computeIndicesAccessControl(
+        final Supplier<Map<String, IndicesAccessControl.IndexAccessControl>> indexPermissions = () -> computeIndicesAccessControl(
             action,
             resources,
-            totalResourceCount,
+            totalResourceCountHolder[0],
             fieldPermissionsCache
         );
 
-        return new IndicesAccessControl(overallGranted, indexPermissions);
+        return new IndicesAccessControl(overallGranted, new CachedSupplier<>(indexPermissions));
     }
 
     private Map<String, IndicesAccessControl.IndexAccessControl> computeIndicesAccessControl(

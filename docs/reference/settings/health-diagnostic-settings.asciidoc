@@ -1,13 +1,13 @@
-[[health-api-settings]]
-=== Health API settings in {es}
+[[health-diagnostic-settings]]
+=== Health diagnostic settings in {es}
 [subs="attributes"]
 ++++
-<titleabbrev>Health API settings</titleabbrev>
+<titleabbrev>Health Diagnostic settings</titleabbrev>
 ++++
 
-The following are the _expert-level_ settings available for configuring the
-<<health-api, Health API>>. It is not recommended to change any of these
-from their default values.
+The following are the _expert-level_ settings available for configuring an internal diagnostics service.
+The output of this service is currently exposed through the Health API <<health-api, Health API>>. It
+is not recommended to change any of these from their default values.
 
 ==== Cluster level settings
 
@@ -17,15 +17,13 @@ a master at all, before moving on with other checks. Defaults to `30s` (30 secon
 
 `master_history.max_age`::
 (<<static-cluster-setting,Static>>) The maximum amount of time that the master history is kept in memory
-for use in the Health API. Master node changes older than this time will not be considered in the Health
-API calculation. Defaults to `30m` (30 minutes).
+for use in the health diagnostic. Master node changes older than this time will not be considered in the
+health diagnostic calculations. Defaults to `30m` (30 minutes).
 
 `health.master_history.identity_changes_threshold`::
-(<<static-cluster-setting,Static>>) The number of times that it is not OK to have a master change identity
-to another node. This many changes or more will be reported as a problem in the Health API. Defaults to `4`.
+(<<static-cluster-setting,Static>>) The number of times that it is _not_ OK to have a master change identity
+to another node. This many changes or more will be reported as a unhealthy. Defaults to `4`.
 
 `health.master_history.no_master_transitions_threshold`::
-(<<static-cluster-setting,Static>>) The number of times that it is not OK to have a master switch to no
-master. This many transitions or more will be reported as a problem in the Health API. Defaults to `4`.
-
-
+(<<static-cluster-setting,Static>>) The number of times that it is _not_ OK to have a master switch to no
+master. This many transitions or more will be reported as unhealthy. Defaults to `4`.

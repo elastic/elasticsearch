@@ -32,7 +32,7 @@ public class ReduceSearchPhaseException extends SearchPhaseExecutionException {
 
     @Override
     public RestStatus status() {
-        final ShardSearchFailure[] shardFailures = getShardFailures();
+        final ShardSearchFailure[] shardFailures = shardFailures();
         if (shardFailures.length == 0) {
             return getCause() == null ? RestStatus.INTERNAL_SERVER_ERROR : ExceptionsHelper.status(getCause());
         }

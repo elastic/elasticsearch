@@ -1,5 +1,5 @@
 pr: 88385
-summary: Prevent re-balancing using outdated node weights in case 2 or more shards movements in a row for a single index were simulated due to THROTTLE.
+summary: Prevent re-balancing using outdated node weights in some cases
 area: Allocation
 type: bug
 issues:

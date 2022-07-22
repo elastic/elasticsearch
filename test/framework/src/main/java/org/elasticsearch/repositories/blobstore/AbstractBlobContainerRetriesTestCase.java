@@ -304,6 +304,7 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         );
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/88666")
     public void testReadBlobWithPrematureConnectionClose() {
         final int maxRetries = randomInt(20);
         final BlobContainer blobContainer = createBlobContainer(maxRetries, null, null, null);

@@ -705,7 +705,7 @@ public class DiskThresholdDecider extends AllocationDecider {
             if (getTotalBytes() == 0L) {
                 return 100.0;
             }
-            return 100.0 * ((double) getFreeBytes() / getTotalBytes());
+            return 100.0 * getFreeBytes() / getTotalBytes();
         }
 
         double getUsedDiskAsPercentage() {

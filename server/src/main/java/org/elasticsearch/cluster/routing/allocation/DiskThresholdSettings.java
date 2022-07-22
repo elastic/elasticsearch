@@ -183,7 +183,6 @@ public class DiskThresholdSettings {
                 }
             } else {
                 final String message = String.format(
-                    Locale.ROOT,
                     "unable to consistently parse [%s=%s], [%s=%s], and [%s=%s] as percentage or bytes",
                     CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(),
                     low.getStringRep(),
@@ -245,15 +244,15 @@ public class DiskThresholdSettings {
     }
 
     public ByteSizeValue getFreeBytesThresholdLowStage(ByteSizeValue total) {
-        return getFreeBytesThreshold(total, lowStageWatermark, ByteSizeValue.ofBytes(-1));
+        return getFreeBytesThreshold(total, lowStageWatermark, ByteSizeValue.MINUS_ONE);
     }
 
     public ByteSizeValue getFreeBytesThresholdHighStage(ByteSizeValue total) {
-        return getFreeBytesThreshold(total, highStageWatermark, ByteSizeValue.ofBytes(-1));
+        return getFreeBytesThreshold(total, highStageWatermark, ByteSizeValue.MINUS_ONE);
     }
 
     public ByteSizeValue getFreeBytesThresholdFloodStage(ByteSizeValue total) {
-        return getFreeBytesThreshold(total, floodStageWatermark, ByteSizeValue.ofBytes(-1));
+        return getFreeBytesThreshold(total, floodStageWatermark, ByteSizeValue.MINUS_ONE);
     }
 
     public ByteSizeValue getFreeBytesThresholdFrozenFloodStage(ByteSizeValue total) {

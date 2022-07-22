@@ -380,13 +380,22 @@ public class Docker {
 
         Shell.Result result = null;
         int i = 0;
-        while (i++ < 10) {
-            result = sh.runIgnoreExitCode("docker pull -q " + image);
+        while (true) {
+            result = sh.runIgnoreExitCode("docker pull " + image);
             if (result.isSuccess()) {
                 return;
             }
+
+            if (++i == 3) {
+                throw new RuntimeException("Failed to pull Docker image [" + image + "]: " + result);
+            }
+
+            try {
+                Thread.sleep(10_000L);
+            } catch (InterruptedException e) {
+                // ignore
+            }
         }
-        throw new RuntimeException("Failed to pull image [" + image + "]: " + result.stderr());
     }
 
     /**

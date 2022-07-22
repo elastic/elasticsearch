@@ -194,9 +194,9 @@ The response will look like this:
 +
 <1> The name of an index.
 +
-<2> The settings of the index <1> that contains the metadata we are looking for
+<2> The settings of this index that contains the metadata we are looking for.
 +
-<3> This indicates that this index is part of a data stream and shows the data stream name.
+<3> This indicates that this index is part of a data stream and displays the data stream name.
 +
 <4> The name of the other index we requested.
 +
@@ -204,11 +204,11 @@ The response above shows that `kibana_sample_data_flights` is not part of a data
 field called `data_stream` in the settings.
 +
 On the contrary, `.ds-my-data-stream-2022.06.17-000001` is part of the data stream called `my-data-stream`. When you
-find an index like this, which belongs to a data stream, you need to check if it is the one that it is being written on.
-You can see that by checking if in the `settings` you can find this property: `"index.lifecycle.indexing_complete" : "true"`.
-If it's there you can continue to the next step.
+find an index like this, which belongs to a data stream, you need to check if data are still being indexed.
+You can see that by checking the `settings`, if you can find this property: `"index.lifecycle.indexing_complete" : "true"`, 
+it means that indexing is completed in this index and you can continue to the next step.
 +
-If it is not there we need to rollover the data stream to allow us to restore the missing data without blocking
+If it is not there you need to rollover the data stream so you can restore the missing data without blocking
 the ingestion of new data. The following command will achieve that.
 +
 [source,console]
@@ -217,7 +217,7 @@ POST my-data-stream/_rollover
 ----
 // TEST[skip:illustration purposes only]
 
-. Now that the data stream preparation is done (if it was necessary), we will close the target indices via the use the
+. Now that the data stream preparation is done, we will close the target indices by using the
 <<indices-close, close indices API>>.
 +
 [source,console]

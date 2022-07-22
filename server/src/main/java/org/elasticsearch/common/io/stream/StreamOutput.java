@@ -688,18 +688,14 @@ public abstract class StreamOutput extends OutputStream {
             } else {
                 o.writeByte((byte) 10);
             }
-            @SuppressWarnings("unchecked")
-            final Map<String, Object> map = (Map<String, Object>) v;
-            o.writeVInt(map.size());
-            for (Map.Entry<String, Object> entry : map.entrySet()) {
-                final Object key = entry.getKey();
-                if (key instanceof String keyAsString) {
-                    o.writeString(keyAsString);
-                } else {
-                    final String keyClass = key != null ? key.getClass().getCanonicalName() : "Unknown";
-                    throw new IllegalArgumentException("cannot write map with key type [" + keyClass + "]");
-                }
-                o.writeGenericValue(entry.getValue());
+            if (o.getVersion().onOrAfter(Version.V_8_4_0)) {
+                @SuppressWarnings("unchecked")
+                final Map<Object, Object> map = (Map<Object, Object>) v;
+                writeObjectKeyHashMap(o, map);
+            } else {
+                @SuppressWarnings("unchecked")
+                final Map<String, Object> map = (Map<String, Object>) v;
+                writeHashMap(o, map);
             }
         }),
         entry(Byte.class, (o, v) -> {
@@ -775,6 +771,22 @@ public abstract class StreamOutput extends OutputStream {
             o.writeLong(offsetTime.toLocalTime().toNanoOfDay());
         })
     );
+
+    private static void writeHashMap(StreamOutput o, Map<String, Object> map) throws IOException {
+        o.writeVInt(map.size());
+        for (Map.Entry<String, Object> entry : map.entrySet()) {
+            o.writeString(entry.getKey());
+            o.writeGenericValue(entry.getValue());
+        }
+    }
+
+    private static void writeObjectKeyHashMap(StreamOutput o, Map<Object, Object> map) throws IOException {
+        o.writeVInt(map.size());
+        for (Map.Entry<Object, Object> entry : map.entrySet()) {
+            o.writeGenericValue(entry.getKey());
+            o.writeGenericValue(entry.getValue());
+        }
+    }
 
     public <T> void writeGenericList(List<T> v, Writer<T> writer) throws IOException {
         writeByte((byte) 7);

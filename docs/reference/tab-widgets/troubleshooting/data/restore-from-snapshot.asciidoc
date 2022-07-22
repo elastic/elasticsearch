@@ -147,6 +147,7 @@ You might have multiple snapshots from which you could restore the target indice
 +
 . Now that we found a snapshot, we will proceed with the data stream preparation for restoring the lost data. We will
 check the index metadata to see if any index is part of a data stream:
++
 [source,console]
 ----
 GET kibana_sample_data_flights,.ds-my-data-stream-2022.06.17-000001?features=settings&flat_settings
@@ -154,6 +155,7 @@ GET kibana_sample_data_flights,.ds-my-data-stream-2022.06.17-000001?features=set
 // TEST[skip:illustration purposes only]
 +
 The response will look like this:
++
 [source,console-result]
 ----
 {
@@ -197,8 +199,8 @@ The response will look like this:
 <3> This indicates that this index is part of a data stream and shows the data stream name.
 +
 <4> The name of the other index we requested.
-
-. The response above shows that `kibana_sample_data_flights` is not part of a data stream because it doesn't have a
++
+The response above shows that `kibana_sample_data_flights` is not part of a data stream because it doesn't have a
 field called `data_stream` in the settings.
 +
 On the contrary, `.ds-my-data-stream-2022.06.17-000001` is part of the data stream called `my-data-stream`. When you
@@ -208,12 +210,13 @@ If it's there you can continue to the next step.
 +
 If it is not there we need to rollover the data stream to allow us to restore the missing data without blocking
 the ingestion of new data. The following command will achieve that.
++
 [source,console]
 ----
 POST my-data-stream/_rollover
 ----
 // TEST[skip:illustration purposes only]
-+
+
 . Now that the data stream preparation is done (if it was necessary), we will close the target indices via the use the
 <<indices-close, close indices API>>.
 +

@@ -836,7 +836,7 @@ public abstract class StreamInput extends InputStream {
         }
         Map<Object, Object> map9 = Maps.newLinkedHashMapWithExpectedSize(size9);
         for (int i = 0; i < size9; i++) {
-            map9.put(readString(), readGenericValue());
+            map9.put(readGenericValue(), readGenericValue());
         }
         return map9;
     }

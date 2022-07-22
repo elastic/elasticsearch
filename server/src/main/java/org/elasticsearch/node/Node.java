@@ -509,9 +509,6 @@ public class Node implements Closeable {
             Stream<NamedXContentRegistry.Entry> healthNodeTaskNamedXContentParsers = HealthNode.isEnabled()
                 ? HealthNodeTaskExecutor.getNamedXContentParsers().stream()
                 : Stream.empty();
-            Stream<NamedXContentRegistry.Entry> healthMetadataNamedXContentParsers = HealthNode.isEnabled()
-                ? HealthMetadataService.getNamedXContentParsers().stream()
-                : Stream.empty();
             NamedXContentRegistry xContentRegistry = new NamedXContentRegistry(
                 Stream.of(
                     NetworkModule.getNamedXContents().stream(),
@@ -520,8 +517,7 @@ public class Node implements Closeable {
                     pluginsService.flatMap(Plugin::getNamedXContent),
                     ClusterModule.getNamedXWriteables().stream(),
                     SystemIndexMigrationExecutor.getNamedXContentParsers().stream(),
-                    healthNodeTaskNamedXContentParsers,
-                    healthMetadataNamedXContentParsers
+                    healthNodeTaskNamedXContentParsers
                 ).flatMap(Function.identity()).collect(toList())
             );
             final List<SystemIndices.Feature> features = pluginsService.filterPlugins(SystemIndexPlugin.class).stream().map(plugin -> {

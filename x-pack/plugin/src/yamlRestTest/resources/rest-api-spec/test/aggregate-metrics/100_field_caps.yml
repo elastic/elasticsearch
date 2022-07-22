@@ -1,7 +1,7 @@
 setup:
   - skip:
       version: " - 8.3.99"
-      reason: metric types as family type support introduced in 8.4.0
+      reason: metric params only on time series indexes introduced in 8.4.0
 
   - do:
       indices.create:
@@ -57,37 +57,50 @@ setup:
 field caps on rollup indices:
   - skip:
       version: " - 8.3.99"
-      reason: metric types as family type support introduced in 8.4.0
+      reason: metric params only on time series indexes introduced in 8.4.0
 
   - do:
       field_caps:
         index: test_rollup
         fields: [metric]
 
-  - match: {fields.metric.gauge.searchable:     true}
-  - match: {fields.metric.gauge.aggregatable:   true}
-  - match: {fields.metric.gauge.time_series_metric:   gauge}
-  - is_false: fields.metric.gauge.indices
-  - is_false: fields.metric.gauge.non_searchable_indices
-  - is_false: fields.metric.gauge.non_aggregatable_indices
+  - match: { fields.metric.aggregate_metric_double.type: aggregate_metric_double }
+  - match: { fields.metric.aggregate_metric_double.searchable: true }
+  - match: { fields.metric.aggregate_metric_double.aggregatable: true }
+  - match: { fields.metric.aggregate_metric_double.time_series_metric: gauge }
+  - is_false: fields.metric.aggregate_metric_double.indices
+  - is_false: fields.metric.aggregate_metric_double.non_searchable_indices
+  - is_false: fields.metric.aggregate_metric_double.non_aggregatable_indices
+  - is_false: fields.metric.aggregate_metric_double.metric_conflicts_indices
+  - is_false: fields.metric.double
 
 
 ---
 field caps on time series indices:
   - skip:
       version: " - 8.3.99"
-      reason: metric types as family type support introduced in 8.4.0
+      reason: metric params only on time series indexes introduced in 8.4.0
 
   - do:
       field_caps:
         index: [test_time_series, test_rollup]
         fields: [metric]
 
-  - match: {fields.metric.gauge.searchable:     true}
-  - match: {fields.metric.gauge.aggregatable:   true}
-  - match: {fields.metric.gauge.time_series_metric:   gauge}
-  - is_false: fields.metric.gauge.indices
-  - is_false: fields.metric.gauge.non_searchable_indices
-  - is_false: fields.metric.gauge.non_aggregatable_indices
-  - is_false: fields.metric.long
-  - is_false: fields.metric.aggregate_metric_double
+  - match: {fields.metric.long.type:     long}
+  - match: {fields.metric.long.searchable:     true}
+  - match: {fields.metric.long.aggregatable:   true}
+  - match: {fields.metric.long.time_series_metric:   gauge}
+  - match: {fields.metric.long.indices:   ["test_time_series"]}
+  - is_false: fields.metric.long.non_searchable_indices
+  - is_false: fields.metric.long.non_aggregatable_indices
+  - is_false: fields.metric.long.metric_conflicts_indices
+
+  - match: { fields.metric.aggregate_metric_double.type: aggregate_metric_double }
+  - match: { fields.metric.aggregate_metric_double.searchable: true }
+  - match: { fields.metric.aggregate_metric_double.aggregatable: true }
+  - match: { fields.metric.aggregate_metric_double.time_series_metric: gauge }
+  - match: { fields.metric.aggregate_metric_double.indices: [ "test_rollup" ] }
+
+  - is_false: fields.metric.aggregate_metric_double.non_searchable_indices
+  - is_false: fields.metric.aggregate_metric_double.non_aggregatable_indices
+  - is_false: fields.metric.aggregate_metric_double.metric_conflicts_indices

@@ -1,7 +1,7 @@
 setup:
   - skip:
       version: " - 8.3.99"
-      reason: metric types as family type support introduced in 8.4.0
+      reason: metric params only on time series indexes introduced in 8.4.0
 
   - do:
       indices.create:
@@ -90,7 +90,7 @@ setup:
 field caps on time_series indices:
   - skip:
       version: " - 8.3.99"
-      reason: metric types as family type support introduced in 8.4.0
+      reason: metric params only on time series indexes introduced in 8.4.0
 
   - do:
       field_caps:
@@ -105,23 +105,24 @@ field caps on time_series indices:
   - is_false: fields.k8s\.pod\.uid.keyword.non_searchable_indices
   - is_false: fields.k8s\.pod\.uid.keyword.non_aggregatable_indices
 
-  - match: { fields.k8s\.pod\.network\.rx.gauge.type: gauge }
-  - match: { fields.k8s\.pod\.network\.rx.gauge.searchable: true }
-  - match: { fields.k8s\.pod\.network\.rx.gauge.aggregatable: true }
-  - match: { fields.k8s\.pod\.network\.rx.gauge.time_series_metric: gauge }
-  - is_false: fields.k8s\.pod\.network\.rx.gauge.indices
-  - is_false: fields.k8s\.pod\.network\.rx.gauge.non_searchable_indices
-  - is_false: fields.k8s\.pod\.network\.rx.gauge.non_aggregatable_indices
-  - is_false: fields.k8s\.pod\.network\.rx.long
+  - match: { fields.k8s\.pod\.network\.rx.long.type: long }
+  - match: { fields.k8s\.pod\.network\.rx.long.searchable: true }
+  - match: { fields.k8s\.pod\.network\.rx.long.aggregatable: true }
+  - match: { fields.k8s\.pod\.network\.rx.long.time_series_metric: gauge }
+  - is_false: fields.k8s\.pod\.network\.tx.long.metric_conflicts_indices
+  - is_false: fields.k8s\.pod\.network\.rx.long.indices
+  - is_false: fields.k8s\.pod\.network\.rx.long.non_searchable_indices
+  - is_false: fields.k8s\.pod\.network\.rx.long.non_aggregatable_indices
 
-  - match: { fields.k8s\.pod\.network\.tx.counter.type: counter }
-  - match: { fields.k8s\.pod\.network\.tx.counter.searchable: true }
-  - match: { fields.k8s\.pod\.network\.tx.counter.aggregatable: true }
-  - match: { fields.k8s\.pod\.network\.tx.counter.time_series_metric: counter }
-  - is_false: fields.k8s\.pod\.network\.tx.counter.indices
-  - is_false: fields.k8s\.pod\.network\.tx.counter.non_searchable_indices
-  - is_false: fields.k8s\.pod\.network\.tx.counter.non_aggregatable_indices
-  - is_false: fields.k8s\.pod\.network\.tx.long
+
+  - match: { fields.k8s\.pod\.network\.tx.long.type: long }
+  - match: { fields.k8s\.pod\.network\.tx.long.searchable: true }
+  - match: { fields.k8s\.pod\.network\.tx.long.aggregatable: true }
+  - match: { fields.k8s\.pod\.network\.tx.long.time_series_metric: counter }
+  - is_false: fields.k8s\.pod\.network\.tx.long.metric_conflicts_indices
+  - is_false: fields.k8s\.pod\.network\.tx.long.indices
+  - is_false: fields.k8s\.pod\.network\.tx.long.non_searchable_indices
+  - is_false: fields.k8s\.pod\.network\.tx.long.non_aggregatable_indices
 
   - match: { fields.k8s\.pod\.ip.ip.type: ip }
   - match: { fields.k8s\.pod\.ip.ip.searchable: true }
@@ -134,6 +135,7 @@ field caps on time_series indices:
   - match: { fields.metricset.keyword.searchable: true }
   - match: { fields.metricset.keyword.aggregatable: true }
   - match: { fields.metricset.keyword.time_series_dimension: true }
+  - is_false: fields.metricset.keyword.non_dimension_indices
   - is_false: fields.metricset.keyword.indices
   - is_false: fields.metricset.keyword.non_searchable_indices
   - is_false: fields.metricset.keyword.non_aggregatable_indices
@@ -150,7 +152,7 @@ field caps on time_series indices:
 field caps on standard indices:
   - skip:
       version: " - 8.3.99"
-      reason: metric types as family type support introduced in 8.4.0
+      reason: metric params only on time series indexes introduced in 8.4.0
 
   - do:
       field_caps:
@@ -161,6 +163,7 @@ field caps on standard indices:
   - match: { fields.metricset.keyword.searchable: true }
   - match: { fields.metricset.keyword.aggregatable: true }
   - is_false: fields.metricset.keyword.time_series_dimension
+  - is_false: fields.metricset.keyword.non_dimension_indices
   - is_false: fields.metricset.keyword.indices
   - is_false: fields.metricset.keyword.non_searchable_indices
   - is_false: fields.metricset.keyword.non_aggregatable_indices
@@ -171,6 +174,7 @@ field caps on standard indices:
   - match: { fields.k8s\.pod\.network\.rx.long.searchable: true }
   - match: { fields.k8s\.pod\.network\.rx.long.aggregatable: true }
   - is_false: fields.k8s\.pod\.network\.rx.long.time_series_metric
+  - is_false: fields.k8s\.pod\.network\.rx.long.metric_conflicts_indices
   - is_false: fields.k8s\.pod\.network\.rx.long.indices
   - is_false: fields.k8s\.pod\.network\.rx.long.non_searchable_indices
   - is_false: fields.k8s\.pod\.network\.rx.long.non_aggregatable_indices
@@ -180,6 +184,7 @@ field caps on standard indices:
   - match: { fields.k8s\.pod\.network\.tx.long.searchable: true }
   - match: { fields.k8s\.pod\.network\.tx.long.aggregatable: true }
   - is_false: fields.k8s\.pod\.network\.tx.long.time_series_metric
+  - is_false: fields.k8s\.pod\.network\.tx.long.metric_conflicts_indices
   - is_false: fields.k8s\.pod\.network\.tx.long.indices
   - is_false: fields.k8s\.pod\.network\.tx.long.non_searchable_indices
   - is_false: fields.k8s\.pod\.network\.tx.long.non_aggregatable_indices
@@ -190,7 +195,7 @@ field caps on standard indices:
 field caps on mixed indices:
   - skip:
       version: " - 8.3.99"
-      reason: metric types as family type support introduced in 8.4.0
+      reason: metric params only on time series indexes introduced in 8.4.0
 
   - do:
       field_caps:
@@ -200,7 +205,7 @@ field caps on mixed indices:
   - match: { fields.metricset.keyword.type: keyword }
   - match: { fields.metricset.keyword.searchable: true }
   - match: { fields.metricset.keyword.aggregatable: true }
-  - match: { fields.metricset.keyword.time_series_dimension: false }
+  - is_false: fields.metricset.keyword.time_series_dimension
   - match: { fields.metricset.keyword.non_dimension_indices: [ "test_non_time_series" ] }
   - is_false: fields.metricset.keyword.indices
   - is_false: fields.metricset.keyword.non_searchable_indices
@@ -209,31 +214,18 @@ field caps on mixed indices:
   - match: { fields.k8s\.pod\.network\.rx.long.type: long }
   - match: { fields.k8s\.pod\.network\.rx.long.searchable: true }
   - match: { fields.k8s\.pod\.network\.rx.long.aggregatable: true }
-  - match: { fields.k8s\.pod\.network\.rx.long.indices: [ "test_non_time_series" ] }
+  - match: { fields.k8s\.pod\.network\.rx.long.metric_conflicts_indices: [ "test_non_time_series", "test_time_series" ] }
   - is_false: fields.k8s\.pod\.network\.rx.long.time_series_metric
   - is_false: fields.k8s\.pod\.network\.rx.long.non_searchable_indices
   - is_false: fields.k8s\.pod\.network\.rx.long.non_aggregatable_indices
-
-  - match: { fields.k8s\.pod\.network\.rx.gauge.type: gauge }
-  - match: { fields.k8s\.pod\.network\.rx.gauge.searchable: true }
-  - match: { fields.k8s\.pod\.network\.rx.gauge.aggregatable: true }
-  - match: { fields.k8s\.pod\.network\.rx.gauge.indices: [ "test_time_series" ] }
-  - match: { fields.k8s\.pod\.network\.rx.gauge.time_series_metric: gauge }
-  - is_false: fields.k8s\.pod\.network\.rx.gauge.non_searchable_indices
-  - is_false: fields.k8s\.pod\.network\.rx.gauge.non_aggregatable_indices
+  - is_false: fields.k8s\.pod\.network\.rx.long.indices
 
   - match: { fields.k8s\.pod\.network\.tx.long.type: long }
   - match: { fields.k8s\.pod\.network\.tx.long.searchable: true }
   - match: { fields.k8s\.pod\.network\.tx.long.aggregatable: true }
-  - match: { fields.k8s\.pod\.network\.tx.long.indices: [ "test_non_time_series" ] }
+  - match: { fields.k8s\.pod\.network\.tx.long.metric_conflicts_indices: [ "test_non_time_series", "test_time_series" ] }
   - is_false: fields.k8s\.pod\.network\.tx.long.time_series_metric
   - is_false: fields.k8s\.pod\.network\.tx.long.non_searchable_indices
   - is_false: fields.k8s\.pod\.network\.tx.long.non_aggregatable_indices
+  - is_false: fields.k8s\.pod\.network\.tx.long.indices
 
-  - match: { fields.k8s\.pod\.network\.tx.counter.type: counter }
-  - match: { fields.k8s\.pod\.network\.tx.counter.searchable: true }
-  - match: { fields.k8s\.pod\.network\.tx.counter.aggregatable: true }
-  - match: { fields.k8s\.pod\.network\.tx.counter.indices: [ "test_time_series" ] }
-  - match: { fields.k8s\.pod\.network\.tx.counter.time_series_metric: counter }
-  - is_false: fields.k8s\.pod\.network\.tx.counter.non_searchable_indices
-  - is_false: fields.k8s\.pod\.network\.tx.counter.non_aggregatable_indices

@@ -117,7 +117,11 @@ class FieldCapabilitiesFetcher {
             if (filter.test(ft)) {
                 IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
                     field,
-                    isTimeSeriesIndex && ft.getMetricType() != null ? ft.getMetricType().name() : ft.familyTypeName(),
+                    // This is a nasty hack so that we expose aggregate_metric_double field,
+                    // when the index  is a time series index and the field is marked as metric.
+                    // This code should be reverted once PR https://github.com/elastic/elasticsearch/pull/87849
+                    // is merged.
+                    isTimeSeriesIndex && ft.getMetricType() != null ? ft.typeName() : ft.familyTypeName(),
                     context.isMetadataField(field),
                     ft.isSearchable(),
                     ft.isAggregatable(),

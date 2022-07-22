@@ -37,7 +37,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -67,6 +66,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
+import static java.util.stream.Collectors.toUnmodifiableMap;
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_HOT_NODE_ROLE;
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_WARM_NODE_ROLE;
 import static org.hamcrest.Matchers.equalTo;
@@ -88,7 +88,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
     };
     private static final AllocationDecider CAN_REMAIN_NO_DECIDER = new AllocationDecider() {
         @Override
-        public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+        public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
             return Decision.NO;
         }
     };
@@ -116,13 +116,13 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
     // say NO with disk label for subject shards
     private final AllocationDecider mockCanRemainDiskDecider = new AllocationDecider() {
         @Override
-        public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+        public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
             if (subjectShards.contains(shardRouting.shardId()) && node.node().getName().startsWith("hot")) return allocation.decision(
                 Decision.NO,
                 DiskThresholdDecider.NAME,
                 "test"
             );
-            return super.canRemain(shardRouting, node, allocation);
+            return super.canRemain(indexMetadata, shardRouting, node, allocation);
         }
     };
 
@@ -616,20 +616,17 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         // the diskusage is set such that the disk threshold decider never rejects an allocation.
         Map<String, DiskUsage> diskUsages = state.nodes()
             .stream()
-            .collect(Collectors.toMap(DiscoveryNode::getId, node -> new DiskUsage(node.getId(), null, "the_path", 1000, 1000)));
-        ImmutableOpenMap<String, DiskUsage> immutableDiskUsages = ImmutableOpenMap.<String, DiskUsage>builder()
-            .putAllFromMap(diskUsages)
-            .build();
+            .collect(toUnmodifiableMap(DiscoveryNode::getId, node -> new DiskUsage(node.getId(), null, "the_path", 1000, 1000)));
 
         return new ClusterInfo() {
             @Override
             public Map<String, DiskUsage> getNodeLeastAvailableDiskUsages() {
-                return immutableDiskUsages;
+                return diskUsages;
             }
 
             @Override
             public Map<String, DiskUsage> getNodeMostAvailableDiskUsages() {
-                return immutableDiskUsages;
+                return diskUsages;
             }
 
             @Override

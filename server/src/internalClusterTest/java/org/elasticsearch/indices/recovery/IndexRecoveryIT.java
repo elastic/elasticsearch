@@ -348,7 +348,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         assertRecoveryState(nodeBRecoveryState, 0, PeerRecoverySource.INSTANCE, false, Stage.DONE, nodeA, nodeB);
         validateIndexRecoveryState(nodeBRecoveryState.getIndex());
 
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeA));
+        internalCluster().stopNode(nodeA);
 
         if (closedIndex) {
             assertAcked(client().admin().indices().prepareOpen(INDEX_NAME));
@@ -640,7 +640,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
         if (randomBoolean()) {
             // shutdown node with relocation source of replica shard and check if recovery continues
-            internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeA));
+            internalCluster().stopNode(nodeA);
             ensureStableCluster(2);
 
             response = client().admin().indices().prepareRecoveries(INDEX_NAME).execute().actionGet();
@@ -848,10 +848,10 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
         String firstNodeToStop = randomFrom(internalCluster().getNodeNames());
         Settings firstNodeToStopDataPathSettings = internalCluster().dataPathSettings(firstNodeToStop);
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(firstNodeToStop));
+        internalCluster().stopNode(firstNodeToStop);
         String secondNodeToStop = randomFrom(internalCluster().getNodeNames());
         Settings secondNodeToStopDataPathSettings = internalCluster().dataPathSettings(secondNodeToStop);
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(secondNodeToStop));
+        internalCluster().stopNode(secondNodeToStop);
 
         final long desyncNanoTime = System.nanoTime();
         // noinspection StatementWithEmptyBody

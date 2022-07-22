@@ -627,6 +627,10 @@ public class RoleDescriptorTests extends ESTestCase {
     }
 
     public static RoleDescriptor randomRoleDescriptor() {
+        return randomRoleDescriptor(true);
+    }
+
+    public static RoleDescriptor randomRoleDescriptor(boolean allowReservedMetadata) {
         final RoleDescriptor.IndicesPrivileges[] indexPrivileges = new RoleDescriptor.IndicesPrivileges[randomIntBetween(0, 3)];
         for (int i = 0; i < indexPrivileges.length; i++) {
             final RoleDescriptor.IndicesPrivileges.Builder builder = RoleDescriptor.IndicesPrivileges.builder()
@@ -695,7 +699,7 @@ public class RoleDescriptorTests extends ESTestCase {
         final Map<String, Object> metadata = new HashMap<>();
         while (randomBoolean()) {
             String key = randomAlphaOfLengthBetween(4, 12);
-            if (randomBoolean()) {
+            if (allowReservedMetadata && randomBoolean()) {
                 key = MetadataUtils.RESERVED_PREFIX + key;
             }
             final Object value = randomBoolean() ? randomInt() : randomAlphaOfLengthBetween(3, 50);

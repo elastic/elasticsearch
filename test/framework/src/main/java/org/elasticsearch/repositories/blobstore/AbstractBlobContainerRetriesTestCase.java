@@ -304,6 +304,7 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         );
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/88666")
     public void testReadBlobWithPrematureConnectionClose() {
         final int maxRetries = randomInt(20);
         final BlobContainer blobContainer = createBlobContainer(maxRetries, null, null, null);
@@ -369,7 +370,7 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         return OptionalInt.of(Math.toIntExact(rangeEnd));
     }
 
-    protected void sendIncompleteContent(HttpExchange exchange, byte[] bytes) throws IOException {
+    protected int sendIncompleteContent(HttpExchange exchange, byte[] bytes) throws IOException {
         final int rangeStart = getRangeStart(exchange);
         assertThat(rangeStart, lessThan(bytes.length));
         final OptionalInt rangeEnd = getRangeEnd(exchange);
@@ -391,6 +392,7 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         if (randomBoolean()) {
             exchange.getResponseBody().flush();
         }
+        return bytesToSend;
     }
 
     /**

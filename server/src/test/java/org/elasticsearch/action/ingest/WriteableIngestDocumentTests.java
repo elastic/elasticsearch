@@ -11,6 +11,7 @@ package org.elasticsearch.action.ingest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.ingest.IngestDocument;
@@ -32,7 +33,9 @@ import java.util.Set;
 import java.util.StringJoiner;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.ingest.IngestDocument.Metadata.VERSION;
 import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocument;
+import static org.elasticsearch.ingest.TestIngestDocument.randomVersion;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -44,6 +47,7 @@ public class WriteableIngestDocumentTests extends AbstractXContentTestCase<Write
     public void testEqualsAndHashcode() throws Exception {
         Map<String, Object> sourceAndMetadata = RandomDocumentPicks.randomSource(random());
         int numFields = randomIntBetween(1, IngestDocument.Metadata.values().length);
+        sourceAndMetadata.put(VERSION.getFieldName(), TestIngestDocument.randomVersion());
         for (int i = 0; i < numFields; i++) {
             Tuple<String, Object> metadata = TestIngestDocument.randomMetadata();
             sourceAndMetadata.put(metadata.v1(), metadata.v2());
@@ -59,6 +63,7 @@ public class WriteableIngestDocumentTests extends AbstractXContentTestCase<Write
         Map<String, Object> otherSourceAndMetadata;
         if (randomBoolean()) {
             otherSourceAndMetadata = RandomDocumentPicks.randomSource(random());
+            otherSourceAndMetadata.put(VERSION.getFieldName(), TestIngestDocument.randomVersion());
             changed = true;
         } else {
             otherSourceAndMetadata = new HashMap<>(sourceAndMetadata);
@@ -105,6 +110,7 @@ public class WriteableIngestDocumentTests extends AbstractXContentTestCase<Write
 
     public void testSerialization() throws IOException {
         Map<String, Object> sourceAndMetadata = RandomDocumentPicks.randomSource(random());
+        sourceAndMetadata.put(VERSION.getFieldName(), randomVersion());
         int numFields = randomIntBetween(1, IngestDocument.Metadata.values().length);
         for (int i = 0; i < numFields; i++) {
             Tuple<String, Object> metadata = TestIngestDocument.randomMetadata();
@@ -142,17 +148,20 @@ public class WriteableIngestDocumentTests extends AbstractXContentTestCase<Write
         Map<String, Object> toXContentSource = (Map<String, Object>) toXContentDoc.get("_source");
         Map<String, Object> toXContentIngestMetadata = (Map<String, Object>) toXContentDoc.get("_ingest");
 
-        Map<String, Object> metadataMap = ingestDocument.getMetadata();
-        for (Map.Entry<String, Object> metadata : metadataMap.entrySet()) {
-            String fieldName = metadata.getKey();
-            if (metadata.getValue() == null) {
+        for (String fieldName : ingestDocument.getMetadata().keySet()) {
+            Object value = ingestDocument.getMetadata().get(fieldName);
+            if (value == null) {
                 assertThat(toXContentDoc.containsKey(fieldName), is(false));
             } else {
-                assertThat(toXContentDoc.get(fieldName), equalTo(metadata.getValue().toString()));
+                assertThat(toXContentDoc.get(fieldName), equalTo(value.toString()));
             }
         }
 
-        IngestDocument serializedIngestDocument = new IngestDocument(toXContentSource, toXContentIngestMetadata);
+        Map<String, Object> sourceAndMetadata = Maps.newMapWithExpectedSize(toXContentSource.size() + ingestDocument.getMetadata().size());
+        sourceAndMetadata.putAll(toXContentSource);
+        ingestDocument.getMetadata().keySet().forEach(k -> sourceAndMetadata.put(k, ingestDocument.getMetadata().get(k)));
+        IngestDocument serializedIngestDocument = new IngestDocument(sourceAndMetadata, toXContentIngestMetadata);
+        // TODO(stu): is this test correct? Comparing against ingestDocument fails due to incorrectly failed byte array comparisons
         assertThat(serializedIngestDocument, equalTo(serializedIngestDocument));
     }
 

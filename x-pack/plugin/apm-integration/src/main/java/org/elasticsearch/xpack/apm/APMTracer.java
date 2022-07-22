@@ -30,9 +30,9 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tracing.Traceable;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
@@ -134,9 +134,10 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     }
 
     @Override
-    public void onTraceStarted(ThreadContext threadContext, Traceable traceable) {
+    public void onTraceStarted(ThreadContext threadContext, String spanId, String spanName, @Nullable Map<String, Object> attributes) {
         assert threadContext != null;
-        assert traceable != null;
+        assert spanId != null;
+        assert spanName != null;
 
         // If tracing has been disabled, return immediately
         var services = this.services;
@@ -144,14 +145,14 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
             return;
         }
 
-        if (filterAutomaton.run(traceable.getSpanName()) == false) {
-            LOGGER.trace("Skipping tracing [{}] [{}] as it has been filtered out", traceable.getSpanId(), traceable.getSpanName());
+        if (filterAutomaton.run(spanName) == false) {
+            LOGGER.trace("Skipping tracing [{}] [{}] as it has been filtered out", spanId, spanName);
             return;
         }
 
-        spans.computeIfAbsent(traceable.getSpanId(), spanId -> AccessController.doPrivileged((PrivilegedAction<Context>) () -> {
-            LOGGER.trace("Tracing [{}] [{}]", traceable.getSpanId(), traceable.getSpanName());
-            final SpanBuilder spanBuilder = services.tracer.spanBuilder(traceable.getSpanName());
+        spans.computeIfAbsent(spanId, _spanId -> AccessController.doPrivileged((PrivilegedAction<Context>) () -> {
+            LOGGER.trace("Tracing [{}] [{}]", spanId, spanName);
+            final SpanBuilder spanBuilder = services.tracer.spanBuilder(spanName);
 
             // A span can have a parent span, which here is modelled though a parent span context.
             // Setting this is important for seeing a complete trace in the APM UI.
@@ -160,7 +161,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
                 spanBuilder.setParent(parentContext);
             }
 
-            setSpanAttributes(threadContext, traceable, spanBuilder);
+            setSpanAttributes(threadContext, attributes, spanBuilder);
             final Span span = spanBuilder.startSpan();
             final Context contextForNewSpan = Context.current().with(span);
 
@@ -220,12 +221,12 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
      * However, if a scope is active, then the APM agent can capture additional information, so this method
      * exists to make it possible to use scopes in the few situaton where it makes sense.
      *
-     * @param traceable the traceable for which to open a scope. A span must currently be open for this {@code traceable}.
+     * @param spanId the ID of a currently-open span for which to open a scope.
      * @return a method to close the scope when you are finished with it.
      */
     @Override
-    public Releasable withScope(Traceable traceable) {
-        final Context context = spans.get(traceable.getSpanId());
+    public Releasable withScope(String spanId) {
+        final Context context = spans.get(spanId);
         if (context != null) {
             var scope = context.makeCurrent();
             return scope::close;
@@ -233,34 +234,36 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         return () -> {};
     }
 
-    private void setSpanAttributes(ThreadContext threadContext, Traceable traceable, SpanBuilder spanBuilder) {
-        final Map<String, Object> spanAttributes = traceable.getAttributes();
-
-        for (Map.Entry<String, Object> entry : spanAttributes.entrySet()) {
-            final String key = entry.getKey();
-            final Object value = entry.getValue();
-            if (value instanceof String) {
-                spanBuilder.setAttribute(key, (String) value);
-            } else if (value instanceof Long) {
-                spanBuilder.setAttribute(key, (Long) value);
-            } else if (value instanceof Integer) {
-                spanBuilder.setAttribute(key, (Integer) value);
-            } else if (value instanceof Double) {
-                spanBuilder.setAttribute(key, (Double) value);
-            } else if (value instanceof Boolean) {
-                spanBuilder.setAttribute(key, (Boolean) value);
-            } else {
-                throw new IllegalArgumentException(
-                    "span attributes do not support value type of [" + value.getClass().getCanonicalName() + "]"
-                );
+    private void setSpanAttributes(ThreadContext threadContext, @Nullable Map<String, Object> spanAttributes, SpanBuilder spanBuilder) {
+        if (spanAttributes != null) {
+            for (Map.Entry<String, Object> entry : spanAttributes.entrySet()) {
+                final String key = entry.getKey();
+                final Object value = entry.getValue();
+                if (value instanceof String) {
+                    spanBuilder.setAttribute(key, (String) value);
+                } else if (value instanceof Long) {
+                    spanBuilder.setAttribute(key, (Long) value);
+                } else if (value instanceof Integer) {
+                    spanBuilder.setAttribute(key, (Integer) value);
+                } else if (value instanceof Double) {
+                    spanBuilder.setAttribute(key, (Double) value);
+                } else if (value instanceof Boolean) {
+                    spanBuilder.setAttribute(key, (Boolean) value);
+                } else {
+                    throw new IllegalArgumentException(
+                        "span attributes do not support value type of [" + value.getClass().getCanonicalName() + "]"
+                    );
+                }
             }
+
+            final boolean isHttpSpan = spanAttributes.keySet().stream().anyMatch(key -> key.startsWith("http."));
+            spanBuilder.setSpanKind(isHttpSpan ? SpanKind.SERVER : SpanKind.INTERNAL);
+        } else {
+            spanBuilder.setSpanKind(SpanKind.INTERNAL);
         }
 
-        final boolean isHttpSpan = spanAttributes.keySet().stream().anyMatch(key -> key.startsWith("http."));
-        spanBuilder.setSpanKind(isHttpSpan ? SpanKind.SERVER : SpanKind.INTERNAL);
-
-        spanBuilder.setAttribute(Traceable.AttributeKeys.NODE_NAME, clusterService.getNodeName());
-        spanBuilder.setAttribute(Traceable.AttributeKeys.CLUSTER_NAME, clusterService.getClusterName().value());
+        spanBuilder.setAttribute(org.elasticsearch.tracing.Tracer.AttributeKeys.NODE_NAME, clusterService.getNodeName());
+        spanBuilder.setAttribute(org.elasticsearch.tracing.Tracer.AttributeKeys.CLUSTER_NAME, clusterService.getClusterName().value());
 
         final String xOpaqueId = threadContext.getHeader(Task.X_OPAQUE_ID_HTTP_HEADER);
         if (xOpaqueId != null) {
@@ -269,57 +272,57 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     }
 
     @Override
-    public void onTraceException(Traceable traceable, Throwable throwable) {
-        final var span = Span.fromContextOrNull(spans.get(traceable.getSpanId()));
+    public void onTraceException(String spanId, Throwable throwable) {
+        final var span = Span.fromContextOrNull(spans.get(spanId));
         if (span != null) {
             span.recordException(throwable);
         }
     }
 
     @Override
-    public void setAttribute(Traceable traceable, String key, boolean value) {
-        final var span = Span.fromContextOrNull(spans.get(traceable.getSpanId()));
+    public void setAttribute(String spanId, String key, boolean value) {
+        final var span = Span.fromContextOrNull(spans.get(spanId));
         if (span != null) {
             span.setAttribute(key, value);
         }
     }
 
     @Override
-    public void setAttribute(Traceable traceable, String key, double value) {
-        final var span = Span.fromContextOrNull(spans.get(traceable.getSpanId()));
+    public void setAttribute(String spanId, String key, double value) {
+        final var span = Span.fromContextOrNull(spans.get(spanId));
         if (span != null) {
             span.setAttribute(key, value);
         }
     }
 
     @Override
-    public void setAttribute(Traceable traceable, String key, long value) {
-        final var span = Span.fromContextOrNull(spans.get(traceable.getSpanId()));
+    public void setAttribute(String spanId, String key, long value) {
+        final var span = Span.fromContextOrNull(spans.get(spanId));
         if (span != null) {
             span.setAttribute(key, value);
         }
     }
 
     @Override
-    public void setAttribute(Traceable traceable, String key, String value) {
-        final var span = Span.fromContextOrNull(spans.get(traceable.getSpanId()));
+    public void setAttribute(String spanId, String key, String value) {
+        final var span = Span.fromContextOrNull(spans.get(spanId));
         if (span != null) {
             span.setAttribute(key, value);
         }
     }
 
     @Override
-    public void onTraceStopped(Traceable traceable) {
-        final var span = Span.fromContextOrNull(spans.remove(traceable.getSpanId()));
+    public void onTraceStopped(String spanId) {
+        final var span = Span.fromContextOrNull(spans.remove(spanId));
         if (span != null) {
-            LOGGER.trace("Finishing trace [{}] [{}]", traceable.getSpanId(), traceable.getSpanName());
+            LOGGER.trace("Finishing trace [{}]", spanId);
             span.end();
         }
     }
 
     @Override
-    public void onTraceEvent(Traceable traceable, String eventName) {
-        final var span = Span.fromContextOrNull(spans.get(traceable.getSpanId()));
+    public void onTraceEvent(String spanId, String eventName) {
+        final var span = Span.fromContextOrNull(spans.get(spanId));
         if (span != null) {
             span.addEvent(eventName);
         }

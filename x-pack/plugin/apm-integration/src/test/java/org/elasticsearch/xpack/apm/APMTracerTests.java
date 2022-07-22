@@ -14,11 +14,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.tracing.Traceable;
 
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.xpack.apm.APMAgentSettings.APM_ENABLED_SETTING;
 import static org.elasticsearch.xpack.apm.APMAgentSettings.APM_TRACING_NAMES_EXCLUDE_SETTING;
@@ -40,8 +38,7 @@ public class APMTracerTests extends ESTestCase {
         Settings settings = Settings.builder().put(APM_ENABLED_SETTING.getKey(), false).build();
         APMTracer apmTracer = buildTracer(settings);
 
-        Traceable traceable = new TestTraceable("1");
-        apmTracer.onTraceStarted(new ThreadContext(settings), traceable);
+        apmTracer.onTraceStarted(new ThreadContext(settings), "id1", "name1", null);
 
         assertThat(apmTracer.getSpans(), anEmptyMap());
     }
@@ -56,8 +53,7 @@ public class APMTracerTests extends ESTestCase {
             .build();
         APMTracer apmTracer = buildTracer(settings);
 
-        Traceable traceable = new TestTraceable("1");
-        apmTracer.onTraceStarted(new ThreadContext(settings), traceable);
+        apmTracer.onTraceStarted(new ThreadContext(settings), "id1", "name1", null);
 
         assertThat(apmTracer.getSpans(), anEmptyMap());
     }
@@ -69,11 +65,10 @@ public class APMTracerTests extends ESTestCase {
         Settings settings = Settings.builder().put(APM_ENABLED_SETTING.getKey(), true).build();
         APMTracer apmTracer = buildTracer(settings);
 
-        Traceable traceable = new TestTraceable("1");
-        apmTracer.onTraceStarted(new ThreadContext(settings), traceable);
+        apmTracer.onTraceStarted(new ThreadContext(settings), "id1", "name1", null);
 
         assertThat(apmTracer.getSpans(), aMapWithSize(1));
-        assertThat(apmTracer.getSpans(), hasKey(traceable.getSpanId()));
+        assertThat(apmTracer.getSpans(), hasKey("id1"));
     }
 
     /**
@@ -83,9 +78,8 @@ public class APMTracerTests extends ESTestCase {
         Settings settings = Settings.builder().put(APM_ENABLED_SETTING.getKey(), true).build();
         APMTracer apmTracer = buildTracer(settings);
 
-        Traceable traceable = new TestTraceable("1");
-        apmTracer.onTraceStarted(new ThreadContext(settings), traceable);
-        apmTracer.onTraceStopped(traceable);
+        apmTracer.onTraceStarted(new ThreadContext(settings), "id1", "name1", null);
+        apmTracer.onTraceStopped("id1");
 
         assertThat(apmTracer.getSpans(), anEmptyMap());
     }
@@ -101,9 +95,8 @@ public class APMTracerTests extends ESTestCase {
         Settings settings = Settings.builder().put(APM_ENABLED_SETTING.getKey(), true).build();
         APMTracer apmTracer = buildTracer(settings);
 
-        Traceable traceable = new TestTraceable("1");
         ThreadContext threadContext = new ThreadContext(settings);
-        apmTracer.onTraceStarted(threadContext, traceable);
+        apmTracer.onTraceStarted(threadContext, "id1", "name1", null);
         assertThat(threadContext.getTransient(Task.APM_TRACE_CONTEXT), notNullValue());
     }
 
@@ -114,9 +107,9 @@ public class APMTracerTests extends ESTestCase {
     public void test_whenTraceStarted_andSpanNameIncluded_thenSpanIsStarted() {
         final List<String> includePatterns = List.of(
             // exact name
-            "test-span-name-aaa",
+            "name-aaa",
             // regex
-            "test-span-name-b*"
+            "name-b*"
         );
         Settings settings = Settings.builder()
             .put(APM_ENABLED_SETTING.getKey(), true)
@@ -124,16 +117,13 @@ public class APMTracerTests extends ESTestCase {
             .build();
         APMTracer apmTracer = buildTracer(settings);
 
-        Traceable traceableA = new TestTraceable("aaa");
-        Traceable traceableB = new TestTraceable("bbb");
-        Traceable traceableC = new TestTraceable("ccc");
-        apmTracer.onTraceStarted(new ThreadContext(settings), traceableA);
-        apmTracer.onTraceStarted(new ThreadContext(settings), traceableB);
-        apmTracer.onTraceStarted(new ThreadContext(settings), traceableC);
+        apmTracer.onTraceStarted(new ThreadContext(settings), "id1", "name-aaa", null);
+        apmTracer.onTraceStarted(new ThreadContext(settings), "id2", "name-bbb", null);
+        apmTracer.onTraceStarted(new ThreadContext(settings), "id3", "name-ccc", null);
 
-        assertThat(apmTracer.getSpans(), hasKey(traceableA.getSpanId()));
-        assertThat(apmTracer.getSpans(), hasKey(traceableB.getSpanId()));
-        assertThat(apmTracer.getSpans(), not(hasKey(traceableC.getSpanId())));
+        assertThat(apmTracer.getSpans(), hasKey("id1"));
+        assertThat(apmTracer.getSpans(), hasKey("id2"));
+        assertThat(apmTracer.getSpans(), not(hasKey("id3")));
     }
 
     /**
@@ -141,8 +131,8 @@ public class APMTracerTests extends ESTestCase {
      * a span matches both, then the exclude filters take precedence.
      */
     public void test_whenTraceStarted_andSpanNameIncludedAndExcluded_thenSpanIsNotStarted() {
-        final List<String> includePatterns = List.of("test-span-name-a*");
-        final List<String> excludePatterns = List.of("test-span-name-a*");
+        final List<String> includePatterns = List.of("name-a*");
+        final List<String> excludePatterns = List.of("name-a*");
         Settings settings = Settings.builder()
             .put(APM_ENABLED_SETTING.getKey(), true)
             .putList(APM_TRACING_NAMES_INCLUDE_SETTING.getKey(), includePatterns)
@@ -150,10 +140,9 @@ public class APMTracerTests extends ESTestCase {
             .build();
         APMTracer apmTracer = buildTracer(settings);
 
-        Traceable traceableA = new TestTraceable("aaa");
-        apmTracer.onTraceStarted(new ThreadContext(settings), traceableA);
+        apmTracer.onTraceStarted(new ThreadContext(settings), "id1", "name-aaa", null);
 
-        assertThat(apmTracer.getSpans(), not(hasKey(traceableA.getSpanId())));
+        assertThat(apmTracer.getSpans(), not(hasKey("id1")));
     }
 
     /**
@@ -163,9 +152,9 @@ public class APMTracerTests extends ESTestCase {
     public void test_whenTraceStarted_andSpanNameExcluded_thenSpanIsNotStarted() {
         final List<String> excludePatterns = List.of(
             // exact name
-            "test-span-name-aaa",
+            "name-aaa",
             // regex
-            "test-span-name-b*"
+            "name-b*"
         );
         Settings settings = Settings.builder()
             .put(APM_ENABLED_SETTING.getKey(), true)
@@ -173,16 +162,13 @@ public class APMTracerTests extends ESTestCase {
             .build();
         APMTracer apmTracer = buildTracer(settings);
 
-        Traceable traceableA = new TestTraceable("aaa");
-        Traceable traceableB = new TestTraceable("bbb");
-        Traceable traceableC = new TestTraceable("ccc");
-        apmTracer.onTraceStarted(new ThreadContext(settings), traceableA);
-        apmTracer.onTraceStarted(new ThreadContext(settings), traceableB);
-        apmTracer.onTraceStarted(new ThreadContext(settings), traceableC);
+        apmTracer.onTraceStarted(new ThreadContext(settings), "id1", "name-aaa", null);
+        apmTracer.onTraceStarted(new ThreadContext(settings), "id2", "name-bbb", null);
+        apmTracer.onTraceStarted(new ThreadContext(settings), "id3", "name-ccc", null);
 
-        assertThat(apmTracer.getSpans(), not(hasKey(traceableA.getSpanId())));
-        assertThat(apmTracer.getSpans(), not(hasKey(traceableB.getSpanId())));
-        assertThat(apmTracer.getSpans(), hasKey(traceableC.getSpanId()));
+        assertThat(apmTracer.getSpans(), not(hasKey("id1")));
+        assertThat(apmTracer.getSpans(), not(hasKey("id2")));
+        assertThat(apmTracer.getSpans(), hasKey("id3"));
     }
 
     private APMTracer buildTracer(Settings settings) {
@@ -195,22 +181,5 @@ public class APMTracerTests extends ESTestCase {
         APMTracer tracer = new APMTracer(settings, clusterService);
         tracer.doStart();
         return tracer;
-    }
-
-    private record TestTraceable(String id) implements Traceable {
-        @Override
-        public String getSpanId() {
-            return "test-span-id-" + id;
-        }
-
-        @Override
-        public String getSpanName() {
-            return "test-span-name-" + id;
-        }
-
-        @Override
-        public Map<String, Object> getAttributes() {
-            return Map.of();
-        }
     }
 }

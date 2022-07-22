@@ -175,9 +175,9 @@ public class ConditionTests extends ESTestCase {
         assertThat(evaluate.condition(), equalTo(minDocsCondition));
         assertThat(evaluate.matched(), equalTo(true));
 
-        long MinDocsNotMatch = randomIntBetween(0, 99);
+        long minDocsNotMatch = randomIntBetween(0, 99);
         evaluate = minDocsCondition.evaluate(
-            new Condition.Stats(MinDocsNotMatch, 0, randomByteSize(), randomByteSize(), randomNonNegativeLong())
+            new Condition.Stats(minDocsNotMatch, 0, randomByteSize(), randomByteSize(), randomNonNegativeLong())
         );
         assertThat(evaluate.condition(), equalTo(minDocsCondition));
         assertThat(evaluate.matched(), equalTo(false));

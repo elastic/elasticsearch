@@ -50,7 +50,7 @@ public class HealthServiceTests extends ESTestCase {
     }
 
     public void testDuplicateIndicatorNames() {
-        // Same component, same indicator name, should throw exception:
+        // Same indicator name, should throw exception:
         var networkLatency = new HealthIndicatorResult(
             "network_latency",
             GREEN,
@@ -114,26 +114,20 @@ public class HealthServiceTests extends ESTestCase {
             )
         );
 
-        // Get all indicators returns preflight result mixed in with appropriate component
+        // Get all indicators returns preflight result mixed in with the other indicators
         List<HealthIndicatorResult> health = service.getHealth(null, false);
         assertThat(health.size(), is(equalTo(4)));
-        {
-            assertThat(health, containsInAnyOrder(hasMaster, networkLatency, slowTasks, shardsAvailable));
-        }
+        assertThat(health, containsInAnyOrder(hasMaster, networkLatency, slowTasks, shardsAvailable));
 
         // Getting single indicator returns correct indicator still
         health = service.getHealth("slow_task_assignment", false);
         assertThat(health.size(), is(equalTo(1)));
-        {
-            assertThat(health, contains(slowTasks));
-        }
+        assertThat(health, contains(slowTasks));
 
         // Getting single preflight indicator returns preflight indicator correctly
         health = service.getHealth("has_master", false);
         assertThat(health.size(), is(equalTo(1)));
-        {
-            assertThat(health, contains(hasMaster));
-        }
+        assertThat(health, contains(hasMaster));
     }
 
     private void assertIndicatorIsUnknownStatus(HealthIndicatorResult result) {

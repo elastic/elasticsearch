@@ -45,17 +45,17 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
         private final ClusterName clusterName;
         @Nullable
         private final HealthStatus status;
-        private final List<HealthIndicatorResult> indicatorResults;
+        private final List<HealthIndicatorResult> indicators;
 
         public Response(StreamInput in) {
             throw new AssertionError("GetHealthAction should not be sent over the wire.");
         }
 
-        public Response(final ClusterName clusterName, final List<HealthIndicatorResult> indicatorResults, boolean showTopLevelStatus) {
-            this.indicatorResults = indicatorResults;
+        public Response(final ClusterName clusterName, final List<HealthIndicatorResult> indicators, boolean showTopLevelStatus) {
+            this.indicators = indicators;
             this.clusterName = clusterName;
             if (showTopLevelStatus) {
-                this.status = HealthStatus.merge(indicatorResults.stream().map(HealthIndicatorResult::status));
+                this.status = HealthStatus.merge(indicators.stream().map(HealthIndicatorResult::status));
             } else {
                 this.status = null;
             }
@@ -70,7 +70,7 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
         }
 
         public HealthIndicatorResult findIndicator(String name) {
-            return indicatorResults.stream()
+            return indicators.stream()
                 .filter(c -> Objects.equals(c.name(), name))
                 .findFirst()
                 .orElseThrow(() -> new NoSuchElementException("Indicator [" + name + "] is not found"));
@@ -89,7 +89,7 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
             }
             builder.field("cluster_name", clusterName.value());
             builder.startObject("indicators");
-            for (HealthIndicatorResult result : indicatorResults) {
+            for (HealthIndicatorResult result : indicators) {
                 builder.field(result.name(), result, params);
             }
             builder.endObject();
@@ -105,19 +105,17 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
                 return false;
             }
             Response response = (Response) o;
-            return clusterName.equals(response.clusterName)
-                && status == response.status
-                && indicatorResults.equals(response.indicatorResults);
+            return clusterName.equals(response.clusterName) && status == response.status && indicators.equals(response.indicators);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(clusterName, status, indicatorResults);
+            return Objects.hash(clusterName, status, indicators);
         }
 
         @Override
         public String toString() {
-            return "Response{clusterName=" + clusterName + ", status=" + status + ", indicatorResults=" + indicatorResults + '}';
+            return "Response{clusterName=" + clusterName + ", status=" + status + ", indicatorResults=" + indicators + '}';
         }
     }
 
@@ -126,6 +124,7 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
         private final boolean explain;
 
         public Request(boolean explain) {
+            // We never compute details if no indicator name is given because of the runtime cost:
             this.indicatorName = null;
             this.explain = explain;
         }

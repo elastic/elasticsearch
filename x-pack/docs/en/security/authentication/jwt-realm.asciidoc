@@ -12,16 +12,18 @@ between the _client_ that is connecting to {es}, and the _user_ on whose behalf
 the request should run. The JWT identifies the user, and a separate credential
 is used to authenticate the client.
 
-TIP: If JWTs are issued for the client, then the client is the JWT user.
-To identify a different user, use the `es-security-runas-user` header.
-See <<jwt-realm-runas>>.
-
 A common scenario for JWTs is when an existing front-end application uses
 OpenID Connect (OIDC) as an authentication method, and then accesses {es}
 on behalf of the authenticated user.
 
 TIP: If the front-end application does not exist, you can use the
 <<token-authentication-services>> instead.
+
+TIP: If JWTs are issued for the front-end application, the JWT realm client is
+the JWT user. That is not supported by OIDC flows. However, it may be supported
+by bespoke JWT issuer flows. Use the JWT for authentication, and the
+`es-security-runas-user` HTTP request header to specify a different user.
+See <<jwt-realm-runas>>.
 
 [[jwt-realm-oidc]]
 ==== JWT uses OIDC workflows
@@ -443,25 +445,32 @@ and {es} used the `jwt_role1` role:
 ----
 
 [[jwt-realm-jwkset-reloading]]
-===== JWKSet reloading
-{es} loads PKC JWKSet, HMAC JWKSet, and HMAC OIDC JWK at startup. Load failures, parse errors,
-and configuration errors will prevent a node from starting (and restarting).
-
-At runtime, JWT realms can also reload PKC JWKSet. Reloading of RSA and EC public keys is
-supported for HTTPS URL or local file only.
+===== PKC JWKSet reloading
+JWT authentication supports signature verification using PKC (Public Key Cryptography) or HMAC algorithms.
+PKC JWKSet can contain public RSA and EC keys. HMAC JWKSet or HMAC OIDC JWK contain secret keys.
+JWT realms load their PKC JWKSet, and HMAC JWKSet or HMAC OIDC JWK, at startup.
+JWT realms can also reload PKC JWKSet contents at runtime.
 
 CAUTION: HMAC reloading from {es} keystore is not supported at this time.
 
-JWT issuers may rotate their PKC JWKs frequently (ex: daily). Since frequent {es} restarts are
-undesirable, PKC JWKSet reloads are supported at runtime. PKC JWKSet reload is triggered by
-signature validation failure.
+Load failures, parse errors, and configuration errors will prevent a node from starting (and restarting);
+that applies equally to PKC or HMAC. At runtime, though, only PKC reloads are supported, and errors
+are handled gracefully.
 
-IMPORTANT: All other validations must pass before a signature failure can trigger a PKC JWKSet reload.
-Client authentication is strongly recommended. Narrow scope for allowed algorithms, allowed issuer,
-allowed audiences, and clock skew are also strongly recommended.
+JWT issuers typically rotate PKC JWKs more frequently (ex: daily) than HMAC JWKs, because PKC is designed
+for easy distribution and sharing of public keys. Since frequent {es} restarts would be undesirable,
+PKC JWKSet reloading is supported at runtime. Reload is triggered by signature validation failure.
 
-If concurrent JWT authentication signature failures trigger reloads within an {es} node, a single
-reload is done. If consecutive requests trigger reloads, each one triggers a reload attempt.
+IMPORTANT: All other JWT realm validations must be checked and pass before a signature failure can trigger
+a PKC JWKSet reload. Client authentication is strongly recommended. Narrow scoping of allowed algorithms,
+allowed issuer, allowed audiences, and clock skew are also strongly recommended.
+
+If multiple JWT authentication signature failures happen at the same time within an {es} node, reloads are
+combined to reduce the reloads sent externally.
+
+In other words, if JWT signature failures trigger PKC JWKSet reloads in different {es} nodes, that means
+separate reload requests will be sent externally. If JWT signature failures trigger PKC JWKSet reload at
+different times within a single {es} node, that also means separate reload requests will be sent externally.
 
 [[hmac-oidc-example]]
 ==== Authorizing to the JWT realm with an OIDC HMAC key

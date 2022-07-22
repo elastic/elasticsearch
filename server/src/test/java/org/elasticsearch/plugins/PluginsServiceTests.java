@@ -100,7 +100,7 @@ public class PluginsServiceTests extends ESTestCase {
         Files.createDirectories(hidden);
         final IllegalStateException e = expectThrows(IllegalStateException.class, () -> newPluginsService(settings));
 
-        final String expected = "Could not load plugin descriptor for plugin directory [.hidden]";
+        final String expected = "Plugin [.hidden] is missing a descriptor properties file";
         assertThat(e, hasToString(containsString(expected)));
     }
 
@@ -473,7 +473,7 @@ public class PluginsServiceTests extends ESTestCase {
         PluginsService.loadExtensions(
             List.of(
                 new PluginsService.LoadedPlugin(
-                    new PluginDescriptor("extensible", null, null, null, null, null, null, List.of(), false, false),
+                    new PluginDescriptor("extensible", null, null, null, null, null, null, List.of(), false, false, false),
                     extensiblePlugin
                 )
             )
@@ -487,11 +487,11 @@ public class PluginsServiceTests extends ESTestCase {
         PluginsService.loadExtensions(
             List.of(
                 new PluginsService.LoadedPlugin(
-                    new PluginDescriptor("extensible", null, null, null, null, null, null, List.of(), false, false),
+                    new PluginDescriptor("extensible", null, null, null, null, null, null, List.of(), false, false, false),
                     extensiblePlugin
                 ),
                 new PluginsService.LoadedPlugin(
-                    new PluginDescriptor("test", null, null, null, null, null, null, List.of("extensible"), false, false),
+                    new PluginDescriptor("test", null, null, null, null, null, null, List.of("extensible"), false, false, false),
                     testPlugin
                 )
             )

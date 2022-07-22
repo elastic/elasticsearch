@@ -776,7 +776,7 @@ public class InstallPluginActionTests extends ESTestCase {
     }
 
     public void testContainsIntermediateDirectory() throws Exception {
-        Files.createFile(pluginDir.resolve(PluginDescriptor.ES_PLUGIN_PROPERTIES));
+        Files.createFile(pluginDir.resolve(PluginDescriptor.INTERNAL_DESCRIPTOR_FILENAME));
         String pluginZip = writeZip(pluginDir, "elasticsearch").toUri().toURL().toString();
         UserException e = expectThrows(UserException.class, () -> installPlugin(pluginZip));
         assertThat(e.getMessage(), containsString("This plugin was built with an older plugin structure"));

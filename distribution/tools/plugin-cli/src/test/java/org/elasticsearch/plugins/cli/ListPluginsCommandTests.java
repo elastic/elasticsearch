@@ -196,15 +196,14 @@ public class ListPluginsCommandTests extends CommandTestCase {
         final Path pluginDir = env.pluginsFile().resolve("fake1");
         Files.createDirectories(pluginDir);
         NoSuchFileException e = expectThrows(NoSuchFileException.class, () -> execute());
-        assertEquals(pluginDir.resolve(PluginDescriptor.ES_PLUGIN_PROPERTIES).toString(), e.getFile());
+        assertEquals(pluginDir.resolve(PluginDescriptor.INTERNAL_DESCRIPTOR_FILENAME).toString(), e.getFile());
     }
 
     public void testPluginWithWrongDescriptorFile() throws Exception {
         final Path pluginDir = env.pluginsFile().resolve("fake1");
         PluginTestUtil.writePluginProperties(pluginDir, "description", "fake desc");
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> execute());
-        final Path descriptorPath = pluginDir.resolve(PluginDescriptor.ES_PLUGIN_PROPERTIES);
-        assertEquals("property [name] is missing in [" + descriptorPath.toString() + "]", e.getMessage());
+        assertEquals("Plugin [fake1] is missing a descriptor properties file.", e.getMessage());
     }
 
     public void testExistingIncompatiblePlugin() throws Exception {

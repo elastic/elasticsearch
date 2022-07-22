@@ -791,6 +791,10 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         assertThat(syntheticSource(mapper, b -> b.field("field", syntheticSourceExample.inputValue)), equalTo(expected));
     }
 
+    protected boolean supportsEmptyInputArray() {
+        return true;
+    }
+
     public final void testSyntheticSourceMany() throws IOException {
         int maxValues = randomBoolean() ? 1 : 5;
         SyntheticSourceSupport support = syntheticSourceSupport();
@@ -810,7 +814,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 )
             ) {
                 for (int i = 0; i < count; i++) {
-                    if (rarely()) {
+                    if (rarely() && supportsEmptyInputArray()) {
                         expected[i] = "{}";
                         iw.addDocument(mapper.parse(source(b -> b.startArray("field").endArray())).rootDoc());
                         continue;
@@ -868,6 +872,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     public final void testSyntheticEmptyList() throws IOException {
+        assumeTrue("Field does not support [] as input", supportsEmptyInputArray());
         SyntheticSourceExample syntheticSourceExample = syntheticSourceSupport().example(5);
         DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
             b.startObject("field");

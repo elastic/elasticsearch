@@ -72,6 +72,7 @@ import java.util.Set;
 import java.util.function.Function;
 
 import static org.elasticsearch.cluster.metadata.Metadata.CONTEXT_MODE_PARAM;
+import static org.elasticsearch.cluster.metadata.Metadata.DEDUPLICATED_MAPPINGS_PARAM;
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.AND;
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.OR;
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.validateIpValue;
@@ -480,6 +481,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     static final String KEY_SETTINGS = "settings";
     static final String KEY_STATE = "state";
     static final String KEY_MAPPINGS = "mappings";
+    static final String KEY_MAPPINGS_HASH = "mappings_hash";
     static final String KEY_ALIASES = "aliases";
     static final String KEY_ROLLOVER_INFOS = "rollover_info";
     static final String KEY_SYSTEM = "system";
@@ -1301,6 +1303,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return Builder.fromXContent(parser);
     }
 
+    public static IndexMetadata fromXContent(XContentParser parser, Map<String, MappingMetadata> mappingsByHash) throws IOException {
+        return Builder.fromXContent(parser, mappingsByHash);
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         Builder.toXContent(this, builder, params);
@@ -2028,7 +2034,12 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
             builder.endObject();
 
-            if (context != Metadata.XContentContext.API) {
+            if (context == Metadata.XContentContext.GATEWAY && params.paramAsBoolean(DEDUPLICATED_MAPPINGS_PARAM, false)) {
+                MappingMetadata mmd = indexMetadata.mapping();
+                if (mmd != null) {
+                    builder.field(KEY_MAPPINGS_HASH, mmd.source().getSha256());
+                }
+            } else if (context != Metadata.XContentContext.API) {
                 builder.startArray(KEY_MAPPINGS);
                 MappingMetadata mmd = indexMetadata.mapping();
                 if (mmd != null) {
@@ -2109,6 +2120,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         }
 
         public static IndexMetadata fromXContent(XContentParser parser) throws IOException {
+            return fromXContent(parser, null);
+        }
+
+        public static IndexMetadata fromXContent(XContentParser parser, Map<String, MappingMetadata> mappingsByHash) throws IOException {
             if (parser.currentToken() == null) { // fresh parser? move to the first token
                 parser.nextToken();
             }
@@ -2224,6 +2239,13 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                         }
                         case KEY_ROUTING_NUM_SHARDS -> builder.setRoutingNumShards(parser.intValue());
                         case KEY_SYSTEM -> builder.system(parser.booleanValue());
+                        case KEY_MAPPINGS_HASH -> {
+                            assert mappingsByHash != null : "no deduplicated mappings given";
+                            if (mappingsByHash.containsKey(parser.text()) == false) {
+                                throw new IllegalArgumentException("mapping with hash [" + parser.text() + "] not found");
+                            }
+                            builder.putMapping(mappingsByHash.get(parser.text()));
+                        }
                         default -> throw new IllegalArgumentException("Unexpected field [" + currentFieldName + "]");
                     }
                 } else {

@@ -696,7 +696,7 @@ The API returns the following result:
                     ]
                   },
                   {
-                    "name": "MultiBucketCollector: [[my_scoped_agg, my_global_agg]]",
+                    "name": "BucketCollectorWrapper: [BucketCollectorWrapper[bucketCollector=[my_scoped_agg, my_global_agg]]]",
                     "reason": "aggregation",
                     "time_in_nanos": 867617
                   }

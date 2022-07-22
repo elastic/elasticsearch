@@ -14,3 +14,15 @@
   - match:   { components.cluster_coordination.indicators.master_is_stable.summary: "The cluster has a stable master node" }
   - is_true: components.cluster_coordination.indicators.master_is_stable.details.current_master
   - is_true: components.cluster_coordination.indicators.master_is_stable.details.recent_masters
+
+  - do:
+      _internal.health:
+        component: cluster_coordination
+        feature: master_is_stable
+        explain: false
+
+  - is_true: cluster_name
+  - match:   { components.cluster_coordination.indicators.master_is_stable.status: "green" }
+  - match:   { components.cluster_coordination.indicators.master_is_stable.summary: "The cluster has a stable master node" }
+  - is_false: components.cluster_coordination.indicators.master_is_stable.details
+

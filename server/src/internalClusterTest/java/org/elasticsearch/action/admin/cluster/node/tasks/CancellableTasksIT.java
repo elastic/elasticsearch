@@ -42,7 +42,6 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.SendRequestTransportException;
 import org.elasticsearch.transport.Transport;
@@ -294,7 +293,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
         client(nodeWithRootTask).execute(TransportTestAction.ACTION, rootRequest);
         allowPartialRequest(rootRequest);
         try {
-            internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeWithRootTask));
+            internalCluster().stopNode(nodeWithRootTask);
             assertBusy(() -> {
                 for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
                     for (CancellableTask task : transportService.getTaskManager().getCancellableTasks().values()) {

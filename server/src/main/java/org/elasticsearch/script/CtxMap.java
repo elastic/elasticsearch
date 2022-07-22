@@ -313,15 +313,18 @@ public class CtxMap<T extends Metadata> extends AbstractMap<String, Object> {
             if (SOURCE.equals(key) == false) {
                 throw new IllegalArgumentException("invalid field added to source [" + key + ":" + value + "]");
             }
-            if (value instanceof Map<?, ?> map) {
-                source = (Map<String, Object>) map;
-            }
             if (value == null) {
                 throw new IllegalArgumentException("[" + SOURCE + "] cannot be null");
+            }
+            if (value instanceof Map<?, ?> map) {
+                Map<String, Object> previous = source;
+                source = (Map<String, Object>) map;
+                return previous;
             }
             throw new IllegalArgumentException(
                 "[" + SOURCE + "] must be a map, not [" + value + "] with type [" + value.getClass().getName() + "]"
             );
+
         }
 
         @Override

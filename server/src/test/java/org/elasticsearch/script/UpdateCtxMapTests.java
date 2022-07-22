@@ -96,8 +96,4 @@ public class UpdateCtxMapTests extends ESTestCase {
         assertEquals(26, zdt.getDayOfMonth());
         assertEquals(1992, zdt.getYear());
     }
-
-    public void testAddingJunkToCtx() {
-        map.put("junk", "stuff");
-    }
 }

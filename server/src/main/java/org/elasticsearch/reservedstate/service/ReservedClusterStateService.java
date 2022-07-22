@@ -106,7 +106,9 @@ public class ReservedClusterStateService {
             saveErrorState(errorState);
             logger.debug("error processing state change request for [{}] with the following errors [{}]", namespace, errorState);
 
-            errorListener.accept(new IllegalStateException("Error processing state change request for " + namespace, e));
+            errorListener.accept(
+                new IllegalStateException("Error processing state change request for " + namespace + ", errors: " + errorState, e)
+            );
             return;
         }
 
@@ -139,7 +141,9 @@ public class ReservedClusterStateService {
             saveErrorState(errorState);
             logger.debug("error processing state change request for [{}] with the following errors [{}]", namespace, errorState);
 
-            errorListener.accept(new IllegalStateException("Error processing state change request for " + namespace, e));
+            errorListener.accept(
+                new IllegalStateException("Error processing state change request for " + namespace + ", errors: " + errorState, e)
+            );
             return;
         }
 

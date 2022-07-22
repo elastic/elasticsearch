@@ -100,11 +100,16 @@ public class ReservedStateUpdateTask implements ClusterStateTaskListener {
             // version hasn't been updated.
             logger.debug("Error processing state change request for [{}] with the following errors [{}]", namespace, errors);
 
-            errorReporter.accept(
-                new ErrorState(namespace, reservedStateVersion.version(), errors, ReservedStateErrorMetadata.ErrorKind.VALIDATION)
+            var errorState = new ErrorState(
+                namespace,
+                reservedStateVersion.version(),
+                errors,
+                ReservedStateErrorMetadata.ErrorKind.VALIDATION
             );
 
-            throw new IllegalStateException("Error processing state change request for " + namespace);
+            errorReporter.accept(errorState);
+
+            throw new IllegalStateException("Error processing state change request for " + namespace + ", errors: " + errorState);
         }
 
         // remove the last error if we had previously encountered any

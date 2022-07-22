@@ -20,7 +20,6 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
-import static org.elasticsearch.xcontent.XContentType.JSON;
 
 import java.io.BufferedInputStream;
 import java.io.IOException;
@@ -32,6 +31,8 @@ import java.nio.file.WatchKey;
 import java.nio.file.WatchService;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.concurrent.CountDownLatch;
+
+import static org.elasticsearch.xcontent.XContentType.JSON;
 
 /**
  * File based settings applier service which watches an 'operator` directory inside the config directory.
@@ -57,6 +58,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
     private CountDownLatch watcherThreadLatch;
 
     private volatile FileUpdateState fileUpdateState = null;
+    private volatile WatchKey settingsDirWatchKey = null;
 
     private volatile boolean active = false;
     private volatile boolean initialState = true;
@@ -175,11 +177,14 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
                     // we would fail startup.
                     processFileSettings(settingsFilePath, onStartup);
                 }
-                enableSettingsWatcher(settingsDir);
+                settingsDirWatchKey = enableSettingsWatcher(settingsDirWatchKey, settingsDir);
             } else {
                 logger.debug("operator settings directory [{}] not found, will watch for its creation...", settingsDir);
-                enableSettingsWatcher(operatorSettingsDir().getParent());
             }
+            // We watch the config directory always, even if initially we had an operator directory
+            // it can be deleted and created later. The config directory never goes away, we only
+            // register it once for watching.
+            enableSettingsWatcher(null, operatorSettingsDir().getParent());
         } catch (Exception e) {
             if (watchService != null) {
                 try {
@@ -222,7 +227,11 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
                             key.pollEvents();
                             key.reset();
 
-                            enableSettingsWatcher(settingsDir);
+                            // We re-register the settings directory watch key, because we don't know
+                            // if the file name maps to the same native file system file id. Symlinks
+                            // are one potential cause of inconsistency here, since their handling by
+                            // the WatchService is platform dependent.
+                            settingsDirWatchKey = enableSettingsWatcher(settingsDirWatchKey, settingsDir);
 
                             if (watchedFileChanged(path)) {
                                 processFileSettings(path, false);
@@ -235,7 +244,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
                         key.reset();
                     }
                 }
-            } catch (ClosedWatchServiceException closedWatchServiceException) {
+            } catch (ClosedWatchServiceException | InterruptedException expected) {
                 logger.info("shutting down watcher thread");
             } catch (Exception e) {
                 logger.error("shutting down watcher thread with exception", e);
@@ -249,6 +258,11 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         logger.debug("stopping watcher ...");
         if (watching()) {
             try {
+                if (settingsDirWatchKey != null) {
+                    settingsDirWatchKey.cancel();
+                    settingsDirWatchKey = null;
+                }
+                fileUpdateState = null;
                 watchService.close();
                 if (watcherThreadLatch != null) {
                     watcherThreadLatch.await();
@@ -264,8 +278,11 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         }
     }
 
-    private void enableSettingsWatcher(Path settingsDir) throws IOException {
-        settingsDir.register(
+    private WatchKey enableSettingsWatcher(WatchKey previousKey, Path settingsDir) throws IOException {
+        if (previousKey != null) {
+            previousKey.cancel();
+        }
+        return settingsDir.register(
             watchService,
             StandardWatchEventKinds.ENTRY_MODIFY,
             StandardWatchEventKinds.ENTRY_CREATE,

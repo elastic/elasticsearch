@@ -126,8 +126,18 @@ public class IndicesModule extends AbstractModule {
             ),
             new NamedXContentRegistry.Entry(
                 Condition.class,
+                new ParseField(MinSizeCondition.NAME),
+                (p, c) -> MinSizeCondition.fromXContent(p)
+            ),
+            new NamedXContentRegistry.Entry(
+                Condition.class,
                 new ParseField(MinPrimaryShardSizeCondition.NAME),
                 (p, c) -> MinPrimaryShardSizeCondition.fromXContent(p)
+            ),
+            new NamedXContentRegistry.Entry(
+                Condition.class,
+                new ParseField(MinPrimaryShardDocsCondition.NAME),
+                (p, c) -> MinPrimaryShardDocsCondition.fromXContent(p)
             ),
             new NamedXContentRegistry.Entry(
                 Condition.class,

@@ -11,6 +11,8 @@ package org.elasticsearch.index.engine;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.index.engine.Engine.Index;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 
 import java.util.Base64;
 import java.util.Map;
@@ -193,6 +195,7 @@ public interface MayHaveBeenIndexedBefore {
                 if (Engine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID.equals(entry.getKey())) {
                     assert maxTimestamp() == -1;
                     updateAutoIdTimestamp(Long.parseLong(entry.getValue()));
+                    logger.error("SADFADSFAF bootstrap {}", entry.getValue());
                 }
             }
         }
@@ -205,6 +208,8 @@ public interface MayHaveBeenIndexedBefore {
             return timestamp;
         }
 
+        private static final Logger logger = LogManager.getLogger(MayHaveBeenIndexedBefore.TimeSeries.class);
+
         @Override
         public boolean mayHaveBeenIndexedBefore(Index index) {
             assert canOptimizeAddDocument(index);
@@ -213,6 +218,14 @@ public interface MayHaveBeenIndexedBefore {
             long timestamp = ByteUtils.readLongBE(decoded, decoded.length - 8);
             int lowBits = (int) (hashPart & 0x0ff);
             long prev = maxTimestamps[lowBits].getAndUpdate(curr -> Math.max(curr, timestamp));
+//            logger.error(
+//                "SADFADSFAF {} {} {} {} {}",
+//                Long.toHexString(hashPart),
+//                Integer.toHexString(lowBits),
+//                prev,
+//                timestamp,
+//                prev - timestamp
+//            );
             return prev >= timestamp;
         }
 
@@ -231,6 +244,7 @@ public interface MayHaveBeenIndexedBefore {
 
         @Override
         public void updateAutoIdTimestamp(long newTimestamp) {
+            logger.error("SADFADSFAF update auto {}", newTimestamp);
             assert newTimestamp >= -1 : "invalid timestamp [" + newTimestamp + "]";
             for (int i = 0; i < maxTimestamps.length; i++) {
                 maxTimestamps[i].updateAndGet(curr -> Math.max(curr, newTimestamp));

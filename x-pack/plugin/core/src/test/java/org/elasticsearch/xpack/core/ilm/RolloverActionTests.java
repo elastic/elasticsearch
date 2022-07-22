@@ -90,7 +90,7 @@ public class RolloverActionTests extends AbstractActionTestCase<RolloverAction> 
         TimeValue minAge = instance.getMinAge();
         Long minDocs = instance.getMinDocs();
         Long minPrimaryShardDocs = instance.getMinPrimaryShardDocs();
-        switch (between(0, 7)) {
+        switch (between(0, 9)) {
             case 0 -> maxSize = randomValueOtherThan(maxSize, () -> {
                 ByteSizeUnit maxSizeUnit = randomFrom(ByteSizeUnit.values());
                 return new ByteSizeValue(randomNonNegativeLong() / maxSizeUnit.toBytes(1), maxSizeUnit);

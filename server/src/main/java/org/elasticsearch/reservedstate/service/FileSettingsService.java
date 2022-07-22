@@ -49,7 +49,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
     private static final Logger logger = LogManager.getLogger(FileSettingsService.class);
 
     private static final String SETTINGS_FILE_NAME = "settings.json";
-    private static final String NAMESPACE = "file_settings";
+    static final String NAMESPACE = "file_settings";
 
     private final ReservedClusterStateService stateService;
     private final Path operatorSettingsDir;

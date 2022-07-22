@@ -129,7 +129,7 @@ class FieldValueFetcher {
         return value -> {
             if (validTypes.contains(value.getClass()) == false) {
                 throw new IllegalArgumentException(
-                    "Expected [" + VALID_METRIC_TYPES + "] for field [" + field + "], " + "got [" + value.getClass() + "]"
+                    "Expected [" + validTypes + "] for field [" + field + "], " + "got [" + value.getClass() + "]"
                 );
             }
             return value;

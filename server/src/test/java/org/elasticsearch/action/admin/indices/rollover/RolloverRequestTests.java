@@ -209,12 +209,36 @@ public class RolloverRequestTests extends ESTestCase {
     }
 
     public void testValidation() {
-        RolloverRequest rolloverRequest = new RolloverRequest();
-        assertNotNull(rolloverRequest.getCreateIndexRequest());
-        ActionRequestValidationException validationException = rolloverRequest.validate();
-        assertNotNull(validationException);
-        assertEquals(1, validationException.validationErrors().size());
-        assertEquals("rollover target is missing", validationException.validationErrors().get(0));
+        {
+            RolloverRequest rolloverRequest = new RolloverRequest();
+            assertNotNull(rolloverRequest.getCreateIndexRequest());
+            ActionRequestValidationException validationException = rolloverRequest.validate();
+            assertNotNull(validationException);
+            assertEquals(1, validationException.validationErrors().size());
+            assertEquals("rollover target is missing", validationException.validationErrors().get(0));
+        }
+
+        {
+            RolloverRequest rolloverRequest = new RolloverRequest("alias-index", "new-index-name");
+            rolloverRequest.addMinIndexDocsCondition(1L);
+            ActionRequestValidationException validationException = rolloverRequest.validate();
+            assertNotNull(validationException);
+            assertEquals(1, validationException.validationErrors().size());
+            assertEquals(
+                "at least one max_* rollover condition must be set when using min_* conditions",
+                validationException.validationErrors().get(0)
+            );
+        }
+
+        {
+            RolloverRequest rolloverRequest = new RolloverRequest("alias-index", "new-index-name");
+            if (randomBoolean()) {
+                rolloverRequest.addMaxIndexAgeCondition(TimeValue.timeValueHours(1));
+                rolloverRequest.addMinIndexDocsCondition(1L);
+            }
+            ActionRequestValidationException validationException = rolloverRequest.validate();
+            assertNull(validationException);
+        }
     }
 
     public void testParsingWithType() throws Exception {

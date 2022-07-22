@@ -193,6 +193,16 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         if (rolloverTarget == null) {
             validationException = addValidationError("rollover target is missing", validationException);
         }
+
+        // max_* conditions are the isRequired = false ones -- the request must have at least one max_* condition
+        boolean noMaxConditions = conditions.values().stream().noneMatch(Predicate.not(Condition::isRequired));
+        if (conditions.size() > 0 && noMaxConditions) {
+            validationException = addValidationError(
+                "at least one max_* rollover condition must be set when using min_* conditions",
+                validationException
+            );
+        }
+
         return validationException;
     }
 

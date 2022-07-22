@@ -15,7 +15,6 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.util.Maps;
@@ -124,11 +123,7 @@ public class DataLoader {
     }
 
     private static void createTestIndex(RestHighLevelClient client, String indexName, String mapping) throws IOException {
-        CreateIndexRequest request = new CreateIndexRequest(indexName);
-        if (mapping != null) {
-            request.mapping(mapping, XContentType.JSON);
-        }
-        client.indices().create(request, RequestOptions.DEFAULT);
+        ESRestTestCase.createIndex(client.getLowLevelClient(), indexName, null, mapping, null);
     }
 
     /**

@@ -10,7 +10,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.xcontent.ObjectPath;
@@ -289,15 +288,6 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
             indexSettings.put("index.soft_deletes.enabled", true);
         }
         createIndex(client, indexName, indexSettings.build());
-    }
-
-    private static void createIndex(RestClient client, String name, Settings settings) throws IOException {
-        Request request = new Request("PUT", "/" + name);
-        request.setJsonEntity("""
-            {
-             "settings": %s
-            }""".formatted(Strings.toString(settings)));
-        client.performRequest(request);
     }
 
     private static void followIndex(RestClient client, String leaderCluster, String leaderIndex, String followIndex) throws IOException {

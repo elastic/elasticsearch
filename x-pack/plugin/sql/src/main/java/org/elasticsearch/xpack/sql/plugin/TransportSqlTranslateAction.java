@@ -76,7 +76,8 @@ public class TransportSqlTranslateAction extends HandledTransportAction<SqlTrans
             Protocol.FIELD_MULTI_VALUE_LENIENCY,
             Protocol.INDEX_INCLUDE_FROZEN,
             null,
-            null
+            null,
+            Protocol.ALLOW_PARTIAL_SEARCH_RESULTS
         );
 
         planExecutor.searchSource(

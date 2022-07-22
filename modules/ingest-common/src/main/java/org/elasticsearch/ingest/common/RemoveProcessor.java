@@ -73,7 +73,7 @@ public final class RemoveProcessor extends AbstractProcessor {
             .forEach(documentField -> removeWhenPresent(document, documentField));
     }
 
-    private void removeWhenPresent(IngestDocument document, String documentField) {
+    private static void removeWhenPresent(IngestDocument document, String documentField) {
         if (document.hasField(documentField)) {
             document.removeField(documentField);
         }
@@ -127,7 +127,7 @@ public final class RemoveProcessor extends AbstractProcessor {
                 .collect(Collectors.toList());
         }
 
-        private List<String> getFields(String processorTag, Map<String, Object> config, String propertyName) {
+        private static List<String> getFields(String processorTag, Map<String, Object> config, String propertyName) {
             final List<String> fields = new ArrayList<>();
 
             if (config.containsKey(propertyName) == false) {

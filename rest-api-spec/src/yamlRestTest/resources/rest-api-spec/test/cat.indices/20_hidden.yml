@@ -13,13 +13,15 @@
             index:
               hidden: true
   - do:
-      cat.indices: {}
+      cat.indices:
+        index: i*
   - match:
       $body: |
         /^$/
 
   - do:
       cat.indices:
+        index: i*
         expand_wildcards: ["all"]
   - match:
       $body: |
@@ -58,7 +60,7 @@
 
   - do:
       cat.indices:
-        index: ".*"
+        index: ".i*"
   - match:
       $body: |
         /^(green  \s+
@@ -103,6 +105,7 @@
 
   - do:
       cat.indices:
+        index: "i*"
         expand_wildcards: ["open", "hidden"]
   - match:
       $body: |
@@ -155,7 +158,8 @@
             alias1:
               is_hidden: true
   - do:
-      cat.indices: {}
+      cat.indices:
+        index: i*
 
   - match:
       $body: |
@@ -163,6 +167,7 @@
 
   - do:
       cat.indices:
+        index: i*
         expand_wildcards: ["all"]
   - match:
       $body: |
@@ -224,7 +229,8 @@
         index: ".*"
   - match:
       $body: |
-        /^(green  \s+
+        /^(.*           # Accounts for system indices that get automatically generated
+           green  \s+
            open   \s+
            index1 \s+
            ([a-zA-Z0-9=/_+]|[\\\-]){22} \s+
@@ -234,5 +240,6 @@
            0      \s+
            (\d+|\d+[.]\d+)(kb|b) \s+
            (\d+|\d+[.]\d+)(kb|b) \s*
+           .*           # Accounts for system indices that get automatically generated
          )
          $/

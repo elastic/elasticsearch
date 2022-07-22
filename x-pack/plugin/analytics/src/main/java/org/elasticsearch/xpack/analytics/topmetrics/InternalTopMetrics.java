@@ -171,23 +171,21 @@ public class InternalTopMetrics extends InternalMultiValueAggregation {
     }
 
     @Override
-    public final double sortValue(String key) {
+    public final SortValue sortValue(String key) {
         int index = metricNames.indexOf(key);
         if (index < 0) {
             throw new IllegalArgumentException("unknown metric [" + key + "]");
         }
         if (topMetrics.isEmpty()) {
-            return Double.NaN;
+            return SortValue.empty();
         }
 
         MetricValue value = topMetrics.get(0).metricValues.get(index);
         if (value == null) {
-            return Double.NaN;
+            return SortValue.empty();
         }
 
-        // TODO it'd probably be nicer to have "compareTo" instead of assuming a double.
-        // non-numeric fields always return NaN
-        return value.numberValue().doubleValue();
+        return value.getValue();
     }
 
     @Override

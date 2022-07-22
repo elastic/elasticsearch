@@ -83,10 +83,10 @@ public class PutDataFrameAnalyticsActionRequestTests extends AbstractSerializing
         DataFrameAnalyticsSource source = new DataFrameAnalyticsSource(
             new String[] { "index" },
             null,
-            new FetchSourceContext(true, null, new String[] { "excluded" }),
+            FetchSourceContext.of(true, null, new String[] { "excluded" }),
             null
         );
-        FetchSourceContext analyzedFields = new FetchSourceContext(true, new String[] { "excluded" }, null);
+        FetchSourceContext analyzedFields = FetchSourceContext.of(true, new String[] { "excluded" }, null);
         DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder().setId("foo")
             .setSource(source)
             .setAnalysis(OutlierDetectionTests.createRandom())
@@ -104,10 +104,10 @@ public class PutDataFrameAnalyticsActionRequestTests extends AbstractSerializing
         DataFrameAnalyticsSource source = new DataFrameAnalyticsSource(
             new String[] { "index" },
             null,
-            new FetchSourceContext(true, new String[] { "included" }, null),
+            FetchSourceContext.of(true, new String[] { "included" }, null),
             null
         );
-        FetchSourceContext analyzedFields = new FetchSourceContext(true, new String[] { "included" }, null);
+        FetchSourceContext analyzedFields = FetchSourceContext.of(true, new String[] { "included" }, null);
         DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder().setId("foo")
             .setSource(source)
             .setAnalysis(OutlierDetectionTests.createRandom())

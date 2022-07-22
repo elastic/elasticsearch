@@ -33,7 +33,8 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 public class SystemIndexMigrationTaskState implements PersistentTaskState {
     private static final ParseField CURRENT_INDEX_FIELD = new ParseField("current_index");
     private static final ParseField CURRENT_FEATURE_FIELD = new ParseField("current_feature");
-    private static final ParseField FEATURE_METADATA_MAP_FIELD = new ParseField("feature_metadata");
+    // scope for testing
+    static final ParseField FEATURE_METADATA_MAP_FIELD = new ParseField("feature_metadata");
 
     @SuppressWarnings(value = "unchecked")
     static final ConstructingObjectParser<SystemIndexMigrationTaskState, Void> PARSER = new ConstructingObjectParser<>(

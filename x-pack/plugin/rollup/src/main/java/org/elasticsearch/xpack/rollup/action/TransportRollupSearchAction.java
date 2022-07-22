@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.rollup.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.MultiSearchRequest;
@@ -23,7 +22,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -68,10 +66,13 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.core.Strings.format;
 
 public class TransportRollupSearchAction extends TransportAction<SearchRequest, SearchResponse> {
 
@@ -408,7 +409,7 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
         }
     }
 
-    static RollupSearchContext separateIndices(String[] indices, ImmutableOpenMap<String, IndexMetadata> indexMetadata) {
+    static RollupSearchContext separateIndices(String[] indices, Map<String, IndexMetadata> indexMetadata) {
 
         if (indices.length == 0) {
             throw new IllegalArgumentException("Must specify at least one concrete index.");
@@ -461,11 +462,7 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
                         channel.sendResponse(e);
                     } catch (Exception e1) {
                         logger.warn(
-                            (org.apache.logging.log4j.util.Supplier<?>) () -> new ParameterizedMessage(
-                                "Failed to send error response for action [{}] and request [{}]",
-                                actionName,
-                                request
-                            ),
+                            () -> format("Failed to send error response for action [%s] and request [%s]", actionName, request),
                             e1
                         );
                     }

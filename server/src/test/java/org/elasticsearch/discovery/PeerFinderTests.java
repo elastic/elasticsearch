@@ -23,6 +23,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -233,8 +234,8 @@ public class PeerFinderTests extends ESTestCase {
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             boundTransportAddress -> localNode,
             null,
-            emptySet(),
-            connectionManager
+            connectionManager,
+            new TaskManager(settings, threadPool, emptySet())
         );
 
         transportService.start();
@@ -909,8 +910,7 @@ public class PeerFinderTests extends ESTestCase {
 
     private void assertFoundPeers(DiscoveryNode... expectedNodesArray) {
         final Set<DiscoveryNode> expectedNodes = Arrays.stream(expectedNodesArray).collect(Collectors.toSet());
-        final List<DiscoveryNode> actualNodesList = StreamSupport.stream(peerFinder.getFoundPeers().spliterator(), false)
-            .collect(Collectors.toList());
+        final List<DiscoveryNode> actualNodesList = StreamSupport.stream(peerFinder.getFoundPeers().spliterator(), false).toList();
         final HashSet<DiscoveryNode> actualNodesSet = new HashSet<>(actualNodesList);
         assertThat(actualNodesSet, equalTo(expectedNodes));
         assertTrue("no duplicates in " + actualNodesList, actualNodesSet.size() == actualNodesList.size());

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.authc;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.UnicodeUtil;
@@ -34,17 +33,12 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
-import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.ack.AckedRequest;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -65,12 +59,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.core.internal.io.Streams;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -93,6 +86,7 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.KeyAndTimestamp;
 import org.elasticsearch.xpack.core.security.authc.TokenMetadata;
+import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authc.support.TokensInvalidationResult;
 import org.elasticsearch.xpack.security.Security;
@@ -123,7 +117,6 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -138,7 +131,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 import javax.crypto.Cipher;
 import javax.crypto.CipherInputStream;
@@ -151,6 +143,7 @@ import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
 
 import static org.elasticsearch.action.support.TransportActions.isShardNotAvailableException;
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.threadpool.ThreadPool.Names.GENERIC;
@@ -180,8 +173,6 @@ public final class TokenService {
     private static final String ENCRYPTION_CIPHER = "AES/GCM/NoPadding";
     private static final String EXPIRED_TOKEN_WWW_AUTH_VALUE = String.format(Locale.ROOT, """
         Bearer realm="%s", error="invalid_token", error_description="The access token expired\"""", XPackField.SECURITY);
-    private static final String MALFORMED_TOKEN_WWW_AUTH_VALUE = String.format(Locale.ROOT, """
-        Bearer realm="%s", error="invalid_token", error_description="The access token is malformed\"""", XPackField.SECURITY);
     private static final BackoffPolicy DEFAULT_BACKOFF = BackoffPolicy.exponentialBackoff();
 
     public static final String THREAD_POOL_NAME = XPackField.SECURITY + "-token-key";
@@ -216,6 +207,7 @@ public final class TokenService {
     static final Version VERSION_TOKENS_INDEX_INTRODUCED = Version.V_7_2_0;
     static final Version VERSION_ACCESS_TOKENS_AS_UUIDS = Version.V_7_2_0;
     static final Version VERSION_MULTIPLE_CONCURRENT_REFRESHES = Version.V_7_2_0;
+    static final Version VERSION_CLIENT_AUTH_FOR_REFRESH = Version.V_8_2_0;
 
     private static final Logger logger = LogManager.getLogger(TokenService.class);
 
@@ -442,25 +434,6 @@ public final class TokenService {
     }
 
     /**
-     * Decodes the provided token, and validates it (for format, expiry and invalidation).
-     * If valid, the token's {@link Authentication} (see {@link UserToken#getAuthentication()} is provided to the listener.
-     * If the token is invalid (expired etc), then {@link ActionListener#onFailure(Exception)} will be called.
-     * If tokens are not enabled, or the token does not exist, {@link ActionListener#onResponse} will be called with a
-     * {@code null} authentication object.
-     */
-    public void authenticateToken(SecureString tokenString, ActionListener<Authentication> listener) {
-        decodeAndValidateToken(tokenString, listener.map(token -> {
-            if (token == null) {
-                // Typically this means that the index is unavailable, so _probably_ the token is invalid but the only
-                // this we can say for certain is that we couldn't validate it. The logs will be more explicit.
-                throw new IllegalArgumentException("Cannot validate access token");
-            } else {
-                return token.getAuthentication();
-            }
-        }));
-    }
-
-    /**
      * Reads the authentication and metadata from the given token.
      * This method does not validate whether the token is expired or not.
      */
@@ -522,7 +495,7 @@ public final class TokenService {
                                 tokensIndex.aliasName()
                             );
                         } else {
-                            logger.error(new ParameterizedMessage("failed to get access token [{}]", userTokenId), e);
+                            logger.error(() -> "failed to get access token [" + userTokenId + "]", e);
                         }
                         listener.onFailure(e);
                     }),
@@ -610,17 +583,13 @@ public final class TokenService {
                         }
                     }, listener::onFailure));
                 } else {
-                    logger.debug(() -> new ParameterizedMessage("invalid key {} key: {}", passphraseHash, keyCache.cache.keySet()));
+                    logger.debug(() -> format("invalid key %s key: %s", passphraseHash, keyCache.cache.keySet()));
                     listener.onResponse(null);
                 }
             }
         } catch (Exception e) {
             // could happen with a token that is not ours
-            if (logger.isDebugEnabled()) {
-                logger.debug("built in token service unable to decode token", e);
-            } else {
-                logger.warn("built in token service unable to decode token");
-            }
+            logger.debug("built in token service unable to decode token", e);
             listener.onResponse(null);
         }
     }
@@ -738,7 +707,7 @@ public final class TokenService {
                         logger.warn("No tokens to invalidate for realm [{}] and username [{}]", realmName, username);
                         listener.onResponse(TokensInvalidationResult.emptyResult(RestStatus.OK));
                     } else {
-                        invalidateAllTokens(tokenTuples.stream().map(t -> t.v1()).collect(Collectors.toList()), listener);
+                        invalidateAllTokens(tokenTuples, listener);
                     }
                 }, listener::onFailure));
             } else {
@@ -751,7 +720,7 @@ public final class TokenService {
                         logger.warn("No tokens to invalidate for realm [{}] and username [{}]", realmName, username);
                         listener.onResponse(TokensInvalidationResult.emptyResult(RestStatus.OK));
                     } else {
-                        invalidateAllTokens(tokenTuples.stream().map(t -> t.v1()).collect(Collectors.toList()), listener);
+                        invalidateAllTokens(tokenTuples, listener);
                     }
                 }, listener::onFailure));
             }
@@ -762,21 +731,37 @@ public final class TokenService {
      * Invalidates a collection of access_token and refresh_token that were retrieved by
      * {@link TokenService#invalidateActiveTokensForRealmAndUser}
      *
-     * @param userTokens The user tokens for which access and refresh tokens should be invalidated
+     * @param tokenTuples The user token tuples for which access and refresh tokens (if exist) should be invalidated
      * @param listener  the listener to notify upon completion
      */
-    private void invalidateAllTokens(Collection<UserToken> userTokens, ActionListener<TokensInvalidationResult> listener) {
+    private void invalidateAllTokens(Collection<Tuple<UserToken, String>> tokenTuples, ActionListener<TokensInvalidationResult> listener) {
         maybeStartTokenRemover();
+
         // Invalidate the refresh tokens first so that they cannot be used to get new
         // access tokens while we invalidate the access tokens we currently know about
         final Iterator<TimeValue> backoff = DEFAULT_BACKOFF.iterator();
-        indexInvalidation(
-            userTokens,
-            backoff,
-            "refresh_token",
-            null,
-            ActionListener.wrap(result -> indexInvalidation(userTokens, backoff, "access_token", result, listener), listener::onFailure)
-        );
+
+        final List<UserToken> userTokens = new ArrayList<>();
+        final List<UserToken> tokensWithRefresh = new ArrayList<>();
+
+        tokenTuples.forEach(t -> {
+            userTokens.add(t.v1());
+            if (t.v2() != null) {
+                tokensWithRefresh.add(t.v1());
+            }
+        });
+
+        if (false == tokensWithRefresh.isEmpty()) {
+            indexInvalidation(
+                tokensWithRefresh,
+                backoff,
+                "refresh_token",
+                null,
+                ActionListener.wrap(result -> indexInvalidation(userTokens, backoff, "access_token", result, listener), listener::onFailure)
+            );
+        } else {
+            indexInvalidation(userTokens, backoff, "access_token", null, listener);
+        }
     }
 
     /**
@@ -877,11 +862,7 @@ public final class TokenService {
                                 UpdateResponse updateResponse = bulkItemResponse.getResponse();
                                 if (updateResponse.getResult() == DocWriteResponse.Result.UPDATED) {
                                     logger.debug(
-                                        () -> new ParameterizedMessage(
-                                            "Invalidated [{}] for doc [{}]",
-                                            srcPrefix,
-                                            updateResponse.getGetResult().getId()
-                                        )
+                                        () -> format("Invalidated [%s] for doc [%s]", srcPrefix, updateResponse.getGetResult().getId())
                                     );
                                     invalidated.add(updateResponse.getGetResult().getId());
                                 } else if (updateResponse.getResult() == DocWriteResponse.Result.NOOP) {
@@ -1024,7 +1005,7 @@ public final class TokenService {
                     refreshTokenVersion = versionAndRefreshTokenTuple.v1();
                     unencodedRefreshToken = versionAndRefreshTokenTuple.v2();
                 } catch (IOException e) {
-                    logger.debug(() -> new ParameterizedMessage("Could not decode refresh token [{}].", refreshToken), e);
+                    logger.debug(() -> "Could not decode refresh token [" + refreshToken + "].", e);
                     listener.onResponse(SearchHits.EMPTY_WITH_TOTAL_HITS);
                     return;
                 }
@@ -1200,10 +1181,7 @@ public final class TokenService {
                     ActionListener.<UpdateResponse>wrap(updateResponse -> {
                         if (updateResponse.getResult() == DocWriteResponse.Result.UPDATED) {
                             logger.debug(
-                                () -> new ParameterizedMessage(
-                                    "updated the original token document to {}",
-                                    updateResponse.getGetResult().sourceAsMap()
-                                )
+                                () -> format("updated the original token document to %s", updateResponse.getGetResult().sourceAsMap())
                             );
                             final Tuple<UserToken, String> parsedTokens = parseTokensFromDocument(source, null);
                             final UserToken toRefreshUserToken = parsedTokens.v1();
@@ -1252,7 +1230,7 @@ public final class TokenService {
                         if (cause instanceof VersionConflictEngineException) {
                             // The document has been updated by another thread, get it again.
                             logger.debug("version conflict while updating document [{}], attempting to get it again", tokenDocId);
-                            getTokenDocAsync(tokenDocId, refreshedTokenIndex, true, new ActionListener<GetResponse>() {
+                            getTokenDocAsync(tokenDocId, refreshedTokenIndex, true, new ActionListener<>() {
                                 @Override
                                 public void onResponse(GetResponse response) {
                                     if (response.isExists()) {
@@ -1514,23 +1492,38 @@ public final class TokenService {
         RefreshTokenStatus refreshToken,
         Authentication clientAuthentication
     ) {
-        if (clientAuthentication.getUser().principal().equals(refreshToken.getAssociatedUser()) == false) {
-            logger.warn(
-                "Token was originally created by [{}] but [{}] attempted to refresh it",
-                refreshToken.getAssociatedUser(),
-                clientAuthentication.getUser().principal()
-            );
-            return Optional.of(invalidGrantException("tokens must be refreshed by the creating client"));
-        } else if (clientAuthentication.getAuthenticatedBy().getName().equals(refreshToken.getAssociatedRealm()) == false) {
-            logger.warn(
-                "[{}] created the refresh token while authenticated by [{}] but is now authenticated by [{}]",
-                refreshToken.getAssociatedUser(),
-                refreshToken.getAssociatedRealm(),
-                clientAuthentication.getAuthenticatedBy().getName()
-            );
-            return Optional.of(invalidGrantException("tokens must be refreshed by the creating client"));
+        if (refreshToken.getAssociatedAuthentication() != null) {
+            // this is the newer method to validate that the client refreshing the token indeed owns the token
+            if (clientAuthentication.canAccessResourcesOf(refreshToken.getAssociatedAuthentication())) {
+                return Optional.empty();
+            } else {
+                logger.warn(
+                    "Token was originally created by [{}] but [{}] attempted to refresh it",
+                    refreshToken.getAssociatedAuthentication(),
+                    clientAuthentication
+                );
+                return Optional.of(invalidGrantException("tokens must be refreshed by the creating client"));
+            }
         } else {
-            return Optional.empty();
+            // falback to the previous method
+            if (clientAuthentication.getUser().principal().equals(refreshToken.getAssociatedUser()) == false) {
+                logger.warn(
+                    "Token was originally created by [{}] but [{}] attempted to refresh it",
+                    refreshToken.getAssociatedUser(),
+                    clientAuthentication.getUser().principal()
+                );
+                return Optional.of(invalidGrantException("tokens must be refreshed by the creating client"));
+            } else if (clientAuthentication.getAuthenticatedBy().getName().equals(refreshToken.getAssociatedRealm()) == false) {
+                logger.warn(
+                    "[{}] created the refresh token while authenticated by [{}] but is now authenticated by [{}]",
+                    refreshToken.getAssociatedUser(),
+                    refreshToken.getAssociatedRealm(),
+                    clientAuthentication.getAuthenticatedBy().getName()
+                );
+                return Optional.of(invalidGrantException("tokens must be refreshed by the creating client"));
+            } else {
+                return Optional.empty();
+            }
         }
     }
 
@@ -1797,23 +1790,26 @@ public final class TokenService {
                     .field("invalidated", false)
                     .field("refreshed", false)
                     .startObject("client")
-                    .field("type", "unassociated_client")
-                    .field("user", originatingClientAuth.getUser().principal())
-                    .field("realm", originatingClientAuth.getAuthenticatedBy().getName());
-                if (originatingClientAuth.getSourceRealm().getDomain() != null) {
-                    builder.field("realm_domain", originatingClientAuth.getSourceRealm().getDomain());
+                    .field("type", "unassociated_client");
+                if (userToken.getVersion().onOrAfter(VERSION_CLIENT_AUTH_FOR_REFRESH)) {
+                    builder.field("authentication", originatingClientAuth.maybeRewriteForOlderVersion(userToken.getVersion()).encode());
+                } else {
+                    builder.field("user", originatingClientAuth.getUser().principal())
+                        .field("realm", originatingClientAuth.getAuthenticatedBy().getName());
+                    if (originatingClientAuth.getAuthenticatedBy().getDomain() != null) {
+                        builder.field("realm_domain", originatingClientAuth.getAuthenticatedBy().getDomain());
+                    }
                 }
                 builder.endObject().endObject();
             }
             builder.startObject("access_token")
                 .field("invalidated", false)
                 .field("user_token", userToken)
-                .field("realm", userToken.getAuthentication().getAuthenticatedBy().getName());
+                .field("realm", userToken.getAuthentication().getSourceRealm().getName());
             if (userToken.getAuthentication().getSourceRealm().getDomain() != null) {
                 builder.field("realm_domain", userToken.getAuthentication().getSourceRealm().getDomain());
             }
-            builder.endObject();
-            builder.endObject();
+            builder.endObject().endObject();
             return BytesReference.bytes(builder);
         } catch (IOException e) {
             throw new RuntimeException("Unexpected exception when constructing a JSON document.", e);
@@ -1835,7 +1831,7 @@ public final class TokenService {
         };
     }
 
-    private Tuple<UserToken, String> filterAndParseHit(SearchHit hit, @Nullable Predicate<Map<String, Object>> filter)
+    private static Tuple<UserToken, String> filterAndParseHit(SearchHit hit, @Nullable Predicate<Map<String, Object>> filter)
         throws IllegalStateException, DateTimeException {
         final Map<String, Object> source = hit.getSourceAsMap();
         if (source == null) {
@@ -1852,10 +1848,13 @@ public final class TokenService {
      * @return A {@link Tuple} of access-token and refresh-token-id or null if a Predicate is defined and the userToken source doesn't
      * satisfy it
      */
-    private Tuple<UserToken, String> parseTokensFromDocument(Map<String, Object> source, @Nullable Predicate<Map<String, Object>> filter)
-        throws IllegalStateException, DateTimeException {
+    private static Tuple<UserToken, String> parseTokensFromDocument(
+        Map<String, Object> source,
+        @Nullable Predicate<Map<String, Object>> filter
+    ) throws IllegalStateException, DateTimeException {
         @SuppressWarnings("unchecked")
-        final String hashedRefreshToken = (String) ((Map<String, Object>) source.get("refresh_token")).get("token");
+        final Map<String, Object> refreshTokenMap = (Map<String, Object>) source.get("refresh_token");
+        final String hashedRefreshToken = refreshTokenMap != null ? (String) refreshTokenMap.get("token") : null;
         @SuppressWarnings("unchecked")
         final Map<String, Object> userTokenSource = (Map<String, Object>) ((Map<String, Object>) source.get("access_token")).get(
             "user_token"
@@ -1927,8 +1926,9 @@ public final class TokenService {
         } else {
             final GetRequest getRequest = client.prepareGet(tokensIndex.aliasName(), getTokenDocumentId(userToken)).request();
             Consumer<Exception> onFailure = ex -> listener.onFailure(traceLog("check token state", userToken.getId(), ex));
-            tokensIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
-                executeAsyncWithOrigin(
+            tokensIndex.checkIndexVersionThenExecute(
+                listener::onFailure,
+                () -> executeAsyncWithOrigin(
                     client.threadPool().getThreadContext(),
                     SECURITY_ORIGIN,
                     getRequest,
@@ -1976,13 +1976,13 @@ public final class TokenService {
                             logger.warn("failed to get access token because index is not available");
                             listener.onResponse(null);
                         } else {
-                            logger.error(new ParameterizedMessage("failed to get token [{}]", userToken.getId()), e);
+                            logger.error(() -> "failed to get token [" + userToken.getId() + "]", e);
                             listener.onFailure(e);
                         }
                     }),
                     client::get
-                );
-            });
+                )
+            );
         }
     }
 
@@ -2066,11 +2066,11 @@ public final class TokenService {
             final Version version = Version.readVersion(in);
             in.setVersion(version);
             final String payload = in.readString();
-            return new Tuple<Version, String>(version, payload);
+            return new Tuple<>(version, payload);
         }
     }
 
-    private void ensureEncryptionCiphersSupported() throws NoSuchPaddingException, NoSuchAlgorithmException {
+    private static void ensureEncryptionCiphersSupported() throws NoSuchPaddingException, NoSuchAlgorithmException {
         Cipher.getInstance(ENCRYPTION_CIPHER);
         SecretKeyFactory.getInstance(KDF_ALGORITHM);
     }
@@ -2189,17 +2189,17 @@ public final class TokenService {
     /**
      * Logs an exception concerning a specific Token at TRACE level (if enabled)
      */
-    private <E extends Throwable> E traceLog(String action, String identifier, E exception) {
+    private static <E extends Throwable> E traceLog(String action, String identifier, E exception) {
         if (logger.isTraceEnabled()) {
             if (exception instanceof final ElasticsearchException esEx) {
                 final Object detail = esEx.getHeader("error_description");
                 if (detail != null) {
-                    logger.trace(() -> new ParameterizedMessage("Failure in [{}] for id [{}] - [{}]", action, identifier, detail), esEx);
+                    logger.trace(() -> format("Failure in [%s] for id [%s] - [%s]", action, identifier, detail), esEx);
                 } else {
-                    logger.trace(() -> new ParameterizedMessage("Failure in [{}] for id [{}]", action, identifier), esEx);
+                    logger.trace(() -> format("Failure in [%s] for id [%s]", action, identifier), esEx);
                 }
             } else {
-                logger.trace(() -> new ParameterizedMessage("Failure in [{}] for id [{}]", action, identifier), exception);
+                logger.trace(() -> format("Failure in [%s] for id [%s]", action, identifier), exception);
             }
         }
         return exception;
@@ -2208,23 +2208,23 @@ public final class TokenService {
     /**
      * Logs an exception at TRACE level (if enabled)
      */
-    private <E extends Throwable> E traceLog(String action, E exception) {
+    private static <E extends Throwable> E traceLog(String action, E exception) {
         if (logger.isTraceEnabled()) {
             if (exception instanceof final ElasticsearchException esEx) {
                 final Object detail = esEx.getHeader("error_description");
                 if (detail != null) {
-                    logger.trace(() -> new ParameterizedMessage("Failure in [{}] - [{}]", action, detail), esEx);
+                    logger.trace(() -> format("Failure in [%s] - [%s]", action, detail), esEx);
                 } else {
-                    logger.trace(() -> new ParameterizedMessage("Failure in [{}]", action), esEx);
+                    logger.trace(() -> "Failure in [" + action + "]", esEx);
                 }
             } else {
-                logger.trace(() -> new ParameterizedMessage("Failure in [{}]", action), exception);
+                logger.trace(() -> "Failure in [" + action + "]", exception);
             }
         }
         return exception;
     }
 
-    boolean isExpiredTokenException(ElasticsearchSecurityException e) {
+    static boolean isExpiredTokenException(ElasticsearchSecurityException e) {
         final List<String> headers = e.getHeader("WWW-Authenticate");
         return headers != null && headers.stream().anyMatch(EXPIRED_TOKEN_WWW_AUTH_VALUE::equals);
     }
@@ -2257,7 +2257,7 @@ public final class TokenService {
         }
     }
 
-    private class KeyComputingRunnable extends AbstractRunnable {
+    private static class KeyComputingRunnable extends AbstractRunnable {
 
         private final BytesKey decodedSalt;
         private final KeyAndCache keyAndCache;
@@ -2296,77 +2296,13 @@ public final class TokenService {
     }
 
     /**
-     * Creates a new key unless present that is newer than the current active key and returns the corresponding metadata. Note:
-     * this method doesn't modify the metadata used in this token service. See {@link #refreshMetadata(TokenMetadata)}
-     */
-    @SuppressWarnings("unchecked")
-    synchronized TokenMetadata generateSpareKey() {
-        KeyAndCache maxKey = keyCache.cache.values().stream().max(Comparator.comparingLong(v -> v.keyAndTimestamp.getTimestamp())).get();
-        KeyAndCache currentKey = keyCache.activeKeyCache;
-        if (currentKey == maxKey) {
-            long timestamp = createdTimeStamps.incrementAndGet();
-            while (true) {
-                byte[] saltArr = new byte[SALT_BYTES];
-                secureRandom.nextBytes(saltArr);
-                SecureString tokenKey = generateTokenKey();
-                KeyAndCache keyAndCache = new KeyAndCache(new KeyAndTimestamp(tokenKey, timestamp), new BytesKey(saltArr));
-                if (keyCache.cache.containsKey(keyAndCache.getKeyHash())) {
-                    continue; // collision -- generate a new key
-                }
-                return newTokenMetadata(
-                    keyCache.currentTokenKeyHash,
-                    Iterables.concat(keyCache.cache.values(), Collections.singletonList(keyAndCache))
-                );
-            }
-        }
-        return newTokenMetadata(keyCache.currentTokenKeyHash, keyCache.cache.values());
-    }
-
-    /**
-     * Rotate the current active key to the spare key created in the previous {@link #generateSpareKey()} call.
-     */
-    synchronized TokenMetadata rotateToSpareKey() {
-        KeyAndCache maxKey = keyCache.cache.values().stream().max(Comparator.comparingLong(v -> v.keyAndTimestamp.getTimestamp())).get();
-        if (maxKey == keyCache.activeKeyCache) {
-            throw new IllegalStateException("call generateSpareKey first");
-        }
-        return newTokenMetadata(maxKey.getKeyHash(), keyCache.cache.values());
-    }
-
-    /**
-     * Prunes the keys and keeps up to the latest N keys around
-     *
-     * @param numKeysToKeep the number of keys to keep.
-     */
-    synchronized TokenMetadata pruneKeys(int numKeysToKeep) {
-        if (keyCache.cache.size() <= numKeysToKeep) {
-            return getTokenMetadata(); // nothing to do
-        }
-        Map<BytesKey, KeyAndCache> map = Maps.newMapWithExpectedSize(keyCache.cache.size() + 1);
-        KeyAndCache currentKey = keyCache.get(keyCache.currentTokenKeyHash);
-        ArrayList<KeyAndCache> entries = new ArrayList<>(keyCache.cache.values());
-        Collections.sort(entries, (left, right) -> Long.compare(right.keyAndTimestamp.getTimestamp(), left.keyAndTimestamp.getTimestamp()));
-        for (KeyAndCache value : entries) {
-            if (map.size() < numKeysToKeep || value.keyAndTimestamp.getTimestamp() >= currentKey.keyAndTimestamp.getTimestamp()) {
-                logger.debug("keeping key {} ", value.getKeyHash());
-                map.put(value.getKeyHash(), value);
-            } else {
-                logger.debug("prune key {} ", value.getKeyHash());
-            }
-        }
-        assert map.isEmpty() == false;
-        assert map.containsKey(keyCache.currentTokenKeyHash);
-        return newTokenMetadata(keyCache.currentTokenKeyHash, map.values());
-    }
-
-    /**
      * Returns the current in-use metdata of this {@link TokenService}
      */
     public synchronized TokenMetadata getTokenMetadata() {
         return newTokenMetadata(keyCache.currentTokenKeyHash, keyCache.cache.values());
     }
 
-    private TokenMetadata newTokenMetadata(BytesKey activeTokenKey, Iterable<KeyAndCache> iterable) {
+    private static TokenMetadata newTokenMetadata(BytesKey activeTokenKey, Iterable<KeyAndCache> iterable) {
         List<KeyAndTimestamp> list = new ArrayList<>();
         for (KeyAndCache v : iterable) {
             list.add(v.keyAndTimestamp);
@@ -2398,7 +2334,7 @@ public final class TokenService {
         }
         createdTimeStamps.set(maxTimestamp);
         keyCache = new TokenKeys(Collections.unmodifiableMap(map), currentUsedKeyHash);
-        logger.debug(() -> new ParameterizedMessage("refreshed keys current: {}, keys: {}", currentUsedKeyHash, keyCache.cache.keySet()));
+        logger.debug(() -> format("refreshed keys current: %s, keys: %s", currentUsedKeyHash, keyCache.cache.keySet()));
     }
 
     private SecureString generateTokenKey() {
@@ -2418,64 +2354,9 @@ public final class TokenService {
         }
     }
 
-    synchronized String getActiveKeyHash() {
-        return new BytesRef(Base64.getUrlEncoder().withoutPadding().encode(this.keyCache.currentTokenKeyHash.bytes)).utf8ToString();
-    }
-
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
-    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
-        return ClusterStateTaskExecutor.unbatched();
-    }
-
-    void rotateKeysOnMaster(ActionListener<AcknowledgedResponse> listener) {
-        logger.info("rotate keys on master");
-        TokenMetadata tokenMetadata = generateSpareKey();
-        clusterService.submitStateUpdateTask(
-            "publish next key to prepare key rotation",
-            new TokenMetadataPublishAction(tokenMetadata, ActionListener.wrap((res) -> {
-                if (res.isAcknowledged()) {
-                    TokenMetadata metadata = rotateToSpareKey();
-                    clusterService.submitStateUpdateTask(
-                        "publish next key to prepare key rotation",
-                        new TokenMetadataPublishAction(metadata, listener),
-                        newExecutor()
-                    );
-                } else {
-                    listener.onFailure(new IllegalStateException("not acked"));
-                }
-            }, listener::onFailure)),
-            newExecutor()
-        );
-    }
-
-    private static final class TokenMetadataPublishAction extends AckedClusterStateUpdateTask {
-
-        private final TokenMetadata tokenMetadata;
-
-        protected TokenMetadataPublishAction(TokenMetadata tokenMetadata, ActionListener<AcknowledgedResponse> listener) {
-            super(new AckedRequest() {
-                @Override
-                public TimeValue ackTimeout() {
-                    return AcknowledgedRequest.DEFAULT_ACK_TIMEOUT;
-                }
-
-                @Override
-                public TimeValue masterNodeTimeout() {
-                    return AcknowledgedRequest.DEFAULT_MASTER_NODE_TIMEOUT;
-                }
-            }, listener);
-            this.tokenMetadata = tokenMetadata;
-        }
-
-        @Override
-        public ClusterState execute(ClusterState currentState) throws Exception {
-            XPackPlugin.checkReadyForXPackCustomMetadata(currentState);
-
-            if (tokenMetadata.equals(currentState.custom(TokenMetadata.TYPE))) {
-                return currentState;
-            }
-            return ClusterState.builder(currentState).putCustom(TokenMetadata.TYPE, tokenMetadata).build();
-        }
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
     private void initialize(ClusterService clusterService) {
@@ -2515,7 +2396,7 @@ public final class TokenService {
     private void installTokenMetadata(ClusterState state) {
         if (state.custom(TokenMetadata.TYPE) == null) {
             if (installTokenMetadataInProgress.compareAndSet(false, true)) {
-                clusterService.submitStateUpdateTask("install-token-metadata", new ClusterStateUpdateTask(Priority.URGENT) {
+                submitUnbatchedTask("install-token-metadata", new ClusterStateUpdateTask(Priority.URGENT) {
                     @Override
                     public ClusterState execute(ClusterState currentState) {
                         XPackPlugin.checkReadyForXPackCustomMetadata(currentState);
@@ -2537,7 +2418,7 @@ public final class TokenService {
                     public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                         installTokenMetadataInProgress.set(false);
                     }
-                }, newExecutor());
+                });
             }
         }
     }
@@ -2547,13 +2428,6 @@ public final class TokenService {
      */
     void clearActiveKeyCache() {
         this.keyCache.activeKeyCache.keyCache.invalidateAll();
-    }
-
-    /**
-     * Package private for testing
-     */
-    KeyAndCache getActiveKeyCache() {
-        return this.keyCache.activeKeyCache;
     }
 
     static final class KeyAndCache implements Closeable {
@@ -2591,7 +2465,7 @@ public final class TokenService {
         }
 
         @Override
-        public void close() throws IOException {
+        public void close() {
             keyAndTimestamp.getKey().close();
         }
 
@@ -2645,6 +2519,8 @@ public final class TokenService {
         private final boolean invalidated;
         private final String associatedUser;
         private final String associatedRealm;
+        @Nullable
+        private final Authentication associatedAuthentication;
         private final boolean refreshed;
         @Nullable
         private final Instant refreshInstant;
@@ -2659,6 +2535,29 @@ public final class TokenService {
         // pkg-private for testing
         RefreshTokenStatus(
             boolean invalidated,
+            Authentication associatedAuthentication,
+            boolean refreshed,
+            Instant refreshInstant,
+            String supersedingTokens,
+            String iv,
+            String salt
+        ) {
+            assert associatedAuthentication.getVersion().onOrAfter(VERSION_CLIENT_AUTH_FOR_REFRESH);
+            this.invalidated = invalidated;
+            // not used, filled-in for consistency's sake
+            this.associatedUser = associatedAuthentication.getUser().principal();
+            this.associatedRealm = associatedAuthentication.getAuthenticatedBy().getName();
+            this.associatedAuthentication = associatedAuthentication;
+            this.refreshed = refreshed;
+            this.refreshInstant = refreshInstant;
+            this.supersedingTokens = supersedingTokens;
+            this.iv = iv;
+            this.salt = salt;
+        }
+
+        @Deprecated
+        RefreshTokenStatus(
+            boolean invalidated,
             String associatedUser,
             String associatedRealm,
             boolean refreshed,
@@ -2670,6 +2569,7 @@ public final class TokenService {
             this.invalidated = invalidated;
             this.associatedUser = associatedUser;
             this.associatedRealm = associatedRealm;
+            this.associatedAuthentication = null;
             this.refreshed = refreshed;
             this.refreshInstant = refreshInstant;
             this.supersedingTokens = supersedingTokens;
@@ -2687,6 +2587,10 @@ public final class TokenService {
 
         String getAssociatedRealm() {
             return associatedRealm;
+        }
+
+        Authentication getAssociatedAuthentication() {
+            return associatedAuthentication;
         }
 
         boolean isRefreshed() {
@@ -2731,14 +2635,6 @@ public final class TokenService {
             if (clientInfo == null) {
                 throw new IllegalStateException("token document is missing the \"client\" field");
             }
-            if (false == clientInfo.containsKey("user")) {
-                throw new IllegalStateException("token document is missing the \"client.user\" field");
-            }
-            final String associatedUser = (String) clientInfo.get("user");
-            if (false == clientInfo.containsKey("realm")) {
-                throw new IllegalStateException("token document is missing the \"client.realm\" field");
-            }
-            final String associatedRealm = (String) clientInfo.get("realm");
             final Boolean refreshed = (Boolean) refreshTokenSource.get("refreshed");
             if (refreshed == null) {
                 throw new IllegalStateException("token document is missing the \"refreshed\" field");
@@ -2748,16 +2644,55 @@ public final class TokenService {
             final String supersedingTokens = (String) refreshTokenSource.get("superseding.encrypted_tokens");
             final String iv = (String) refreshTokenSource.get("superseding.encryption_iv");
             final String salt = (String) refreshTokenSource.get("superseding.encryption_salt");
-            return new RefreshTokenStatus(
-                invalidated,
-                associatedUser,
-                associatedRealm,
-                refreshed,
-                refreshInstant,
-                supersedingTokens,
-                iv,
-                salt
-            );
+            if (clientInfo.containsKey("authentication")) {
+                // newer refresh token that contains the full authentication of the client that created it
+                final Authentication associatedAuthentication;
+                try {
+                    associatedAuthentication = AuthenticationContextSerializer.decode((String) clientInfo.get("authentication"));
+                } catch (IOException e) {
+                    throw new IllegalStateException("invalid client authentication for refresh", e);
+                }
+                if (clientInfo.containsKey("user") || clientInfo.containsKey("realm")) {
+                    throw new IllegalStateException("user and/or associated realm must not be present when associated authentication is");
+                }
+                return new RefreshTokenStatus(
+                    invalidated,
+                    associatedAuthentication,
+                    refreshed,
+                    refreshInstant,
+                    supersedingTokens,
+                    iv,
+                    salt
+                );
+            } else {
+                final String associatedUser;
+                final String associatedRealm;
+                // the previous way that only recorded selected fields of the creator client's authentication
+                if (false == clientInfo.containsKey("user")) {
+                    throw new IllegalStateException(
+                        "token document must contain the \"client.user\" field if the associated "
+                            + "\"authentication\" field does not exist"
+                    );
+                }
+                associatedUser = (String) clientInfo.get("user");
+                if (false == clientInfo.containsKey("realm")) {
+                    throw new IllegalStateException(
+                        "token document must contain the \"client.realm\" field if the associated "
+                            + "\"authentication\" field does not exist"
+                    );
+                }
+                associatedRealm = (String) clientInfo.get("realm");
+                return new RefreshTokenStatus(
+                    invalidated,
+                    associatedUser,
+                    associatedRealm,
+                    refreshed,
+                    refreshInstant,
+                    supersedingTokens,
+                    iv,
+                    salt
+                );
+            }
         }
     }
 

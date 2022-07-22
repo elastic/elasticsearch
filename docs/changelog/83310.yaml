@@ -1,5 +1,0 @@
-pr: 83310
-summary: "TSDB: routingPath object type check improvement"
-area: TSDB
-type: enhancement
-issues: []

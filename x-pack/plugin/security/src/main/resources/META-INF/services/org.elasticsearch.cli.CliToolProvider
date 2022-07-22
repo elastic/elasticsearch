@@ -1,0 +1,8 @@
+org.elasticsearch.xpack.security.enrollment.tool.CreateEnrollmentTokenToolProvider
+org.elasticsearch.xpack.security.authc.esnative.tool.ResetPasswordToolProvider
+org.elasticsearch.xpack.security.authc.esnative.tool.SetupPasswordToolProvider
+org.elasticsearch.xpack.security.authc.saml.SamlMetadataToolProvider
+org.elasticsearch.xpack.security.authc.service.FileTokensToolProvider
+org.elasticsearch.xpack.security.crypto.tool.SystemKeyToolProvider
+org.elasticsearch.xpack.security.authc.file.tool.UsersToolProvider
+org.elasticsearch.xpack.security.enrollment.tool.AutoConfigGenerateElasticPasswordHashToolProvider

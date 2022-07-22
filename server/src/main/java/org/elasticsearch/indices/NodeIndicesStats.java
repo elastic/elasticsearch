@@ -29,6 +29,7 @@ import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.IndexingStats;
+import org.elasticsearch.index.shard.ShardCountStats;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.index.warmer.WarmerStats;
@@ -166,17 +167,15 @@ public class NodeIndicesStats implements Writeable, ToXContentFragment {
         return stats.getBulk();
     }
 
+    @Nullable
+    public ShardCountStats getShardCount() {
+        return stats.getShards();
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         stats.writeTo(out);
-        out.writeVInt(statsByShard.size());
-        for (Map.Entry<Index, List<IndexShardStats>> entry : statsByShard.entrySet()) {
-            entry.getKey().writeTo(out);
-            out.writeVInt(entry.getValue().size());
-            for (IndexShardStats indexShardStats : entry.getValue()) {
-                indexShardStats.writeTo(out);
-            }
-        }
+        out.writeMap(statsByShard, (o, k) -> k.writeTo(o), StreamOutput::writeList);
     }
 
     @Override

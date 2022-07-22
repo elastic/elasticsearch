@@ -115,7 +115,7 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
         TimeValue frequency = TimeValue.timeValueSeconds(10);
         SyncConfig syncConfig = new TimeSyncConfig("time_field", TimeValue.timeValueSeconds(30));
         String newDescription = "new description";
-        SettingsConfig settings = new SettingsConfig(4_000, 4_000.400F, true, true, true, true);
+        SettingsConfig settings = new SettingsConfig(4_000, 4_000.400F, true, true, true, true, 10);
         Map<String, Object> newMetadata = randomMetadata();
         RetentionPolicyConfig retentionPolicyConfig = new TimeRetentionPolicyConfig("time_field", new TimeValue(60_000));
         update = new TransformConfigUpdate(
@@ -204,7 +204,7 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
             null,
             null,
             null,
-            new SettingsConfig(4_000, null, (Boolean) null, null, null, null),
+            new SettingsConfig(4_000, null, (Boolean) null, null, null, null, null),
             null,
             null
         );
@@ -223,7 +223,7 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
             null,
             null,
             null,
-            new SettingsConfig(null, 43.244F, (Boolean) null, null, null, null),
+            new SettingsConfig(null, 43.244F, (Boolean) null, null, null, null, null),
             null,
             null
         );
@@ -240,7 +240,7 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
             null,
             null,
             null,
-            new SettingsConfig(-1, null, (Boolean) null, null, null, null),
+            new SettingsConfig(-1, null, (Boolean) null, null, null, null, null),
             null,
             null
         );
@@ -256,7 +256,7 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
             null,
             null,
             null,
-            new SettingsConfig(-1, -1F, (Boolean) null, null, null, null),
+            new SettingsConfig(-1, -1F, (Boolean) null, null, null, null, null),
             null,
             null
         );

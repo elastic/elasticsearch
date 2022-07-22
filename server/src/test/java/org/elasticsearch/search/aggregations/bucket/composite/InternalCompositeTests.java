@@ -30,7 +30,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeSet;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiLettersOfLengthBetween;
@@ -244,7 +243,7 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
             .sorted(getKeyComparator())
             .distinct()
             .limit(reduced.getSize())
-            .collect(Collectors.toList());
+            .toList();
 
         assertThat(reduced.getBuckets().size(), lessThanOrEqualTo(size));
         assertThat(reduced.getBuckets().size(), equalTo(expectedKeys.size()));
@@ -408,7 +407,7 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
     }
 
     private InternalComposite.ArrayMap createMap(List<String> fields, Comparable<?>[] values) {
-        List<DocValueFormat> formats = IntStream.range(0, fields.size()).mapToObj(i -> DocValueFormat.RAW).collect(Collectors.toList());
+        List<DocValueFormat> formats = IntStream.range(0, fields.size()).mapToObj(i -> DocValueFormat.RAW).toList();
         return new InternalComposite.ArrayMap(fields, formats, values);
     }
 }

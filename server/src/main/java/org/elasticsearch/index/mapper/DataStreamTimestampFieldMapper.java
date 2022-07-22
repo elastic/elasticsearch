@@ -22,7 +22,6 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.time.Instant;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -87,8 +86,8 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        protected List<Parameter<?>> getParameters() {
-            return List.of(enabled);
+        protected Parameter<?>[] getParameters() {
+            return new Parameter<?>[] { enabled };
         }
 
         @Override
@@ -196,26 +195,36 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
             // not configured, so skip the validation
             return;
         }
+        boolean foundFsTimestampField = false;
+        IndexableField first = null;
+        final List<IndexableField> fields = context.rootDoc().getFields();
+        for (int i = 0; i < fields.size(); i++) {
+            IndexableField indexableField = fields.get(i);
+            if (DEFAULT_PATH.equals(indexableField.name()) == false) {
+                continue;
+            }
+            if (first == null) {
+                first = indexableField;
+            }
+            if (indexableField.fieldType().docValuesType() == DocValuesType.SORTED_NUMERIC) {
+                if (foundFsTimestampField) {
+                    throw new IllegalArgumentException("data stream timestamp field [" + DEFAULT_PATH + "] encountered multiple values");
+                }
+                foundFsTimestampField = true;
+            }
+        }
 
-        IndexableField[] fields = context.rootDoc().getFields(DEFAULT_PATH);
-        if (fields.length == 0) {
+        if (first == null) {
             throw new IllegalArgumentException("data stream timestamp field [" + DEFAULT_PATH + "] is missing");
         }
-
-        long numberOfValues = Arrays.stream(fields)
-            .filter(indexableField -> indexableField.fieldType().docValuesType() == DocValuesType.SORTED_NUMERIC)
-            .count();
-        if (numberOfValues > 1) {
-            throw new IllegalArgumentException("data stream timestamp field [" + DEFAULT_PATH + "] encountered multiple values");
-        }
-
-        TimestampBounds bounds = context.indexSettings().getTimestampBounds();
-        if (bounds != null) {
-            validateTimestamp(bounds.startTime(), bounds.endTime(), fields[0], context);
+        var indexMode = context.indexSettings().getMode();
+        if (indexMode.shouldValidateTimestamp()) {
+            TimestampBounds bounds = context.indexSettings().getTimestampBounds();
+            validateTimestamp(bounds, first, context);
         }
     }
 
-    private void validateTimestamp(long startTime, long endTime, IndexableField field, DocumentParserContext context) {
+    private static void validateTimestamp(TimestampBounds bounds, IndexableField field, DocumentParserContext context) {
         long originValue = field.numericValue().longValue();
         long value = originValue;
 
@@ -230,6 +239,7 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
             resolution = Resolution.MILLISECONDS;
         }
 
+        final long startTime = bounds.startTime();
         if (value < startTime) {
             throw new IllegalArgumentException(
                 "time series index @timestamp value ["
@@ -239,6 +249,7 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
             );
         }
 
+        final long endTime = bounds.endTime();
         if (value >= endTime) {
             throw new IllegalArgumentException(
                 "time series index @timestamp value ["

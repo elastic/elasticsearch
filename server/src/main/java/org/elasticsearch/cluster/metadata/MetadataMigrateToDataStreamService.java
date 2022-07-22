@@ -16,7 +16,6 @@ import org.elasticsearch.action.support.ActiveShardsObserver;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.CreateDataStreamClusterStateUpdateRequest;
@@ -40,7 +39,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.createDataStream;
 
@@ -100,7 +98,7 @@ public class MetadataMigrateToDataStreamService {
                 finalListener.onResponse(AcknowledgedResponse.FALSE);
             }
         }, finalListener::onFailure);
-        clusterService.submitStateUpdateTask(
+        submitUnbatchedTask(
             "migrate-to-data-stream [" + request.aliasName + "]",
             new AckedClusterStateUpdateTask(Priority.HIGH, request, listener) {
 
@@ -108,7 +106,7 @@ public class MetadataMigrateToDataStreamService {
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     ClusterState clusterState = migrateToDataStream(currentState, indexMetadata -> {
                         try {
-                            return indexServices.createIndexMapperService(indexMetadata);
+                            return indexServices.createIndexMapperServiceForValidation(indexMetadata);
                         } catch (IOException e) {
                             throw new IllegalStateException(e);
                         }
@@ -116,14 +114,13 @@ public class MetadataMigrateToDataStreamService {
                     writeIndexRef.set(clusterState.metadata().dataStreams().get(request.aliasName).getWriteIndex().getName());
                     return clusterState;
                 }
-            },
-            newExecutor()
+            }
         );
     }
 
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
-    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
-        return ClusterStateTaskExecutor.unbatched();
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
     static ClusterState migrateToDataStream(
@@ -150,7 +147,7 @@ public class MetadataMigrateToDataStreamService {
             .stream()
             .filter(x -> writeIndex == null || x.equals(writeIndex) == false)
             .map(x -> finalCurrentState.metadata().index(x))
-            .collect(Collectors.toList());
+            .toList();
 
         logger.info("submitting request to migrate alias [{}] to a data stream", request.aliasName);
         CreateDataStreamClusterStateUpdateRequest req = new CreateDataStreamClusterStateUpdateRequest(request.aliasName);

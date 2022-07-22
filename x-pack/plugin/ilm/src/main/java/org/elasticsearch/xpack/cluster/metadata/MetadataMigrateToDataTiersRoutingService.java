@@ -44,7 +44,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.SortedMap;
 import java.util.TreeMap;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING;
@@ -348,7 +347,7 @@ public final class MetadataMigrateToDataTiersRoutingService {
             .values()
             .stream()
             .filter(meta -> policyName.equals(meta.getLifecyclePolicyName()))
-            .collect(Collectors.toList());
+            .toList();
 
         for (IndexMetadata indexMetadata : managedIndices) {
             LifecycleExecutionState currentExState = indexMetadata.getLifecycleExecutionState();

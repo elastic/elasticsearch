@@ -247,7 +247,8 @@ public class ReplicationOperationTests extends ESTestCase {
         Set<String> trackedShards,
         Set<String> untrackedShards
     ) {
-        for (ShardRouting shr : indexShardRoutingTable.shards()) {
+        for (int copy = 0; copy < indexShardRoutingTable.size(); copy++) {
+            ShardRouting shr = indexShardRoutingTable.shard(copy);
             if (shr.unassigned() == false) {
                 if (shr.initializing()) {
                     if (randomBoolean()) {
@@ -509,8 +510,9 @@ public class ReplicationOperationTests extends ESTestCase {
         final Set<String> trackedShards = shardRoutingTable.getAllAllocationIds();
         final ReplicationGroup initialReplicationGroup = new ReplicationGroup(shardRoutingTable, inSyncAllocationIds, trackedShards, 0);
 
+        final Thread testThread = Thread.currentThread();
         final boolean fatal = randomBoolean();
-        final AtomicBoolean primaryFailed = new AtomicBoolean();
+        final PlainActionFuture<Void> primaryFailedFuture = new PlainActionFuture<>();
         final ReplicationOperation.Primary<Request, Request, TestPrimary.Result> primary = new TestPrimary(
             primaryRouting,
             () -> initialReplicationGroup,
@@ -519,7 +521,10 @@ public class ReplicationOperationTests extends ESTestCase {
 
             @Override
             public void failShard(String message, Exception exception) {
-                primaryFailed.set(true);
+                assertNotSame(testThread, Thread.currentThread());
+                assertThat(Thread.currentThread().getName(), containsString('[' + ThreadPool.Names.WRITE + ']'));
+                assertTrue(fatal);
+                primaryFailedFuture.onResponse(null);
             }
 
             @Override
@@ -542,7 +547,10 @@ public class ReplicationOperationTests extends ESTestCase {
         TestReplicationOperation operation = new TestReplicationOperation(request, primary, listener, replicas, primaryTerm);
         operation.execute();
 
-        assertThat(primaryFailed.get(), equalTo(fatal));
+        if (fatal) {
+            primaryFailedFuture.get(10, TimeUnit.SECONDS);
+        }
+
         final ShardInfo shardInfo = listener.actionGet().getShardInfo();
         assertThat(shardInfo.getFailed(), equalTo(0));
         assertThat(shardInfo.getFailures(), arrayWithSize(0));
@@ -553,7 +561,9 @@ public class ReplicationOperationTests extends ESTestCase {
         Set<ShardRouting> expectedReplicas = new HashSet<>();
         String localNodeId = state.nodes().getLocalNodeId();
         if (state.routingTable().hasIndex(shardId.getIndexName())) {
-            for (ShardRouting shardRouting : state.routingTable().shardRoutingTable(shardId)) {
+            final IndexShardRoutingTable indexShardRoutingTable = state.routingTable().shardRoutingTable(shardId);
+            for (int copy = 0; copy < indexShardRoutingTable.size(); copy++) {
+                ShardRouting shardRouting = indexShardRoutingTable.shard(copy);
                 if (shardRouting.unassigned()) {
                     continue;
                 }

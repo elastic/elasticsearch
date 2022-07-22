@@ -1,6 +1,0 @@
-pr: 84341
-summary: Fix `DirectBlobContainerIndexInput` cloning method
-area: Snapshot/Restore
-type: bug
-issues:
- - 84238

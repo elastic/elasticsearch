@@ -19,7 +19,6 @@ import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -356,9 +355,6 @@ public class DateHistogramIT extends ESIntegTestCase {
             ZonedDateTime expectedKey = keyIterator.next();
             String bucketKey = bucket.getKeyAsString();
             String expectedBucketName = Long.toString(expectedKey.toInstant().toEpochMilli() / millisDivider);
-            if (JavaVersion.current().getVersion().get(0) == 8 && bucket.getKeyAsString().endsWith(".0")) {
-                expectedBucketName = expectedBucketName + ".0";
-            }
             assertThat(bucketKey, equalTo(expectedBucketName));
             assertThat(((ZonedDateTime) bucket.getKey()), equalTo(expectedKey));
             assertThat(bucket.getDocCount(), equalTo(1L));
@@ -1462,11 +1458,7 @@ public class DateHistogramIT extends ESIntegTestCase {
         assertSearchResponse(response);
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo.getBuckets().size(), equalTo(1));
-        if (JavaVersion.current().getVersion().get(0) == 8 && histo.getBuckets().get(0).getKeyAsString().endsWith(".0")) {
-            assertThat(histo.getBuckets().get(0).getKeyAsString(), equalTo("1477954800000.0"));
-        } else {
-            assertThat(histo.getBuckets().get(0).getKeyAsString(), equalTo("1477954800000"));
-        }
+        assertThat(histo.getBuckets().get(0).getKeyAsString(), equalTo("1477954800000"));
         assertThat(histo.getBuckets().get(0).getDocCount(), equalTo(1L));
 
         response = client().prepareSearch(index)

@@ -61,6 +61,7 @@ import static org.elasticsearch.packaging.util.docker.Docker.getImageLabels;
 import static org.elasticsearch.packaging.util.docker.Docker.getJson;
 import static org.elasticsearch.packaging.util.docker.Docker.listContents;
 import static org.elasticsearch.packaging.util.docker.Docker.mkDirWithPrivilegeEscalation;
+import static org.elasticsearch.packaging.util.docker.Docker.readinessProbe;
 import static org.elasticsearch.packaging.util.docker.Docker.removeContainer;
 import static org.elasticsearch.packaging.util.docker.Docker.restartContainer;
 import static org.elasticsearch.packaging.util.docker.Docker.rmDirWithPrivilegeEscalation;
@@ -70,7 +71,6 @@ import static org.elasticsearch.packaging.util.docker.Docker.verifyContainerInst
 import static org.elasticsearch.packaging.util.docker.Docker.waitForElasticsearch;
 import static org.elasticsearch.packaging.util.docker.DockerFileMatcher.file;
 import static org.elasticsearch.packaging.util.docker.DockerRun.builder;
-import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -201,7 +201,10 @@ public class DockerTests extends PackagingTestCase {
 
         // Stuff the proxy settings with garbage, so any attempt to go out to the internet would fail
         sh.getEnv()
-            .put("ES_JAVA_OPTS", "-Dhttp.proxyHost=example.org -Dhttp.proxyPort=9999 -Dhttps.proxyHost=example.org -Dhttps.proxyPort=9999");
+            .put(
+                "CLI_JAVA_OPTS",
+                "-Dhttp.proxyHost=example.org -Dhttp.proxyPort=9999 -Dhttps.proxyHost=example.org -Dhttps.proxyPort=9999"
+            );
         sh.run(bin.pluginTool + " install --batch analysis-icu");
 
         assertThat("Expected " + plugin + " to be installed", listPlugins(), hasItems(plugin));
@@ -227,7 +230,7 @@ public class DockerTests extends PackagingTestCase {
                 .volume(Path.of(EXAMPLE_PLUGIN_PATH), "/analysis-icu.zip")
                 .envVar("ELASTIC_PASSWORD", PASSWORD)
                 .envVar(
-                    "ES_JAVA_OPTS",
+                    "CLI_JAVA_OPTS",
                     "-Dhttp.proxyHost=example.org -Dhttp.proxyPort=9999 -Dhttps.proxyHost=example.org -Dhttps.proxyPort=9999"
                 )
         );
@@ -259,7 +262,7 @@ public class DockerTests extends PackagingTestCase {
             builder().volume(tempDir.resolve(filename), installation.config.resolve(filename))
                 .envVar("ELASTIC_PASSWORD", PASSWORD)
                 .envVar(
-                    "ES_JAVA_OPTS",
+                    "CLI_JAVA_OPTS",
                     "-Dhttp.proxyHost=example.org -Dhttp.proxyPort=9999 -Dhttps.proxyHost=example.org -Dhttps.proxyPort=9999"
                 )
         );
@@ -297,7 +300,7 @@ public class DockerTests extends PackagingTestCase {
                     .extraArgs("--link " + mockServer.getContainerId() + ":mockserver");
 
                 if (useConfigFile == false) {
-                    builder.envVar("ES_JAVA_OPTS", "-Dhttp.proxyHost=mockserver -Dhttp.proxyPort=" + mockServer.getPort());
+                    builder.envVar("CLI_JAVA_OPTS", "-Dhttp.proxyHost=mockserver -Dhttp.proxyPort=" + mockServer.getPort());
                 }
 
                 // Restart the container. This will sync plugins automatically, which will fail because
@@ -354,7 +357,7 @@ public class DockerTests extends PackagingTestCase {
             builder().volume(tempDir.resolve(filename), installation.config.resolve(filename))
                 .envVar("ELASTIC_PASSWORD", PASSWORD)
                 .envVar(
-                    "ES_JAVA_OPTS",
+                    "CLI_JAVA_OPTS",
                     "-Dhttp.proxyHost=example.org -Dhttp.proxyPort=9999 -Dhttps.proxyHost=example.org -Dhttps.proxyPort=9999"
                 )
         );
@@ -751,86 +754,6 @@ public class DockerTests extends PackagingTestCase {
     }
 
     /**
-     * Check that settings are applied when they are supplied as environment variables with names that are:
-     * <ul>
-     *     <li>Prefixed with {@code ES_SETTING_}</li>
-     *     <li>All uppercase</li>
-     *     <li>Dots (periods) are converted to underscores</li>
-     *     <li>Underscores in setting names are escaped by doubling them</li>
-     * </ul>
-     */
-    public void test086EnvironmentVariablesInSnakeCaseAreTranslated() {
-        // Note the double-underscore in the var name here, which retains the underscore in translation
-        installation = runContainer(distribution(), builder().envVar("ES_SETTING_XPACK_SECURITY_FIPS__MODE_ENABLED", "false"));
-
-        final Optional<String> commandLine = sh.run("bash -c 'COLUMNS=2000 ps ax'")
-            .stdout()
-            .lines()
-            .filter(line -> line.contains("org.elasticsearch.bootstrap.Elasticsearch"))
-            .findFirst();
-
-        assertThat(commandLine.isPresent(), equalTo(true));
-
-        assertThat(commandLine.get(), containsString("-Expack.security.fips_mode.enabled=false"));
-    }
-
-    /**
-     * Check that environment variables that do not match the criteria for translation to settings are ignored.
-     */
-    public void test087EnvironmentVariablesInIncorrectFormatAreIgnored() {
-        installation = runContainer(
-            distribution(),
-            builder()
-                // No ES_SETTING_ prefix
-                .envVar("XPACK_SECURITY_FIPS__MODE_ENABLED", "false")
-                // Incomplete prefix
-                .envVar("ES_XPACK_SECURITY_FIPS__MODE_ENABLED", "false")
-                // Not underscore-separated
-                .envVar("ES.SETTING.XPACK.SECURITY.FIPS_MODE.ENABLED", "false")
-                // Not uppercase
-                .envVar("es_setting_xpack_security_fips__mode_enabled", "false")
-        );
-
-        final Optional<String> commandLine = sh.run("bash -c 'COLUMNS=2000 ps ax'")
-            .stdout()
-            .lines()
-            .filter(line -> line.contains("org.elasticsearch.bootstrap.Elasticsearch"))
-            .findFirst();
-
-        assertThat(commandLine.isPresent(), equalTo(true));
-
-        assertThat(commandLine.get(), not(containsString("-Expack.security.fips_mode.enabled=false")));
-    }
-
-    /**
-     * Check that settings are applied when they are supplied as environment variables with names that:
-     * <ul>
-     *     <li>Consist only of lowercase letters, numbers, underscores and hyphens</li>
-     *     <li>Separated by periods</li>
-     * </ul>
-     */
-    public void test088EnvironmentVariablesInDottedFormatArePassedThrough() {
-        // Note the double-underscore in the var name here, which retains the underscore in translation
-        installation = runContainer(
-            distribution(),
-            builder().envVar("xpack.security.fips_mode.enabled", "false").envVar("http.cors.allow-methods", "GET")
-        );
-
-        final Optional<String> commandLine = sh.run("bash -c 'COLUMNS=2000 ps ax'")
-            .stdout()
-            .lines()
-            .filter(line -> line.contains("org.elasticsearch.bootstrap.Elasticsearch"))
-            .findFirst();
-
-        assertThat(commandLine.isPresent(), equalTo(true));
-
-        assertThat(
-            commandLine.get(),
-            allOf(containsString("-Expack.security.fips_mode.enabled=false"), containsString("-Ehttp.cors.allow-methods=GET"))
-        );
-    }
-
-    /**
      * Check whether the elasticsearch-certutil tool has been shipped correctly,
      * and if present then it can execute.
      */
@@ -1036,13 +959,16 @@ public class DockerTests extends PackagingTestCase {
      * Check that the Java process running inside the container has the expected UID, GID and username.
      */
     public void test130JavaHasCorrectOwnership() {
-        final ProcessInfo info = ProcessInfo.getProcessInfo(sh, "java");
+        final List<ProcessInfo> infos = ProcessInfo.getProcessInfo(sh, "java");
+        assertThat(infos, hasSize(2));
 
-        assertThat("Incorrect UID", info.uid(), equalTo(1000));
-        assertThat("Incorrect username", info.username(), equalTo("elasticsearch"));
+        for (ProcessInfo info : infos) {
+            assertThat("Incorrect UID", info.uid(), equalTo(1000));
+            assertThat("Incorrect username", info.username(), equalTo("elasticsearch"));
 
-        assertThat("Incorrect GID", info.gid(), equalTo(0));
-        assertThat("Incorrect group", info.group(), equalTo("root"));
+            assertThat("Incorrect GID", info.gid(), equalTo(0));
+            assertThat("Incorrect group", info.group(), equalTo("root"));
+        }
     }
 
     /**
@@ -1050,7 +976,9 @@ public class DockerTests extends PackagingTestCase {
      * The PID is particularly important because PID 1 handles signal forwarding and child reaping.
      */
     public void test131InitProcessHasCorrectPID() {
-        final ProcessInfo info = ProcessInfo.getProcessInfo(sh, "tini");
+        final List<ProcessInfo> infos = ProcessInfo.getProcessInfo(sh, "tini");
+        assertThat(infos, hasSize(1));
+        ProcessInfo info = infos.get(0);
 
         assertThat("Incorrect PID", info.pid(), equalTo(1));
 
@@ -1169,6 +1097,23 @@ public class DockerTests extends PackagingTestCase {
     }
 
     /**
+     * Ensure that it is possible to apply CLI options when running the image.
+     */
+    public void test171AdditionalCliOptionsAreForwarded() throws Exception {
+        assumeTrue(
+            "Does not apply to Cloud images, because they don't use the default entrypoint",
+            distribution.packaging != Packaging.DOCKER_CLOUD && distribution().packaging != Packaging.DOCKER_CLOUD_ESS
+        );
+
+        runContainer(distribution(), builder().runArgs("bin/elasticsearch", "-Ecluster.name=kimchy").envVar("ELASTIC_PASSWORD", PASSWORD));
+        waitForElasticsearch(installation, "elastic", PASSWORD);
+
+        final JsonNode node = getJson("/", "elastic", PASSWORD, ServerUtils.getCaCert(installation));
+
+        assertThat(node.get("cluster_name").textValue(), equalTo("kimchy"));
+    }
+
+    /**
      * Check that the UBI images has the correct license information in the correct place.
      */
     public void test200UbiImagesHaveLicenseDirectory() {
@@ -1260,5 +1205,19 @@ public class DockerTests extends PackagingTestCase {
     private List<String> listPlugins() {
         final Installation.Executables bin = installation.executables();
         return sh.run(bin.pluginTool + " list").stdout().lines().collect(Collectors.toList());
+    }
+
+    /**
+     * Check that readiness listener works
+     */
+    public void test500Readiness() throws Exception {
+        assertFalse(readinessProbe(9399));
+        // Disabling security so we wait for green
+        installation = runContainer(
+            distribution(),
+            builder().envVar("readiness.port", "9399").envVar("xpack.security.enabled", "false").envVar("discovery.type", "single-node")
+        );
+        waitForElasticsearch(installation);
+        assertTrue(readinessProbe(9399));
     }
 }

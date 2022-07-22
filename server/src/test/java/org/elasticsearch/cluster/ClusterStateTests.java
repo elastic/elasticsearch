@@ -27,10 +27,10 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
@@ -101,10 +101,9 @@ public class ClusterStateTests extends ESTestCase {
     public void testBuilderRejectsNullInCustoms() {
         final ClusterState.Builder builder = ClusterState.builder(ClusterName.DEFAULT);
         final String key = randomAlphaOfLength(10);
-        final ImmutableOpenMap.Builder<String, ClusterState.Custom> mapBuilder = ImmutableOpenMap.builder();
-        mapBuilder.put(key, null);
-        final ImmutableOpenMap<String, ClusterState.Custom> map = mapBuilder.build();
-        assertThat(expectThrows(NullPointerException.class, () -> builder.customs(map)).getMessage(), containsString(key));
+        final Map<String, ClusterState.Custom> customs = new HashMap<>();
+        customs.put(key, null);
+        assertThat(expectThrows(NullPointerException.class, () -> builder.customs(customs)).getMessage(), containsString(key));
     }
 
     public void testCopyAndUpdate() throws IOException {
@@ -133,7 +132,7 @@ public class ClusterStateTests extends ESTestCase {
         IndexRoutingTable index = clusterState.getRoutingTable().getIndicesRouting().get("index");
 
         String ephemeralId = clusterState.getNodes().get("nodeId1").getEphemeralId();
-        String allocationId = index.getShards().get(1).getAllAllocationIds().iterator().next();
+        String allocationId = index.shard(0).getAllAllocationIds().iterator().next();
 
         XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
@@ -180,6 +179,7 @@ public class ClusterStateTests extends ESTestCase {
                   "name": "",
                   "ephemeral_id": "%s",
                   "transport_address": "127.0.0.1:111",
+                  "external_id": "",
                   "attributes": {},
                   "roles": [
                     "data",
@@ -284,19 +284,20 @@ public class ClusterStateTests extends ESTestCase {
                 },
                 "index-graveyard": {
                   "tombstones": []
-                }
+                },
+                "reserved_state" : { }
               },
               "routing_table": {
                 "indices": {
                   "index": {
                     "shards": {
-                      "1": [
+                      "0": [
                         {
                           "state": "STARTED",
                           "primary": true,
                           "node": "nodeId2",
                           "relocating_node": null,
-                          "shard": 1,
+                          "shard": 0,
                           "index": "index",
                           "allocation_id": {
                             "id": "%s"
@@ -316,7 +317,7 @@ public class ClusterStateTests extends ESTestCase {
                       "primary": true,
                       "node": "nodeId2",
                       "relocating_node": null,
-                      "shard": 1,
+                      "shard": 0,
                       "index": "index",
                       "allocation_id": {
                         "id": "%s"
@@ -343,7 +344,7 @@ public class ClusterStateTests extends ESTestCase {
         IndexRoutingTable index = clusterState.getRoutingTable().getIndicesRouting().get("index");
 
         String ephemeralId = clusterState.getNodes().get("nodeId1").getEphemeralId();
-        String allocationId = index.getShards().get(1).getAllAllocationIds().iterator().next();
+        String allocationId = index.shard(0).getAllAllocationIds().iterator().next();
 
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         builder.startObject();
@@ -390,6 +391,7 @@ public class ClusterStateTests extends ESTestCase {
                   "name" : "",
                   "ephemeral_id" : "%s",
                   "transport_address" : "127.0.0.1:111",
+                  "external_id" : "",
                   "attributes" : { },
                   "roles" : [
                     "data",
@@ -486,19 +488,20 @@ public class ClusterStateTests extends ESTestCase {
                 },
                 "index-graveyard" : {
                   "tombstones" : [ ]
-                }
+                },
+                "reserved_state" : { }
               },
               "routing_table" : {
                 "indices" : {
                   "index" : {
                     "shards" : {
-                      "1" : [
+                      "0" : [
                         {
                           "state" : "STARTED",
                           "primary" : true,
                           "node" : "nodeId2",
                           "relocating_node" : null,
-                          "shard" : 1,
+                          "shard" : 0,
                           "index" : "index",
                           "allocation_id" : {
                             "id" : "%s"
@@ -518,7 +521,7 @@ public class ClusterStateTests extends ESTestCase {
                       "primary" : true,
                       "node" : "nodeId2",
                       "relocating_node" : null,
-                      "shard" : 1,
+                      "shard" : 0,
                       "index" : "index",
                       "allocation_id" : {
                         "id" : "%s"
@@ -546,7 +549,7 @@ public class ClusterStateTests extends ESTestCase {
         IndexRoutingTable index = clusterState.getRoutingTable().getIndicesRouting().get("index");
 
         String ephemeralId = clusterState.getNodes().get("nodeId1").getEphemeralId();
-        String allocationId = index.getShards().get(1).getAllAllocationIds().iterator().next();
+        String allocationId = index.shard(0).getAllAllocationIds().iterator().next();
 
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         builder.startObject();
@@ -593,6 +596,7 @@ public class ClusterStateTests extends ESTestCase {
                   "name" : "",
                   "ephemeral_id" : "%s",
                   "transport_address" : "127.0.0.1:111",
+                  "external_id" : "",
                   "attributes" : { },
                   "roles" : [
                     "data",
@@ -695,19 +699,20 @@ public class ClusterStateTests extends ESTestCase {
                 },
                 "index-graveyard" : {
                   "tombstones" : [ ]
-                }
+                },
+                "reserved_state" : { }
               },
               "routing_table" : {
                 "indices" : {
                   "index" : {
                     "shards" : {
-                      "1" : [
+                      "0" : [
                         {
                           "state" : "STARTED",
                           "primary" : true,
                           "node" : "nodeId2",
                           "relocating_node" : null,
-                          "shard" : 1,
+                          "shard" : 0,
                           "index" : "index",
                           "allocation_id" : {
                             "id" : "%s"
@@ -727,7 +732,7 @@ public class ClusterStateTests extends ESTestCase {
                       "primary" : true,
                       "node" : "nodeId2",
                       "relocating_node" : null,
-                      "shard" : 1,
+                      "shard" : 0,
                       "index" : "index",
                       "allocation_id" : {
                         "id" : "%s"
@@ -836,7 +841,8 @@ public class ClusterStateTests extends ESTestCase {
                 },
                 "index-graveyard" : {
                   "tombstones" : [ ]
-                }
+                },
+                "reserved_state" : { }
               },
               "routing_table" : {
                 "indices" : { }
@@ -937,19 +943,32 @@ public class ClusterStateTests extends ESTestCase {
                     .add(
                         IndexRoutingTable.builder(new Index("index", "indexUUID"))
                             .addIndexShard(
-                                new IndexShardRoutingTable.Builder(new ShardId("index", "indexUUID", 1)).addShard(
+                                new IndexShardRoutingTable.Builder(new ShardId("index", "indexUUID", 0)).addShard(
                                     TestShardRouting.newShardRouting(
-                                        new ShardId("index", "indexUUID", 1),
+                                        new ShardId("index", "indexUUID", 0),
                                         "nodeId2",
                                         true,
                                         ShardRoutingState.STARTED
                                     )
-                                ).build()
+                                )
                             )
                             .build()
                     )
                     .build()
             )
             .build();
+    }
+
+    public void testNodesIfRecovered() throws IOException {
+        final var initialState = buildClusterState();
+
+        final var recoveredState = ClusterState.builder(initialState).blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK).build();
+        assertEquals(1, recoveredState.nodes().size());
+        assertEquals(recoveredState.nodes(), recoveredState.nodesIfRecovered());
+
+        final var notRecoveredState = ClusterState.builder(initialState)
+            .blocks(ClusterBlocks.builder().addGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK))
+            .build();
+        assertEquals(DiscoveryNodes.EMPTY_NODES, notRecoveredState.nodesIfRecovered());
     }
 }

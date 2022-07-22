@@ -13,8 +13,7 @@ reduces the volume of data that must be considered while detecting anomalies.
 
 TIP: If you use a terms aggregation and the cardinality of a term is high but
 still significantly less than your total number of documents, use
-{ref}/search-aggregations-bucket-composite-aggregation.html[composite aggregations]
-experimental:[Support for composite aggregations inside datafeeds is currently experimental].
+{ref}/search-aggregations-bucket-composite-aggregation.html[composite aggregations].
 
 [discrete]
 [[aggs-limits-dfeeds]]
@@ -78,7 +77,7 @@ PUT _ml/anomaly_detectors/farequote
   },
   "data_description": {
     "time_field":"time"  <1>
-  }, 
+  },
   "datafeed_config":{
     "indices": ["farequote"],
     "aggregations": {
@@ -137,8 +136,6 @@ includes all the values of the field instead of the top values per bucket.
 [[aggs-using-composite]]
 === Using composite aggregations in {anomaly-jobs}
 
-experimental::[]
-
 For `composite` aggregation support, there must be exactly one `date_histogram` value
 source. That value source must not be sorted in descending order. Additional
 `composite` aggregation value sources are allowed, such as `terms`.
@@ -147,7 +144,7 @@ NOTE: A {dfeed} that uses composite aggregations may not be as performant as
 {dfeeds} that use scrolling or date histogram aggregations. Composite
 aggregations are optimized for queries that are either `match_all` or `range`
 filters. Other types of
-queries may cause the `composite` aggregation to be ineffecient.
+queries may cause the `composite` aggregation to be inefficient.
 
 Here is an example that uses a `composite` aggregation instead of a
 `date_histogram`.
@@ -429,8 +426,7 @@ different values of a field.
 
 IMPORTANT: If you use a terms aggregation, by default it returns buckets for
 the top ten terms. Thus if the cardinality of the term is greater than 10, not
-all terms are analyzed. In this case, consider using `composite` aggregations
-experimental:[Support for composite aggregations inside datafeeds is currently experimental].
+all terms are analyzed. In this case, consider using `composite` aggregations.
 
 You can change this behavior by setting the `size` parameter. To
 determine the cardinality of your data, you can run searches such as:

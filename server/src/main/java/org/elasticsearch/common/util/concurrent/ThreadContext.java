@@ -18,6 +18,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.http.HttpTransportSettings;
 
@@ -25,18 +26,13 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.BiConsumer;
-import java.util.function.BinaryOperator;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.stream.Collector;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_COUNT;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_SIZE;
@@ -111,8 +107,17 @@ public final class ThreadContext implements Writeable {
          * Otherwise when context is stash, it should be empty.
          */
 
-        if (HEADERS_TO_COPY.stream().anyMatch(header -> context.requestHeaders.containsKey(header))) {
-            Map<String, String> map = headers(context, HEADERS_TO_COPY);
+        boolean hasHeadersToCopy = false;
+        if (context.requestHeaders.isEmpty() == false) {
+            for (String header : HEADERS_TO_COPY) {
+                if (context.requestHeaders.containsKey(header)) {
+                    hasHeadersToCopy = true;
+                    break;
+                }
+            }
+        }
+        if (hasHeadersToCopy) {
+            Map<String, String> map = headers(context);
             ThreadContextStruct threadContextStruct = DEFAULT_CONTEXT.putHeaders(map);
             threadLocal.set(threadContextStruct);
         } else {
@@ -126,11 +131,12 @@ public final class ThreadContext implements Writeable {
         };
     }
 
-    private Map<String, String> headers(ThreadContextStruct context, Set<String> headersToCopy) {
-        Map<String, String> map = Maps.newMapWithExpectedSize(headersToCopy.size());
-        for (String header : headersToCopy) {
-            if (context.requestHeaders.containsKey(header)) {
-                map.put(header, context.requestHeaders.get(header));
+    private static Map<String, String> headers(ThreadContextStruct context) {
+        Map<String, String> map = Maps.newMapWithExpectedSize(org.elasticsearch.tasks.Task.HEADERS_TO_COPY.size());
+        for (String header : org.elasticsearch.tasks.Task.HEADERS_TO_COPY) {
+            final String value = context.requestHeaders.get(header);
+            if (value != null) {
+                map.put(header, value);
             }
         }
         return map;
@@ -301,7 +307,7 @@ public final class ThreadContext implements Writeable {
                 return Collections.singleton(input.readString());
             } else {
                 // use a linked hash set to preserve order
-                final LinkedHashSet<String> values = new LinkedHashSet<>(size);
+                final LinkedHashSet<String> values = Sets.newLinkedHashSetWithExpectedSize(size);
                 for (int i = 0; i < size; i++) {
                     final String value = input.readString();
                     final boolean added = values.add(value);
@@ -440,7 +446,7 @@ public final class ThreadContext implements Writeable {
     /**
      * Unwraps a command that was previously wrapped by {@link #preserveContext(Runnable)}.
      */
-    public Runnable unwrap(Runnable command) {
+    public static Runnable unwrap(Runnable command) {
         if (command instanceof WrappedRunnable) {
             return ((WrappedRunnable) command).unwrap();
         }
@@ -482,13 +488,13 @@ public final class ThreadContext implements Writeable {
     public static Map<String, String> buildDefaultHeaders(Settings settings) {
         Settings headers = DEFAULT_HEADERS_SETTING.get(settings);
         if (headers == null) {
-            return Collections.emptyMap();
+            return Map.of();
         } else {
             Map<String, String> defaultHeader = new HashMap<>();
             for (String key : headers.names()) {
                 defaultHeader.put(key, headers.get(key));
             }
-            return Collections.unmodifiableMap(defaultHeader);
+            return Map.copyOf(defaultHeader);
         }
     }
 
@@ -521,11 +527,7 @@ public final class ThreadContext implements Writeable {
             Map<String, Object> transientHeaders,
             boolean isSystemContext
         ) {
-            this.requestHeaders = requestHeaders;
-            this.responseHeaders = responseHeaders;
-            this.transientHeaders = transientHeaders;
-            this.isSystemContext = isSystemContext;
-            this.warningHeadersSize = 0L;
+            this(requestHeaders, responseHeaders, transientHeaders, isSystemContext, 0L);
         }
 
         private ThreadContextStruct(
@@ -580,15 +582,11 @@ public final class ThreadContext implements Writeable {
             }
             final Map<String, Set<String>> newResponseHeaders = new HashMap<>(this.responseHeaders);
             for (Map.Entry<String, Set<String>> entry : headers.entrySet()) {
-                String key = entry.getKey();
-                final Set<String> existingValues = newResponseHeaders.get(key);
-                if (existingValues != null) {
-                    final Set<String> newValues = Stream.concat(entry.getValue().stream(), existingValues.stream())
-                        .collect(LINKED_HASH_SET_COLLECTOR);
-                    newResponseHeaders.put(key, Collections.unmodifiableSet(newValues));
-                } else {
-                    newResponseHeaders.put(key, entry.getValue());
-                }
+                newResponseHeaders.merge(entry.getKey(), entry.getValue(), (existing, added) -> {
+                    final Set<String> updated = new LinkedHashSet<>(added);
+                    updated.addAll(existing);
+                    return Collections.unmodifiableSet(updated);
+                });
             }
             return new ThreadContextStruct(requestHeaders, newResponseHeaders, transientHeaders, isSystemContext);
         }
@@ -635,16 +633,16 @@ public final class ThreadContext implements Writeable {
 
             final Map<String, Set<String>> newResponseHeaders;
             final Set<String> existingValues = responseHeaders.get(key);
+            if (existingValues != null && existingValues.contains(uniqueValue.apply(value))) {
+                return this;
+            }
+            newResponseHeaders = new HashMap<>(responseHeaders);
             if (existingValues != null) {
-                if (existingValues.contains(uniqueValue.apply(value))) {
-                    return this;
-                }
                 // preserve insertion order
-                final Set<String> newValues = Stream.concat(existingValues.stream(), Stream.of(value)).collect(LINKED_HASH_SET_COLLECTOR);
-                newResponseHeaders = new HashMap<>(responseHeaders);
+                final Set<String> newValues = new LinkedHashSet<>(existingValues);
+                newValues.add(value);
                 newResponseHeaders.put(key, Collections.unmodifiableSet(newValues));
             } else {
-                newResponseHeaders = new HashMap<>(responseHeaders);
                 newResponseHeaders.put(key, Collections.singleton(value));
             }
 
@@ -688,12 +686,7 @@ public final class ThreadContext implements Writeable {
                 requestHeaders.putAll(this.requestHeaders);
             }
 
-            out.writeVInt(requestHeaders.size());
-            for (Map.Entry<String, String> entry : requestHeaders.entrySet()) {
-                out.writeString(entry.getKey());
-                out.writeString(entry.getValue());
-            }
-
+            out.writeMap(requestHeaders, StreamOutput::writeString, StreamOutput::writeString);
             out.writeMap(responseHeaders, StreamOutput::writeString, StreamOutput::writeStringCollection);
         }
     }
@@ -784,42 +777,6 @@ public final class ThreadContext implements Writeable {
         @Override
         public AbstractRunnable unwrap() {
             return in;
-        }
-    }
-
-    private static final Collector<String, Set<String>, Set<String>> LINKED_HASH_SET_COLLECTOR = new LinkedHashSetCollector<>();
-
-    private static class LinkedHashSetCollector<T> implements Collector<T, Set<T>, Set<T>> {
-        @Override
-        public Supplier<Set<T>> supplier() {
-            return LinkedHashSet::new;
-        }
-
-        @Override
-        public BiConsumer<Set<T>, T> accumulator() {
-            return Set::add;
-        }
-
-        @Override
-        public BinaryOperator<Set<T>> combiner() {
-            return (left, right) -> {
-                left.addAll(right);
-                return left;
-            };
-        }
-
-        @Override
-        public Function<Set<T>, Set<T>> finisher() {
-            return Function.identity();
-        }
-
-        private static final Set<Characteristics> CHARACTERISTICS = Collections.unmodifiableSet(
-            EnumSet.of(Collector.Characteristics.IDENTITY_FINISH)
-        );
-
-        @Override
-        public Set<Characteristics> characteristics() {
-            return CHARACTERISTICS;
         }
     }
 

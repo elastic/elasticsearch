@@ -25,6 +25,8 @@ import java.util.function.Function;
  */
 public abstract class AbstractObjectParser<Value, Context> {
 
+    protected AbstractObjectParser() {}
+
     /**
      * Declare some field. Usually it is easier to use {@link #declareString(BiConsumer, ParseField)} or
      * {@link #declareObject(BiConsumer, ContextParser, ParseField)} rather than call this directly.
@@ -248,7 +250,7 @@ public abstract class AbstractObjectParser<Value, Context> {
     }
 
     /**
-     * Declare a double field that parses explicit {@code null}s in the json to a default value.
+     * Declare an integer field that parses explicit {@code null}s in the json to a default value.
      */
     public void declareIntOrNull(BiConsumer<Value, Integer> consumer, int nullValue, ParseField field) {
         declareField(

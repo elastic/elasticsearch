@@ -18,7 +18,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.seqno.ReplicationTracker;
@@ -106,7 +106,7 @@ public class NoOpEngineTests extends EngineTestCase {
             int deletions = 0;
             try (InternalEngine engine = createEngine(config)) {
                 for (int i = 0; i < numDocs; i++) {
-                    engine.index(indexForDoc(createParsedDoc(Integer.toString(i), null)));
+                    engine.index(indexForDoc(createParsedDoc(Integer.toString(i), idFieldType, null)));
                     if (rarely()) {
                         engine.flush();
                     }
@@ -166,7 +166,7 @@ public class NoOpEngineTests extends EngineTestCase {
         int totalTranslogOps = 0;
         for (int i = 0; i < numDocs; i++) {
             totalTranslogOps++;
-            engine.index(indexForDoc(createParsedDoc(Integer.toString(i), null)));
+            engine.index(indexForDoc(createParsedDoc(Integer.toString(i), idFieldType, null)));
             tracker.updateLocalCheckpoint(allocationId.getId(), i);
             if (rarely()) {
                 totalTranslogOps = 0;

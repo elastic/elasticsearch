@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.vectortile.rest;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.geo.SimpleVectorTileFormatter;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.geometry.Rectangle;
@@ -32,7 +33,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 import static java.util.Collections.emptyList;
@@ -52,25 +52,13 @@ class VectorTileRequest {
     protected static final String X_PARAM = "x";
     protected static final String Y_PARAM = "y";
 
-    protected static final ParseField GRID_PRECISION_FIELD = new ParseField("grid_precision");
+    protected static final ParseField GRID_AGG_FIELD = new ParseField("grid_agg");
     protected static final ParseField GRID_TYPE_FIELD = new ParseField("grid_type");
+    protected static final ParseField GRID_PRECISION_FIELD = new ParseField("grid_precision");
     protected static final ParseField EXTENT_FIELD = new ParseField("extent");
+    protected static final ParseField BUFFER_FIELD = new ParseField("buffer");
     protected static final ParseField EXACT_BOUNDS_FIELD = new ParseField("exact_bounds");
-
-    protected enum GRID_TYPE {
-        GRID,
-        POINT,
-        CENTROID;
-
-        private static GRID_TYPE fromString(String type) {
-            return switch (type.toLowerCase(Locale.ROOT)) {
-                case "grid" -> GRID;
-                case "point" -> POINT;
-                case "centroid" -> CENTROID;
-                default -> throw new IllegalArgumentException("Invalid grid type [" + type + "]");
-            };
-        }
-    }
+    protected static final ParseField WITH_LABELS_FIELD = new ParseField("with_labels");
 
     protected static class Defaults {
         public static final int SIZE = 10000;
@@ -78,10 +66,13 @@ class VectorTileRequest {
         public static final Map<String, Object> RUNTIME_MAPPINGS = emptyMap();
         public static final QueryBuilder QUERY = null;
         public static final List<MetricsAggregationBuilder<?, ?>> AGGS = emptyList();
+        public static final GridAggregation GRID_AGG = GridAggregation.GEOTILE;
         public static final int GRID_PRECISION = 8;
-        public static final GRID_TYPE GRID_TYPE = VectorTileRequest.GRID_TYPE.GRID;
-        public static final int EXTENT = 4096;
+        public static final GridType GRID_TYPE = GridType.GRID;
+        public static final int EXTENT = SimpleVectorTileFormatter.DEFAULT_EXTENT;
+        public static final int BUFFER = SimpleVectorTileFormatter.DEFAULT_BUFFER_PIXELS;
         public static final boolean EXACT_BOUNDS = false;
+        public static final boolean WITH_LABELS = false;
         public static final int TRACK_TOTAL_HITS_UP_TO = DEFAULT_TRACK_TOTAL_HITS_UP_TO;
     }
 
@@ -122,10 +113,13 @@ class VectorTileRequest {
             ObjectParser.ValueType.OBJECT_ARRAY
         );
         // Specific for vector tiles
+        PARSER.declareString(VectorTileRequest::setGridAgg, GRID_AGG_FIELD);
         PARSER.declareInt(VectorTileRequest::setGridPrecision, GRID_PRECISION_FIELD);
         PARSER.declareString(VectorTileRequest::setGridType, GRID_TYPE_FIELD);
         PARSER.declareInt(VectorTileRequest::setExtent, EXTENT_FIELD);
+        PARSER.declareInt(VectorTileRequest::setBuffer, BUFFER_FIELD);
         PARSER.declareBoolean(VectorTileRequest::setExactBounds, EXACT_BOUNDS_FIELD);
+        PARSER.declareBoolean(VectorTileRequest::setWithLabels, WITH_LABELS_FIELD);
         PARSER.declareField(VectorTileRequest::setTrackTotalHitsUpTo, (p) -> {
             XContentParser.Token token = p.currentToken();
             if (token == XContentParser.Token.VALUE_BOOLEAN
@@ -161,11 +155,20 @@ class VectorTileRequest {
         if (restRequest.hasParam(EXTENT_FIELD.getPreferredName())) {
             request.setExtent(restRequest.paramAsInt(EXTENT_FIELD.getPreferredName(), Defaults.EXTENT));
         }
+        if (restRequest.hasParam(BUFFER_FIELD.getPreferredName())) {
+            request.setBuffer(restRequest.paramAsInt(BUFFER_FIELD.getPreferredName(), Defaults.BUFFER));
+        }
+        if (restRequest.hasParam(GRID_AGG_FIELD.getPreferredName())) {
+            request.setGridAgg(restRequest.param(GRID_AGG_FIELD.getPreferredName(), Defaults.GRID_AGG.name()));
+        }
         if (restRequest.hasParam(GRID_TYPE_FIELD.getPreferredName())) {
             request.setGridType(restRequest.param(GRID_TYPE_FIELD.getPreferredName(), Defaults.GRID_TYPE.name()));
         }
         if (restRequest.hasParam(EXACT_BOUNDS_FIELD.getPreferredName())) {
             request.setExactBounds(restRequest.paramAsBoolean(EXACT_BOUNDS_FIELD.getPreferredName(), Defaults.EXACT_BOUNDS));
+        }
+        if (restRequest.hasParam(WITH_LABELS_FIELD.getPreferredName())) {
+            request.setWithLabels(restRequest.paramAsBoolean(WITH_LABELS_FIELD.getPreferredName(), Defaults.WITH_LABELS));
         }
         if (restRequest.hasParam(SearchSourceBuilder.TRACK_TOTAL_HITS_FIELD.getPreferredName())) {
             if (Booleans.isBoolean(restRequest.param(SearchSourceBuilder.TRACK_TOTAL_HITS_FIELD.getPreferredName()))) {
@@ -200,13 +203,16 @@ class VectorTileRequest {
     private QueryBuilder queryBuilder = Defaults.QUERY;
     private Map<String, Object> runtimeMappings = Defaults.RUNTIME_MAPPINGS;
     private int gridPrecision = Defaults.GRID_PRECISION;
-    private GRID_TYPE gridType = Defaults.GRID_TYPE;
+    private GridAggregation gridAgg = Defaults.GRID_AGG;
+    private GridType gridType = Defaults.GRID_TYPE;
     private int size = Defaults.SIZE;
     private int extent = Defaults.EXTENT;
+    private int buffer = Defaults.BUFFER;
     private List<MetricsAggregationBuilder<?, ?>> aggs = Defaults.AGGS;
     private List<FieldAndFormat> fields = Defaults.FETCH;
     private List<SortBuilder<?>> sortBuilders;
     private boolean exact_bounds = Defaults.EXACT_BOUNDS;
+    private boolean with_labels = Defaults.WITH_LABELS;
     private int trackTotalHitsUpTo = Defaults.TRACK_TOTAL_HITS_UP_TO;
 
     private VectorTileRequest(String[] indexes, String field, int z, int x, int y) {
@@ -254,12 +260,31 @@ class VectorTileRequest {
         this.extent = extent;
     }
 
+    public int getBuffer() {
+        return buffer;
+    }
+
+    private void setBuffer(int buffer) {
+        if (buffer < 0) {
+            throw new IllegalArgumentException("[buffer] parameter cannot be negative, found [" + buffer + "]");
+        }
+        this.buffer = buffer;
+    }
+
     public boolean getExactBounds() {
         return exact_bounds;
     }
 
     private void setExactBounds(boolean exact_bounds) {
         this.exact_bounds = exact_bounds;
+    }
+
+    public boolean getWithLabels() {
+        return with_labels;
+    }
+
+    private void setWithLabels(boolean with_labels) {
+        this.with_labels = with_labels;
     }
 
     public List<FieldAndFormat> getFieldAndFormats() {
@@ -301,12 +326,20 @@ class VectorTileRequest {
         this.gridPrecision = gridPrecision;
     }
 
-    public GRID_TYPE getGridType() {
+    public GridAggregation getGridAgg() {
+        return gridAgg;
+    }
+
+    private void setGridAgg(String gridAgg) {
+        this.gridAgg = GridAggregation.fromString(gridAgg);
+    }
+
+    public GridType getGridType() {
         return gridType;
     }
 
     private void setGridType(String gridType) {
-        this.gridType = GRID_TYPE.fromString(gridType);
+        this.gridType = GridType.fromString(gridType);
     }
 
     public int getSize() {

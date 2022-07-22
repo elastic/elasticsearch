@@ -173,7 +173,6 @@ public class IndicesWriteLoadTrackerIT extends ESIntegTestCase {
         indexDocs(dataStreams.get(0), 4);
         long timestampAfterDataStreamsCreation = System.currentTimeMillis();
 
-        Thread.sleep(4000);
         ensureIndicesWriteLoadIndexIsSearchable();
 
         assertBusy(() -> {
@@ -274,6 +273,10 @@ public class IndicesWriteLoadTrackerIT extends ESIntegTestCase {
                 );
             }
         }, 20, TimeUnit.SECONDS);
+    }
+
+    public void testWriteLoadIsCollectedAtNodeLevel() {
+        // TODO: implement
     }
 
     private String createDataStreamWithSleepingAnalyzer() throws Exception {

@@ -9,61 +9,73 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.lucene.search.ReferenceManager;
+import org.elasticsearch.common.RunningTimeRecorder;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.index.bulk.stats.BulkLoadTracker;
 
 import java.io.IOException;
 import java.util.function.LongSupplier;
 
 public class WriteLoadTracker implements ReferenceManager.RefreshListener {
-    public static final WriteLoadTracker NO_OP = new WriteLoadTracker(BulkLoadTracker.NO_OP, BulkLoadTracker.NO_OP, BulkLoadTracker.NO_OP);
-    private final BulkLoadTracker bulkLoadTracker;
-    private final BulkLoadTracker mergeLoadTracker;
-    private final BulkLoadTracker refreshLoadTracker;
+    public static final WriteLoadTracker NO_OP = new WriteLoadTracker(
+        RunningTimeRecorder.NO_OP,
+        RunningTimeRecorder.NO_OP,
+        RunningTimeRecorder.NO_OP
+    );
+    private final RunningTimeRecorder bulkTimeRecorder;
+    private final RunningTimeRecorder mergeTimeRecorder;
+    private final RunningTimeRecorder refreshTimeRecorder;
 
     private volatile Releasable onGoingRefresh;
 
     public WriteLoadTracker(LongSupplier relativeTimeSupplier) {
         this(
-            new BulkLoadTracker(relativeTimeSupplier),
-            new BulkLoadTracker(relativeTimeSupplier),
-            new BulkLoadTracker(relativeTimeSupplier)
+            new RunningTimeRecorder(relativeTimeSupplier),
+            new RunningTimeRecorder(relativeTimeSupplier),
+            new RunningTimeRecorder(relativeTimeSupplier)
         );
     }
 
-    private WriteLoadTracker(BulkLoadTracker bulkLoadTracker, BulkLoadTracker mergeLoadTracker, BulkLoadTracker refreshLoadTracker) {
-        this.bulkLoadTracker = bulkLoadTracker;
-        this.mergeLoadTracker = mergeLoadTracker;
-        this.refreshLoadTracker = refreshLoadTracker;
+    private WriteLoadTracker(
+        RunningTimeRecorder bulkTimeRecorder,
+        RunningTimeRecorder mergeTimeRecorder,
+        RunningTimeRecorder refreshTimeRecorder
+    ) {
+        this.bulkTimeRecorder = bulkTimeRecorder;
+        this.mergeTimeRecorder = mergeTimeRecorder;
+        this.refreshTimeRecorder = refreshTimeRecorder;
     }
 
     public Releasable startTrackingBulkLoad() {
-        return bulkLoadTracker.trackWriteLoad();
+        return bulkTimeRecorder.trackRunningTime();
     }
 
     public long totalBulkTimeInNanos() {
-        return bulkLoadTracker.totalIndexingTimeInNanos();
+        return bulkTimeRecorder.totalRunningTimeInNanos();
     }
 
     Releasable startTrackingMergeLoad() {
-        return mergeLoadTracker.trackWriteLoad();
+        return mergeTimeRecorder.trackRunningTime();
     }
 
     public long totalMergeTimeInNanos() {
-        return mergeLoadTracker.totalIndexingTimeInNanos();
+        return mergeTimeRecorder.totalRunningTimeInNanos();
     }
 
     @Override
     public void beforeRefresh() throws IOException {
-        onGoingRefresh = refreshLoadTracker.trackWriteLoad();
+        onGoingRefresh = refreshTimeRecorder.trackRunningTime();
     }
 
     @Override
     public void afterRefresh(boolean didRefresh) throws IOException {
-        onGoingRefresh.close();
+        Releasable refreshReleasable = onGoingRefresh;
+        onGoingRefresh = null;
+        if (refreshReleasable != null) {
+            refreshReleasable.close();
+        }
     }
 
     public long totalRefreshTimeInNanos() {
-        return refreshLoadTracker.totalIndexingTimeInNanos();
+        return refreshTimeRecorder.totalRunningTimeInNanos();
     }
 }

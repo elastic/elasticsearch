@@ -186,7 +186,11 @@ class IndicesWriteLoadStatsCollector implements IndexEventListener {
             this.indexingTimeHistogram = createHistogram();
             this.mergeTimeHistogram = createHistogram();
             this.refreshTimeHistogram = createHistogram();
+
             this.lastSampleRelativeTimeInNanos = relativeTimeInNanosSupplier.getAsLong();
+            this.lastTotalIndexingTimeSample = indexShard.getTotalIndexingTimeInNanos();
+            this.lastTotalMergeTimeSample = indexShard.getTotalMergeTimeInNanos();
+            this.lastTotalRefreshTimeSample = indexShard.getTotalRefreshTimeInNanos();
         }
 
         WriteLoadSample recordSample() {
@@ -211,11 +215,6 @@ class IndicesWriteLoadStatsCollector implements IndexEventListener {
 
             long refreshTimeDeltaInNanos = totalRefreshTimeInNanos - lastTotalRefreshTimeSample;
             lastTotalRefreshTimeSample = totalRefreshTimeInNanos;
-
-            // Don't record the load if we're taking the first sample.
-            if (indexingTimeDeltaInNanos == totalIndexingTimeInNanosSample) {
-                return WriteLoadSample.EMPTY;
-            }
 
             double indexingCPUs = indexingTimeDeltaInNanos / (double) samplingTimeInNanos;
             double mergeCPUs = mergeTimeDeltaInNanos / (double) samplingTimeInNanos;

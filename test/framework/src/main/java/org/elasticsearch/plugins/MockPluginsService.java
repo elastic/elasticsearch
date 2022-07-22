@@ -91,7 +91,7 @@ public class MockPluginsService extends PluginsService {
             result.addAll(createExtensions(service, pluginTuple.instance()));
         }
 
-        return result.stream().toList();
+        return List.copyOf(result);
     }
 
     /**
@@ -101,7 +101,7 @@ public class MockPluginsService extends PluginsService {
      * causing us to pass wrong plugin type to createExtension. This modified createExtensions, checks for
      * the type and returns an empty list if the plugin class type is incompatible.
      */
-    private static <T> List<? extends T> createExtensions(Class<T> extensionPointType, Plugin plugin) {
+    static <T> List<? extends T> createExtensions(Class<T> extensionPointType, Plugin plugin) {
         SPIClassIterator<T> classIterator = SPIClassIterator.get(extensionPointType, plugin.getClass().getClassLoader());
         List<T> extensions = new ArrayList<>();
         while (classIterator.hasNext()) {
@@ -109,13 +109,21 @@ public class MockPluginsService extends PluginsService {
 
             @SuppressWarnings("unchecked")
             Constructor<T>[] constructors = (Constructor<T>[]) extensionClass.getConstructors();
+            boolean compatible = true;
 
+            // We only check if we have incompatible one argument constructor, otherwise we let the code
+            // fall-through to the PluginsService method that will check if we have valid service provider.
+            // For one argument constructors we cannot validate from which plugin they should be loaded, which
+            // is why we de-dup the instances by using a Set in loadServiceProviders.
             for (var constructor : constructors) {
                 if (constructor.getParameterCount() == 1 && constructor.getParameterTypes()[0] != plugin.getClass()) {
-                    return Collections.emptyList();
+                    compatible = false;
+                    break;
                 }
             }
-            extensions.add(createExtension(extensionClass, extensionPointType, plugin));
+            if (compatible) {
+                extensions.add(createExtension(extensionClass, extensionPointType, plugin));
+            }
         }
         return extensions;
     }

@@ -11,7 +11,9 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
+import org.elasticsearch.cluster.routing.allocation.MoveDecision;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
+import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -45,23 +47,26 @@ public class ReactiveReasonTests extends ESTestCase {
         String indexName = randomAlphaOfLength(10);
         SortedSet<ShardId> unassignedShardIds = new TreeSet<>(randomUnique(() -> new ShardId(indexName, indexUUID, randomInt(1000)), 600));
         SortedSet<ShardId> assignedShardIds = new TreeSet<>(randomUnique(() -> new ShardId(indexName, indexUUID, randomInt(1000)), 600));
-        AllocateUnassignedDecision unassignedDecision = AllocateUnassignedDecision.no(
-            randomFrom(
-                UnassignedInfo.AllocationStatus.DECIDERS_NO,
-                UnassignedInfo.AllocationStatus.DELAYED_ALLOCATION,
-                UnassignedInfo.AllocationStatus.NO_VALID_SHARD_COPY,
-                UnassignedInfo.AllocationStatus.FETCHING_SHARD_DATA
-            ),
-            randomBoolean()
-                ? List.of(
-                    new NodeAllocationResult(
-                        new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
-                        Decision.NO,
-                        1
+        var unassignedShardAllocationDecision = new ShardAllocationDecision(
+            AllocateUnassignedDecision.no(
+                randomFrom(
+                    UnassignedInfo.AllocationStatus.DECIDERS_NO,
+                    UnassignedInfo.AllocationStatus.DELAYED_ALLOCATION,
+                    UnassignedInfo.AllocationStatus.NO_VALID_SHARD_COPY,
+                    UnassignedInfo.AllocationStatus.FETCHING_SHARD_DATA
+                ),
+                randomBoolean()
+                    ? List.of(
+                        new NodeAllocationResult(
+                            new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT),
+                            Decision.NO,
+                            1
+                        )
                     )
-                )
-                : List.of(),
-            randomBoolean()
+                    : List.of(),
+                randomBoolean()
+            ),
+            MoveDecision.NOT_TAKEN
         );
         var reactiveReason = new ReactiveStorageDeciderService.ReactiveReason(
             reason,
@@ -69,7 +74,8 @@ public class ReactiveReasonTests extends ESTestCase {
             unassignedShardIds,
             assigned,
             assignedShardIds,
-            unassignedDecision
+            unassignedShardAllocationDecision,
+            null
         );
 
         try (
@@ -106,6 +112,7 @@ public class ReactiveReasonTests extends ESTestCase {
             assertEquals(assignedShardIds.size(), map.get("assigned_shards_count"));
 
             Map<String, Object> unassignedDecisionAsMap = (Map<String, Object>) map.get("unassigned_shard_allocate_decision");
+            AllocateUnassignedDecision unassignedDecision = unassignedShardAllocationDecision.getAllocateDecision();
             assertEquals(unassignedDecision.getAllocationDecision().toString(), unassignedDecisionAsMap.get("can_allocate"));
             assertEquals(unassignedDecision.getExplanation(), unassignedDecisionAsMap.get("allocate_explanation"));
             List<Object> nodeAllocationDecisions = (List<Object>) unassignedDecisionAsMap.get("node_allocation_decisions");

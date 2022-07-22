@@ -59,6 +59,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.mapper.DocumentParser;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -186,22 +187,13 @@ public class InternalEngine extends Engine {
     private volatile String forceMergeUUID;
 
     public InternalEngine(EngineConfig engineConfig) {
-        this(engineConfig, new MayHaveBeenIndexedBefore.Standard());
+        this(engineConfig, IndexWriter.MAX_DOCS, LocalCheckpointTracker::new);
     }
 
-    protected InternalEngine(EngineConfig engineConfig, MayHaveBeenIndexedBefore mayHaveBeenIndexedBefore) {
-        this(engineConfig, IndexWriter.MAX_DOCS, LocalCheckpointTracker::new, mayHaveBeenIndexedBefore);
-    }
-
-    InternalEngine(
-        EngineConfig engineConfig,
-        int maxDocs,
-        BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier,
-        MayHaveBeenIndexedBefore mayHaveBeenIndexedBefore
-    ) {
+    InternalEngine(EngineConfig engineConfig, int maxDocs, BiFunction<Long, Long, LocalCheckpointTracker> localCheckpointTrackerSupplier) {
         super(engineConfig);
         this.maxDocs = maxDocs;
-        this.mayHaveBeenIndexedBefore = mayHaveBeenIndexedBefore;
+        this.mayHaveBeenIndexedBefore = engineConfig.buildMayHaveBeenIndexedBefore(this::assertPrimaryCanOptimizeAddDocument);
         final TranslogDeletionPolicy translogDeletionPolicy = new TranslogDeletionPolicy();
         store.incRef();
         IndexWriter writer = null;
@@ -829,6 +821,11 @@ public class InternalEngine extends Engine {
             }
         }
         return versionMap.getUnderLock(id);
+    }
+
+    protected void assertPrimaryCanOptimizeAddDocument(Index index) {
+        assert (index.version() == Versions.MATCH_DELETED || index.version() == Versions.MATCH_ANY)
+            && index.versionType() == VersionType.INTERNAL : "version: " + index.version() + " type: " + index.versionType();
     }
 
     private boolean assertIncomingSequenceNumber(final Engine.Operation.Origin origin, final long seqNo) {

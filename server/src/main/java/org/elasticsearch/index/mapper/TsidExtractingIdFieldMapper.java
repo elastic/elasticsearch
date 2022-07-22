@@ -20,6 +20,8 @@ import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.hash.MurmurHash3.Hash128;
 import org.elasticsearch.common.util.ByteUtils;
+import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.MayHaveBeenIndexedBefore;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -28,6 +30,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Locale;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
@@ -201,5 +204,10 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
     public String reindexId(String id) {
         // null the _id so we recalculate it on write
         return null;
+    }
+
+    @Override
+    public MayHaveBeenIndexedBefore buildMayHaveBeenIndexedBefore(Consumer<Engine.Index> assertPrimaryCanOptimizeAddDocument) {
+        return new MayHaveBeenIndexedBefore.TimeSeries(assertPrimaryCanOptimizeAddDocument);
     }
 }

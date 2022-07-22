@@ -36,6 +36,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
@@ -373,5 +374,9 @@ public final class EngineConfig {
     @Nullable
     public Comparator<LeafReader> getLeafSorter() {
         return leafSorter;
+    }
+
+    public MayHaveBeenIndexedBefore buildMayHaveBeenIndexedBefore(Consumer<Engine.Index> assertPrimaryCanOptimizeAddDocument) {
+        return indexSettings.getMode().buildNoFieldDataIdFieldMapper().buildMayHaveBeenIndexedBefore(assertPrimaryCanOptimizeAddDocument);
     }
 }

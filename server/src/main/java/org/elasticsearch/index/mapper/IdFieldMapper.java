@@ -11,8 +11,11 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.Field;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.MayHaveBeenIndexedBefore;
 
 import java.util.Map;
+import java.util.function.Consumer;
 
 /**
  * A mapper for the _id field.
@@ -66,4 +69,6 @@ public abstract class IdFieldMapper extends MetadataFieldMapper {
     public static Field standardIdField(String id) {
         return new Field(NAME, Uid.encodeId(id), ProvidedIdFieldMapper.Defaults.FIELD_TYPE);
     }
+
+    public abstract MayHaveBeenIndexedBefore buildMayHaveBeenIndexedBefore(Consumer<Engine.Index> assertPrimaryCanOptimizeAddDocument);
 }

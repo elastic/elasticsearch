@@ -369,7 +369,7 @@ public class RoutingAllocation {
     }
 
     public RoutingAllocation immutableClone() {
-        return new RoutingAllocation(deciders, clusterState, clusterInfo, shardSizeInfo, currentNanoTime);
+        return new RoutingAllocation(deciders, null, clusterState, clusterInfo, shardSizeInfo, currentNanoTime, false, reason);
     }
 
     public RoutingAllocation mutableCloneForSimulation() {

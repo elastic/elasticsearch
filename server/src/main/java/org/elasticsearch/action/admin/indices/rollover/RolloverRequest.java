@@ -28,7 +28,6 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.function.Predicate;
@@ -379,17 +378,18 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         return newIndexName;
     }
 
-    public boolean areConditionsMet(Map<String, Boolean> trialConditionResults) {
-        Collection<Condition<?>> conditions = getConditions().values();
-        boolean allRequiredMet = conditions.stream()
+    public boolean areConditionsMet(Map<String, Boolean> conditionResults) {
+        boolean allRequiredMet = conditions.values()
+            .stream()
             .filter(Condition::isRequired)
-            .allMatch(c -> trialConditionResults.getOrDefault(c.toString(), false));
+            .allMatch(c -> conditionResults.getOrDefault(c.toString(), false));
 
-        boolean anyNonRequiredMet = conditions.stream()
+        boolean anyNonRequiredMet = conditions.values()
+            .stream()
             .filter(Predicate.not(Condition::isRequired))
-            .anyMatch(c -> trialConditionResults.getOrDefault(c.toString(), false));
+            .anyMatch(c -> conditionResults.getOrDefault(c.toString(), false));
 
-        return trialConditionResults.size() == 0 || (allRequiredMet && anyNonRequiredMet);
+        return conditionResults.size() == 0 || (allRequiredMet && anyNonRequiredMet);
     }
 
     /**

@@ -90,7 +90,7 @@ public class RelativeByteSizeValue {
 
     public String getStringRep() {
         if (ratio != null) {
-            return ratio.toString();
+            return RatioValue.formatNoTrailingZerosPercent(ratio.getAsPercent());
         } else {
             return absolute.getStringRep();
         }

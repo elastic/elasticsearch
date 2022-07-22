@@ -124,6 +124,8 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                 }
                 if (state != currentState) {
                     state = allocationService.reroute(state, "auto-create", listener.reroute());
+                } else {
+                    listener.noRerouteNeeded();
                 }
                 return state;
             };

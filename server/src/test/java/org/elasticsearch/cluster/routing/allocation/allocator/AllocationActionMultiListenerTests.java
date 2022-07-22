@@ -26,7 +26,11 @@ public class AllocationActionMultiListenerTests extends ESTestCase {
         var l2 = new AtomicInteger();
         listener.delay(ActionListener.wrap(l1::set, exception -> { throw new AssertionError("Should not fail in test"); })).onResponse(1);
         listener.delay(ActionListener.wrap(l2::set, exception -> { throw new AssertionError("Should not fail in test"); })).onResponse(2);
-        listener.reroute().onResponse(null);
+        if (randomBoolean()) {
+            listener.reroute().onResponse(null);
+        } else {
+            listener.noRerouteNeeded();
+        }
 
         assertThat(l1.get(), equalTo(1));
         assertThat(l2.get(), equalTo(2));
@@ -36,9 +40,15 @@ public class AllocationActionMultiListenerTests extends ESTestCase {
         var listener = new AllocationActionMultiListener<AcknowledgedResponse>();
 
         var completed = new AtomicBoolean(false);
-        listener.delay(
+        var delegate = listener.delay(
             ActionListener.wrap(ignore -> completed.set(true), exception -> { throw new AssertionError("Should not fail in test"); })
-        ).onResponse(AcknowledgedResponse.TRUE);
+        );
+
+        switch (randomInt(2)) {
+            case 0 -> delegate.onResponse(AcknowledgedResponse.TRUE);
+            case 1 -> listener.reroute().onResponse(null);
+            case 2 -> listener.noRerouteNeeded();
+        }
 
         assertThat(completed.get(), equalTo(false));
     }

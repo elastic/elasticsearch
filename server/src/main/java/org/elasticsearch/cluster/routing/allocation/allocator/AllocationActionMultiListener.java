@@ -12,27 +12,26 @@ import org.elasticsearch.action.ActionListener;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * This event listener might be needed to delay execution of multiple distinct tasks until followup reroute is complete.
  */
 public class AllocationActionMultiListener<T> {
 
-    private final AtomicBoolean complete = new AtomicBoolean(false);
+    private volatile boolean complete = false;
     private final List<DelayedListener<T>> delayed = new ArrayList<>();
 
     public ActionListener<T> delay(ActionListener<T> delegate) {
         return new ActionListener<T>() {
             @Override
             public void onResponse(T response) {
-                assert complete.get() == false : "Should not complete tasks after reroute is finished";
-                delayed.add(new DelayedListener<>(delegate, response));
+                if (tryDelayListener(delegate, response) == false) {
+                    delegate.onResponse(response);
+                }
             }
 
             @Override
             public void onFailure(Exception e) {
-                assert complete.get() == false : "Should not complete tasks after reroute is finished";
                 // there is no need to delay listener in case of failure
                 delegate.onFailure(e);
             }
@@ -43,20 +42,47 @@ public class AllocationActionMultiListener<T> {
         return new ActionListener<>() {
             @Override
             public void onResponse(Void unused) {
-                assert complete.compareAndSet(false, true) : "Should only complete once";
-                for (var entry : delayed) {
-                    entry.listener.onResponse(entry.response);
+                for (var listener : completeAndGetDelayedListeners()) {
+                    listener.listener.onResponse(listener.response);
                 }
             }
 
             @Override
             public void onFailure(Exception e) {
-                assert complete.compareAndSet(false, true) : "Should only complete once";
-                for (var entry : delayed) {
-                    entry.listener.onFailure(e);
+                for (var listener : completeAndGetDelayedListeners()) {
+                    listener.listener.onFailure(e);
                 }
             }
         };
+    }
+
+    public void noRerouteNeeded() {
+        for (var listener : completeAndGetDelayedListeners()) {
+            listener.listener.onResponse(listener.response);
+        }
+    }
+
+    /**
+     * @return {@code true} if listener should be delayed or {@code false} if it needs to be completed immediately
+     */
+    private synchronized boolean tryDelayListener(ActionListener<T> listener, T response) {
+        if (complete) {
+            return false;
+        } else {
+            delayed.add(new DelayedListener<>(listener, response));
+            return true;
+        }
+    }
+
+    /**
+     * Completes a delay and returns a list of all delayed listeners
+     */
+    private synchronized List<DelayedListener<T>> completeAndGetDelayedListeners() {
+        assert complete == false : "Should only complete once";
+        complete = true;
+        var listeners = List.copyOf(delayed);
+        delayed.clear();
+        return listeners;
     }
 
     private record DelayedListener<T> (ActionListener<T> listener, T response) {}

@@ -34,7 +34,6 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.StringFieldType;
@@ -280,7 +279,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         public IndexFieldData.Builder fielddataBuilder(
             String fullyQualifiedIndexName,
             Supplier<SearchLookup> searchLookup,
-            MappedFieldType.FielddataType type
+            FielddataOperation operation
         ) {
             throw new IllegalArgumentException(CONTENT_TYPE + " fields do not support sorting and aggregations");
         }

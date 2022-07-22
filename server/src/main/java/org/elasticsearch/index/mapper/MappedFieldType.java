@@ -82,10 +82,10 @@ public abstract class MappedFieldType {
     }
 
     /**
-     * Type to specify what data structures are used to retrieve
+     * Operation to specify what data structures are used to retrieve
      * field data from and generate a representation of doc values.
      */
-    public enum FielddataType {
+    public enum FielddataOperation {
         SEARCH,
         SCRIPT
     }
@@ -95,7 +95,7 @@ public abstract class MappedFieldType {
      *
      * @param fullyQualifiedIndexName the name of the index this field-data is build for
      * @param searchLookup a {@link SearchLookup} supplier to allow for accessing other fields values in the context of runtime fields
-     * @param options
+     * @param operation Specifies the operation such as search or script to determine the appropriate fielddata to retrieve
      * @throws IllegalArgumentException if the fielddata is not supported on this type.
      * An IllegalArgumentException is needed in order to return an http error 400
      * when this error occurs in a request. see: {@link org.elasticsearch.ExceptionsHelper#status}
@@ -103,7 +103,7 @@ public abstract class MappedFieldType {
     public IndexFieldData.Builder fielddataBuilder(
         String fullyQualifiedIndexName,
         Supplier<SearchLookup> searchLookup,
-        FielddataType options
+        FielddataOperation operation
     ) {
         throw new IllegalArgumentException("Fielddata is not supported on field [" + name() + "] of type [" + typeName() + "]");
     }
@@ -186,7 +186,11 @@ public abstract class MappedFieldType {
      */
     public boolean isAggregatable() {
         try {
-            fielddataBuilder("", () -> { throw new UnsupportedOperationException("SearchLookup not available"); }, FielddataType.SEARCH);
+            fielddataBuilder(
+                "",
+                () -> { throw new UnsupportedOperationException("SearchLookup not available"); },
+                FielddataOperation.SEARCH
+            );
             return true;
         } catch (IllegalArgumentException e) {
             return false;

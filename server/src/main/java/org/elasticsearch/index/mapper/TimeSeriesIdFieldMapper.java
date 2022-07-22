@@ -104,7 +104,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            return new DocValueFetcher(docValueFormat(format, null), context.getForField(this, FielddataType.SEARCH));
+            return new DocValueFetcher(docValueFormat(format, null), context.getForField(this, FielddataOperation.SEARCH));
         }
 
         @Override
@@ -119,7 +119,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         public IndexFieldData.Builder fielddataBuilder(
             String fullyQualifiedIndexName,
             Supplier<SearchLookup> searchLookup,
-            FielddataType type
+            FielddataOperation operation
         ) {
             failIfNoDocValues();
             // TODO don't leak the TSID's binary format into the script

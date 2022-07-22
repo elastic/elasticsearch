@@ -62,7 +62,7 @@ public class QueryBuilderStoreTests extends ESTestCase {
             IndexWriterConfig config = new IndexWriterConfig(new WhitespaceAnalyzer());
             config.setMergePolicy(NoMergePolicy.INSTANCE);
             BinaryFieldMapper fieldMapper = PercolatorFieldMapper.Builder.createQueryBuilderFieldBuilder(MapperBuilderContext.ROOT);
-            MappedFieldType.FielddataType fielddataType = MappedFieldType.FielddataType.SEARCH;
+            MappedFieldType.FielddataOperation fielddataOperation = MappedFieldType.FielddataOperation.SEARCH;
 
             Version version = Version.CURRENT;
             try (IndexWriter indexWriter = new IndexWriter(directory, config)) {
@@ -78,7 +78,7 @@ public class QueryBuilderStoreTests extends ESTestCase {
             when(searchExecutionContext.indexVersionCreated()).thenReturn(version);
             when(searchExecutionContext.getWriteableRegistry()).thenReturn(writableRegistry());
             when(searchExecutionContext.getParserConfig()).thenReturn(parserConfig());
-            when(searchExecutionContext.getForField(fieldMapper.fieldType(), fielddataType)).thenReturn(
+            when(searchExecutionContext.getForField(fieldMapper.fieldType(), fielddataOperation)).thenReturn(
                 new BytesBinaryIndexFieldData(fieldMapper.name(), CoreValuesSourceType.KEYWORD)
             );
             when(searchExecutionContext.getFieldType(Mockito.anyString())).thenAnswer(invocation -> {

@@ -372,17 +372,17 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         public IndexFieldData.Builder fielddataBuilder(
             String fullyQualifiedIndexName,
             Supplier<SearchLookup> searchLookup,
-            FielddataType type
+            FielddataOperation operation
         ) {
-            if (type == FielddataType.SEARCH) {
+            if (operation == FielddataOperation.SEARCH) {
                 failIfNoDocValues();
             }
 
-            if ((type == FielddataType.SEARCH || type == FielddataType.SCRIPT) && hasDocValues()) {
+            if ((operation == FielddataOperation.SEARCH || operation == FielddataOperation.SCRIPT) && hasDocValues()) {
                 return new AbstractLatLonPointIndexFieldData.Builder(name(), CoreValuesSourceType.GEOPOINT, GeoPointDocValuesField::new);
             }
 
-            if (type == FielddataType.SCRIPT) {
+            if (operation == FielddataOperation.SCRIPT) {
                 return new SourceValueFetcherMultiGeoPointIndexFieldData.Builder(
                     name(),
                     CoreValuesSourceType.GEOPOINT,
@@ -392,7 +392,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
                 );
             }
 
-            throw new IllegalStateException("unknown field data type [" + type.name() + "]");
+            throw new IllegalStateException("unknown field data type [" + operation.name() + "]");
         }
 
         @Override

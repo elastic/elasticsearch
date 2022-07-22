@@ -56,14 +56,17 @@ public class ProvidedIdFieldMapperTests extends MapperServiceTestCase {
 
         IllegalArgumentException exc = expectThrows(
             IllegalArgumentException.class,
-            () -> ft.fielddataBuilder("test", () -> { throw new UnsupportedOperationException(); }, MappedFieldType.FielddataType.SEARCH)
-                .build(null, null)
+            () -> ft.fielddataBuilder(
+                "test",
+                () -> { throw new UnsupportedOperationException(); },
+                MappedFieldType.FielddataOperation.SEARCH
+            ).build(null, null)
         );
         assertThat(exc.getMessage(), containsString(IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey()));
         assertFalse(ft.isAggregatable());
 
         enabled[0] = true;
-        ft.fielddataBuilder("test", () -> { throw new UnsupportedOperationException(); }, MappedFieldType.FielddataType.SEARCH)
+        ft.fielddataBuilder("test", () -> { throw new UnsupportedOperationException(); }, MappedFieldType.FielddataOperation.SEARCH)
             .build(null, null);
         assertWarnings(ProvidedIdFieldMapper.ID_FIELD_DATA_DEPRECATION_MESSAGE);
         assertTrue(ft.isAggregatable());

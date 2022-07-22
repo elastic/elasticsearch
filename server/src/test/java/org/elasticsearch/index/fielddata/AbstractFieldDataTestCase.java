@@ -157,7 +157,7 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
         } else {
             throw new UnsupportedOperationException(type);
         }
-        return searchExecutionContext.getForField(fieldType, MappedFieldType.FielddataType.SEARCH);
+        return searchExecutionContext.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
     }
 
     @Before

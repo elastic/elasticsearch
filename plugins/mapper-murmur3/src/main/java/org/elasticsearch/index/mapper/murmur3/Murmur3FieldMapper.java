@@ -92,7 +92,7 @@ public class Murmur3FieldMapper extends FieldMapper {
         public IndexFieldData.Builder fielddataBuilder(
             String fullyQualifiedIndexName,
             Supplier<SearchLookup> searchLookup,
-            MappedFieldType.FielddataType type
+            FielddataOperation operation
         ) {
             failIfNoDocValues();
             return new SortedNumericIndexFieldData.Builder(name(), NumericType.LONG, Murmur3DocValueField::new);

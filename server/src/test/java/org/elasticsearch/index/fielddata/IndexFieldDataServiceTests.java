@@ -84,7 +84,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             stringMapper,
             "test",
             () -> { throw new UnsupportedOperationException(); },
-            MappedFieldType.FielddataType.SEARCH
+            MappedFieldType.FielddataOperation.SEARCH
         );
         assertTrue(fd instanceof SortedSetOrdinalsIndexFieldData);
 
@@ -99,7 +99,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
                 mapper,
                 "test",
                 () -> { throw new UnsupportedOperationException(); },
-                MappedFieldType.FielddataType.SEARCH
+                MappedFieldType.FielddataOperation.SEARCH
             );
             assertTrue(fd instanceof SortedNumericIndexFieldData);
         }
@@ -117,7 +117,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             floatMapper,
             "test",
             () -> { throw new UnsupportedOperationException(); },
-            MappedFieldType.FielddataType.SEARCH
+            MappedFieldType.FielddataOperation.SEARCH
         );
         assertTrue(fd instanceof SortedDoublesIndexFieldData);
 
@@ -134,7 +134,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             doubleMapper,
             "test",
             () -> { throw new UnsupportedOperationException(); },
-            MappedFieldType.FielddataType.SEARCH
+            MappedFieldType.FielddataOperation.SEARCH
         );
         assertTrue(fd instanceof SortedDoublesIndexFieldData);
     }
@@ -149,7 +149,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         );
         final SetOnce<Supplier<SearchLookup>> searchLookupSetOnce = new SetOnce<>();
         MappedFieldType ft = mock(MappedFieldType.class);
-        MappedFieldType.FielddataType fdt = MappedFieldType.FielddataType.SEARCH;
+        MappedFieldType.FielddataOperation fdt = MappedFieldType.FielddataOperation.SEARCH;
         when(ft.fielddataBuilder(ArgumentMatchers.any(), ArgumentMatchers.any(), ArgumentMatchers.any())).thenAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
             Supplier<SearchLookup> searchLookup = (Supplier<SearchLookup>) invocationOnMock.getArguments()[1];
@@ -201,13 +201,13 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             mapper1,
             "test",
             () -> { throw new UnsupportedOperationException(); },
-            MappedFieldType.FielddataType.SEARCH
+            MappedFieldType.FielddataOperation.SEARCH
         );
         IndexFieldData<?> ifd2 = ifdService.getForField(
             mapper2,
             "test",
             () -> { throw new UnsupportedOperationException(); },
-            MappedFieldType.FielddataType.SEARCH
+            MappedFieldType.FielddataOperation.SEARCH
         );
         LeafReaderContext leafReaderContext = reader.getContext().leaves().get(0);
         LeafFieldData loadField1 = ifd1.load(leafReaderContext);
@@ -286,7 +286,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             mapper1,
             "test",
             () -> { throw new UnsupportedOperationException(); },
-            MappedFieldType.FielddataType.SEARCH
+            MappedFieldType.FielddataOperation.SEARCH
         );
         LeafReaderContext leafReaderContext = reader.getContext().leaves().get(0);
         LeafFieldData load = ifd.load(leafReaderContext);
@@ -350,7 +350,12 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             );
             if (ft.hasDocValues()) {
                 // no exception
-                ifds.getForField(ft, "test", () -> { throw new UnsupportedOperationException(); }, MappedFieldType.FielddataType.SEARCH);
+                ifds.getForField(
+                    ft,
+                    "test",
+                    () -> { throw new UnsupportedOperationException(); },
+                    MappedFieldType.FielddataOperation.SEARCH
+                );
             } else {
                 IllegalArgumentException e = expectThrows(
                     IllegalArgumentException.class,
@@ -358,7 +363,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
                         ft,
                         "test",
                         () -> { throw new UnsupportedOperationException(); },
-                        MappedFieldType.FielddataType.SEARCH
+                        MappedFieldType.FielddataOperation.SEARCH
                     )
                 );
                 assertThat(e.getMessage(), containsString("doc values"));

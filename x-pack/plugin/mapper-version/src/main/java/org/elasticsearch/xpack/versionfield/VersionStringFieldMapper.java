@@ -282,7 +282,7 @@ public class VersionStringFieldMapper extends FieldMapper {
         public IndexFieldData.Builder fielddataBuilder(
             String fullyQualifiedIndexName,
             Supplier<SearchLookup> searchLookup,
-            MappedFieldType.FielddataType type
+            FielddataOperation operation
         ) {
             return new SortedSetOrdinalsIndexFieldData.Builder(name(), CoreValuesSourceType.KEYWORD, VersionStringDocValuesField::new);
         }

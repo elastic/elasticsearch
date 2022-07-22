@@ -29,7 +29,7 @@ import java.util.function.Function;
 public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
 
     private final Function<String, MappedFieldType> fieldTypeLookup;
-    private final BiFunction<MappedFieldType, MappedFieldType.FielddataType, IndexFieldData<?>> fieldDataLookup;
+    private final BiFunction<MappedFieldType, MappedFieldType.FielddataOperation, IndexFieldData<?>> fieldDataLookup;
     private final LeafReaderContext reader;
 
     private int docId = -1;
@@ -38,7 +38,7 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
 
     LeafDocLookup(
         Function<String, MappedFieldType> fieldTypeLookup,
-        BiFunction<MappedFieldType, MappedFieldType.FielddataType, IndexFieldData<?>> fieldDataLookup,
+        BiFunction<MappedFieldType, MappedFieldType.FielddataOperation, IndexFieldData<?>> fieldDataLookup,
         LeafReaderContext reader
     ) {
         this.fieldTypeLookup = fieldTypeLookup;
@@ -50,11 +50,12 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
         this.docId = docId;
     }
 
-    protected DocValuesScriptFieldFactory getScriptFieldFactory(String fieldName, MappedFieldType.FielddataType options) {
+    protected DocValuesScriptFieldFactory getScriptFieldFactory(String fieldName, MappedFieldType.FielddataOperation options) {
         DocValuesScriptFieldFactory factory = localCacheScriptFieldData.get(fieldName);
 
         // do not use cached source fallback fields for old style doc access
-        if (options == MappedFieldType.FielddataType.SEARCH && factory instanceof SourceValueFetcherIndexFieldData.ValueFetcherDocValues) {
+        if (options == MappedFieldType.FielddataOperation.SEARCH
+            && factory instanceof SourceValueFetcherIndexFieldData.ValueFetcherDocValues) {
             factory = null;
         }
 
@@ -87,12 +88,12 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
     }
 
     public Field<?> getScriptField(String fieldName) {
-        return getScriptFieldFactory(fieldName, MappedFieldType.FielddataType.SCRIPT).toScriptField();
+        return getScriptFieldFactory(fieldName, MappedFieldType.FielddataOperation.SCRIPT).toScriptField();
     }
 
     @Override
     public ScriptDocValues<?> get(Object key) {
-        return getScriptFieldFactory(key.toString(), MappedFieldType.FielddataType.SEARCH).toScriptDocValues();
+        return getScriptFieldFactory(key.toString(), MappedFieldType.FielddataOperation.SEARCH).toScriptDocValues();
     }
 
     @Override

@@ -94,7 +94,7 @@ public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScri
     public IpScriptFieldData.Builder fielddataBuilder(
         String fullyQualifiedIndexName,
         Supplier<SearchLookup> searchLookup,
-        FielddataType type
+        FielddataOperation operation
     ) {
         return new IpScriptFieldData.Builder(name(), leafFactory(searchLookup.get()), IpDocValuesField::new);
     }

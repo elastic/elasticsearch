@@ -291,7 +291,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         public IndexFieldData.Builder fielddataBuilder(
             String fullyQualifiedIndexName,
             Supplier<SearchLookup> searchLookup,
-            MappedFieldType.FielddataType type
+            FielddataOperation operation
         ) {
             failIfNoDocValues();
             return (cache, breakerService) -> {

@@ -52,14 +52,14 @@ public class VersionFieldMapper extends MetadataFieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            return new DocValueFetcher(docValueFormat(format, null), context.getForField(this, FielddataType.SEARCH));
+            return new DocValueFetcher(docValueFormat(format, null), context.getForField(this, FielddataOperation.SEARCH));
         }
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(
             String fullyQualifiedIndexName,
             Supplier<SearchLookup> searchLookup,
-            FielddataType type
+            FielddataOperation operation
         ) {
             failIfNoDocValues();
             return new SortedNumericIndexFieldData.Builder(name(), NumericType.LONG, VersionDocValuesField::new);

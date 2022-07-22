@@ -154,7 +154,7 @@ public class ScriptScoreBenchmark {
     private ScoreScript.Factory bareMetalScript() {
         return (params, lookup) -> {
             MappedFieldType type = fieldTypes.get("n");
-            IndexNumericFieldData ifd = (IndexNumericFieldData) lookup.getForField(type, MappedFieldType.FielddataType.SEARCH);
+            IndexNumericFieldData ifd = (IndexNumericFieldData) lookup.getForField(type, MappedFieldType.FielddataOperation.SEARCH);
             return new ScoreScript.LeafFactory() {
                 @Override
                 public ScoreScript newInstance(DocReader docReader) throws IOException {

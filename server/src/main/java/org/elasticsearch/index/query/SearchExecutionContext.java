@@ -37,7 +37,7 @@ import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MappedFieldType.FielddataType;
+import org.elasticsearch.index.mapper.MappedFieldType.FielddataOperation;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -92,7 +92,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
     private final MappingLookup mappingLookup;
     private final SimilarityService similarityService;
     private final BitsetFilterCache bitsetFilterCache;
-    private final QuadFunction<MappedFieldType, String, Supplier<SearchLookup>, FielddataType, IndexFieldData<?>> indexFieldDataLookup;
+    private final QuadFunction<MappedFieldType, String, Supplier<SearchLookup>, FielddataOperation, IndexFieldData<?>> indexFieldDataLookup;
     private SearchLookup lookup = null;
 
     private final int shardId;
@@ -122,7 +122,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         int shardRequestIndex,
         IndexSettings indexSettings,
         BitsetFilterCache bitsetFilterCache,
-        QuadFunction<MappedFieldType, String, Supplier<SearchLookup>, FielddataType, IndexFieldData<?>> indexFieldDataLookup,
+        QuadFunction<MappedFieldType, String, Supplier<SearchLookup>, FielddataOperation, IndexFieldData<?>> indexFieldDataLookup,
         MapperService mapperService,
         MappingLookup mappingLookup,
         SimilarityService similarityService,
@@ -195,7 +195,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         int shardRequestIndex,
         IndexSettings indexSettings,
         BitsetFilterCache bitsetFilterCache,
-        QuadFunction<MappedFieldType, String, Supplier<SearchLookup>, FielddataType, IndexFieldData<?>> indexFieldDataLookup,
+        QuadFunction<MappedFieldType, String, Supplier<SearchLookup>, FielddataOperation, IndexFieldData<?>> indexFieldDataLookup,
         MapperService mapperService,
         MappingLookup mappingLookup,
         SimilarityService similarityService,
@@ -279,12 +279,12 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     @SuppressWarnings("unchecked")
-    public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType, FielddataType fielddataType) {
+    public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType, FielddataOperation fielddataOperation) {
         return (IFD) indexFieldDataLookup.apply(
             fieldType,
             fullyQualifiedIndex.getName(),
             () -> this.lookup().forkAndTrackFieldReferences(fieldType.name()),
-            fielddataType
+            fielddataOperation
         );
     }
 

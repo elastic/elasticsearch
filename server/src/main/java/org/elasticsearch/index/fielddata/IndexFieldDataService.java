@@ -102,10 +102,10 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
         MappedFieldType fieldType,
         String fullyQualifiedIndexName,
         Supplier<SearchLookup> searchLookup,
-        MappedFieldType.FielddataType fielddataType
+        MappedFieldType.FielddataOperation fielddataOperation
     ) {
         final String fieldName = fieldType.name();
-        IndexFieldData.Builder builder = fieldType.fielddataBuilder(fullyQualifiedIndexName, searchLookup, fielddataType);
+        IndexFieldData.Builder builder = fieldType.fielddataBuilder(fullyQualifiedIndexName, searchLookup, fielddataOperation);
 
         IndexFieldDataCache cache;
         synchronized (this) {

@@ -77,7 +77,7 @@ public class LeafDocLookupTests extends ESTestCase {
         MappedFieldType fieldType1 = fieldType.getChildFieldType("key1");
         MappedFieldType fieldType2 = fieldType.getChildFieldType("key2");
 
-        BiFunction<MappedFieldType, MappedFieldType.FielddataType, IndexFieldData<?>> fieldDataSupplier = (ft, fdt) -> {
+        BiFunction<MappedFieldType, MappedFieldType.FielddataOperation, IndexFieldData<?>> fieldDataSupplier = (ft, fdt) -> {
             FlattenedFieldMapper.KeyedFlattenedFieldType keyedFieldType = (FlattenedFieldMapper.KeyedFlattenedFieldType) ft;
             return keyedFieldType.key().equals("key1") ? fieldData1 : fieldData2;
         };

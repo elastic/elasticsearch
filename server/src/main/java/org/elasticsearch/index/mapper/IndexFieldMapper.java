@@ -67,7 +67,7 @@ public class IndexFieldMapper extends MetadataFieldMapper {
         public IndexFieldData.Builder fielddataBuilder(
             String fullyQualifiedIndexName,
             Supplier<SearchLookup> searchLookup,
-            FielddataType type
+            FielddataOperation operation
         ) {
             return new ConstantIndexFieldData.Builder(
                 fullyQualifiedIndexName,

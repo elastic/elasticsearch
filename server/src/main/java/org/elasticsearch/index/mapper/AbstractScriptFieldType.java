@@ -173,7 +173,7 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
 
     @Override
     public final ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-        return new DocValueFetcher(docValueFormat(format, null), context.getForField(this, FielddataType.SEARCH));
+        return new DocValueFetcher(docValueFormat(format, null), context.getForField(this, FielddataOperation.SEARCH));
     }
 
     /**

@@ -752,7 +752,7 @@ public final class DateFieldMapper extends FieldMapper {
         public IndexFieldData.Builder fielddataBuilder(
             String fullyQualifiedIndexName,
             Supplier<SearchLookup> searchLookup,
-            FielddataType type
+            FielddataOperation operation
         ) {
             failIfNoDocValues();
             return new SortedNumericIndexFieldData.Builder(name(), resolution.numericType(), resolution.getDefaultToScriptFieldFactory());

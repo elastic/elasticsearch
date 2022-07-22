@@ -65,7 +65,7 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 DoubleScriptFieldType ft = build("add_param", Map.of("param", 1));
-                DoubleScriptFieldData ifd = ft.fielddataBuilder("test", mockContext()::lookup, MappedFieldType.FielddataType.SEARCH)
+                DoubleScriptFieldData ifd = ft.fielddataBuilder("test", mockContext()::lookup, MappedFieldType.FielddataOperation.SEARCH)
                     .build(null, null);
                 searcher.search(new MatchAllDocsQuery(), new Collector() {
                     @Override
@@ -107,7 +107,7 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
                 DoubleScriptFieldData ifd = simpleMappedFieldType().fielddataBuilder(
                     "test",
                     mockContext()::lookup,
-                    MappedFieldType.FielddataType.SEARCH
+                    MappedFieldType.FielddataOperation.SEARCH
                 ).build(null, null);
                 SortField sf = ifd.sortField(null, MultiValueMode.MIN, null, false);
                 TopFieldDocs docs = searcher.search(new MatchAllDocsQuery(), 3, new Sort(sf));

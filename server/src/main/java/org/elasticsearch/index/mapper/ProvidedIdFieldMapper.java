@@ -140,7 +140,7 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
         public IndexFieldData.Builder fielddataBuilder(
             String fullyQualifiedIndexName,
             Supplier<SearchLookup> searchLookup,
-            FielddataType type
+            FielddataOperation operation
         ) {
             if (fieldDataEnabled.getAsBoolean() == false) {
                 throw new IllegalArgumentException(

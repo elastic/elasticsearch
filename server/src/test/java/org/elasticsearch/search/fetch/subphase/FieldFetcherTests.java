@@ -1239,7 +1239,12 @@ public class FieldFetcherTests extends MapperServiceTestCase {
 
     private static SearchExecutionContext newSearchExecutionContext(
         MapperService mapperService,
-        QuadFunction<MappedFieldType, String, Supplier<SearchLookup>, MappedFieldType.FielddataType, IndexFieldData<?>> indexFieldDataLookup
+        QuadFunction<
+            MappedFieldType,
+            String,
+            Supplier<SearchLookup>,
+            MappedFieldType.FielddataOperation,
+            IndexFieldData<?>> indexFieldDataLookup
     ) {
         Settings settings = Settings.builder()
             .put("index.version.created", Version.CURRENT)

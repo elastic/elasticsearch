@@ -1426,17 +1426,17 @@ public class NumberFieldMapper extends FieldMapper {
         public IndexFieldData.Builder fielddataBuilder(
             String fullyQualifiedIndexName,
             Supplier<SearchLookup> searchLookup,
-            FielddataType type
+            FielddataOperation operation
         ) {
-            if (type == FielddataType.SEARCH) {
+            if (operation == FielddataOperation.SEARCH) {
                 failIfNoDocValues();
             }
 
-            if ((type == FielddataType.SEARCH || type == FielddataType.SCRIPT) && hasDocValues()) {
+            if ((operation == FielddataOperation.SEARCH || operation == FielddataOperation.SCRIPT) && hasDocValues()) {
                 return this.type.getFieldDataBuilder(name());
             }
 
-            if (type == FielddataType.SCRIPT) {
+            if (operation == FielddataOperation.SCRIPT) {
                 return this.type.getValueFetcherFieldDataBuilder(
                     name(),
                     searchLookup.get().source(),
@@ -1452,7 +1452,7 @@ public class NumberFieldMapper extends FieldMapper {
                 );
             }
 
-            throw new IllegalStateException("unknown field data type [" + type.name() + "]");
+            throw new IllegalStateException("unknown field data type [" + operation.name() + "]");
         }
 
         @Override

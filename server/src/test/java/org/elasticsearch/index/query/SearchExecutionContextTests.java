@@ -149,7 +149,7 @@ public class SearchExecutionContextTests extends ESTestCase {
 
         IndexFieldMapper mapper = new IndexFieldMapper();
 
-        IndexFieldData<?> forField = context.getForField(mapper.fieldType(), MappedFieldType.FielddataType.SEARCH);
+        IndexFieldData<?> forField = context.getForField(mapper.fieldType(), MappedFieldType.FielddataOperation.SEARCH);
         String expected = clusterAlias == null
             ? context.getIndexSettings().getIndexMetadata().getIndex().getName()
             : clusterAlias + ":" + context.getIndexSettings().getIndex().getName();
@@ -489,7 +489,7 @@ public class SearchExecutionContextTests extends ESTestCase {
             public IndexFieldData.Builder fielddataBuilder(
                 String fullyQualifiedIndexName,
                 Supplier<SearchLookup> searchLookup,
-                MappedFieldType.FielddataType type
+                FielddataOperation operation
             ) {
                 return (cache, breakerService) -> new IndexFieldData<>() {
                     @Override
@@ -606,9 +606,9 @@ public class SearchExecutionContextTests extends ESTestCase {
                 MappedFieldType fieldType = searchExecutionContext.getFieldType(field);
                 IndexFieldData<?> indexFieldData;
                 if (randomBoolean()) {
-                    indexFieldData = searchExecutionContext.getForField(fieldType, MappedFieldType.FielddataType.SEARCH);
+                    indexFieldData = searchExecutionContext.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
                 } else {
-                    indexFieldData = searchExecutionContext.lookup().getForField(fieldType, MappedFieldType.FielddataType.SEARCH);
+                    indexFieldData = searchExecutionContext.lookup().getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
                 }
                 searcher.search(query, new Collector() {
                     @Override

@@ -60,7 +60,7 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 KeywordScriptFieldType ft = build("append_param", Map.of("param", "-suffix"));
-                StringScriptFieldData ifd = ft.fielddataBuilder("test", mockContext()::lookup, MappedFieldType.FielddataType.SEARCH)
+                StringScriptFieldData ifd = ft.fielddataBuilder("test", mockContext()::lookup, MappedFieldType.FielddataOperation.SEARCH)
                     .build(null, null);
                 searcher.search(new MatchAllDocsQuery(), new Collector() {
                     @Override
@@ -102,7 +102,7 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
                 BinaryScriptFieldData ifd = simpleMappedFieldType().fielddataBuilder(
                     "test",
                     mockContext()::lookup,
-                    MappedFieldType.FielddataType.SEARCH
+                    MappedFieldType.FielddataOperation.SEARCH
                 ).build(null, null);
                 SortField sf = ifd.sortField(null, MultiValueMode.MIN, null, false);
                 TopFieldDocs docs = searcher.search(new MatchAllDocsQuery(), 3, new Sort(sf));

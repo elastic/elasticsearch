@@ -257,7 +257,7 @@ public class PlaceHolderFieldMapper extends FieldMapper {
         public IndexFieldData.Builder fielddataBuilder(
             String fullyQualifiedIndexName,
             Supplier<SearchLookup> searchLookup,
-            FielddataType type
+            FielddataOperation operation
         ) {
             throw new IllegalArgumentException(fail("aggregation or sorts"));
         }

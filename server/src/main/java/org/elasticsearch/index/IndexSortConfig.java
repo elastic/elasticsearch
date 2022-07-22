@@ -205,7 +205,7 @@ public final class IndexSortConfig {
      */
     public Sort buildIndexSort(
         Function<String, MappedFieldType> fieldTypeLookup,
-        TriFunction<MappedFieldType, Supplier<SearchLookup>, MappedFieldType.FielddataType, IndexFieldData<?>> fieldDataLookup
+        TriFunction<MappedFieldType, Supplier<SearchLookup>, MappedFieldType.FielddataOperation, IndexFieldData<?>> fieldDataLookup
     ) {
         if (hasIndexSort() == false) {
             return null;
@@ -250,7 +250,7 @@ public final class IndexSortConfig {
                 fieldData = fieldDataLookup.apply(
                     ft,
                     () -> { throw new UnsupportedOperationException("index sorting not supported on runtime field [" + ft.name() + "]"); },
-                    MappedFieldType.FielddataType.SEARCH
+                    MappedFieldType.FielddataOperation.SEARCH
                 );
             } catch (Exception e) {
                 throw new IllegalArgumentException("docvalues not found for index sort field:[" + sortSpec.field + "]", e);

@@ -530,14 +530,14 @@ public class TextFieldMapperTests extends MapperTestCase {
         Exception e = expectThrows(
             IllegalArgumentException.class,
             () -> disabledMapper.fieldType("field")
-                .fielddataBuilder("test", () -> { throw new UnsupportedOperationException(); }, MappedFieldType.FielddataType.SEARCH)
+                .fielddataBuilder("test", () -> { throw new UnsupportedOperationException(); }, MappedFieldType.FielddataOperation.SEARCH)
         );
         assertThat(e.getMessage(), containsString("Text fields are not optimised for operations that require per-document field data"));
 
         MapperService enabledMapper = createMapperService(fieldMapping(b -> b.field("type", "text").field("fielddata", true)));
         enabledMapper.fieldType("field")
             // no exception this time
-            .fielddataBuilder("test", () -> { throw new UnsupportedOperationException(); }, MappedFieldType.FielddataType.SEARCH);
+            .fielddataBuilder("test", () -> { throw new UnsupportedOperationException(); }, MappedFieldType.FielddataOperation.SEARCH);
 
         e = expectThrows(
             MapperParsingException.class,
@@ -1200,7 +1200,7 @@ public class TextFieldMapperTests extends MapperTestCase {
         expectThrows(
             IllegalArgumentException.class,
             () -> ((TextFieldMapper) finalMapperService.documentMapper().mappers().getMapper("field")).fieldType()
-                .fielddataBuilder("test", null, MappedFieldType.FielddataType.SEARCH)
+                .fielddataBuilder("test", null, MappedFieldType.FielddataOperation.SEARCH)
         );
     }
 

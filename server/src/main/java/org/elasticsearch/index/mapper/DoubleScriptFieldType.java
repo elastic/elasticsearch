@@ -100,7 +100,7 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
     public DoubleScriptFieldData.Builder fielddataBuilder(
         String fullyQualifiedIndexName,
         Supplier<SearchLookup> searchLookup,
-        FielddataType type
+        FielddataOperation operation
     ) {
         return new DoubleScriptFieldData.Builder(name(), leafFactory(searchLookup.get()), DoubleDocValuesField::new);
     }

@@ -326,7 +326,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                     fieldDataLookup(),
                     mapperService.mappingLookup()::sourcePaths
                 );
-                ValueFetcher valueFetcher = new DocValueFetcher(format, lookup.getForField(ft, MappedFieldType.FielddataType.SEARCH));
+                ValueFetcher valueFetcher = new DocValueFetcher(format, lookup.getForField(ft, MappedFieldType.FielddataOperation.SEARCH));
                 IndexSearcher searcher = newSearcher(iw);
                 LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
                 lookup.source().setSegmentAndDocument(context, 0);
@@ -576,11 +576,11 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
      */
     protected void assertFetch(MapperService mapperService, String field, Object value, String format) throws IOException {
         MappedFieldType ft = mapperService.fieldType(field);
-        MappedFieldType.FielddataType fdt = MappedFieldType.FielddataType.SEARCH;
+        MappedFieldType.FielddataOperation fdt = MappedFieldType.FielddataOperation.SEARCH;
         SourceToParse source = source(b -> b.field(ft.name(), value));
         ValueFetcher docValueFetcher = new DocValueFetcher(
             ft.docValueFormat(format, null),
-            ft.fielddataBuilder("test", () -> null, MappedFieldType.FielddataType.SEARCH)
+            ft.fielddataBuilder("test", () -> null, MappedFieldType.FielddataOperation.SEARCH)
                 .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService())
         );
         SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
@@ -662,7 +662,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             DocValuesScriptFieldFactory docValuesFieldSource = fieldType.fielddataBuilder(
                 "test",
                 () -> { throw new UnsupportedOperationException(); },
-                MappedFieldType.FielddataType.SEARCH
+                MappedFieldType.FielddataOperation.SEARCH
             ).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService()).load(ctx).getScriptFieldFactory("test");
 
             docValuesFieldSource.setNextDocId(0);
@@ -671,7 +671,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             DocValuesScriptFieldFactory indexData = fieldType.fielddataBuilder(
                 "test",
                 () -> { throw new UnsupportedOperationException(); },
-                MappedFieldType.FielddataType.SEARCH
+                MappedFieldType.FielddataOperation.SEARCH
             )
                 .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService())
                 .load(reader.getContext())

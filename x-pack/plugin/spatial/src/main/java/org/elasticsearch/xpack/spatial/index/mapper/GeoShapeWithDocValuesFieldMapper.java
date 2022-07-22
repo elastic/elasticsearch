@@ -184,7 +184,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         public IndexFieldData.Builder fielddataBuilder(
             String fullyQualifiedIndexName,
             Supplier<SearchLookup> searchLookup,
-            MappedFieldType.FielddataType type
+            FielddataOperation operation
         ) {
             failIfNoDocValues();
             return new AbstractLatLonShapeIndexFieldData.Builder(name(), GeoShapeValuesSourceType.instance(), GeoShapeDocValuesField::new);

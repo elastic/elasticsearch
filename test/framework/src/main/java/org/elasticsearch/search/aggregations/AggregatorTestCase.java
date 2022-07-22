@@ -292,12 +292,16 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 .map(ft -> new FieldAliasMapper(ft.name() + "-alias", ft.name() + "-alias", ft.name()))
                 .collect(toList())
         );
-        QuadFunction<MappedFieldType, String, Supplier<SearchLookup>, MappedFieldType.FielddataType, IndexFieldData<?>> fieldDataBuilder = (
-            fieldType,
-            s,
-            searchLookup,
-            fdt) -> fieldType.fielddataBuilder(indexSettings.getIndex().getName(), searchLookup, fdt)
-                .build(new IndexFieldDataCache.None(), breakerService);
+        QuadFunction<
+            MappedFieldType,
+            String,
+            Supplier<SearchLookup>,
+            MappedFieldType.FielddataOperation,
+            IndexFieldData<?>> fieldDataBuilder = (fieldType, s, searchLookup, fdt) -> fieldType.fielddataBuilder(
+                indexSettings.getIndex().getName(),
+                searchLookup,
+                fdt
+            ).build(new IndexFieldDataCache.None(), breakerService);
         BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(indexSettings, new BitsetFilterCache.Listener() {
             @Override
             public void onRemoval(ShardId shardId, Accountable accountable) {}
@@ -1052,9 +1056,11 @@ public abstract class AggregatorTestCase extends ESTestCase {
     }
 
     private ValuesSourceType fieldToVST(MappedFieldType fieldType) {
-        return fieldType.fielddataBuilder("", () -> { throw new UnsupportedOperationException(); }, MappedFieldType.FielddataType.SEARCH)
-            .build(null, null)
-            .getValuesSourceType();
+        return fieldType.fielddataBuilder(
+            "",
+            () -> { throw new UnsupportedOperationException(); },
+            MappedFieldType.FielddataOperation.SEARCH
+        ).build(null, null).getValuesSourceType();
     }
 
     /**

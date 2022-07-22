@@ -2669,7 +2669,7 @@ public class IndexShardTests extends IndexShardTestCase {
             foo,
             "test",
             () -> { throw new UnsupportedOperationException("search lookup not available"); },
-            MappedFieldType.FielddataType.SEARCH
+            MappedFieldType.FielddataOperation.SEARCH
         );
         FieldDataStats before = shard.fieldData().stats("foo");
         assertThat(before.getMemorySizeInBytes(), equalTo(0L));

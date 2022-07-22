@@ -210,7 +210,7 @@ public class AggConstructionContentionBenchmark {
         protected IndexFieldData<?> buildFieldData(MappedFieldType ft) {
             IndexFieldDataCache indexFieldDataCache = indicesFieldDataCache.buildIndexFieldDataCache(new IndexFieldDataCache.Listener() {
             }, index, ft.name());
-            return ft.fielddataBuilder("test", this::lookup, MappedFieldType.FielddataType.SEARCH)
+            return ft.fielddataBuilder("test", this::lookup, MappedFieldType.FielddataOperation.SEARCH)
                 .build(indexFieldDataCache, breakerService);
         }
 

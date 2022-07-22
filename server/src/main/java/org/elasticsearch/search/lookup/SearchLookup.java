@@ -41,7 +41,11 @@ public class SearchLookup {
     private final Set<String> fieldChain;
     private final SourceLookup sourceLookup;
     private final Function<String, MappedFieldType> fieldTypeLookup;
-    private final TriFunction<MappedFieldType, Supplier<SearchLookup>, MappedFieldType.FielddataType, IndexFieldData<?>> fieldDataLookup;
+    private final TriFunction<
+        MappedFieldType,
+        Supplier<SearchLookup>,
+        MappedFieldType.FielddataOperation,
+        IndexFieldData<?>> fieldDataLookup;
     private final Function<String, Set<String>> sourcePathsLookup;
 
     /**
@@ -50,7 +54,7 @@ public class SearchLookup {
      */
     public SearchLookup(
         Function<String, MappedFieldType> fieldTypeLookup,
-        TriFunction<MappedFieldType, Supplier<SearchLookup>, MappedFieldType.FielddataType, IndexFieldData<?>> fieldDataLookup,
+        TriFunction<MappedFieldType, Supplier<SearchLookup>, MappedFieldType.FielddataOperation, IndexFieldData<?>> fieldDataLookup,
         Function<String, Set<String>> sourcePathsLookup
     ) {
         this.fieldTypeLookup = fieldTypeLookup;
@@ -109,7 +113,7 @@ public class SearchLookup {
         return fieldTypeLookup.apply(fieldName);
     }
 
-    public IndexFieldData<?> getForField(MappedFieldType fieldType, MappedFieldType.FielddataType options) {
+    public IndexFieldData<?> getForField(MappedFieldType fieldType, MappedFieldType.FielddataOperation options) {
         return fieldDataLookup.apply(fieldType, () -> forkAndTrackFieldReferences(fieldType.name()), options);
     }
 

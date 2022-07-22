@@ -1079,7 +1079,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             MappedFieldType,
             String,
             Supplier<SearchLookup>,
-            MappedFieldType.FielddataType,
+            MappedFieldType.FielddataOperation,
             IndexFieldData<?>> indexFieldDataLookup = (fieldType, fieldIndexName, searchLookup, fielddataType) -> {
                 IndexFieldData.Builder builder = fieldType.fielddataBuilder(fieldIndexName, searchLookup, fielddataType);
                 return builder.build(new IndexFieldDataCache.None(), null);

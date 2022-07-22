@@ -135,7 +135,7 @@ public class IndexSortSettingsTests extends ESTestCase {
             public IndexFieldData.Builder fielddataBuilder(
                 String fullyQualifiedIndexName,
                 Supplier<SearchLookup> searchLookup,
-                MappedFieldType.FielddataType type
+                FielddataOperation operation
             ) {
                 searchLookup.get();
                 return null;

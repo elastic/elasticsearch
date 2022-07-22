@@ -101,7 +101,7 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
         public IndexFieldData.Builder fielddataBuilder(
             String fullyQualifiedIndexName,
             Supplier<SearchLookup> searchLookup,
-            FielddataType type
+            FielddataOperation operation
         ) {
             throw new IllegalArgumentException("Fielddata is not supported on [_id] field in [time_series] indices");
         }

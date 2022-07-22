@@ -170,7 +170,7 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
             return new RandomScoreFunction(
                 seed,
                 salt,
-                context.getForField(context.getFieldType(fieldName), MappedFieldType.FielddataType.SEARCH)
+                context.getForField(context.getFieldType(fieldName), MappedFieldType.FielddataOperation.SEARCH)
             );
         }
     }

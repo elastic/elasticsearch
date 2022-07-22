@@ -223,7 +223,7 @@ public class RangeFieldMapper extends FieldMapper {
         public IndexFieldData.Builder fielddataBuilder(
             String fullyQualifiedIndexName,
             Supplier<SearchLookup> searchLookup,
-            FielddataType type
+            FielddataOperation operation
         ) {
             failIfNoDocValues();
             return new BinaryIndexFieldData.Builder(name(), CoreValuesSourceType.RANGE);

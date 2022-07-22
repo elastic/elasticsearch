@@ -111,7 +111,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         public IndexFieldData.Builder fielddataBuilder(
             String fullyQualifiedIndexName,
             Supplier<SearchLookup> searchLookup,
-            MappedFieldType.FielddataType type
+            FielddataOperation operation
         ) {
             failIfNoDocValues();
             return new SortedSetOrdinalsIndexFieldData.Builder(

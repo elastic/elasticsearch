@@ -159,7 +159,11 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
     }
 
     @Override
-    public DateScriptFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> lookup, FielddataType type) {
+    public DateScriptFieldData.Builder fielddataBuilder(
+        String fullyQualifiedIndexName,
+        Supplier<SearchLookup> lookup,
+        FielddataOperation operation
+    ) {
         return new DateScriptFieldData.Builder(name(), leafFactory(lookup.get()), Resolution.MILLISECONDS.getDefaultToScriptFieldFactory());
     }
 

@@ -585,7 +585,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         IndexNumericFieldData fielddata = (IndexNumericFieldData) fieldType.fielddataBuilder(
             "index",
             () -> { throw new UnsupportedOperationException(); },
-            MappedFieldType.FielddataType.SEARCH
+            MappedFieldType.FielddataOperation.SEARCH
         ).build(null, null);
         SortField sortField = fielddata.sortField(null, MultiValueMode.MIN, null, randomBoolean());
 

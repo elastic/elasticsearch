@@ -897,7 +897,7 @@ public class TextFieldMapper extends FieldMapper {
         public IndexFieldData.Builder fielddataBuilder(
             String fullyQualifiedIndexName,
             Supplier<SearchLookup> searchLookup,
-            FielddataType type
+            FielddataOperation operation
         ) {
             if (fielddata == false) {
                 throw new IllegalArgumentException(

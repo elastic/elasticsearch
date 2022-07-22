@@ -450,7 +450,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
 
             @Override
             protected IndexFieldData<?> buildFieldData(MappedFieldType ft) {
-                return ft.fielddataBuilder("test", null, MappedFieldType.FielddataType.SEARCH)
+                return ft.fielddataBuilder("test", null, MappedFieldType.FielddataOperation.SEARCH)
                     .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
             }
 
@@ -644,7 +644,9 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         );
     }
 
-    protected TriFunction<MappedFieldType, Supplier<SearchLookup>, MappedFieldType.FielddataType, IndexFieldData<?>> fieldDataLookup() {
+    protected
+        TriFunction<MappedFieldType, Supplier<SearchLookup>, MappedFieldType.FielddataOperation, IndexFieldData<?>>
+        fieldDataLookup() {
         return (mft, lookupSource, fdt) -> mft.fielddataBuilder("test", lookupSource, fdt)
             .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
     }

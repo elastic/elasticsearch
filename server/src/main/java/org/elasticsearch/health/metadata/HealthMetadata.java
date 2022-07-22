@@ -195,7 +195,7 @@ public final class HealthMetadata extends AbstractNamedDiffable<Metadata.Custom>
             if (relativeByteSizeValue.isAbsolute()) {
                 return relativeByteSizeValue.getAbsolute().getStringRep();
             } else {
-                return RatioValue.formatNoTrailingZerosPercent(relativeByteSizeValue.getRatio().getAsPercent());
+                return relativeByteSizeValue.getRatio().formatNoTrailingZerosPercent();
             }
         }
 

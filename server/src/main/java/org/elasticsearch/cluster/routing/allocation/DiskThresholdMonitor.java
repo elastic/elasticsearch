@@ -130,7 +130,7 @@ public class DiskThresholdMonitor {
         }
 
         if (diskThresholdSettings.isEnabled() == false) {
-            removeExistingIndexBlocks(ActionListener.wrap(this::checkFinished));
+            removeExistingIndexBlocks();
             return;
         } else {
             // reset this for the next disable call.
@@ -480,17 +480,17 @@ public class DiskThresholdMonitor {
             .execute(wrappedListener.map(r -> null));
     }
 
-    private void removeExistingIndexBlocks(ActionListener<Void> listener) {
+    private void removeExistingIndexBlocks() {
         if (cleanupUponDisableCalled.get()) {
-            listener.onResponse(null);
+            checkFinished();
             return;
         }
         ActionListener<Void> wrappedListener = ActionListener.wrap(r -> {
             cleanupUponDisableCalled.set(true);
-            listener.onResponse(null);
+            checkFinished();
         }, e -> {
             logger.debug("removing read-only blocks from indices failed", e);
-            listener.onFailure(e);
+            checkFinished();
         });
         final ClusterState state = clusterStateSupplier.get();
         final Set<String> indicesToRelease = state.routingTable()

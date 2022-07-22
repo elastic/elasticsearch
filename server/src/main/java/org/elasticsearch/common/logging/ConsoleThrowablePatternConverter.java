@@ -53,7 +53,7 @@ public class ConsoleThrowablePatternConverter extends ThrowablePatternConverter 
     @Override
     public void format(final LogEvent event, final StringBuilder toAppendTo) {
         Throwable error = event.getThrown();
-        if (enabled == false | error == null) {
+        if (enabled == false || error == null) {
             super.format(event, toAppendTo);
             return;
         }

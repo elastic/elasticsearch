@@ -11,7 +11,7 @@ setup:
             number_of_shards: 1
           mappings:
             _source:
-              synthetic: true
+              mode: synthetic
             properties:
               foo:
                 type: keyword

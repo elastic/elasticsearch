@@ -83,7 +83,7 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
         return status;
     }
 
-    protected ShardSearchFailure[] shardFailures() {
+    public ShardSearchFailure[] shardFailures() {
         return shardFailures;
     }
 

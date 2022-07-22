@@ -193,15 +193,6 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         return true;
     }
 
-    protected final boolean assertCurrentThreadMayLoadSnapshot() {
-        final String threadName = Thread.currentThread().getName();
-        assert threadName.contains('[' + ThreadPool.Names.GENERIC + ']')
-            // Unit tests access the blob store on the main test thread; simplest just to permit this rather than have them override this
-            // method somehow.
-            || threadName.startsWith("TEST-") : "current thread [" + Thread.currentThread() + "] may not load " + snapshotId;
-        return true;
-    }
-
     /**
      * Loads the snapshot if and only if the snapshot is not loaded yet.
      *
@@ -213,7 +204,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         assert snapshotRecoveryState.getRecoverySource().getType() == RecoverySource.Type.SNAPSHOT
             || snapshotRecoveryState.getRecoverySource().getType() == RecoverySource.Type.PEER
             : snapshotRecoveryState.getRecoverySource().getType();
-        assert assertCurrentThreadMayLoadSnapshot();
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
         // noinspection ConstantConditions in case assertions are disabled
         if (snapshotRecoveryState instanceof SearchableSnapshotRecoveryState == false) {
             throw new IllegalArgumentException("A SearchableSnapshotRecoveryState instance was expected");

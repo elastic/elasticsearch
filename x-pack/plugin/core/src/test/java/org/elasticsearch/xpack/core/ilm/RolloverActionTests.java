@@ -178,6 +178,11 @@ public class RolloverActionTests extends AbstractActionTestCase<RolloverAction> 
         assertEquals(action.getMaxAge(), firstStep.getMaxAge());
         assertEquals(action.getMaxDocs(), firstStep.getMaxDocs());
         assertEquals(action.getMaxPrimaryShardDocs(), firstStep.getMaxPrimaryShardDocs());
+        assertEquals(action.getMinSize(), firstStep.getMinSize());
+        assertEquals(action.getMinPrimaryShardSize(), firstStep.getMinPrimaryShardSize());
+        assertEquals(action.getMinAge(), firstStep.getMinAge());
+        assertEquals(action.getMinDocs(), firstStep.getMinDocs());
+        assertEquals(action.getMinPrimaryShardDocs(), firstStep.getMinPrimaryShardDocs());
         assertEquals(nextStepKey, fifthStep.getNextStepKey());
     }
 

@@ -110,7 +110,7 @@ The response will look like this:
     {
       "snapshot" : "snapshot-20200617",                                     <1>
       "uuid" : "dZyPs1HyTwS-cnKdH08EPg",
-      "repository" : "my_repository",                                           <2>
+      "repository" : "my_repository",                                       <2>
       "indices" : [                                                         <3>
         ".apm-agent-configuration",
         ".apm-custom-link",
@@ -145,7 +145,77 @@ The response will look like this:
 . The snapshot `snapshot-20200617` contains the two indices we want to restore.
 You might have multiple snapshots from which you could restore the target indices. Choose the latest snapshot.
 +
-. Now that we found a snapshot, we will close the target indices via the use the <<indices-close, close indices API>>.
+. Now that we found a snapshot, we will proceed with the data stream preparation for restoring the lost data. We will
+check the index metadata to see if any index is part of a data stream:
+[source,console]
+----
+GET kibana_sample_data_flights,.ds-my-data-stream-2022.06.17-000001?features=settings&flat_settings
+----
+// TEST[skip:illustration purposes only]
++
+The response will look like this:
+[source,console-result]
+----
+{
+  ".ds-my-data-stream-2022.06.17-000001" : {                                <1>
+    "aliases" : { },
+    "mappings" : { },
+    "settings" : {                                                          <2>
+      "index.creation_date" : "1658406121699",
+      "index.hidden" : "true",
+      "index.lifecycle.name" : "my-lifecycle-policy",
+      "index.number_of_replicas" : "1",
+      "index.number_of_shards" : "1",
+      "index.provided_name" : ".ds-my-data-stream-2022.06.17-000001",
+      "index.routing.allocation.include._tier_preference" : "data_hot",
+      "index.uuid" : "HmlFXp6VSu2XbQ-O3hVrwQ",
+      "index.version.created" : "8020299"
+    },
+    "data_stream" : "my-data-stream"                                        <3>
+  },
+  "kibana_sample_data_flights" : {                                          <4>
+    "aliases" : { },
+    "mappings" : { },
+    "settings" : {
+      "index.creation_date" : "1655121541454",
+      "index.number_of_replicas" : "0",
+      "index.number_of_shards" : "1",
+      "index.provided_name" : "kibana_sample_data_flights",
+      "index.routing.allocation.include._tier_preference" : "data_content",
+      "index.uuid" : "jMOlwKPPSzSraeeBWyuoDA",
+      "index.version.created" : "8020299"
+    }
+  }
+}
+----
+// TEST[skip:illustration purposes only]
++
+<1> The name of an index.
++
+<2> The settings of the index <1> that contains the metadata we are looking for
++
+<3> This indicates that this index is part of a data stream and shows the data stream name.
++
+<4> The name of the other index we requested.
+
+. The response above shows that `kibana_sample_data_flights` is not part of a data stream because it doesn't have a
+field called `data_stream` in the settings.
++
+On the contrary, `.ds-my-data-stream-2022.06.17-000001` is part of the data stream called `my-data-stream`. When you
+find an index like this, which belongs to a data stream, you need to check if it is the one that it is being written on.
+You can see that by checking if in the `settings` you can find this property: `"index.lifecycle.indexing_complete" : "true"`.
+If it's there you can continue to the next step.
++
+If it is not there we need to rollover the data stream to allow us to restore the missing data without blocking
+the ingestion of new data. The following command will achieve that.
+[source,console]
+----
+POST my-data-stream/_rollover
+----
+// TEST[skip:illustration purposes only]
++
+. Now that the data stream preparation is done (if it was necessary), we will close the target indices via the use the
+<<indices-close, close indices API>>.
 +
 [source,console]
 ----
@@ -153,7 +223,7 @@ POST kibana_sample_data_flights,.ds-my-data-stream-2022.06.17-000001/_close
 ----
 // TEST[skip:illustration purposes only]
 +
-You can confirm that they are closed with the
+You can confirm that they are closed with
 the <<cat-indices, cat indices API>>.
 +
 [source,console]

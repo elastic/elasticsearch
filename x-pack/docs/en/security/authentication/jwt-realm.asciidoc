@@ -129,7 +129,7 @@ The file can be removed after you load the contents into the {es} keystore.
 [NOTE]
 ====
 Using the JWKS is preferred. However, you can add an HMAC key in string format
-using the following command. This format is compatible with OIDC HMAC keys, but
+using the following command. This format is compatible with HMAC UTF-8 keys, but
 only supports a single key with no attributes. You can only use one HMAC format
 (either `hmac_jwkset` or `hmac_key`) simultaneously.
 
@@ -444,36 +444,36 @@ and {es} used the `jwt_role1` role:
 ----
 
 [[jwt-realm-jwkset-reloading]]
-===== PKC JWKSet reloading
+===== PKC JWKS reloading
 JWT authentication supports signature verification using PKC (Public Key Cryptography) or HMAC algorithms.
-PKC JWKSet can contain public RSA and EC keys. HMAC JWKSet or HMAC OIDC JWK contain secret keys.
+PKC JWKS can contain public RSA and EC keys. HMAC JWKS or HMAC UTF-8 JWK contain secret keys.
 JWT issuers typically rotate PKC JWKs more frequently (ex: daily), because RSA and EC public keys are
-easier to distribute than HMAC secret keys.
+designed to be easier to distribute than secret keys like HMAC.
 
-JWT realms load a PKC JWKSet, and a HMAC JWKSet or HMAC OIDC JWK, at startup.
-JWT realms can also reload PKC JWKSet contents at runtime; reload is triggered by signature validation failures.
+JWT realms load a PKC JWKS, and a HMAC JWKS or HMAC UTF-8 JWK, at startup.
+JWT realms can also reload PKC JWKS contents at runtime; reload is triggered by signature validation failures.
 
-CAUTION: HMAC JWKSet or HMAC OIDC JWK reloading is not supported at this time.
+CAUTION: HMAC JWKS or HMAC UTF-8 JWK reloading is not supported at this time.
 
 Load failures, parse errors, and configuration errors prevent a node from starting (and restarting).
 However, runtime PKC reload errors and recoveries are handled gracefully.
 
 IMPORTANT: All other JWT realm validations are checked before a signature failure can trigger a
-PKC JWKSet reload. Client authentication is strongly recommended. Narrow scoping of allowed algorithms,
+PKC JWKS reload. Client authentication is strongly recommended. Narrow scoping of allowed algorithms,
 allowed issuer, allowed audiences, and clock skew are all strongly recommended too. That way only trusted
 client applications and realm-specific JWT will be able to trigger PKC reload attempts.
 
 If multiple JWT authentication signature failures happen at the same time within an {es} node, reloads are
 combined to reduce the reloads sent externally.
 
-IMPORTANT: If JWT signature failures trigger PKC JWKSet reloads in different {es} nodes, reload
+IMPORTANT: If JWT signature failures trigger PKC JWKS reloads in different {es} nodes, reload
 requests cannot be combined.
 
-IMPORTANT: If JWT signature failures trigger PKC JWKSet reloads in the same {es} node, but at different
+IMPORTANT: If JWT signature failures trigger PKC JWKS reloads in the same {es} node, but at different
 times, separate reload requests will not be combined.
 
 [[hmac-oidc-example]]
-==== Authorizing to the JWT realm with an OIDC HMAC key
+==== Authorizing to the JWT realm with an HMAC UTF-8 key
 The following settings are for a JWT issuer, {es}, and a client of {es}. The
 example HMAC key is in an OIDC format that's compatible with HMAC. The key bytes
 are the UTF-8 encoding of the UNICODE characters.
@@ -490,7 +490,7 @@ The following values are for the bespoke JWT issuer.
 Issuer:     iss8
 Audiences:  aud8
 Algorithms: HS256
-HMAC OIDC:  hmac-oidc-key-string-for-hs256-algorithm
+HMAC UTF-8: hmac-oidc-key-string-for-hs256-algorithm
 ----
 // NOTCONSOLE
 

@@ -371,11 +371,13 @@ class RollupShardIndexer {
             this.docCount = 0;
             this.metricFieldProducers.values().forEach(MetricFieldProducer::reset);
             this.labelFieldProducers.values().forEach(LabelFieldProducer::reset);
-            logger.trace(
-                "New bucket for _tsid: [{}], @timestamp: [{}]",
-                DocValueFormat.TIME_SERIES_ID.format(tsid),
-                timestampFormat.format(timestamp)
-            );
+            if (logger.isTraceEnabled()) {
+                logger.trace(
+                    "New bucket for _tsid: [{}], @timestamp: [{}]",
+                    DocValueFormat.TIME_SERIES_ID.format(tsid),
+                    timestampFormat.format(timestamp)
+                );
+            }
             return this;
         }
 

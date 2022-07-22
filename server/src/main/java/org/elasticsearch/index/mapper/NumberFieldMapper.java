@@ -113,7 +113,7 @@ public class NumberFieldMapper extends FieldMapper {
         private final ScriptCompiler scriptCompiler;
         private final NumberType type;
 
-        private final Parameter<Boolean> singleValue;
+        private final Parameter<Boolean> allowMultipleValues;
         private final Version indexCreatedVersion;
 
         public Builder(String name, NumberType type, ScriptCompiler compiler, Settings settings, Version indexCreatedVersion) {
@@ -187,7 +187,7 @@ public class NumberFieldMapper extends FieldMapper {
             this.script.precludesParameters(ignoreMalformed, coerce, nullValue);
             addScriptValidation(script, indexed, hasDocValues);
 
-            this.singleValue = Parameter.boolParam("single_value", false, m -> toType(m).singleValue, false);
+            this.allowMultipleValues = Parameter.boolParam("allow_multiple_values", false, m -> toType(m).allowMultipleValues, true);
         }
 
         Builder nullValue(Number number) {
@@ -217,8 +217,8 @@ public class NumberFieldMapper extends FieldMapper {
             return this;
         }
 
-        public Builder singleValue(boolean singleValue) {
-            this.singleValue.setValue(singleValue);
+        public Builder allowMultipleValues(boolean allowMultipleValues) {
+            this.allowMultipleValues.setValue(allowMultipleValues);
             return this;
         }
 
@@ -236,7 +236,7 @@ public class NumberFieldMapper extends FieldMapper {
                 meta,
                 dimension,
                 metric,
-                singleValue };
+                allowMultipleValues};
         }
 
         @Override
@@ -1494,7 +1494,7 @@ public class NumberFieldMapper extends FieldMapper {
     private final ScriptCompiler scriptCompiler;
     private final Script script;
     private final MetricType metricType;
-    private final boolean singleValue;
+    private final boolean allowMultipleValues;
     private final Version indexCreatedVersion;
 
     private NumberFieldMapper(String simpleName, MappedFieldType mappedFieldType, MultiFields multiFields, CopyTo copyTo, Builder builder) {
@@ -1513,7 +1513,7 @@ public class NumberFieldMapper extends FieldMapper {
         this.scriptCompiler = builder.scriptCompiler;
         this.script = builder.script.getValue();
         this.metricType = builder.metric.getValue();
-        this.singleValue = builder.singleValue.get();
+        this.allowMultipleValues = builder.allowMultipleValues.get();
         this.indexCreatedVersion = builder.indexCreatedVersion;
     }
 
@@ -1580,7 +1580,7 @@ public class NumberFieldMapper extends FieldMapper {
         }
         fieldType().type.addFields(context.doc(), fieldType().name(), numericValue, indexed, hasDocValues, stored);
 
-        if (singleValue && (indexed || hasDocValues || stored)) {
+        if (false == allowMultipleValues && (indexed || hasDocValues || stored)) {
             // the last field is the current field, Add to the key map, so that we can validate if it has been added
             List<IndexableField> fields = context.doc().getFields();
             IndexableField last = fields.get(fields.size() - 1);
@@ -1608,7 +1608,7 @@ public class NumberFieldMapper extends FieldMapper {
     public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), type, scriptCompiler, ignoreMalformedByDefault, coerceByDefault, indexCreatedVersion).dimension(
             dimension
-        ).metric(metricType).singleValue(singleValue).init(this);
+        ).metric(metricType).allowMultipleValues(allowMultipleValues).init(this);
     }
 
     @Override

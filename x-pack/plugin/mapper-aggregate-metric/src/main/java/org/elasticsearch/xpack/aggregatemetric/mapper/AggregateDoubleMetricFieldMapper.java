@@ -224,7 +224,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                         false,
                         false,
                         indexCreatedVersion
-                    ).singleValue(true);
+                    ).allowMultipleValues(false);
                 } else {
                     builder = new NumberFieldMapper.Builder(
                         fieldName,

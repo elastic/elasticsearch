@@ -45,7 +45,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.MockLogAppender;
 
 import java.nio.file.Path;
@@ -247,7 +246,7 @@ public class ClusterRerouteIT extends ESIntegTestCase {
         ensureGreen(TimeValue.timeValueMinutes(1));
 
         logger.info("--> stopping node1");
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(node_1));
+        internalCluster().stopNode(node_1);
 
         // This might run slowly on older hardware
         ensureGreen(TimeValue.timeValueMinutes(2));

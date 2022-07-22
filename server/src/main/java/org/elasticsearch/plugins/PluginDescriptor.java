@@ -183,8 +183,9 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         String name = pluginDir.getFileName().toString(); // temporary until descriptor is loaded
 
         if (internalDescriptorExists && stableDescriptorExists) {
-            throw new IllegalStateException("Plugin [" + name +
-                "] has both stable and internal descriptor properties. Only one may exist.");
+            throw new IllegalStateException(
+                "Plugin [" + name + "] has both stable and internal descriptor properties. Only one may exist."
+            );
         } else if (internalDescriptorExists == false && stableDescriptorExists == false) {
             throw new IllegalStateException("Plugin [" + name + "] is missing a descriptor properties file.");
         } else if (internalDescriptorExists) {

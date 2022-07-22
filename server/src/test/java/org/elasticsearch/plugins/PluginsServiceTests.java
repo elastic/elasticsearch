@@ -43,8 +43,11 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -717,12 +720,12 @@ public class PluginsServiceTests extends ESTestCase {
             .instance();
 
         // We shouldn't find the FooTestService implementation with PluginOther
-        assertEquals(List.of(), MockPluginsService.createExtensions(TestService.class, othPlugin));
+        assertThat(MockPluginsService.createExtensions(TestService.class, othPlugin), empty());
 
         // We should find the FooTestService implementation when we use FooPlugin, because it matches the constructor arg.
         var providers = MockPluginsService.createExtensions(TestService.class, fooPlugin);
-        assertEquals(1, providers.size());
-        assertTrue(providers.get(0) instanceof BarTestService);
+
+        assertThat(providers, allOf(hasSize(1), everyItem(instanceOf(BarTestService.class))));
     }
 
     private static class TestExtensiblePlugin extends Plugin implements ExtensiblePlugin {

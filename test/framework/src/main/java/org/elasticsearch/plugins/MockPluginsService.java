@@ -91,7 +91,7 @@ public class MockPluginsService extends PluginsService {
             result.addAll(createExtensions(service, pluginTuple.instance()));
         }
 
-        return result.stream().toList();
+        return List.copyOf(result);
     }
 
     /**
@@ -111,6 +111,10 @@ public class MockPluginsService extends PluginsService {
             Constructor<T>[] constructors = (Constructor<T>[]) extensionClass.getConstructors();
             boolean compatible = true;
 
+            // We only check if we have incompatible one argument constructor, otherwise we let the code
+            // fall-through to the PluginsService method that will check if we have valid service provider.
+            // For one argument constructors we cannot validate from which plugin they should be loaded, which
+            // is why we de-dup the instances by using a Set in loadServiceProviders.
             for (var constructor : constructors) {
                 if (constructor.getParameterCount() == 1 && constructor.getParameterTypes()[0] != plugin.getClass()) {
                     compatible = false;

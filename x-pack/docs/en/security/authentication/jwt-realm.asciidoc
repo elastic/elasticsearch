@@ -446,7 +446,7 @@ and {es} used the `jwt_role1` role:
 [[jwt-realm-jwkset-reloading]]
 ===== PKC JWKS reloading
 JWT authentication supports signature verification using PKC (Public Key Cryptography) or HMAC algorithms.
-PKC JWKS can contain public RSA and EC keys. HMAC JWKS or HMAC UTF-8 JWK contain secret keys.
+PKC JSON Web Token Key Sets (JWKS) can contain public RSA and EC keys. HMAC JWKS or an HMAC UTF-8 JWK contain secret keys.
 JWT issuers typically rotate PKC JWKs more frequently (ex: daily), because RSA and EC public keys are
 designed to be easier to distribute than secret keys like HMAC.
 

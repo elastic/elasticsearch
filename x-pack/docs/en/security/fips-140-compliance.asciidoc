@@ -148,7 +148,7 @@ for the file realm and the <<security-api-put-user,create users>> and
 Other types of realms are not affected and do not require any changes.
 
 [discrete]
-==== Cached Password Hashing
+==== Cached password hashing
 [[fips-cached-password-hashing]]
 
 `ssha256` (salted `sha256`) is recommended for cache hashing. Though

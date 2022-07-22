@@ -340,7 +340,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
             try {
                 this.httpClient.close();
             } catch (IOException e) {
-                LOGGER.warn(() -> "Exception closing HTTPS client for realm [" + JwtRealm.this.name() + "]", e);
+                LOGGER.warn(() -> "Exception closing HTTPS client for realm [" + super.name() + "]", e);
             }
         }
     }

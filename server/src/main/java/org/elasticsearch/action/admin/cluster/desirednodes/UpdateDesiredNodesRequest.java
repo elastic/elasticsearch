@@ -24,6 +24,8 @@ import java.util.List;
 import java.util.Objects;
 
 public class UpdateDesiredNodesRequest extends AcknowledgedRequest<UpdateDesiredNodesRequest> {
+    private static final Version DRY_RUN_VERSION = Version.V_8_4_0;
+
     private final String historyID;
     private final long version;
     private final List<DesiredNode> nodes;
@@ -56,7 +58,7 @@ public class UpdateDesiredNodesRequest extends AcknowledgedRequest<UpdateDesired
         this.historyID = in.readString();
         this.version = in.readLong();
         this.nodes = in.readList(DesiredNode::readFrom);
-        dryRun = in.getVersion().onOrAfter(Version.V_8_4_0) ? in.readBoolean() : false;
+        dryRun = in.getVersion().onOrAfter(DRY_RUN_VERSION) ? in.readBoolean() : false;
     }
 
     @Override
@@ -65,7 +67,7 @@ public class UpdateDesiredNodesRequest extends AcknowledgedRequest<UpdateDesired
         out.writeString(historyID);
         out.writeLong(version);
         out.writeList(nodes);
-        if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
+        if (out.getVersion().onOrAfter(DRY_RUN_VERSION)) {
             out.writeBoolean(dryRun);
         }
     }

@@ -236,7 +236,7 @@ public class NumberFieldMapper extends FieldMapper {
                 meta,
                 dimension,
                 metric,
-                allowMultipleValues};
+                allowMultipleValues };
         }
 
         @Override

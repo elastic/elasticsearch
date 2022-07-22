@@ -461,7 +461,7 @@ However, runtime PKC reload errors and recoveries are handled gracefully.
 IMPORTANT: All other JWT realm validations are checked before a signature failure can trigger a
 PKC JWKS reload. Client authentication is strongly recommended. Narrow scoping of allowed algorithms,
 allowed issuer, allowed audiences, and clock skew are all strongly recommended too. That way only trusted
-client applications and realm-specific JWT will be able to trigger PKC reload attempts.
+client applications and realm-specific user JWT will be able to trigger PKC reload attempts.
 
 If multiple JWT authentication signature failures happen at the same time within an {es} node, reloads are
 combined to reduce the reloads sent externally.

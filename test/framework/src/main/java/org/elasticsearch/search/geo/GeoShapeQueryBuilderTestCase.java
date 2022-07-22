@@ -5,7 +5,7 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-package org.elasticsearch.index.query;
+package org.elasticsearch.search.geo;
 
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
@@ -22,6 +22,13 @@ import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.GeoShapeQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.index.query.Rewriteable;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -39,7 +46,7 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public abstract class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQueryBuilder> {
+public abstract class GeoShapeQueryBuilderTestCase extends AbstractQueryTestCase<GeoShapeQueryBuilder> {
 
     protected static String indexedShapeId;
     protected static String indexedShapePath;
@@ -47,14 +54,14 @@ public abstract class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<Ge
     protected static String indexedShapeRouting;
     protected static Geometry indexedShapeToReturn;
 
-    protected abstract String fieldName();
+    protected abstract String getFieldName();
 
     @Override
     protected GeoShapeQueryBuilder doCreateTestQueryBuilder() {
         return doCreateTestQueryBuilder(randomBoolean());
     }
 
-    abstract GeoShapeQueryBuilder doCreateTestQueryBuilder(boolean indexedShape);
+    protected abstract GeoShapeQueryBuilder doCreateTestQueryBuilder(boolean indexedShape);
 
     @Override
     protected GetResponse executeGet(GetRequest getRequest) {
@@ -106,17 +113,20 @@ public abstract class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<Ge
     }
 
     public void testNoShape() {
-        expectThrows(IllegalArgumentException.class, () -> new GeoShapeQueryBuilder(fieldName(), (Geometry) null));
+        expectThrows(IllegalArgumentException.class, () -> new GeoShapeQueryBuilder(getFieldName(), (Geometry) null));
     }
 
     public void testNoIndexedShape() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new GeoShapeQueryBuilder(fieldName(), null, null));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new GeoShapeQueryBuilder(getFieldName(), null, null)
+        );
         assertEquals("either shape or indexedShapeId is required", e.getMessage());
     }
 
     public void testNoRelation() {
         Geometry shape = GeometryTestUtils.randomGeometry(false);
-        GeoShapeQueryBuilder builder = new GeoShapeQueryBuilder(fieldName(), shape);
+        GeoShapeQueryBuilder builder = new GeoShapeQueryBuilder(getFieldName(), shape);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> builder.relation(null));
         assertEquals("No Shape Relation defined", e.getMessage());
     }
@@ -158,7 +168,7 @@ public abstract class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<Ge
         );
         assertEquals("query must be rewritten first", e.getMessage());
         QueryBuilder rewrite = rewriteAndFetch(query, createSearchExecutionContext());
-        GeoShapeQueryBuilder geoShapeQueryBuilder = new GeoShapeQueryBuilder(fieldName(), indexedShapeToReturn);
+        GeoShapeQueryBuilder geoShapeQueryBuilder = new GeoShapeQueryBuilder(query.fieldName(), indexedShapeToReturn);
         geoShapeQueryBuilder.strategy(query.strategy());
         geoShapeQueryBuilder.relation(query.relation());
         assertEquals(geoShapeQueryBuilder, rewrite);
@@ -169,7 +179,7 @@ public abstract class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<Ge
         QueryBuilder builder = new BoolQueryBuilder().should(shape).should(shape);
 
         builder = rewriteAndFetch(builder, createSearchExecutionContext());
-        GeoShapeQueryBuilder expectedShape = new GeoShapeQueryBuilder(fieldName(), indexedShapeToReturn);
+        GeoShapeQueryBuilder expectedShape = new GeoShapeQueryBuilder(shape.fieldName(), indexedShapeToReturn);
         expectedShape.strategy(shape.strategy());
         expectedShape.relation(shape.relation());
         QueryBuilder expected = new BoolQueryBuilder().should(expectedShape).should(expectedShape);

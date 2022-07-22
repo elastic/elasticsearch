@@ -17,7 +17,6 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.elasticsearch.test.InternalTestCluster;
 
 import java.io.IOException;
 
@@ -258,7 +257,7 @@ public class SpecificMasterNodesIT extends ESIntegTestCase {
                 equalTo(nextMasterEligableNodeName)
             );
         });
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(masterNodeName));
+        internalCluster().stopNode(masterNodeName);
         assertThat(
             internalCluster().nonMasterClient()
                 .admin()

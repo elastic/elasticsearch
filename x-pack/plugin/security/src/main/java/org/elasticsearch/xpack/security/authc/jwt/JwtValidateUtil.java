@@ -230,7 +230,7 @@ public class JwtValidateUtil {
      */
     public static void validateSignature(final SignedJWT jwt, final List<JWK> jwks) throws Exception {
         if (jwks == null || jwks.isEmpty()) {
-            throw new ElasticsearchException("Verify requires a non-empty JWK list.");
+            throw new ElasticsearchException("Verify requires a non-empty JWK list, jwks: [{}].", jwks);
         }
         final String id = jwt.getHeader().getKeyID();
         final JWSAlgorithm alg = jwt.getHeader().getAlgorithm();

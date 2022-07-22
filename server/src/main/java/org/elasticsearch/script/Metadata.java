@@ -8,6 +8,8 @@
 
 package org.elasticsearch.script;
 
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.HashMap;
@@ -41,7 +43,9 @@ public class Metadata {
     protected static final String ROUTING = "_routing";
     protected static final String VERSION_TYPE = "_version_type";
     protected static final String VERSION = "_version";
-    protected static final String TYPE = "_type"; // type is deprecated so it's supported in the map but not available as a getter
+    protected static final String TYPE = "_type"; // type is deprecated, so it's supported in the map but not available as a getter
+    protected static final String TIMESTAMP = "_now";
+    protected static final String OP = "op";
     protected static final String IF_SEQ_NO = "_if_seq_no";
     protected static final String IF_PRIMARY_TERM = "_if_primary_term";
     protected static final String DYNAMIC_TEMPLATES = "_dynamic_templates";
@@ -119,7 +123,15 @@ public class Metadata {
     }
 
     public ZonedDateTime getTimestamp() {
-        throw new UnsupportedOperationException("unimplemented");
+        return ZonedDateTime.ofInstant(Instant.ofEpochMilli(getNumber(TIMESTAMP).longValue()), ZoneOffset.UTC);
+    }
+
+    public String getOp() {
+        return getString(OP);
+    }
+
+    public void setOp(String op) {
+        put(OP, op);
     }
 
     // These are not available to scripts

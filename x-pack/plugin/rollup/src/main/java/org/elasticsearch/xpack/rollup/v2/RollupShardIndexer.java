@@ -212,7 +212,6 @@ class RollupShardIndexer {
         private final RollupBucketBuilder rollupBucketBuilder = new RollupBucketBuilder();
         long lastTimestamp = Long.MAX_VALUE;
         long lastHistoTimestamp = Long.MAX_VALUE;
-        BytesRef lastTsid = null;
 
         TimeSeriesBucketCollector(BulkProcessor bulkProcessor) {
             this.bulkProcessor = bulkProcessor;
@@ -256,6 +255,7 @@ class RollupShardIndexer {
                      * - _tsid must be sorted in ascending order
                      * - @timestamp must be sorted in descending order within the same _tsid
                      */
+                    BytesRef lastTsid = rollupBucketBuilder.tsid();
                     assert lastTsid == null || lastTsid.compareTo(tsid) <= 0
                         : "_tsid is not sorted in ascending order: ["
                             + DocValueFormat.TIME_SERIES_ID.format(lastTsid)
@@ -268,7 +268,6 @@ class RollupShardIndexer {
                             + "] -> ["
                             + timestampFormat.format(timestamp)
                             + "]";
-                    lastTsid = BytesRef.deepCopyOf(tsid);
                     lastTimestamp = timestamp;
 
                     if (tsidChanged || rollupBucketBuilder.timestamp() != lastHistoTimestamp) {
@@ -279,7 +278,12 @@ class RollupShardIndexer {
                         }
 
                         // Create new rollup bucket
-                        rollupBucketBuilder.init(tsid, lastHistoTimestamp);
+                        if (tsidChanged) {
+                            rollupBucketBuilder.resetTsid(tsid, lastHistoTimestamp);
+                        } else {
+                            rollupBucketBuilder.resetTimestamp(lastHistoTimestamp);
+                        }
+
                         bucketsCreated++;
                     }
 
@@ -348,8 +352,18 @@ class RollupShardIndexer {
             this.metricFieldProducers = MetricFieldProducer.buildMetricFieldProducers(searchExecutionContext, metricFields);
         }
 
-        public RollupBucketBuilder init(BytesRef tsid, long timestamp) {
+        /**
+         * tsid changed, reset tsid and timestamp
+         */
+        public RollupBucketBuilder resetTsid(BytesRef tsid, long timestamp) {
             this.tsid = BytesRef.deepCopyOf(tsid);
+            return resetTimestamp(timestamp);
+        }
+
+        /**
+         * timestamp change, reset builder
+         */
+        public RollupBucketBuilder resetTimestamp(long timestamp) {
             this.timestamp = timestamp;
             this.docCount = 0;
             this.metricFieldProducers.values().stream().forEach(p -> p.reset());

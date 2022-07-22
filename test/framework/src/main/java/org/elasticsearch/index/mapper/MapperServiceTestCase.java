@@ -651,7 +651,8 @@ public abstract class MapperServiceTestCase extends ESTestCase {
     protected final String syntheticSource(DocumentMapper mapper, CheckedConsumer<XContentBuilder, IOException> build) throws IOException {
         try (Directory directory = newDirectory()) {
             RandomIndexWriter iw = new RandomIndexWriter(random(), directory);
-            iw.addDocument(mapper.parse(source(build)).rootDoc());
+            LuceneDocument doc = mapper.parse(source(build)).rootDoc();
+            iw.addDocument(doc);
             iw.close();
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
                 SourceLoader loader = mapper.sourceMapper().newSourceLoader(mapper.mapping());
@@ -701,7 +702,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
 
     protected final XContentBuilder syntheticSourceMapping(CheckedConsumer<XContentBuilder, IOException> buildFields) throws IOException {
         return topMapping(b -> {
-            b.startObject("_source").field("synthetic", true).endObject();
+            b.startObject("_source").field("mode", "synthetic").endObject();
             b.startObject("properties");
             buildFields.accept(b);
             b.endObject();

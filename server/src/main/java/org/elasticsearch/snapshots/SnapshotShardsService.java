@@ -225,7 +225,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                 }
                 if (startedShards != null && startedShards.isEmpty() == false) {
                     shardSnapshots.computeIfAbsent(snapshot, s -> new HashMap<>()).putAll(startedShards);
-                    startNewShardSnapshots(entry, startedShards);
+                    startNewShards(entry, startedShards);
                 }
             } else if (entryState == State.ABORTED) {
                 // Abort all running shards for this snapshot
@@ -248,8 +248,9 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
         }
     }
 
-    private void startNewShardSnapshots(SnapshotsInProgress.Entry entry, Map<ShardId, IndexShardSnapshotStatus> startedShards) {
+    private void startNewShards(SnapshotsInProgress.Entry entry, Map<ShardId, IndexShardSnapshotStatus> startedShards) {
         threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
+            final Snapshot snapshot = entry.snapshot();
             for (final Map.Entry<ShardId, IndexShardSnapshotStatus> shardEntry : startedShards.entrySet()) {
                 final ShardId shardId = shardEntry.getKey();
                 final IndexShardSnapshotStatus snapshotStatus = shardEntry.getValue();
@@ -260,46 +261,40 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                     : "Found non-null, non-numeric shard generation ["
                         + snapshotStatus.generation()
                         + "] for snapshot with old-format compatibility";
-                startShardSnapshot(entry, shardId, snapshotStatus);
-            }
-        });
-    }
+                snapshot(shardId, snapshot, indexId, entry.userMetadata(), snapshotStatus, entry.version(), new ActionListener<>() {
+                    @Override
+                    public void onResponse(ShardSnapshotResult shardSnapshotResult) {
+                        final ShardGeneration newGeneration = shardSnapshotResult.getGeneration();
+                        assert newGeneration != null;
+                        assert newGeneration.equals(snapshotStatus.generation());
+                        if (logger.isDebugEnabled()) {
+                            final IndexShardSnapshotStatus.Copy lastSnapshotStatus = snapshotStatus.asCopy();
+                            logger.debug(
+                                "[{}][{}] completed snapshot to [{}] with status [{}] at generation [{}]",
+                                shardId,
+                                snapshot,
+                                snapshot.getRepository(),
+                                lastSnapshotStatus,
+                                snapshotStatus.generation()
+                            );
+                        }
+                        notifySuccessfulSnapshotShard(snapshot, shardId, shardSnapshotResult);
+                    }
 
-    private void startShardSnapshot(SnapshotsInProgress.Entry entry, ShardId shardId, IndexShardSnapshotStatus snapshotStatus) {
-        final Snapshot snapshot = entry.snapshot();
-        final IndexId indexId = entry.indices().get(shardId.getIndexName());
-        snapshot(shardId, snapshot, indexId, entry.userMetadata(), snapshotStatus, entry.version(), new ActionListener<>() {
-            @Override
-            public void onResponse(ShardSnapshotResult shardSnapshotResult) {
-                final ShardGeneration newGeneration = shardSnapshotResult.getGeneration();
-                assert newGeneration != null;
-                assert newGeneration.equals(snapshotStatus.generation());
-                if (logger.isDebugEnabled()) {
-                    final IndexShardSnapshotStatus.Copy lastSnapshotStatus = snapshotStatus.asCopy();
-                    logger.debug(
-                        "[{}][{}] completed snapshot to [{}] with status [{}] at generation [{}]",
-                        shardId,
-                        snapshot,
-                        snapshot.getRepository(),
-                        lastSnapshotStatus,
-                        snapshotStatus.generation()
-                    );
-                }
-                notifySuccessfulSnapshotShard(snapshot, shardId, shardSnapshotResult);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                final String failure;
-                if (e instanceof AbortedSnapshotException) {
-                    failure = "aborted";
-                    logger.debug(() -> format("[%s][%s] aborted shard snapshot", shardId, snapshot), e);
-                } else {
-                    failure = summarizeFailure(e);
-                    logger.warn(() -> format("[%s][%s] failed to snapshot shard", shardId, snapshot), e);
-                }
-                snapshotStatus.moveToFailed(threadPool.absoluteTimeInMillis(), failure);
-                notifyFailedSnapshotShard(snapshot, shardId, failure, snapshotStatus.generation());
+                    @Override
+                    public void onFailure(Exception e) {
+                        final String failure;
+                        if (e instanceof AbortedSnapshotException) {
+                            failure = "aborted";
+                            logger.debug(() -> format("[%s][%s] aborted shard snapshot", shardId, snapshot), e);
+                        } else {
+                            failure = summarizeFailure(e);
+                            logger.warn(() -> format("[%s][%s] failed to snapshot shard", shardId, snapshot), e);
+                        }
+                        snapshotStatus.moveToFailed(threadPool.absoluteTimeInMillis(), failure);
+                        notifyFailedSnapshotShard(snapshot, shardId, failure, snapshotStatus.generation());
+                    }
+                });
             }
         });
     }

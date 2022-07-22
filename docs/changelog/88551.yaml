@@ -1,5 +1,5 @@
 pr: 88551
-summary: "Fix: use status code 500 for errors if no shard failed"
+summary: "Fix: use status code 500 for aggregation reduce phase errors if no shard failed"
 area: Search
 type: bug
 issues:

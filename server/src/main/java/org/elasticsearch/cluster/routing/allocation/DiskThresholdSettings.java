@@ -307,7 +307,7 @@ public class DiskThresholdSettings {
         return describeThreshold(
             total,
             lowStageWatermark,
-            ByteSizeValue.ofBytes(-1),
+            ByteSizeValue.MINUS_ONE,
             includeSettingKey,
             CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(),
             null
@@ -318,7 +318,7 @@ public class DiskThresholdSettings {
         return describeThreshold(
             total,
             highStageWatermark,
-            ByteSizeValue.ofBytes(-1),
+            ByteSizeValue.MINUS_ONE,
             includeSettingKey,
             CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(),
             null
@@ -329,7 +329,7 @@ public class DiskThresholdSettings {
         return describeThreshold(
             total,
             floodStageWatermark,
-            ByteSizeValue.ofBytes(-1),
+            ByteSizeValue.MINUS_ONE,
             includeSettingKey,
             CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(),
             null

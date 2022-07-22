@@ -212,12 +212,23 @@ public class JwtRealmAuthenticateTests extends JwtRealmTestCase {
         }
 
         // Trigger JWT realm to reload JWKs and go into a degraded state
-        // - jwtJwks2(HMAC): HMAC reload not triggered, so PASS
-        // - jwtJwks2(PKC): PKC reload triggered and loaded new JWKs, so FAIL
+        // - jwtJwks1(HMAC): HMAC reload not triggered, so PASS
+        // - jwtJwks1(PKC): PKC reload triggered and loaded new JWKs, so FAIL
         if (isPkcJwtJwks1 == false || isPkcJwtJwks2 == false) {
             this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwtJwks1, clientSecret, jwtAuthcRange);
         } else {
             this.verifyAuthenticateFailureHelper(jwtIssuerAndRealm, jwtJwks1, clientSecret);
+        }
+
+        // Try new JWT and verify degraded state caused by empty PKC JWKs
+        // - jwtJwks1(PKC) + jwtJwks2(PKC): If second JWT is PKC, and first JWT is PKC, degraded state can be tested.
+        // - jwtJwks1(HMAC) + jwtJwks2(PKC): If second JWT is PKC, but first JWT is HMAC, HMAC JWT 1 above didn't trigger PKC reload.
+        // - jwtJwks1(PKC) + jwtJwks2(HMAC): If second JWT is HMAC, it always fails because HMAC reload not supported.
+        // - jwtJwks1(HMAC) + jwtJwks2(HMAC): If second JWT is HMAC, it always fails because HMAC reload not supported.
+        if (isPkcJwtJwks1 == false && isPkcJwtJwks2) {
+            this.doMultipleAuthcAuthzAndVerifySuccess(jwtIssuerAndRealm.realm(), user, jwtJwks2, clientSecret, jwtAuthcRange);
+        } else {
+            this.verifyAuthenticateFailureHelper(jwtIssuerAndRealm, jwtJwks2, clientSecret);
         }
 
         // Restore JWKs 2 to the realm

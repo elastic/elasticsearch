@@ -143,7 +143,7 @@ documentation].
 Each Java package in the {es-repo}[{es} source code] has a related logger. For
 example, the `org.elasticsearch.discovery` package has
 `logger.org.elasticsearch.discovery` for logs related to the
-<<modules-discovery-hosts-providers,discovery>> process.
+<<discovery-hosts-providers,discovery>> process.
 
 To get more or less verbose logs, use the <<cluster-update-settings,cluster
 update settings API>> to change the related logger's log level. Each logger

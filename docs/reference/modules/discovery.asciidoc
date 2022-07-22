@@ -8,7 +8,7 @@ each time it changes.
 The following processes and settings are part of discovery and cluster
 formation:
 
-<<modules-discovery-hosts-providers>>::
+<<discovery-hosts-providers>>::
 
     Discovery is the process where nodes find each other when the master is
     unknown, such as when a node has just started up or when the previous

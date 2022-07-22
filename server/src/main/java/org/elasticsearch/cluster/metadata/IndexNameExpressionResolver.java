@@ -1135,8 +1135,12 @@ public class IndexNameExpressionResolver {
                     // the resource exists and is available
                     explicitNames.add(expression);
                 } else if (Regex.isSimpleMatchPattern(expression)) {
+                    // can be a wildcard exclusion, ie -*, but it is only an exclusion if it follows a wildcard
+                    if (expression.charAt(0) == '-' && wildcardSeen) {
+                        String wildcardExclusion = expression.substring(1);
+                        explicitNames.removeIf(explicitName -> Regex.simpleMatch(wildcardExclusion, explicitName));
+                    }
                     wildcardSeen = true;
-                    // can be a wildcard exclusion, ie -*
                     wildcardsAndExclusions.add(expression);
                 } else {
                     // the resource does not exist and is not a wildcard

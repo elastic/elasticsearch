@@ -43,6 +43,7 @@ import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -88,7 +89,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
             controller.process("operator", parser, (e) -> x.set(e));
 
             assertTrue(x.get() instanceof IllegalStateException);
-            assertEquals("Error processing state change request for operator", x.get().getMessage());
+            assertThat(x.get().getMessage(), containsString("Error processing state change request for operator"));
         }
 
         testJSON = """
@@ -318,9 +319,9 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         );
 
         // We exit on duplicate errors before we update the cluster state error metadata
-        assertEquals(
-            "Error processing state change request for namespace_one",
-            expectThrows(IllegalStateException.class, () -> task.execute(state)).getMessage()
+        assertThat(
+            expectThrows(IllegalStateException.class, () -> task.execute(state)).getMessage(),
+            containsString("Error processing state change request for namespace_one")
         );
 
         emOne = new ReservedStateErrorMetadata(
@@ -340,9 +341,9 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         ClusterState newState = ClusterState.builder(new ClusterName("test")).metadata(metadata).build();
 
         // We exit on duplicate errors before we update the cluster state error metadata
-        assertEquals(
-            "Error processing state change request for namespace_one",
-            expectThrows(IllegalStateException.class, () -> task.execute(newState)).getMessage()
+        assertThat(
+            expectThrows(IllegalStateException.class, () -> task.execute(newState)).getMessage(),
+            containsString("Error processing state change request for namespace_one")
         );
     }
 

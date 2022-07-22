@@ -7,13 +7,13 @@
 
 package org.elasticsearch.xpack.core.rollup.action;
 
-import java.util.Map;
-
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.rollup.RollupActionConfig;
 import org.elasticsearch.xpack.core.rollup.RollupField;
+
+import java.util.Map;
 
 public class RollupShardTask extends CancellableTask {
     private String rollupIndex;

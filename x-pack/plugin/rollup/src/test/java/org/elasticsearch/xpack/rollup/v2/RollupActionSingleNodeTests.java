@@ -120,7 +120,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         rollupIndex = "rollup-" + sourceIndex;
         startTime = randomLongBetween(946769284000L, 1607470084000L); // random date between 2000-2020
         docCount = randomIntBetween(10, 9000);
-        numOfShards = 4;// randomIntBetween(1, 4);
+        numOfShards = randomIntBetween(1, 4);
         numOfReplicas = 0; // Since this is a single node, we cannot have replicas
 
         // Values for keyword dimensions
@@ -356,7 +356,8 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         IndicesService indexServices = getInstanceFromNode(IndicesService.class);
         Index srcIndex = resolveIndex(sourceIndex);
         IndexService indexService = indexServices.indexServiceSafe(srcIndex);
-        IndexShard shard = indexService.getShard(0);
+        int shardNum = randomIntBetween(0, numOfShards - 1);
+        IndexShard shard = indexService.getShard(shardNum);
         RollupShardStatus status = new RollupShardStatus(shard.shardId());
 
         // re-use source index as temp index for test
@@ -373,7 +374,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         status.setCancelled();
 
         TaskCancelledException exception = expectThrows(TaskCancelledException.class, () -> indexer.execute());
-        assertThat(exception.getMessage(), equalTo("Shard [" + sourceIndex + "][0] rollup cancelled"));
+        assertThat(exception.getMessage(), equalTo("Shard [" + sourceIndex + "][" + shardNum + "] rollup cancelled"));
     }
 
     public void testRollupBulkFailed() throws IOException {

@@ -68,6 +68,6 @@ public class PortsRange {
 
     @Override
     public String toString() {
-        return "PortsRange{" + "portRange='" + portRange + '\'' + '}';
+        return "PortsRange{portRange='" + portRange + '\'' + '}';
     }
 }

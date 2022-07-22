@@ -125,7 +125,7 @@ public class JavadocExtractor {
 
         @Override
         public String toString() {
-            return "ParsedJavaClass{" + "methods=" + methods + '}';
+            return "ParsedJavaClass{methods=" + methods + '}';
         }
 
         public void putMethod(MethodDeclaration declaration) {

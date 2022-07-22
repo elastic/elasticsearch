@@ -109,7 +109,7 @@ public class ProfileHasPrivilegesRequest extends ActionRequest {
 
     @Override
     public String toString() {
-        return getClass().getSimpleName() + "{" + "uids=" + uids + "," + "privileges=" + privilegesToCheck + "}";
+        return getClass().getSimpleName() + "{uids=" + uids + "," + "privileges=" + privilegesToCheck + "}";
     }
 
     public interface Fields {

@@ -113,6 +113,6 @@ public class RestoreSnapshotResponse extends ActionResponse implements ToXConten
 
     @Override
     public String toString() {
-        return "RestoreSnapshotResponse{" + "restoreInfo=" + restoreInfo + '}';
+        return "RestoreSnapshotResponse{restoreInfo=" + restoreInfo + '}';
     }
 }

@@ -55,7 +55,7 @@ public record RealmDomain(String name, Set<RealmConfig.RealmIdentifier> realms) 
 
     @Override
     public String toString() {
-        return "RealmDomain{" + "name='" + name + '\'' + ", realms=" + realms + '}';
+        return "RealmDomain{name='" + name + "', realms=" + realms + '}';
     }
 
     @SuppressWarnings("unchecked")

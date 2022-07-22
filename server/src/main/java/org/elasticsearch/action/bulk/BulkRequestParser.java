@@ -377,7 +377,7 @@ public final class BulkRequestParser {
                     } else if ("update".equals(action)) {
                         if (version != Versions.MATCH_ANY || versionType != VersionType.INTERNAL) {
                             throw new IllegalArgumentException(
-                                "Update requests do not support versioning. " + "Please use `if_seq_no` and `if_primary_term` instead"
+                                "Update requests do not support versioning. Please use `if_seq_no` and `if_primary_term` instead"
                             );
                         }
                         // TODO: support dynamic_templates in update requests

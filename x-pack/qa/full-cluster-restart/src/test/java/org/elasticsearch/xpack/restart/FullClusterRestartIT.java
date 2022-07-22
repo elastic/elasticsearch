@@ -601,7 +601,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         );
         if (isRunningAgainstOldCluster() && getOldClusterVersion().onOrAfter(Version.V_7_4_0)) {
             Request createRepoRequest = new Request("PUT", "_snapshot/test-repo");
-            String repoCreateJson = "{" + " \"type\": \"fs\"," + " \"settings\": {" + "   \"location\": \"test-repo\"" + "  }" + "}";
+            String repoCreateJson = "{ \"type\": \"fs\"," + " \"settings\": {   \"location\": \"test-repo\"" + "  }" + "}";
             createRepoRequest.setJsonEntity(repoCreateJson);
             Request createSlmPolicyRequest = new Request("PUT", "_slm/policy/test-policy");
             try (XContentBuilder builder = JsonXContent.contentBuilder()) {

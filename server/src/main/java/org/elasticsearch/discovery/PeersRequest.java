@@ -50,7 +50,7 @@ public class PeersRequest extends TransportRequest {
 
     @Override
     public String toString() {
-        return "PeersRequest{" + "sourceNode=" + sourceNode + ", knownPeers=" + knownPeers + '}';
+        return "PeersRequest{sourceNode=" + sourceNode + ", knownPeers=" + knownPeers + '}';
     }
 
     @Override

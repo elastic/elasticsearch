@@ -102,7 +102,7 @@ public class MappingMetadata implements SimpleDiffable<MappingMetadata> {
                         required = nodeBooleanValue(fieldNode);
                     } catch (IllegalArgumentException ex) {
                         throw new IllegalArgumentException(
-                            "Failed to create mapping for type [" + this.type() + "]. " + "Illegal value in field [_routing.required].",
+                            "Failed to create mapping for type [" + this.type() + "]. Illegal value in field [_routing.required].",
                             ex
                         );
                     }

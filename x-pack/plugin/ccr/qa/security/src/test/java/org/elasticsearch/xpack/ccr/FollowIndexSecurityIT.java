@@ -320,7 +320,7 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
         Request enableMonitoring = new Request("PUT", "/_cluster/settings");
         enableMonitoring.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE).build());
         enableMonitoring.setJsonEntity(
-            "{\"persistent\":{" + "\"xpack.monitoring.collection.enabled\":true," + "\"xpack.monitoring.collection.interval\":\"1s\"" + "}}"
+            "{\"persistent\":{\"xpack.monitoring.collection.enabled\":true," + "\"xpack.monitoring.collection.interval\":\"1s\"" + "}}"
         );
         assertOK(adminClient().performRequest(enableMonitoring));
         logger.info("monitoring collection enabled");

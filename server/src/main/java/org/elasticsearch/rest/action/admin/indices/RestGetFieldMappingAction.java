@@ -77,7 +77,7 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
                 request.param("local");
                 deprecationLogger.compatibleCritical(
                     "get_field_mapping_local",
-                    "Use [local] in get field mapping requests is deprecated. " + "The parameter will be removed in the next major version"
+                    "Use [local] in get field mapping requests is deprecated. The parameter will be removed in the next major version"
                 );
             }
         }

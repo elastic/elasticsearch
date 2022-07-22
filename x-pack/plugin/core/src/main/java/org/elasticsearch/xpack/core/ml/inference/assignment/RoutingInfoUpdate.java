@@ -70,7 +70,7 @@ public class RoutingInfoUpdate implements Writeable {
 
     @Override
     public String toString() {
-        return "RoutingInfoUpdate{" + "numberOfAllocations=" + numberOfAllocations + ", stateAndReason=" + stateAndReason + '}';
+        return "RoutingInfoUpdate{numberOfAllocations=" + numberOfAllocations + ", stateAndReason=" + stateAndReason + '}';
     }
 
     public Optional<Integer> getNumberOfAllocations() {

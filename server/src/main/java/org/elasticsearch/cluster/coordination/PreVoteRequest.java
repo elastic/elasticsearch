@@ -49,7 +49,7 @@ public class PreVoteRequest extends TransportRequest {
 
     @Override
     public String toString() {
-        return "PreVoteRequest{" + "sourceNode=" + sourceNode + ", currentTerm=" + currentTerm + '}';
+        return "PreVoteRequest{sourceNode=" + sourceNode + ", currentTerm=" + currentTerm + '}';
     }
 
     @Override

@@ -110,7 +110,7 @@ public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMask
                     if (query instanceof SpanQueryBuilder == false) {
                         throw new ParsingException(
                             parser.getTokenLocation(),
-                            "[" + NAME.getPreferredName() + "] query must " + "be of type span query"
+                            "[" + NAME.getPreferredName() + "] query must be of type span query"
                         );
                     }
                     inner = (SpanQueryBuilder) query;

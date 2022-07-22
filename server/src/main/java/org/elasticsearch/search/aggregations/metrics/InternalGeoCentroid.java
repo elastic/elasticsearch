@@ -190,6 +190,6 @@ public class InternalGeoCentroid extends InternalAggregation implements GeoCentr
 
     @Override
     public String toString() {
-        return "InternalGeoCentroid{" + "centroid=" + centroid + ", count=" + count + '}';
+        return "InternalGeoCentroid{centroid=" + centroid + ", count=" + count + '}';
     }
 }

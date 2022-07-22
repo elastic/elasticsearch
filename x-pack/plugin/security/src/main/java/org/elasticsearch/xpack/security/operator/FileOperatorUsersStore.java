@@ -111,7 +111,7 @@ public class FileOperatorUsersStore {
 
         @Override
         public String toString() {
-            return "OperatorUsersDescriptor{" + "groups=" + groups + '}';
+            return "OperatorUsersDescriptor{groups=" + groups + '}';
         }
     }
 

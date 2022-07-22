@@ -72,6 +72,6 @@ public class ProfileHasPrivilegesResponse extends ActionResponse implements ToXC
 
     @Override
     public String toString() {
-        return getClass().getSimpleName() + "{" + "has_privilege_uids=" + hasPrivilegeUids + ", error_uids=" + errorUids + "}";
+        return getClass().getSimpleName() + "{has_privilege_uids=" + hasPrivilegeUids + ", error_uids=" + errorUids + "}";
     }
 }

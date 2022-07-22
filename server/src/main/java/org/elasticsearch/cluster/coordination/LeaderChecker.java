@@ -411,7 +411,7 @@ public class LeaderChecker {
 
         @Override
         public String toString() {
-            return "LeaderCheckRequest{" + "sender=" + sender + '}';
+            return "LeaderCheckRequest{sender=" + sender + '}';
         }
     }
 

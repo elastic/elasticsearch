@@ -84,6 +84,6 @@ public class ColumnInfo {
 
     @Override
     public String toString() {
-        return "ColumnInfo{" + "table='" + table + "', name='" + name + "', esType='" + esType + "', displaySize=" + displaySize + '}';
+        return "ColumnInfo{table='" + table + "', name='" + name + "', esType='" + esType + "', displaySize=" + displaySize + '}';
     }
 }

@@ -883,7 +883,7 @@ public final class IngestDocument {
 
     @Override
     public String toString() {
-        return "IngestDocument{" + " sourceAndMetadata=" + sourceAndMetadata + ", ingestMetadata=" + ingestMetadata + '}';
+        return "IngestDocument{ sourceAndMetadata=" + sourceAndMetadata + ", ingestMetadata=" + ingestMetadata + '}';
     }
 
     public enum Metadata {

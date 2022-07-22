@@ -439,7 +439,7 @@ public final class AnalyzerCaster {
         } else {
             throw location.createError(
                 new IllegalStateException(
-                    "Cannot cast from " + "[" + cast.originalType.getCanonicalName() + "] to [" + cast.targetType.getCanonicalName() + "]."
+                    "Cannot cast from [" + cast.originalType.getCanonicalName() + "] to [" + cast.targetType.getCanonicalName() + "]."
                 )
             );
         }

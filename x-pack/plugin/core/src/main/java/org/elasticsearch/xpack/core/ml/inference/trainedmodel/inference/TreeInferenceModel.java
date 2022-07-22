@@ -612,7 +612,7 @@ public class TreeInferenceModel implements InferenceModel {
 
         @Override
         public String toString() {
-            return "LeafNode{" + "leafValue=" + Arrays.toString(leafValue) + ", numberSamples=" + numberSamples + '}';
+            return "LeafNode{leafValue=" + Arrays.toString(leafValue) + ", numberSamples=" + numberSamples + '}';
         }
     }
 }

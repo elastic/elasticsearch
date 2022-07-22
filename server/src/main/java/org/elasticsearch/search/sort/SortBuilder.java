@@ -110,7 +110,7 @@ public abstract class SortBuilder<T extends SortBuilder<T>>
                     sortFields.add(fieldOrScoreSort(fieldName));
                 } else {
                     throw new IllegalArgumentException(
-                        "malformed sort format, " + "within the sort array, an object, or an actual string are allowed"
+                        "malformed sort format, within the sort array, an object, or an actual string are allowed"
                     );
                 }
             }

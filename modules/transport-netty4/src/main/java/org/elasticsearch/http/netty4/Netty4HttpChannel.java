@@ -73,6 +73,6 @@ public class Netty4HttpChannel implements HttpChannel {
 
     @Override
     public String toString() {
-        return "Netty4HttpChannel{" + "localAddress=" + getLocalAddress() + ", remoteAddress=" + getRemoteAddress() + '}';
+        return "Netty4HttpChannel{localAddress=" + getLocalAddress() + ", remoteAddress=" + getRemoteAddress() + '}';
     }
 }

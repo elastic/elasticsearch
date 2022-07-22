@@ -170,7 +170,7 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
 
     @Override
     public String toString() {
-        return "GetFieldMappingsResponse{" + "mappings=" + mappings + '}';
+        return "GetFieldMappingsResponse{mappings=" + mappings + '}';
     }
 
     @Override

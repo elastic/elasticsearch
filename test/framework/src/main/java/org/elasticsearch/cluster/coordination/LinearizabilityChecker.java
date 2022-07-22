@@ -201,7 +201,7 @@ public class LinearizabilityChecker {
 
         @Override
         public String toString() {
-            return "History{" + "events=" + events + ", nextId=" + nextId + '}';
+            return "History{events=" + events + ", nextId=" + nextId + '}';
         }
 
     }

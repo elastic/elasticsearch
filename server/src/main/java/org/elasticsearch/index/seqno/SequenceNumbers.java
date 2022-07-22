@@ -114,7 +114,7 @@ public class SequenceNumbers {
 
         @Override
         public String toString() {
-            return "CommitInfo{" + "maxSeqNo=" + maxSeqNo + ", localCheckpoint=" + localCheckpoint + '}';
+            return "CommitInfo{maxSeqNo=" + maxSeqNo + ", localCheckpoint=" + localCheckpoint + '}';
         }
     }
 }

@@ -194,7 +194,7 @@ public final class Elements {
 
         @Override
         public void expose(Key<?> key) {
-            addError("Cannot expose %s on a standard binder. " + "Exposed bindings are only applicable to private binders.", key);
+            addError("Cannot expose %s on a standard binder. Exposed bindings are only applicable to private binders.", key);
 
         }
 

@@ -74,7 +74,7 @@ public class RestPutMappingAction extends BaseRestHandler {
             final String type = request.param("type");
             if (includeTypeName == false && (type != null || isMappingSourceTyped(MapperService.SINGLE_MAPPING_NAME, sourceAsMap))) {
                 throw new IllegalArgumentException(
-                    "Types cannot be provided in put mapping requests, unless " + "the include_type_name parameter is set to true."
+                    "Types cannot be provided in put mapping requests, unless the include_type_name parameter is set to true."
                 );
             }
 

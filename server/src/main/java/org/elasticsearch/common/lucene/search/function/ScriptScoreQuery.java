@@ -183,7 +183,7 @@ public class ScriptScoreQuery extends Query {
 
     @Override
     public String toString(String field) {
-        return "script_score (" + subQuery.toString(field) + ", script: " + "{" + script.toString() + "}";
+        return "script_score (" + subQuery.toString(field) + ", script: {" + script.toString() + "}";
     }
 
     @Override

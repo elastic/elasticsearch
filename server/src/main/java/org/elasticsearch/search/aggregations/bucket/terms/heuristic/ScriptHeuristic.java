@@ -111,7 +111,7 @@ public class ScriptHeuristic extends SignificanceHeuristic {
     @Override
     public double getScore(long subsetFreq, long subsetSize, long supersetFreq, long supersetSize) {
         throw new UnsupportedOperationException(
-            "This scoring heuristic must have 'rewrite' called on it to provide a version ready " + "for use"
+            "This scoring heuristic must have 'rewrite' called on it to provide a version ready for use"
         );
     }
 

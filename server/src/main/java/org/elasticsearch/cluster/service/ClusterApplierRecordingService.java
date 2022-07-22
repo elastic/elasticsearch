@@ -176,7 +176,7 @@ public final class ClusterApplierRecordingService {
 
             @Override
             public String toString() {
-                return "Recording{" + "count=" + count + ", sum=" + sum + '}';
+                return "Recording{count=" + count + ", sum=" + sum + '}';
             }
         }
     }

@@ -223,7 +223,7 @@ public final class Errors {
     }
 
     public Errors optionalConstructor(Constructor constructor) {
-        return addMessage("%s is annotated @Inject(optional=true), " + "but constructors cannot be optional.", constructor);
+        return addMessage("%s is annotated @Inject(optional=true), but constructors cannot be optional.", constructor);
     }
 
     public Errors cannotBindToGuiceType(String simpleName) {
@@ -236,7 +236,7 @@ public final class Errors {
 
     public Errors scopeAnnotationOnAbstractType(Class<? extends Annotation> scopeAnnotation, Class<?> type, Object source) {
         return addMessage(
-            "%s is annotated with %s, but scope annotations are not supported " + "for abstract types.%n Bound at %s.",
+            "%s is annotated with %s, but scope annotations are not supported for abstract types.%n Bound at %s.",
             type,
             scopeAnnotation,
             convert(source)
@@ -245,7 +245,7 @@ public final class Errors {
 
     public Errors misplacedBindingAnnotation(Member member, Annotation bindingAnnotation) {
         return addMessage(
-            "%s is annotated with %s, but binding annotations should be applied " + "to its parameters instead.",
+            "%s is annotated with %s, but binding annotations should be applied to its parameters instead.",
             member,
             bindingAnnotation
         );
@@ -276,13 +276,13 @@ public final class Errors {
 
     public Errors cannotInjectInnerClass(Class<?> type) {
         return addMessage(
-            "Injecting into inner classes is not supported.  " + "Please use a 'static' class (top-level or nested) instead of %s.",
+            "Injecting into inner classes is not supported.  Please use a 'static' class (top-level or nested) instead of %s.",
             type
         );
     }
 
     public Errors duplicateBindingAnnotations(Member member, Class<? extends Annotation> a, Class<? extends Annotation> b) {
-        return addMessage("%s has more than one annotation annotated with @BindingAnnotation: " + "%s and %s", member, a, b);
+        return addMessage("%s has more than one annotation annotated with @BindingAnnotation: %s and %s", member, a, b);
     }
 
     public Errors duplicateScopeAnnotations(Class<? extends Annotation> a, Class<? extends Annotation> b) {

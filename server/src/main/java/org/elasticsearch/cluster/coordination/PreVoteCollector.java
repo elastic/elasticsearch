@@ -134,7 +134,7 @@ public class PreVoteCollector {
 
     @Override
     public String toString() {
-        return "PreVoteCollector{" + "state=" + state + '}';
+        return "PreVoteCollector{state=" + state + '}';
     }
 
     private class PreVotingRound implements Releasable {

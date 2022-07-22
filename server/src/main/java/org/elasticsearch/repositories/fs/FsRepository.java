@@ -95,7 +95,7 @@ public class FsRepository extends BlobStoreRepository {
         if (locationFile == null) {
             if (environment.repoFiles().length > 0) {
                 logger.warn(
-                    "The specified location [{}] doesn't start with any " + "repository paths specified by the path.repo setting: [{}] ",
+                    "The specified location [{}] doesn't start with any repository paths specified by the path.repo setting: [{}] ",
                     location,
                     environment.repoFiles()
                 );

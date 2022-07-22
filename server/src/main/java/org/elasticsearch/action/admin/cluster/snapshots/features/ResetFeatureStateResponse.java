@@ -87,7 +87,7 @@ public class ResetFeatureStateResponse extends ActionResponse implements ToXCont
 
     @Override
     public String toString() {
-        return "ResetFeatureStateResponse{" + "resetFeatureStateStatusList=" + resetFeatureStateStatusList + '}';
+        return "ResetFeatureStateResponse{resetFeatureStateStatusList=" + resetFeatureStateStatusList + '}';
     }
 
     /**

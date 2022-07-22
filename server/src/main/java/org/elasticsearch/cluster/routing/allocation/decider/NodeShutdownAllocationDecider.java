@@ -83,7 +83,7 @@ public class NodeShutdownAllocationDecider extends AllocationDecider {
             case RESTART -> allocation.decision(
                 Decision.YES,
                 NAME,
-                "node [%s] is not preparing for removal from the cluster (is " + "restarting)",
+                "node [%s] is not preparing for removal from the cluster (is restarting)",
                 node.getId()
             );
             case REPLACE, REMOVE -> allocation.decision(

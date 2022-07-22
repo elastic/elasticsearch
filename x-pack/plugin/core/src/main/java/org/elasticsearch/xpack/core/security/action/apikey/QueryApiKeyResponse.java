@@ -88,7 +88,7 @@ public final class QueryApiKeyResponse extends ActionResponse implements ToXCont
 
     @Override
     public String toString() {
-        return "QueryApiKeyResponse{" + "total=" + total + ", items=" + Arrays.toString(items) + '}';
+        return "QueryApiKeyResponse{total=" + total + ", items=" + Arrays.toString(items) + '}';
     }
 
     public static class Item implements ToXContentObject, Writeable {
@@ -148,7 +148,7 @@ public final class QueryApiKeyResponse extends ActionResponse implements ToXCont
 
         @Override
         public String toString() {
-            return "Item{" + "apiKey=" + apiKey + ", sortValues=" + Arrays.toString(sortValues) + '}';
+            return "Item{apiKey=" + apiKey + ", sortValues=" + Arrays.toString(sortValues) + '}';
         }
     }
 }

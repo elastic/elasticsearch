@@ -161,7 +161,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         if (in.getVersion().before(Version.V_8_0_0)) {
             if (in.readOptionalNamedWriteable(QueryBuilder.class) != null || in.readOptionalString() != null) {
                 throw new IOException(
-                    "the [sort] options [nested_path] and [nested_filter] are removed in 8.x, " + "please use [nested] instead"
+                    "the [sort] options [nested_path] and [nested_filter] are removed in 8.x, please use [nested] instead"
                 );
             }
 

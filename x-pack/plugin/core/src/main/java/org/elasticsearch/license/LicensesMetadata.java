@@ -77,7 +77,7 @@ public class LicensesMetadata extends AbstractNamedDiffable<Metadata.Custom> imp
 
     @Override
     public String toString() {
-        return "LicensesMetadata{" + "license=" + license + ", trialVersion=" + trialVersion + '}';
+        return "LicensesMetadata{license=" + license + ", trialVersion=" + trialVersion + '}';
     }
 
     @Override

@@ -163,7 +163,7 @@ public final class SPIClassIterator<S> implements Iterator<Class<? extends S>> {
             throw new ServiceConfigurationError(
                 String.format(
                     Locale.ROOT,
-                    "An SPI class of type %s with classname %s does not exist, " + "please fix the file '%s%1$s' in your classpath.",
+                    "An SPI class of type %s with classname %s does not exist, please fix the file '%s%1$s' in your classpath.",
                     clazz.getName(),
                     c,
                     META_INF_SERVICES

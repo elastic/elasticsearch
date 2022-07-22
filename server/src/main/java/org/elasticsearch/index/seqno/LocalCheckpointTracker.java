@@ -62,7 +62,7 @@ public class LocalCheckpointTracker {
     public LocalCheckpointTracker(final long maxSeqNo, final long localCheckpoint) {
         if (localCheckpoint < 0 && localCheckpoint != SequenceNumbers.NO_OPS_PERFORMED) {
             throw new IllegalArgumentException(
-                "local checkpoint must be non-negative or [" + SequenceNumbers.NO_OPS_PERFORMED + "] " + "but was [" + localCheckpoint + "]"
+                "local checkpoint must be non-negative or [" + SequenceNumbers.NO_OPS_PERFORMED + "] but was [" + localCheckpoint + "]"
             );
         }
         if (maxSeqNo < 0 && maxSeqNo != SequenceNumbers.NO_OPS_PERFORMED) {

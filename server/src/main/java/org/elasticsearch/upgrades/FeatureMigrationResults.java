@@ -127,7 +127,7 @@ public class FeatureMigrationResults implements Metadata.Custom {
 
     @Override
     public String toString() {
-        return "SystemIndexMigrationResult{" + "featureStatuses=" + featureStatuses + '}';
+        return "SystemIndexMigrationResult{featureStatuses=" + featureStatuses + '}';
     }
 
     @Override

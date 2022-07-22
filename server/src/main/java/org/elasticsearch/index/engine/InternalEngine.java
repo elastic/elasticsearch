@@ -2535,7 +2535,7 @@ public class InternalEngine extends Engine {
                 commitData.put(Translog.TRANSLOG_UUID_KEY, translog.getTranslogUUID());
                 commitData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(localCheckpoint));
                 commitData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(localCheckpointTracker.getMaxSeqNo()));
-                mayHaveBeenIndexedBefore.commitData(commitData);
+                mayHaveBeenIndexedBefore.writeCommitData(commitData);
                 commitData.put(HISTORY_UUID_KEY, historyUUID);
                 final String currentForceMergeUUID = forceMergeUUID;
                 if (currentForceMergeUUID != null) {
@@ -2855,7 +2855,7 @@ public class InternalEngine extends Engine {
 
     @Override
     public final void updateMaxUnsafeAutoIdTimestamp(long newTimestamp) {
-        mayHaveBeenIndexedBefore.updateAutoIdTimestamp(newTimestamp, true);
+        mayHaveBeenIndexedBefore.updateAutoIdTimestamp(newTimestamp);
     }
 
     @Override

@@ -65,7 +65,7 @@ public class KnnSearchBuilderTests extends AbstractSerializingTestCase<KnnSearch
         int dim = randomIntBetween(2, 30);
         float[] vector = randomVector(dim);
         int k = randomIntBetween(1, 100);
-        int numCands = randomIntBetween(k, 1000);
+        int numCands = randomIntBetween(k + 20, 1000);
 
         KnnSearchBuilder builder = new KnnSearchBuilder(field, vector, k, numCands);
         if (randomBoolean()) {

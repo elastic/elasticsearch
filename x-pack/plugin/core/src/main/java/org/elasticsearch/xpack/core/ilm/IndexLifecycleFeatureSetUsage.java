@@ -435,11 +435,11 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
                 this.rolloverMinSize = in.readOptionalWriteable(ByteSizeValue::new);
                 this.rolloverMinPrimaryShardDocs = in.readOptionalVLong();
             } else {
-                this.rolloverMinAge = in.readOptionalTimeValue();
-                this.rolloverMinDocs = in.readOptionalVLong();
-                this.rolloverMinPrimaryShardSize = in.readOptionalWriteable(ByteSizeValue::new);
-                this.rolloverMinSize = in.readOptionalWriteable(ByteSizeValue::new);
-                this.rolloverMinPrimaryShardDocs = in.readOptionalVLong();
+                this.rolloverMinAge = null;
+                this.rolloverMinDocs = null;
+                this.rolloverMinPrimaryShardSize = null;
+                this.rolloverMinSize = null;
+                this.rolloverMinPrimaryShardDocs = null;
             }
         }
 

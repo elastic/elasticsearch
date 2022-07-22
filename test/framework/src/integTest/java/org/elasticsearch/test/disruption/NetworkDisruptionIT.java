@@ -17,7 +17,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportException;
@@ -75,7 +74,7 @@ public class NetworkDisruptionIT extends ESIntegTestCase {
     public void testClearDisruptionSchemeWhenNodeIsDown() throws IOException {
         Tuple<Set<String>, Set<String>> sides = prepareDisruptedCluster();
 
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(randomFrom(sides.v2())));
+        internalCluster().stopNode(randomFrom(sides.v2()));
         internalCluster().clearDisruptionScheme();
     }
 

@@ -55,8 +55,6 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
-import org.elasticsearch.threadpool.TestThreadPool;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
@@ -71,8 +69,7 @@ import static java.util.Collections.emptySet;
 
 public class FsRepositoryTests extends ESTestCase {
 
-    public void testSnapshotAndRestore() throws IOException, InterruptedException {
-        ThreadPool threadPool = new TestThreadPool(getClass().getSimpleName());
+    public void testSnapshotAndRestore() throws IOException {
         try (Directory directory = newDirectory()) {
             Path repo = createTempDir();
             Settings settings = Settings.builder()
@@ -191,8 +188,6 @@ public class FsRepositoryTests extends ESTestCase {
                 .toList();
             assertTrue(recoveredFiles.get(0).name(), recoveredFiles.get(0).name().endsWith(".liv"));
             assertTrue(recoveredFiles.get(1).name(), recoveredFiles.get(1).name().endsWith("segments_" + incIndexCommit.getGeneration()));
-        } finally {
-            terminate(threadPool);
         }
     }
 

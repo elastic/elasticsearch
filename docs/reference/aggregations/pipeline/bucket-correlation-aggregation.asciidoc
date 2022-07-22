@@ -5,8 +5,6 @@
 <titleabbrev>Bucket correlation</titleabbrev>
 ++++
 
-experimental::[]
-
 A sibling pipeline aggregation which executes a correlation function on the
 configured sibling multi-bucket aggregation.
 

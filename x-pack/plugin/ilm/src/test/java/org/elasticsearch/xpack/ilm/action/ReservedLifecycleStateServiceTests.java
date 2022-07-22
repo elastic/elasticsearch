@@ -7,13 +7,25 @@
 
 package org.elasticsearch.xpack.ilm.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateAckListener;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.reservedstate.TransformState;
+import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
+import org.elasticsearch.reservedstate.service.ReservedClusterStateService;
+import org.elasticsearch.reservedstate.service.ReservedStateChunk;
+import org.elasticsearch.reservedstate.service.ReservedStateUpdateTask;
+import org.elasticsearch.reservedstate.service.ReservedStateUpdateTaskExecutor;
+import org.elasticsearch.reservedstate.service.ReservedStateVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -27,8 +39,10 @@ import org.elasticsearch.xpack.core.ilm.ForceMergeAction;
 import org.elasticsearch.xpack.core.ilm.FreezeAction;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
+import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecycleType;
 import org.elasticsearch.xpack.core.ilm.MigrateAction;
+import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.ReadOnlyAction;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.RollupILMAction;
@@ -38,17 +52,26 @@ import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 import org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType;
 import org.elasticsearch.xpack.core.ilm.UnfollowAction;
 import org.elasticsearch.xpack.core.ilm.WaitForSnapshotAction;
+import org.mockito.stubbing.Answer;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class ReservedLifecycleStateControllerTests extends ESTestCase {
+public class ReservedLifecycleStateServiceTests extends ESTestCase {
 
     protected NamedXContentRegistry xContentRegistry() {
         List<NamedXContentRegistry.Entry> entries = new ArrayList<>(ClusterModule.getNamedXWriteables());
@@ -208,5 +231,206 @@ public class ReservedLifecycleStateControllerTests extends ESTestCase {
         assertThat(updatedState.keys(), containsInAnyOrder("my_timeseries_lifecycle2"));
         ilmMetadata = updatedState.state().metadata().custom(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY);
         assertThat(ilmMetadata.getPolicyMetadatas().keySet(), containsInAnyOrder("my_timeseries_lifecycle2"));
+    }
+
+    private void setupTaskMock(ClusterService clusterService, ClusterState state) {
+        doAnswer((Answer<Object>) invocation -> {
+            Object[] args = invocation.getArguments();
+
+            if ((args[3] instanceof ReservedStateUpdateTaskExecutor) == false) {
+                fail("Should have gotten a state update task to execute, instead got: " + args[3].getClass().getName());
+            }
+
+            ReservedStateUpdateTaskExecutor task = (ReservedStateUpdateTaskExecutor) args[3];
+
+            ClusterStateTaskExecutor.TaskContext<ReservedStateUpdateTask> context = new ClusterStateTaskExecutor.TaskContext<>() {
+                @Override
+                public ReservedStateUpdateTask getTask() {
+                    return (ReservedStateUpdateTask) args[1];
+                }
+
+                @Override
+                public void success(Runnable onPublicationSuccess) {}
+
+                @Override
+                public void success(Consumer<ClusterState> publishedStateConsumer) {}
+
+                @Override
+                public void success(Runnable onPublicationSuccess, ClusterStateAckListener clusterStateAckListener) {}
+
+                @Override
+                public void success(Consumer<ClusterState> publishedStateConsumer, ClusterStateAckListener clusterStateAckListener) {}
+
+                @Override
+                public void onFailure(Exception failure) {
+                    fail("Shouldn't fail here");
+                }
+            };
+
+            task.execute(state, List.of(context));
+
+            return null;
+        }).when(clusterService).submitStateUpdateTask(anyString(), any(), any(), any());
+    }
+
+    public void testOperatorControllerFromJSONContent() throws IOException {
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        ClusterService clusterService = mock(ClusterService.class);
+        final ClusterName clusterName = new ClusterName("elasticsearch");
+
+        ClusterState state = ClusterState.builder(clusterName).build();
+        when(clusterService.state()).thenReturn(state);
+
+        ReservedClusterStateService controller = new ReservedClusterStateService(
+            clusterService,
+            List.of(new ReservedClusterSettingsAction(clusterSettings))
+        );
+
+        String testJSON = """
+            {
+                 "metadata": {
+                     "version": "1234",
+                     "compatibility": "8.4.0"
+                 },
+                 "state": {
+                     "cluster_settings": {
+                         "indices.recovery.max_bytes_per_sec": "50mb"
+                     },
+                     "ilm": {
+                         "my_timeseries_lifecycle": {
+                             "phases": {
+                                 "hot": {
+                                     "min_age": "10s",
+                                     "actions": {
+                                        "rollover": {
+                                           "max_primary_shard_size": "50gb",
+                                           "max_age": "30d"
+                                        }
+                                     }
+                                 },
+                                 "delete": {
+                                     "min_age": "30s",
+                                     "actions": {
+                                     }
+                                 }
+                             }
+                         },
+                         "my_timeseries_lifecycle1": {
+                             "phases": {
+                                 "warm": {
+                                     "min_age": "10s",
+                                     "actions": {
+                                        "shrink": {
+                                          "number_of_shards": 1
+                                        },
+                                        "forcemerge": {
+                                          "max_num_segments": 1
+                                        }
+                                     }
+                                 },
+                                 "delete": {
+                                     "min_age": "30s",
+                                     "actions": {
+                                     }
+                                 }
+                             }
+                         }
+                     }
+                 }
+            }""";
+
+        AtomicReference<Exception> x = new AtomicReference<>();
+
+        try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, testJSON)) {
+            controller.process("operator", parser, (e) -> x.set(e));
+
+            assertTrue(x.get() instanceof IllegalStateException);
+            assertEquals("Error processing state change request for operator", x.get().getMessage());
+        }
+
+        Client client = mock(Client.class);
+        when(client.settings()).thenReturn(Settings.EMPTY);
+
+        XPackLicenseState licenseState = mock(XPackLicenseState.class);
+
+        controller = new ReservedClusterStateService(
+            clusterService,
+            List.of(
+                new ReservedClusterSettingsAction(clusterSettings),
+                new ReservedLifecycleAction(xContentRegistry(), client, licenseState)
+            )
+        );
+
+        setupTaskMock(clusterService, state);
+
+        try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, testJSON)) {
+            controller.process("operator", parser, (e) -> {
+                if (e != null) {
+                    fail("Should not fail");
+                }
+            });
+        }
+    }
+
+    public void testOperatorControllerWithPluginPackage() {
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        ClusterService clusterService = mock(ClusterService.class);
+        final ClusterName clusterName = new ClusterName("elasticsearch");
+
+        ClusterState state = ClusterState.builder(clusterName).build();
+        when(clusterService.state()).thenReturn(state);
+
+        ReservedClusterStateService controller = new ReservedClusterStateService(
+            clusterService,
+            List.of(new ReservedClusterSettingsAction(clusterSettings))
+        );
+
+        AtomicReference<Exception> x = new AtomicReference<>();
+
+        ReservedStateChunk pack = new ReservedStateChunk(
+            Map.of(
+                ReservedClusterSettingsAction.NAME,
+                Map.of("indices.recovery.max_bytes_per_sec", "50mb"),
+                ReservedLifecycleAction.NAME,
+                List.of(
+                    new LifecyclePolicy(
+                        "my_timeseries_lifecycle",
+                        Map.of(
+                            "warm",
+                            new Phase("warm", new TimeValue(10, TimeUnit.SECONDS), Collections.emptyMap()),
+                            "delete",
+                            new Phase("delete", new TimeValue(30, TimeUnit.SECONDS), Collections.emptyMap())
+                        )
+                    )
+                )
+            ),
+            new ReservedStateVersion(123L, Version.CURRENT)
+        );
+
+        controller.process("operator", pack, (e) -> x.set(e));
+
+        assertTrue(x.get() instanceof IllegalStateException);
+        assertEquals("Error processing state change request for operator", x.get().getMessage());
+
+        Client client = mock(Client.class);
+        when(client.settings()).thenReturn(Settings.EMPTY);
+
+        XPackLicenseState licenseState = mock(XPackLicenseState.class);
+
+        controller = new ReservedClusterStateService(
+            clusterService,
+            List.of(
+                new ReservedClusterSettingsAction(clusterSettings),
+                new ReservedLifecycleAction(xContentRegistry(), client, licenseState)
+            )
+        );
+
+        setupTaskMock(clusterService, state);
+
+        controller.process("operator", pack, (e) -> {
+            if (e != null) {
+                fail("Should not fail");
+            }
+        });
     }
 }

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.script;
 
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 
 import java.util.AbstractCollection;
@@ -28,6 +29,7 @@ import java.util.stream.Collectors;
  * validation via {@link Metadata}.
  */
 public class CtxMap extends AbstractMap<String, Object> {
+    protected static final String SOURCE = "_source";
     protected final Map<String, Object> source;
     protected final Metadata metadata;
 
@@ -38,7 +40,7 @@ public class CtxMap extends AbstractMap<String, Object> {
      * @param metadata the metadata map
      */
     protected CtxMap(Map<String, Object> source, Metadata metadata) {
-        this.source = source != null ? source : new HashMap<>();
+        this.source = wrapSource(source != null ? source : new HashMap<>());
         this.metadata = metadata;
         Set<String> badKeys = Sets.intersection(this.metadata.keySet(), this.source.keySet());
         if (badKeys.size() > 0) {
@@ -50,11 +52,20 @@ public class CtxMap extends AbstractMap<String, Object> {
         }
     }
 
+    protected Map<String, Object> wrapSource(Map<String, Object> source) {
+        Map<String, Object> wrapper = Maps.newHashMapWithExpectedSize(1);
+        wrapper.put(SOURCE, source);
+        return wrapper;
+    }
+
     /**
      * get the source map, if externally modified then the guarantees of this class are not enforced
      */
+    @SuppressWarnings("unchecked")
     public Map<String, Object> getSource() {
-        return source;
+        Object rawSource = source.get(SOURCE);
+        assert rawSource instanceof Map<?, ?> : " wrapped source of unexpected type";
+        return (Map<String, Object>) rawSource;
     }
 
     /**

@@ -8,49 +8,26 @@
 package org.elasticsearch.xpack.security.authc.support;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
-import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.support.DLSRoleQueryValidator;
-import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 
 import java.util.Set;
 
-public class ApiKeyGenerator {
-
-    private final ApiKeyService apiKeyService;
+public class ApiKeyUserRoleDescriptorResolver {
     private final CompositeRolesStore rolesStore;
     private final NamedXContentRegistry xContentRegistry;
 
-    public ApiKeyGenerator(ApiKeyService apiKeyService, CompositeRolesStore rolesStore, NamedXContentRegistry xContentRegistry) {
-        this.apiKeyService = apiKeyService;
+    public ApiKeyUserRoleDescriptorResolver(CompositeRolesStore rolesStore, NamedXContentRegistry xContentRegistry) {
         this.rolesStore = rolesStore;
         this.xContentRegistry = xContentRegistry;
     }
 
-    public void generateApiKey(Authentication authentication, CreateApiKeyRequest request, ActionListener<CreateApiKeyResponse> listener) {
-        if (authentication == null) {
-            listener.onFailure(new ElasticsearchSecurityException("no authentication available to generate API key"));
-            return;
-        }
-        apiKeyService.ensureEnabled();
-
-        getUserRoleDescriptors(
-            authentication,
-            ActionListener.wrap(
-                roleDescriptors -> apiKeyService.createApiKey(authentication, request, roleDescriptors, listener),
-                listener::onFailure
-            )
-        );
-    }
-
-    public void getUserRoleDescriptors(Authentication authentication, ActionListener<Set<RoleDescriptor>> listener) {
+    public void resolveUserRoleDescriptors(final Authentication authentication, final ActionListener<Set<RoleDescriptor>> listener) {
         final ActionListener<Set<RoleDescriptor>> roleDescriptorsListener = ActionListener.wrap(roleDescriptors -> {
             for (RoleDescriptor rd : roleDescriptors) {
                 try {

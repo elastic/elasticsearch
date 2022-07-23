@@ -46,7 +46,7 @@ public class PluginsUtilsTests extends ESTestCase {
         Path pluginsDir = createTempDir();
         Files.createDirectory(pluginsDir.resolve("plugin-missing-descriptor"));
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> PluginsUtils.getPluginBundles(pluginsDir));
-        assertThat(e.getMessage(), containsString("Could not load plugin descriptor for plugin directory [plugin-missing-descriptor]"));
+        assertThat(e.getMessage(), containsString("Plugin [plugin-missing-descriptor] is missing a descriptor properties file"));
     }
 
     public void testSortBundlesCycleSelfReference() throws Exception {

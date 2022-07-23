@@ -116,7 +116,7 @@ public class PluginsServiceTests extends ESTestCase {
             assertNotNull(pluginsService);
         } else {
             final IllegalStateException e = expectThrows(IllegalStateException.class, () -> newPluginsService(settings));
-            assertThat(e.getMessage(), containsString("Could not load plugin descriptor for plugin directory [.DS_Store]"));
+            assertThat(e.getMessage(), containsString("Plugin [.DS_Store] is missing a descriptor properties file"));
             assertNotNull(e.getCause());
             assertThat(e.getCause(), instanceOf(FileSystemException.class));
             if (Constants.WINDOWS) {

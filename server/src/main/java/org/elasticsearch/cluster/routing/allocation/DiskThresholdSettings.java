@@ -45,7 +45,7 @@ public class DiskThresholdSettings {
             if (CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.exists(settings)) {
                 return "-1";
             } else {
-                return "150gb";
+                return "150GB";
             }
         },
         (s) -> ByteSizeValue.parseBytesSizeValue(s, "cluster.routing.allocation.disk.watermark.low.max_headroom"),
@@ -67,7 +67,7 @@ public class DiskThresholdSettings {
             if (CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.exists(settings)) {
                 return "-1";
             } else {
-                return "100gb";
+                return "100GB";
             }
         },
         (s) -> ByteSizeValue.parseBytesSizeValue(s, "cluster.routing.allocation.disk.watermark.high.max_headroom"),
@@ -89,7 +89,7 @@ public class DiskThresholdSettings {
             if (CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.exists(settings)) {
                 return "-1";
             } else {
-                return "20gb";
+                return "20GB";
             }
         },
         (s) -> ByteSizeValue.parseBytesSizeValue(s, "cluster.routing.allocation.disk.watermark.flood_stage.max_headroom"),
@@ -386,8 +386,6 @@ public class DiskThresholdSettings {
         return getFreeBytesThreshold(total, frozenFloodStageWatermark, frozenFloodStageMaxHeadroom);
     }
 
-    // TODO (iraklis): ByteSizeValue.MINUS_ONE
-    // TODO (iraklis:) Revert 20gb to 20GB
     // TODO (iraklis): getMinimumTotalSizeForBelowWatermark(4080) with low threshold 0.68 should return 6000 instead of 5999.
     private ByteSizeValue getMinimumTotalSizeForBelowWatermark(
         ByteSizeValue used,

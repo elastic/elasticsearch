@@ -512,7 +512,7 @@ public class DiskThresholdSettingsTests extends ESTestCase {
 
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> clusterSettings.applySettings(newSettings));
         final String expected =
-            "illegal value can't update [cluster.routing.allocation.disk.watermark.low.max_headroom] from [150gb] to [300m]";
+            "illegal value can't update [cluster.routing.allocation.disk.watermark.low.max_headroom] from [150GB] to [300m]";
         assertThat(e, hasToString(containsString(expected)));
         assertNotNull(e.getCause());
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
@@ -531,7 +531,7 @@ public class DiskThresholdSettingsTests extends ESTestCase {
 
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> clusterSettings.applySettings(newSettings));
         final String expected =
-            "illegal value can't update [cluster.routing.allocation.disk.watermark.high.max_headroom] from [100gb] to [400m]";
+            "illegal value can't update [cluster.routing.allocation.disk.watermark.high.max_headroom] from [100GB] to [400m]";
         assertThat(e, hasToString(containsString(expected)));
         assertNotNull(e.getCause());
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
@@ -551,7 +551,7 @@ public class DiskThresholdSettingsTests extends ESTestCase {
 
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> clusterSettings.applySettings(newSettings));
         final String expected =
-            "illegal value can't update [cluster.routing.allocation.disk.watermark.low.max_headroom] from [150gb] to [300m]";
+            "illegal value can't update [cluster.routing.allocation.disk.watermark.low.max_headroom] from [150GB] to [300m]";
         assertThat(e, hasToString(containsString(expected)));
         assertNotNull(e.getCause());
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));

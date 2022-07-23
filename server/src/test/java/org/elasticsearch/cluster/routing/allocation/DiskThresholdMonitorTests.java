@@ -1383,5 +1383,4 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
     private static DiscoveryNode newNormalNode(String nodeId) {
         return newNormalNode(nodeId, "");
     }
-
 }

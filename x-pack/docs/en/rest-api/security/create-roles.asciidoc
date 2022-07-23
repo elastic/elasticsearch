@@ -56,16 +56,20 @@ is currently limited to the management of application privileges.
 This field is optional.
 
 `indices`:: (list) A list of indices permissions entries.
-`field_security`::: (object) The document fields that the owners of the role have
-read access to. For more information, see
-<<field-and-document-access-control>>.
 `names` (required)::: (list) A list of indices (or index name patterns) to which the
 permissions in this entry apply.
 `privileges`(required)::: (list) The index level privileges that the owners of the role
 have on the specified indices.
+`field_security`::: (object) The document fields that the owners of the role have
+read access to. For more information, see
+<<field-and-document-access-control>>.
 `query`::: A search query that defines the documents the owners of the role have
 read access to. A document within the specified indices must match this query in
 order for it to be accessible by the owners of the role.
+`allow_restricted_indices`::: (boolean) Include matching restricted indices in names parameter. 
+*Caution Advised:* Toggling this flag is very strongly discouraged because it could effectively 
+grant unrestricted operations on critical data, making the entire system unstable or leaking 
+sensitive information.
 
 `metadata`:: (object) Optional meta-data. Within the `metadata` object, keys
 that begin with `_` are reserved for system usage.

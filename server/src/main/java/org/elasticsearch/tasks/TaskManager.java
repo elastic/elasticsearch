@@ -10,7 +10,6 @@ package org.elasticsearch.tasks;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.ElasticsearchException;
@@ -58,6 +57,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE;
 
@@ -146,7 +146,7 @@ public class TaskManager implements ClusterStateApplier {
         TransportAction<Request, Response> action,
         Request request,
         Transport.Connection localConnection,
-        TaskListener<Response> taskListener
+        ActionListener<Response> taskListener
     ) {
         final Releasable unregisterChildNode;
         if (request.getParentTask().isSet()) {
@@ -168,7 +168,7 @@ public class TaskManager implements ClusterStateApplier {
                 try {
                     release();
                 } finally {
-                    taskListener.onResponse(task, response);
+                    taskListener.onResponse(response);
                 }
             }
 
@@ -177,7 +177,7 @@ public class TaskManager implements ClusterStateApplier {
                 try {
                     release();
                 } finally {
-                    taskListener.onFailure(task, e);
+                    taskListener.onFailure(e);
                 }
             }
 
@@ -295,7 +295,7 @@ public class TaskManager implements ClusterStateApplier {
         try {
             taskResult = task.result(localNode, error);
         } catch (IOException ex) {
-            logger.warn(() -> new ParameterizedMessage("couldn't store error {}", ExceptionsHelper.stackTrace(error)), ex);
+            logger.warn(() -> format("couldn't store error %s", ExceptionsHelper.stackTrace(error)), ex);
             listener.onFailure(ex);
             return;
         }
@@ -307,7 +307,7 @@ public class TaskManager implements ClusterStateApplier {
 
             @Override
             public void onFailure(Exception e) {
-                logger.warn(() -> new ParameterizedMessage("couldn't store error {}", ExceptionsHelper.stackTrace(error)), e);
+                logger.warn(() -> format("couldn't store error %s", ExceptionsHelper.stackTrace(error)), e);
                 listener.onFailure(e);
             }
         });
@@ -328,7 +328,7 @@ public class TaskManager implements ClusterStateApplier {
         try {
             taskResult = task.result(localNode, response);
         } catch (IOException ex) {
-            logger.warn(() -> new ParameterizedMessage("couldn't store response {}", response), ex);
+            logger.warn(() -> format("couldn't store response %s", response), ex);
             listener.onFailure(ex);
             return;
         }
@@ -341,7 +341,7 @@ public class TaskManager implements ClusterStateApplier {
 
             @Override
             public void onFailure(Exception e) {
-                logger.warn(() -> new ParameterizedMessage("couldn't store response {}", response), e);
+                logger.warn(() -> format("couldn't store response %s", response), e);
                 listener.onFailure(e);
             }
         });

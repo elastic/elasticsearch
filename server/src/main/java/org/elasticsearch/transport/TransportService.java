@@ -10,7 +10,6 @@ package org.elasticsearch.transport;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -59,6 +58,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.core.Strings.format;
 
 public class TransportService extends AbstractLifecycleComponent
     implements
@@ -180,6 +181,28 @@ public class TransportService extends AbstractLifecycleComponent
         TransportInterceptor transportInterceptor,
         Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
         @Nullable ClusterSettings clusterSettings,
+        TaskManager taskManager
+    ) {
+        this(
+            settings,
+            transport,
+            threadPool,
+            transportInterceptor,
+            localNodeFactory,
+            clusterSettings,
+            new ClusterConnectionManager(settings, transport, threadPool.getThreadContext()),
+            taskManager
+        );
+    }
+
+    // NOTE: Only for use in tests
+    public TransportService(
+        Settings settings,
+        Transport transport,
+        ThreadPool threadPool,
+        TransportInterceptor transportInterceptor,
+        Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
+        @Nullable ClusterSettings clusterSettings,
         Set<String> taskHeaders
     ) {
         this(
@@ -189,8 +212,8 @@ public class TransportService extends AbstractLifecycleComponent
             transportInterceptor,
             localNodeFactory,
             clusterSettings,
-            taskHeaders,
-            new ClusterConnectionManager(settings, transport, threadPool.getThreadContext())
+            new ClusterConnectionManager(settings, transport, threadPool.getThreadContext()),
+            new TaskManager(settings, threadPool, taskHeaders)
         );
     }
 
@@ -201,8 +224,8 @@ public class TransportService extends AbstractLifecycleComponent
         TransportInterceptor transportInterceptor,
         Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
         @Nullable ClusterSettings clusterSettings,
-        Set<String> taskHeaders,
-        ConnectionManager connectionManager
+        ConnectionManager connectionManager,
+        TaskManager taskManger
     ) {
         this.transport = transport;
         transport.setSlowLogThreshold(TransportSettings.SLOW_OPERATION_THRESHOLD_SETTING.get(settings));
@@ -213,7 +236,7 @@ public class TransportService extends AbstractLifecycleComponent
         setTracerLogInclude(TransportSettings.TRACE_LOG_INCLUDE_SETTING.get(settings));
         setTracerLogExclude(TransportSettings.TRACE_LOG_EXCLUDE_SETTING.get(settings));
         tracerLog = Loggers.getLogger(logger, ".tracer");
-        taskManager = createTaskManager(settings, threadPool, taskHeaders);
+        this.taskManager = taskManger;
         this.interceptor = transportInterceptor;
         this.asyncSender = interceptor.interceptSender(this::sendRequestInternal);
         this.remoteClusterClient = DiscoveryNode.isRemoteClusterClient(settings);
@@ -255,10 +278,6 @@ public class TransportService extends AbstractLifecycleComponent
         return taskManager;
     }
 
-    protected TaskManager createTaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {
-        return new TaskManager(settings, threadPool, taskHeaders);
-    }
-
     void setTracerLogInclude(List<String> tracerLogInclude) {
         this.tracerLogInclude = tracerLogInclude.toArray(Strings.EMPTY_ARRAY);
     }
@@ -294,15 +313,26 @@ public class TransportService extends AbstractLifecycleComponent
             throw new UncheckedIOException(e);
         } finally {
             // The underlying transport has stopped which closed all the connections to remote nodes and hence completed all their handlers,
-            // but there may still be pending handlers for node-local requests since this connection is not closed. We complete them here:
+            // but there may still be pending handlers for node-local requests since this connection is not closed, and we may also
+            // (briefly) track handlers for requests which are sent concurrently with stopping even though the underlying connection is
+            // now closed. We complete all these outstanding handlers here:
             for (final Transport.ResponseContext<?> holderToNotify : responseHandlers.prune(h -> true)) {
                 try {
                     final TransportResponseHandler<?> handler = holderToNotify.handler();
                     final var targetNode = holderToNotify.connection().getNode();
 
-                    // Assertion only holds for TcpTransport only because other transports (used in tests) may not implement the proper
-                    // close-connection behaviour. TODO fix this.
-                    assert transport instanceof TcpTransport == false || targetNode.equals(localNode) : targetNode + " vs " + localNode;
+                    assert transport instanceof TcpTransport == false
+                        /* other transports (used in tests) may not implement the proper close-connection behaviour. TODO fix this. */
+                        || targetNode.equals(localNode)
+                        /* local node connection cannot be closed so may still have pending handlers */
+                        || holderToNotify.connection().isClosed()
+                        /* connections to remote nodes must be closed by this point but could still have pending handlers */
+                        : "expected only responses for local "
+                            + localNode
+                            + " but found handler for ["
+                            + holderToNotify.action()
+                            + "] on open connection to "
+                            + targetNode;
 
                     final var exception = new SendRequestTransportException(
                         targetNode,
@@ -322,13 +352,7 @@ public class TransportService extends AbstractLifecycleComponent
                     }
                 } catch (Exception e) {
                     assert false : e;
-                    logger.warn(
-                        () -> new ParameterizedMessage(
-                            "failed to notify response handler on shutdown, action: {}",
-                            holderToNotify.action()
-                        ),
-                        e
-                    );
+                    logger.warn(() -> format("failed to notify response handler on shutdown, action: %s", holderToNotify.action()), e);
                 }
             }
         }
@@ -873,18 +897,12 @@ public class TransportService extends AbstractLifecycleComponent
             @Override
             public void onRejection(Exception e) {
                 // if we get rejected during node shutdown we don't wanna bubble it up
-                logger.debug(
-                    () -> new ParameterizedMessage("failed to notify response handler on rejection, action: {}", contextToNotify.action()),
-                    e
-                );
+                logger.debug(() -> format("failed to notify response handler on rejection, action: %s", contextToNotify.action()), e);
             }
 
             @Override
             public void onFailure(Exception e) {
-                logger.warn(
-                    () -> new ParameterizedMessage("failed to notify response handler on exception, action: {}", contextToNotify.action()),
-                    e
-                );
+                logger.warn(() -> format("failed to notify response handler on exception, action: %s", contextToNotify.action()), e);
             }
 
             @Override
@@ -1135,7 +1153,7 @@ public class TransportService extends AbstractLifecycleComponent
     @Override
     public void onResponseSent(long requestId, String action, Exception e) {
         if (tracerLog.isTraceEnabled() && shouldTraceAction(action)) {
-            tracerLog.trace(() -> new ParameterizedMessage("[{}][{}] sent error response", requestId, action), e);
+            tracerLog.trace(() -> format("[%s][%s] sent error response", requestId, action), e);
         }
         messageListener.onResponseSent(requestId, action, e);
     }
@@ -1471,10 +1489,7 @@ public class TransportService extends AbstractLifecycleComponent
             try {
                 handler.handleException(rtx);
             } catch (Exception e) {
-                logger.error(
-                    () -> new ParameterizedMessage("failed to handle exception for action [{}], handler [{}]", action, handler),
-                    e
-                );
+                logger.error(() -> format("failed to handle exception for action [%s], handler [%s]", action, handler), e);
             }
         }
 

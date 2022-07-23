@@ -74,10 +74,16 @@ public class SecurityTestUtils {
             new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "")
         );
         String nodeId = ESTestCase.randomAlphaOfLength(8);
-        IndexShardRoutingTable table = new IndexShardRoutingTable.Builder(new ShardId(index, 0)).addShard(
-            shardRouting.initialize(nodeId, null, shardRouting.getExpectedShardSize()).moveToStarted()
-        ).build();
-        return RoutingTable.builder().add(IndexRoutingTable.builder(index).addIndexShard(table).build()).build();
+        return RoutingTable.builder()
+            .add(
+                IndexRoutingTable.builder(index)
+                    .addIndexShard(
+                        IndexShardRoutingTable.builder(new ShardId(index, 0))
+                            .addShard(shardRouting.initialize(nodeId, null, shardRouting.getExpectedShardSize()).moveToStarted())
+                    )
+                    .build()
+            )
+            .build();
     }
 
     /**

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.frozen.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.close.CloseIndexClusterStateUpdateRequest;
@@ -45,6 +44,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.frozen.action.FreezeIndexAction;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.SortedMap;
 
@@ -130,7 +130,7 @@ public final class TransportFreezeIndexAction extends TransportMasterNodeAction<
 
             @Override
             public void onFailure(final Exception t) {
-                logger.debug(() -> new ParameterizedMessage("failed to close indices [{}]", (Object) concreteIndices), t);
+                logger.debug(() -> "failed to close indices [" + Arrays.toString(concreteIndices) + "]", t);
                 listener.onFailure(t);
             }
         });

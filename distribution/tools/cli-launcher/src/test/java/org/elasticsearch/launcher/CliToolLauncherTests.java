@@ -37,6 +37,8 @@ public class CliToolLauncherTests extends ESTestCase {
     public void testScriptNameSyspropWindows() {
         var sysprops = Map.of("cli.name", "", "cli.script", "C:\\foo\\bar\\elasticsearch-mycli.bat", "os.name", "Windows XP");
         assertThat(getToolName(sysprops), equalTo("mycli"));
+        sysprops = Map.of("cli.name", "", "cli.script", "C:\\foo\\bar\\elasticsearch-mycli", "os.name", "Windows XP");
+        assertThat(getToolName(sysprops), equalTo("mycli"));
     }
 
     public void testShutdownHook() {

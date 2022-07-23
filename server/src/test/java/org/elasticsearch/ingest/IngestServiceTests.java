@@ -40,7 +40,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
@@ -341,7 +340,7 @@ public class IngestServiceTests extends ESTestCase {
 
     public void testValidateNotInUse() {
         String pipeline = "pipeline";
-        ImmutableOpenMap.Builder<String, IndexMetadata> indices = ImmutableOpenMap.builder();
+        Map<String, IndexMetadata> indices = new HashMap<>();
         int defaultIndicesCount = randomIntBetween(0, 4);
         List<String> defaultIndices = new ArrayList<>();
         for (int i = 0; i < defaultIndicesCount; i++) {
@@ -370,7 +369,7 @@ public class IngestServiceTests extends ESTestCase {
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> IngestService.validateNotInUse(pipeline, indices.build().values())
+            () -> IngestService.validateNotInUse(pipeline, indices.values())
         );
 
         if (defaultIndices.size() > 0) {
@@ -1154,6 +1153,8 @@ public class IngestServiceTests extends ESTestCase {
                     ingestDocument.setFieldValue(metadata.getFieldName(), ifPrimaryTerm);
                 } else if (metadata == IngestDocument.Metadata.DYNAMIC_TEMPLATES) {
                     ingestDocument.setFieldValue(metadata.getFieldName(), Map.of("foo", "bar"));
+                } else if (metadata == IngestDocument.Metadata.TYPE) {
+                    // can't update _type
                 } else {
                     ingestDocument.setFieldValue(metadata.getFieldName(), "update" + metadata.getFieldName());
                 }
@@ -2170,7 +2171,7 @@ public class IngestServiceTests extends ESTestCase {
         return argThat(new IngestDocumentMatcher("_index", "_type", "_id", -3L, VersionType.INTERNAL, source));
     }
 
-    private IngestDocument eqIndexTypeId(final Long version, final VersionType versionType, final Map<String, Object> source) {
+    private IngestDocument eqIndexTypeId(final long version, final VersionType versionType, final Map<String, Object> source) {
         return argThat(new IngestDocumentMatcher("_index", "_type", "_id", version, versionType, source));
     }
 
@@ -2220,17 +2221,18 @@ public class IngestServiceTests extends ESTestCase {
         private final IngestDocument ingestDocument;
 
         IngestDocumentMatcher(String index, String type, String id, Map<String, Object> source) {
-            this.ingestDocument = new IngestDocument(index, id, null, null, null, source);
+            this.ingestDocument = new IngestDocument(index, id, 1, null, null, source);
         }
 
-        IngestDocumentMatcher(String index, String type, String id, Long version, VersionType versionType, Map<String, Object> source) {
-            this.ingestDocument = new IngestDocument(index, id, null, version, versionType, source);
+        IngestDocumentMatcher(String index, String type, String id, long version, VersionType versionType, Map<String, Object> source) {
+            this.ingestDocument = new IngestDocument(index, id, version, null, versionType, source);
         }
 
         @Override
         public boolean matches(IngestDocument other) {
-            // ingest metadata will not be the same (timestamp differs every time)
-            return Objects.equals(ingestDocument.getSourceAndMetadata(), other.getSourceAndMetadata());
+            // ingest metadata and IngestCtxMap will not be the same (timestamp differs every time)
+            return Objects.equals(ingestDocument.getSource(), other.getSource())
+                && Objects.equals(ingestDocument.getMetadata().getMap(), other.getMetadata().getMap());
         }
     }
 

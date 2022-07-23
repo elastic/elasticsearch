@@ -19,7 +19,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.hash.MurmurHash3.Hash128;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -105,7 +104,7 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
     }
 
     private TsidExtractingIdFieldMapper() {
-        super(new IdFieldType(), Lucene.KEYWORD_ANALYZER);
+        super(new IdFieldType());
     }
 
     private static final long SEED = 0;

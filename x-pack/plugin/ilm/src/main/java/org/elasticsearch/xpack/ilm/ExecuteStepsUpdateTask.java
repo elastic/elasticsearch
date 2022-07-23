@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ilm;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -31,6 +30,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.LongSupplier;
+
+import static org.elasticsearch.core.Strings.format;
 
 public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask {
     private static final Logger logger = LogManager.getLogger(ExecuteStepsUpdateTask.class);
@@ -268,7 +269,7 @@ public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask
 
     @Override
     public void handleFailure(Exception e) {
-        logger.warn(new ParameterizedMessage("policy [{}] for index [{}] failed on step [{}].", policy, index, startStep.getKey()), e);
+        logger.warn(() -> format("policy [%s] for index [%s] failed on step [%s].", policy, index, startStep.getKey()), e);
     }
 
     private ClusterState moveToErrorStep(final ClusterState state, Step.StepKey currentStepKey, Exception cause) {

@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
@@ -206,11 +205,10 @@ public class AbstractAuditorTests extends ESTestCase {
     }
 
     private TestAuditor createTestAuditorWithTemplateInstalled() {
-        ImmutableOpenMap.Builder<String, IndexTemplateMetadata> templates = ImmutableOpenMap.builder(1);
-        templates.put(TEST_INDEX, mock(IndexTemplateMetadata.class));
+        Map<String, IndexTemplateMetadata> templates = Map.of(TEST_INDEX, mock(IndexTemplateMetadata.class));
         Map<String, ComposableIndexTemplate> templatesV2 = Collections.singletonMap(TEST_INDEX, mock(ComposableIndexTemplate.class));
         Metadata metadata = mock(Metadata.class);
-        when(metadata.getTemplates()).thenReturn(templates.build());
+        when(metadata.getTemplates()).thenReturn(templates);
         when(metadata.templatesV2()).thenReturn(templatesV2);
         DiscoveryNodes nodes = mock(DiscoveryNodes.class);
         when(nodes.getMinNodeVersion()).thenReturn(Version.CURRENT);
@@ -253,9 +251,8 @@ public class AbstractAuditorTests extends ESTestCase {
         when(adminClient.indices()).thenReturn(indicesAdminClient);
         when(client.admin()).thenReturn(adminClient);
 
-        ImmutableOpenMap.Builder<String, IndexTemplateMetadata> templates = ImmutableOpenMap.builder(0);
         Metadata metadata = mock(Metadata.class);
-        when(metadata.getTemplates()).thenReturn(templates.build());
+        when(metadata.getTemplates()).thenReturn(Map.of());
         DiscoveryNodes nodes = mock(DiscoveryNodes.class);
         when(nodes.getMinNodeVersion()).thenReturn(Version.CURRENT);
         ClusterState state = mock(ClusterState.class);

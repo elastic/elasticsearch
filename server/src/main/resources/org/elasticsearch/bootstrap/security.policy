@@ -26,6 +26,10 @@ grant codeBase "${codebase.elasticsearch}" {
   permission java.net.SocketPermission "127.0.0.1", "listen, accept";
   // required if started with -Djava.net.preferIPv6Addresses=true
   permission java.net.SocketPermission "0:0:0:0:0:0:0:1", "listen, accept";
+
+  // for module layer
+  permission java.lang.RuntimePermission "createClassLoader";
+  permission java.lang.RuntimePermission "getClassLoader";
 };
 
 //// Very special jar permissions:

@@ -100,7 +100,7 @@ public class MockTerminal extends Terminal {
     }
 
     private static PrintWriter newPrintWriter(OutputStream out) {
-        return new PrintWriter(new OutputStreamWriter(out, StandardCharsets.UTF_8));
+        return new PrintWriter(new OutputStreamWriter(out, StandardCharsets.UTF_8), true);
     }
 
     public static MockTerminal create() {

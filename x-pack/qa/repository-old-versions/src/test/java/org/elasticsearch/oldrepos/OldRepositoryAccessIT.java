@@ -34,6 +34,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.snapshots.SnapshotState;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -45,6 +46,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -280,7 +282,13 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
     }
 
     private static String sourceForDoc(int i) {
-        return "{\"test\":\"test" + i + "\",\"val\":" + i + "}";
+        return "{\"test\":\"test"
+            + i
+            + "\",\"val\":"
+            + i
+            + ",\"create_date\":\"2020-01-"
+            + String.format(Locale.ROOT, "%02d", i + 1)
+            + "\"}";
     }
 
     @SuppressWarnings("removal")
@@ -340,7 +348,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         }
 
         // run a search against the index
-        assertDocs("restored_" + indexName, numDocs, expectedIds, client, sourceOnlyRepository, oldVersion);
+        assertDocs("restored_" + indexName, numDocs, expectedIds, client, sourceOnlyRepository, oldVersion, numberOfShards);
 
         // mount as full copy searchable snapshot
         Request mountRequest = new Request("POST", "/_snapshot/" + repoName + "/" + snapshotName + "/_mount");
@@ -360,7 +368,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         ensureGreen("mounted_full_copy_" + indexName);
 
         // run a search against the index
-        assertDocs("mounted_full_copy_" + indexName, numDocs, expectedIds, client, sourceOnlyRepository, oldVersion);
+        assertDocs("mounted_full_copy_" + indexName, numDocs, expectedIds, client, sourceOnlyRepository, oldVersion, numberOfShards);
 
         // mount as shared cache searchable snapshot
         mountRequest = new Request("POST", "/_snapshot/" + repoName + "/" + snapshotName + "/_mount");
@@ -373,7 +381,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         assertEquals(numberOfShards, (int) mountResponse.evaluate("snapshot.shards.successful"));
 
         // run a search against the index
-        assertDocs("mounted_shared_cache_" + indexName, numDocs, expectedIds, client, sourceOnlyRepository, oldVersion);
+        assertDocs("mounted_shared_cache_" + indexName, numDocs, expectedIds, client, sourceOnlyRepository, oldVersion, numberOfShards);
     }
 
     @SuppressWarnings("removal")
@@ -383,7 +391,8 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         Set<String> expectedIds,
         RestHighLevelClient client,
         boolean sourceOnlyRepository,
-        Version oldVersion
+        Version oldVersion,
+        int numberOfShards
     ) throws IOException {
         RequestOptions v7RequestOptions = RequestOptions.DEFAULT.toBuilder()
             .addHeader("Content-Type", "application/vnd.elasticsearch+json;compatible-with=7")
@@ -440,6 +449,15 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
                 Arrays.stream(searchResponse.getHits().getHits()).map(SearchHit::getId).collect(Collectors.toList())
             );
 
+            // look up postings
+            searchResponse = client.search(
+                new SearchRequest(index).source(SearchSourceBuilder.searchSource().query(QueryBuilders.matchQuery("test", "test" + num))),
+                randomRequestOptions
+            );
+            logger.info(searchResponse);
+            // check match
+            ElasticsearchAssertions.assertSearchHits(searchResponse, id);
+
             if (oldVersion.before(Version.fromString("6.0.0"))) {
                 // search on _type and check that results contain _type information
                 String randomType = getType(oldVersion, randomFrom(expectedIds));
@@ -463,6 +481,19 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
                     .getMessage(),
                 containsString("get operations not allowed on a legacy index")
             );
+
+            // check that shards are skipped based on non-matching date
+            searchResponse = client.search(
+                new SearchRequest(index).source(
+                    SearchSourceBuilder.searchSource().query(QueryBuilders.rangeQuery("create_date").from("2020-02-01"))
+                ),
+                randomRequestOptions
+            );
+            logger.info(searchResponse);
+            assertEquals(0, searchResponse.getHits().getTotalHits().value);
+            assertEquals(numberOfShards, searchResponse.getSuccessfulShards());
+            // When all shards are skipped, at least one of them is queried in order to provide a proper search response.
+            assertEquals(numberOfShards - 1, searchResponse.getSkippedShards());
         }
     }
 

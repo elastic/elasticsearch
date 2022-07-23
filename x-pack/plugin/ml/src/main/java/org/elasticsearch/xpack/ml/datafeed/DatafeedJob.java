@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.datafeed;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ElasticsearchWrapperException;
@@ -49,6 +48,7 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 
 class DatafeedJob {
@@ -398,8 +398,8 @@ class DatafeedJob {
                 try (InputStream in = extractedData.get()) {
                     counts = postData(in, XContentType.JSON);
                     LOGGER.trace(
-                        () -> new ParameterizedMessage(
-                            "[{}] Processed another {} records with latest timestamp [{}]",
+                        () -> format(
+                            "[%s] Processed another %s records with latest timestamp [%s]",
                             jobId,
                             counts.getProcessedRecordCount(),
                             counts.getLatestRecordTimeStamp()

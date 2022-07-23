@@ -8,7 +8,6 @@
 
 package org.elasticsearch.transport;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
@@ -34,6 +33,7 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.settings.Setting.intSetting;
+import static org.elasticsearch.core.Strings.format;
 
 public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
 
@@ -274,11 +274,7 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
 
                 connectionManager.connectToRemoteClusterNode(node, clusterNameValidator, compositeListener.delegateResponse((l, e) -> {
                     logger.debug(
-                        new ParameterizedMessage(
-                            "failed to open remote connection [remote cluster: {}, address: {}]",
-                            clusterAlias,
-                            resolved
-                        ),
+                        () -> format("failed to open remote connection [remote cluster: %s, address: %s]", clusterAlias, resolved),
                         e
                     );
                     l.onFailure(e);

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ccr;
 
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.util.EntityUtils;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -32,6 +31,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xcontent.ObjectPath.eval;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyOrNullString;
@@ -904,13 +904,7 @@ public class AutoFollowIT extends ESCCRRestTestCase {
         } catch (AssertionError ae) {
             try {
                 final String autoFollowStats = EntityUtils.toString(getAutoFollowStats().getEntity());
-                logger.warn(
-                    () -> new ParameterizedMessage(
-                        "AssertionError when waiting for auto-follower, auto-follow stats are: {}",
-                        autoFollowStats
-                    ),
-                    ae
-                );
+                logger.warn(() -> format("AssertionError when waiting for auto-follower, auto-follow stats are: %s", autoFollowStats), ae);
             } catch (Exception e) {
                 ae.addSuppressed(e);
             }

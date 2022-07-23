@@ -9,9 +9,12 @@ package org.elasticsearch.xpack.ml.inference.deployment;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
@@ -26,12 +29,15 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.core.Strings.format;
+
 class InferencePyTorchAction extends AbstractPyTorchAction<InferenceResults> {
 
     private static final Logger logger = LogManager.getLogger(InferencePyTorchAction.class);
 
     private final InferenceConfig config;
     private final Map<String, Object> doc;
+    private final Task parentActionTask;
 
     InferencePyTorchAction(
         String modelId,
@@ -41,28 +47,43 @@ class InferencePyTorchAction extends AbstractPyTorchAction<InferenceResults> {
         InferenceConfig config,
         Map<String, Object> doc,
         ThreadPool threadPool,
+        @Nullable Task parentActionTask,
         ActionListener<InferenceResults> listener
     ) {
         super(modelId, requestId, timeout, processContext, threadPool, listener);
         this.config = config;
         this.doc = doc;
+        this.parentActionTask = parentActionTask;
+    }
+
+    private boolean isCancelled() {
+        if (parentActionTask instanceof CancellableTask cancellableTask) {
+            try {
+                cancellableTask.ensureNotCancelled();
+            } catch (TaskCancelledException ex) {
+                logger.debug(() -> format("[%s] %s", getModelId(), ex.getMessage()));
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override
     protected void doRun() throws Exception {
         if (isNotified()) {
             // Should not execute request as it has already timed out while waiting in the queue
-            logger.debug(
-                () -> new ParameterizedMessage("[{}] skipping inference on request [{}] as it has timed out", getModelId(), getRequestId())
-            );
+            logger.debug(() -> format("[%s] skipping inference on request [%s] as it has timed out", getModelId(), getRequestId()));
+            return;
+        }
+        if (isCancelled()) {
+            onFailure("inference task cancelled");
             return;
         }
 
         final String requestIdStr = String.valueOf(getRequestId());
         try {
             // The request builder expect a list of inputs which are then batched.
-            // TODO batching was implemented for expected use-cases such as zero-shot
-            // classification but is not used here.
+            // TODO batching was implemented for expected use-cases such as zero-shot classification but is not used here.
             List<String> text = Collections.singletonList(NlpTask.extractInput(getProcessContext().getModelInput().get(), doc));
             NlpTask.Processor processor = getProcessContext().getNlpTaskProcessor().get();
             processor.validateInputs(text);
@@ -75,6 +96,11 @@ class InferencePyTorchAction extends AbstractPyTorchAction<InferenceResults> {
                 logger.debug("[{}] [{}] input truncated", getModelId(), getRequestId());
             }
 
+            // Tokenization is non-trivial, so check for cancellation one last time before sending request to the native process
+            if (isCancelled()) {
+                onFailure("inference task cancelled");
+                return;
+            }
             getProcessContext().getResultProcessor()
                 .registerRequest(
                     requestIdStr,
@@ -85,7 +111,7 @@ class InferencePyTorchAction extends AbstractPyTorchAction<InferenceResults> {
                 );
             getProcessContext().getProcess().get().writeInferenceRequest(request.processInput());
         } catch (IOException e) {
-            logger.error(new ParameterizedMessage("[{}] error writing to inference process", getModelId()), e);
+            logger.error(() -> "[" + getModelId() + "] error writing to inference process", e);
             onFailure(ExceptionsHelper.serverError("Error writing to inference process", e));
         } catch (Exception e) {
             onFailure(e);
@@ -102,20 +128,20 @@ class InferencePyTorchAction extends AbstractPyTorchAction<InferenceResults> {
             return;
         }
 
-        logger.debug(() -> new ParameterizedMessage("[{}] retrieved result for request [{}]", getModelId(), getRequestId()));
+        logger.debug(() -> format("[%s] retrieved result for request [%s]", getModelId(), getRequestId()));
         if (isNotified()) {
             // The request has timed out. No need to spend cycles processing the result.
             logger.debug(
-                () -> new ParameterizedMessage(
-                    "[{}] skipping result processing for request [{}] as the request has timed out",
-                    getModelId(),
-                    getRequestId()
-                )
+                () -> format("[%s] skipping result processing for request [%s] as the request has timed out", getModelId(), getRequestId())
             );
             return;
         }
+        if (isCancelled()) {
+            onFailure("inference task cancelled");
+            return;
+        }
         InferenceResults results = inferenceResultsProcessor.processResult(tokenization, pyTorchResult.inferenceResult());
-        logger.debug(() -> new ParameterizedMessage("[{}] processed result for request [{}]", getModelId(), getRequestId()));
+        logger.debug(() -> format("[%s] processed result for request [%s]", getModelId(), getRequestId()));
         onSuccess(results);
     }
 

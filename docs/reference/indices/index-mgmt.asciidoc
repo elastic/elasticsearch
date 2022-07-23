@@ -68,7 +68,7 @@ indices on the overview page. The menu includes the following actions:
 * <<indices-refresh,*Refresh index*>>
 * <<indices-flush,*Flush index*>>
 * <<indices-delete-index,*Delete index*>>
-* *Add* <<set-up-lifecycle-policy,*lifecycle policy*>>
+* <<set-up-lifecycle-policy,*Add lifecycle policy*>>
 
 [float]
 [[manage-data-streams]]

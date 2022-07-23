@@ -151,7 +151,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
 
     private final ClusterBlocks blocks;
 
-    private final ImmutableOpenMap<String, Custom> customs;
+    private final Map<String, Custom> customs;
 
     private final ClusterName clusterName;
 
@@ -183,7 +183,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         RoutingTable routingTable,
         DiscoveryNodes nodes,
         ClusterBlocks blocks,
-        ImmutableOpenMap<String, Custom> customs,
+        Map<String, Custom> customs,
         boolean wasReadFromDiff,
         @Nullable RoutingNodes routingNodes
     ) {
@@ -281,11 +281,11 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         return blocks;
     }
 
-    public ImmutableOpenMap<String, Custom> customs() {
+    public Map<String, Custom> customs() {
         return this.customs;
     }
 
-    public ImmutableOpenMap<String, Custom> getCustoms() {
+    public Map<String, Custom> getCustoms() {
         return this.customs;
     }
 
@@ -698,7 +698,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             return this;
         }
 
-        public Builder customs(ImmutableOpenMap<String, Custom> customs) {
+        public Builder customs(Map<String, Custom> customs) {
             customs.forEach((key, value) -> Objects.requireNonNull(value, key));
             this.customs.putAllFromMap(customs);
             return this;
@@ -814,7 +814,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
 
         private final Diff<ClusterBlocks> blocks;
 
-        private final Diff<ImmutableOpenMap<String, Custom>> customs;
+        private final Diff<Map<String, Custom>> customs;
 
         ClusterStateDiff(ClusterState before, ClusterState after) {
             fromUuid = before.stateUUID;
@@ -837,7 +837,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             nodes = DiscoveryNodes.readDiffFrom(in, localNode);
             metadata = Metadata.readDiffFrom(in);
             blocks = ClusterBlocks.readDiffFrom(in);
-            customs = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), CUSTOM_VALUE_SERIALIZER);
+            customs = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), CUSTOM_VALUE_SERIALIZER);
             if (in.getVersion().before(Version.V_8_0_0)) {
                 in.readVInt(); // used to be minimumMasterNodesOnPublishingMaster, which was used in 7.x for BWC with 6.x
             }

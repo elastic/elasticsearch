@@ -23,6 +23,7 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -338,6 +339,11 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected FieldMapper buildMockFieldMapper(MappedFieldType ft) {
-        return new MockFieldMapper(ft, Map.of(ft.name(), ft.getTextSearchInfo().searchAnalyzer()));
+        return new MockFieldMapper(ft) {
+            @Override
+            public Map<String, NamedAnalyzer> indexAnalyzers() {
+                return Map.of(ft.name(), ft.getTextSearchInfo().searchAnalyzer());
+            }
+        };
     }
 }

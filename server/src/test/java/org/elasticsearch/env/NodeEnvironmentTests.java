@@ -248,8 +248,8 @@ public class NodeEnvironmentTests extends ESTestCase {
             SetOnce<Path[]> listener = new SetOnce<>();
             env.deleteShardDirectorySafe(new ShardId(index, 1), idxSettings, listener::set);
             Path[] deletedPaths = listener.get();
-            for (int i = 0; i < env.nodePaths().length; i++) {
-                assertThat(deletedPaths[i], equalTo(env.nodePaths()[i].resolve(index).resolve("1")));
+            for (int i = 0; i < env.dataPaths().length; i++) {
+                assertThat(deletedPaths[i], equalTo(env.dataPaths()[i].resolve(index).resolve("1")));
             }
         }
 
@@ -434,14 +434,14 @@ public class NodeEnvironmentTests extends ESTestCase {
         String[] paths = tmpPaths();
         // simulate some previous left over temp files
         for (String path : randomSubsetOf(randomIntBetween(1, paths.length), paths)) {
-            final Path nodePath = PathUtils.get(path);
-            Files.createDirectories(nodePath);
-            Files.createFile(nodePath.resolve(NodeEnvironment.TEMP_FILE_NAME));
+            final Path dataPath = PathUtils.get(path);
+            Files.createDirectories(dataPath);
+            Files.createFile(dataPath.resolve(NodeEnvironment.TEMP_FILE_NAME));
             if (randomBoolean()) {
-                Files.createFile(nodePath.resolve(NodeEnvironment.TEMP_FILE_NAME + ".tmp"));
+                Files.createFile(dataPath.resolve(NodeEnvironment.TEMP_FILE_NAME + ".tmp"));
             }
             if (randomBoolean()) {
-                Files.createFile(nodePath.resolve(NodeEnvironment.TEMP_FILE_NAME + ".final"));
+                Files.createFile(dataPath.resolve(NodeEnvironment.TEMP_FILE_NAME + ".final"));
             }
         }
         NodeEnvironment env = newNodeEnvironment(paths, Settings.EMPTY);
@@ -449,12 +449,12 @@ public class NodeEnvironmentTests extends ESTestCase {
 
         // check we clean up
         for (String path : paths) {
-            final Path nodePath = PathUtils.get(path);
-            final Path tempFile = nodePath.resolve(NodeEnvironment.TEMP_FILE_NAME);
+            final Path dataPath = PathUtils.get(path);
+            final Path tempFile = dataPath.resolve(NodeEnvironment.TEMP_FILE_NAME);
             assertFalse(tempFile + " should have been cleaned", Files.exists(tempFile));
-            final Path srcTempFile = nodePath.resolve(NodeEnvironment.TEMP_FILE_NAME + ".src");
+            final Path srcTempFile = dataPath.resolve(NodeEnvironment.TEMP_FILE_NAME + ".src");
             assertFalse(srcTempFile + " should have been cleaned", Files.exists(srcTempFile));
-            final Path targetTempFile = nodePath.resolve(NodeEnvironment.TEMP_FILE_NAME + ".target");
+            final Path targetTempFile = dataPath.resolve(NodeEnvironment.TEMP_FILE_NAME + ".target");
             assertFalse(targetTempFile + " should have been cleaned", Files.exists(targetTempFile));
         }
     }
@@ -569,7 +569,7 @@ public class NodeEnvironmentTests extends ESTestCase {
             IllegalStateException ex = expectThrows(
                 IllegalStateException.class,
                 "Must fail the check on index that's too old",
-                () -> checkForIndexCompatibility(logger, env.nodePaths())
+                () -> checkForIndexCompatibility(logger, env.dataPaths())
             );
 
             assertThat(ex.getMessage(), containsString("[" + oldIndexVersion + "] exist"));
@@ -577,11 +577,11 @@ public class NodeEnvironmentTests extends ESTestCase {
 
             // This should work
             overrideOldestIndexVersion(Version.CURRENT.minimumIndexCompatibilityVersion(), env.nodeDataPaths());
-            checkForIndexCompatibility(logger, env.nodePaths());
+            checkForIndexCompatibility(logger, env.dataPaths());
 
             // Trying to boot with newer version should pass this check
             overrideOldestIndexVersion(NodeMetadataTests.tooNewVersion(), env.nodeDataPaths());
-            checkForIndexCompatibility(logger, env.nodePaths());
+            checkForIndexCompatibility(logger, env.dataPaths());
 
             // Simulate empty old index version, attempting to upgrade before 7.17
             removeOldestIndexVersion(oldIndexVersion, env.nodeDataPaths());
@@ -589,7 +589,7 @@ public class NodeEnvironmentTests extends ESTestCase {
             ex = expectThrows(
                 IllegalStateException.class,
                 "Must fail the check on index that's too old",
-                () -> checkForIndexCompatibility(logger, env.nodePaths())
+                () -> checkForIndexCompatibility(logger, env.dataPaths())
             );
 
             assertThat(ex.getMessage(), startsWith("cannot upgrade a node from version [" + oldIndexVersion + "] directly"));

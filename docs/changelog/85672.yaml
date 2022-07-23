@@ -1,5 +1,0 @@
-pr: 85672
-summary: Allow retrieving `boolean` fields from `_source` in DFA jobs
-area: Machine Learning
-type: bug
-issues: []

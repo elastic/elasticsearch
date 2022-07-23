@@ -29,6 +29,7 @@ import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -252,8 +253,8 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         }
 
         @Override
-        protected List<Parameter<?>> getParameters() {
-            return Arrays.asList(
+        protected Parameter<?>[] getParameters() {
+            return new Parameter<?>[] {
                 indexed,
                 ignoreMalformed,
                 ignoreZValue,
@@ -265,8 +266,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
                 precision,
                 distanceErrorPct,
                 pointsOnly,
-                meta
-            );
+                meta };
         }
 
         public Builder coerce(boolean coerce) {
@@ -560,7 +560,6 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         super(
             simpleName,
             mappedFieldType,
-            Collections.singletonMap(mappedFieldType.name(), Lucene.KEYWORD_ANALYZER),
             builder.ignoreMalformed.get(),
             builder.coerce.get(),
             builder.ignoreZValue.get(),
@@ -571,6 +570,11 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         );
         this.indexCreatedVersion = builder.indexCreatedVersion;
         this.builder = builder;
+    }
+
+    @Override
+    public Map<String, NamedAnalyzer> indexAnalyzers() {
+        return Map.of(mappedFieldType.name(), Lucene.KEYWORD_ANALYZER);
     }
 
     @Override

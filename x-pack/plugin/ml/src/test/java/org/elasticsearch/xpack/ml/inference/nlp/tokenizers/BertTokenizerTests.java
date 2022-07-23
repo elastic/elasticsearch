@@ -558,4 +558,19 @@ public class BertTokenizerTests extends ESTestCase {
             expectThrows(Exception.class, () -> tokenizer.tokenize("foo", "foo", Tokenization.Truncate.NONE, 0));
         }
     }
+
+    public void testUnknownWordWithKnownSubWords() {
+        try (
+            BertTokenizer tokenizer = BertTokenizer.builder(
+                TEST_CASED_VOCAB,
+                new BertTokenization(null, false, null, Tokenization.Truncate.NONE, -1)
+            ).build()
+        ) {
+            TokenizationResult.Tokens tokenization = tokenizer.tokenize("Elasticsearchfoo fun", Tokenization.Truncate.NONE, -1, 0).get(0);
+            assertThat(tokenStrings(tokenization.tokens().get(0)), contains("[UNK]", "fun"));
+            assertEquals(BertTokenizer.UNKNOWN_TOKEN, TEST_CASED_VOCAB.get(tokenization.tokenIds()[0]));
+            assertEquals("fun", TEST_CASED_VOCAB.get(tokenization.tokenIds()[1]));
+            assertArrayEquals(new int[] { 0, 1 }, tokenization.tokenMap());
+        }
+    }
 }

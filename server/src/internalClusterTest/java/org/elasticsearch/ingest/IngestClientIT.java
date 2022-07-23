@@ -27,6 +27,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -112,8 +113,9 @@ public class IngestClientIT extends ESIntegTestCase {
         source.put("foo", "bar");
         source.put("fail", false);
         source.put("processed", true);
-        IngestDocument ingestDocument = new IngestDocument("index", "id", null, null, null, source);
-        assertThat(simulateDocumentBaseResult.getIngestDocument().getSourceAndMetadata(), equalTo(ingestDocument.getSourceAndMetadata()));
+        IngestDocument ingestDocument = new IngestDocument("index", "id", Versions.MATCH_ANY, null, null, source);
+        assertThat(simulateDocumentBaseResult.getIngestDocument().getSource(), equalTo(ingestDocument.getSource()));
+        assertThat(simulateDocumentBaseResult.getIngestDocument().getMetadata().getMap(), equalTo(ingestDocument.getMetadata().getMap()));
         assertThat(simulateDocumentBaseResult.getFailure(), nullValue());
 
         // cleanup

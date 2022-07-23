@@ -53,7 +53,7 @@ public abstract class KeyStoreAwareCommand extends EnvironmentAwareCommand {
             }
             Arrays.fill(passwordVerification, '\u0000');
         } else {
-            passwordArray = terminal.readSecret("Enter password for the elasticsearch keystore : ");
+            passwordArray = terminal.readSecret(KeyStoreWrapper.PROMPT);
         }
         return new SecureString(passwordArray);
     }

@@ -16,6 +16,8 @@ import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclu
 import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.configuration.TransportClearVotingConfigExclusionsAction;
+import org.elasticsearch.action.admin.cluster.coordination.ClusterFormationInfoAction;
+import org.elasticsearch.action.admin.cluster.coordination.CoordinationDiagnosticsAction;
 import org.elasticsearch.action.admin.cluster.coordination.MasterHistoryAction;
 import org.elasticsearch.action.admin.cluster.desirednodes.DeleteDesiredNodesAction;
 import org.elasticsearch.action.admin.cluster.desirednodes.GetDesiredNodesAction;
@@ -271,6 +273,7 @@ import org.elasticsearch.persistent.StartPersistentTaskAction;
 import org.elasticsearch.persistent.UpdatePersistentTaskStatusAction;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ActionPlugin.ActionHandler;
+import org.elasticsearch.plugins.interceptor.RestInterceptorActionPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestHeaderDefinition;
@@ -403,6 +406,7 @@ import org.elasticsearch.rest.action.ingest.RestSimulatePipelineAction;
 import org.elasticsearch.rest.action.search.RestClearScrollAction;
 import org.elasticsearch.rest.action.search.RestCountAction;
 import org.elasticsearch.rest.action.search.RestExplainAction;
+import org.elasticsearch.rest.action.search.RestKnnSearchAction;
 import org.elasticsearch.rest.action.search.RestMultiSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchScrollAction;
@@ -477,24 +481,26 @@ public class ActionModule extends AbstractModule {
                 new RestHeaderDefinition(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER, false)
             )
         ).collect(Collectors.toSet());
-        UnaryOperator<RestHandler> restWrapper = null;
+        UnaryOperator<RestHandler> restInterceptor = null;
         for (ActionPlugin plugin : actionPlugins) {
-            UnaryOperator<RestHandler> newRestWrapper = plugin.getRestHandlerWrapper(threadPool.getThreadContext());
-            if (newRestWrapper != null) {
-                logger.debug("Using REST wrapper from plugin " + plugin.getClass().getName());
-                if (plugin.getClass().getCanonicalName() == null
-                    || plugin.getClass().getCanonicalName().startsWith("org.elasticsearch.xpack") == false) {
-                    throw new IllegalArgumentException(
-                        "The "
-                            + plugin.getClass().getName()
-                            + " plugin tried to install a custom REST "
-                            + "wrapper. This functionality is not available anymore."
-                    );
+            if (plugin instanceof RestInterceptorActionPlugin riplugin) {
+                UnaryOperator<RestHandler> newRestInterceptor = riplugin.getRestHandlerInterceptor(threadPool.getThreadContext());
+                if (newRestInterceptor != null) {
+                    logger.debug("Using REST interceptor from plugin " + plugin.getClass().getName());
+                    if (plugin.getClass().getCanonicalName() == null
+                        || plugin.getClass().getCanonicalName().startsWith("org.elasticsearch.xpack") == false) {
+                        throw new IllegalArgumentException(
+                            "The "
+                                + plugin.getClass().getName()
+                                + " plugin tried to install a custom REST "
+                                + "interceptor. This functionality is not available anymore."
+                        );
+                    }
+                    if (restInterceptor != null) {
+                        throw new IllegalArgumentException("Cannot have more than one plugin implementing a REST interceptor");
+                    }
+                    restInterceptor = newRestInterceptor;
                 }
-                if (restWrapper != null) {
-                    throw new IllegalArgumentException("Cannot have more than one plugin implementing a REST wrapper");
-                }
-                restWrapper = newRestWrapper;
             }
         }
         mappingRequestValidators = new RequestValidators<>(
@@ -504,7 +510,7 @@ public class ActionModule extends AbstractModule {
             actionPlugins.stream().flatMap(p -> p.indicesAliasesRequestValidators().stream()).toList()
         );
 
-        restController = new RestController(headers, restWrapper, nodeClient, circuitBreakerService, usageService);
+        restController = new RestController(headers, restInterceptor, nodeClient, circuitBreakerService, usageService);
     }
 
     public Map<String, ActionHandler<?, ?>> getActions() {
@@ -552,6 +558,7 @@ public class ActionModule extends AbstractModule {
         actions.register(ClusterGetSettingsAction.INSTANCE, TransportClusterGetSettingsAction.class);
         actions.register(ClusterRerouteAction.INSTANCE, TransportClusterRerouteAction.class);
         actions.register(ClusterSearchShardsAction.INSTANCE, TransportClusterSearchShardsAction.class);
+        actions.register(ClusterFormationInfoAction.INSTANCE, ClusterFormationInfoAction.TransportAction.class);
         actions.register(PendingClusterTasksAction.INSTANCE, TransportPendingClusterTasksAction.class);
         actions.register(PutRepositoryAction.INSTANCE, TransportPutRepositoryAction.class);
         actions.register(GetRepositoriesAction.INSTANCE, TransportGetRepositoriesAction.class);
@@ -633,6 +640,7 @@ public class ActionModule extends AbstractModule {
         actions.register(AnalyzeIndexDiskUsageAction.INSTANCE, TransportAnalyzeIndexDiskUsageAction.class);
         actions.register(FieldUsageStatsAction.INSTANCE, TransportFieldUsageAction.class);
         actions.register(MasterHistoryAction.INSTANCE, MasterHistoryAction.TransportAction.class);
+        actions.register(CoordinationDiagnosticsAction.INSTANCE, CoordinationDiagnosticsAction.TransportAction.class);
 
         // Indexed scripts
         actions.register(PutStoredScriptAction.INSTANCE, TransportPutStoredScriptAction.class);
@@ -731,7 +739,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestResetFeatureStateAction());
         registerHandler.accept(new RestGetFeatureUpgradeStatusAction());
         registerHandler.accept(new RestPostFeatureUpgradeAction());
-        registerHandler.accept(new RestGetIndicesAction());
+        registerHandler.accept(new RestGetIndicesAction(threadPool));
         registerHandler.accept(new RestIndicesStatsAction());
         registerHandler.accept(new RestIndicesSegmentsAction(threadPool));
         registerHandler.accept(new RestIndicesShardStoresAction());
@@ -796,6 +804,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestOpenPointInTimeAction());
         registerHandler.accept(new RestClosePointInTimeAction());
         registerHandler.accept(new RestMultiSearchAction(settings));
+        registerHandler.accept(new RestKnnSearchAction());
 
         registerHandler.accept(new RestValidateQueryAction());
 

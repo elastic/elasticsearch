@@ -48,6 +48,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.test.rest.ESRestTestCase.entityAsMap;
 
 public class TestSecurityClient {
@@ -389,7 +390,7 @@ public class TestSecurityClient {
         return new TokenInvalidation(
             ((Number) responseBody.get("invalidated_tokens")).intValue(),
             ((Number) responseBody.get("previously_invalidated_tokens")).intValue(),
-            errors == null ? List.of() : errors.stream().map(this::toException).toList()
+            errors == null ? List.of() : errors.stream().map(TestSecurityClient::toException).toList()
         );
     }
 
@@ -426,6 +427,19 @@ public class TestSecurityClient {
         return new Tuple<>(Objects.toString(response.get("access_token"), null), response);
     }
 
+    /**
+     * Uses the REST API to create an application privilege
+     * @see org.elasticsearch.xpack.security.rest.action.privilege.RestPutPrivilegesAction
+     */
+    public void putApplicationPrivilege(String applicationName, String privilegeName, String[] actions) throws IOException {
+        final String endpoint = "/_security/privilege/";
+        final Request request = new Request(HttpPut.METHOD_NAME, endpoint);
+
+        final Map<String, Object> body = Map.of(applicationName, Map.of(privilegeName, Map.of("actions", List.of(actions))));
+        request.setJsonEntity(toJson(body));
+        execute(request);
+    }
+
     private static String toJson(Map<String, ? extends Object> map) throws IOException {
         final XContentBuilder builder = XContentFactory.jsonBuilder().map(map);
         final BytesReference bytes = BytesReference.bytes(builder);
@@ -450,11 +464,10 @@ public class TestSecurityClient {
         return XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, responseBody);
     }
 
-    private ElasticsearchException toException(Map<String, ?> map) {
-        try {
-            return ElasticsearchException.fromXContent(
-                XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, toJson(map))
-            );
+    private static ElasticsearchException toException(Map<String, ?> map) {
+        try (var parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, toJson(map))) {
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+            return ElasticsearchException.fromXContent(parser);
         } catch (IOException e) {
             throw new RuntimeIoException(e);
         }

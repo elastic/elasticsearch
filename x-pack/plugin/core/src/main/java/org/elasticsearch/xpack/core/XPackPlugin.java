@@ -447,7 +447,7 @@ public class XPackPlugin extends XPackClientPlugin
     }
 
     @Override
-    public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders() {
+    public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders(IndexSettingProvider.Parameters parameters) {
         return Collections.singleton(new DataTier.DefaultHotAllocationSettingProvider());
     }
 

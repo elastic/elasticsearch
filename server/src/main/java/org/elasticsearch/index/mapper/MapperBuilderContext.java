@@ -10,29 +10,26 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.Strings;
 
+import java.util.Objects;
+
 /**
  * Holds context for building Mapper objects from their Builders
  */
-public class MapperBuilderContext {
+public final class MapperBuilderContext {
 
     /**
      * The root context, to be used when building a tree of mappers
      */
-    public static final MapperBuilderContext ROOT = new MapperBuilderContext(null);
-
-    // TODO remove this
-    public static MapperBuilderContext forPath(ContentPath path) {
-        String p = path.pathAsText("");
-        if (p.endsWith(".")) {
-            p = p.substring(0, p.length() - 1);
-        }
-        return new MapperBuilderContext(p);
-    }
+    public static final MapperBuilderContext ROOT = new MapperBuilderContext();
 
     private final String path;
 
-    private MapperBuilderContext(String path) {
-        this.path = path;
+    private MapperBuilderContext() {
+        this.path = null;
+    }
+
+    MapperBuilderContext(String path) {
+        this.path = Objects.requireNonNull(path);
     }
 
     /**
@@ -47,7 +44,7 @@ public class MapperBuilderContext {
     /**
      * Builds the full name of the field, taking into account parent objects
      */
-    public final String buildFullName(String name) {
+    public String buildFullName(String name) {
         if (Strings.isEmpty(path)) {
             return name;
         }

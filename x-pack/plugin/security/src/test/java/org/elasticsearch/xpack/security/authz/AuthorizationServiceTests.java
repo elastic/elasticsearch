@@ -124,6 +124,7 @@ import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
+import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
@@ -196,6 +197,8 @@ import static org.elasticsearch.test.SecurityTestsUtils.assertThrowsAuthorizatio
 import static org.elasticsearch.test.SecurityTestsUtils.assertThrowsAuthorizationExceptionRunAsDenied;
 import static org.elasticsearch.test.SecurityTestsUtils.assertThrowsAuthorizationExceptionRunAsUnauthorizedAction;
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
+import static org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.PrivilegesCheckResult.ALL_CHECKS_SUCCESS_NO_DETAILS;
+import static org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.PrivilegesCheckResult.SOME_CHECKS_FAILURE_NO_DETAILS;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.AUTHORIZATION_INFO_KEY;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.INDICES_PERMISSIONS_KEY;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.ORIGINATING_ACTION_KEY;
@@ -476,6 +479,79 @@ public class AuthorizationServiceTests extends ESTestCase {
             );
         }
 
+        verifyNoMoreInteractions(auditTrail);
+    }
+
+    public void testActionsForUserMatchingSystemUserRoleNameDenied() {
+        final Authentication authentication = createAuthentication(new User(SystemUser.NAME, SystemUser.ROLE_NAME));
+        final IndexRequest request = mock(IndexRequest.class);
+        final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
+
+        RoleDescriptor role = new RoleDescriptor(SystemUser.ROLE_NAME, new String[] {}, null, null, null, null, null, null);
+        roleMap.put(SystemUser.ROLE_NAME, role);
+        final String[] actions = {
+            "indices:monitor/whatever",
+            "internal:whatever",
+            "cluster:monitor/whatever",
+            "cluster:admin/reroute",
+            "indices:admin/mapping/put",
+            "indices:admin/template/put",
+            "indices:admin/seq_no/global_checkpoint_sync",
+            "indices:admin/seq_no/retention_lease_sync",
+            "indices:admin/seq_no/retention_lease_background_sync",
+            "indices:admin/seq_no/add_retention_lease",
+            "indices:admin/seq_no/remove_retention_lease",
+            "indices:admin/seq_no/renew_retention_lease",
+            "indices:admin/settings/update" };
+        for (String action : actions) {
+            assertThrowsAuthorizationException(
+                () -> authorize(authentication, action, request),
+                action,
+                authentication.getEffectiveSubject().getUser().principal()
+            );
+            verify(auditTrail).accessDenied(
+                eq(requestId),
+                eq(authentication),
+                eq(action),
+                eq(request),
+                authzInfoRoles(new String[] { SystemUser.ROLE_NAME })
+            );
+        }
+
+        verifyNoMoreInteractions(auditTrail);
+    }
+
+    public void testSystemUserActionMatchingCustomRoleNameDenied() {
+        final Authentication authentication = createAuthentication(SystemUser.INSTANCE);
+        final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
+
+        RoleDescriptor role = new RoleDescriptor(
+            SystemUser.ROLE_NAME,
+            new String[] { ClusterPrivilegeResolver.ALL.name() },
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+        roleMap.put(SystemUser.ROLE_NAME, role);
+
+        String actionNotAuthorizedForSystemUser = PutUserAction.NAME;
+        assertThat(SystemUser.isAuthorized(actionNotAuthorizedForSystemUser), is(false));
+        TransportRequest request = mock(TransportRequest.class);
+        assertThrowsAuthorizationException(
+            () -> authorize(authentication, actionNotAuthorizedForSystemUser, request),
+            actionNotAuthorizedForSystemUser,
+            authentication.getEffectiveSubject().getUser().principal()
+        );
+        verify(auditTrail).accessDenied(
+            eq(requestId),
+            eq(authentication),
+            eq(actionNotAuthorizedForSystemUser),
+            eq(request),
+            authzInfoRoles(new String[] { SystemUser.ROLE_NAME })
+        );
         verifyNoMoreInteractions(auditTrail);
     }
 
@@ -2706,11 +2782,9 @@ public class AuthorizationServiceTests extends ESTestCase {
             }
             return null;
         }).when(engine).resolveAuthorizationInfo(any(Subject.class), anyActionListener());
-        AuthorizationEngine.PrivilegesCheckResult privilegesCheckResult = new AuthorizationEngine.PrivilegesCheckResult(
-            randomBoolean(),
-            Map.of(),
-            Map.of(),
-            Map.of()
+        AuthorizationEngine.PrivilegesCheckResult privilegesCheckResult = randomFrom(
+            ALL_CHECKS_SUCCESS_NO_DETAILS,
+            SOME_CHECKS_FAILURE_NO_DETAILS
         );
         doAnswer(i -> {
             assertThat(i.getArguments().length, equalTo(4));
@@ -2741,7 +2815,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             new AuthorizationEngine.PrivilegesToCheck(
                 new String[0],
                 new IndicesPrivileges[0],
-                new RoleDescriptor.ApplicationResourcePrivileges[0]
+                new RoleDescriptor.ApplicationResourcePrivileges[0],
+                randomBoolean()
             ),
             List.of(),
             future

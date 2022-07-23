@@ -36,6 +36,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 
 public class OldMappingsIT extends ESRestTestCase {
@@ -78,9 +79,9 @@ public class OldMappingsIT extends ESRestTestCase {
         String snapshotName = "snap";
         List<String> indices;
         if (oldVersion.before(Version.fromString("6.0.0"))) {
-            indices = Arrays.asList("filebeat", "winlogbeat");
+            indices = Arrays.asList("filebeat", "winlogbeat", "custom");
         } else {
-            indices = Arrays.asList("filebeat");
+            indices = Arrays.asList("filebeat", "custom");
         }
 
         int oldEsPort = Integer.parseInt(System.getProperty("tests.es.port"));
@@ -90,8 +91,9 @@ public class OldMappingsIT extends ESRestTestCase {
             if (oldVersion.before(Version.fromString("6.0.0"))) {
                 assertOK(oldEs.performRequest(createIndex("winlogbeat", "winlogbeat.json")));
             }
+            assertOK(oldEs.performRequest(createIndex("custom", "custom.json")));
 
-            Request doc1 = new Request("PUT", "/" + "filebeat" + "/" + "doc" + "/" + "1");
+            Request doc1 = new Request("PUT", "/" + "custom" + "/" + "doc" + "/" + "1");
             doc1.addParameter("refresh", "true");
             XContentBuilder bodyDoc1 = XContentFactory.jsonBuilder()
                 .startObject()
@@ -105,16 +107,17 @@ public class OldMappingsIT extends ESRestTestCase {
             doc1.setJsonEntity(Strings.toString(bodyDoc1));
             assertOK(oldEs.performRequest(doc1));
 
-            Request doc2 = new Request("PUT", "/" + "filebeat" + "/" + "doc" + "/" + "2");
+            Request doc2 = new Request("PUT", "/" + "custom" + "/" + "doc" + "/" + "2");
             doc2.addParameter("refresh", "true");
             XContentBuilder bodyDoc2 = XContentFactory.jsonBuilder()
                 .startObject()
                 .startObject("apache2")
                 .startObject("access")
                 .field("url", "myurl2")
-                .field("agent", "agent2")
+                .field("agent", "agent2 agent2")
                 .endObject()
                 .endObject()
+                .field("completion", "some_value")
                 .endObject();
             doc2.setJsonEntity(Strings.toString(bodyDoc2));
             assertOK(oldEs.performRequest(doc2));
@@ -176,7 +179,7 @@ public class OldMappingsIT extends ESRestTestCase {
     }
 
     public void testSearchKeyword() throws IOException {
-        Request search = new Request("POST", "/" + "filebeat" + "/_search");
+        Request search = new Request("POST", "/" + "custom" + "/_search");
         XContentBuilder query = XContentBuilder.builder(XContentType.JSON.xContent())
             .startObject()
             .startObject("query")
@@ -194,12 +197,12 @@ public class OldMappingsIT extends ESRestTestCase {
     }
 
     public void testSearchOnPlaceHolderField() throws IOException {
-        Request search = new Request("POST", "/" + "filebeat" + "/_search");
+        Request search = new Request("POST", "/" + "custom" + "/_search");
         XContentBuilder query = XContentBuilder.builder(XContentType.JSON.xContent())
             .startObject()
             .startObject("query")
             .startObject("match")
-            .startObject("apache2.access.agent")
+            .startObject("completion")
             .field("query", "some-agent")
             .endObject()
             .endObject()
@@ -209,29 +212,67 @@ public class OldMappingsIT extends ESRestTestCase {
         ResponseException re = expectThrows(ResponseException.class, () -> entityAsMap(client().performRequest(search)));
         assertThat(
             re.getMessage(),
-            containsString("Field [apache2.access.agent] of type [text] in legacy index does not support match queries")
+            containsString("Field [completion] of type [completion] in legacy index does not support match queries")
         );
     }
 
     public void testAggregationOnPlaceholderField() throws IOException {
-        Request search = new Request("POST", "/" + "filebeat" + "/_search");
+        Request search = new Request("POST", "/" + "custom" + "/_search");
         XContentBuilder query = XContentBuilder.builder(XContentType.JSON.xContent())
             .startObject()
             .startObject("aggs")
             .startObject("agents")
             .startObject("terms")
-            .field("field", "apache2.access.agent")
+            .field("field", "completion")
             .endObject()
             .endObject()
             .endObject()
             .endObject();
         search.setJsonEntity(Strings.toString(query));
         ResponseException re = expectThrows(ResponseException.class, () -> entityAsMap(client().performRequest(search)));
-        assertThat(re.getMessage(), containsString("can't run aggregation or sorts on field type text of legacy index"));
+        assertThat(re.getMessage(), containsString("can't run aggregation or sorts on field type completion of legacy index"));
+    }
+
+    public void testConstantScoringOnTextField() throws IOException {
+        Request search = new Request("POST", "/" + "custom" + "/_search");
+        XContentBuilder query = XContentBuilder.builder(XContentType.JSON.xContent())
+            .startObject()
+            .startObject("query")
+            .startObject("match")
+            .startObject("apache2.access.agent")
+            .field("query", "agent2")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        search.setJsonEntity(Strings.toString(query));
+        Map<String, Object> response = entityAsMap(client().performRequest(search));
+        List<?> hits = (List<?>) (XContentMapValues.extractValue("hits.hits", response));
+        assertThat(hits, hasSize(1));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> hit = (Map<String, Object>) hits.get(0);
+        assertThat(hit, hasKey("_score"));
+        assertEquals(1.0d, (double) hit.get("_score"), 0.01d);
+    }
+
+    public void testFieldsExistQueryOnTextField() throws IOException {
+        Request search = new Request("POST", "/" + "custom" + "/_search");
+        XContentBuilder query = XContentBuilder.builder(XContentType.JSON.xContent())
+            .startObject()
+            .startObject("query")
+            .startObject("exists")
+            .field("field", "apache2.access.agent")
+            .endObject()
+            .endObject()
+            .endObject();
+        search.setJsonEntity(Strings.toString(query));
+        Map<String, Object> response = entityAsMap(client().performRequest(search));
+        List<?> hits = (List<?>) (XContentMapValues.extractValue("hits.hits", response));
+        assertThat(hits, hasSize(2));
     }
 
     public void testSearchFieldsOnPlaceholderField() throws IOException {
-        Request search = new Request("POST", "/" + "filebeat" + "/_search");
+        Request search = new Request("POST", "/" + "custom" + "/_search");
         XContentBuilder query = XContentBuilder.builder(XContentType.JSON.xContent())
             .startObject()
             .startObject("query")
@@ -242,7 +283,7 @@ public class OldMappingsIT extends ESRestTestCase {
             .endObject()
             .endObject()
             .startArray("fields")
-            .value("apache2.access.agent")
+            .value("completion")
             .endArray()
             .endObject();
         search.setJsonEntity(Strings.toString(query));
@@ -251,7 +292,7 @@ public class OldMappingsIT extends ESRestTestCase {
         assertThat(hits, hasSize(1));
         logger.info(hits);
         Map<?, ?> fields = (Map<?, ?>) (XContentMapValues.extractValue("fields", (Map<?, ?>) hits.get(0)));
-        assertEquals(List.of("agent2"), fields.get("apache2.access.agent"));
+        assertEquals(List.of("some_value"), fields.get("completion"));
     }
 
 }

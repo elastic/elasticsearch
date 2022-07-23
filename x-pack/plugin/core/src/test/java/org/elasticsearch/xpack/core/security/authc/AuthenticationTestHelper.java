@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.SecurityProfileUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.core.security.user.UsernamesField;
 import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 
@@ -89,6 +90,36 @@ public class AuthenticationTestHelper {
         );
     }
 
+    public static User userWithRandomMetadataAndDetails(final String username, final String... roles) {
+        return new User(
+            username,
+            roles,
+            ESTestCase.randomFrom(ESTestCase.randomAlphaOfLengthBetween(1, 10), null),
+            // Not a very realistic email address, but we don't validate this nor rely on correct format, so keeping it simple
+            ESTestCase.randomFrom(ESTestCase.randomAlphaOfLengthBetween(1, 10), null),
+            randomUserMetadata(),
+            true
+        );
+    }
+
+    public static Map<String, Object> randomUserMetadata() {
+        return ESTestCase.randomFrom(
+            Map.of(
+                "employee_id",
+                ESTestCase.randomAlphaOfLength(5),
+                "number",
+                1,
+                "numbers",
+                List.of(1, 3, 5),
+                "extra",
+                Map.of("favorite pizza", "hawaii", "age", 42)
+            ),
+            Map.of(ESTestCase.randomAlphaOfLengthBetween(3, 8), ESTestCase.randomAlphaOfLengthBetween(3, 8)),
+            Map.of(),
+            null
+        );
+    }
+
     public static RealmDomain randomDomain(boolean includeInternal) {
         final Supplier<String> randomRealmTypeSupplier = randomRealmTypeSupplier(includeInternal);
         final Set<RealmConfig.RealmIdentifier> domainRealms = new HashSet<>(
@@ -105,6 +136,10 @@ public class AuthenticationTestHelper {
             )
         );
         return new RealmDomain(ESTestCase.randomAlphaOfLengthBetween(3, 8), domainRealms);
+    }
+
+    public static Authentication.RealmRef randomRealmRef() {
+        return randomRealmRef(ESTestCase.randomBoolean());
     }
 
     public static Authentication.RealmRef randomRealmRef(boolean underDomain) {
@@ -129,6 +164,10 @@ public class AuthenticationTestHelper {
                 null
             );
         }
+    }
+
+    public static RealmConfig.RealmIdentifier randomRealmIdentifier(boolean includeInternal) {
+        return new RealmConfig.RealmIdentifier(randomRealmTypeSupplier(includeInternal).get(), ESTestCase.randomAlphaOfLengthBetween(3, 8));
     }
 
     private static Supplier<String> randomRealmTypeSupplier(boolean includeInternal) {
@@ -178,6 +217,16 @@ public class AuthenticationTestHelper {
      */
     public static List<String> randomInternalUsernames() {
         return ESTestCase.randomNonEmptySubsetOf(INTERNAL_USERS.stream().map(User::principal).toList());
+    }
+
+    public static String randomInternalRoleName() {
+        return ESTestCase.randomFrom(
+            UsernamesField.SYSTEM_ROLE,
+            UsernamesField.XPACK_ROLE,
+            UsernamesField.ASYNC_SEARCH_ROLE,
+            UsernamesField.XPACK_SECURITY_ROLE,
+            UsernamesField.SECURITY_PROFILE_ROLE
+        );
     }
 
     public static class AuthenticationTestBuilder {

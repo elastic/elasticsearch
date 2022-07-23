@@ -27,6 +27,7 @@ import org.apache.lucene.codecs.CompoundFormat;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.FieldInfosFormat;
 import org.apache.lucene.codecs.LiveDocsFormat;
+import org.apache.lucene.codecs.PointsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.SegmentInfoFormat;
 import org.apache.lucene.codecs.StoredFieldsFormat;
@@ -64,7 +65,7 @@ public class Lucene60Codec extends BWCCodec {
             if (formatName.equals("Lucene50")) {
                 return new BWCLucene50PostingsFormat();
             } else {
-                return super.getPostingsFormat(formatName);
+                return new EmptyPostingsFormat();
             }
         }
     };
@@ -120,5 +121,10 @@ public class Lucene60Codec extends BWCCodec {
     @Override
     public PostingsFormat postingsFormat() {
         return postingsFormat;
+    }
+
+    @Override
+    public PointsFormat pointsFormat() {
+        return new Lucene60MetadataOnlyPointsFormat();
     }
 }

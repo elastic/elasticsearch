@@ -63,7 +63,9 @@ public class ReindexMetadataTests extends AbstractAsyncBulkByScrollActionMetadat
 
     @Override
     protected ReindexRequest request() {
-        return new ReindexRequest();
+        ReindexRequest request = new ReindexRequest();
+        request.getDestination().index("test");
+        return request;
     }
 
     private class TestAction extends Reindexer.AsyncIndexBySearchAction {

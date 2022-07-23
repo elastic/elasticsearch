@@ -9,6 +9,7 @@
 package org.elasticsearch.datastreams;
 
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -25,6 +26,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.InvalidIndexTemplateException;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
@@ -36,8 +38,10 @@ import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.generateTsdbMapping;
 import static org.elasticsearch.common.settings.Settings.builder;
+import static org.elasticsearch.datastreams.MetadataDataStreamRolloverServiceTests.createSettingsProvider;
 import static org.elasticsearch.indices.ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -101,10 +105,105 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         );
     }
 
+    public void testRequireRoutingPath() throws Exception {
+        final var service = getMetadataIndexTemplateService();
+        {
+            // Missing routing path should fail validation
+            var componentTemplate = new ComponentTemplate(new Template(null, new CompressedXContent("{}"), null), null, null);
+            var state = service.addComponentTemplate(ClusterState.EMPTY_STATE, true, "1", componentTemplate);
+            var indexTemplate = new ComposableIndexTemplate(
+                Collections.singletonList("logs-*-*"),
+                new Template(builder().put("index.mode", "time_series").build(), null, null),
+                List.of("1"),
+                100L,
+                null,
+                null,
+                new ComposableIndexTemplate.DataStreamTemplate(false, false),
+                null
+            );
+            var e = expectThrows(InvalidIndexTemplateException.class, () -> service.addIndexTemplateV2(state, false, "1", indexTemplate));
+            assertThat(e.getMessage(), containsString("[index.mode=time_series] requires a non-empty [index.routing_path]"));
+        }
+        {
+            // Routing path fetched from mapping of component template
+            var state = ClusterState.EMPTY_STATE;
+            var componentTemplate = new ComponentTemplate(
+                new Template(null, new CompressedXContent(generateTsdbMapping()), null),
+                null,
+                null
+            );
+            state = service.addComponentTemplate(state, true, "1", componentTemplate);
+            var indexTemplate = new ComposableIndexTemplate(
+                Collections.singletonList("logs-*-*"),
+                new Template(builder().put("index.mode", "time_series").build(), null, null),
+                List.of("1"),
+                100L,
+                null,
+                null,
+                new ComposableIndexTemplate.DataStreamTemplate(false, false),
+                null
+            );
+            state = service.addIndexTemplateV2(state, false, "1", indexTemplate);
+            assertThat(state.getMetadata().templatesV2().get("1"), equalTo(indexTemplate));
+        }
+        {
+            // Routing path defined in component template
+            var state = ClusterState.EMPTY_STATE;
+            var componentTemplate = new ComponentTemplate(
+                new Template(builder().put("index.mode", "time_series").put("index.routing_path", "uid").build(), null, null),
+                null,
+                null
+            );
+            state = service.addComponentTemplate(state, true, "1", componentTemplate);
+            var indexTemplate = new ComposableIndexTemplate(
+                Collections.singletonList("logs-*-*"),
+                new Template(null, null, null),
+                List.of("1"),
+                100L,
+                null,
+                null,
+                new ComposableIndexTemplate.DataStreamTemplate(false, false),
+                null
+            );
+            state = service.addIndexTemplateV2(state, false, "1", indexTemplate);
+            assertThat(state.getMetadata().templatesV2().get("1"), equalTo(indexTemplate));
+        }
+        {
+            // Routing path defined in index template
+            var indexTemplate = new ComposableIndexTemplate(
+                Collections.singletonList("logs-*-*"),
+                new Template(builder().put("index.mode", "time_series").put("index.routing_path", "uid").build(), null, null),
+                List.of("1"),
+                100L,
+                null,
+                null,
+                new ComposableIndexTemplate.DataStreamTemplate(false, false),
+                null
+            );
+            var state = service.addIndexTemplateV2(ClusterState.EMPTY_STATE, false, "1", indexTemplate);
+            assertThat(state.getMetadata().templatesV2().get("1"), equalTo(indexTemplate));
+        }
+        {
+            // Routing fetched from mapping in index template
+            var indexTemplate = new ComposableIndexTemplate(
+                Collections.singletonList("logs-*-*"),
+                new Template(builder().put("index.mode", "time_series").build(), new CompressedXContent(generateTsdbMapping()), null),
+                List.of("1"),
+                100L,
+                null,
+                null,
+                new ComposableIndexTemplate.DataStreamTemplate(false, false),
+                null
+            );
+            var state = service.addIndexTemplateV2(ClusterState.EMPTY_STATE, false, "1", indexTemplate);
+            assertThat(state.getMetadata().templatesV2().get("1"), equalTo(indexTemplate));
+        }
+    }
+
     private MetadataIndexTemplateService getMetadataIndexTemplateService() {
         var indicesService = getInstanceFromNode(IndicesService.class);
         var clusterService = getInstanceFromNode(ClusterService.class);
-        var indexSettingProviders = new IndexSettingProviders(Set.of(new DataStreamIndexSettingsProvider()));
+        var indexSettingProviders = new IndexSettingProviders(Set.of(createSettingsProvider(xContentRegistry())));
         var createIndexService = new MetadataCreateIndexService(
             Settings.EMPTY,
             clusterService,

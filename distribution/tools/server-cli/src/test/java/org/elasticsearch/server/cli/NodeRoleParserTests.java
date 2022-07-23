@@ -8,6 +8,8 @@
 
 package org.elasticsearch.server.cli;
 
+import org.elasticsearch.test.ESTestCase;
+
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -22,7 +24,7 @@ import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertThat;
 
-public class NodeRoleParserTests extends LaunchersTestCase {
+public class NodeRoleParserTests extends ESTestCase {
 
     public void testMasterOnlyNode() throws IOException {
         MachineDependentHeap.MachineNodeRole nodeRole = parseConfig(sb -> sb.append("node.roles: [master]"));

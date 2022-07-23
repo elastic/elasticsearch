@@ -9,7 +9,6 @@
 package org.elasticsearch.index.shard;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
 import org.apache.lucene.index.CheckIndex;
@@ -56,6 +55,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AsyncIOProcessor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedConsumer;
@@ -159,7 +159,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.EnumSet;
-import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
@@ -184,6 +183,7 @@ import java.util.function.LongUnaryOperator;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.cluster.metadata.DataStream.TIMESERIES_LEAF_READERS_SORTER;
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.index.seqno.RetentionLeaseActions.RETAIN_ALL;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
@@ -545,8 +545,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         "Shard is marked as relocated, cannot safely move to state " + newRouting.state()
                     );
                 }
-            assert newRouting.active() == false || state == IndexShardState.STARTED || state == IndexShardState.CLOSED
-                : "routing is active, but local shard state isn't. routing: " + newRouting + ", local state: " + state;
+
+            if (newRouting.active() != false && state != IndexShardState.STARTED && state != IndexShardState.CLOSED) {
+                // If cluster.no_master_block: all then we remove all shards locally whenever there's no master, but there might still be
+                // a shard-started message in flight. When the new master is elected we start to recover our shards again and the stale
+                // shard-started message could arrive and move this shard to STARTED in the cluster state too soon. This is pretty rare so
+                // we fix it by just failing the shard and starting the recovery again.
+                //
+                // NB this can only happen on replicas - if it happened to a primary then we'd move to a new primary term and ignore the
+                // stale shard-started message.
+                assert newRouting.primary() == false
+                    : "primary routing is active, but local shard state isn't. routing: " + newRouting + ", local state: " + state;
+                throw new IllegalIndexShardStateException(shardId, state, "master processed stale shard-started event, failing shard");
+            }
+
             persistMetadata(path, indexSettings, newRouting, currentRouting, logger);
             final CountDownLatch shardStateUpdated = new CountDownLatch(1);
 
@@ -684,7 +696,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
         if (indexSettings.isSoftDeleteEnabled() && useRetentionLeasesInPeerRecovery == false) {
             final RetentionLeases retentionLeases = replicationTracker.getRetentionLeases();
-            final Set<ShardRouting> shardRoutings = new HashSet<>(routingTable.size());
+            final Set<ShardRouting> shardRoutings = Sets.newHashSetWithExpectedSize(routingTable.size());
             for (int copy = 0; copy < routingTable.size(); copy++) {
                 shardRoutings.add(routingTable.shard(copy));
             }
@@ -1012,31 +1024,31 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private Engine.IndexResult index(Engine engine, Engine.Index index) throws IOException {
         active.set(true);
         final Engine.IndexResult result;
-        index = indexingOperationListeners.preIndex(shardId, index);
+        final Engine.Index preIndex = indexingOperationListeners.preIndex(shardId, index);
         try {
             if (logger.isTraceEnabled()) {
                 // don't use index.source().utf8ToString() here source might not be valid UTF-8
                 logger.trace(
                     "index [{}] seq# [{}] allocation-id [{}] primaryTerm [{}] operationPrimaryTerm [{}] origin [{}]",
-                    index.id(),
-                    index.seqNo(),
+                    preIndex.id(),
+                    preIndex.seqNo(),
                     routingEntry().allocationId(),
-                    index.primaryTerm(),
+                    preIndex.primaryTerm(),
                     getOperationPrimaryTerm(),
-                    index.origin()
+                    preIndex.origin()
                 );
             }
-            result = engine.index(index);
+            result = engine.index(preIndex);
             if (logger.isTraceEnabled()) {
                 logger.trace(
                     "index-done [{}] seq# [{}] allocation-id [{}] primaryTerm [{}] operationPrimaryTerm [{}] origin [{}] "
                         + "result-seq# [{}] result-term [{}] failure [{}]",
-                    index.id(),
-                    index.seqNo(),
+                    preIndex.id(),
+                    preIndex.seqNo(),
                     routingEntry().allocationId(),
-                    index.primaryTerm(),
+                    preIndex.primaryTerm(),
                     getOperationPrimaryTerm(),
-                    index.origin(),
+                    preIndex.origin(),
                     result.getSeqNo(),
                     result.getTerm(),
                     result.getFailure()
@@ -1045,22 +1057,22 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         } catch (Exception e) {
             if (logger.isTraceEnabled()) {
                 logger.trace(
-                    new ParameterizedMessage(
-                        "index-fail [{}] seq# [{}] allocation-id [{}] primaryTerm [{}] operationPrimaryTerm [{}] origin [{}]",
-                        index.id(),
-                        index.seqNo(),
+                    () -> format(
+                        "index-fail [%s] seq# [%s] allocation-id [%s] primaryTerm [%s] operationPrimaryTerm [%s] origin [%s]",
+                        preIndex.id(),
+                        preIndex.seqNo(),
                         routingEntry().allocationId(),
-                        index.primaryTerm(),
+                        preIndex.primaryTerm(),
                         getOperationPrimaryTerm(),
-                        index.origin()
+                        preIndex.origin()
                     ),
                     e
                 );
             }
-            indexingOperationListeners.postIndex(shardId, index, e);
+            indexingOperationListeners.postIndex(shardId, preIndex, e);
             throw e;
         }
-        indexingOperationListeners.postIndex(shardId, index, result);
+        indexingOperationListeners.postIndex(shardId, preIndex, result);
         return result;
     }
 
@@ -1503,7 +1515,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             throw new ElasticsearchException("failed to wrap searcher", ex);
         } finally {
             if (success == false) {
-                Releasables.close(success, searcher);
+                Releasables.closeWhileHandlingException(searcher);
             }
         }
     }
@@ -1719,7 +1731,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 }
             }
         } catch (Exception e) {
-            logger.debug(new ParameterizedMessage("failed to recover shard locally up to global checkpoint {}", globalCheckpoint), e);
+            logger.debug(() -> format("failed to recover shard locally up to global checkpoint %s", globalCheckpoint), e);
             return UNASSIGNED_SEQ_NO;
         }
         try {
@@ -1729,10 +1741,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             return newSafeCommit.get().localCheckpoint + 1;
         } catch (Exception e) {
             logger.debug(
-                new ParameterizedMessage(
-                    "failed to find the safe commit after recovering shard locally up to global checkpoint {}",
-                    globalCheckpoint
-                ),
+                () -> format("failed to find the safe commit after recovering shard locally up to global checkpoint %s", globalCheckpoint),
                 e
             );
             return UNASSIGNED_SEQ_NO;
@@ -2916,7 +2925,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         logger.info("check index [ok]: checksum check passed on [{}]", checkedFile);
                     }
                     checkedFiles.clear();
-                    logger.warn(new ParameterizedMessage("check index [failure]: checksum failed on [{}]", entry.getKey()), ioException);
+                    logger.warn(() -> "check index [failure]: checksum failed on [" + entry.getKey() + "]", ioException);
                     corrupt = ioException;
                 }
             }
@@ -3198,7 +3207,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             protected Analyzer getWrappedAnalyzer(String fieldName) {
                 return mapperService.indexAnalyzer(
                     fieldName,
-                    f -> { throw new IllegalArgumentException("Field [" + fieldName + "] has no associated analyzer"); }
+                    f -> { throw new IllegalArgumentException("Field [" + f + "] has no associated analyzer"); }
                 );
             }
         };

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.desirednodes;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -27,7 +28,7 @@ public class UpdateDesiredNodesRequest extends AcknowledgedRequest<UpdateDesired
     private final long version;
     private final List<DesiredNode> nodes;
 
-    private static final ParseField NODES_FIELD = new ParseField("nodes");
+    public static final ParseField NODES_FIELD = new ParseField("nodes");
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<List<DesiredNode>, Void> PARSER = new ConstructingObjectParser<>(
@@ -52,7 +53,7 @@ public class UpdateDesiredNodesRequest extends AcknowledgedRequest<UpdateDesired
         super(in);
         this.historyID = in.readString();
         this.version = in.readLong();
-        this.nodes = in.readList(DesiredNode::new);
+        this.nodes = in.readList(DesiredNode::readFrom);
     }
 
     @Override
@@ -78,6 +79,13 @@ public class UpdateDesiredNodesRequest extends AcknowledgedRequest<UpdateDesired
 
     public List<DesiredNode> getNodes() {
         return nodes;
+    }
+
+    public boolean isCompatibleWithVersion(Version version) {
+        if (version.onOrAfter(DesiredNode.RANGE_FLOAT_PROCESSORS_SUPPORT_VERSION)) {
+            return true;
+        }
+        return nodes.stream().allMatch(desiredNode -> desiredNode.isCompatibleWithVersion(version));
     }
 
     @Override

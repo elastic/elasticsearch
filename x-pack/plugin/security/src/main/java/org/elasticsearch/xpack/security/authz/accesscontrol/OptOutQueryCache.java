@@ -7,13 +7,13 @@
 
 package org.elasticsearch.xpack.security.authz.accesscontrol;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.Weight;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.cache.query.QueryCache;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.cache.query.IndexQueryCache;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
@@ -25,50 +25,36 @@ import java.util.Set;
 /**
  * Opts out of the query cache if field level security is active for the current request, and it is unsafe to cache.
  */
-public final class OptOutQueryCache extends AbstractIndexComponent implements QueryCache {
+public final class OptOutQueryCache extends IndexQueryCache {
 
-    private final IndicesQueryCache indicesQueryCache;
+    private static final Logger logger = LogManager.getLogger(IndexQueryCache.class);
     private final ThreadContext context;
-    private final String indexName;
 
-    public OptOutQueryCache(final IndexSettings indexSettings, final IndicesQueryCache indicesQueryCache, final ThreadContext context) {
-        super(indexSettings);
-        this.indicesQueryCache = indicesQueryCache;
+    public OptOutQueryCache(final Index index, final IndicesQueryCache indicesQueryCache, final ThreadContext context) {
+        super(index, indicesQueryCache);
         this.context = Objects.requireNonNull(context, "threadContext must not be null");
-        this.indexName = indexSettings.getIndex().getName();
-    }
-
-    @Override
-    public void close() throws ElasticsearchException {
-        clear("close");
-    }
-
-    @Override
-    public void clear(final String reason) {
-        logger.debug("full cache clear, reason [{}]", reason);
-        indicesQueryCache.clearIndex(index().getName());
     }
 
     @Override
     public Weight doCache(Weight weight, QueryCachingPolicy policy) {
         IndicesAccessControl indicesAccessControl = context.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
         if (indicesAccessControl == null) {
-            logger.debug("opting out of the query cache. current request doesn't hold indices permissions");
+            logger.debug("opting out of the query cache for index [{}]. current request doesn't hold indices permissions", index);
             return weight;
         }
 
-        IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(indexName);
+        IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(index.getName());
         if (indexAccessControl != null && indexAccessControl.getFieldPermissions().hasFieldLevelSecurity()) {
             if (cachingIsSafe(weight, indexAccessControl)) {
-                logger.trace("not opting out of the query cache. request for index [{}] is safe to cache", indexName);
-                return indicesQueryCache.doCache(weight, policy);
+                logger.trace("not opting out of the query cache. request for index [{}] is safe to cache", index);
+                return super.doCache(weight, policy);
             } else {
-                logger.trace("opting out of the query cache. request for index [{}] is unsafe to cache", indexName);
+                logger.trace("opting out of the query cache. request for index [{}] is unsafe to cache", index);
                 return weight;
             }
         } else {
-            logger.trace("not opting out of the query cache. request for index [{}] has field level security disabled", indexName);
-            return indicesQueryCache.doCache(weight, policy);
+            logger.trace("not opting out of the query cache. request for index [{}] has field level security disabled", index);
+            return super.doCache(weight, policy);
         }
     }
 

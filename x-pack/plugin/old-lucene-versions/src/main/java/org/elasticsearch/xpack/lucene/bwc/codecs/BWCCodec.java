@@ -10,20 +10,28 @@ package org.elasticsearch.xpack.lucene.bwc.codecs;
 import org.apache.lucene.backward_codecs.lucene70.Lucene70Codec;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.FieldInfosFormat;
+import org.apache.lucene.codecs.FieldsConsumer;
+import org.apache.lucene.codecs.FieldsProducer;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.NormsFormat;
-import org.apache.lucene.codecs.PointsFormat;
+import org.apache.lucene.codecs.NormsProducer;
+import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.SegmentInfoFormat;
 import org.apache.lucene.codecs.TermVectorsFormat;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
+import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.SegmentInfo;
+import org.apache.lucene.index.SegmentReadState;
+import org.apache.lucene.index.SegmentWriteState;
+import org.apache.lucene.index.Terms;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.elasticsearch.xpack.lucene.bwc.codecs.lucene70.BWCLucene70Codec;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 
 /**
@@ -42,11 +50,6 @@ public abstract class BWCCodec extends Codec {
 
     @Override
     public TermVectorsFormat termVectorsFormat() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public PointsFormat pointsFormat() {
         throw new UnsupportedOperationException();
     }
 
@@ -85,7 +88,7 @@ public abstract class BWCCodec extends Codec {
         };
     }
 
-    // mark all fields as no term vectors, no norms, no payloads, no points, and no vectors.
+    // mark all fields as no term vectors, no norms, no payloads, and no vectors.
     private static FieldInfos filterFields(FieldInfos fieldInfos) {
         List<FieldInfo> fieldInfoCopy = new ArrayList<>(fieldInfos.size());
         for (FieldInfo fieldInfo : fieldInfos) {
@@ -100,9 +103,9 @@ public abstract class BWCCodec extends Codec {
                     fieldInfo.getDocValuesType(),
                     fieldInfo.getDocValuesGen(),
                     fieldInfo.attributes(),
-                    0,
-                    0,
-                    0,
+                    fieldInfo.getPointDimensionCount(),
+                    fieldInfo.getPointIndexDimensionCount(),
+                    fieldInfo.getPointNumBytes(),
                     0,
                     fieldInfo.getVectorSimilarityFunction(),
                     fieldInfo.isSoftDeletesField()
@@ -134,6 +137,61 @@ public abstract class BWCCodec extends Codec {
         );
         segmentInfo1.setFiles(segmentInfo.files());
         return segmentInfo1;
+    }
+
+    /**
+     * In-memory postings format that shows no postings available.
+     */
+    public static class EmptyPostingsFormat extends PostingsFormat {
+
+        public EmptyPostingsFormat() {
+            super("EmptyPostingsFormat");
+        }
+
+        @Override
+        public FieldsConsumer fieldsConsumer(SegmentWriteState state) {
+            return new FieldsConsumer() {
+                @Override
+                public void write(Fields fields, NormsProducer norms) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public void close() {
+
+                }
+            };
+        }
+
+        @Override
+        public FieldsProducer fieldsProducer(SegmentReadState state) {
+            return new FieldsProducer() {
+                @Override
+                public void close() {
+
+                }
+
+                @Override
+                public void checkIntegrity() {
+
+                }
+
+                @Override
+                public Iterator<String> iterator() {
+                    return null;
+                }
+
+                @Override
+                public Terms terms(String field) {
+                    return null;
+                }
+
+                @Override
+                public int size() {
+                    return 0;
+                }
+            };
+        }
     }
 
 }

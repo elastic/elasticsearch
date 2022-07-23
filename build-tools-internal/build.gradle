@@ -119,6 +119,10 @@ gradlePlugin {
       id = 'elasticsearch.jdk-download'
       implementationClass = 'org.elasticsearch.gradle.internal.JdkDownloadPlugin'
     }
+    javaModulePath {
+      id = 'elasticsearch.java-module'
+      implementationClass = 'org.elasticsearch.gradle.internal.ElasticsearchJavaModulePathPlugin'
+    }
     releaseTools {
       id = 'elasticsearch.release-tools'
       implementationClass = 'org.elasticsearch.gradle.internal.release.ReleaseToolsPlugin'
@@ -130,10 +134,6 @@ gradlePlugin {
     restResources {
       id = 'elasticsearch.rest-resources'
       implementationClass = 'org.elasticsearch.gradle.internal.test.rest.RestResourcesPlugin'
-    }
-    restTest {
-      id = 'elasticsearch.rest-test'
-      implementationClass = 'org.elasticsearch.gradle.internal.test.RestTestPlugin'
     }
     standaloneRestTest {
       id = 'elasticsearch.standalone-rest-test'
@@ -213,7 +213,11 @@ repositories {
 configurations {
   integTestRuntimeOnly.extendsFrom(testRuntimeOnly)
 }
+
 dependencies {
+  constraints {
+      integTestImplementation('org.ow2.asm:asm:9.3')
+  }
   components.all(JacksonAlignmentRule)
   constraints {
     // ensuring brought asm version brought in by spock is up-to-date
@@ -287,6 +291,7 @@ dependencies {
     exclude module: "groovy"
   }
   testImplementation buildLibs.spock.junit4
+  testImplementation buildLibs.json.assert
   integTestImplementation buildLibs.xmlunit.core
 }
 
@@ -294,7 +299,6 @@ tasks.named('test').configure {
   useJUnitPlatform()
 }
 tasks.register("integTest", Test) {
-  inputs.dir(file("src/testKit")).withPropertyName("testkit dir").withPathSensitivity(PathSensitivity.RELATIVE)
   systemProperty 'test.version_under_test', version
   testClassesDirs = sourceSets.integTest.output.classesDirs
   classpath = sourceSets.integTest.runtimeClasspath
@@ -307,10 +311,11 @@ tasks.register("bootstrapPerformanceTests", Copy) {
   from('performance')
   into('build/performanceTests')
   def root = file('..')
+  inputs.property('branchWrapper', gradle.gradleVersion)
   filter(ReplaceTokens, tokens: [
           testGitCommit:GitInfo.gitInfo(root).revision,
           masterWrapper:"${ -> resolveMasterWrapperVersion()}".toString(),
-          branchWrapper:"${-> new File(root, "build-tools-internal/src/main/resources/minimumGradleVersion").text}".toString()])
+          branchWrapper:"${-> gradle.gradleVersion}".toString()])
 }
 
 def resolveMasterWrapperVersion() {

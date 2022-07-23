@@ -8,6 +8,10 @@
 
 package org.elasticsearch.server.cli;
 
+import org.apache.lucene.tests.util.LuceneTestCase.SuppressFileSystems;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.ESTestCase.WithoutSecurityManager;
+
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
@@ -28,7 +32,9 @@ import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-public class JvmErgonomicsTests extends LaunchersTestCase {
+@WithoutSecurityManager
+@SuppressFileSystems("*")
+public class JvmErgonomicsTests extends ESTestCase {
 
     public void testExtractValidHeapSizeUsingXmx() throws Exception {
         assertThat(JvmOption.extractMaxHeapSize(JvmOption.findFinalOptions(Collections.singletonList("-Xmx2g"))), equalTo(2L << 30));

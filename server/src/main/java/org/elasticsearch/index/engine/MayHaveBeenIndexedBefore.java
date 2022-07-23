@@ -159,7 +159,7 @@ public interface MayHaveBeenIndexedBefore {
     }
 
     class TimeSeries implements MayHaveBeenIndexedBefore {
-        private final int TIMESTAMPS_SIZE = 1 << 10;
+        private final int TIMESTAMPS_SIZE = 1 << 12;
         private final int LOW_BIT_MASK = TIMESTAMPS_SIZE - 1;
         private final AtomicLong[] maxTimestamps = new AtomicLong[TIMESTAMPS_SIZE];
         private Consumer<Engine.Index> assertPrimaryCanOptimizeAddDocument;
@@ -221,14 +221,26 @@ public interface MayHaveBeenIndexedBefore {
             int lowBits = (int) (hashPart & LOW_BIT_MASK);
             long prev = maxTimestamps[lowBits].getAndUpdate(curr -> Math.max(curr, timestamp));
 //            logger.error(
-//                "SADFADSFAF {} {} {} {} {}",
+//                "SADFADSFAF {} {} {}/{} {} {} {}",
 //                Long.toHexString(hashPart),
 //                Integer.toHexString(lowBits),
+//                timestampsUsed(),
+//                maxTimestamps.length,
 //                prev,
 //                timestamp,
 //                prev - timestamp
 //            );
             return prev >= timestamp;
+        }
+
+        private int timestampsUsed() {
+            int used = 0;
+            for (AtomicLong timestamp : maxTimestamps) {
+                if (timestamp.get() != -1) {
+                    used++;
+                }
+            }
+            return used;
         }
 
         @Override

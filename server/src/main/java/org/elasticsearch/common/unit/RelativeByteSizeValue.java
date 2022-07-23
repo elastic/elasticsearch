@@ -47,11 +47,16 @@ public class RelativeByteSizeValue {
      * Calculate the size to use, optionally catering for a max headroom.
      * @param total the total size to use
      * @param maxHeadroom the max headroom to cater for or null (or -1) to ignore.
+     * @param floorInsteadOfCeil if true, and in case a ratio/percentage value exists, then when calculating ratio * total bytes, use
+     *                           Math.floor() instead of Math.ceil(). This is used for example in case of trying to calculate the minimum
+     *                           free bytes for staying lower than the ratio, where one would need to subtract the result of this function
+     *                           from the total bytes.
      * @return the size to use
      */
-    public ByteSizeValue calculateValue(ByteSizeValue total, ByteSizeValue maxHeadroom) {
+    public ByteSizeValue calculateValue(ByteSizeValue total, ByteSizeValue maxHeadroom, boolean floorInsteadOfCeil) {
         if (ratio != null) {
-            long ratioBytes = (long) Math.ceil(ratio.getAsRatio() * total.getBytes());
+            double res = ratio.getAsRatio() * total.getBytes();
+            long ratioBytes = (long) (floorInsteadOfCeil ? Math.floor(res) : Math.ceil(res));
             if (maxHeadroom != null && maxHeadroom.getBytes() != -1) {
                 return ByteSizeValue.ofBytes(Math.max(ratioBytes, total.getBytes() - maxHeadroom.getBytes()));
             } else {

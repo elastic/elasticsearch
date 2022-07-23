@@ -387,6 +387,9 @@ public class DiskThresholdSettings {
         return getFreeBytesThreshold(total, frozenFloodStageWatermark, frozenFloodStageMaxHeadroom);
     }
 
+    // TODO (iraklis): ByteSizeValue.MINUS_ONE
+    // TODO (iraklis:) Revert 20gb to 20GB
+    // TODO (iraklis): getMinimumTotalSizeForBelowWatermark(4080) with low threshold 0.68 should return 6000 instead of 5999.
     private ByteSizeValue getMinimumTotalSizeForBelowWatermark(
         ByteSizeValue used,
         RelativeByteSizeValue watermark,

@@ -909,7 +909,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     public ClusterHealthStatus ensureYellow(String... indices) {
         return ensureColor(ClusterHealthStatus.YELLOW, TimeValue.timeValueSeconds(30), false, indices);
     }
-    
+
     /**
      * Ensures the cluster has a yellow state via the cluster health API and ensures the that cluster has no initializing shards
      * for the given indices

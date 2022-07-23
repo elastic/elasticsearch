@@ -1,5 +1,6 @@
 pr: 88385
-summary: Test balance improves after rebalancing
+summary: Prevent re-balancing using outdated node weights in some cases
 area: Allocation
 type: bug
-issues: []
+issues:
+ - 88384

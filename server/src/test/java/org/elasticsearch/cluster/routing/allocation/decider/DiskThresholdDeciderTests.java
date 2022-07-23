@@ -1111,7 +1111,6 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                             + "used: [99.6%]"
                         : "the node is above the low watermark cluster setting [cluster.routing.allocation.disk.watermark.low=60%], "
                             + "having less than the minimum required [40b] free space, actual free: [20b], actual used: [80%]"
-
                 )
             );
         }

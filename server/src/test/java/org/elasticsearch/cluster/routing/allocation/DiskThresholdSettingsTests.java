@@ -654,8 +654,6 @@ public class DiskThresholdSettingsTests extends ESTestCase {
             equalTo(frozenFloodMaxHeadroomPrefix + "20gb")
         );
 
-        // With 1000GB assert max headrooms
-
         diskThresholdSettings = new DiskThresholdSettings(
             Settings.builder()
                 .put(
@@ -686,7 +684,7 @@ public class DiskThresholdSettingsTests extends ESTestCase {
             equalTo(frozenFloodWatermarkPrefix + "91.5%")
         );
 
-        // Even for 1000TB, the watermarks apply since they are set (the default max headrooms do not apply)
+        // Even for 1000TB, the watermarks apply since they are set (any max headroom does not apply)
         assertThat(diskThresholdSettings.describeLowThreshold(thousandTb, includeKey), equalTo(lowWatermarkPrefix + "91.2%"));
         assertThat(diskThresholdSettings.describeHighThreshold(thousandTb, includeKey), equalTo(highWatermarkPrefix + "91.3%"));
         assertThat(diskThresholdSettings.describeFloodStageThreshold(thousandTb, includeKey), equalTo(floodWatermarkPrefix + "91.4%"));

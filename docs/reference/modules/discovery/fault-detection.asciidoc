@@ -52,7 +52,7 @@ logs.
 * The master may appear busy due to frequent cluster state updates.
 
 To troubleshoot a cluster in this state, first ensure the cluster has a
-<<modules-discovery-troubleshooting,stable master>>. Next, focus on the nodes
+<<discovery-troubleshooting,stable master>>. Next, focus on the nodes
 unexpectedly leaving the cluster ahead of all other issues. It will not be
 possible to solve other issues until the cluster has a stable master node and
 stable node membership.

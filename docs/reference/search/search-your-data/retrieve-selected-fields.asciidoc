@@ -588,7 +588,7 @@ for loading fields:
 parameter to get values for selected fields. This can be a good
 choice when returning a fairly small number of fields that support doc values,
 such as keywords and dates.
-* Use the <<request-body-search-stored-fields, `stored_fields`>> parameter to
+* Use the <<stored-fields, `stored_fields`>> parameter to
 get the values for specific stored fields (fields that use the
 <<mapping-store,`store`>> mapping option).
 

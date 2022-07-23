@@ -35,7 +35,7 @@ image::images/ingest/ingest-pipeline-list.png[Kibana's Ingest Pipelines list vie
 
 .. Click **Add a processor** and select the **Grok** processor type.
 .. Set **Field** to `message` and **Patterns** to the following
-<<grok-basics,grok pattern>>:
+<<grok,grok pattern>>:
 +
 [source,grok]
 ----

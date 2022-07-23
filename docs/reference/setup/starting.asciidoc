@@ -41,7 +41,7 @@ include::install/systemd.asciidoc[]
 
 If you installed a Docker image, you can start {es} from the command line. There 
 are different methods depending on whether you're using development mode or 
-production mode. See <<docker-cli-run>>. 
+production mode. See <<docker-cli-run-dev-mode>>. 
 
 [discrete]
 [[start-rpm]]

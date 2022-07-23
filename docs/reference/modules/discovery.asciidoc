@@ -34,7 +34,7 @@ formation:
     <<dev-vs-prod-mode,production mode>> requires bootstrapping to be
     <<modules-discovery-bootstrap-cluster,explicitly configured>>.
 
-<<modules-discovery-adding-removing-nodes,Adding and removing master-eligible nodes>>::
+<<add-elasticsearch-nodes,Adding and removing master-eligible nodes>>::
 
     It is recommended to have a small and fixed number of master-eligible nodes
     in a cluster, and to scale the cluster up and down by adding and removing

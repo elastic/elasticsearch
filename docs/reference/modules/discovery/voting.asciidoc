@@ -22,7 +22,7 @@ After a node joins or leaves the cluster, {es} reacts by automatically making
 corresponding changes to the voting configuration in order to ensure that the
 cluster is as resilient as possible. It is important to wait for this adjustment
 to complete before you remove more nodes from the cluster. For more information,
-see <<modules-discovery-adding-removing-nodes>>.
+see <<add-elasticsearch-nodes>>.
 
 The current voting configuration is stored in the cluster state so you can
 inspect its current contents as follows:

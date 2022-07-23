@@ -89,7 +89,7 @@ default realm, the Key Distribution Center (KDC), and other configuration detail
 required for Kerberos authentication. When the JVM needs some configuration
 properties, it tries to find those values by locating and loading this file. The
 JVM system property to configure the file path is `java.security.krb5.conf`. To
-configure JVM system properties see <<jvm-options>>.
+configure JVM system properties see <<set-jvm-options>>.
 If this system property is not specified, Java tries to locate the file based on
 the conventions.
 

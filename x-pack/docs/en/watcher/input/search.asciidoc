@@ -173,7 +173,7 @@ accurately.
 | `request.indices`                             | no        | -                   | The indices to search. If omitted, all indices are searched, which is the
                                                                                     default behaviour in Elasticsearch.
 
-| `request.body`                                | no        | -                   | The body of the request. The <<search-request-body,request body>>
+| `request.body`                                | no        | -                   | The body of the request. The <<search-search,request body>>
                                                                                     follows the same structure you normally send in the body of a REST `_search`
                                                                                     request. The body can be static text or include `mustache` <<templates,templates>>.
 
@@ -181,13 +181,13 @@ accurately.
                                                                                     for more information.
 
 | `request.indices_options.expand_wildcards`    | no        | `open`              | How to expand wildcards. Valid values are: `all`, `open`, `closed`, and `none`
-                                                                                    See <<multi-index,`expand_wildcards`>> for more information.
+                                                                                    See <<api-multi-index,`expand_wildcards`>> for more information.
 
 | `request.indices_options.ignore_unavailable`  | no        | `true`              | Whether the search should ignore unavailable indices. See
-                                                                                    <<multi-index,`ignore_unavailable`>> for more information.
+                                                                                    <<api-multi-index,`ignore_unavailable`>> for more information.
 
 | `request.indices_options.allow_no_indices`    | no        | `true`              | Whether to allow a search where a wildcard indices expression results in no
-                                                                                    concrete indices. See <<multi-index,allow_no_indices>>
+                                                                                    concrete indices. See <<api-multi-index,allow_no_indices>>
                                                                                     for more information.
 
 | `extract`                                     | no        | -                   | A array of JSON keys to extract from the search response and load as the payload.

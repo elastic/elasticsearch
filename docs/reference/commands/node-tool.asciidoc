@@ -282,7 +282,7 @@ surviving master-eligible node. If there are no remaining master-eligible nodes
 then the cluster metadata is completely lost. However, the individual data
 nodes also contain a copy of the index metadata corresponding with their
 shards. This sometimes allows a new cluster to import these shards as
-<<modules-gateway-dangling-indices,dangling indices>>. You can sometimes
+<<dangling-indices,dangling indices>>. You can sometimes
 recover some indices after the loss of all master-eligible nodes in a cluster
 by creating a new cluster and then using the `elasticsearch-node
 detach-cluster` command to move any surviving nodes into this new cluster.

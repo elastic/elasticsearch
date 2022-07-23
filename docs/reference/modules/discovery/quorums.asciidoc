@@ -15,7 +15,7 @@ those of the other piece.
 
 Elasticsearch allows you to add and remove master-eligible nodes to a running
 cluster. In many cases you can do this simply by starting or stopping the nodes
-as required. See <<modules-discovery-adding-removing-nodes>>.
+as required. See <<add-elasticsearch-nodes>>.
 
 As nodes are added or removed Elasticsearch maintains an optimal level of fault
 tolerance by updating the cluster's <<modules-discovery-voting,voting

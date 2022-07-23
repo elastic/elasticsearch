@@ -116,7 +116,7 @@ If the table name contains special SQL characters (such as `.`,`-`,`*`,etc...) u
 include-tagged::{sql-specs}/docs/docs.csv-spec[fromTableQuoted]
 ----
 
-The name can be a <<multi-index, pattern>> pointing to multiple indices (likely requiring quoting as mentioned above) with the restriction that *all* resolved concrete tables have **exact mapping**.
+The name can be a <<api-multi-index, pattern>> pointing to multiple indices (likely requiring quoting as mentioned above) with the restriction that *all* resolved concrete tables have **exact mapping**.
 
 [source, sql]
 ----

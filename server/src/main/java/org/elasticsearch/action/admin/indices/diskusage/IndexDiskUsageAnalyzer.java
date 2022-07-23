@@ -532,20 +532,18 @@ final class IndexDiskUsageAnalyzer {
 
                 // do a couple of randomized searches to figure out min and max offsets of index file
                 VectorValues vectorValues = vectorReader.getVectorValues(field.name);
-                int numDocsToVisit = reader.maxDoc() < 1000 ? reader.maxDoc() : 1000 * (int) Math.log10(reader.maxDoc());
+                int numDocsToVisit = reader.maxDoc() < 10 ? reader.maxDoc() : 10 * (int) Math.log10(reader.maxDoc());
                 int skipFactor = Math.max(reader.maxDoc() / numDocsToVisit, 1);
                 for (int i = 0; i < reader.maxDoc(); i += skipFactor) {
                     if ((i = vectorValues.advance(i)) == DocIdSetIterator.NO_MORE_DOCS) {
                         break;
                     }
                     cancellationChecker.checkForCancellation();
-                    vectorReader.search(field.name, vectorValues.vectorValue(), 1000, null, 1000);
+                    vectorReader.search(field.name, vectorValues.vectorValue(), 100, null, Integer.MAX_VALUE);
                 }
                 stats.addKnnVectors(field.name, directory.getBytesRead());
-                directory.resetBytesRead();
             }
         }
-        directory.resetBytesRead();
     }
 
     private static class TrackingReadBytesDirectory extends FilterDirectory {

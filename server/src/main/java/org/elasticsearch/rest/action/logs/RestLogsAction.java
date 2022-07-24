@@ -42,8 +42,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.regex.Pattern;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.function.Predicate.not;
@@ -52,21 +52,6 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestLogsAction extends BaseRestHandler {
 
     private static final Logger logger = LogManager.getLogger(RestLogsAction.class);
-    private final Function<String, Map<String, Object>> jsonEventMapper = logEvent -> {
-        Map<String, Object> event;
-        try {
-            event = parseJson(logEvent);
-            expandDots(event);
-        } catch (Exception e) {
-            event = new HashMap<>();
-            addPath(event, "event.original", logEvent);
-            addPath(event, "ingest.error.type", ElasticsearchException.getExceptionName(e));
-            addPath(event, "ingest.error.message", e.getMessage());
-        }
-        return event;
-    };
-
-    private final Function<String, Map<String, Object>> rawEventMapper = logEvent -> Map.of("message", logEvent);
 
     @Override
     public String getName() {
@@ -96,50 +81,54 @@ public class RestLogsAction extends BaseRestHandler {
             .filter(not(e -> e.getKey().startsWith("_")))
             .forEach(e -> addPath(globalMetadata, e.getKey(), request.param(e.getKey())));
 
+        Predicate<String> firstLine = s -> false;
+        Predicate<String> lastLine = s -> true;
+        boolean negate = request.paramAsBoolean("_multiline.negate", false);
+        if (params.containsKey("_multiline.first_line_pattern")) {
+            Pattern firstLinePattern = Pattern.compile(request.param("_multiline.first_line_pattern"));
+            firstLine = line -> firstLinePattern.matcher(line).find();
+            if (negate) {
+                firstLine = firstLine.negate();
+            }
+            lastLine = line -> false;
+        }
+        if (params.containsKey("_multiline.last_line_pattern")) {
+            Pattern lastLinePattern = Pattern.compile(request.param("_multiline.last_line_pattern"));
+            lastLine = line -> lastLinePattern.matcher(line).find();
+            if (negate) {
+                lastLine = lastLine.negate();
+            }
+        }
+
         List<IndexRequest> indexRequests = new ArrayList<>();
         Charset charset = Optional.ofNullable(request.getParsedContentType())
             .map(ct -> ct.getParameters().get("charset"))
             .map(Charset::forName)
             .orElse(UTF_8);
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(request.content().streamInput(), charset))) {
-            Map<String, Object> localMetadata = Map.of();
+            Map<String, Object> localMetadata = new HashMap<>();
             int i = 0;
-            String rawLogEvent = null;
-            Predicate<String> isEndOfEvent = null;
-            Function<String, Map<String, Object>> rawLogEventToEventObjectFunction = null;
+            StringBuilder logEventBuilder = new StringBuilder();
+            boolean jsonEvent = false;
             for (String line = reader.readLine(); line != null; line = reader.readLine(), i++) {
-                if (rawLogEvent == null) {
-                    if (line.isBlank()) {
-                        continue;
+                if (logEventBuilder.isEmpty() || line.startsWith("{") || (jsonEvent == false && firstLine.test(line))) {
+                    jsonEvent = line.startsWith("{");
+                    if (logEventBuilder.length() > 0) {
+                        processRawLogEvent(indexRequests, globalMetadata, localMetadata, i, logEventBuilder.toString(), jsonEvent);
+                        logEventBuilder.setLength(0);
                     }
-                    rawLogEvent = line;
-                    if (line.startsWith("{")) {
-                        isEndOfEvent = s -> s.endsWith("}");
-                        rawLogEventToEventObjectFunction = jsonEventMapper;
-                    } else {
-                        isEndOfEvent = s -> true;
-                        rawLogEventToEventObjectFunction = rawEventMapper;
-                    }
+                    logEventBuilder.append(line);
                 } else {
-                    rawLogEvent += "\n" + line;
+                    logEventBuilder.append("\n").append(line);
                 }
-                if (isEndOfEvent.test(line) == false) {
-                    continue;
+                if ((jsonEvent && line.endsWith("}")) || (jsonEvent == false && lastLine.test(line))) {
+                    processRawLogEvent(indexRequests, globalMetadata, localMetadata, i, logEventBuilder.toString(), jsonEvent);
+                    logEventBuilder.setLength(0);
                 }
-                Map<String, Object> event = rawLogEventToEventObjectFunction.apply(rawLogEvent);
-                rawLogEvent = null;
-
-                if (event.size() == 1 && event.containsKey("_metadata")) {
-                    Map<String, Object> metadata = getMetadata(event);
-                    expandDots(metadata);
-                    if (i == 0) {
-                        MapUtils.recursiveMerge(globalMetadata, metadata);
-                    } else {
-                        localMetadata = metadata;
-                    }
-                } else {
-                    addEventToBulk(globalMetadata, indexRequests, localMetadata, event);
-                }
+            }
+            if (logEventBuilder.length() > 0) {
+                processRawLogEvent(indexRequests, globalMetadata, localMetadata, i, logEventBuilder.toString(), jsonEvent);
+                logEventBuilder.setLength(0);
             }
         }
 
@@ -198,9 +187,46 @@ public class RestLogsAction extends BaseRestHandler {
         };
     }
 
-    private void addEventToBulk(
-        Map<String, Object> globalMetadata,
+    private void processRawLogEvent(
         List<IndexRequest> indexRequests,
+        Map<String, Object> globalMetadata,
+        Map<String, Object> localMetadata,
+        int i,
+        String logEvent,
+        boolean jsonEvent
+    ) {
+        Map<String, Object> event;
+        if (jsonEvent) {
+            try {
+                event = parseJson(logEvent);
+                expandDots(event);
+            } catch (Exception e) {
+                event = new HashMap<>();
+                addPath(event, "event.original", logEvent);
+                addPath(event, "ingest.error.type", ElasticsearchException.getExceptionName(e));
+                addPath(event, "ingest.error.message", e.getMessage());
+            }
+        } else {
+            event = Map.of("message", logEvent);
+        }
+
+        if (event.size() == 1 && event.containsKey("_metadata")) {
+            Map<String, Object> metadata = getMetadata(event);
+            expandDots(metadata);
+            if (i == 0) {
+                MapUtils.recursiveMerge(globalMetadata, metadata);
+            } else {
+                localMetadata.clear();
+                localMetadata.putAll(metadata);
+            }
+        } else {
+            addEventToBulk(indexRequests, globalMetadata, localMetadata, event);
+        }
+    }
+
+    private void addEventToBulk(
+        List<IndexRequest> indexRequests,
+        Map<String, Object> globalMetadata,
         Map<String, Object> localMetadata,
         Map<String, Object> event
     ) {
@@ -220,9 +246,7 @@ public class RestLogsAction extends BaseRestHandler {
         dataStream.put("type", "logs");
         dataStream.putIfAbsent("dataset", "generic");
         dataStream.putIfAbsent("namespace", "default");
-        indexRequests.add(
-            Requests.indexRequest(routeToDataStream(dataStream)).opType(DocWriteRequest.OpType.CREATE).source(doc)
-        );
+        indexRequests.add(Requests.indexRequest(routeToDataStream(dataStream)).opType(DocWriteRequest.OpType.CREATE).source(doc));
     }
 
     private String routeToDataStream(Map<String, String> dataStream) {

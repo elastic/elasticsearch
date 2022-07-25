@@ -1235,16 +1235,15 @@ public class IndexNameExpressionResolver {
             if (isEmptyOrTrivialWildcard(expressions)) {
                 List<String> resolvedExpressions = resolveEmptyOrTrivialWildcard(context);
                 if (context.includeDataStreams()) {
-                    final Map<String, IndexAbstraction> dataStreamsAbstractions = metadata.getIndicesLookup()
+                    Map<String, IndexAbstraction> dataStreamsAbstractions = metadata.getIndicesLookup()
                         .entrySet()
                         .stream()
                         .filter(entry -> entry.getValue().getType() == IndexAbstraction.Type.DATA_STREAM)
                         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+                    dataStreamsAbstractions = filterIndicesLookup(context, dataStreamsAbstractions, null, false);
                     // dedup backing indices if expand hidden indices option is true
                     Set<String> resolvedIncludingDataStreams = new HashSet<>(resolvedExpressions);
-                    resolvedIncludingDataStreams.addAll(
-                        expand(context, dataStreamsAbstractions, expressions.isEmpty() ? "_all" : expressions.get(0))
-                    );
+                    resolvedIncludingDataStreams.addAll(expand(context, dataStreamsAbstractions));
                     return resolvedIncludingDataStreams;
                 }
                 return resolvedExpressions;
@@ -1282,7 +1281,7 @@ public class IndexNameExpressionResolver {
                 if (false == context.options.allowNoIndices() && matches.isEmpty()) {
                     throw indexNotFoundException(expression);
                 }
-                Set<String> expand = expand(context, matches, expression);
+                Set<String> expand = expand(context, matches);
                 if (exclusion) {
                     result.removeAll(expand);
                 } else {
@@ -1308,84 +1307,81 @@ public class IndexNameExpressionResolver {
         }
 
         public static Map<String, IndexAbstraction> matches(Context context, Metadata metadata, String expression) {
+            boolean filterHidden = false == context.options.expandWildcardsHidden()
+                && expression.startsWith(".")
+                && Regex.isSimpleMatchPattern(expression);
             if (Regex.isMatchAllPattern(expression)) {
-                return filterIndicesLookup(context, metadata.getIndicesLookup(), null, context.getOptions());
+                return filterIndicesLookup(context, metadata.getIndicesLookup(), null, filterHidden);
             } else if (expression.indexOf("*") == expression.length() - 1) {
-                return suffixWildcard(context, metadata, expression);
+                return suffixWildcard(context, metadata.getIndicesLookup(), expression, filterHidden);
             } else {
-                return otherWildcard(context, metadata, expression);
+                return otherWildcard(context, metadata.getIndicesLookup(), expression, filterHidden);
             }
         }
 
-        private static Map<String, IndexAbstraction> suffixWildcard(Context context, Metadata metadata, String expression) {
+        private static Map<String, IndexAbstraction> suffixWildcard(
+            Context context,
+            SortedMap<String, IndexAbstraction> indicesLookup,
+            String expression,
+            boolean filterHidden
+        ) {
             assert expression.length() >= 2 : "expression [" + expression + "] should have at least a length of 2";
             String fromPrefix = expression.substring(0, expression.length() - 1);
             char[] toPrefixCharArr = fromPrefix.toCharArray();
             toPrefixCharArr[toPrefixCharArr.length - 1]++;
             String toPrefix = new String(toPrefixCharArr);
-            SortedMap<String, IndexAbstraction> subMap = metadata.getIndicesLookup().subMap(fromPrefix, toPrefix);
-            return filterIndicesLookup(context, subMap, null, context.getOptions());
+            SortedMap<String, IndexAbstraction> subMap = indicesLookup.subMap(fromPrefix, toPrefix);
+            return filterIndicesLookup(context, subMap, null, filterHidden);
         }
 
-        private static Map<String, IndexAbstraction> otherWildcard(Context context, Metadata metadata, String expression) {
+        private static Map<String, IndexAbstraction> otherWildcard(
+            Context context,
+            SortedMap<String, IndexAbstraction> indicesLookup,
+            String expression,
+            boolean filterHidden
+        ) {
             final String pattern = expression;
-            return filterIndicesLookup(
-                context,
-                metadata.getIndicesLookup(),
-                e -> Regex.simpleMatch(pattern, e.getKey()),
-                context.getOptions()
-            );
+            return filterIndicesLookup(context, indicesLookup, e -> Regex.simpleMatch(pattern, e.getKey()), filterHidden);
         }
 
         private static Map<String, IndexAbstraction> filterIndicesLookup(
             Context context,
-            SortedMap<String, IndexAbstraction> indicesLookup,
+            Map<String, IndexAbstraction> indicesLookup,
             Predicate<? super Map.Entry<String, IndexAbstraction>> filter,
-            IndicesOptions options
+            boolean filterHidden
         ) {
-            boolean shouldConsumeStream = false;
             Stream<Map.Entry<String, IndexAbstraction>> stream = indicesLookup.entrySet().stream();
-            if (options.ignoreAliases()) {
-                shouldConsumeStream = true;
+            if (context.options.ignoreAliases()) {
                 stream = stream.filter(e -> e.getValue().getType() != IndexAbstraction.Type.ALIAS);
             }
-            if (filter != null) {
-                shouldConsumeStream = true;
-                stream = stream.filter(filter);
-            }
             if (context.includeDataStreams() == false) {
-                shouldConsumeStream = true;
                 stream = stream.filter(e -> e.getValue().isDataStreamRelated() == false);
             }
-            if (shouldConsumeStream) {
-                return stream.collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-            } else {
-                return indicesLookup;
+            if (filter != null) {
+                stream = stream.filter(filter);
             }
+            // skip system resources
+            stream = stream.filter(e -> {
+                IndexAbstraction indexAbstraction = e.getValue();
+                return false == (indexAbstraction.isSystem()
+                    && (context.netNewSystemIndexPredicate.test(indexAbstraction.getName())
+                        || indexAbstraction.getType() == Type.DATA_STREAM
+                        || indexAbstraction.getParentDataStream() != null)
+                    && (false == context.systemIndexAccessPredicate.test(indexAbstraction.getName())));
+            });
+            if (filterHidden) {
+                stream = stream.filter(e -> false == e.getValue().isHidden() || false == e.getKey().startsWith("."));
+            }
+
+            return stream.collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
         }
 
-        private static Set<String> expand(Context context, Map<String, IndexAbstraction> matches, String expression) {
+        private static Set<String> expand(Context context, Map<String, IndexAbstraction> matches) {
             final IndexMetadata.State excludeState = excludeState(context.options);
-            final boolean includeHidden = context.options.expandWildcardsHidden();
             Set<String> expand = new HashSet<>();
             for (Map.Entry<String, IndexAbstraction> entry : matches.entrySet()) {
                 String aliasOrIndexName = entry.getKey();
                 IndexAbstraction indexAbstraction = entry.getValue();
-
-                // skip system indices
-                if (indexAbstraction.isSystem()
-                    && (context.netNewSystemIndexPredicate.test(indexAbstraction.getName())
-                        || indexAbstraction.getType() == Type.DATA_STREAM
-                        || indexAbstraction.getParentDataStream() != null)
-                    && (false == context.systemIndexAccessPredicate.test(indexAbstraction.getName()))) {
-                    continue;
-                }
-
-                // skip hiddens
-                if (indexAbstraction.isHidden() && false == includeHidden && false == implicitHiddenMatch(aliasOrIndexName, expression)) {
-                    continue;
-                }
-
                 if (context.isPreserveAliases() && indexAbstraction.getType() == IndexAbstraction.Type.ALIAS) {
                     expand.add(aliasOrIndexName);
                 } else {
@@ -1401,10 +1397,6 @@ public class IndexNameExpressionResolver {
                 }
             }
             return expand;
-        }
-
-        private static boolean implicitHiddenMatch(String itemName, String expression) {
-            return itemName.startsWith(".") && expression.startsWith(".") && Regex.isSimpleMatchPattern(expression);
         }
 
         private static boolean isEmptyOrTrivialWildcard(List<String> expressions) {

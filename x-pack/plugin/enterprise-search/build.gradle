@@ -1,0 +1,23 @@
+apply plugin: 'elasticsearch.internal-es-plugin'
+
+esplugin {
+    name 'enterprise-search'
+    description 'A module for _xsearch'
+    classname 'org.elasticsearch.xpack.enterprisesearch.EnterpriseSearchPlugin'
+    extendedPlugins = ['x-pack-core']
+}
+archivesBaseName = 'x-pack-enterprise-search'
+
+dependencies {
+  compileOnly project(":server")
+  compileOnly project(path: xpackModule('core'))
+}
+
+tasks.named("dependencyLicenses").configure {
+  ignoreSha 'x-pack-core'
+}
+
+//no tests
+tasks.named("test").configure {
+  enabled = false
+}

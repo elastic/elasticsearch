@@ -121,6 +121,7 @@ import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -413,38 +414,43 @@ public class ApiKeyService {
         logger.debug("Bulk updating API keys [{}]", request.getIds().size());
 
         findVersionedApiKeyDocsForSubject(authentication, request.getIds().toArray(new String[0]), ActionListener.wrap((versionedDocs) -> {
-            final Set<String> requestedIds = Set.copyOf(request.getIds());
             final BulkUpdateApiKeyResponse response = new BulkUpdateApiKeyResponse();
             final var bulkRequest = client.prepareBulk();
+            final Set<String> foundIds = new HashSet<>(versionedDocs.size());
             for (VersionedApiKeyDoc versionedDoc : versionedDocs) {
                 final String apiKeyId = versionedDoc.id();
-                if (false == requestedIds.contains(apiKeyId)) {
-                    response.addToErrors(
-                        apiKeyId,
-                        new ResourceNotFoundException("no API key owned by requesting user found for ID [" + apiKeyId + "]")
-                    );
-                    continue;
-                }
+                foundIds.add(apiKeyId);
                 try {
+                    // TODO could wrap in ES exception here
                     validateCurrentApiKeyDocForUpdate(apiKeyId, authentication, versionedDoc.doc());
-                } catch (IllegalArgumentException ex) {
-                    response.addToErrors(apiKeyId, new ElasticsearchException("Validation", ex));
-                    continue;
-                }
-                final IndexRequest indexRequest = maybeBuildIndexRequestForUpdate(
-                    authentication,
-                    request.getRoleDescriptors(),
-                    userRoleDescriptors,
-                    request.getMetadata(),
-                    versionedDoc
-                );
-                final boolean isNoop = indexRequest == null;
-                if (isNoop) {
-                    response.addToNoops(apiKeyId);
-                } else {
-                    bulkRequest.add(indexRequest);
+                    final IndexRequest indexRequest = maybeBuildIndexRequestForUpdate(
+                        authentication,
+                        request.getRoleDescriptors(),
+                        userRoleDescriptors,
+                        request.getMetadata(),
+                        versionedDoc
+                    );
+                    final boolean isNoop = indexRequest == null;
+                    if (isNoop) {
+                        response.addToNoops(apiKeyId);
+                    } else {
+                        bulkRequest.add(indexRequest);
+                    }
+                } catch (ElasticsearchException ex) {
+                    response.addToErrors(apiKeyId, ex);
+                } catch (Exception ex) {
+                    response.addToErrors(apiKeyId, new ElasticsearchException(ex));
                 }
             }
+            request.getIds().forEach(id -> {
+                if (foundIds.contains(id) == false) {
+                    response.addToErrors(
+                        id,
+                        new ResourceNotFoundException("no API key owned by requesting user found for ID [" + id + "]")
+                    );
+                }
+            });
+
             if (bulkRequest.numberOfActions() == 0) {
                 // TODO
                 logger.trace("No update required");

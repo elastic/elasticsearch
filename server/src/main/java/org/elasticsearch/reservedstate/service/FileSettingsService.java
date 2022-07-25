@@ -108,7 +108,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         // We start the file watcher when we know we are master from a cluster state change notification.
         // We need the additional active flag, since cluster state can change after we've shutdown the service
         // causing the watcher to start again.
-        this.active = true;
+        this.active = Files.exists(operatorSettingsDir().getParent());
         startIfMaster(clusterService.state());
         clusterService.addListener(this);
     }

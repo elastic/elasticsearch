@@ -55,11 +55,10 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
     );
 
     public static final String ACTION_CHECK_RECENTLY_FAILED_SNAPSHOTS_HELP_URL = "https://ela.st/fix-recent-snapshot-failures";
-    public static final UserAction.Definition ACTION_CHECK_RECENTLY_FAILED_SNAPSHOTS = new UserAction.Definition(
+    public static final Diagnosis.Definition ACTION_CHECK_RECENTLY_FAILED_SNAPSHOTS = new Diagnosis.Definition(
         "check_recent_snapshot_failures",
-        """
-            The following snapshot lifecycle policies have exceeded the warning threshold for repeat failures without a successful \
-            execution. Check the snapshot lifecycle policies [/_slm/policy/<policy_name>?human] for detailed failure info.""",
+        "The following snapshot lifecycle policies have exceeded the warning threshold for repeat failures without a successful execution.",
+        "Check the snapshot lifecycle policies [/_slm/policy/<policy_name>?human] for detailed failure info.",
         ACTION_CHECK_RECENTLY_FAILED_SNAPSHOTS_HELP_URL
     );
 
@@ -131,7 +130,7 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
                     createDetails(explain, unhealthyPolicies, slmMetadata),
                     impacts,
                     List.of(
-                        new UserAction(
+                        new Diagnosis(
                             ACTION_CHECK_RECENTLY_FAILED_SNAPSHOTS,
                             unhealthyPolicies.stream().map(SnapshotLifecyclePolicyMetadata::getName).toList()
                         )

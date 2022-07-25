@@ -13,11 +13,11 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
-import org.elasticsearch.health.UserAction;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.slm.SnapshotInvocationRecord;
@@ -185,10 +185,8 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
-                    SNAPSHOT,
                     YELLOW,
                     "Encountered [1] unhealthy snapshot lifecycle management policies.",
-                    SlmHealthIndicatorService.HELP_URL,
                     new SimpleHealthIndicatorDetails(
                         Map.of(
                             "slm_status",
@@ -207,7 +205,7 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                             List.of(ImpactArea.BACKUP)
                         )
                     ),
-                    List.of(new UserAction(SlmHealthIndicatorService.ACTION_CHECK_RECENTLY_FAILED_SNAPSHOTS, List.of("test-policy")))
+                    List.of(new Diagnosis(SlmHealthIndicatorService.ACTION_CHECK_RECENTLY_FAILED_SNAPSHOTS, List.of("test-policy")))
                 )
             )
         );

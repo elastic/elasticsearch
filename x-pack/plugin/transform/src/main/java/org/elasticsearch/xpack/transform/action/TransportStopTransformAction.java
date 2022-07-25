@@ -316,6 +316,9 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
             elasticsearchExceptions.stream()
         ).collect(Collectors.toList());
 
+        assert exceptions.size() > 0 : "buildException called, but no exception found";
+        assert exceptions.get(0) != null : "exception must not be null";
+
         ElasticsearchStatusException elasticsearchStatusException = new ElasticsearchStatusException(
             exceptions.get(0).getMessage(),
             status

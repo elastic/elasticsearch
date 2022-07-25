@@ -26,11 +26,14 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
+import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelAssignmentRoutingInfoAction;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentState;
@@ -129,12 +132,8 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             return;
         }
 
-        if (shouldRebalanceModels(event)) {
-            // TODO this has a weird side-effect for allocating to nodes
-            // If the event indicates there were nodes added/removed, this method only looks at the current state and has
-            // no previous knowledge of existing nodes. Consequently, if a model was manually removed (task-kill) from a node
-            // it may get re-allocated to that node when another node is added/removed...
-            //
+        Optional<String> rebalanceReason = detectReasonToRebalanceModels(event);
+        if (rebalanceReason.isPresent()) {
             // As this produces a cluster state update task, we are certain that if the persistent
             // task framework results in assigning some ML tasks on that same cluster state change
             // we do not end up over-allocating a node. Both this service and the persistent task service
@@ -144,7 +143,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
             rebalanceAssignments(
                 event.state(),
                 Optional.empty(),
-                "nodes changed",
+                rebalanceReason.get(),
                 ActionListener.wrap(
                     newMetadata -> logger.debug(
                         () -> format("rebalanced model assignments [%s]", Strings.toString(newMetadata, false, true))
@@ -558,13 +557,60 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         return forceUpdate(currentState, TrainedModelAssignmentMetadata.Builder.empty());
     }
 
-    static boolean shouldRebalanceModels(final ClusterChangedEvent event) {
+    static Optional<String> detectReasonToRebalanceModels(final ClusterChangedEvent event) {
         // If there are no assignments created at all, there is nothing to update
         final TrainedModelAssignmentMetadata newMetadata = TrainedModelAssignmentMetadata.fromState(event.state());
         if (newMetadata == null || newMetadata.modelAssignments().isEmpty()) {
-            return false;
+            return Optional.empty();
         }
 
+        // If an ML persistent task with process stopped we should rebalance as we could have
+        // available memory that we did not have before.
+        return detectReasonIfMlJobsStopped(event).or(() -> {
+            String reason = null;
+            if (haveMlNodesChanged(event, newMetadata)) {
+                reason = "nodes changed";
+            } else if (newMetadata.hasOutdatedAssignments()) {
+                reason = "outdated assignments detected";
+            }
+            return Optional.ofNullable(reason);
+        });
+    }
+
+    static Optional<String> detectReasonIfMlJobsStopped(ClusterChangedEvent event) {
+        if (event.changedCustomMetadataSet().contains(PersistentTasksCustomMetadata.TYPE) == false) {
+            return Optional.empty();
+        }
+        final PersistentTasksCustomMetadata previousPersistentTasks = event.previousState()
+            .getMetadata()
+            .custom(PersistentTasksCustomMetadata.TYPE);
+        final PersistentTasksCustomMetadata currentPersistentTasks = event.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        Set<String> previousMlTaskIds = findMlProcessTaskIds(previousPersistentTasks);
+        Set<String> currentMlTaskIds = findMlProcessTaskIds(currentPersistentTasks);
+        previousMlTaskIds.removeAll(currentMlTaskIds);
+        Set<String> stoppedTaskTypes = previousMlTaskIds.stream()
+            .map(previousPersistentTasks::getTask)
+            .map(PersistentTasksCustomMetadata.PersistentTask::getTaskName)
+            .map(MlTasks::prettyPrintTaskName)
+            .collect(Collectors.toSet());
+        if (previousMlTaskIds.size() == 1) {
+            return Optional.of("ML [" + stoppedTaskTypes.iterator().next() + "] job stopped");
+        } else if (previousMlTaskIds.size() > 1) {
+            return Optional.of("ML " + stoppedTaskTypes + " jobs stopped");
+        }
+        return Optional.empty();
+    }
+
+    private static Set<String> findMlProcessTaskIds(@Nullable PersistentTasksCustomMetadata metadata) {
+        return metadata == null
+            ? Set.of()
+            : MlTasks.findMlProcessTasks(metadata)
+                .stream()
+                .map(PersistentTasksCustomMetadata.PersistentTask::getId)
+                .collect(Collectors.toSet());
+    }
+
+    static boolean haveMlNodesChanged(ClusterChangedEvent event, TrainedModelAssignmentMetadata newMetadata) {
         // Reallocate in reaction to either node change events or
         // changes triggered by the node shutdown API.
         // When the shutdown API is used the metadata is modified
@@ -579,6 +625,11 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         //
         // Shutdowns should be respected so that the service does not
         // allocate models to a node that is about to leave the cluster
+        //
+        // TODO this has a weird side-effect for allocating to nodes
+        // If the event indicates there were nodes added/removed, this method only looks at the current state and has
+        // no previous knowledge of existing nodes. Consequently, if a model was manually removed (task-kill) from a node
+        // it may get re-allocated to that node when another node is added/removed...
         boolean nodesShutdownChanged = event.changedCustomMetadataSet().contains(NodesShutdownMetadata.TYPE);
         if (event.nodesChanged() || nodesShutdownChanged) {
             Set<String> shuttingDownNodes = nodesShuttingDown(event.state());

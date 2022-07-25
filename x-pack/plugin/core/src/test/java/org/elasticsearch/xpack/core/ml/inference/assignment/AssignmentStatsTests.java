@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.core.ml.inference.assignment;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStats;
 
@@ -47,6 +48,7 @@ public class AssignmentStatsTests extends AbstractWireSerializingTestCase<Assign
             randomBoolean() ? null : randomIntBetween(1, 8),
             randomBoolean() ? null : randomIntBetween(1, 8),
             randomBoolean() ? null : randomIntBetween(1, 10000),
+            randomBoolean() ? null : ByteSizeValue.ofBytes(randomLongBetween(1, 10000000)),
             Instant.now(),
             nodeStatsList
         );
@@ -91,6 +93,7 @@ public class AssignmentStatsTests extends AbstractWireSerializingTestCase<Assign
             randomBoolean() ? null : randomIntBetween(1, 8),
             randomBoolean() ? null : randomIntBetween(1, 8),
             randomBoolean() ? null : randomIntBetween(1, 10000),
+            randomBoolean() ? null : ByteSizeValue.ofBytes(randomLongBetween(1, 1000000)),
             Instant.now(),
             List.of(
                 AssignmentStats.NodeStats.forStartedState(
@@ -146,6 +149,7 @@ public class AssignmentStatsTests extends AbstractWireSerializingTestCase<Assign
             randomBoolean() ? null : randomIntBetween(1, 8),
             randomBoolean() ? null : randomIntBetween(1, 8),
             randomBoolean() ? null : randomIntBetween(1, 10000),
+            randomBoolean() ? null : ByteSizeValue.ofBytes(randomLongBetween(1, 1000000)),
             Instant.now(),
             List.of()
         );
@@ -163,6 +167,7 @@ public class AssignmentStatsTests extends AbstractWireSerializingTestCase<Assign
             randomBoolean() ? null : randomIntBetween(1, 8),
             randomBoolean() ? null : randomIntBetween(1, 8),
             randomBoolean() ? null : randomIntBetween(1, 10000),
+            randomBoolean() ? null : ByteSizeValue.ofBytes(randomLongBetween(1, 1000000)),
             Instant.now(),
             List.of(
                 AssignmentStats.NodeStats.forNotStartedState(

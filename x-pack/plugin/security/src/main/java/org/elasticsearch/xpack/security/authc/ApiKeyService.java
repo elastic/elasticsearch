@@ -404,7 +404,7 @@ public class ApiKeyService {
             return;
         } else if (authentication.isApiKey()) {
             listener.onFailure(
-                new IllegalArgumentException("authentication via API key not supported: only the owner user can update API keys")
+                new IllegalArgumentException("authentication via API key not supported: only the owner user can update an API key")
             );
             return;
         }
@@ -412,12 +412,10 @@ public class ApiKeyService {
         logger.debug("Bulk updating API keys [{}]", request.getIds().size());
 
         findVersionedApiKeyDocsForSubject(authentication, request.getIds().toArray(new String[0]), ActionListener.wrap((versionedDocs) -> {
-            // TODO track non_found
             final var bulkRequest = client.prepareBulk();
             for (VersionedApiKeyDoc versionedDoc : versionedDocs) {
                 try {
-                    final var apiKeyId = versionedDoc.id();
-                    validateCurrentApiKeyDocForUpdate(apiKeyId, authentication, versionedDoc.doc());
+                    validateCurrentApiKeyDocForUpdate(versionedDoc.id(), authentication, versionedDoc.doc());
                     final IndexRequest indexRequest = maybeBuildIndexRequestForUpdate(
                         authentication,
                         request.getRoleDescriptors(),
@@ -435,6 +433,10 @@ public class ApiKeyService {
                     // TODO add to errors
                 }
             }
+            // TODO track non_found
+            if (bulkRequest.numberOfActions() == 0) {
+                // TODO nothing to do
+            }
             securityIndex.prepareIndexIfNeededThenExecute(
                 listener::onFailure,
                 () -> executeAsyncWithOrigin(
@@ -442,7 +444,8 @@ public class ApiKeyService {
                     SECURITY_ORIGIN,
                     bulkRequest.setRefreshPolicy(RefreshPolicy.WAIT_UNTIL).request(),
                     ActionListener.<BulkResponse>wrap(
-                        bulkResponse -> translateResponseAndClearCache(request.getId(), bulkResponse, listener),
+                        // TODO
+                        bulkResponse -> translateResponseAndClearCache("id", bulkResponse, listener),
                         listener::onFailure
                     ),
                     client::bulk
@@ -1135,8 +1138,9 @@ public class ApiKeyService {
     ) throws IOException {
         final IndexRequest indexRequest = maybeBuildIndexRequestForUpdate(
             authentication,
-            request,
+            request.getRoleDescriptors(),
             userRoleDescriptors,
+            request.getMetadata(),
             currentVersionedDoc
         );
         final boolean isNoop = indexRequest == null;
@@ -1146,43 +1150,6 @@ public class ApiKeyService {
             return;
         }
         logger.trace("Executing index request to update API key [{}]", currentVersionedDoc.id());
-        securityIndex.prepareIndexIfNeededThenExecute(
-            listener::onFailure,
-            () -> executeAsyncWithOrigin(
-                client.threadPool().getThreadContext(),
-                SECURITY_ORIGIN,
-                client.prepareBulk().add(indexRequest).setRefreshPolicy(RefreshPolicy.WAIT_UNTIL).request(),
-                ActionListener.<BulkResponse>wrap(
-                    bulkResponse -> translateResponseAndClearCache(request.getId(), bulkResponse, listener),
-                    listener::onFailure
-                ),
-                client::bulk
-            )
-        );
-    }
-
-    private void doBulkUpdateApiKey(
-        final Authentication authentication,
-        final VersionedApiKeyDoc currentVersionedDocs,
-        final List<RoleDescriptor> keyRoleDescriptors,
-        final Set<RoleDescriptor> userRoleDescriptors,
-        final Map<String, Object> metadata,
-        final ActionListener<UpdateApiKeyResponse> listener
-    ) throws IOException {
-        final IndexRequest indexRequest = maybeBuildIndexRequestForUpdate(
-            authentication,
-            keyRoleDescriptors,
-            userRoleDescriptors,
-            metadata,
-            currentVersionedDocs
-        );
-        final boolean isNoop = indexRequest == null;
-        if (isNoop) {
-            logger.debug("Detected noop update request for API key [{}]. Skipping index request.", currentVersionedDocs.getId());
-            listener.onResponse(new UpdateApiKeyResponse(false));
-            return;
-        }
-        logger.trace("Executing index request to update API key [{}]", request.getId());
         securityIndex.prepareIndexIfNeededThenExecute(
             listener::onFailure,
             () -> executeAsyncWithOrigin(

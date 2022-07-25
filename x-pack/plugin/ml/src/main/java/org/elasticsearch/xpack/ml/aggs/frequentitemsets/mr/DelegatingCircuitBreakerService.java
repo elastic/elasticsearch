@@ -39,16 +39,16 @@ import java.util.function.Consumer;
  * you added before, including exceptional cases like request cancellation or exceptions. gh#67476 might tackle this issue.
  * At the time of writing circuit breakers are a global gauge.)
  *
- * After the map phase and before reduce, the {@link ItemSetMapReduceAggregator} creates instances of {@link InternalItemSetMapReduceAggregation},
- * see {@link ItemSetMapReduceAggregator#buildAggregations(long[])}.
+ * After the map phase and before reduce, the {@link ItemSetMapReduceAggregator} creates instances of
+ * {@link InternalItemSetMapReduceAggregation}, see {@link ItemSetMapReduceAggregator#buildAggregations(long[])}.
  *
  * (Note 1: Instead of keeping the existing instance, it would have been possible to deep-copy the object like
  * {@link CardinalityAggregator#buildAggregations(long[])}. I decided against this approach mainly because the deep-copy isn't
  * secured by circuit breakers, meaning the node could run out of memory during the deep-copy.)
- * (Note 2: Between {@link ItemSetMapReduceAggregator#doClose()} and serializing {@link InternalItemSetMapReduceAggregation} memory accounting
- * is broken, meaning the agg context gets closed and bytes get returned to the circuit breaker before memory is actually freed.
- * An incoming expensive request could potentially arrive during that window of time. However, this scenario is less likely than the
- * out of memory during deep-copy)
+ * (Note 2: Between {@link ItemSetMapReduceAggregator#doClose()} and serializing {@link InternalItemSetMapReduceAggregation}
+ * memory accounting is broken, meaning the agg context gets closed and bytes get returned to the circuit breaker before memory is
+ * actually freed. An incoming expensive request could potentially arrive during that window of time. However, this scenario is less
+ * likely than the out of memory during deep-copy)
  *
  * Summing up, this class workarounds problems in search/aggs. It should not exist and eventually it should be removed.
  *

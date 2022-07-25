@@ -159,7 +159,7 @@ public class TaskManager implements ClusterStateApplier {
             Tracer.AttributeKeys.PARENT_TASK_ID,
             parentTask.toString()
         );
-        tracer.traceStarted(threadContext, "task-" + task.getId(), task.getAction(), attributes);
+        tracer.startTrace(threadContext, "task-" + task.getId(), task.getAction(), attributes);
     }
 
     public <Request extends ActionRequest, Response extends ActionResponse> Task registerAndExecute(
@@ -273,7 +273,7 @@ public class TaskManager implements ClusterStateApplier {
                 return removedTask;
             }
         } finally {
-            tracer.traceStopped("task-" + task.getId());
+            tracer.stopTrace("task-" + task.getId());
         }
     }
 

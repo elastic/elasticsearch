@@ -95,7 +95,7 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
         if (HttpUtils.shouldCloseConnection(httpRequest)) {
             toClose.add(() -> CloseableChannel.closeChannel(httpChannel));
         }
-        toClose.add(() -> tracer.traceStopped(traceId));
+        toClose.add(() -> tracer.stopTrace(traceId));
 
         boolean success = false;
         String opaque = null;

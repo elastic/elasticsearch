@@ -474,11 +474,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
             case HTTP_1_1 -> attributes.put("http.flavour", "1.1");
         }
 
-        tracer.traceStarted(threadContext, "rest-" + channel.request().getRequestId(), name, attributes);
+        tracer.startTrace(threadContext, "rest-" + channel.request().getRequestId(), name, attributes);
     }
 
     private void traceException(RestChannel channel, Throwable e) {
-        this.tracer.traceException("rest-" + channel.request().getRequestId(), e);
+        this.tracer.addError("rest-" + channel.request().getRequestId(), e);
     }
 
     private static void sendContentTypeErrorMessage(@Nullable List<String> contentTypeHeader, RestChannel channel) throws IOException {

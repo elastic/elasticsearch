@@ -20,8 +20,8 @@ import java.util.Map;
  * create a parent-child hierarchy.
  * <p>
  * You can open a span using
- * {@link #traceStarted(ThreadContext, String, String, Map)}, and stop it using
- * {@link #traceStopped(String)}, at which point the tracing system will queue
+ * {@link #startTrace(ThreadContext, String, String, Map)}, and stop it using
+ * {@link #stopTrace(String)}, at which point the tracing system will queue
  * the data to be sent somewhere for processing and storage.
  * <p>
  * You can add additional data to a span using the {@code setAttribute(...)}
@@ -44,13 +44,13 @@ public interface Tracer {
      * @param name the name of the span. Sent to the tracing system
      * @param attributes arbitrary key/value data for the span. Sent to the tracing system
      */
-    void traceStarted(ThreadContext threadContext, String id, String name, Map<String, Object> attributes);
+    void startTrace(ThreadContext threadContext, String id, String name, Map<String, Object> attributes);
 
     /**
      * Called when a span ends.
      * @param id an identifier for the span
      */
-    void traceStopped(String id);
+    void stopTrace(String id);
 
     /**
      * Some tracing implementations support the concept of "events" within a span, marking a point in time during the span
@@ -60,7 +60,7 @@ public interface Tracer {
      * @param eventName the event that happened. This should be something meaningful to people reviewing the data, for example
      *                  "send response", "finished processing", "validated request", etc.
      */
-    void traceEvent(String id, String eventName);
+    void addEvent(String id, String eventName);
 
     /**
      * If an exception occurs during a span, you can add data about the exception to the span where the exception occurred.
@@ -68,7 +68,7 @@ public interface Tracer {
      * @param id an identifier for the span
      * @param throwable the exception that occurred.
      */
-    void traceException(String id, Throwable throwable);
+    void addError(String id, Throwable throwable);
 
     /**
      * Adds a boolean attribute to an active span. These will be sent to the endpoint that collects tracing data.
@@ -138,16 +138,16 @@ public interface Tracer {
      */
     Tracer NOOP = new Tracer() {
         @Override
-        public void traceStarted(ThreadContext threadContext, String id, String name, Map<String, Object> attributes) {}
+        public void startTrace(ThreadContext threadContext, String id, String name, Map<String, Object> attributes) {}
 
         @Override
-        public void traceStopped(String id) {}
+        public void stopTrace(String id) {}
 
         @Override
-        public void traceEvent(String id, String eventName) {}
+        public void addEvent(String id, String eventName) {}
 
         @Override
-        public void traceException(String id, Throwable throwable) {}
+        public void addError(String id, Throwable throwable) {}
 
         @Override
         public void setAttribute(String id, String key, boolean value) {}

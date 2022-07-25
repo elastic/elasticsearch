@@ -29,6 +29,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.rest.ChunkedRestResponseBody;
 import org.elasticsearch.transport.Transports;
@@ -48,6 +49,7 @@ import java.util.Queue;
 
 /**
  * Implements HTTP pipelining ordering, ensuring that responses are completely served in the same order as their corresponding requests.
+ * This handler also throttles write operations and will not pass any writes to the next handler so long as the channel is not writable.
  */
 public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
 
@@ -58,6 +60,10 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
 
     private record ChunkedWrite(PromiseCombiner combiner, ChannelPromise onDone, Netty4ChunkedHttpResponse response) {}
 
+    /**
+     * The current {@link ChunkedWrite} if a chunked write is executed at the moment.
+     */
+    @Nullable
     private ChunkedWrite currentChunkedWrite;
 
     /*
@@ -130,7 +136,7 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
     }
 
     @Override
-    public void write(final ChannelHandlerContext ctx, final Object msg, final ChannelPromise promise) {
+    public void write(final ChannelHandlerContext ctx, final Object msg, final ChannelPromise promise) throws IOException {
         assert msg instanceof Netty4RestResponse : "Invalid message type: " + msg.getClass();
         boolean success = false;
         try {
@@ -165,7 +171,7 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
         }
     }
 
-    private void drainQueuedNowWritable(ChannelHandlerContext ctx) {
+    private void drainQueuedNowWritable(ChannelHandlerContext ctx) throws IOException {
         while (outboundHoldingQueue.isEmpty() == false && outboundHoldingQueue.peek().v1().getSequence() == writeSequence) {
             final Tuple<? extends Netty4RestResponse, ChannelPromise> top = outboundHoldingQueue.poll();
             assert top != null : "we know the outbound holding queue to not be empty at this point";
@@ -184,7 +190,7 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
         SPLIT_THRESHOLD = (int) (NettyAllocator.suggestedMaxAllocationSize() * 0.99);
     }
 
-    private void doWrite(ChannelHandlerContext ctx, Netty4RestResponse readyResponse, ChannelPromise promise) {
+    private void doWrite(ChannelHandlerContext ctx, Netty4RestResponse readyResponse, ChannelPromise promise) throws IOException {
         if (readyResponse instanceof Netty4HttpResponse) {
             doWrite(ctx, (Netty4HttpResponse) readyResponse, promise);
         } else {
@@ -204,7 +210,7 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
         writeSequence++;
     }
 
-    private void doWrite(ChannelHandlerContext ctx, Netty4ChunkedHttpResponse readyResponse, ChannelPromise promise) {
+    private void doWrite(ChannelHandlerContext ctx, Netty4ChunkedHttpResponse readyResponse, ChannelPromise promise) throws IOException {
         assert currentChunkedWrite == null : "unexpected existing write [" + currentChunkedWrite + "]";
         final PromiseCombiner combiner = new PromiseCombiner(ctx.executor());
         currentChunkedWrite = new ChunkedWrite(combiner, promise, readyResponse);
@@ -212,13 +218,9 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
         combiner.add((Future<Void>) first);
         enqueueWrite(ctx, readyResponse, first);
         while (ctx.channel().isWritable()) {
-            try {
-                if (writeChunk(ctx, combiner, readyResponse.body())) {
-                    finishChunkedWrite();
-                    return;
-                }
-            } catch (IOException e) {
-                promise.tryFailure(e);
+            if (writeChunk(ctx, combiner, readyResponse.body())) {
+                finishChunkedWrite();
+                return;
             }
         }
     }
@@ -241,7 +243,7 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
         combiner.finish(promise);
     }
 
-    public void channelWritabilityChanged(ChannelHandlerContext ctx) {
+    public void channelWritabilityChanged(ChannelHandlerContext ctx) throws IOException {
         if (ctx.channel().isWritable()) {
             doFlush(ctx);
         }
@@ -249,7 +251,7 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
     }
 
     @Override
-    public void flush(ChannelHandlerContext ctx) {
+    public void flush(ChannelHandlerContext ctx) throws IOException {
         if (doFlush(ctx) == false) {
             ctx.flush();
         }
@@ -266,7 +268,7 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
      *
      * @return true if a call to this method resulted in a call to {@link ChannelHandlerContext#flush()} on the given {@code ctx}
      */
-    private boolean doFlush(ChannelHandlerContext ctx) {
+    private boolean doFlush(ChannelHandlerContext ctx) throws IOException {
         assert ctx.executor().inEventLoop();
         final Channel channel = ctx.channel();
         if (channel.isActive() == false) {

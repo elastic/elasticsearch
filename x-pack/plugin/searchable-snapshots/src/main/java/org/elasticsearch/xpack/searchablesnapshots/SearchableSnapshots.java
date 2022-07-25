@@ -69,6 +69,7 @@ import org.elasticsearch.snapshots.sourceonly.SourceOnlySnapshotRepository;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -327,7 +328,8 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         final NodeEnvironment nodeEnvironment,
         final NamedWriteableRegistry registry,
         final IndexNameExpressionResolver resolver,
-        final Supplier<RepositoriesService> repositoriesServiceSupplier
+        final Supplier<RepositoriesService> repositoriesServiceSupplier,
+        Tracer tracer
     ) {
         final List<Object> components = new ArrayList<>();
         this.repositoriesServiceSupplier = repositoriesServiceSupplier;

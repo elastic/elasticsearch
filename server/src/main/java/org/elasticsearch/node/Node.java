@@ -160,6 +160,7 @@ import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.ShutdownAwarePlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
+import org.elasticsearch.plugins.TracerPlugin;
 import org.elasticsearch.readiness.ReadinessService;
 import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -186,6 +187,7 @@ import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.tasks.TaskResultsService;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportService;
@@ -684,6 +686,8 @@ public class Node implements Closeable {
                 shardLimitValidator
             );
 
+            final Tracer tracer = getTracer(pluginsService, clusterService, settings);
+
             Collection<Object> pluginComponents = pluginsService.flatMap(
                 p -> p.createComponents(
                     client,
@@ -696,7 +700,8 @@ public class Node implements Closeable {
                     nodeEnvironment,
                     namedWriteableRegistry,
                     clusterModule.getIndexNameExpressionResolver(),
-                    repositoriesServiceReference::get
+                    repositoriesServiceReference::get,
+                    tracer
                 )
             ).toList();
 
@@ -711,7 +716,8 @@ public class Node implements Closeable {
                 client,
                 circuitBreakerService,
                 usageService,
-                systemIndices
+                systemIndices,
+                tracer
             );
             modules.add(actionModule);
 
@@ -727,7 +733,8 @@ public class Node implements Closeable {
                 xContentRegistry,
                 networkService,
                 restController,
-                clusterService.getClusterSettings()
+                clusterService.getClusterSettings(),
+                tracer
             );
             Collection<UnaryOperator<Map<String, IndexTemplateMetadata>>> indexTemplateMetadataUpgraders = pluginsService.map(
                 Plugin::getIndexTemplateMetadataUpgrader
@@ -752,7 +759,8 @@ public class Node implements Closeable {
                 networkModule.getTransportInterceptor(),
                 localNodeFactory,
                 settingsModule.getClusterSettings(),
-                taskManager
+                taskManager,
+                tracer
             );
             final GatewayMetaState gatewayMetaState = new GatewayMetaState();
             final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService);
@@ -1008,6 +1016,7 @@ public class Node implements Closeable {
                     b.bind(HealthNodeTaskExecutor.class).toInstance(healthNodeTaskExecutor);
                     b.bind(HealthMetadataService.class).toInstance(healthMetadataService);
                 }
+                b.bind(Tracer.class).toInstance(tracer);
             });
 
             if (ReadinessService.enabled(environment)) {
@@ -1063,6 +1072,16 @@ public class Node implements Closeable {
         }
     }
 
+    private Tracer getTracer(PluginsService pluginsService, ClusterService clusterService, Settings settings) {
+        final List<TracerPlugin> tracerPlugins = pluginsService.filterPlugins(TracerPlugin.class);
+
+        if (tracerPlugins.size() > 1) {
+            throw new IllegalStateException("A single TracerPlugin was expected but got: " + tracerPlugins);
+        }
+
+        return tracerPlugins.isEmpty() ? Tracer.NOOP : tracerPlugins.get(0).getTracer(clusterService, settings);
+    }
+
     private HealthService createHealthService(
         ClusterService clusterService,
         ClusterModule clusterModule,
@@ -1115,9 +1134,10 @@ public class Node implements Closeable {
         TransportInterceptor interceptor,
         Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
         ClusterSettings clusterSettings,
-        TaskManager taskManager
+        TaskManager taskManager,
+        Tracer tracer
     ) {
-        return new TransportService(settings, transport, threadPool, interceptor, localNodeFactory, clusterSettings, taskManager);
+        return new TransportService(settings, transport, threadPool, interceptor, localNodeFactory, clusterSettings, taskManager, tracer);
     }
 
     protected void processRecoverySettings(ClusterSettings clusterSettings, RecoverySettings recoverySettings) {

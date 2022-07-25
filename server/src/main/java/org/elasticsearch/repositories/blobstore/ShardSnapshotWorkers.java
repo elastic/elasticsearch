@@ -24,8 +24,8 @@ import java.util.function.Consumer;
 
 import static org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 
-public final class ShardSnapshotWorkerPool {
-    private static final Logger logger = LogManager.getLogger(ShardSnapshotWorkerPool.class);
+public class ShardSnapshotWorkers {
+    private static final Logger logger = LogManager.getLogger(ShardSnapshotWorkers.class);
 
     private final int maxWorkers;
     private final Object mutex = new Object();
@@ -35,7 +35,7 @@ public final class ShardSnapshotWorkerPool {
     private final CheckedBiConsumer<SnapshotShardContext, FileInfo, IOException> fileSnapshotter;
     private volatile int workerCount = 0;
 
-    private class ShardSnapshotTask implements Comparable<ShardSnapshotTask> {
+    class ShardSnapshotTask implements Comparable<ShardSnapshotTask> {
         protected final SnapshotShardContext context;
 
         ShardSnapshotTask(SnapshotShardContext context) {
@@ -64,7 +64,7 @@ public final class ShardSnapshotWorkerPool {
         }
     }
 
-    private class FileSnapshotTask extends ShardSnapshotTask {
+    class FileSnapshotTask extends ShardSnapshotTask {
         private final FileInfo fileInfo;
         private final ActionListener<Void> fileUploadListener;
 
@@ -85,7 +85,7 @@ public final class ShardSnapshotWorkerPool {
         }
     }
 
-    public ShardSnapshotWorkerPool(
+    public ShardSnapshotWorkers(
         final int maxWorkers,
         final Executor executor,
         final Consumer<SnapshotShardContext> shardSnapshotter,

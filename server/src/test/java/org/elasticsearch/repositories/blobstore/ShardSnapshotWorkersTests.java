@@ -40,14 +40,18 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntSupplier;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThan;
 
-public class ShardSnapshotWorkerPoolTests extends ESTestCase {
+public class ShardSnapshotWorkersTests extends ESTestCase {
 
     private static ThreadPool threadPool;
+    private static Executor executor;
 
     @Before
     public void setUpThreadPool() {
         threadPool = new TestThreadPool("test");
+        executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
     }
 
     @After
@@ -62,7 +66,7 @@ public class ShardSnapshotWorkerPoolTests extends ESTestCase {
         private final CountDownLatch uploadBlocker;
         private final CountDownLatch snapshotBlocker;
         private final IntSupplier fileUploadSupplier;
-        private ShardSnapshotWorkerPool workers;
+        private ShardSnapshotWorkers workers;
 
         MockedRepo(IntSupplier fileUploadSupplier) {
             this(new CountDownLatch(0), new CountDownLatch(0), fileUploadSupplier);
@@ -74,7 +78,7 @@ public class ShardSnapshotWorkerPoolTests extends ESTestCase {
             this.fileUploadSupplier = fileUploadSupplier;
         }
 
-        public void setWorkers(ShardSnapshotWorkerPool workers) {
+        public void setWorkers(ShardSnapshotWorkers workers) {
             this.workers = workers;
         }
 
@@ -95,7 +99,7 @@ public class ShardSnapshotWorkerPoolTests extends ESTestCase {
                 filesToUpload
             );
             for (int i = 0; i < filesToUpload; i++) {
-                workers.enqueueFileUpload(context, createMockedFileInfo(), uploadListener);
+                workers.enqueueFileUpload(context, createDummyFileInfo(), uploadListener);
             }
         }
 
@@ -121,14 +125,17 @@ public class ShardSnapshotWorkerPoolTests extends ESTestCase {
         }
     }
 
-    private static BlobStoreIndexShardSnapshot.FileInfo createMockedFileInfo() {
+    private static BlobStoreIndexShardSnapshot.FileInfo createDummyFileInfo() {
         String filename = randomAlphaOfLength(10);
         StoreFileMetadata metadata = new StoreFileMetadata(filename, 10, "CHECKSUM", Version.CURRENT.luceneVersion.toString());
         return new BlobStoreIndexShardSnapshot.FileInfo(filename, metadata, null);
     }
 
     private SnapshotShardContext createDummyContext() {
-        SnapshotId snapshotId = new SnapshotId(randomAlphaOfLength(10), UUIDs.randomBase64UUID());
+        return createDummyContext(new SnapshotId(randomAlphaOfLength(10), UUIDs.randomBase64UUID()));
+    }
+
+    private SnapshotShardContext createDummyContext(final SnapshotId snapshotId) {
         IndexId indexId = new IndexId(randomAlphaOfLength(10), UUIDs.randomBase64UUID());
         ShardId shardId = new ShardId(indexId.getName(), indexId.getId(), 1);
         Settings settings = Settings.builder()
@@ -156,10 +163,9 @@ public class ShardSnapshotWorkerPoolTests extends ESTestCase {
     }
 
     public void testWorkersSizeIsEventuallyZeroOnceQueueIsEmpty() throws Exception {
-        Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
         int maxSize = randomIntBetween(1, threadPool.info(ThreadPool.Names.SNAPSHOT).getMax());
         MockedRepo repo = new MockedRepo(() -> randomIntBetween(0, 10));
-        ShardSnapshotWorkerPool workers = new ShardSnapshotWorkerPool(maxSize, executor, repo::snapshotShard, repo::uploadFile);
+        ShardSnapshotWorkers workers = new ShardSnapshotWorkers(maxSize, executor, repo::snapshotShard, repo::uploadFile);
         assertThat(workers.size(), equalTo(0));
         repo.setWorkers(workers);
         int shardsToSnapshot = randomIntBetween(1, 100);
@@ -172,12 +178,11 @@ public class ShardSnapshotWorkerPoolTests extends ESTestCase {
     }
 
     public void testEnqueueCreatesNewWorkersIfNecessary() throws Exception {
-        Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
         int maxSize = randomIntBetween(1, threadPool.info(ThreadPool.Names.SNAPSHOT).getMax());
         CountDownLatch uploadBlocker = new CountDownLatch(0);
         CountDownLatch snapshotBlocker = new CountDownLatch(1);
         MockedRepo repo = new MockedRepo(uploadBlocker, snapshotBlocker, () -> 1); // Each shard snapshot results in one file snapshot
-        ShardSnapshotWorkerPool workers = new ShardSnapshotWorkerPool(maxSize, executor, repo::snapshotShard, repo::uploadFile);
+        ShardSnapshotWorkers workers = new ShardSnapshotWorkers(maxSize, executor, repo::snapshotShard, repo::uploadFile);
         repo.setWorkers(workers);
         int enqueuedSnapshots = maxSize - 1; // It's possible to create at least one more worker
         for (int i = 0; i < enqueuedSnapshots; i++) {
@@ -195,5 +200,31 @@ public class ShardSnapshotWorkerPoolTests extends ESTestCase {
         assertBusy(() -> assertThat(workers.size(), equalTo(0)));
         assertThat(repo.finishedUploads(), equalTo(repo.expectedUploads()));
         assertThat(repo.finishedSnapshots(), equalTo(enqueuedSnapshots));
+    }
+
+    public void testCompareToShardSnapshotTask() {
+        ShardSnapshotWorkers workers = new ShardSnapshotWorkers(1, executor, context -> {}, (context, fileInfo) -> {});
+        SnapshotId s1 = new SnapshotId("a", UUIDs.randomBase64UUID());
+        SnapshotId s2 = new SnapshotId("b", UUIDs.randomBase64UUID());
+        SnapshotId s3 = new SnapshotId("a", UUIDs.randomBase64UUID());
+        SnapshotShardContext s1Context = createDummyContext(s1);
+        SnapshotShardContext s2Context = createDummyContext(s2);
+        SnapshotShardContext s3Context = createDummyContext(s3);
+        // Two tasks with the same snapshot name and of the same type have the same priority
+        assertThat(workers.new ShardSnapshotTask(s1Context).compareTo(workers.new ShardSnapshotTask(s3Context)), equalTo(0));
+        // Within the same snapshot, shard snapshot has higher priority over file snapshot
+        assertThat(
+            workers.new ShardSnapshotTask(s1Context).compareTo(
+                workers.new FileSnapshotTask(s1Context, createDummyFileInfo(), ActionListener.noop())
+            ),
+            lessThan(0)
+        );
+        // Priority of task types matter only within the same snapshot
+        assertThat(
+            workers.new ShardSnapshotTask(s2Context).compareTo(
+                workers.new FileSnapshotTask(s1Context, createDummyFileInfo(), ActionListener.noop())
+            ),
+            greaterThan(0)
+        );
     }
 }

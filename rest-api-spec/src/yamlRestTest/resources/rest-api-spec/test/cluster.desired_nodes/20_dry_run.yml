@@ -73,6 +73,14 @@ setup:
   - match: { replaced_existing_history_id: false }
   - match: { dry_run: true }
 
+  - do:
+      _internal.get_desired_nodes: { }
+  - match:
+      $body:
+        history_id: "test"
+        version: 1
+        nodes:
+          - { settings: { node: { name: "instance-000187" } }, processors: 8.5, memory: "64gb", storage: "128gb", node_version: $es_version }
 ---
 "Test validation works for dry run updates":
   - do:

@@ -27,6 +27,18 @@ import java.util.Set;
  */
 public abstract class RemoteClusterAware {
 
+    private static final List<Setting.AffixSetting<?>> REMOTE_CLUSTER_SETTINGS = Arrays.asList(
+        RemoteClusterService.REMOTE_CLUSTER_COMPRESS,
+        RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE,
+        RemoteConnectionStrategy.REMOTE_CONNECTION_MODE,
+        SniffConnectionStrategy.REMOTE_CLUSTERS_PROXY,
+        SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS,
+        SniffConnectionStrategy.REMOTE_NODE_CONNECTIONS,
+        ProxyConnectionStrategy.PROXY_ADDRESS,
+        ProxyConnectionStrategy.REMOTE_SOCKET_CONNECTIONS,
+        ProxyConnectionStrategy.SERVER_NAME
+    );
+
     public static final char REMOTE_CLUSTER_INDEX_SEPARATOR = ':';
     public static final String LOCAL_CLUSTER_GROUP_KEY = "";
 
@@ -101,22 +113,14 @@ public abstract class RemoteClusterAware {
      * Registers this instance to listen to updates on the cluster settings.
      */
     public void listenForUpdates(ClusterSettings clusterSettings) {
-        List<Setting.AffixSetting<?>> remoteClusterSettings = Arrays.asList(
-            RemoteClusterService.REMOTE_CLUSTER_COMPRESS,
-            RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE,
-            RemoteConnectionStrategy.REMOTE_CONNECTION_MODE,
-            SniffConnectionStrategy.REMOTE_CLUSTERS_PROXY,
-            SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS,
-            SniffConnectionStrategy.REMOTE_NODE_CONNECTIONS,
-            ProxyConnectionStrategy.PROXY_ADDRESS,
-            ProxyConnectionStrategy.REMOTE_SOCKET_CONNECTIONS,
-            ProxyConnectionStrategy.SERVER_NAME
-        );
         if (ClusterSettings.CCX2_FEATURE_FLAG_ENABLED) {
-            remoteClusterSettings = new ArrayList<>(remoteClusterSettings);
+            // remoteClusterSettings is a mutable List
+            final List<Setting.AffixSetting<?>> remoteClusterSettings = new ArrayList<>(REMOTE_CLUSTER_SETTINGS);
             remoteClusterSettings.add(SniffConnectionStrategy.REMOTE_CLUSTER_AUTHORIZATION);
+        } else {
+            // REMOTE_CLUSTER_SETTINGS is an immutable List
+            clusterSettings.addAffixGroupUpdateConsumer(REMOTE_CLUSTER_SETTINGS, this::validateAndUpdateRemoteCluster);
         }
-        clusterSettings.addAffixGroupUpdateConsumer(remoteClusterSettings, this::validateAndUpdateRemoteCluster);
     }
 
     public static String buildRemoteIndexName(String clusterAlias, String indexName) {

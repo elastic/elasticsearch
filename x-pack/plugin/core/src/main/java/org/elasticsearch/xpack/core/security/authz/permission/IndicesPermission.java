@@ -546,17 +546,21 @@ public final class IndicesPermission {
                 // the group covers the given index OR the given index is a backing index and the group covers the parent data stream
                 if (resource.checkIndex(group)) {
                     boolean actionCheck = group.checkAction(action);
-                    granted = granted || actionCheck;
-
-                    // mapping updates are allowed for certain privileges on indices and aliases (but not on data streams),
-                    // outside of the privilege definition
-                    boolean bwcMappingActionCheck = isMappingUpdateAction
-                        && false == resource.isPartOfDataStream()
-                        && containsPrivilegeThatGrantsMappingUpdatesForBwc(group);
-                    bwcGrantMappingUpdate = bwcGrantMappingUpdate || bwcMappingActionCheck;
-
-                    if (actionCheck == false && bwcMappingActionCheck) {
-                        logDeprecatedBwcPrivilegeUsage(action, resource, group, bwcDeprecationLogActions);
+                    // If action is granted we don't have to check for BWC and can stop at first granting group.
+                    if(actionCheck){
+                        granted = true;
+                        break;
+                    } else {
+                        // mapping updates are allowed for certain privileges on indices and aliases (but not on data streams),
+                        // outside of the privilege definition
+                        boolean bwcMappingActionCheck = isMappingUpdateAction
+                            && false == resource.isPartOfDataStream()
+                            && containsPrivilegeThatGrantsMappingUpdatesForBwc(group);
+                        if (bwcMappingActionCheck) {
+                            bwcGrantMappingUpdate = true;
+                            logDeprecatedBwcPrivilegeUsage(action, resource, group, bwcDeprecationLogActions);
+                            break;
+                        }
                     }
                 }
             }
@@ -568,7 +572,7 @@ public final class IndicesPermission {
             }
 
             if (granted == false) {
-                // We stop and return at first not granted index.
+                // We stop and return at first not granted resource.
                 return false;
             }
         }

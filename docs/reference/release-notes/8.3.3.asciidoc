@@ -29,4 +29,11 @@ Security::
 Security::
 * New setting to close idle connections in OIDC back-channel {es-pull}87773[#87773]
 
+[[upgrade-8.3.3]]
+[float]
+=== Upgrades
+
+Packaging::
+* Upgrade to OpenJDK 18.0.2+9 {es-pull}88675[#88675] (issue: {es-issue}88673[#88673])
+
 

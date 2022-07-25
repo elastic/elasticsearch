@@ -23,6 +23,8 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.common.cache.Cache;
+import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.RestoreService.RestoreInProgressUpdater;
@@ -33,8 +35,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ExecutionException;
 
 import static java.util.Collections.emptySet;
 
@@ -77,7 +78,10 @@ public class RoutingAllocation {
 
     private final Map<String, SingleNodeShutdownMetadata> nodeReplacementTargets;
 
-    private static final ConcurrentMap<RoutingNode, Long> unaccountableSearchableSnapshotSizes = new ConcurrentHashMap<>();
+    private static final int MAX_ROUTING_NODES = 512;
+    private static final Cache<RoutingNode, Long> unaccountableSearchableSnapshotSizes = CacheBuilder.<RoutingNode, Long>builder()
+        .setMaximumWeight(MAX_ROUTING_NODES)
+        .build();
 
     public RoutingAllocation(
         AllocationDeciders deciders,
@@ -334,22 +338,30 @@ public class RoutingAllocation {
     }
 
     public long unaccountableSearchableSnapshotSize(RoutingNode node) {
-        return unaccountableSearchableSnapshotSizes.computeIfAbsent(node, k -> {
-            long totalSize = 0;
-            for (ShardRouting shard : node.started()) {
-                if (clusterInfo == null) {
-                    continue;
+        try {
+            return unaccountableSearchableSnapshotSizes.computeIfAbsent(node, k -> {
+                long totalSize = 0;
+                // Count the STARTED searchable snapshot shards which are unaccounted in the cluster
+                for (ShardRouting shard : node.started()) {
+                    if (clusterInfo == null) {
+                        continue;
+                    }
+                    DiskUsage usage = clusterInfo.getNodeMostAvailableDiskUsages().get(node.nodeId());
+                    ClusterInfo.ReservedSpace reservedSpace = clusterInfo.getReservedSpace(
+                        node.nodeId(),
+                        usage != null ? usage.getPath() : ""
+                    );
+                    if (clusterState.metadata().getIndexSafe(shard.index()).isSearchableSnapshot()
+                        && reservedSpace.containsShardId(shard.shardId()) == false
+                        && clusterInfo.getShardSize(shard) == null) {
+                        totalSize += Math.max(shard.getExpectedShardSize(), 0L);
+                    }
                 }
-                DiskUsage usage = clusterInfo.getNodeMostAvailableDiskUsages().get(node.nodeId());
-                ClusterInfo.ReservedSpace reservedSpace = clusterInfo.getReservedSpace(node.nodeId(), usage != null ? usage.getPath() : "");
-                if (clusterState.metadata().getIndexSafe(shard.index()).isSearchableSnapshot()
-                    && reservedSpace.containsShardId(shard.shardId()) == false
-                    && clusterInfo.getShardSize(shard) == null) {
-                    totalSize += Math.max(shard.getExpectedShardSize(), 0L);
-                }
-            }
-            return totalSize;
-        });
+                return totalSize;
+            });
+        } catch (ExecutionException ignore) {
+            return 0L;
+        }
     }
 
     public enum DebugMode {

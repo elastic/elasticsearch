@@ -149,7 +149,6 @@ public class DiskThresholdDecider extends AllocationDecider {
             }
         }
 
-        // Count the STARTED searchable snapshot shards which are unaccounted in the cluster
         totalSize += sizeOfUnaccountableSearchableSnapshotShards;
 
         if (subtractShardsMovingAway) {

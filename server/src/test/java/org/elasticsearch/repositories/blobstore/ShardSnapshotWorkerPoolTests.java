@@ -155,7 +155,7 @@ public class ShardSnapshotWorkerPoolTests extends ESTestCase {
         );
     }
 
-    public void testAllWorkersExitWhenQueueExhausted() throws Exception {
+    public void testWorkersSizeIsEventuallyZeroOnceQueueIsEmpty() throws Exception {
         Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
         int maxSize = randomIntBetween(1, threadPool.info(ThreadPool.Names.SNAPSHOT).getMax());
         MockedRepo repo = new MockedRepo(() -> randomIntBetween(0, 10));
@@ -166,35 +166,34 @@ public class ShardSnapshotWorkerPoolTests extends ESTestCase {
         for (int i = 0; i < shardsToSnapshot; i++) {
             workers.enqueueShardSnapshot(createDummyContext());
         }
-        assertBusy(() -> {
-            assertThat(repo.finishedSnapshots(), equalTo(shardsToSnapshot));
-            assertThat(repo.finishedUploads(), equalTo(repo.expectedUploads()));
-            assertThat(workers.size(), equalTo(0));
-        });
+        assertBusy(() -> assertThat(workers.size(), equalTo(0)));
+        assertThat(repo.finishedUploads(), equalTo(repo.expectedUploads()));
+        assertThat(repo.finishedSnapshots(), equalTo(shardsToSnapshot));
     }
 
-    public void testExitingWorkerCreatesNewWorkersIfNecessary() throws Exception {
+    public void testEnqueueCreatesNewWorkersIfNecessary() throws Exception {
         Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
         int maxSize = randomIntBetween(1, threadPool.info(ThreadPool.Names.SNAPSHOT).getMax());
-        CountDownLatch uploadBlocker = new CountDownLatch(1);
+        CountDownLatch uploadBlocker = new CountDownLatch(0);
         CountDownLatch snapshotBlocker = new CountDownLatch(1);
         MockedRepo repo = new MockedRepo(uploadBlocker, snapshotBlocker, () -> 1); // Each shard snapshot results in one file snapshot
         ShardSnapshotWorkerPool workers = new ShardSnapshotWorkerPool(maxSize, executor, repo::snapshotShard, repo::uploadFile);
         repo.setWorkers(workers);
-        // Make sure everyone is busy
-        int enqueuedSnapshots = maxSize;
+        int enqueuedSnapshots = maxSize - 1; // It's possible to create at least one more worker
         for (int i = 0; i < enqueuedSnapshots; i++) {
             workers.enqueueShardSnapshot(createDummyContext());
         }
-        assertBusy(() -> assertThat(workers.size(), equalTo(maxSize)));
-        snapshotBlocker.countDown(); // move all workers to file upload
-        // Adding a new shard snapshot would not get any new worker
-        enqueuedSnapshots += 1;
-        workers.enqueueShardSnapshot(createDummyContext());
+        assertBusy(() -> assertThat(workers.size(), equalTo(maxSize - 1)));
+        // Adding at least one new shard snapshot would create a new worker
+        int newTasks = randomIntBetween(1, 10);
+        for (int i = 0; i < newTasks; i++) {
+            workers.enqueueShardSnapshot(createDummyContext());
+        }
+        enqueuedSnapshots += newTasks;
         assertThat(workers.size(), equalTo(maxSize));
-        uploadBlocker.countDown();
-        assertBusy(() -> assertThat(repo.finishedUploads(), equalTo(repo.expectedUploads())));
+        snapshotBlocker.countDown();
         assertBusy(() -> assertThat(workers.size(), equalTo(0)));
+        assertThat(repo.finishedUploads(), equalTo(repo.expectedUploads()));
         assertThat(repo.finishedSnapshots(), equalTo(enqueuedSnapshots));
     }
 }

@@ -26,7 +26,6 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -267,8 +266,6 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                         Map.copyOf(dataPathByShardRoutingBuilder),
                         Map.copyOf(rsrvdSpace)
                     );
-
-                    RoutingAllocation.clearUnaccountableSearchableSnapshotSize();
                 }
 
                 @Override

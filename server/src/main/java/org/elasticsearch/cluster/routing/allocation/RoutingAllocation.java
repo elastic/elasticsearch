@@ -77,9 +77,6 @@ public class RoutingAllocation {
 
     private final Map<String, SingleNodeShutdownMetadata> nodeReplacementTargets;
 
-    /**
-     * Cache of unaccountable searchable snapshot sizes between cluster info service updates
-     */
     private static final ConcurrentMap<RoutingNode, Long> unaccountableSearchableSnapshotSizes = new ConcurrentHashMap<>();
 
     public RoutingAllocation(
@@ -353,10 +350,6 @@ public class RoutingAllocation {
             }
             return totalSize;
         });
-    }
-
-    public static void clearUnaccountableSearchableSnapshotSize() {
-        unaccountableSearchableSnapshotSizes.clear();
     }
 
     public enum DebugMode {

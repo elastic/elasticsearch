@@ -462,7 +462,6 @@ public class ApiKeyService {
         });
     }
 
-    // TODO listener goes last
     private void executeBulkRequest(final BulkRequest request, final ActionListener<BulkResponse> listener) {
         securityIndex.prepareIndexIfNeededThenExecute(
             listener::onFailure,

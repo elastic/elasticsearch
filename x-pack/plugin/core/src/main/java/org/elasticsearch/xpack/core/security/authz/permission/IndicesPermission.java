@@ -547,7 +547,7 @@ public final class IndicesPermission {
                 if (resource.checkIndex(group)) {
                     boolean actionCheck = group.checkAction(action);
                     // If action is granted we don't have to check for BWC and can stop at first granting group.
-                    if(actionCheck){
+                    if (actionCheck) {
                         granted = true;
                         break;
                     } else {

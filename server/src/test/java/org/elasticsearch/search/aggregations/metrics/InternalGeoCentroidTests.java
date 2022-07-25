@@ -85,16 +85,18 @@ public class InternalGeoCentroidTests extends InternalAggregationTestCase<Intern
         long count = instance.count();
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 3)) {
-            case 0 -> name += randomAlphaOfLength(5);
-            case 1 -> {
+            case 0:
+                name += randomAlphaOfLength(5);
+                break;
+            case 1:
                 count += between(1, 100);
                 if (centroid == null) {
                     // if the new count is > 0 then we need to make sure there is a
                     // centroid or the constructor will throw an exception
                     centroid = new GeoPoint(randomDoubleBetween(-90, 90, false), randomDoubleBetween(-180, 180, false));
                 }
-            }
-            case 2 -> {
+                break;
+            case 2:
                 if (centroid == null) {
                     centroid = new GeoPoint(randomDoubleBetween(-90, 90, false), randomDoubleBetween(-180, 180, false));
                     count = between(1, 100);
@@ -107,16 +109,17 @@ public class InternalGeoCentroidTests extends InternalAggregationTestCase<Intern
                     }
                     centroid = newCentroid;
                 }
-            }
-            case 3 -> {
+                break;
+            case 3:
                 if (metadata == null) {
                     metadata = new HashMap<>(1);
                 } else {
                     metadata = new HashMap<>(instance.getMetadata());
                 }
                 metadata.put(randomAlphaOfLength(15), randomInt());
-            }
-            default -> throw new AssertionError("Illegal randomisation branch");
+                break;
+            default:
+                throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalGeoCentroid(name, centroid, count, metadata);
     }

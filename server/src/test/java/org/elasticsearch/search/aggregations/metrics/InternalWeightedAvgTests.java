@@ -61,30 +61,33 @@ public class InternalWeightedAvgTests extends InternalAggregationTestCase<Intern
         DocValueFormat formatter = instance.getFormatter();
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 3)) {
-            case 0 -> name += randomAlphaOfLength(5);
-            case 1 -> {
+            case 0:
+                name += randomAlphaOfLength(5);
+                break;
+            case 1:
                 if (Double.isFinite(sum)) {
                     sum += between(1, 100);
                 } else {
                     sum = between(1, 100);
                 }
-            }
-            case 2 -> {
+                break;
+            case 2:
                 if (Double.isFinite(weight)) {
                     weight += between(1, 100);
                 } else {
                     weight = between(1, 100);
                 }
-            }
-            case 3 -> {
+                break;
+            case 3:
                 if (metadata == null) {
                     metadata = new HashMap<>(1);
                 } else {
                     metadata = new HashMap<>(instance.getMetadata());
                 }
                 metadata.put(randomAlphaOfLength(15), randomInt());
-            }
-            default -> throw new AssertionError("Illegal randomisation branch");
+                break;
+            default:
+                throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalWeightedAvg(name, sum, weight, formatter, metadata);
     }

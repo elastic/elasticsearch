@@ -62,4 +62,9 @@ public class GeoBoundingBoxQueryBuilderGeoShapeTests extends GeoBoundingBoxQuery
         assertEquals(GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType.class, fieldType.getClass());
         assertEquals(IndexOrDocValuesQuery.class, query.getClass());
     }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/88711")
+    public void testToQuery() throws IOException {
+        super.testToQuery();
+    }
 }

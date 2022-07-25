@@ -368,6 +368,9 @@ public final class IndicesPermission {
         Map<String, IndexAbstraction> lookup,
         FieldPermissionsCache fieldPermissionsCache
     ) {
+        assert requestedIndicesOrAliases.isEmpty() == false
+            : "every indices action request must have its indices set, hence the requested indices must not be empty";
+
         // Short circuit if the indicesPermission allows all access to every index
         if (Arrays.stream(groups).anyMatch(Group::isTotal)) {
             return IndicesAccessControl.allowAll();
@@ -384,7 +387,7 @@ public final class IndicesPermission {
 
         final boolean overallGranted = isActionGranted(action, resources);
 
-        final Supplier<Map<String, IndicesAccessControl.IndexAccessControl>> indexPermissions = () -> computeIndicesAccessControl(
+        final Supplier<Map<String, IndicesAccessControl.IndexAccessControl>> indexPermissions = () -> buildIndicesAccessControl(
             action,
             resources,
             totalResourceCountHolder[0],
@@ -394,7 +397,7 @@ public final class IndicesPermission {
         return new IndicesAccessControl(overallGranted, new CachedSupplier<>(indexPermissions));
     }
 
-    private Map<String, IndicesAccessControl.IndexAccessControl> computeIndicesAccessControl(
+    private Map<String, IndicesAccessControl.IndexAccessControl> buildIndicesAccessControl(
         final String action,
         final Map<String, IndexResource> requestedResources,
         final int totalResourceCount,
@@ -530,10 +533,6 @@ public final class IndicesPermission {
      */
     private boolean isActionGranted(final String action, final Map<String, IndexResource> requestedResources) {
 
-        if (requestedResources.isEmpty()) {
-            return true;
-        }
-
         final boolean isMappingUpdateAction = isMappingUpdateAction(action);
 
         for (IndexResource resource : requestedResources.values()) {
@@ -548,17 +547,21 @@ public final class IndicesPermission {
                 // the group covers the given index OR the given index is a backing index and the group covers the parent data stream
                 if (resource.checkIndex(group)) {
                     boolean actionCheck = group.checkAction(action);
-                    granted = granted || actionCheck;
-
-                    // mapping updates are allowed for certain privileges on indices and aliases (but not on data streams),
-                    // outside of the privilege definition
-                    boolean bwcMappingActionCheck = isMappingUpdateAction
-                        && false == resource.isPartOfDataStream()
-                        && containsPrivilegeThatGrantsMappingUpdatesForBwc(group);
-                    bwcGrantMappingUpdate = bwcGrantMappingUpdate || bwcMappingActionCheck;
-
-                    if (actionCheck == false && bwcMappingActionCheck) {
-                        logDeprecatedBwcPrivilegeUsage(action, resource, group, bwcDeprecationLogActions);
+                    // If action is granted we don't have to check for BWC and can stop at first granting group.
+                    if(actionCheck){
+                        granted = true;
+                        break;
+                    } else {
+                        // mapping updates are allowed for certain privileges on indices and aliases (but not on data streams),
+                        // outside of the privilege definition
+                        boolean bwcMappingActionCheck = isMappingUpdateAction
+                            && false == resource.isPartOfDataStream()
+                            && containsPrivilegeThatGrantsMappingUpdatesForBwc(group);
+                        if (bwcMappingActionCheck) {
+                            bwcGrantMappingUpdate = true;
+                            logDeprecatedBwcPrivilegeUsage(action, resource, group, bwcDeprecationLogActions);
+                            break;
+                        }
                     }
                 }
             }
@@ -570,7 +573,7 @@ public final class IndicesPermission {
             }
 
             if (granted == false) {
-                // We stop and return at first not granted index.
+                // We stop and return at first not granted resource.
                 return false;
             }
         }

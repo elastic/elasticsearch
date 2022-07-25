@@ -26,7 +26,6 @@ import java.util.Map;
 
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
-import static org.elasticsearch.health.ServerHealthComponents.SNAPSHOT;
 import static org.elasticsearch.xpack.core.ilm.OperationMode.RUNNING;
 import static org.elasticsearch.xpack.core.ilm.OperationMode.STOPPED;
 import static org.elasticsearch.xpack.core.ilm.OperationMode.STOPPING;
@@ -47,10 +46,8 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
-                    SNAPSHOT,
                     GREEN,
                     "Snapshot Lifecycle Management is running",
-                    null,
                     new SimpleHealthIndicatorDetails(Map.of("slm_status", RUNNING, "policies", 1)),
                     Collections.emptyList(),
                     Collections.emptyList()
@@ -69,10 +66,8 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
-                    SNAPSHOT,
                     YELLOW,
                     "Snapshot Lifecycle Management is not running",
-                    SlmHealthIndicatorService.HELP_URL,
                     new SimpleHealthIndicatorDetails(Map.of("slm_status", status, "policies", 1)),
                     Collections.singletonList(
                         new HealthIndicatorImpact(
@@ -97,10 +92,8 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
-                    SNAPSHOT,
                     GREEN,
                     "No Snapshot Lifecycle Management policies configured",
-                    null,
                     new SimpleHealthIndicatorDetails(Map.of("slm_status", status, "policies", 0)),
                     Collections.emptyList(),
                     Collections.emptyList()
@@ -118,10 +111,8 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
-                    SNAPSHOT,
                     GREEN,
                     "No Snapshot Lifecycle Management policies configured",
-                    null,
                     new SimpleHealthIndicatorDetails(Map.of("slm_status", RUNNING, "policies", 0)),
                     Collections.emptyList(),
                     Collections.emptyList()

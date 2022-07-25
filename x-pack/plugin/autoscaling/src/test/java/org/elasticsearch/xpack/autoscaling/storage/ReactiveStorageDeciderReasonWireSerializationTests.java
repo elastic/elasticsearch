@@ -31,7 +31,7 @@ public class ReactiveStorageDeciderReasonWireSerializationTests extends Abstract
 
     @Override
     protected ReactiveStorageDeciderService.ReactiveReason mutateInstance(ReactiveStorageDeciderService.ReactiveReason instance) {
-        switch (between(0, 5)) {
+        switch (between(0, 8)) {
             case 0:
                 return new ReactiveStorageDeciderService.ReactiveReason(
                     randomValueOtherThan(instance.summary(), () -> randomAlphaOfLength(10)),
@@ -92,6 +92,36 @@ public class ReactiveStorageDeciderReasonWireSerializationTests extends Abstract
                     instance.unassignedShardAllocateDecision(),
                     instance.assignedShardAllocateDecision()
                 );
+            case 6:
+                return new ReactiveStorageDeciderService.ReactiveReason(
+                    instance.summary(),
+                    instance.unassigned(),
+                    instance.unassignedShardIds(),
+                    instance.assigned(),
+                    instance.assignedShardIds(),
+                    randomValueOtherThan(instance.unassignedShardAllocateDecision(), this::randomUnassignedShardAllocateDecision),
+                    instance.assignedShardAllocateDecision()
+                );
+            case 7:
+                return new ReactiveStorageDeciderService.ReactiveReason(
+                    instance.summary(),
+                    instance.unassigned(),
+                    instance.unassignedShardIds(),
+                    instance.assigned(),
+                    instance.assignedShardIds(),
+                    instance.unassignedShardAllocateDecision(),
+                    randomValueOtherThan(instance.assignedShardAllocateDecision(), this::randomAssignedShardAllocateDecision)
+                );
+            case 8:
+                return new ReactiveStorageDeciderService.ReactiveReason(
+                    instance.summary(),
+                    instance.unassigned(),
+                    instance.unassignedShardIds(),
+                    instance.assigned(),
+                    instance.assignedShardIds(),
+                    randomValueOtherThan(instance.unassignedShardAllocateDecision(), this::randomUnassignedShardAllocateDecision),
+                    randomValueOtherThan(instance.assignedShardAllocateDecision(), this::randomAssignedShardAllocateDecision)
+                );
             default:
                 fail("unexpected");
         }
@@ -106,23 +136,31 @@ public class ReactiveStorageDeciderReasonWireSerializationTests extends Abstract
             new TreeSet<>(randomUnique(() -> new ShardId(randomAlphaOfLength(8), UUIDs.randomBase64UUID(), randomInt(5)), 8)),
             randomNonNegativeLong(),
             new TreeSet<>(randomUnique(() -> new ShardId(randomAlphaOfLength(8), UUIDs.randomBase64UUID(), randomInt(5)), 8)),
-            new ShardAllocationDecision(
-                AllocateUnassignedDecision.no(
-                    randomFrom(
-                        UnassignedInfo.AllocationStatus.DECIDERS_NO,
-                        UnassignedInfo.AllocationStatus.DELAYED_ALLOCATION,
-                        UnassignedInfo.AllocationStatus.NO_VALID_SHARD_COPY,
-                        UnassignedInfo.AllocationStatus.FETCHING_SHARD_DATA
-                    ),
-                    List.of(),
-                    randomBoolean()
+            randomUnassignedShardAllocateDecision(),
+            randomAssignedShardAllocateDecision()
+        );
+    }
+
+    private ShardAllocationDecision randomAssignedShardAllocateDecision() {
+        return new ShardAllocationDecision(
+            AllocateUnassignedDecision.NOT_TAKEN,
+            MoveDecision.stay(randomFrom(Decision.YES, Decision.THROTTLE))
+        );
+    }
+
+    private ShardAllocationDecision randomUnassignedShardAllocateDecision() {
+        return new ShardAllocationDecision(
+            AllocateUnassignedDecision.no(
+                randomFrom(
+                    UnassignedInfo.AllocationStatus.DECIDERS_NO,
+                    UnassignedInfo.AllocationStatus.DELAYED_ALLOCATION,
+                    UnassignedInfo.AllocationStatus.NO_VALID_SHARD_COPY,
+                    UnassignedInfo.AllocationStatus.FETCHING_SHARD_DATA
                 ),
-                MoveDecision.NOT_TAKEN
+                List.of(),
+                randomBoolean()
             ),
-            new ShardAllocationDecision(
-                AllocateUnassignedDecision.NOT_TAKEN,
-                MoveDecision.stay(randomFrom(Decision.YES, Decision.THROTTLE))
-            )
+            MoveDecision.NOT_TAKEN
         );
     }
 }

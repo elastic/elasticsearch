@@ -1158,7 +1158,7 @@ public class ApiKeyService {
         if (currentDocVersion.before(targetDocVersion)) {
             logger.debug(
                 "API key update for [{}] will update version from [{}] to [{}]",
-                request.getId(),
+                currentVersionedDoc.id(),
                 currentDocVersion,
                 targetDocVersion
             );

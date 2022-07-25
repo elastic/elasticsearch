@@ -33,6 +33,8 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 import static java.util.Collections.emptySet;
 
@@ -74,7 +76,8 @@ public class RoutingAllocation {
     );
 
     private final Map<String, SingleNodeShutdownMetadata> nodeReplacementTargets;
-    private Map<String, Long> unaccountableSearchableSnapshotSizes;
+
+    private static final ConcurrentMap<RoutingNode, Long> unaccountableSearchableSnapshotSizes = new ConcurrentHashMap<>();
 
     public RoutingAllocation(
         AllocationDeciders deciders,
@@ -116,25 +119,6 @@ public class RoutingAllocation {
             }
         }
         this.nodeReplacementTargets = Collections.unmodifiableMap(targetNameToShutdown);
-        unaccountableSearchableSnapshotSizes = new HashMap<>();
-        for (RoutingNode node : clusterState.getRoutingNodes()) {
-            long totalSize = 0;
-            for (ShardRouting shard : node.started()) {
-                if (clusterInfo == null) {
-                    continue;
-                }
-                DiskUsage usage = clusterInfo.getNodeMostAvailableDiskUsages().get(node.nodeId());
-                ClusterInfo.ReservedSpace reservedSpace = clusterInfo.getReservedSpace(node.nodeId(), usage != null ? usage.getPath() : "");
-                if (clusterState.metadata().getIndexSafe(shard.index()).isSearchableSnapshot()
-                    && reservedSpace.containsShardId(shard.shardId()) == false
-                    && clusterInfo.getShardSize(shard) == null) {
-                    totalSize += Math.max(shard.getExpectedShardSize(), 0L);
-                }
-            }
-            if (totalSize > 0) {
-                unaccountableSearchableSnapshotSizes.put(node.nodeId(), totalSize);
-            }
-        }
     }
 
     /** returns the nano time captured at the beginning of the allocation. used to make sure all time based decisions are aligned */
@@ -349,8 +333,23 @@ public class RoutingAllocation {
         this.hasPendingAsyncFetch = true;
     }
 
-    public long unaccountableSearchableSnapshotSize(RoutingNode routingNode) {
-        return unaccountableSearchableSnapshotSizes.getOrDefault(routingNode.nodeId(), 0L);
+    public long unaccountableSearchableSnapshotSize(RoutingNode node) {
+        return unaccountableSearchableSnapshotSizes.computeIfAbsent(node, k -> {
+            long totalSize = 0;
+            for (ShardRouting shard : node.started()) {
+                if (clusterInfo == null) {
+                    continue;
+                }
+                DiskUsage usage = clusterInfo.getNodeMostAvailableDiskUsages().get(node.nodeId());
+                ClusterInfo.ReservedSpace reservedSpace = clusterInfo.getReservedSpace(node.nodeId(), usage != null ? usage.getPath() : "");
+                if (clusterState.metadata().getIndexSafe(shard.index()).isSearchableSnapshot()
+                    && reservedSpace.containsShardId(shard.shardId()) == false
+                    && clusterInfo.getShardSize(shard) == null) {
+                    totalSize += Math.max(shard.getExpectedShardSize(), 0L);
+                }
+            }
+            return totalSize;
+        });
     }
 
     public enum DebugMode {

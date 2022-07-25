@@ -84,6 +84,7 @@ import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheRequest;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyResponse;
@@ -395,7 +396,7 @@ public class ApiKeyService {
         final Authentication authentication,
         final BulkUpdateApiKeyRequest request,
         final Set<RoleDescriptor> userRoleDescriptors,
-        final ActionListener<UpdateApiKeyResponse> listener
+        final ActionListener<BulkUpdateApiKeyResponse> listener
     ) {
         ensureEnabled();
 
@@ -412,6 +413,7 @@ public class ApiKeyService {
         logger.debug("Bulk updating API keys [{}]", request.getIds().size());
 
         findVersionedApiKeyDocsForSubject(authentication, request.getIds().toArray(new String[0]), ActionListener.wrap((versionedDocs) -> {
+            final BulkUpdateApiKeyResponse response = new BulkUpdateApiKeyResponse();
             final var bulkRequest = client.prepareBulk();
             for (VersionedApiKeyDoc versionedDoc : versionedDocs) {
                 try {
@@ -425,7 +427,7 @@ public class ApiKeyService {
                     );
                     final boolean isNoop = indexRequest == null;
                     if (isNoop) {
-                        // TODO add to noop
+                        response.addToNoops(versionedDoc.id());
                     } else {
                         bulkRequest.add(indexRequest);
                     }
@@ -435,7 +437,9 @@ public class ApiKeyService {
             }
             // TODO track non_found
             if (bulkRequest.numberOfActions() == 0) {
-                // TODO nothing to do
+                // TODO
+                logger.trace("No update required");
+                listener.onResponse(response);
             }
             securityIndex.prepareIndexIfNeededThenExecute(
                 listener::onFailure,
@@ -444,8 +448,7 @@ public class ApiKeyService {
                     SECURITY_ORIGIN,
                     bulkRequest.setRefreshPolicy(RefreshPolicy.WAIT_UNTIL).request(),
                     ActionListener.<BulkResponse>wrap(
-                        // TODO
-                        bulkResponse -> translateResponseAndClearCache("id", bulkResponse, listener),
+                        bulkResponse -> translateResponseAndClearCache(bulkResponse, response, listener),
                         listener::onFailure
                     ),
                     client::bulk
@@ -1461,6 +1464,28 @@ public class ApiKeyService {
         }
     }
 
+    private void translateResponseAndClearCache(
+        final BulkResponse bulkResponse,
+        // TODO builder?
+        final BulkUpdateApiKeyResponse currentResponse,
+        final ActionListener<BulkUpdateApiKeyResponse> listener
+    ) {
+        for (BulkItemResponse bulkItemResponse : bulkResponse.getItems()) {
+            final var id = bulkItemResponse.getId();
+            if (bulkItemResponse.isFailed()) {
+                currentResponse.addToErrors(
+                    id,
+                    new ElasticsearchException("Error updating api key", bulkItemResponse.getFailure().getCause())
+                );
+            } else {
+                // Since we made an index request against an existing document, we can't get a NOOP or CREATED here
+                assert bulkItemResponse.getResponse().getResult() == DocWriteResponse.Result.UPDATED;
+                currentResponse.addToUpdated(id);
+            }
+        }
+        clearApiKeyDocCache(currentResponse, listener);
+    }
+
     private static VersionedApiKeyDoc singleDoc(final String apiKeyId, final Collection<VersionedApiKeyDoc> elements) {
         if (elements.size() != 1) {
             final var message = "expected single API key doc with ID ["
@@ -1530,8 +1555,20 @@ public class ApiKeyService {
         );
     }
 
-    private void clearApiKeyDocCache(String apiKeyId, UpdateApiKeyResponse result, ActionListener<UpdateApiKeyResponse> listener) {
+    private void clearApiKeyDocCache(
+        final String apiKeyId,
+        final UpdateApiKeyResponse result,
+        final ActionListener<UpdateApiKeyResponse> listener
+    ) {
         executeClearCacheRequest(result, listener, new ClearSecurityCacheRequest().cacheName("api_key_doc").keys(apiKeyId));
+    }
+
+    private void clearApiKeyDocCache(final BulkUpdateApiKeyResponse result, final ActionListener<BulkUpdateApiKeyResponse> listener) {
+        executeClearCacheRequest(
+            result,
+            listener,
+            new ClearSecurityCacheRequest().cacheName("api_key_doc").keys(result.getUpdated().toArray(String[]::new))
+        );
     }
 
     private <T> void executeClearCacheRequest(T result, ActionListener<T> listener, ClearSecurityCacheRequest clearApiKeyCacheRequest) {

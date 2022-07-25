@@ -18,7 +18,7 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
-public class AbstractKeywordDocValuesField extends AbstractScriptFieldFactory<String>
+public abstract class AbstractKeywordDocValuesField extends AbstractScriptFieldFactory<String>
     implements
         Field<String>,
         DocValuesScriptFieldFactory,

@@ -383,7 +383,7 @@ public final class IndicesPermission {
 
         final boolean overallGranted = isActionGranted(action, resources);
 
-        final Map<String, IndicesAccessControl.IndexAccessControl> indexPermissions = computeIndicesAccessControl(
+        final Map<String, IndicesAccessControl.IndexAccessControl> indexPermissions = buildIndicesAccessControl(
             action,
             resources,
             totalResourceCount,
@@ -393,7 +393,7 @@ public final class IndicesPermission {
         return new IndicesAccessControl(overallGranted, indexPermissions);
     }
 
-    private Map<String, IndicesAccessControl.IndexAccessControl> computeIndicesAccessControl(
+    private Map<String, IndicesAccessControl.IndexAccessControl> buildIndicesAccessControl(
         final String action,
         final Map<String, IndexResource> requestedResources,
         final int totalResourceCount,

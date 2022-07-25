@@ -97,11 +97,11 @@ class org.elasticsearch.script.field.BaseKeywordDocValuesField @dynamic_type {
   String get(int, String)
 }
 
-# subclass of AbstractKeywordDocValuesField
+# subclass of BaseKeywordDocValuesField
 class org.elasticsearch.script.field.KeywordDocValuesField @dynamic_type {
 }
 
-# subclass of AbstractKeywordDocValuesField
+# subclass of BaseKeywordDocValuesField
 class org.elasticsearch.script.field.FlattenedDocValuesField @dynamic_type {
 }
 

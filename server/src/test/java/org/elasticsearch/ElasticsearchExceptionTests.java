@@ -11,6 +11,7 @@ package org.elasticsearch;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.RoutingMissingException;
+import org.elasticsearch.action.search.ReduceSearchPhaseException;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
@@ -200,6 +201,104 @@ public class ElasticsearchExceptionTests extends ESTestCase {
             assertEquals("inner", causes[0].getMessage());
             assertEquals("exception", causes[0].getExceptionName());
         }
+    }
+
+    public void testReduceSearchPhaseExceptionWithNoShardFailuresAndNoCause() throws IOException {
+        final ReduceSearchPhaseException ex = new ReduceSearchPhaseException(
+            "search",
+            "no shard failure",
+            null,
+            ShardSearchFailure.EMPTY_ARRAY
+        );
+
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject();
+        ex.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
+        String expected = """
+            {
+              "type": "reduce_search_phase_exception",
+              "reason": "[reduce] no shard failure",
+              "phase": "search",
+              "grouped": true,
+              "failed_shards": []
+            }""";
+        assertEquals(XContentHelper.stripWhitespace(expected), Strings.toString(builder));
+        assertEquals(RestStatus.INTERNAL_SERVER_ERROR.getStatus(), ex.status().getStatus());
+    }
+
+    public void testReduceSearchPhaseExceptionWithNoShardFailuresAndCause() throws IOException {
+        final ReduceSearchPhaseException ex = new ReduceSearchPhaseException(
+            "search",
+            "no shard failure",
+            new IllegalArgumentException("illegal argument"),
+            ShardSearchFailure.EMPTY_ARRAY
+        );
+
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject();
+        ex.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
+        String expected = """
+            {
+              "type": "reduce_search_phase_exception",
+              "reason": "[reduce] no shard failure",
+              "phase": "search",
+              "grouped": true,
+              "failed_shards": [],
+              "caused_by":{"type":"illegal_argument_exception","reason":"illegal argument"}
+            }""";
+        assertEquals(XContentHelper.stripWhitespace(expected), Strings.toString(builder));
+        assertEquals(RestStatus.BAD_REQUEST.getStatus(), ex.status().getStatus());
+    }
+
+    public void testSearchPhaseExecutionExceptionWithNoShardFailuresAndNoCause() throws IOException {
+        final SearchPhaseExecutionException ex = new SearchPhaseExecutionException(
+            "search",
+            "no shard failure",
+            null,
+            ShardSearchFailure.EMPTY_ARRAY
+        );
+
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject();
+        ex.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
+        String expected = """
+            {
+              "type": "search_phase_execution_exception",
+              "reason": "no shard failure",
+              "phase": "search",
+              "grouped": true,
+              "failed_shards": []
+            }""";
+        assertEquals(XContentHelper.stripWhitespace(expected), Strings.toString(builder));
+        assertEquals(RestStatus.SERVICE_UNAVAILABLE.getStatus(), ex.status().getStatus());
+    }
+
+    public void testReduceSearchPhaseExecutionExceptionWithNoShardFailuresAndCause() throws IOException {
+        final SearchPhaseExecutionException ex = new SearchPhaseExecutionException(
+            "search",
+            "no shard failure",
+            new IllegalArgumentException("illegal argument"),
+            ShardSearchFailure.EMPTY_ARRAY
+        );
+
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject();
+        ex.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
+        String expected = """
+            {
+              "type": "search_phase_execution_exception",
+              "reason": "no shard failure",
+              "phase": "search",
+              "grouped": true,
+              "failed_shards": [],
+              "caused_by":{"type":"illegal_argument_exception","reason":"illegal argument"}
+            }""";
+        assertEquals(XContentHelper.stripWhitespace(expected), Strings.toString(builder));
+        assertEquals(RestStatus.BAD_REQUEST.getStatus(), ex.status().getStatus());
     }
 
     public void testDeduplicate() throws IOException {

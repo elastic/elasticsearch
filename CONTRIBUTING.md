@@ -604,7 +604,7 @@ threshold has been breached:
 
     logger.warn(
         "flood stage disk watermark [{}] exceeded on {}, all indices on this node will be marked read-only",
-        diskThresholdSettings.describeFloodStageThreshold(),
+        diskThresholdSettings.describeFloodStageThreshold(total, false),
         usage
     );
 

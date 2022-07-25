@@ -8,10 +8,6 @@
 
 package org.elasticsearch.action.admin.indices.diskusage;
 
-import com.carrotsearch.randomizedtesting.RandomizedTest;
-import com.carrotsearch.randomizedtesting.SeedUtils;
-import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
-
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
@@ -80,7 +76,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.empty;
@@ -90,6 +85,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class IndexDiskUsageAnalyzerTests extends ESTestCase {
+    private static final int DEFAULT_VECTOR_DIMENSION = 128;
 
     protected static Directory createNewDirectory() {
         final Directory dir = LuceneTestCase.newDirectory();
@@ -256,10 +252,10 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
             final CodecMode codec = randomFrom(CodecMode.values());
             VectorSimilarityFunction similarity = randomFrom(VectorSimilarityFunction.values());
             int numDocs = between(100, 1000);
-            int dimension = randomVector().length;
+            int dimension = between(10, 200);
 
             indexRandomly(dir, codec, numDocs, doc -> {
-                float[] vector = randomVector();
+                float[] vector = randomVector(dimension);
                 doc.add(new KnnVectorField("vector", vector, similarity));
             });
             final IndexDiskUsageStats stats = IndexDiskUsageAnalyzer.analyze(testShardId(), lastCommit(dir), () -> {});
@@ -521,14 +517,12 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
     static void addRandomKnnVectors(Document doc) {
         int numFields = randomFrom(1, 3);
         for (int f = 0; f < numFields; f++) {
-            doc.add(new KnnVectorField("knnvector-" + f, randomVector()));
+            doc.add(new KnnVectorField("knnvector-" + f, randomVector(DEFAULT_VECTOR_DIMENSION)));
         }
     }
 
-    private static float[] randomVector() {
-        // used random but fixed vector size for each test
-        long masterSeed = SeedUtils.parseSeed(RandomizedTest.getContext().getRunnerSeedAsString());
-        float[] vec = new float[RandomNumbers.randomIntBetween(new Random(masterSeed), 10, 20)];
+    private static float[] randomVector(int dimension) {
+        float[] vec = new float[dimension];
         for (int i = 0; i < vec.length; i++) {
             vec[i] = randomFloat();
         }

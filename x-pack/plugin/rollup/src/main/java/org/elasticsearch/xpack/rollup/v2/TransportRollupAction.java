@@ -66,9 +66,7 @@ import org.elasticsearch.xpack.core.rollup.action.RollupActionRequestValidationE
 import org.elasticsearch.xpack.core.rollup.action.RollupIndexerAction;
 
 import java.io.IOException;
-import java.time.Instant;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 

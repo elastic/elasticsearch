@@ -65,3 +65,5 @@ include::monitoring/troubleshooting.asciidoc[]
 include::transform/troubleshooting.asciidoc[leveloffset=+1]
 
 include::../../x-pack/docs/en/watcher/troubleshooting.asciidoc[]
+
+include::troubleshooting/corruption-issues.asciidoc[]

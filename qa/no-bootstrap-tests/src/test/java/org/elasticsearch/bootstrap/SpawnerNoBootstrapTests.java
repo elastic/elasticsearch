@@ -311,12 +311,8 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
             spawner.spawnNativeControllers(environment);
         } else {
             // we do not ignore these files on non-macOS systems
-            final FileSystemException e = expectThrows(FileSystemException.class, () -> spawner.spawnNativeControllers(environment));
-            if (Constants.WINDOWS) {
-                assertThat(e, instanceOf(NoSuchFileException.class));
-            } else {
-                assertThat(e, hasToString(containsString("Not a directory")));
-            }
+            var e = expectThrows(IllegalStateException.class, () -> spawner.spawnNativeControllers(environment));
+            assertThat(e.getMessage(), equalTo("Plugin [.DS_Store] is missing a descriptor properties file"));
         }
     }
 

@@ -28,18 +28,17 @@ import java.util.Set;
  * but handle the internal versioning scheme without scripts accessing the ctx map.
  */
 public class ReindexMetadata extends Metadata {
-    private static final Metadata.FieldProperty<String> WritableStringField = StringField.withWritable();
     static final Map<String, FieldProperty<?>> PROPERTIES = Map.of(
         INDEX,
-        AnyField.withWritable(),
+        ObjectField.withWritable(),
         ID,
-        AnyField.withWritable().withNullable(),
+        ObjectField.withWritable().withNullable(),
         VERSION,
         LongField.withWritable().withNullable(),
         ROUTING,
-        WritableStringField.withNullable(),
+        StringField.withWritable().withNullable(),
         OP,
-        WritableStringSetField(Set.of("noop", "index", "delete")),
+        StringField.withWritable().withValidation(stringSetValidator(Set.of("noop", "index", "delete"))),
         TIMESTAMP,
         LongField
     );

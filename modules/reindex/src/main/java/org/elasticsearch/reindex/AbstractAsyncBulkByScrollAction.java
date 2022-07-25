@@ -857,6 +857,8 @@ public abstract class AbstractAsyncBulkByScrollAction<
             return requestFromOp(request, metadata.getOp());
         }
 
+        protected abstract CtxMap<T> execute(ScrollableHitSource.Hit doc, Map<String, Object> source);
+
         /**
          * Retrieves _source as a Map
          * @throws IllegalArgumentException if _source is missing, a non-map or there are other keys
@@ -905,9 +907,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
             }
         }
 
-        protected abstract CtxMap<T> execute(ScrollableHitSource.Hit doc, Map<String, Object> source);
-
-        protected void updateRequest(RequestWrapper<?> request, T metadata) {}
+        protected abstract void updateRequest(RequestWrapper<?> request, T metadata);
     }
 
     static class ScrollConsumableHitsResponse {

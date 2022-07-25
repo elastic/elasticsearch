@@ -100,7 +100,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
         ) {
             super(
                 task,
-                // use sequence number powered optimistic concurrency control, TODO(stu): no way to access version
+                // use sequence number powered optimistic concurrency control, TODO(stu): no way to access version #55745
                 false,
                 true,
                 logger,
@@ -165,6 +165,11 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
                 );
                 update.newInstance(params, ctxMap).execute();
                 return ctxMap;
+            }
+
+            @Override
+            protected void updateRequest(RequestWrapper<?> request, UpdateByQueryMetadata metadata) {
+                // do nothing
             }
         }
     }

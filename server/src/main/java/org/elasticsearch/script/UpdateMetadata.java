@@ -24,21 +24,19 @@ public class UpdateMetadata extends Metadata {
     // the ctx map
     protected static final String LEGACY_NOOP_STRING = "none";
 
-    private static final FieldProperty<String> NullStringField = StringField.withNullable();
-
     static final Map<String, FieldProperty<?>> PROPERTIES = Map.of(
         INDEX,
-        NullStringField,
+        StringField.withNullable(),
         ID,
-        NullStringField,
+        StringField.withNullable(),
         VERSION,
         LongField,
         ROUTING,
-        NullStringField,
+        StringField.withNullable(),
         TYPE,
-        NullStringField,
+        StringField.withNullable(),
         OP,
-        NullStringField.withWritable(),
+        StringField.withWritable().withNullable(),
         TIMESTAMP,
         LongField
     );

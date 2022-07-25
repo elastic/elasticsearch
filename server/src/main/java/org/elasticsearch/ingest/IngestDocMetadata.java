@@ -18,16 +18,16 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 class IngestDocMetadata extends Metadata {
-    private static final FieldProperty<String> WriteNullString = StringField.withWritable().withNullable();
+
     static final Map<String, FieldProperty<?>> PROPERTIES = Map.of(
         INDEX,
-        WriteNullString,
+        StringField.withWritable().withNullable(),
         ID,
-        WriteNullString,
+        StringField.withWritable().withNullable(),
         ROUTING,
-        WriteNullString,
+        StringField.withWritable().withNullable(),
         VERSION_TYPE,
-        WriteNullString.withValidation(IngestDocMetadata::versionTypeValidator),
+        StringField.withWritable().withNullable().withValidation(IngestDocMetadata::versionTypeValidator),
         VERSION,
         LongField.withWritable(),
         TYPE,

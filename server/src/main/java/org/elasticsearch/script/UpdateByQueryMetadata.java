@@ -31,7 +31,7 @@ public class UpdateByQueryMetadata extends Metadata {
         ROUTING,
         StringField.withNullable(),
         OP,
-        WritableStringSetField(Set.of("noop", "index", "delete")),
+        StringField.withWritable().withValidation(stringSetValidator(Set.of("noop", "index", "delete"))),
         TIMESTAMP,
         LongField
     );

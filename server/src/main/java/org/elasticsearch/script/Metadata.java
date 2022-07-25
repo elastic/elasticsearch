@@ -50,19 +50,9 @@ public class Metadata {
     protected static final String IF_PRIMARY_TERM = "_if_primary_term";
     protected static final String DYNAMIC_TEMPLATES = "_dynamic_templates";
 
-    public static FieldProperty<Object> AnyField = new FieldProperty<>(Object.class);
+    public static FieldProperty<Object> ObjectField = new FieldProperty<>(Object.class);
     public static FieldProperty<String> StringField = new FieldProperty<>(String.class);
     public static FieldProperty<Number> LongField = new FieldProperty<>(Number.class).withValidation(FieldProperty.LONGABLE_NUMBER);
-
-    public static FieldProperty<String> WritableStringSetField(Set<String> valid) {
-        return StringField.withWritable().withValidation((k, v) -> {
-            if (valid.contains(v) == false) {
-                throw new IllegalArgumentException(
-                    "[" + k + "] must be one of " + valid.stream().sorted().collect(Collectors.joining(", ")) + ", not [" + v + "]"
-                );
-            }
-        });
-    }
 
     protected final Map<String, Object> map;
     protected final Map<String, FieldProperty<?>> properties;
@@ -384,5 +374,15 @@ public class Metadata {
                 extendedValidation.accept(key, (T) value);
             }
         }
+    }
+
+    public static BiConsumer<String, String> stringSetValidator(Set<String> valid) {
+        return (k, v) -> {
+            if (valid.contains(v) == false) {
+                throw new IllegalArgumentException(
+                    "[" + k + "] must be one of " + valid.stream().sorted().collect(Collectors.joining(", ")) + ", not [" + v + "]"
+                );
+            }
+        };
     }
 }

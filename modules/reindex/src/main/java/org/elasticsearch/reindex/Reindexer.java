@@ -388,6 +388,26 @@ public class Reindexer {
             }
 
             @Override
+            protected CtxMap<ReindexMetadata> execute(ScrollableHitSource.Hit doc, Map<String, Object> source) {
+                if (reindex == null) {
+                    reindex = scriptService.compile(script, ReindexScript.CONTEXT);
+                }
+                CtxMap<ReindexMetadata> ctxMap = new CtxMap<>(
+                    source,
+                    new ReindexMetadata(
+                        doc.getIndex(),
+                        doc.getId(),
+                        doc.getVersion(),
+                        doc.getRouting(),
+                        INDEX,
+                        nowInMillisSupplier.getAsLong()
+                    )
+                );
+                reindex.newInstance(params, ctxMap).execute();
+                return ctxMap;
+            }
+
+            @Override
             protected void updateRequest(RequestWrapper<?> request, ReindexMetadata metadata) {
                 if (metadata.indexChanged()) {
                     request.setIndex(metadata.getIndex());
@@ -410,26 +430,6 @@ public class Reindexer {
                 if (metadata.routingChanged()) {
                     request.setRouting(metadata.getRouting());
                 }
-            }
-
-            @Override
-            protected CtxMap<ReindexMetadata> execute(ScrollableHitSource.Hit doc, Map<String, Object> source) {
-                if (reindex == null) {
-                    reindex = scriptService.compile(script, ReindexScript.CONTEXT);
-                }
-                CtxMap<ReindexMetadata> ctxMap = new CtxMap<>(
-                    source,
-                    new ReindexMetadata(
-                        doc.getIndex(),
-                        doc.getId(),
-                        doc.getVersion(),
-                        doc.getRouting(),
-                        INDEX,
-                        nowInMillisSupplier.getAsLong()
-                    )
-                );
-                reindex.newInstance(params, ctxMap).execute();
-                return ctxMap;
             }
         }
     }

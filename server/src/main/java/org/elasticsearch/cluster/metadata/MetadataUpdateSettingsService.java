@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionMultiListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.regex.Regex;
@@ -71,25 +72,28 @@ public class MetadataUpdateSettingsService {
         this.indicesService = indicesService;
         this.shardLimitValidator = shardLimitValidator;
         this.executor = (currentState, taskContexts) -> {
+            var listener = new AllocationActionMultiListener<AcknowledgedResponse>();
             ClusterState state = currentState;
             for (final var taskContext : taskContexts) {
                 try {
                     final var task = taskContext.getTask();
                     state = task.execute(state);
-                    taskContext.success(task);
+                    taskContext.success(task.getAckListener(listener));
                 } catch (Exception e) {
                     taskContext.onFailure(e);
                 }
             }
             if (state != currentState) {
                 // reroute in case things change that require it (like number of replicas)
-                state = allocationService.reroute(state, "settings update");
+                state = allocationService.reroute(state, "settings update", listener.reroute());
+            } else {
+                listener.noRerouteNeeded();
             }
             return state;
         };
     }
 
-    private final class UpdateSettingsTask implements ClusterStateAckListener, ClusterStateTaskListener {
+    private final class UpdateSettingsTask implements ClusterStateTaskListener {
         private final UpdateSettingsClusterStateUpdateRequest request;
         private final ActionListener<AcknowledgedResponse> listener;
 
@@ -98,29 +102,33 @@ public class MetadataUpdateSettingsService {
             this.listener = listener;
         }
 
-        @Override
-        public boolean mustAck(DiscoveryNode discoveryNode) {
-            return true;
-        }
+        private ClusterStateAckListener getAckListener(AllocationActionMultiListener<AcknowledgedResponse> multiListener) {
+            return new ClusterStateAckListener() {
+                @Override
+                public boolean mustAck(DiscoveryNode discoveryNode) {
+                    return true;
+                }
 
-        @Override
-        public void onAllNodesAcked() {
-            listener.onResponse(AcknowledgedResponse.of(true));
-        }
+                @Override
+                public void onAllNodesAcked() {
+                    multiListener.delay(listener).onResponse(AcknowledgedResponse.of(true));
+                }
 
-        @Override
-        public void onAckFailure(Exception e) {
-            listener.onFailure(e);
-        }
+                @Override
+                public void onAckFailure(Exception e) {
+                    multiListener.delay(listener).onFailure(e);
+                }
 
-        @Override
-        public void onAckTimeout() {
-            listener.onResponse(AcknowledgedResponse.of(false));
-        }
+                @Override
+                public void onAckTimeout() {
+                    multiListener.delay(listener).onResponse(AcknowledgedResponse.of(false));
+                }
 
-        @Override
-        public TimeValue ackTimeout() {
-            return request.ackTimeout();
+                @Override
+                public TimeValue ackTimeout() {
+                    return request.ackTimeout();
+                }
+            };
         }
 
         @Override

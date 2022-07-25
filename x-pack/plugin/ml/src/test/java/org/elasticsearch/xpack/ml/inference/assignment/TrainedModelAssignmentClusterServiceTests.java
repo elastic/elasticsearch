@@ -1407,7 +1407,14 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         int numberOfAllocations,
         int threadsPerAllocation
     ) {
-        return new StartTrainedModelDeploymentAction.TaskParams(modelId, modelSize, threadsPerAllocation, numberOfAllocations, 1024);
+        return new StartTrainedModelDeploymentAction.TaskParams(
+            modelId,
+            modelSize,
+            threadsPerAllocation,
+            numberOfAllocations,
+            1024,
+            ByteSizeValue.ofBytes(modelSize)
+        );
     }
 
     private static NodesShutdownMetadata shutdownMetadata(String nodeId) {

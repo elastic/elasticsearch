@@ -166,14 +166,13 @@ public class DiskThresholdMonitor {
             final String node = entry.getKey();
             final DiskUsage usage = entry.getValue();
             final RoutingNode routingNode = routingNodes.node(node);
+            final ByteSizeValue total = ByteSizeValue.ofBytes(usage.getTotalBytes());
 
             if (isDedicatedFrozenNode(routingNode)) {
-                ByteSizeValue total = ByteSizeValue.ofBytes(usage.getTotalBytes());
-                long frozenFloodStageThreshold = diskThresholdSettings.getFreeBytesThresholdFrozenFloodStage(total).getBytes();
-                if (usage.getFreeBytes() < frozenFloodStageThreshold) {
+                if (usage.getFreeBytes() < diskThresholdSettings.getFreeBytesThresholdFrozenFloodStage(total).getBytes()) {
                     logger.warn(
                         "flood stage disk watermark [{}] exceeded on {}",
-                        diskThresholdSettings.describeFrozenFloodStageThreshold(total),
+                        diskThresholdSettings.describeFrozenFloodStageThreshold(total, false),
                         usage
                     );
                 }
@@ -182,9 +181,7 @@ public class DiskThresholdMonitor {
                 continue;
             }
 
-            if (usage.getFreeBytes() < diskThresholdSettings.getFreeBytesThresholdFloodStage().getBytes()
-                || usage.getFreeDiskAsPercentage() < diskThresholdSettings.getFreeDiskThresholdFloodStage()) {
-
+            if (usage.getFreeBytes() < diskThresholdSettings.getFreeBytesThresholdFloodStage(total).getBytes()) {
                 nodesOverLowThreshold.add(node);
                 nodesOverHighThreshold.add(node);
                 nodesOverHighThresholdAndRelocating.remove(node);
@@ -199,16 +196,14 @@ public class DiskThresholdMonitor {
 
                 logger.warn(
                     "flood stage disk watermark [{}] exceeded on {}, all indices on this node will be marked read-only",
-                    diskThresholdSettings.describeFloodStageThreshold(),
+                    diskThresholdSettings.describeFloodStageThreshold(total, false),
                     usage
                 );
 
                 continue;
             }
 
-            if (usage.getFreeBytes() < diskThresholdSettings.getFreeBytesThresholdHigh().getBytes()
-                || usage.getFreeDiskAsPercentage() < diskThresholdSettings.getFreeDiskThresholdHigh()) {
-
+            if (usage.getFreeBytes() < diskThresholdSettings.getFreeBytesThresholdHighStage(total).getBytes()) {
                 if (routingNode != null) { // might be temporarily null if the ClusterInfoService and the ClusterService are out of step
                     for (ShardRouting routing : routingNode) {
                         String indexName = routing.index().getName();
@@ -226,9 +221,7 @@ public class DiskThresholdMonitor {
                 Math.max(0L, usage.getFreeBytes() - reservedSpace)
             );
 
-            if (usageWithReservedSpace.getFreeBytes() < diskThresholdSettings.getFreeBytesThresholdHigh().getBytes()
-                || usageWithReservedSpace.getFreeDiskAsPercentage() < diskThresholdSettings.getFreeDiskThresholdHigh()) {
-
+            if (usageWithReservedSpace.getFreeBytes() < diskThresholdSettings.getFreeBytesThresholdHighStage(total).getBytes()) {
                 nodesOverLowThreshold.add(node);
                 nodesOverHighThreshold.add(node);
 
@@ -245,61 +238,57 @@ public class DiskThresholdMonitor {
                     );
                 }
 
-            } else if (usageWithReservedSpace.getFreeBytes() < diskThresholdSettings.getFreeBytesThresholdLow().getBytes()
-                || usageWithReservedSpace.getFreeDiskAsPercentage() < diskThresholdSettings.getFreeDiskThresholdLow()) {
+            } else if (usageWithReservedSpace.getFreeBytes() < diskThresholdSettings.getFreeBytesThresholdLowStage(total).getBytes()) {
+                nodesOverHighThresholdAndRelocating.remove(node);
 
-                    nodesOverHighThresholdAndRelocating.remove(node);
+                final boolean wasUnderLowThreshold = nodesOverLowThreshold.add(node);
+                final boolean wasOverHighThreshold = nodesOverHighThreshold.remove(node);
+                assert (wasUnderLowThreshold && wasOverHighThreshold) == false;
 
-                    final boolean wasUnderLowThreshold = nodesOverLowThreshold.add(node);
-                    final boolean wasOverHighThreshold = nodesOverHighThreshold.remove(node);
-                    assert (wasUnderLowThreshold && wasOverHighThreshold) == false;
+                if (wasUnderLowThreshold) {
+                    logger.info(
+                        "low disk watermark [{}] exceeded on {}, replicas will not be assigned to this node",
+                        diskThresholdSettings.describeLowThreshold(total, false),
+                        usage
+                    );
+                } else if (wasOverHighThreshold) {
+                    logger.info(
+                        "high disk watermark [{}] no longer exceeded on {}, but low disk watermark [{}] is still exceeded",
+                        diskThresholdSettings.describeHighThreshold(total, false),
+                        usage,
+                        diskThresholdSettings.describeLowThreshold(total, false)
+                    );
+                }
 
-                    if (wasUnderLowThreshold) {
+            } else {
+                nodesOverHighThresholdAndRelocating.remove(node);
+
+                if (nodesOverLowThreshold.contains(node)) {
+                    // The node has previously been over the low watermark, but is no longer, so it may be possible to allocate more
+                    // shards if we reroute now.
+                    if (lastRunTimeMillis.get() <= currentTimeMillis - diskThresholdSettings.getRerouteInterval().millis()) {
+                        reroute = true;
+                        explanation = "one or more nodes has gone under the high or low watermark";
+                        nodesOverLowThreshold.remove(node);
+                        nodesOverHighThreshold.remove(node);
+
                         logger.info(
-                            "low disk watermark [{}] exceeded on {}, replicas will not be assigned to this node",
-                            diskThresholdSettings.describeLowThreshold(),
+                            "low disk watermark [{}] no longer exceeded on {}",
+                            diskThresholdSettings.describeLowThreshold(total, false),
                             usage
                         );
-                    } else if (wasOverHighThreshold) {
-                        logger.info(
-                            "high disk watermark [{}] no longer exceeded on {}, but low disk watermark [{}] is still exceeded",
-                            diskThresholdSettings.describeHighThreshold(),
-                            usage,
-                            diskThresholdSettings.describeLowThreshold()
+
+                    } else {
+                        logger.debug(
+                            "{} has gone below a disk threshold, but an automatic reroute has occurred "
+                                + "in the last [{}], skipping reroute",
+                            node,
+                            diskThresholdSettings.getRerouteInterval()
                         );
                     }
-
-                } else {
-
-                    nodesOverHighThresholdAndRelocating.remove(node);
-
-                    if (nodesOverLowThreshold.contains(node)) {
-                        // The node has previously been over the low watermark, but is no longer, so it may be possible to allocate more
-                        // shards
-                        // if we reroute now.
-                        if (lastRunTimeMillis.get() <= currentTimeMillis - diskThresholdSettings.getRerouteInterval().millis()) {
-                            reroute = true;
-                            explanation = "one or more nodes has gone under the high or low watermark";
-                            nodesOverLowThreshold.remove(node);
-                            nodesOverHighThreshold.remove(node);
-
-                            logger.info(
-                                "low disk watermark [{}] no longer exceeded on {}",
-                                diskThresholdSettings.describeLowThreshold(),
-                                usage
-                            );
-
-                        } else {
-                            logger.debug(
-                                "{} has gone below a disk threshold, but an automatic reroute has occurred "
-                                    + "in the last [{}], skipping reroute",
-                                node,
-                                diskThresholdSettings.getRerouteInterval()
-                            );
-                        }
-                    }
-
                 }
+
+            }
         }
 
         final ActionListener<Void> listener = new GroupedActionListener<>(ActionListener.wrap(this::checkFinished), 3);
@@ -325,16 +314,15 @@ public class DiskThresholdMonitor {
                         usageIncludingRelocations = diskUsage;
                         relocatingShardsSize = 0L;
                     }
+                    final ByteSizeValue total = ByteSizeValue.ofBytes(usageIncludingRelocations.getTotalBytes());
 
-                    if (usageIncludingRelocations.getFreeBytes() < diskThresholdSettings.getFreeBytesThresholdHigh().getBytes()
-                        || usageIncludingRelocations.getFreeDiskAsPercentage() < diskThresholdSettings.getFreeDiskThresholdHigh()) {
-
+                    if (usageIncludingRelocations.getFreeBytes() < diskThresholdSettings.getFreeBytesThresholdHighStage(total).getBytes()) {
                         nodesOverHighThresholdAndRelocating.remove(diskUsage.getNodeId());
                         logger.warn(
                             "high disk watermark [{}] exceeded on {}, shards will be relocated away from this node; "
                                 + "currently relocating away shards totalling [{}] bytes; the node is expected to continue to exceed "
                                 + "the high disk watermark when these relocations are complete",
-                            diskThresholdSettings.describeHighThreshold(),
+                            diskThresholdSettings.describeHighThreshold(total, false),
                             diskUsage,
                             -relocatingShardsSize
                         );
@@ -343,7 +331,7 @@ public class DiskThresholdMonitor {
                             "high disk watermark [{}] exceeded on {}, shards will be relocated away from this node; "
                                 + "currently relocating away shards totalling [{}] bytes; the node is expected to be below the high "
                                 + "disk watermark when these relocations are complete",
-                            diskThresholdSettings.describeHighThreshold(),
+                            diskThresholdSettings.describeHighThreshold(total, false),
                             diskUsage,
                             -relocatingShardsSize
                         );
@@ -351,7 +339,7 @@ public class DiskThresholdMonitor {
                         logger.debug(
                             "high disk watermark [{}] exceeded on {}, shards will be relocated away from this node; "
                                 + "currently relocating away shards totalling [{}] bytes",
-                            diskThresholdSettings.describeHighThreshold(),
+                            diskThresholdSettings.describeHighThreshold(total, false),
                             diskUsage,
                             -relocatingShardsSize
                         );

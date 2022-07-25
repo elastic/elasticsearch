@@ -31,8 +31,10 @@ import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
+import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
@@ -123,6 +125,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
     private static final long TEST_NODE_SIZE = ByteSizeValue.ofGb(20).getBytes();
     private static final long ML_MEMORY_FOR_TEST_NODE_SIZE = NativeMemoryCalculator.allowedBytesForMl(TEST_NODE_SIZE, 0, true);
     private static final long TEST_JVM_SIZE = mlOnlyNodeJvmBytes(TEST_NODE_SIZE);
+    private static final int TEST_ALLOCATED_PROCESSORS = 2;
     private static final long TEST_JOB_SIZE = ByteSizeValue.ofMb(200).getBytes();
     private static final long PER_NODE_OVERHEAD = MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes();
 
@@ -1182,6 +1185,48 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
         }
     }
 
+    public void testCpuModelAssignmentRequirements() {
+        assertTrue(
+            MlAutoscalingDeciderService.modelAssignmentsRequireMoreThanHalfCpu(
+                List.of(
+                    TrainedModelAssignment.Builder.empty(
+                        new StartTrainedModelDeploymentAction.TaskParams("model1", TEST_JOB_SIZE, 3, 2, 100, null)
+                    ).build(),
+                    TrainedModelAssignment.Builder.empty(
+                        new StartTrainedModelDeploymentAction.TaskParams("model1", TEST_JOB_SIZE, 1, 1, 100, null)
+                    ).build()
+                ),
+                withMlNodes("ml_node_1", "ml_node_2")
+            )
+        );
+        assertTrue(
+            MlAutoscalingDeciderService.modelAssignmentsRequireMoreThanHalfCpu(
+                List.of(
+                    TrainedModelAssignment.Builder.empty(
+                        new StartTrainedModelDeploymentAction.TaskParams("model1", TEST_JOB_SIZE, 3, 1, 100, null)
+                    ).build(),
+                    TrainedModelAssignment.Builder.empty(
+                        new StartTrainedModelDeploymentAction.TaskParams("model1", TEST_JOB_SIZE, 1, 1, 100, null)
+                    ).build()
+                ),
+                withMlNodes("ml_node_1", "ml_node_2")
+            )
+        );
+        assertFalse(
+            MlAutoscalingDeciderService.modelAssignmentsRequireMoreThanHalfCpu(
+                List.of(
+                    TrainedModelAssignment.Builder.empty(
+                        new StartTrainedModelDeploymentAction.TaskParams("model1", TEST_JOB_SIZE, 3, 1, 100, null)
+                    ).build(),
+                    TrainedModelAssignment.Builder.empty(
+                        new StartTrainedModelDeploymentAction.TaskParams("model1", TEST_JOB_SIZE, 1, 1, 100, null)
+                    ).build()
+                ),
+                withMlNodes("ml_node_1", "ml_node_2", "ml_node_3", "ml_node_4")
+            )
+        );
+    }
+
     public void testEnsureScaleDown() {
         assertThat(
             MlAutoscalingDeciderService.ensureScaleDown(
@@ -1394,7 +1439,9 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
                         MachineLearning.MACHINE_MEMORY_NODE_ATTR,
                         String.valueOf(TEST_NODE_SIZE),
                         MachineLearning.MAX_JVM_SIZE_NODE_ATTR,
-                        String.valueOf(TEST_JVM_SIZE)
+                        String.valueOf(TEST_JVM_SIZE),
+                        MachineLearning.ALLOCATED_PROCESSORS_NODE_ATTR,
+                        String.valueOf(TEST_ALLOCATED_PROCESSORS)
                     ),
                     Set.of(DiscoveryNodeRole.ML_ROLE),
                     Version.CURRENT

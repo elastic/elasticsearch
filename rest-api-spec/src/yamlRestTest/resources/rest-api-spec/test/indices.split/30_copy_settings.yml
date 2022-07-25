@@ -2,6 +2,8 @@
 "Copy settings during split index":
   - skip:
       features: [arbitrary_key]
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/86429"
 
   - do:
       nodes.info:

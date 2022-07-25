@@ -718,7 +718,10 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
 
                 final ListenableFuture<ContentAndJwksAlgs> newFuture = new ListenableFuture<>();
                 if (this.reloadFutureRef.compareAndSet(null, newFuture)) {
-                    loadInternal(ActionListener.runAfter(newFuture, () -> this.reloadFutureRef.compareAndSet(newFuture, null)));
+                    loadInternal(ActionListener.runAfter(newFuture, () -> {
+                        final ListenableFuture<ContentAndJwksAlgs> oldValue = this.reloadFutureRef.getAndSet(null);
+                        assert oldValue == newFuture : "future reference changed unexpectedly";
+                    }));
                     return newFuture;
                 }
                 // else, Another thread set the future-ref before us, just try it all again

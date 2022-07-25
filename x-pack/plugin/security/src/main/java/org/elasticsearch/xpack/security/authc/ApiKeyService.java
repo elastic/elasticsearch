@@ -413,33 +413,43 @@ public class ApiKeyService {
         logger.debug("Bulk updating API keys [{}]", request.getIds().size());
 
         findVersionedApiKeyDocsForSubject(authentication, request.getIds().toArray(new String[0]), ActionListener.wrap((versionedDocs) -> {
+            final Set<String> requestedIds = Set.copyOf(request.getIds());
             final BulkUpdateApiKeyResponse response = new BulkUpdateApiKeyResponse();
             final var bulkRequest = client.prepareBulk();
             for (VersionedApiKeyDoc versionedDoc : versionedDocs) {
-                try {
-                    validateCurrentApiKeyDocForUpdate(versionedDoc.id(), authentication, versionedDoc.doc());
-                    final IndexRequest indexRequest = maybeBuildIndexRequestForUpdate(
-                        authentication,
-                        request.getRoleDescriptors(),
-                        userRoleDescriptors,
-                        request.getMetadata(),
-                        versionedDoc
+                final String apiKeyId = versionedDoc.id();
+                if (false == requestedIds.contains(apiKeyId)) {
+                    response.addToErrors(
+                        apiKeyId,
+                        new ResourceNotFoundException("no API key owned by requesting user found for ID [" + apiKeyId + "]")
                     );
-                    final boolean isNoop = indexRequest == null;
-                    if (isNoop) {
-                        response.addToNoops(versionedDoc.id());
-                    } else {
-                        bulkRequest.add(indexRequest);
-                    }
-                } catch (Exception ex) {
-                    // TODO add to errors
+                    continue;
+                }
+                try {
+                    validateCurrentApiKeyDocForUpdate(apiKeyId, authentication, versionedDoc.doc());
+                } catch (IllegalArgumentException ex) {
+                    response.addToErrors(apiKeyId, new ElasticsearchException("Validation", ex));
+                    continue;
+                }
+                final IndexRequest indexRequest = maybeBuildIndexRequestForUpdate(
+                    authentication,
+                    request.getRoleDescriptors(),
+                    userRoleDescriptors,
+                    request.getMetadata(),
+                    versionedDoc
+                );
+                final boolean isNoop = indexRequest == null;
+                if (isNoop) {
+                    response.addToNoops(apiKeyId);
+                } else {
+                    bulkRequest.add(indexRequest);
                 }
             }
-            // TODO track non_found
             if (bulkRequest.numberOfActions() == 0) {
                 // TODO
                 logger.trace("No update required");
                 listener.onResponse(response);
+                return;
             }
             securityIndex.prepareIndexIfNeededThenExecute(
                 listener::onFailure,
@@ -458,7 +468,6 @@ public class ApiKeyService {
     }
 
     // package-private for testing
-    // TODO id is redundant now
     void validateCurrentApiKeyDocForUpdate(final String apiKeyId, final Authentication authentication, final ApiKeyDoc apiKeyDoc) {
         assert authentication.getEffectiveSubject().getUser().principal().equals(apiKeyDoc.creator.get("principal"));
 

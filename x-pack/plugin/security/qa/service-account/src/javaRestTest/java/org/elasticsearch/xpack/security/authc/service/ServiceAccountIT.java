@@ -177,7 +177,15 @@ public class ServiceAccountIT extends ESRestTestCase {
                         "search-*"
                     ],
                     "privileges": [
-                        "all"
+                        "read",
+                        "view_index_metadata",
+                        "create",
+                        "create_index",
+                        "delete",
+                        "index",
+                        "manage",
+                        "monitor",
+                        "write"
                     ],
                     "allow_restricted_indices": false
                 }

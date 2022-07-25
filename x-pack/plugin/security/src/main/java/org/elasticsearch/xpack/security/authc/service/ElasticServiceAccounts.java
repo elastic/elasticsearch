@@ -44,7 +44,18 @@ final class ElasticServiceAccounts {
                     )
                     .privileges("manage", "read", "write")
                     .build(),
-                RoleDescriptor.IndicesPrivileges.builder().indices("search-*").privileges("all").build() },
+                RoleDescriptor.IndicesPrivileges.builder().indices("search-*")
+                    .privileges(
+                        "read",
+                        "view_index_metadata",
+                        "create",
+                        "create_index",
+                        "delete",
+                        "index",
+                        "manage",
+                        "monitor",
+                        "write")
+                    .build() },
             null,
             null,
             null,

@@ -157,16 +157,8 @@ public class RolloverAction implements LifecycleAction {
     }
 
     public RolloverAction(StreamInput in) throws IOException {
-        if (in.readBoolean()) {
-            maxSize = new ByteSizeValue(in);
-        } else {
-            maxSize = null;
-        }
-        if (in.readBoolean()) {
-            maxPrimaryShardSize = new ByteSizeValue(in);
-        } else {
-            maxPrimaryShardSize = null;
-        }
+        maxSize = in.readOptionalWriteable(ByteSizeValue::new);
+        maxPrimaryShardSize = in.readOptionalWriteable(ByteSizeValue::new);
         maxAge = in.readOptionalTimeValue();
         maxDocs = in.readOptionalVLong();
         if (in.getVersion().onOrAfter(Version.V_8_2_0)) {
@@ -175,16 +167,8 @@ public class RolloverAction implements LifecycleAction {
             maxPrimaryShardDocs = null;
         }
         if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
-            if (in.readBoolean()) {
-                minSize = new ByteSizeValue(in);
-            } else {
-                minSize = null;
-            }
-            if (in.readBoolean()) {
-                minPrimaryShardSize = new ByteSizeValue(in);
-            } else {
-                minPrimaryShardSize = null;
-            }
+            minSize = in.readOptionalWriteable(ByteSizeValue::new);
+            minPrimaryShardSize = in.readOptionalWriteable(ByteSizeValue::new);
             minAge = in.readOptionalTimeValue();
             minDocs = in.readOptionalVLong();
             minPrimaryShardDocs = in.readOptionalVLong();
@@ -199,30 +183,16 @@ public class RolloverAction implements LifecycleAction {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        boolean hasMaxSize = maxSize != null;
-        out.writeBoolean(hasMaxSize);
-        if (hasMaxSize) {
-            maxSize.writeTo(out);
-        }
-        boolean hasMaxPrimaryShardSize = maxPrimaryShardSize != null;
-        out.writeBoolean(hasMaxPrimaryShardSize);
-        if (hasMaxPrimaryShardSize) {
-            maxPrimaryShardSize.writeTo(out);
-        }
+        out.writeOptionalWriteable(maxSize);
+        out.writeOptionalWriteable(maxPrimaryShardSize);
         out.writeOptionalTimeValue(maxAge);
         out.writeOptionalVLong(maxDocs);
         if (out.getVersion().onOrAfter(Version.V_8_2_0)) {
             out.writeOptionalVLong(maxPrimaryShardDocs);
         }
         if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
-            out.writeBoolean(minSize != null);
-            if (minSize != null) {
-                minSize.writeTo(out);
-            }
-            out.writeBoolean(minPrimaryShardSize != null);
-            if (minPrimaryShardSize != null) {
-                minPrimaryShardSize.writeTo(out);
-            }
+            out.writeOptionalWriteable(minSize);
+            out.writeOptionalWriteable(minPrimaryShardSize);
             out.writeOptionalTimeValue(minAge);
             out.writeOptionalVLong(minDocs);
             out.writeOptionalVLong(minPrimaryShardDocs);

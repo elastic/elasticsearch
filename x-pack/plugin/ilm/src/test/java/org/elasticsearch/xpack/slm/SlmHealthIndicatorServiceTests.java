@@ -150,10 +150,8 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
-                    SNAPSHOT,
                     GREEN,
                     "Snapshot Lifecycle Management is running",
-                    null,
                     new SimpleHealthIndicatorDetails(Map.of("slm_status", RUNNING, "policies", 1)),
                     Collections.emptyList(),
                     Collections.emptyList()

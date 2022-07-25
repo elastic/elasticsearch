@@ -15,6 +15,7 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -58,10 +59,13 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.aggregatemetric.AggregateMetricMapperPlugin;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
+import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
+import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 import org.elasticsearch.xpack.core.rollup.RollupActionConfig;
 import org.elasticsearch.xpack.core.rollup.action.RollupAction;
 import org.elasticsearch.xpack.core.rollup.action.RollupActionRequestValidationException;
+import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.elasticsearch.xpack.rollup.Rollup;
 import org.junit.Before;
 
@@ -104,7 +108,8 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             Rollup.class,
             AnalyticsPlugin.class,
             AggregateMetricMapperPlugin.class,
-            DataStreamsPlugin.class
+            DataStreamsPlugin.class,
+            IndexLifecycle.class
         );
     }
 
@@ -115,7 +120,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         startTime = randomLongBetween(946769284000L, 1607470084000L); // random date between 2000-2020
         docCount = randomIntBetween(10, 9000);
         numOfShards = randomIntBetween(1, 4);
-        numOfReplicas = 0; // Since this is a single node, we cannot have replicas
+        numOfReplicas = randomIntBetween(0, 3);
 
         // Values for keyword dimensions
         dimensionValues = new ArrayList<>(MAX_DIM_VALUES);
@@ -168,6 +173,38 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         prepareSourceIndex(sourceIndex);
         rollup(sourceIndex, rollupIndex, config);
         assertRollupIndex(sourceIndex, rollupIndex, config);
+    }
+
+    public void testCopyIndexSettings() throws IOException {
+        Settings settings = Settings.builder()
+            .put(LifecycleSettings.LIFECYCLE_NAME, randomAlphaOfLength(5))
+            .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING.getKey(), randomAlphaOfLength(5))
+            .put(LifecycleSettings.LIFECYCLE_PARSE_ORIGINATION_DATE_SETTING.getKey(), randomBoolean())
+            .build();
+        logger.info("Updating index [{}] with settings [{}]", sourceIndex, settings);
+
+        var updateSettingsReq = new UpdateSettingsRequest(settings, sourceIndex);
+        var r = client().admin().indices().updateSettings(updateSettingsReq).actionGet();
+        assertTrue("Update settings not acked", r.isAcknowledged());
+
+        RollupActionConfig config = new RollupActionConfig(randomInterval());
+        SourceSupplier sourceSupplier = () -> {
+            String ts = randomDateForInterval(config.getInterval());
+            return XContentFactory.jsonBuilder()
+                .startObject()
+                .field(FIELD_TIMESTAMP, ts)
+                .field(FIELD_DIMENSION_1, randomFrom(dimensionValues))
+                .field(FIELD_NUMERIC_1, randomInt())
+                .endObject();
+        };
+        bulkIndex(sourceSupplier);
+        prepareSourceIndex(sourceIndex);
+        rollup(sourceIndex, rollupIndex, config);
+
+        GetIndexResponse indexSettingsResp = client().admin().indices().prepareGetIndex().addIndices(rollupIndex).get();
+        for (String key : settings.keySet()) {
+            assertEquals(settings.get(key), indexSettingsResp.getSetting(rollupIndex, key));
+        }
     }
 
     public void testNullSourceIndexName() {

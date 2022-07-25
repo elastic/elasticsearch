@@ -49,7 +49,6 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
                     DATA,
                     GREEN,
                     "Index Lifecycle Management is running",
-                    null,
                     new SimpleHealthIndicatorDetails(Map.of("ilm_status", RUNNING, "policies", 1)),
                     Collections.emptyList(),
                     Collections.emptyList()
@@ -71,7 +70,6 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
                     DATA,
                     YELLOW,
                     "Index Lifecycle Management is not running",
-                    IlmHealthIndicatorService.HELP_URL,
                     new SimpleHealthIndicatorDetails(Map.of("ilm_status", status, "policies", 1)),
                     Collections.singletonList(
                         new HealthIndicatorImpact(
@@ -100,7 +98,6 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
                     DATA,
                     GREEN,
                     "No Index Lifecycle Management policies configured",
-                    null,
                     new SimpleHealthIndicatorDetails(Map.of("ilm_status", status, "policies", 0)),
                     Collections.emptyList(),
                     Collections.emptyList()
@@ -121,7 +118,6 @@ public class IlmHealthIndicatorServiceTests extends ESTestCase {
                     DATA,
                     GREEN,
                     "No Index Lifecycle Management policies configured",
-                    null,
                     new SimpleHealthIndicatorDetails(Map.of("ilm_status", RUNNING, "policies", 0)),
                     Collections.emptyList(),
                     Collections.emptyList()

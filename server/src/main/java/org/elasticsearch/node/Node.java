@@ -685,8 +685,7 @@ public class Node implements Closeable {
                 clusterModule.getAllocationService(),
                 settingsModule.getIndexScopedSettings(),
                 indicesService,
-                shardLimitValidator,
-                threadPool
+                shardLimitValidator
             );
 
             Collection<Object> pluginComponents = pluginsService.flatMap(
@@ -917,6 +916,7 @@ public class Node implements Closeable {
             MasterHistoryService masterHistoryService = new MasterHistoryService(transportService, threadPool, clusterService);
             CoordinationDiagnosticsService coordinationDiagnosticsService = new CoordinationDiagnosticsService(
                 clusterService,
+                transportService,
                 discoveryModule.getCoordinator(),
                 masterHistoryService
             );

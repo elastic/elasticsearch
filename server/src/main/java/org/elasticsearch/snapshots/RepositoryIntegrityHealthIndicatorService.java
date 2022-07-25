@@ -11,13 +11,13 @@ package org.elasticsearch.snapshots;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
-import org.elasticsearch.health.UserAction;
 import org.elasticsearch.repositories.RepositoryData;
 
 import java.util.Collections;
@@ -44,10 +44,11 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
     public static final String NAME = "repository_integrity";
 
     public static final String HELP_URL = "https://ela.st/fix-repository-integrity";
-    public static final UserAction.Definition CORRUPTED_REPOSITORY = new UserAction.Definition(
+    public static final Diagnosis.Definition CORRUPTED_REPOSITORY = new Diagnosis.Definition(
         "corrupt-repo-integrity",
-        "Multiple clusters are writing to the same repository. Remove the repository "
-            + "from the other cluster(s), or mark it as read-only in the other cluster(s), and then re-add the repository to this cluster.",
+        "Multiple clusters are writing to the same repository.",
+        "Remove the repository from the other cluster(s), or mark it as read-only in the other cluster(s), and then re-add the repository"
+            + " to this cluster.",
         HELP_URL
     );
 
@@ -68,11 +69,6 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
     @Override
     public String component() {
         return SNAPSHOT;
-    }
-
-    @Override
-    public String helpURL() {
-        return HELP_URL;
     }
 
     @Override
@@ -135,7 +131,7 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
                 )
                 : HealthIndicatorDetails.EMPTY,
             impacts,
-            List.of(new UserAction(CORRUPTED_REPOSITORY, corrupted))
+            List.of(new Diagnosis(CORRUPTED_REPOSITORY, corrupted))
         );
     }
 

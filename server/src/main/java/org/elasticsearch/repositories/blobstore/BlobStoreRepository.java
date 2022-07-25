@@ -2901,7 +2901,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }
             final ActionListener<Void> filesListener = fileQueueListener(filesToSnapshot, filesToSnapshot.size(), allFilesUploadedListener);
             for (FileInfo fileInfo : filesToSnapshot) {
-                shardSnapshotWorkerPool.enqueueFileUpload(new ShardSnapshotWorkerPool.SnapshotFileUpload(context, fileInfo, filesListener));
+                shardSnapshotWorkerPool.enqueueFileUpload(context, fileInfo, filesListener);
             }
         } catch (Exception e) {
             context.onFailure(e);

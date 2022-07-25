@@ -19,7 +19,7 @@ import org.elasticsearch.repositories.SnapshotShardContext;
 import java.io.IOException;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Executor;
-import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.PriorityBlockingQueue;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
@@ -29,14 +29,61 @@ public final class ShardSnapshotWorkerPool {
 
     private final int maxWorkers;
     private final Object mutex = new Object();
-    private final BlockingQueue<SnapshotShardContext> shardsToSnapshot = new LinkedBlockingQueue<>();
-    private final BlockingQueue<SnapshotFileUpload> filesToSnapshot = new LinkedBlockingQueue<>();
+    private final BlockingQueue<ShardSnapshotTask> snapshotTasks = new PriorityBlockingQueue<>();
     private final Executor executor;
     private final Consumer<SnapshotShardContext> shardSnapshotter;
     private final CheckedBiConsumer<SnapshotShardContext, FileInfo, IOException> fileSnapshotter;
     private volatile int workerCount = 0;
 
-    public record SnapshotFileUpload(SnapshotShardContext context, FileInfo fileInfo, ActionListener<Void> listener) {}
+    private class ShardSnapshotTask implements Comparable<ShardSnapshotTask> {
+        protected final SnapshotShardContext context;
+
+        ShardSnapshotTask(SnapshotShardContext context) {
+            this.context = context;
+        }
+
+        public SnapshotShardContext context() {
+            return context;
+        }
+
+        public void run() {
+            shardSnapshotter.accept(context);
+        }
+
+        public short priority() {
+            return 1;
+        }
+
+        @Override
+        public int compareTo(ShardSnapshotTask other) {
+            int res = context.snapshotId().compareTo(other.context.snapshotId());
+            if (res != 0) {
+                return res;
+            }
+            return Integer.compare(priority(), other.priority());
+        }
+    }
+
+    private class FileSnapshotTask extends ShardSnapshotTask {
+        private final FileInfo fileInfo;
+        private final ActionListener<Void> fileUploadListener;
+
+        FileSnapshotTask(SnapshotShardContext context, FileInfo fileInfo, ActionListener<Void> fileUploadListener) {
+            super(context);
+            this.fileInfo = fileInfo;
+            this.fileUploadListener = fileUploadListener;
+        }
+
+        @Override
+        public void run() {
+            ActionRunnable.run(fileUploadListener, () -> fileSnapshotter.accept(context, fileInfo)).run();
+        }
+
+        @Override
+        public short priority() {
+            return 2;
+        }
+    }
 
     public ShardSnapshotWorkerPool(
         final int maxWorkers,
@@ -56,20 +103,24 @@ public final class ShardSnapshotWorkerPool {
     public void enqueueShardSnapshot(final SnapshotShardContext context) {
         logger.trace("enqueuing shard snapshot task [snapshotID={}, indexID={}]", context.snapshotId(), context.indexId());
         synchronized (mutex) {
-            shardsToSnapshot.add(context);
+            snapshotTasks.add(new ShardSnapshotTask(context));
             ensureEnoughWorkers();
         }
     }
 
-    public void enqueueFileUpload(final SnapshotFileUpload snapshotFileUpload) {
+    public void enqueueFileUpload(
+        final SnapshotShardContext context,
+        final FileInfo fileInfo,
+        final ActionListener<Void> fileUploadListener
+    ) {
         logger.trace(
             "enqueuing shard snapshot file upload task [snapshotID={}, indexID={}, file={}]",
-            snapshotFileUpload.context.snapshotId(),
-            snapshotFileUpload.context.indexId(),
-            snapshotFileUpload.fileInfo.name()
+            context.snapshotId(),
+            context.indexId(),
+            fileInfo.name()
         );
         synchronized (mutex) {
-            filesToSnapshot.add(snapshotFileUpload);
+            snapshotTasks.add(new FileSnapshotTask(context, fileInfo, fileUploadListener));
             ensureEnoughWorkers();
         }
     }
@@ -77,7 +128,7 @@ public final class ShardSnapshotWorkerPool {
     private void ensureEnoughWorkers() {
         assert Thread.holdsLock(mutex);
 
-        int workersToCreate = Math.min(maxWorkers - workerCount, Math.max(filesToSnapshot.size(), shardsToSnapshot.size()));
+        int workersToCreate = Math.min(maxWorkers - workerCount, snapshotTasks.size());
         if (workersToCreate > 0) {
             logger.debug("starting {} shard snapshot workers", workersToCreate);
         }
@@ -107,23 +158,12 @@ public final class ShardSnapshotWorkerPool {
         executor.execute(() -> {
             try {
                 while (true) {
-                    SnapshotShardContext context = shardsToSnapshot.poll();
-                    if (context == null) {
-                        logger.trace("[worker {}] shard snapshot queue is empty", workerId);
+                    ShardSnapshotTask task = snapshotTasks.poll();
+                    if (task == null) {
+                        logger.trace("[worker {}] snapshot task queue is empty", workerId);
                         break;
                     }
-                    shardSnapshotter.accept(context);
-                }
-                while (true) {
-                    SnapshotFileUpload fileUploadTask = filesToSnapshot.poll();
-                    if (fileUploadTask == null) {
-                        logger.trace("[worker {}] file upload queue is empty", workerId);
-                        break;
-                    }
-                    ActionRunnable.run(
-                        fileUploadTask.listener,
-                        () -> fileSnapshotter.accept(fileUploadTask.context(), fileUploadTask.fileInfo())
-                    ).run();
+                    task.run();
                 }
             } finally {
                 logger.debug("[worker {}] worker is done", workerId);

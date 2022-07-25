@@ -8,17 +8,31 @@
 
 package org.elasticsearch.repositories.blobstore;
 
+import org.apache.lucene.store.ByteBuffersDirectory;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
+import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.SnapshotShardContext;
+import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -26,7 +40,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntSupplier;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Mockito.mock;
 
 public class ShardSnapshotWorkerPoolTests extends ESTestCase {
 
@@ -42,7 +55,7 @@ public class ShardSnapshotWorkerPoolTests extends ESTestCase {
         TestThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
     }
 
-    private class MockedRepo {
+    private static class MockedRepo {
         private final AtomicInteger expectedUploads = new AtomicInteger();
         private final AtomicInteger finishedUploads = new AtomicInteger();
         private final AtomicInteger finishedSnapshots = new AtomicInteger();
@@ -82,7 +95,7 @@ public class ShardSnapshotWorkerPoolTests extends ESTestCase {
                 filesToUpload
             );
             for (int i = 0; i < filesToUpload; i++) {
-                workers.enqueueFileUpload(new ShardSnapshotWorkerPool.SnapshotFileUpload(context, createMockedFileInfo(), uploadListener));
+                workers.enqueueFileUpload(context, createMockedFileInfo(), uploadListener);
             }
         }
 
@@ -108,12 +121,41 @@ public class ShardSnapshotWorkerPoolTests extends ESTestCase {
         }
     }
 
-    private BlobStoreIndexShardSnapshot.FileInfo createMockedFileInfo() {
+    private static BlobStoreIndexShardSnapshot.FileInfo createMockedFileInfo() {
         String filename = randomAlphaOfLength(10);
-        return new BlobStoreIndexShardSnapshot.FileInfo(filename, mock(StoreFileMetadata.class), null);
+        StoreFileMetadata metadata = new StoreFileMetadata(filename, 10, "CHECKSUM", Version.CURRENT.luceneVersion.toString());
+        return new BlobStoreIndexShardSnapshot.FileInfo(filename, metadata, null);
     }
 
-    public void testAllWorkersExitWhenBothQueuesAreExhausted() throws Exception {
+    private SnapshotShardContext createDummyContext() {
+        SnapshotId snapshotId = new SnapshotId(randomAlphaOfLength(10), UUIDs.randomBase64UUID());
+        IndexId indexId = new IndexId(randomAlphaOfLength(10), UUIDs.randomBase64UUID());
+        ShardId shardId = new ShardId(indexId.getName(), indexId.getId(), 1);
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .build();
+        IndexSettings indexSettings = new IndexSettings(
+            IndexMetadata.builder(indexId.getName()).settings(settings).build(),
+            Settings.EMPTY
+        );
+        Store dummyStore = new Store(shardId, indexSettings, new ByteBuffersDirectory(), new DummyShardLock(shardId));
+        return new SnapshotShardContext(
+            dummyStore,
+            null,
+            snapshotId,
+            indexId,
+            new Engine.IndexCommitRef(null, () -> {}),
+            null,
+            IndexShardSnapshotStatus.newInitializing(null),
+            Version.CURRENT,
+            Collections.emptyMap(),
+            ActionListener.noop()
+        );
+    }
+
+    public void testAllWorkersExitWhenQueueExhausted() throws Exception {
         Executor executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
         int maxSize = randomIntBetween(1, threadPool.info(ThreadPool.Names.SNAPSHOT).getMax());
         MockedRepo repo = new MockedRepo(() -> randomIntBetween(0, 10));
@@ -122,11 +164,13 @@ public class ShardSnapshotWorkerPoolTests extends ESTestCase {
         repo.setWorkers(workers);
         int shardsToSnapshot = randomIntBetween(1, 100);
         for (int i = 0; i < shardsToSnapshot; i++) {
-            workers.enqueueShardSnapshot(mock(SnapshotShardContext.class));
+            workers.enqueueShardSnapshot(createDummyContext());
         }
-        assertBusy(() -> assertThat(repo.finishedSnapshots(), equalTo(shardsToSnapshot)));
-        assertBusy(() -> assertThat(workers.size(), equalTo(0)));
-        assertBusy(() -> assertThat(repo.finishedUploads(), equalTo(repo.expectedUploads())));
+        assertBusy(() -> {
+            assertThat(repo.finishedSnapshots(), equalTo(shardsToSnapshot));
+            assertThat(repo.finishedUploads(), equalTo(repo.expectedUploads()));
+            assertThat(workers.size(), equalTo(0));
+        });
     }
 
     public void testExitingWorkerCreatesNewWorkersIfNecessary() throws Exception {
@@ -140,13 +184,13 @@ public class ShardSnapshotWorkerPoolTests extends ESTestCase {
         // Make sure everyone is busy
         int enqueuedSnapshots = maxSize;
         for (int i = 0; i < enqueuedSnapshots; i++) {
-            workers.enqueueShardSnapshot(mock(SnapshotShardContext.class));
+            workers.enqueueShardSnapshot(createDummyContext());
         }
         assertBusy(() -> assertThat(workers.size(), equalTo(maxSize)));
         snapshotBlocker.countDown(); // move all workers to file upload
         // Adding a new shard snapshot would not get any new worker
         enqueuedSnapshots += 1;
-        workers.enqueueShardSnapshot(mock(SnapshotShardContext.class));
+        workers.enqueueShardSnapshot(createDummyContext());
         assertThat(workers.size(), equalTo(maxSize));
         uploadBlocker.countDown();
         assertBusy(() -> assertThat(repo.finishedUploads(), equalTo(repo.expectedUploads())));

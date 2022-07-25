@@ -198,7 +198,8 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
         NodeEnvironment nodeEnvironment,
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver expressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier
+        Supplier<RepositoriesService> repositoriesServiceSupplier,
+        Tracer tracer
     ) {
         List<Object> components = new ArrayList<>();
         components.addAll(
@@ -213,7 +214,8 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
                 nodeEnvironment,
                 namedWriteableRegistry,
                 expressionResolver,
-                repositoriesServiceSupplier
+                repositoriesServiceSupplier,
+                tracer
             )
         );
 
@@ -231,7 +233,8 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
                         nodeEnvironment,
                         namedWriteableRegistry,
                         expressionResolver,
-                        repositoriesServiceSupplier
+                        repositoriesServiceSupplier,
+                        tracer
                     )
                 )
             );

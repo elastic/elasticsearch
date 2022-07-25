@@ -117,21 +117,6 @@ public class PluginsServiceTests extends ESTestCase {
         } else {
             final IllegalStateException e = expectThrows(IllegalStateException.class, () -> newPluginsService(settings));
             assertThat(e.getMessage(), containsString("Plugin [.DS_Store] is missing a descriptor properties file"));
-            assertNotNull(e.getCause());
-            assertThat(e.getCause(), instanceOf(FileSystemException.class));
-            if (Constants.WINDOWS) {
-                assertThat(e.getCause(), instanceOf(NoSuchFileException.class));
-            } else {
-                // force a "Not a directory" exception to be thrown so that we can extract the locale-dependent message
-                final String expected;
-                try (InputStream ignored = Files.newInputStream(desktopServicesStore.resolve("not-a-directory"))) {
-                    throw new AssertionError();
-                } catch (final FileSystemException inner) {
-                    // locale-dependent translation of "Not a directory"
-                    expected = inner.getReason();
-                }
-                assertThat(e.getCause(), hasToString(containsString(expected)));
-            }
         }
     }
 

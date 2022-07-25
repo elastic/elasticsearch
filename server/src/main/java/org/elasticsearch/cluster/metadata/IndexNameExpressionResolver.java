@@ -189,7 +189,7 @@ public class IndexNameExpressionResolver {
             indexExpressions = new String[] { "*" };
         }
 
-        final List<String> expressions = resolveExpressions(Arrays.asList(indexExpressions), context);
+        final Collection<String> expressions = resolveExpressions(Arrays.asList(indexExpressions), context);
         return ((expressions == null) ? List.<String>of() : expressions).stream()
             .map(x -> state.metadata().getIndicesLookup().get(x))
             .filter(Objects::nonNull)
@@ -220,12 +220,12 @@ public class IndexNameExpressionResolver {
             getNetNewSystemIndexPredicate()
         );
 
-        final List<String> expressions = resolveExpressions(List.of(request.index()), context);
+        final Collection<String> expressions = resolveExpressions(List.of(request.index()), context);
 
         if (expressions.size() == 1) {
-            IndexAbstraction ia = state.metadata().getIndicesLookup().get(expressions.get(0));
+            IndexAbstraction ia = state.metadata().getIndicesLookup().get(expressions.iterator().next());
             if (ia == null) {
-                throw new IndexNotFoundException(expressions.get(0));
+                throw new IndexNotFoundException(expressions.iterator().next());
             }
             if (ia.getType() == IndexAbstraction.Type.ALIAS) {
                 Index writeIndex = ia.getWriteIndex();
@@ -248,7 +248,7 @@ public class IndexNameExpressionResolver {
         }
     }
 
-    private static List<String> resolveExpressions(List<String> expressions, Context context) {
+    private static Collection<String> resolveExpressions(List<String> expressions, Context context) {
         return WildcardExpressionResolver.resolve(context, DateMathExpressionResolver.resolve(context, expressions));
     }
 
@@ -342,7 +342,7 @@ public class IndexNameExpressionResolver {
         final boolean failNoIndices = indexExpressions.length == 1
             ? options.allowNoIndices() == false
             : options.ignoreUnavailable() == false;
-        final List<String> expressions = resolveExpressions(Arrays.asList(indexExpressions), context);
+        final Collection<String> expressions = resolveExpressions(Arrays.asList(indexExpressions), context);
 
         if (expressions.isEmpty()) {
             if (options.allowNoIndices() == false) {
@@ -786,7 +786,7 @@ public class IndexNameExpressionResolver {
             getSystemIndexAccessPredicate(),
             getNetNewSystemIndexPredicate()
         );
-        final List<String> resolvedExpressions = resolveExpressions(
+        final Collection<String> resolvedExpressions = resolveExpressions(
             expressions != null ? Arrays.asList(expressions) : Collections.emptyList(),
             context
         );
@@ -1224,7 +1224,7 @@ public class IndexNameExpressionResolver {
             // Utility class
         }
 
-        public static List<String> resolve(Context context, List<String> expressions) {
+        public static Collection<String> resolve(Context context, List<String> expressions) {
             IndicesOptions options = context.getOptions();
             Metadata metadata = context.getState().metadata();
             // only check open/closed since if we do not expand to open or closed it doesn't make sense to
@@ -1253,7 +1253,7 @@ public class IndexNameExpressionResolver {
                             options.expandWildcardsHidden()
                         )
                     );
-                    return new ArrayList<>(resolvedIncludingDataStreams);
+                    return resolvedIncludingDataStreams;
                 }
                 return resolvedExpressions;
             }
@@ -1265,7 +1265,7 @@ public class IndexNameExpressionResolver {
                 metadata
             );
             if (explicitsAndWildcards.wildcardsAndExclusions().isEmpty()) {
-                return new ArrayList<>(explicitsAndWildcards.explicitNames());
+                return explicitsAndWildcards.explicitNames();
             } else {
                 Set<String> expandedWildcards = innerResolve(context, explicitsAndWildcards.wildcardsAndExclusions(), options, metadata);
                 if (expandedWildcards.isEmpty() && options.allowNoIndices() == false) {
@@ -1274,7 +1274,7 @@ public class IndexNameExpressionResolver {
                     throw infe;
                 }
                 expandedWildcards.addAll(explicitsAndWildcards.explicitNames());
-                return new ArrayList<>(expandedWildcards);
+                return expandedWildcards;
             }
         }
 

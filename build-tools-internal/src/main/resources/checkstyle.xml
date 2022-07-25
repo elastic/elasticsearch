@@ -144,6 +144,9 @@
         <message
             key="forbidden.switch.between"
             value="Case ''{0}'' is outside the range of the ''{1}({2}, {3})'' call of the enclosing switch." />
+        <message
+            key="forbidden.switch.randomInt"
+            value="Case ''{0}'' is outside the range of the ''{1}({2})'' call of the enclosing switch." />
     </module>
 
     <!-- We don't use Java's builtin serialization and we suppress all warning

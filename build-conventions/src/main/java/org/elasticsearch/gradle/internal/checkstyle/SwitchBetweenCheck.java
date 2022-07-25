@@ -32,6 +32,7 @@ import com.puppycrawl.tools.checkstyle.api.TokenTypes;
 @StatelessCheck
 public class SwitchBetweenCheck extends AbstractCheck {
 
+    public static final String SWITCH_RANDOM_INT_MSG_KEY = "forbidden.switch.randomInt";
     public static final String SWITCH_BETWEEN_MSG_KEY = "forbidden.switch.between";
 
     @Override
@@ -73,27 +74,48 @@ public class SwitchBetweenCheck extends AbstractCheck {
             return;
         }
         final String switchMethodName = methodIdentAst.getText();
-        if (switchMethodName.equals("between") == false && switchMethodName.equals("randomIntBetween") == false) {
-            return;
+        switch (switchMethodName) {
+            case "between":
+            case "randomIntBetween":
+            case "randomInt":
+                // these are ok
+                break;
+            default:
+                return;
         }
 
         // The method name is good, so dig out the arguments to the method. We only handle simple,
         // integer literal arguments
         final DetailAST argListAst = methodCallAst.findFirstToken(TokenTypes.ELIST);
-        if (argListAst.getChildCount() != 3) { // 2 args + COMMA
-            return;
-        }
-
         int min;
         int max;
-        try {
-            // Get first or last child, which is an EXPR, then get the argument itself
-            final String minStr = argListAst.getFirstChild().getFirstChild().getText();
-            final String maxStr = argListAst.getLastChild().getFirstChild().getText();
-            min = Integer.parseInt(minStr);
-            max = Integer.parseInt(maxStr);
-        } catch (NumberFormatException e) {
-            return;
+        if (switchMethodName.equals("randomInt")) {
+            if (argListAst.getChildCount() != 1) { // 1 arg
+                return;
+            }
+
+            try {
+                // Get first or last child, which is an EXPR, then get the argument itself
+                final String maxStr = argListAst.getLastChild().getFirstChild().getText();
+                min = 0;
+                max = Integer.parseInt(maxStr);
+            } catch (NumberFormatException e) {
+                return;
+            }
+        } else {
+            if (argListAst.getChildCount() != 3) { // 2 args + COMMA
+                return;
+            }
+
+            try {
+                // Get first or last child, which is an EXPR, then get the argument itself
+                final String minStr = argListAst.getFirstChild().getFirstChild().getText();
+                final String maxStr = argListAst.getLastChild().getFirstChild().getText();
+                min = Integer.parseInt(minStr);
+                max = Integer.parseInt(maxStr);
+            } catch (NumberFormatException e) {
+                return;
+            }
         }
 
         // Now check all the cases of the switch and look for values outside the possible range.
@@ -117,7 +139,11 @@ public class SwitchBetweenCheck extends AbstractCheck {
             try {
                 int value = Integer.parseInt(exprAst.getFirstChild().getText());
                 if (value < min || value > max) {
-                    log(caseAst, SWITCH_BETWEEN_MSG_KEY, value, switchMethodName, min, max);
+                    if (switchMethodName.equals("randomInt")) {
+                        log(caseAst, SWITCH_RANDOM_INT_MSG_KEY, value, switchMethodName, max);
+                    } else {
+                        log(caseAst, SWITCH_BETWEEN_MSG_KEY, value, switchMethodName, min, max);
+                    }
                 }
             } catch (NumberFormatException e) {
                 // Ignore

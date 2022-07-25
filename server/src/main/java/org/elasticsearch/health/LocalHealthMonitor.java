@@ -33,7 +33,7 @@ import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
 /**
- * This class monitors the health of the node regarding load the health state of difference resources.
+ * This class monitors the health of the node regarding the load on difference resources.
  * Currently, it only checks for available disk space.
  */
 public class LocalHealthMonitor implements ClusterStateListener {
@@ -50,7 +50,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
 
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
-    private final DiskCheck diskMonitor;
+    private final DiskCheck diskCheck;
 
     private volatile TimeValue monitorInterval;
     private volatile Scheduler.ScheduledCancellable scheduled;
@@ -62,7 +62,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
         this.monitorInterval = INTERVAL_SETTING.get(settings);
         this.enabled = HealthNodeTaskExecutor.ENABLED_SETTING.get(settings);
         this.clusterService = clusterService;
-        this.diskMonitor = new DiskCheck(nodeService);
+        this.diskCheck = new DiskCheck(nodeService);
         clusterService.addListener(this);
         ClusterSettings clusterSettings = clusterService.getClusterSettings();
         clusterSettings.addSettingsUpdateConsumer(INTERVAL_SETTING, this::setMonitorInterval);
@@ -109,7 +109,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
         HealthMetadata healthMetadata = HealthMetadata.getHealthCustomMetadata(clusterState);
         assert healthMetadata != null : "health metadata should have been initialized.";
         NodeHealth previousHealth = this.lastObservedHealth;
-        NodeHealth currentHealth = new NodeHealth(diskMonitor.getHealth(healthMetadata, clusterState));
+        NodeHealth currentHealth = new NodeHealth(diskCheck.getHealth(healthMetadata, clusterState));
         if (currentHealth.equals(previousHealth) == false) {
             this.lastObservedHealth = currentHealth;
             logger.info("Node health changed from {} to {}", previousHealth, currentHealth);

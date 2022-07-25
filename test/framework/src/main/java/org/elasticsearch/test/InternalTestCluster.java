@@ -89,7 +89,6 @@ import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeService;
 import org.elasticsearch.node.NodeValidationException;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
@@ -1682,20 +1681,6 @@ public final class InternalTestCluster extends TestCluster {
         return false;
     }
 
-    /**
-     * Stops a random node in the cluster that applies to the given filter. Does nothing if none of the nodes match the
-     * filter.
-     */
-    public synchronized void stopRandomNode(final Predicate<Settings> filter) throws IOException {
-        ensureOpen();
-        NodeAndClient nodeAndClient = getRandomNodeAndClient(nc -> filter.test(nc.node.settings()));
-        if (nodeAndClient != null) {
-            ensureNotTheLastMasterEligibleNode(nodeAndClient);
-            logger.info("Closing filtered random node [{}] ", nodeAndClient.name);
-            stopNodesAndClient(nodeAndClient);
-        }
-    }
-
     private void ensureNotTheLastMasterEligibleNode(NodeAndClient nodeAndClient) {
         if (nodePrefix.equals(ESIntegTestCase.SUITE_CLUSTER_NODE_PREFIX)
             && nodeAndClient.nodeAndClientId() < sharedNodesSeeds.length
@@ -1997,30 +1982,18 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     /**
-     * Returns the name of the selected health node in the cluster. If there is no selected health node it returns null.
+     * @return the name of a random node in a cluster
      */
-    public String getHealthNodeName() {
-        return getHealthNodeName(null);
+    public String getRandomNodeName() {
+        return getNodeNameThat(ignored -> true);
     }
 
     /**
-     * Returns the name of the selected health node in the cluster and executes the request via the node specified
-     * in the viaNode parameter. If viaNode isn't specified a random node will be picked to send the request to. If
-     * there is no selected health node it returns null.
+     * @return the name of a random node in a cluster that match the {@code predicate}
      */
-    public String getHealthNodeName(@Nullable String viaNode) {
-        try {
-            Client client = viaNode != null ? client(viaNode) : client();
-            ClusterState state = client.admin().cluster().prepareState().clear().setMetadata(true).get().getState();
-            PersistentTasksCustomMetadata taskMetadata = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
-            PersistentTasksCustomMetadata.PersistentTask<?> task = taskMetadata.getTask("health-node");
-            return task != null && task.isAssigned()
-                ? state.nodes().getDataNodes().get(task.getAssignment().getExecutorNode()).getName()
-                : null;
-        } catch (Exception e) {
-            logger.warn("Can't fetch cluster state", e);
-            throw new RuntimeException("Can't get the health node " + e.getMessage(), e);
-        }
+    public String getNodeNameThat(Predicate<Settings> predicate) {
+        NodeAndClient nodeAndClient = getRandomNodeAndClient(nc -> predicate.test(nc.node.settings()));
+        return nodeAndClient != null ? nodeAndClient.getName() : null;
     }
 
     synchronized Set<String> allDataNodesButN(int count) {

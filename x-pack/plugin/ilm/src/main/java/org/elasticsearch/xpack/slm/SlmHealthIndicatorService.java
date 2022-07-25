@@ -8,13 +8,13 @@
 package org.elasticsearch.xpack.slm;
 
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
-import org.elasticsearch.health.UserAction;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 
@@ -39,8 +39,13 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
     public static final String NAME = "slm";
 
     public static final String HELP_URL = "https://ela.st/fix-slm";
-    public static final UserAction SLM_NOT_RUNNING = new UserAction(
-        new UserAction.Definition("slm-not-running", "Start Snapshot Lifecycle Management using [POST /_slm/start].", HELP_URL),
+    public static final Diagnosis SLM_NOT_RUNNING = new Diagnosis(
+        new Diagnosis.Definition(
+            "slm-not-running",
+            "Snapshot Lifecycle Management is stopped",
+            "Start Snapshot Lifecycle Management using [POST /_slm/start].",
+            HELP_URL
+        ),
         null
     );
 
@@ -58,11 +63,6 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
     @Override
     public String component() {
         return SNAPSHOT;
-    }
-
-    @Override
-    public String helpURL() {
-        return HELP_URL;
     }
 
     @Override

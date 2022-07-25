@@ -82,7 +82,7 @@ public class RoutingAllocation {
     private static final TimeValue CACHE_TTL = TimeValue.timeValueMinutes(1);
     private static final Cache<RoutingNode, Long> unaccountableSearchableSnapshotSizes = CacheBuilder.<RoutingNode, Long>builder()
         // Using a TTL cache here so we recalculate new unaccountable searchable snapshot size
-        // for routing nodes when cluster info get changed
+        // for routing nodes when cluster info get changed and as well as remove old routing nodes.
         .setExpireAfterWrite(CACHE_TTL)
         .build();
 

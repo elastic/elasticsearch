@@ -203,7 +203,14 @@ public class DeflateCompressor implements Compressor {
     @Override
     public BytesReference uncompress(BytesReference bytesReference) throws IOException {
         if (bytesReference.length() < HEADER.length) {
-            throw new IOException(String.format(Locale.ROOT, "Input bytes length %d is less than DEFLATE header size %d", bytesReference.length(), HEADER.length));
+            throw new IOException(
+                String.format(
+                    Locale.ROOT,
+                    "Input bytes length %d is less than DEFLATE header size %d",
+                    bytesReference.length(),
+                    HEADER.length
+                )
+            );
         }
         final BytesStreamOutput buffer = baos.get();
         try {

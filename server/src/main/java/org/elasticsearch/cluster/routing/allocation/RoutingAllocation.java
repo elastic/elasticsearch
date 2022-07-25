@@ -62,7 +62,6 @@ public class RoutingAllocation {
 
     private final long currentNanoTime;
     private final boolean isSimulating;
-    @Nullable
     private final String reason;
 
     private final IndexMetadataUpdater indexMetadataUpdater = new IndexMetadataUpdater();
@@ -103,7 +102,7 @@ public class RoutingAllocation {
         ClusterInfo clusterInfo,
         SnapshotShardSizeInfo shardSizeInfo,
         long currentNanoTime,
-        @Nullable String reason
+        String reason
     ) {
         this(deciders, routingNodes, clusterState, clusterInfo, shardSizeInfo, currentNanoTime, false, reason);
     }
@@ -125,7 +124,7 @@ public class RoutingAllocation {
         SnapshotShardSizeInfo shardSizeInfo,
         long currentNanoTime,
         boolean isSimulating,
-        @Nullable String reason
+        String reason
     ) {
         this.deciders = deciders;
         this.routingNodes = routingNodes;

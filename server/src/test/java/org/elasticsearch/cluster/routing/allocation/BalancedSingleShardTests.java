@@ -380,7 +380,7 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
             ClusterInfo.EMPTY,
             SnapshotShardSizeInfo.EMPTY,
             System.nanoTime(),
-            null
+            "test"
         );
         allocation.debugDecision(true);
         return allocation;

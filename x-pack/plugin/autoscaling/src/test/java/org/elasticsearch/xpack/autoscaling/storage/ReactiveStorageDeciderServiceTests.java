@@ -239,7 +239,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             null,
             null,
             System.nanoTime(),
-            null
+            "test"
         );
         ShardRouting primaryShard = subjectRoutings.primaryShard();
         ShardRouting replicaShard = subjectRoutings.replicaShards().get(0);

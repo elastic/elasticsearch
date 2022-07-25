@@ -313,7 +313,7 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
             ClusterInfo.EMPTY,
             SnapshotShardSizeInfo.EMPTY,
             System.nanoTime(),
-            null
+            "test"
         );
 
         // can't force allocate same shard copy to the same node

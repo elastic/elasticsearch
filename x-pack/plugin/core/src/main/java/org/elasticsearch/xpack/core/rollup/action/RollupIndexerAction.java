@@ -44,11 +44,19 @@ public class RollupIndexerAction extends ActionType<RollupIndexerAction.Response
         private RollupAction.Request rollupRequest;
         private String[] dimensionFields;
         private String[] metricFields;
+        private String[] labelFields;
 
-        public Request(RollupAction.Request rollupRequest, final String[] dimensionFields, final String[] metricFields) {
+        public Request(
+            RollupAction.Request rollupRequest,
+            final String[] dimensionFields,
+            final String[] metricFields,
+            final String[] labelFields
+        ) {
+            super(rollupRequest.indices());
             this.rollupRequest = rollupRequest;
             this.dimensionFields = dimensionFields;
             this.metricFields = metricFields;
+            this.labelFields = labelFields;
         }
 
         public Request() {}
@@ -58,6 +66,7 @@ public class RollupIndexerAction extends ActionType<RollupIndexerAction.Response
             this.rollupRequest = new RollupAction.Request(in);
             this.dimensionFields = in.readStringArray();
             this.metricFields = in.readStringArray();
+            this.labelFields = in.readStringArray();
         }
 
         @Override
@@ -82,6 +91,10 @@ public class RollupIndexerAction extends ActionType<RollupIndexerAction.Response
             return this.metricFields;
         }
 
+        public String[] getLabelFields() {
+            return labelFields;
+        }
+
         @Override
         public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
             return new RollupTask(id, type, action, parentTaskId, rollupRequest.getRollupIndex(), rollupRequest.getRollupConfig(), headers);
@@ -93,6 +106,7 @@ public class RollupIndexerAction extends ActionType<RollupIndexerAction.Response
             rollupRequest.writeTo(out);
             out.writeStringArray(dimensionFields);
             out.writeStringArray(metricFields);
+            out.writeStringArray(labelFields);
         }
 
         @Override
@@ -106,6 +120,7 @@ public class RollupIndexerAction extends ActionType<RollupIndexerAction.Response
             builder.field("rollup_request", rollupRequest);
             builder.array("dimension_fields", dimensionFields);
             builder.array("metric_fields", metricFields);
+            builder.array("label_fields", labelFields);
             builder.endObject();
             return builder;
         }
@@ -115,6 +130,7 @@ public class RollupIndexerAction extends ActionType<RollupIndexerAction.Response
             int result = rollupRequest.hashCode();
             result = 31 * result + Arrays.hashCode(dimensionFields);
             result = 31 * result + Arrays.hashCode(metricFields);
+            result = 31 * result + Arrays.hashCode(labelFields);
             return result;
         }
 
@@ -125,6 +141,7 @@ public class RollupIndexerAction extends ActionType<RollupIndexerAction.Response
             Request request = (Request) o;
             if (rollupRequest.equals(request.rollupRequest) == false) return false;
             if (Arrays.equals(dimensionFields, request.dimensionFields) == false) return false;
+            if (Arrays.equals(labelFields, request.labelFields) == false) return false;
             return Arrays.equals(metricFields, request.metricFields);
         }
     }
@@ -223,6 +240,10 @@ public class RollupIndexerAction extends ActionType<RollupIndexerAction.Response
 
         public String[] getMetricFields() {
             return request.getMetricFields();
+        }
+
+        public String[] getLabelFields() {
+            return request.getLabelFields();
         }
 
         @Override

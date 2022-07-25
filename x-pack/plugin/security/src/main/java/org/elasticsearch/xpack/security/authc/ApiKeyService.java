@@ -1112,14 +1112,14 @@ public class ApiKeyService {
             .request();
         logger.trace("Executing index request to update API key [{}]", request.getId());
         securityIndex.prepareIndexIfNeededThenExecute(
-            ex -> listener.onFailure(traceLog("prepare security index", ex)),
+            ex -> listener.onFailure(traceLog("prepare security index before update", ex)),
             () -> executeAsyncWithOrigin(
                 client.threadPool().getThreadContext(),
                 SECURITY_ORIGIN,
                 client.prepareBulk().add(indexRequest).setRefreshPolicy(RefreshPolicy.WAIT_UNTIL).request(),
                 ActionListener.<BulkResponse>wrap(
                     bulkResponse -> translateResponseAndClearCache(request.getId(), bulkResponse, listener),
-                    ex -> listener.onFailure(traceLog("execute bulk request", ex))
+                    ex -> listener.onFailure(traceLog("execute bulk request for update", ex))
                 ),
                 client::bulk
             )

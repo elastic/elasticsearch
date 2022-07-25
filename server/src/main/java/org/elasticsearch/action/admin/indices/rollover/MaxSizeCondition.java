@@ -25,12 +25,12 @@ public class MaxSizeCondition extends Condition<ByteSizeValue> {
     public static final String NAME = "max_size";
 
     public MaxSizeCondition(ByteSizeValue value) {
-        super(NAME);
+        super(NAME, Type.MAX);
         this.value = value;
     }
 
     public MaxSizeCondition(StreamInput in) throws IOException {
-        super(NAME);
+        super(NAME, Type.MAX);
         this.value = new ByteSizeValue(in.readVLong(), ByteSizeUnit.BYTES);
     }
 

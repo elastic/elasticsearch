@@ -23,12 +23,12 @@ public class MaxDocsCondition extends Condition<Long> {
     public static final String NAME = "max_docs";
 
     public MaxDocsCondition(Long value) {
-        super(NAME);
+        super(NAME, Type.MAX);
         this.value = value;
     }
 
     public MaxDocsCondition(StreamInput in) throws IOException {
-        super(NAME);
+        super(NAME, Type.MAX);
         this.value = in.readLong();
     }
 

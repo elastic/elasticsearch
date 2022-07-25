@@ -20,11 +20,21 @@ import java.util.Objects;
  */
 public abstract class Condition<T> implements NamedWriteable, ToXContentFragment {
 
+    /**
+     * Describes the type of condition - a min_* condition (MIN) or max_* condition (MAX).
+     */
+    public enum Type {
+        MIN,
+        MAX
+    }
+
     protected T value;
     protected final String name;
+    protected final Type type;
 
-    protected Condition(String name) {
+    protected Condition(String name, Type type) {
         this.name = name;
+        this.type = type;
     }
 
     /**
@@ -67,8 +77,8 @@ public abstract class Condition<T> implements NamedWriteable, ToXContentFragment
         return name;
     }
 
-    public boolean isRequired() {
-        return false;
+    public Type type() {
+        return type;
     }
 
     /**

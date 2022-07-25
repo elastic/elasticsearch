@@ -26,23 +26,18 @@ public class MinSizeCondition extends Condition<ByteSizeValue> {
     public static final String NAME = "min_size";
 
     public MinSizeCondition(ByteSizeValue value) {
-        super(NAME);
+        super(NAME, Type.MIN);
         this.value = value;
     }
 
     public MinSizeCondition(StreamInput in) throws IOException {
-        super(NAME);
+        super(NAME, Type.MIN);
         this.value = new ByteSizeValue(in.readVLong(), ByteSizeUnit.BYTES);
     }
 
     @Override
     public Result evaluate(Stats stats) {
         return new Result(this, stats.indexSize().getBytes() >= value.getBytes());
-    }
-
-    @Override
-    public boolean isRequired() {
-        return true;
     }
 
     @Override

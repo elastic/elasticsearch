@@ -24,12 +24,12 @@ public class MaxPrimaryShardDocsCondition extends Condition<Long> {
     public static final String NAME = "max_primary_shard_docs";
 
     public MaxPrimaryShardDocsCondition(Long value) {
-        super(NAME);
+        super(NAME, Type.MAX);
         this.value = value;
     }
 
     public MaxPrimaryShardDocsCondition(StreamInput in) throws IOException {
-        super(NAME);
+        super(NAME, Type.MAX);
         this.value = in.readLong();
     }
 

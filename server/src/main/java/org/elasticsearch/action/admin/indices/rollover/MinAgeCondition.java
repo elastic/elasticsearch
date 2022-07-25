@@ -25,12 +25,12 @@ public class MinAgeCondition extends Condition<TimeValue> {
     public static final String NAME = "min_age";
 
     public MinAgeCondition(TimeValue value) {
-        super(NAME);
+        super(NAME, Type.MIN);
         this.value = value;
     }
 
     public MinAgeCondition(StreamInput in) throws IOException {
-        super(NAME);
+        super(NAME, Type.MIN);
         this.value = TimeValue.timeValueMillis(in.readLong());
     }
 
@@ -38,11 +38,6 @@ public class MinAgeCondition extends Condition<TimeValue> {
     public Result evaluate(final Stats stats) {
         long indexAge = System.currentTimeMillis() - stats.indexCreated();
         return new Result(this, this.value.getMillis() <= indexAge);
-    }
-
-    @Override
-    public boolean isRequired() {
-        return true;
     }
 
     @Override

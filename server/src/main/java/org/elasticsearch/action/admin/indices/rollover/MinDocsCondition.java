@@ -24,23 +24,18 @@ public class MinDocsCondition extends Condition<Long> {
     public static final String NAME = "min_docs";
 
     public MinDocsCondition(Long value) {
-        super(NAME);
+        super(NAME, Type.MIN);
         this.value = value;
     }
 
     public MinDocsCondition(StreamInput in) throws IOException {
-        super(NAME);
+        super(NAME, Type.MIN);
         this.value = in.readLong();
     }
 
     @Override
     public Result evaluate(final Stats stats) {
         return new Result(this, this.value <= stats.numDocs());
-    }
-
-    @Override
-    public boolean isRequired() {
-        return true;
     }
 
     @Override

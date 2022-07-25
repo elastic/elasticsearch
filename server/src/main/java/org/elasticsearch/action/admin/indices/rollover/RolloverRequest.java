@@ -30,7 +30,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
-import java.util.function.Predicate;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -194,8 +193,8 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
             validationException = addValidationError("rollover target is missing", validationException);
         }
 
-        // max_* conditions are the isRequired = false ones -- the request must have at least one max_* condition
-        boolean noMaxConditions = conditions.values().stream().noneMatch(Predicate.not(Condition::isRequired));
+        // if the request has any conditions, then at least one condition must be a max_* condition
+        boolean noMaxConditions = conditions.values().stream().noneMatch(c -> Condition.Type.MAX == c.type());
         if (conditions.size() > 0 && noMaxConditions) {
             validationException = addValidationError(
                 "at least one max_* rollover condition must be set when using min_* conditions",
@@ -389,17 +388,17 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     }
 
     public boolean areConditionsMet(Map<String, Boolean> conditionResults) {
-        boolean allRequiredMet = conditions.values()
+        boolean allMinConditionsMet = conditions.values()
             .stream()
-            .filter(Condition::isRequired)
+            .filter(c -> Condition.Type.MIN == c.type())
             .allMatch(c -> conditionResults.getOrDefault(c.toString(), false));
 
-        boolean anyNonRequiredMet = conditions.values()
+        boolean anyMaxConditionsMet = conditions.values()
             .stream()
-            .filter(Predicate.not(Condition::isRequired))
+            .filter(c -> Condition.Type.MAX == c.type())
             .anyMatch(c -> conditionResults.getOrDefault(c.toString(), false));
 
-        return conditionResults.size() == 0 || (allRequiredMet && anyNonRequiredMet);
+        return conditionResults.size() == 0 || (allMinConditionsMet && anyMaxConditionsMet);
     }
 
     /**

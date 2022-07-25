@@ -69,7 +69,7 @@ can see an example of extracting an answer from a larger wiki article about
 Tower Bridge below.
 
 [role="screenshot"]
-image::../images/nlp-qa-rh.png[A screenshot of a question answering NLP task in {kib}]
+image::images/nlp-qa-rh.png[A screenshot of a question answering NLP task in {kib}]
 
 [discrete]
 [[add_support_for_dots_in_field_names_for_metrics_usecases]]

@@ -343,6 +343,7 @@ public class ElasticServiceAccountsTests extends ESTestCase {
         assertThat(role.cluster().check(PutLifecycleAction.NAME, request, authentication), is(true));
 
         List.of(
+            "search-" + randomAlphaOfLengthBetween(1, 20),
             ".ent-search-" + randomAlphaOfLengthBetween(1, 20),
             ".monitoring-ent-search-" + randomAlphaOfLengthBetween(1, 20),
             "metricbeat-ent-search-" + randomAlphaOfLengthBetween(1, 20),
@@ -371,34 +372,6 @@ public class ElasticServiceAccountsTests extends ESTestCase {
             assertThat(role.indices().allowedIndicesMatcher(RefreshAction.NAME).test(enterpriseSearchIndex), is(true));
             assertThat(role.indices().allowedIndicesMatcher("indices:foo").test(enterpriseSearchIndex), is(false));
         });
-
-        final IndexAbstraction elasticsearchIndex = mockIndexAbstraction("search-" + randomAlphaOfLengthBetween(1, 20));
-        assertThat(role.indices().allowedIndicesMatcher("indices:foo").test(elasticsearchIndex), is(false));
-        // read
-        assertThat(role.indices().allowedIndicesMatcher(GetAction.NAME).test(elasticsearchIndex), is(true));
-        assertThat(role.indices().allowedIndicesMatcher(MultiGetAction.NAME).test(elasticsearchIndex), is(true));
-        assertThat(role.indices().allowedIndicesMatcher(SearchAction.NAME).test(elasticsearchIndex), is(true));
-        assertThat(role.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(elasticsearchIndex), is(true));
-        // view_index_metadata
-        assertThat(role.indices().allowedIndicesMatcher(GetDataStreamAction.NAME).test(elasticsearchIndex), is(true));
-        assertThat(role.indices().allowedIndicesMatcher(ExplainLifecycleAction.NAME).test(elasticsearchIndex), is(true));
-        // create
-        assertThat(role.indices().allowedIndicesMatcher(PutMappingAction.NAME).test(elasticsearchIndex), is(true));
-        // create_index
-        assertThat(role.indices().allowedIndicesMatcher(AutoCreateAction.NAME).test(elasticsearchIndex), is(true));
-        assertThat(role.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(elasticsearchIndex), is(true));
-        // delete
-        assertThat(role.indices().allowedIndicesMatcher(DeleteAction.NAME).test(elasticsearchIndex), is(true));
-        // index
-        assertThat(role.indices().allowedIndicesMatcher(IndexAction.NAME).test(elasticsearchIndex), is(true));
-        assertThat(role.indices().allowedIndicesMatcher(UpdateAction.NAME).test(elasticsearchIndex), is(true));
-        // manage
-        assertThat(role.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(elasticsearchIndex), is(true));
-        assertThat(role.indices().allowedIndicesMatcher(RefreshAction.NAME).test(elasticsearchIndex), is(true));
-        // monitor
-        assertThat(role.indices().allowedIndicesMatcher(IndicesStatsAction.NAME).test(elasticsearchIndex), is(true));
-        // write
-        assertThat(role.indices().allowedIndicesMatcher(BulkAction.NAME).test(elasticsearchIndex), is(true));
     }
 
     private IndexAbstraction mockIndexAbstraction(String name) {

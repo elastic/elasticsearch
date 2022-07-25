@@ -153,6 +153,7 @@ public class ServiceAccountIT extends ESRestTestCase {
             "indices": [
                 {
                     "names": [
+                        "search-*",
                         ".ent-search-*",
                         ".monitoring-ent-search-*",
                         "metricbeat-ent-search-*",
@@ -168,23 +169,6 @@ public class ServiceAccountIT extends ESRestTestCase {
                     "privileges": [
                         "manage",
                         "read",
-                        "write"
-                    ],
-                    "allow_restricted_indices": false
-                },
-                {
-                    "names": [
-                        "search-*"
-                    ],
-                    "privileges": [
-                        "read",
-                        "view_index_metadata",
-                        "create",
-                        "create_index",
-                        "delete",
-                        "index",
-                        "manage",
-                        "monitor",
                         "write"
                     ],
                     "allow_restricted_indices": false

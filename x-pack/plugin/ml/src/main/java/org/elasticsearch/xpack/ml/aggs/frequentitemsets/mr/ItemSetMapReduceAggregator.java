@@ -7,12 +7,12 @@
 
 package org.elasticsearch.xpack.ml.aggs.frequentitemsets.mr;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongObjectPagedHashMap;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorBase;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -99,7 +99,7 @@ public abstract class ItemSetMapReduceAggregator<
     }
 
     @Override
-    protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
+    protected LeafBucketCollector getLeafCollector(AggregationExecutionContext ctx, LeafBucketCollector sub) throws IOException {
         return new LeafBucketCollectorBase(sub, null) {
             @Override
             public void collect(int doc, long owningBucketOrd) throws IOException {
@@ -107,7 +107,7 @@ public abstract class ItemSetMapReduceAggregator<
 
                 mapReducer.map(extractors.stream().map(extractor -> {
                     try {
-                        return extractor.collect(ctx, doc);
+                        return extractor.collect(ctx.getLeafReaderContext(), doc);
                     } catch (IOException e) {
                         firstException.trySet(e);
                         // ignored in AbstractMapReducer

@@ -107,7 +107,6 @@ public class RollupILMAction implements LifecycleAction {
         StepKey rollupKey = new StepKey(phase, NAME, RollupStep.NAME);
         StepKey waitForRollupIndexKey = new StepKey(phase, NAME, WaitForIndexColorStep.NAME);
         StepKey copyMetadataKey = new StepKey(phase, NAME, CopyExecutionStateStep.NAME);
-        StepKey copyLifecyclePolicySettingKey = new StepKey(phase, NAME, CopySettingsStep.NAME);
         StepKey dataStreamCheckBranchingKey = new StepKey(phase, NAME, CONDITIONAL_DATASTREAM_CHECK_KEY);
         StepKey replaceDataStreamIndexKey = new StepKey(phase, NAME, ReplaceDataStreamBackingIndexStep.NAME);
         StepKey deleteIndexKey = new StepKey(phase, NAME, DeleteStep.NAME);
@@ -159,19 +158,9 @@ public class RollupILMAction implements LifecycleAction {
 
         CopyExecutionStateStep copyExecutionStateStep = new CopyExecutionStateStep(
             copyMetadataKey,
-            copyLifecyclePolicySettingKey,
-            (indexName, lifecycleState) -> lifecycleState.rollupIndexName(),
-            nextStepKey
-        );
-
-        // Copy the index.lifecycle.name setting to the rollup index settings
-        // TODO: This step is going to be removed when downsampling action copies all settings
-        // from source to rollup index (https://github.com/elastic/elasticsearch/pull/88565)
-        CopySettingsStep copySettingsStep = new CopySettingsStep(
-            copyLifecyclePolicySettingKey,
             dataStreamCheckBranchingKey,
             (indexName, lifecycleState) -> lifecycleState.rollupIndexName(),
-            LifecycleSettings.LIFECYCLE_NAME
+            nextStepKey
         );
 
         // By the time we get to this step we have 2 indices, the source and the rollup one. We now need to choose an index
@@ -213,7 +202,6 @@ public class RollupILMAction implements LifecycleAction {
             rollupStep,
             rollupAllocatedStep,
             copyExecutionStateStep,
-            copySettingsStep,
             isDataStreamBranchingStep,
             replaceDataStreamBackingIndex,
             deleteSourceIndexStep,

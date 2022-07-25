@@ -120,28 +120,28 @@ public class RemoteClusterServiceTests extends ESTestCase {
         assumeTrue("Skipped test because CCx2 feature flag is not enabled", ClusterSettings.CCX2_FEATURE_FLAG_ENABLED);
         // simple validation
         Settings settings = Settings.builder()
-            .put("cluster.remote.foo.optional_credential", "apikey1")
-            .put("cluster.remote.bar.optional_credential", "apikey2")
-            .put("cluster.remote.emptystring.optional_credential", "")
-            .put("cluster.remote.nullstring.optional_credential", (String) null)
+            .put("cluster.remote.foo.authorization", "ApiKey apikey1")
+            .put("cluster.remote.bar.authorization", "ApiKey apikey2")
+            .put("cluster.remote.emptystring.authorization", "")
+            .put("cluster.remote.nullstring.authorization", (String) null)
             .build();
         SniffConnectionStrategy.REMOTE_CLUSTER_AUTHORIZATION.getAllConcreteSettings(settings).forEach(setting -> setting.get(settings));
     }
 
-    public void testRemoteClusterOptionalCredentialSettingDependencies() {
+    public void testRemoteClusterAuthorizationSettingDependencies() {
         assumeTrue("Skipped test because CCx2 feature flag is not enabled", ClusterSettings.CCX2_FEATURE_FLAG_ENABLED);
         AbstractScopedSettings service = new ClusterSettings(
             Settings.EMPTY,
             new HashSet<>(Arrays.asList(SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS, SniffConnectionStrategy.REMOTE_CLUSTER_AUTHORIZATION))
         );
         {
-            Settings missingDependentSetting = Settings.builder().put("cluster.remote.foo.optional_credential", randomBoolean()).build();
+            Settings missingDependentSetting = Settings.builder().put("cluster.remote.foo.authorization", randomBoolean()).build();
             IllegalArgumentException iae = expectThrows(
                 IllegalArgumentException.class,
                 () -> service.validate(missingDependentSetting, true)
             );
             assertEquals(
-                "missing required setting [cluster.remote.foo.seeds] for setting [cluster.remote.foo.optional_credential]",
+                "missing required setting [cluster.remote.foo.seeds] for setting [cluster.remote.foo.authorization]",
                 iae.getMessage()
             );
         }

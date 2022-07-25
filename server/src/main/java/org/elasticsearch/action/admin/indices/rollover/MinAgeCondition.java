@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.indices.rollover;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
@@ -71,5 +72,10 @@ public class MinAgeCondition extends Condition<TimeValue> {
         } else {
             throw new IllegalArgumentException("invalid token: " + parser.currentToken());
         }
+    }
+
+    @Override
+    boolean includedInVersion(Version version) {
+        return version.onOrAfter(Version.V_8_4_0);
     }
 }

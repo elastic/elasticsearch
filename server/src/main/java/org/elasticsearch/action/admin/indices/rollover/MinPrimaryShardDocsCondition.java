@@ -68,6 +68,6 @@ public class MinPrimaryShardDocsCondition extends Condition<Long> {
 
     @Override
     boolean includedInVersion(Version version) {
-        return version.onOrAfter(Version.V_8_2_0);
+        return version.onOrAfter(Version.V_8_4_0);
     }
 }

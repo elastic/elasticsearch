@@ -115,16 +115,6 @@ public class DesiredBalanceComputer {
             }
 
             final var targetNodesIterator = targetNodes.iterator();
-            for (final var shardRouting : routings.unassigned()) {
-                assert shardRouting.unassigned();
-                if (targetNodesIterator.hasNext()) {
-                    unassignedShardsToInitialize.computeIfAbsent(shardRouting, ignored -> new LinkedList<>())
-                        .add(targetNodesIterator.next());
-                } else {
-                    break;
-                }
-            }
-
             for (final var shardRouting : shardsToRelocate) {
                 assert shardRouting.started();
                 if (targetNodesIterator.hasNext()) {
@@ -133,6 +123,16 @@ public class DesiredBalanceComputer {
                         routingNodes.relocateShard(shardRouting, targetNodesIterator.next(), 0L, changes).v2(),
                         changes
                     );
+                } else {
+                    break;
+                }
+            }
+
+            for (final var shardRouting : routings.unassigned()) {
+                assert shardRouting.unassigned();
+                if (targetNodesIterator.hasNext()) {
+                    unassignedShardsToInitialize.computeIfAbsent(shardRouting, ignored -> new LinkedList<>())
+                        .add(targetNodesIterator.next());
                 } else {
                     break;
                 }

@@ -133,7 +133,6 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         assertBusy(() -> assertNodeShutdownStatus(nodeToStopId, COMPLETE));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86429")
     public void testNodeReplacementOnlyAllowsShardsFromReplacedNode() throws Exception {
         String nodeA = internalCluster().startNode(Settings.builder().put("node.name", "node-a"));
         createIndex("myindex", Settings.builder().put("index.number_of_shards", 3).put("index.number_of_replicas", 1).build());
@@ -146,8 +145,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         internalCluster().startNode(Settings.builder().put("node.name", nodeB));
         final String nodeBId = getNodeId(nodeB);
 
-        logger.info("--> NodeA: {} -- {}", nodeA, nodeAId);
-        logger.info("--> NodeB: {} -- {}", nodeB, nodeBId);
+        logger.info("Started NodeB [{}] to replace NodeA [{}]", nodeBId, nodeAId);
 
         assertBusy(() -> {
             assertIndexPrimaryShardsAreAllocatedOnNode("myindex", nodeBId);

@@ -60,7 +60,7 @@ public class InternalWeightedAvgTests extends InternalAggregationTestCase<Intern
         double weight = instance.getWeight();
         DocValueFormat formatter = instance.getFormatter();
         Map<String, Object> metadata = instance.getMetadata();
-        switch (between(0, 2)) {
+        switch (between(0, 3)) {
             case 0:
                 name += randomAlphaOfLength(5);
                 break;

@@ -96,7 +96,7 @@ public class InternalAvgTests extends InternalAggregationTestCase<InternalAvg> {
         long count = instance.getCount();
         DocValueFormat formatter = instance.getFormatter();
         Map<String, Object> metadata = instance.getMetadata();
-        switch (between(0, 2)) {
+        switch (between(0, 3)) {
             case 0:
                 name += randomAlphaOfLength(5);
                 break;

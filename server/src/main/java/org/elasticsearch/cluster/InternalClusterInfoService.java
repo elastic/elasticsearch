@@ -39,7 +39,6 @@ import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -188,8 +187,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                         leastAvailableUsagesBuilder,
                         mostAvailableUsagesBuilder
                     );
-                    leastAvailableSpaceUsages = Collections.unmodifiableMap(leastAvailableUsagesBuilder);
-                    mostAvailableSpaceUsages = Collections.unmodifiableMap(mostAvailableUsagesBuilder);
+                    leastAvailableSpaceUsages = Map.copyOf(leastAvailableUsagesBuilder);
+                    mostAvailableSpaceUsages = Map.copyOf(mostAvailableUsagesBuilder);
                 }
 
                 @Override
@@ -262,10 +261,10 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                     reservedSpaceBuilders.forEach((nodeAndPath, builder) -> rsrvdSpace.put(nodeAndPath, builder.build()));
 
                     indicesStatsSummary = new IndicesStatsSummary(
-                        Collections.unmodifiableMap(shardSizeByIdentifierBuilder),
-                        Collections.unmodifiableMap(shardDataSetSizeBuilder),
-                        Collections.unmodifiableMap(dataPathByShardRoutingBuilder),
-                        Collections.unmodifiableMap(rsrvdSpace)
+                        Map.copyOf(shardSizeByIdentifierBuilder),
+                        Map.copyOf(shardDataSetSizeBuilder),
+                        Map.copyOf(dataPathByShardRoutingBuilder),
+                        Map.copyOf(rsrvdSpace)
                     );
                 }
 

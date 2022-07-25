@@ -897,27 +897,27 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 itemDroppedHandler.accept(slot);
                 handler.accept(null);
             } else {
-                IngestSourceAndMetadata sourceAndMetadata = ingestDocument.getIngestSourceAndMetadata();
+                org.elasticsearch.script.Metadata metadata = ingestDocument.getMetadata();
 
                 // it's fine to set all metadata fields all the time, as ingest document holds their starting values
                 // before ingestion, which might also get modified during ingestion.
-                indexRequest.index(sourceAndMetadata.getIndex());
-                indexRequest.id(sourceAndMetadata.getId());
-                indexRequest.routing(sourceAndMetadata.getRouting());
-                indexRequest.version(sourceAndMetadata.getVersion());
-                if (sourceAndMetadata.getVersionType() != null) {
-                    indexRequest.versionType(VersionType.fromString(sourceAndMetadata.getVersionType()));
+                indexRequest.index(metadata.getIndex());
+                indexRequest.id(metadata.getId());
+                indexRequest.routing(metadata.getRouting());
+                indexRequest.version(metadata.getVersion());
+                if (metadata.getVersionType() != null) {
+                    indexRequest.versionType(VersionType.fromString(metadata.getVersionType()));
                 }
                 Number number;
-                if ((number = sourceAndMetadata.getIfSeqNo()) != null) {
+                if ((number = metadata.getIfSeqNo()) != null) {
                     indexRequest.setIfSeqNo(number.longValue());
                 }
-                if ((number = sourceAndMetadata.getIfPrimaryTerm()) != null) {
+                if ((number = metadata.getIfPrimaryTerm()) != null) {
                     indexRequest.setIfPrimaryTerm(number.longValue());
                 }
                 try {
                     boolean ensureNoSelfReferences = ingestDocument.doNoSelfReferencesCheck();
-                    indexRequest.source(sourceAndMetadata.getSource(), indexRequest.getContentType(), ensureNoSelfReferences);
+                    indexRequest.source(ingestDocument.getSource(), indexRequest.getContentType(), ensureNoSelfReferences);
                 } catch (IllegalArgumentException ex) {
                     // An IllegalArgumentException can be thrown when an ingest
                     // processor creates a source map that is self-referencing.
@@ -933,7 +933,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     return;
                 }
                 Map<String, String> map;
-                if ((map = sourceAndMetadata.getDynamicTemplates()) != null) {
+                if ((map = metadata.getDynamicTemplates()) != null) {
                     Map<String, String> mergedDynamicTemplates = new HashMap<>(indexRequest.getDynamicTemplates());
                     mergedDynamicTemplates.putAll(map);
                     indexRequest.setDynamicTemplates(mergedDynamicTemplates);

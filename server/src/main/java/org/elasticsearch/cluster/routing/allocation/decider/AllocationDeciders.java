@@ -86,10 +86,11 @@ public class AllocationDeciders {
             }
             return Decision.NO;
         }
+        final IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(shardRouting.index());
         if (allocation.debugDecision()) {
             Decision.Multi ret = new Decision.Multi();
             for (AllocationDecider allocationDecider : allocations) {
-                Decision decision = allocationDecider.canRemain(shardRouting, node, allocation);
+                Decision decision = allocationDecider.canRemain(indexMetadata, shardRouting, node, allocation);
                 // short track if a NO is returned.
                 if (decision.type() == Decision.Type.NO) {
                     maybeTraceLogNoDecision(shardRouting, node, allocationDecider);
@@ -103,7 +104,7 @@ public class AllocationDeciders {
             // tighter loop if debug information is not collected: don't collect yes decisions + break out right away on NO
             Decision ret = Decision.YES;
             for (AllocationDecider allocationDecider : allocations) {
-                switch (allocationDecider.canRemain(shardRouting, node, allocation).type()) {
+                switch (allocationDecider.canRemain(indexMetadata, shardRouting, node, allocation).type()) {
                     case NO -> {
                         maybeTraceLogNoDecision(shardRouting, node, allocationDecider);
                         return Decision.NO;

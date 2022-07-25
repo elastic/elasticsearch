@@ -307,7 +307,7 @@ public class InternalTestClusterTests extends ESTestCase {
             final Settings poorNodeDataPathSettings = cluster.dataPathSettings(poorNode);
             final Path testMarker = dataPath.resolve("testMarker");
             Files.createDirectories(testMarker);
-            cluster.stopRandomNode(InternalTestCluster.nameFilter(poorNode));
+            cluster.stopNode(poorNode);
             assertFileExists(testMarker); // stopping a node half way shouldn't clean data
 
             final String stableNode = randomFrom(cluster.getNodeNames());

@@ -52,11 +52,6 @@ import java.util.function.Supplier;
 public class GeoGridAggAndQueryConsistencyIT extends ESIntegTestCase {
 
     @Override
-    protected boolean addMockGeoShapeFieldMapper() {
-        return false;
-    }
-
-    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singleton(LocalStateSpatialPlugin.class);
     }
@@ -68,6 +63,7 @@ public class GeoGridAggAndQueryConsistencyIT extends ESIntegTestCase {
     public void testGeoPointGeoTile() throws IOException {
         doTestGeotileGrid(
             GeoPointFieldMapper.CONTENT_TYPE,
+            GeoTileUtils.MAX_ZOOM - 4,  // levels 26 and above have some rounding errors, but this is past the index resolution
             // just generate points on bounds
             () -> randomValueOtherThanMany(
                 p -> p.getLat() > GeoTileUtils.NORMALIZED_LATITUDE_MASK || p.getLat() < GeoTileUtils.NORMALIZED_NEGATIVE_LATITUDE_MASK,
@@ -86,7 +82,11 @@ public class GeoGridAggAndQueryConsistencyIT extends ESIntegTestCase {
     }
 
     public void testGeoShapeGeoTile() throws IOException {
-        doTestGeotileGrid(GeoShapeWithDocValuesFieldMapper.CONTENT_TYPE, () -> GeometryTestUtils.randomGeometryWithoutCircle(0, false));
+        doTestGeotileGrid(
+            GeoShapeWithDocValuesFieldMapper.CONTENT_TYPE,
+            GeoTileUtils.MAX_ZOOM - 1,
+            () -> GeometryTestUtils.randomGeometryWithoutCircle(0, false)
+        );
     }
 
     private void doTestGeohashGrid(String fieldType, Supplier<Geometry> randomGeometriesSupplier) throws IOException {
@@ -103,10 +103,10 @@ public class GeoGridAggAndQueryConsistencyIT extends ESIntegTestCase {
         );
     }
 
-    private void doTestGeotileGrid(String fieldType, Supplier<Geometry> randomGeometriesSupplier) throws IOException {
+    private void doTestGeotileGrid(String fieldType, int maxPrecision, Supplier<Geometry> randomGeometriesSupplier) throws IOException {
         doTestGrid(
             0,
-            GeoTileUtils.MAX_ZOOM - 1,
+            maxPrecision,
             fieldType,
             (precision, point) -> GeoTileUtils.stringEncode(GeoTileUtils.longEncode(point.getLon(), point.getLat(), precision)),
             tile -> toPoints(GeoTileUtils.toBoundingBox(tile)),
@@ -181,7 +181,7 @@ public class GeoGridAggAndQueryConsistencyIT extends ESIntegTestCase {
             GeoGridAggregationBuilder builderPoint = aggBuilder.apply("geometry").field("geometry").precision(i);
             SearchResponse response = client().prepareSearch("test").addAggregation(builderPoint).setSize(0).get();
             InternalGeoGrid<?> gridPoint = response.getAggregations().get("geometry");
-            assertQuery(gridPoint.getBuckets(), queryBuilder);
+            assertQuery(gridPoint.getBuckets(), queryBuilder, i);
         }
 
         builder = client().prepareBulk();
@@ -209,16 +209,20 @@ public class GeoGridAggAndQueryConsistencyIT extends ESIntegTestCase {
                 .size(256 * 256);
             SearchResponse response = client().prepareSearch("test").addAggregation(builderPoint).setSize(0).get();
             InternalGeoGrid<?> gridPoint = response.getAggregations().get("geometry");
-            assertQuery(gridPoint.getBuckets(), queryBuilder);
+            assertQuery(gridPoint.getBuckets(), queryBuilder, i);
         }
     }
 
-    private void assertQuery(List<InternalGeoGridBucket> buckets, BiFunction<String, String, QueryBuilder> queryFunction) {
+    private void assertQuery(List<InternalGeoGridBucket> buckets, BiFunction<String, String, QueryBuilder> queryFunction, int precision) {
         for (InternalGeoGridBucket bucket : buckets) {
             assertThat(bucket.getDocCount(), Matchers.greaterThan(0L));
             QueryBuilder queryBuilder = queryFunction.apply("geometry", bucket.getKeyAsString());
             SearchResponse response = client().prepareSearch("test").setTrackTotalHits(true).setQuery(queryBuilder).get();
-            assertThat(response.getHits().getTotalHits().value, Matchers.equalTo(bucket.getDocCount()));
+            assertThat(
+                "Expected hits at precision " + precision,
+                response.getHits().getTotalHits().value,
+                Matchers.equalTo(bucket.getDocCount())
+            );
         }
     }
 

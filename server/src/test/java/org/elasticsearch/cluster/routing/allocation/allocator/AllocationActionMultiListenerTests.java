@@ -11,7 +11,11 @@ package org.elasticsearch.cluster.routing.allocation.allocator;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -62,5 +66,51 @@ public class AllocationActionMultiListenerTests extends ESTestCase {
         ).onFailure(new RuntimeException());
 
         assertThat(completed.get(), equalTo(true));
+    }
+
+    public void testConcurrency() throws InterruptedException {
+
+        var listener = new AllocationActionMultiListener<AcknowledgedResponse>();
+
+        var count = randomIntBetween(1, 100);
+        var completed = new CountDownLatch(count);
+
+        var start = new CountDownLatch(3);
+        var threadPool = new TestThreadPool(getTestName());
+
+        threadPool.executor(ThreadPool.Names.CLUSTER_COORDINATION).submit(() -> {
+            start.countDown();
+            awaitQuietly(start);
+            for (int i = 0; i < count; i++) {
+                listener.delay(
+                    ActionListener.wrap(
+                        ignore -> completed.countDown(),
+                        exception -> { throw new AssertionError("Should not fail in test"); }
+                    )
+                ).onResponse(AcknowledgedResponse.TRUE);
+            }
+        });
+
+        threadPool.executor(ThreadPool.Names.GENERIC).submit(() -> {
+            start.countDown();
+            awaitQuietly(start);
+            if (randomBoolean()) {
+                listener.reroute().onResponse(null);
+            } else {
+                listener.noRerouteNeeded();
+            }
+        });
+        start.countDown();
+
+        assertTrue("Expected to call all delayed listeners within timeout", completed.await(10, TimeUnit.SECONDS));
+        terminate(threadPool);
+    }
+
+    private static void awaitQuietly(CountDownLatch latch) {
+        try {
+            assertTrue("Latch did not complete within timeout", latch.await(5, TimeUnit.SECONDS));
+        } catch (InterruptedException e) {
+            throw new AssertionError("Interrupted while waiting for test to start", e);
+        }
     }
 }

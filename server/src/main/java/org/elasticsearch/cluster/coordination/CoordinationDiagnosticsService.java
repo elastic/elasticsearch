@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -623,7 +624,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener, Coo
 
     private void beginPollingRemoteStableMasterHealthIndicatorService(Collection<DiscoveryNode> masterEligibleNodes) {
         synchronized (remoteDiagnosticsMutex) {
-            if (remoteCoordinationDiagnosticsCancelled.get()) { // Don't start a 2nd one if the last hasnt' been cancelled
+            if (remoteCoordinationDiagnosticsCancelled.get()) { // Don't start a 2nd one if the last hasn't been cancelled
                 AtomicReference<Scheduler.Cancellable> cancellableReference = new AtomicReference<>();
                 AtomicReference<RemoteMasterHealthResult> resultReference = new AtomicReference<>();
                 AtomicBoolean isCancelled = new AtomicBoolean(false);
@@ -632,9 +633,10 @@ public class CoordinationDiagnosticsService implements ClusterStateListener, Coo
                         if (isCancelled.get()) {
                             /*
                              * cancelPollingRemoteStableMasterHealthIndicatorService() has been called already and if we were to put
-                             * this task into this cancellableReference it would never be used
+                             * this task into this cancellableReference it would be lost (and never cancelled).
                              */
                             task.cancel();
+                            logger.trace("A Cancellable came in for a cancelled remote coordination diagnostics task");
                         } else {
                             cancellableReference.set(task);
                         }
@@ -694,7 +696,14 @@ public class CoordinationDiagnosticsService implements ClusterStateListener, Coo
         AtomicBoolean isCancelled
     ) {
         return response -> {
-            if (isCancelled.get() == false) {
+            if (isCancelled.get()) {
+                logger.trace("An attempt to reschedule a cancelled remote coordination diagnostics task is being ignored");
+            } else {
+                /*
+                 * We make sure that the task hasn't been cancelled. If it has, we don't reschedule the task. Since this block is not
+                 * synchronized it is possible that the task will be cancelled after the check and before the following is run. In that case
+                 * the cancellableConsumer will immediately cancel the task.
+                 */
                 cancellableConsumer.accept(
                     fetchCoordinationDiagnostics(
                         masterEligibleNode,
@@ -726,6 +735,18 @@ public class CoordinationDiagnosticsService implements ClusterStateListener, Coo
         long startTime = System.nanoTime();
         connectionListener.whenComplete(releasable -> {
             if (isCancelled.get() == false) {
+                IOUtils.close(releasable);
+                logger.trace(
+                    "Opened connection to {} for a remote coordination diagnostics request, but the task was cancelled and the "
+                        + "trasport request will not be made",
+                    node
+                );
+            } else {
+                /*
+                 * Since this block is not synchronized it is possible that this task is cancelled between the check above and when the
+                 * code below is run, but this is harmless and not worth the additional synchronization in the normal case. The result
+                 * will just be ignored.
+                 */
                 logger.trace("Opened connection to {}, making master stability request", node);
                 // If we don't get a response in 10 seconds that is a failure worth capturing on its own:
                 final TimeValue transportTimeout = TimeValue.timeValueSeconds(10);
@@ -748,9 +769,11 @@ public class CoordinationDiagnosticsService implements ClusterStateListener, Coo
         fetchCoordinationDiagnosticsListener.whenComplete(response -> {
             long endTime = System.nanoTime();
             logger.trace("Received master stability result from {} in {}", node, TimeValue.timeValueNanos(endTime - startTime));
-            if (isCancelled.get() == false) {
-                responseConsumer.accept(new RemoteMasterHealthResult(node, response.getCoordinationDiagnosticsResult(), null));
-            }
+            /*
+             * It is possible that the task has been cancelled at this point, but it does not really matter. In that case this result
+             * will be ignored and soon garbage collected.
+             */
+            responseConsumer.accept(new RemoteMasterHealthResult(node, response.getCoordinationDiagnosticsResult(), null));
         }, e -> {
             logger.warn("Exception in master stability request to master node", e);
             responseConsumer.accept(new RemoteMasterHealthResult(node, null, e));
@@ -765,7 +788,14 @@ public class CoordinationDiagnosticsService implements ClusterStateListener, Coo
                     node.getVersion(),
                     minSupportedVersion
                 );
-            } else if (isCancelled.get() == false) {
+            } else if (isCancelled.get()) {
+                logger.trace("The remote coordination diagnostics task has been cancelled, so not opening a remote connection");
+            } else {
+                /*
+                 * Since this block is not synchronized it is possible that this task is cancelled between the check above and when the
+                 * code below is run, but this is harmless and not worth the additional synchronization in the normal case. In that case
+                 * the connection will just be closed and the transport request will not be made.
+                 */
                 transportService.connectToNode(
                     // Note: This connection must be explicitly closed in the connectionListener
                     node,

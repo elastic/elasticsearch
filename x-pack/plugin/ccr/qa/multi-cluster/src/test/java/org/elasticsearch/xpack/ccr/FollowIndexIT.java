@@ -388,7 +388,7 @@ public class FollowIndexIT extends ESCCRRestTestCase {
         if ("leader".equals(targetCluster)) {
             logger.info("Running against leader cluster");
             createIndex(adminClient(), leaderIndexName, Settings.EMPTY, """
-                "_source": {"synthetic": true},
+                "_source": {"mode": "synthetic"},
                 "properties": {"kwd": {"type": "keyword"}}}""", null);
             for (int i = 0; i < numDocs; i++) {
                 logger.info("Indexing doc [{}]", i);
@@ -413,7 +413,7 @@ public class FollowIndexIT extends ESCCRRestTestCase {
             }
             assertBusy(() -> {
                 verifyDocuments(client(), followIndexName, numDocs);
-                assertMap(getIndexMappingAsMap(followIndexName), matchesMap().extraOk().entry("_source", Map.of("synthetic", true)));
+                assertMap(getIndexMappingAsMap(followIndexName), matchesMap().extraOk().entry("_source", Map.of("mode", "synthetic")));
                 if (overrideNumberOfReplicas) {
                     assertMap(getIndexSettingsAsMap(followIndexName), matchesMap().extraOk().entry("index.number_of_replicas", "0"));
                 } else {

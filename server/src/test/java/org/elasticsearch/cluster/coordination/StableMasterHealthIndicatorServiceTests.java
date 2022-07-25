@@ -21,10 +21,10 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthStatus;
-import org.elasticsearch.health.UserAction;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
@@ -110,13 +110,16 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
             CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.YELLOW
         );
         CoordinationDiagnosticsService.CoordinationDiagnosticsResult coordinationDiagnosticsResult =
-            new CoordinationDiagnosticsService.CoordinationDiagnosticsResult(inputStatus, "summary", coordinationDiagnosticsDetails);
+            new CoordinationDiagnosticsService.CoordinationDiagnosticsResult(
+                inputStatus,
+                "the summary of the diagnostic",
+                coordinationDiagnosticsDetails
+            );
         HealthIndicatorResult result = service.getHealthIndicatorResult(coordinationDiagnosticsResult, true);
         assertThat(result.status(), equalTo(HealthStatus.fromCoordinationDiagnosticsStatus(inputStatus)));
-        assertThat(result.summary(), equalTo("summary"));
+        assertThat(result.symptom(), equalTo("the summary of the diagnostic"));
         assertThat(result.impacts().size(), equalTo(3));
         assertThat(result.name(), equalTo(StableMasterHealthIndicatorService.NAME));
-        assertThat(result.component(), equalTo("cluster_coordination"));
         HealthIndicatorDetails details = result.details();
         Map<String, Object> detailsMap = xContentToMap(details);
         assertThat(detailsMap.size(), equalTo(3));
@@ -135,10 +138,9 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
         assertThat(clusterFormationMap.size(), equalTo(2));
         assertThat(clusterFormationMap.get(node1.getId()), equalTo(node1ClusterFormation));
         assertThat(clusterFormationMap.get(node2.getId()), equalTo(node2ClusterFormation));
-        List<UserAction> userActions = result.userActions();
-        assertThat(userActions.size(), equalTo(1));
-        assertThat(userActions.get(0), is(StableMasterHealthIndicatorService.CONTACT_SUPPORT_USER_ACTION));
-        assertThat(result.helpURL(), equalTo("https://ela.st/fix-master"));
+        List<Diagnosis> diagnosis = result.diagnosisList();
+        assertThat(diagnosis.size(), equalTo(1));
+        assertThat(diagnosis.get(0), is(StableMasterHealthIndicatorService.CONTACT_SUPPORT_USER_ACTION));
     }
 
     @SuppressWarnings("unchecked")
@@ -153,17 +155,19 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
             CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.YELLOW
         );
         CoordinationDiagnosticsService.CoordinationDiagnosticsResult coordinationDiagnosticsResult =
-            new CoordinationDiagnosticsService.CoordinationDiagnosticsResult(inputStatus, "summary", coordinationDiagnosticsDetails);
+            new CoordinationDiagnosticsService.CoordinationDiagnosticsResult(
+                inputStatus,
+                "the summary of the diagnostic",
+                coordinationDiagnosticsDetails
+            );
         HealthIndicatorResult result = service.getHealthIndicatorResult(coordinationDiagnosticsResult, false);
         assertThat(result.status(), equalTo(HealthStatus.fromCoordinationDiagnosticsStatus(inputStatus)));
-        assertThat(result.summary(), equalTo("summary"));
+        assertThat(result.symptom(), equalTo("the summary of the diagnostic"));
         assertThat(result.impacts().size(), equalTo(3));
         assertThat(result.name(), equalTo(StableMasterHealthIndicatorService.NAME));
-        assertThat(result.component(), equalTo("cluster_coordination"));
         assertThat(result.details(), equalTo(HealthIndicatorDetails.EMPTY));
-        List<UserAction> userActions = result.userActions();
-        assertThat(userActions.size(), equalTo(0));
-        assertThat(result.helpURL(), equalTo("https://ela.st/fix-master"));
+        List<Diagnosis> diagnosis = result.diagnosisList();
+        assertThat(diagnosis.size(), equalTo(0));
     }
 
     @SuppressWarnings("unchecked")
@@ -178,19 +182,21 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
             CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.UNKNOWN
         );
         CoordinationDiagnosticsService.CoordinationDiagnosticsResult coordinationDiagnosticsResult =
-            new CoordinationDiagnosticsService.CoordinationDiagnosticsResult(inputStatus, "summary", coordinationDiagnosticsDetails);
+            new CoordinationDiagnosticsService.CoordinationDiagnosticsResult(
+                inputStatus,
+                "the summary of the diagnostic",
+                coordinationDiagnosticsDetails
+            );
         HealthIndicatorResult result = service.getHealthIndicatorResult(coordinationDiagnosticsResult, true);
         assertThat(result.status(), equalTo(HealthStatus.fromCoordinationDiagnosticsStatus(inputStatus)));
-        assertThat(result.summary(), equalTo("summary"));
+        assertThat(result.symptom(), equalTo("the summary of the diagnostic"));
         assertThat(result.impacts().size(), equalTo(0));
         assertThat(result.name(), equalTo(StableMasterHealthIndicatorService.NAME));
-        assertThat(result.component(), equalTo("cluster_coordination"));
         HealthIndicatorDetails details = result.details();
         Map<String, Object> detailsMap = xContentToMap(details);
         assertThat(detailsMap.size(), equalTo(2));
-        List<UserAction> userActions = result.userActions();
-        assertThat(userActions.size(), equalTo(0));
-        assertThat(result.helpURL(), equalTo(null));
+        List<Diagnosis> diagnosis = result.diagnosisList();
+        assertThat(diagnosis.size(), equalTo(0));
     }
 
     @SuppressWarnings("unchecked")
@@ -232,7 +238,7 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
         localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node2MasterClusterState, node3MasterClusterState));
         HealthIndicatorResult result = service.calculate(true);
         assertThat(result.status(), equalTo(HealthStatus.YELLOW));
-        assertThat(result.summary(), equalTo("The elected master node has changed 4 times in the last 30m"));
+        assertThat(result.symptom(), equalTo("The elected master node has changed 4 times in the last 30m"));
         assertThat(result.impacts().size(), equalTo(3));
         HealthIndicatorDetails details = result.details();
         Map<String, Object> detailsMap = xContentToMap(details);

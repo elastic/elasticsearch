@@ -13,6 +13,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -355,6 +356,8 @@ public class AssignmentStats implements ToXContentObject, Writeable {
     private final Integer numberOfAllocations;
     @Nullable
     private final Integer queueCapacity;
+    @Nullable
+    private final ByteSizeValue cacheSize;
     private final Instant startTime;
     private final List<AssignmentStats.NodeStats> nodeStats;
 
@@ -363,6 +366,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
         @Nullable Integer threadsPerAllocation,
         @Nullable Integer numberOfAllocations,
         @Nullable Integer queueCapacity,
+        @Nullable ByteSizeValue cacheSize,
         Instant startTime,
         List<AssignmentStats.NodeStats> nodeStats
     ) {
@@ -372,6 +376,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
         this.queueCapacity = queueCapacity;
         this.startTime = Objects.requireNonNull(startTime);
         this.nodeStats = nodeStats;
+        this.cacheSize = cacheSize;
         this.state = null;
         this.reason = null;
     }
@@ -386,6 +391,11 @@ public class AssignmentStats implements ToXContentObject, Writeable {
         state = in.readOptionalEnum(AssignmentState.class);
         reason = in.readOptionalString();
         allocationStatus = in.readOptionalWriteable(AllocationStatus::new);
+        if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
+            cacheSize = in.readOptionalWriteable(ByteSizeValue::new);
+        } else {
+            cacheSize = null;
+        }
     }
 
     public String getModelId() {
@@ -405,6 +415,11 @@ public class AssignmentStats implements ToXContentObject, Writeable {
     @Nullable
     public Integer getQueueCapacity() {
         return queueCapacity;
+    }
+
+    @Nullable
+    public ByteSizeValue getCacheSize() {
+        return cacheSize;
     }
 
     public Instant getStartTime() {
@@ -477,6 +492,9 @@ public class AssignmentStats implements ToXContentObject, Writeable {
         if (allocationStatus != null) {
             builder.field("allocation_status", allocationStatus);
         }
+        if (cacheSize != null) {
+            builder.field("cache_size", cacheSize);
+        }
         builder.timeField("start_time", "start_time_string", startTime.toEpochMilli());
 
         int totalErrorCount = nodeStats.stream().mapToInt(NodeStats::getErrorCount).sum();
@@ -526,6 +544,9 @@ public class AssignmentStats implements ToXContentObject, Writeable {
         }
         out.writeOptionalString(reason);
         out.writeOptionalWriteable(allocationStatus);
+        if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
+            out.writeOptionalWriteable(cacheSize);
+        }
     }
 
     @Override
@@ -541,6 +562,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
             && Objects.equals(state, that.state)
             && Objects.equals(reason, that.reason)
             && Objects.equals(allocationStatus, that.allocationStatus)
+            && Objects.equals(cacheSize, that.cacheSize)
             && Objects.equals(nodeStats, that.nodeStats);
     }
 
@@ -555,7 +577,8 @@ public class AssignmentStats implements ToXContentObject, Writeable {
             nodeStats,
             state,
             reason,
-            allocationStatus
+            allocationStatus,
+            cacheSize
         );
     }
 

@@ -63,8 +63,7 @@ changes such as adding or removing nodes. Using this information, the system is
 able to take better decisions.
 
 It's possible to run the update in "dry run" mode by adding the
-`?dry_run` query parameter, or by passing `"dry_run": true` in the request
-body. This will validate the request result, but will not actually perform the update.
+`?dry_run` query parameter. This will validate the request result, but will not actually perform the update.
 
 [[update-desired-nodes-examples]]
 ==== {api-examples-title}

@@ -160,6 +160,7 @@ import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.ShutdownAwarePlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
+import org.elasticsearch.plugins.TracerPlugin;
 import org.elasticsearch.readiness.ReadinessService;
 import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -212,7 +213,6 @@ import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -222,7 +222,6 @@ import java.util.function.LongSupplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
 import javax.net.ssl.SNIHostName;
 
 import static java.util.stream.Collectors.toList;
@@ -690,6 +689,8 @@ public class Node implements Closeable {
                 shardLimitValidator
             );
 
+            final Tracer tracer = getTracer(pluginsService, clusterService, settings);
+
             Collection<Object> pluginComponents = pluginsService.flatMap(
                 p -> p.createComponents(
                     client,
@@ -705,8 +706,6 @@ public class Node implements Closeable {
                     repositoriesServiceReference::get
                 )
             ).toList();
-
-            final Tracer tracer = getTracer(pluginComponents);
 
             ActionModule actionModule = new ActionModule(
                 settings,
@@ -1077,14 +1076,14 @@ public class Node implements Closeable {
         }
     }
 
-    private Tracer getTracer(Collection<Object> pluginComponents) {
-        final List<Tracer> tracers = pluginComponents.stream().map(c -> c instanceof Tracer t ? t : null).filter(Objects::nonNull).toList();
+    private Tracer getTracer(PluginsService pluginsService, ClusterService clusterService, Settings settings) {
+        final List<TracerPlugin> tracerPlugins = pluginsService.filterPlugins(TracerPlugin.class);
 
-        if (tracers.size() > 1) {
-            throw new IllegalStateException("A single Tracer was expected but got: " + tracers);
+        if (tracerPlugins.size() > 1) {
+            throw new IllegalStateException("A single TracerPlugin was expected but got: " + tracerPlugins);
         }
 
-        return tracers.isEmpty() ? Tracer.NOOP : tracers.get(0);
+        return tracerPlugins.isEmpty() ? Tracer.NOOP : tracerPlugins.get(0).getTracer(clusterService, settings);
     }
 
     private HealthService createHealthService(

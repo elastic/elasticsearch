@@ -367,6 +367,9 @@ public final class IndicesPermission {
         Map<String, IndexAbstraction> lookup,
         FieldPermissionsCache fieldPermissionsCache
     ) {
+        assert requestedIndicesOrAliases.isEmpty() == false
+            : "every indices action request must have its indices set, hence the requested indices must not be empty";
+
         // Short circuit if the indicesPermission allows all access to every index
         if (Arrays.stream(groups).anyMatch(Group::isTotal)) {
             return IndicesAccessControl.allowAll();
@@ -528,10 +531,6 @@ public final class IndicesPermission {
      * If action is not granted for at least one resource, this method will return {@code false}.
      */
     private boolean isActionGranted(final String action, final Map<String, IndexResource> requestedResources) {
-
-        if (requestedResources.isEmpty()) {
-            return true;
-        }
 
         final boolean isMappingUpdateAction = isMappingUpdateAction(action);
 

@@ -83,7 +83,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         Long maxDocs = instance.getMaxDocs();
         Long maxPrimaryShardDocs = instance.getMaxPrimaryShardDocs();
 
-        switch (between(0, 5)) {
+        switch (between(0, 6)) {
             case 0 -> key = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
             case 1 -> nextKey = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
             case 2 -> maxSize = randomValueOtherThan(maxSize, () -> {

@@ -17,7 +17,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.common.unit.RelativeByteSizeValue;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -195,7 +194,7 @@ public final class HealthMetadata extends AbstractNamedDiffable<Metadata.Custom>
             if (relativeByteSizeValue.isAbsolute()) {
                 return relativeByteSizeValue.getAbsolute().getStringRep();
             } else {
-                return RatioValue.formatNoTrailingZerosPercent(relativeByteSizeValue.getRatio().getAsPercent());
+                return relativeByteSizeValue.getRatio().formatNoTrailingZerosPercent();
             }
         }
 

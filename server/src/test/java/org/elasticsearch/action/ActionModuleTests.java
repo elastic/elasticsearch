@@ -119,6 +119,7 @@ public class ActionModuleTests extends ESTestCase {
             null,
             usageService,
             null,
+            null,
             mock(ClusterService.class),
             List.of()
         );
@@ -177,6 +178,7 @@ public class ActionModuleTests extends ESTestCase {
                 null,
                 usageService,
                 null,
+                null,
                 mock(ClusterService.class),
                 List.of()
             );
@@ -228,6 +230,7 @@ public class ActionModuleTests extends ESTestCase {
                 null,
                 usageService,
                 null,
+                null,
                 mock(ClusterService.class),
                 List.of()
             );
@@ -273,6 +276,7 @@ public class ActionModuleTests extends ESTestCase {
                     null,
                     null,
                     usageService,
+                    null,
                     null,
                     mock(ClusterService.class),
                     List.of()

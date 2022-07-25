@@ -155,6 +155,14 @@ public class TrainedModelAssignmentMetadata implements Metadata.Custom {
         return Strings.toString(this);
     }
 
+    public boolean hasOutdatedAssignments() {
+        return modelRoutingEntries.values().stream().anyMatch(TrainedModelAssignment::hasOutdatedRoutingEntries);
+    }
+
+    public boolean hasModel(String modelId) {
+        return modelRoutingEntries.containsKey(modelId);
+    }
+
     public static class Builder {
 
         public static Builder empty() {

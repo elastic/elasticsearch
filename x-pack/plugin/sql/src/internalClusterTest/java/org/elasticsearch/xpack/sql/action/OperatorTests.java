@@ -22,6 +22,8 @@ import org.elasticsearch.xpack.sql.action.compute.data.Page;
 import org.elasticsearch.xpack.sql.action.compute.lucene.LuceneCollector;
 import org.elasticsearch.xpack.sql.action.compute.lucene.NumericDocValuesExtractor;
 import org.elasticsearch.xpack.sql.action.compute.operator.Driver;
+import org.elasticsearch.xpack.sql.action.compute.operator.LongAvgGroupingOperator;
+import org.elasticsearch.xpack.sql.action.compute.operator.LongAvgOperator;
 import org.elasticsearch.xpack.sql.action.compute.operator.LongGroupingOperator;
 import org.elasticsearch.xpack.sql.action.compute.operator.LongMaxOperator;
 import org.elasticsearch.xpack.sql.action.compute.operator.LongTransformerOperator;
@@ -274,6 +276,163 @@ public class OperatorTests extends ESTestCase {
         while (driver.isFinished() == false) {
             logger.info("Run a couple of steps");
             driver.run(TimeValue.MAX_VALUE, 10);
+        }
+    }
+
+    // Trivial test with small input
+    public void testBasicAvgOperators() {
+        AtomicInteger pageCount = new AtomicInteger();
+        AtomicInteger rowCount = new AtomicInteger();
+        AtomicReference<Page> lastPage = new AtomicReference<>();
+
+        Driver driver = new Driver(
+            List.of(
+                new ListLongBlockSourceOperator(List.of(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L)),
+                new LongAvgOperator(0),
+                new PageConsumerOperator(page -> {
+                    System.out.println("New page: " + page);
+                    pageCount.incrementAndGet();
+                    rowCount.addAndGet(page.getPositionCount());
+                    lastPage.set(page);
+                })
+            ),
+            () -> {}
+        );
+        driver.run();
+        assertEquals(1, pageCount.get());
+        assertEquals(1, rowCount.get());
+        assertEquals(5, lastPage.get().getBlock(0).getLong(0));
+    }
+
+    // Trivial test with small input
+    public void testBasicAvgGroupingOperators() {
+        AtomicInteger pageCount = new AtomicInteger();
+        AtomicInteger rowCount = new AtomicInteger();
+        AtomicReference<Page> lastPage = new AtomicReference<>();
+
+        var source = new LongTupleBlockSourceOperator(
+            List.of(9L, 5L, 9L, 5L, 9L, 5L, 9L, 5L, 9L),  // groups
+            List.of(1L, 1L, 2L, 1L, 3L, 1L, 4L, 1L, 5L)   // values
+        );
+
+        Driver driver = new Driver(
+            List.of(
+                source,
+                new LongGroupingOperator(0, BigArrays.NON_RECYCLING_INSTANCE),
+                new LongAvgGroupingOperator(1, 0),
+                new PageConsumerOperator(page -> {
+                    System.out.println("New page: " + page);
+                    pageCount.incrementAndGet();
+                    rowCount.addAndGet(page.getPositionCount());
+                    lastPage.set(page);
+                })
+            ),
+            () -> {}
+        );
+        driver.run();
+        assertEquals(1, pageCount.get());
+        assertEquals(2, rowCount.get());
+
+        // expect [5 - avg1 , 9 - avg3] - groups (order agnostic)
+        assertEquals(5, lastPage.get().getBlock(0).getLong(0));  // expect [5, 9] - order agnostic
+        assertEquals(9, lastPage.get().getBlock(0).getLong(1));
+        assertEquals(1, lastPage.get().getBlock(1).getLong(0));
+        assertEquals(3, lastPage.get().getBlock(1).getLong(1));
+    }
+
+    /**
+     * A source operator whose output is the given long values. This operator produces a single
+     * Page with two Blocks. The first Block contains the long values from the first list, in order.
+     * The second Block contains the long values from the second list, in order.
+     */
+    class LongTupleBlockSourceOperator implements Operator {
+
+        private final List<Long> firstValues;
+        private final List<Long> secondValues;
+
+        LongTupleBlockSourceOperator(List<Long> firstValues, List<Long> secondValues) {
+            assert firstValues.size() == secondValues.size();
+            this.firstValues = firstValues;
+            this.secondValues = secondValues;
+        }
+
+        boolean finished;
+
+        @Override
+        public Page getOutput() {
+            // all in one page for now
+            finished = true;
+            LongBlock firstBlock = new LongBlock(firstValues.stream().mapToLong(Long::longValue).toArray(), firstValues.size());
+            LongBlock secondBlock = new LongBlock(secondValues.stream().mapToLong(Long::longValue).toArray(), secondValues.size());
+            return new Page(firstBlock, secondBlock);
+        }
+
+        @Override
+        public void close() {}
+
+        @Override
+        public boolean isFinished() {
+            return finished;
+        }
+
+        @Override
+        public void finish() {
+            finished = true;
+        }
+
+        @Override
+        public boolean needsInput() {
+            return false;
+        }
+
+        @Override
+        public void addInput(Page page) {
+            throw new UnsupportedOperationException();
+        }
+    }
+
+    /**
+     * A source operator whose output is the given long values. This operator produces a single
+     * Page with a single Block. The Block contains the long values from the given list, in order.
+     */
+    class ListLongBlockSourceOperator implements Operator {
+
+        private final List<Long> values;
+
+        ListLongBlockSourceOperator(List<Long> values) {
+            this.values = values;
+        }
+
+        boolean finished;
+
+        @Override
+        public Page getOutput() {
+            // all in one page, for now
+            finished = true;
+            return new Page(new LongBlock(values.stream().mapToLong(Long::longValue).toArray(), values.size()));
+        }
+
+        @Override
+        public void close() {}
+
+        @Override
+        public boolean isFinished() {
+            return finished;
+        }
+
+        @Override
+        public void finish() {
+            finished = true;
+        }
+
+        @Override
+        public boolean needsInput() {
+            return false;
+        }
+
+        @Override
+        public void addInput(Page page) {
+            throw new UnsupportedOperationException();
         }
     }
 }

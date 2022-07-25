@@ -1,5 +1,5 @@
 pr: 88789
 summary: "TSDB: Build `_id` without reparsing"
-area: "Mapping, TSDB"
+area: "TSDB"
 type: enhancement
 issues: []

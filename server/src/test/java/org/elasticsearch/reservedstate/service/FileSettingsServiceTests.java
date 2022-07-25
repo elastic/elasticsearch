@@ -20,6 +20,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentParser;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
 
 import java.nio.charset.StandardCharsets;
@@ -144,10 +145,11 @@ public class FileSettingsServiceTests extends ESTestCase {
         Files.write(service.operatorSettingsFile(), "{}".getBytes(StandardCharsets.UTF_8));
 
         // we need to wait a bit, on MacOS it may take up to 10 seconds for the Java watcher service to notice the file,
-        // on Linux is instantaneous. Windows???
+        // on Linux is instantaneous. Windows is instantaneous too.
         processFileLatch.await(30, TimeUnit.SECONDS);
 
-        verify(service, times(1)).watchedFileChanged(any());
+        verify(service, Mockito.atLeast(1)).watchedFileChanged(any());
+        verify(service, times(1)).processFileSettings(any(), eq(false));
 
         service.stop();
         assertFalse(service.watching());

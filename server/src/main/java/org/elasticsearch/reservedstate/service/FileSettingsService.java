@@ -213,6 +213,9 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
                      *     ENTRY_MODIFY:settings.json
                      * Linux in Docker symlink delete and set (rm -rf operator && ln -s <path to>/file_settings/ operator):
                      *     ENTRY_CREATE:operator
+                     * Windows
+                     *     ENTRY_CREATE:operator
+                     *     ENTRY_MODIFY:operator
                      * After we get an indication that something has changed, we check the timestamp, file id,
                      * real path of our desired file.
                      */

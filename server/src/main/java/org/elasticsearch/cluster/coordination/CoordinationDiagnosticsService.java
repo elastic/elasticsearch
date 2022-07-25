@@ -734,7 +734,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener, Coo
         StepListener<CoordinationDiagnosticsAction.Response> fetchCoordinationDiagnosticsListener = new StepListener<>();
         long startTime = System.nanoTime();
         connectionListener.whenComplete(releasable -> {
-            if (isCancelled.get() == false) {
+            if (isCancelled.get()) {
                 IOUtils.close(releasable);
                 logger.trace(
                     "Opened connection to {} for a remote coordination diagnostics request, but the task was cancelled and the "

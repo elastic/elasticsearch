@@ -100,6 +100,7 @@ public class ProfileService {
     private static final String DOC_ID_PREFIX = "profile_";
     private static final BackoffPolicy DEFAULT_BACKOFF = BackoffPolicy.exponentialBackoff();
     private static final int DIFFERENTIATOR_UPPER_LIMIT = 9;
+    private static final long ACTIVATE_INTERVAL_IN_MS = TimeValue.timeValueSeconds(30).millis();
 
     private final Settings settings;
     private final Clock clock;
@@ -687,20 +688,29 @@ public class ProfileService {
         }
     }
 
-    private void updateProfileForActivate(Subject subject, VersionedDocument versionedDocument, ActionListener<Profile> listener)
+    // package private for testing
+    void updateProfileForActivate(Subject subject, VersionedDocument currentVersionedDocument, ActionListener<Profile> listener)
         throws IOException {
-        final ProfileDocument profileDocument = updateWithSubject(versionedDocument.doc, subject);
+        final ProfileDocument newProfileDocument = updateWithSubject(currentVersionedDocument.doc, subject);
+        // If the profile content does not change and it is recently updated within last 30 seconds, do not update it again
+        // to avoid potential excessive version conflicts
+        if (newProfileDocument.user().equals(currentVersionedDocument.doc.user())
+            && currentVersionedDocument.doc.enabled()
+            && newProfileDocument.lastSynchronized() - currentVersionedDocument.doc.lastSynchronized() < ACTIVATE_INTERVAL_IN_MS) {
+            listener.onResponse(currentVersionedDocument.toProfile(Set.of()));
+            return;
+        }
 
         doUpdate(
             buildUpdateRequest(
-                profileDocument.uid(),
-                wrapProfileDocumentWithoutApplicationData(profileDocument),
+                newProfileDocument.uid(),
+                wrapProfileDocumentWithoutApplicationData(newProfileDocument),
                 RefreshPolicy.WAIT_UNTIL,
-                versionedDocument.primaryTerm,
-                versionedDocument.seqNo
+                currentVersionedDocument.primaryTerm,
+                currentVersionedDocument.seqNo
             ),
             listener.map(
-                updateResponse -> new VersionedDocument(profileDocument, updateResponse.getPrimaryTerm(), updateResponse.getSeqNo())
+                updateResponse -> new VersionedDocument(newProfileDocument, updateResponse.getPrimaryTerm(), updateResponse.getSeqNo())
                     .toProfile(Set.of())
             )
         );

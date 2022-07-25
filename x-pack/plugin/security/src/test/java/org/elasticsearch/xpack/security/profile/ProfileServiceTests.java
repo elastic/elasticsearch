@@ -27,6 +27,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -72,6 +73,7 @@ import org.elasticsearch.xpack.security.test.SecurityMocks;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.time.Clock;
@@ -101,11 +103,13 @@ import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -740,6 +744,135 @@ public class ProfileServiceTests extends ESTestCase {
             containsString("Security domain [" + realmRef3.getDomain().name() + "] is configured to use literal username.")
         );
         assertThat(e3.getMessage(), containsString("The username must begin with an alphanumeric character"));
+    }
+
+    public void testGracePeriodForActivation() throws IOException {
+        final ProfileService service = spy(
+            new ProfileService(Settings.EMPTY, Clock.systemUTC(), client, profileIndex, mock(ClusterService.class), domainName -> {
+                if (domainName.startsWith("hash")) {
+                    return new DomainConfig(domainName, Set.of(), false, null);
+                } else {
+                    return new DomainConfig(domainName, Set.of(), true, "suffix");
+                }
+            }, threadPool)
+        );
+
+        doAnswer(
+            invocation -> new UpdateRequestBuilder(
+                client,
+                UpdateAction.INSTANCE,
+                SECURITY_PROFILE_ALIAS,
+                (String) invocation.getArguments()[1]
+            )
+        ).when(client).prepareUpdate(eq(SECURITY_PROFILE_ALIAS), anyString());
+
+        final UpdateResponse updateResponse = mock(UpdateResponse.class);
+        when(updateResponse.getPrimaryTerm()).thenReturn(randomNonNegativeLong());
+        when(updateResponse.getSeqNo()).thenReturn(randomNonNegativeLong());
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            final ActionListener<UpdateResponse> listener = (ActionListener<UpdateResponse>) invocation.getArguments()[1];
+            listener.onResponse(updateResponse);
+            return null;
+        }).when(service).doUpdate(any(), anyActionListener());
+
+        final List<String> allRoles = randomList(0, 5, () -> randomAlphaOfLengthBetween(3, 10));
+
+        // Scenario 1: No update will be performed since content is the same and last_synchronized is within 30 seconds
+        final User user1 = AuthenticationTestHelper.userWithRandomMetadataAndDetails(
+            randomAlphaOfLengthBetween(3, 8),
+            randomSubsetOf(allRoles).toArray(String[]::new)
+        );
+        final Subject subject1 = AuthenticationTestHelper.builder().user(user1).realm().build().getEffectiveSubject();
+        final ProfileDocument profileDocument1 = ProfileDocument.fromSubject(subject1);
+        final ProfileService.VersionedDocument versionedDocument1 = new ProfileService.VersionedDocument(
+            profileDocument1,
+            randomNonNegativeLong(),
+            randomNonNegativeLong()
+        );
+
+        final PlainActionFuture<Profile> future1 = new PlainActionFuture<>();
+        service.updateProfileForActivate(subject1, versionedDocument1, future1);
+        verify(service, never()).doUpdate(any(), anyActionListener());
+        assertThat(future1.actionGet(), equalTo(versionedDocument1.toProfile(Set.of())));
+
+        // Scenario 2: Update will be performed if user info changes
+        final User user2 = randomValueOtherThan(
+            user1,
+            () -> AuthenticationTestHelper.userWithRandomMetadataAndDetails(
+                user1.principal(),
+                randomSubsetOf(allRoles).toArray(String[]::new)
+            )
+        );
+        final Subject subject2 = AuthenticationTestHelper.builder().user(user2).realmRef(subject1.getRealm()).build().getEffectiveSubject();
+
+        Mockito.clearInvocations(service);
+        final PlainActionFuture<Profile> future2 = new PlainActionFuture<>();
+        service.updateProfileForActivate(subject2, versionedDocument1, future2);
+        verify(service).doUpdate(any(), anyActionListener());
+        assertThat(future2.actionGet().user(), equalTo(ProfileDocument.fromSubject(subject2).user().toProfileUser()));
+
+        // Scenario 3: Update for realm change
+        final Subject subject3 = AuthenticationTestHelper.builder()
+            .user(user1)
+            .realmRef(randomValueOtherThan(subject1.getRealm(), AuthenticationTestHelper::randomRealmRef))
+            .build()
+            .getEffectiveSubject();
+
+        Mockito.clearInvocations(service);
+        final PlainActionFuture<Profile> future3 = new PlainActionFuture<>();
+        service.updateProfileForActivate(subject3, versionedDocument1, future3);
+        verify(service).doUpdate(any(), anyActionListener());
+        assertThat(future3.actionGet().user(), equalTo(ProfileDocument.fromSubject(subject3).user().toProfileUser()));
+
+        // Ensure the above updates are not due to grace time being reached
+        assertThat(
+            "Test is too slow",
+            Instant.now().isBefore(Instant.ofEpochMilli(versionedDocument1.doc().lastSynchronized()).plusSeconds(30)),
+            is(true)
+        );
+
+        // Scenario 4: Update for enabled status change
+        final ProfileDocument profileDocument4 = new ProfileDocument(
+            profileDocument1.uid(),
+            false,
+            Instant.now().toEpochMilli(),
+            profileDocument1.user(),
+            profileDocument1.labels(),
+            profileDocument1.applicationData()
+        );
+
+        Mockito.clearInvocations(service);
+        final PlainActionFuture<Profile> future4 = new PlainActionFuture<>();
+        service.updateProfileForActivate(
+            subject1,
+            new ProfileService.VersionedDocument(profileDocument4, randomNonNegativeLong(), randomNonNegativeLong()),
+            future4
+        );
+        verify(service).doUpdate(any(), anyActionListener());
+        assertThat(future4.actionGet().enabled(), is(true));
+        assertThat(future4.actionGet().user(), equalTo(profileDocument4.user().toProfileUser()));
+
+        // Scenario 5: Update for over the grace period of 30 seconds
+        final ProfileDocument profileDocument5 = new ProfileDocument(
+            profileDocument1.uid(),
+            profileDocument1.enabled(),
+            Instant.now().minusMillis(30_050).toEpochMilli(),
+            profileDocument1.user(),
+            profileDocument1.labels(),
+            profileDocument1.applicationData()
+        );
+
+        Mockito.clearInvocations(service);
+        final PlainActionFuture<Profile> future5 = new PlainActionFuture<>();
+        service.updateProfileForActivate(
+            subject1,
+            new ProfileService.VersionedDocument(profileDocument5, randomNonNegativeLong(), randomNonNegativeLong()),
+            future5
+        );
+        verify(service).doUpdate(any(), anyActionListener());
+        assertThat(future5.actionGet().lastSynchronized(), greaterThan(profileDocument5.lastSynchronized()));
+        assertThat(future5.actionGet().user(), equalTo(profileDocument5.user().toProfileUser()));
     }
 
     record SampleDocumentParameter(String uid, String username, List<String> roles, long lastSynchronized) {}

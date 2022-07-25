@@ -37,7 +37,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.IntSupplier;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -63,19 +62,11 @@ public class ShardSnapshotWorkersTests extends ESTestCase {
         private final AtomicInteger expectedUploads = new AtomicInteger();
         private final AtomicInteger finishedUploads = new AtomicInteger();
         private final AtomicInteger finishedSnapshots = new AtomicInteger();
-        private final CountDownLatch uploadBlocker;
         private final CountDownLatch snapshotBlocker;
-        private final IntSupplier fileUploadSupplier;
         private ShardSnapshotWorkers workers;
 
-        MockedRepo(IntSupplier fileUploadSupplier) {
-            this(new CountDownLatch(0), new CountDownLatch(0), fileUploadSupplier);
-        }
-
-        MockedRepo(CountDownLatch uploadBlocker, CountDownLatch snapshotBlocker, IntSupplier fileUploadSupplier) {
-            this.uploadBlocker = uploadBlocker;
+        MockedRepo(CountDownLatch snapshotBlocker) {
             this.snapshotBlocker = snapshotBlocker;
-            this.fileUploadSupplier = fileUploadSupplier;
         }
 
         public void setWorkers(ShardSnapshotWorkers workers) {
@@ -88,7 +79,7 @@ public class ShardSnapshotWorkersTests extends ESTestCase {
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
-            int filesToUpload = fileUploadSupplier.getAsInt();
+            int filesToUpload = randomIntBetween(0, 10);
             if (filesToUpload == 0) {
                 finishedSnapshots.incrementAndGet();
                 return;
@@ -104,11 +95,6 @@ public class ShardSnapshotWorkersTests extends ESTestCase {
         }
 
         public void uploadFile(SnapshotShardContext context, BlobStoreIndexShardSnapshot.FileInfo fileInfo) {
-            try {
-                uploadBlocker.await();
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            }
             finishedUploads.incrementAndGet();
         }
 
@@ -162,26 +148,10 @@ public class ShardSnapshotWorkersTests extends ESTestCase {
         );
     }
 
-    public void testWorkersSizeIsEventuallyZeroOnceQueueIsEmpty() throws Exception {
-        int maxSize = randomIntBetween(1, threadPool.info(ThreadPool.Names.SNAPSHOT).getMax());
-        MockedRepo repo = new MockedRepo(() -> randomIntBetween(0, 10));
-        ShardSnapshotWorkers workers = new ShardSnapshotWorkers(maxSize, executor, repo::snapshotShard, repo::uploadFile);
-        assertThat(workers.size(), equalTo(0));
-        repo.setWorkers(workers);
-        int shardsToSnapshot = randomIntBetween(1, 100);
-        for (int i = 0; i < shardsToSnapshot; i++) {
-            workers.enqueueShardSnapshot(createDummyContext());
-        }
-        assertBusy(() -> assertThat(workers.size(), equalTo(0)));
-        assertThat(repo.finishedUploads(), equalTo(repo.expectedUploads()));
-        assertThat(repo.finishedSnapshots(), equalTo(shardsToSnapshot));
-    }
-
     public void testEnqueueCreatesNewWorkersIfNecessary() throws Exception {
         int maxSize = randomIntBetween(1, threadPool.info(ThreadPool.Names.SNAPSHOT).getMax());
-        CountDownLatch uploadBlocker = new CountDownLatch(0);
         CountDownLatch snapshotBlocker = new CountDownLatch(1);
-        MockedRepo repo = new MockedRepo(uploadBlocker, snapshotBlocker, () -> 1); // Each shard snapshot results in one file snapshot
+        MockedRepo repo = new MockedRepo(snapshotBlocker);
         ShardSnapshotWorkers workers = new ShardSnapshotWorkers(maxSize, executor, repo::snapshotShard, repo::uploadFile);
         repo.setWorkers(workers);
         int enqueuedSnapshots = maxSize - 1; // It's possible to create at least one more worker
@@ -197,6 +167,7 @@ public class ShardSnapshotWorkersTests extends ESTestCase {
         enqueuedSnapshots += newTasks;
         assertThat(workers.size(), equalTo(maxSize));
         snapshotBlocker.countDown();
+        // Eventually all workers exit
         assertBusy(() -> assertThat(workers.size(), equalTo(0)));
         assertThat(repo.finishedUploads(), equalTo(repo.expectedUploads()));
         assertThat(repo.finishedSnapshots(), equalTo(enqueuedSnapshots));

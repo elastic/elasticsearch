@@ -58,7 +58,6 @@ setup:
   - gt: { testindex.all_fields.stored_fields_in_bytes: 0 }
   - gt: { testindex.all_fields.doc_values_in_bytes: 0 }
   - gt: { testindex.all_fields.points_in_bytes: 0 }
-  - gt: { testindex.all_fields.knn_vectors_in_bytes: 0 }
   - match: { testindex.all_fields.term_vectors_in_bytes: 0 }
 
   # genre
@@ -69,7 +68,6 @@ setup:
   - match: { testindex.fields.genre.points_in_bytes: 0 }
   - match: { testindex.fields.genre.norms_in_bytes: 0 }
   - match: { testindex.fields.genre.term_vectors_in_bytes: 0 }
-  - match: { testindex.fields.quantity.knn_vectors_in_bytes: 0 }
 
   # name
   - gt: { testindex.fields.name.total_in_bytes: 0 }
@@ -78,7 +76,6 @@ setup:
   - match: { testindex.fields.name.doc_values_in_bytes: 0 }
   - match: { testindex.fields.name.points_in_bytes: 0 }
   - match: { testindex.fields.name.term_vectors_in_bytes: 0 }
-  - match: { testindex.fields.quantity.knn_vectors_in_bytes: 0 }
 
   # quantity
   - gt: { testindex.fields.quantity.total_in_bytes: 0 }
@@ -88,7 +85,6 @@ setup:
   - gt: { testindex.fields.quantity.points_in_bytes: 0 }
   - match: { testindex.fields.quantity.norms_in_bytes: 0 }
   - match: { testindex.fields.quantity.term_vectors_in_bytes: 0 }
-  - match: { testindex.fields.quantity.knn_vectors_in_bytes: 0 }
 
   # vector
   - gt: { testindex.fields.vector.total_in_bytes: 0 }
@@ -98,7 +94,6 @@ setup:
   - match: { testindex.fields.vector.points_in_bytes: 0 }
   - match: { testindex.fields.vector.norms_in_bytes: 0 }
   - match: { testindex.fields.vector.term_vectors_in_bytes: 0 }
-  - gt: { testindex.fields.vector.knn_vectors_in_bytes: 0 }
 
   # _source
   - gt: { testindex.fields._source.total_in_bytes: 0 }
@@ -108,7 +103,6 @@ setup:
   - match: { testindex.fields._source.points_in_bytes: 0 }
   - match: { testindex.fields._source.norms_in_bytes: 0 }
   - match: { testindex.fields._source.term_vectors_in_bytes: 0 }
-  - match: { testindex.fields.quantity.knn_vectors_in_bytes: 0 }
 
   # _id
   - gt: { testindex.fields._id.total_in_bytes: 0 }
@@ -118,7 +112,6 @@ setup:
   - match: { testindex.fields._id.points_in_bytes: 0 }
   - match: { testindex.fields._id.norms_in_bytes: 0 }
   - match: { testindex.fields._id.term_vectors_in_bytes: 0 }
-  - match: { testindex.fields.quantity.knn_vectors_in_bytes: 0 }
 
   # _seq_no
   - gt: { testindex.fields._seq_no.total_in_bytes: 0 }
@@ -127,7 +120,6 @@ setup:
   - gt: { testindex.fields._seq_no.points_in_bytes: 0 }
   - match: { testindex.fields._seq_no.norms_in_bytes: 0 }
   - match: { testindex.fields._seq_no.term_vectors_in_bytes: 0 }
-  - match: { testindex.fields.quantity.knn_vectors_in_bytes: 0 }
 
 ---
 "Star":
@@ -148,3 +140,29 @@ setup:
   - gt: { testindex.all_fields.doc_values_in_bytes: 0 }
   - gt: { testindex.all_fields.points_in_bytes: 0 }
   - match: { testindex.all_fields.term_vectors_in_bytes: 0 }
+
+---
+"Dense vectors":
+  - skip:
+      version: " - 8.3.99"
+      reason: dense vector support was added in 8.4
+
+  - do:
+      indices.disk_usage:
+        index: testindex
+        run_expensive_tasks: true
+
+  - gt: { testindex.store_size_in_bytes: 100 }
+
+  # all_fields
+  - gt: { testindex.all_fields.knn_vectors_in_bytes: 0 }
+
+  # quantity
+  - gt: { testindex.fields.quantity.total_in_bytes: 0 }
+  - gt: { testindex.fields.quantity.points_in_bytes: 0 }
+  - match: { testindex.fields.quantity.knn_vectors_in_bytes: 0 }
+
+  # vector
+  - gt: { testindex.fields.vector.total_in_bytes: 0 }
+  - match: { testindex.fields.vector.points_in_bytes: 0 }
+  - gt: { testindex.fields.vector.knn_vectors_in_bytes: 0 }

@@ -1119,7 +1119,7 @@ public class IndexNameExpressionResolver {
     static final class ExplicitExpressionResolver {
         private ExplicitExpressionResolver() {}
 
-        public static Resolved resolve(Context context, List<String> expressions, IndicesOptions options, Metadata metadata) {
+        public static Resolved resolve(Context context, List<String> expressions, Metadata metadata) {
             Set<String> explicitNames = new HashSet<>(expressions.size());
             List<String> wildcardsAndExclusions = new ArrayList<>(expressions.size());
             boolean wildcardSeen = false;
@@ -1127,7 +1127,7 @@ public class IndexNameExpressionResolver {
                 validateResourceName(expression);
                 Optional<RuntimeException> availableException = checkResourceAvailable(
                     expression,
-                    options.ignoreAliases(),
+                    context.options.ignoreAliases(),
                     context.includeDataStreams,
                     metadata
                 );
@@ -1149,11 +1149,11 @@ public class IndexNameExpressionResolver {
                     if (expression.charAt(0) == '-' && wildcardSeen) {
                         explicitExclusion = expression.substring(1);
                     }
-                    if (false == options.ignoreUnavailable()) {
+                    if (false == context.options.ignoreUnavailable()) {
                         if (explicitExclusion != null) {
                             Optional<RuntimeException> exclusionAvailableException = checkResourceAvailable(
                                 explicitExclusion,
-                                options.ignoreAliases(),
+                                context.options.ignoreAliases(),
                                 context.includeDataStreams,
                                 metadata
                             );
@@ -1225,18 +1225,16 @@ public class IndexNameExpressionResolver {
         }
 
         public static Collection<String> resolve(Context context, List<String> expressions) {
-            IndicesOptions options = context.getOptions();
             Metadata metadata = context.getState().metadata();
             // only check open/closed since if we do not expand to open or closed it doesn't make sense to
             // expand to hidden
-            if (options.expandWildcardsClosed() == false && options.expandWildcardsOpen() == false) {
+            if (context.options.expandWildcardsClosed() == false && context.options.expandWildcardsOpen() == false) {
                 return expressions;
             }
 
             if (isEmptyOrTrivialWildcard(expressions)) {
                 List<String> resolvedExpressions = resolveEmptyOrTrivialWildcard(context);
                 if (context.includeDataStreams()) {
-                    final IndexMetadata.State excludeState = excludeState(options);
                     final Map<String, IndexAbstraction> dataStreamsAbstractions = metadata.getIndicesLookup()
                         .entrySet()
                         .stream()
@@ -1247,10 +1245,8 @@ public class IndexNameExpressionResolver {
                     resolvedIncludingDataStreams.addAll(
                         expand(
                             context,
-                            excludeState,
                             dataStreamsAbstractions,
-                            expressions.isEmpty() ? "_all" : expressions.get(0),
-                            options.expandWildcardsHidden()
+                            expressions.isEmpty() ? "_all" : expressions.get(0)
                         )
                     );
                     return resolvedIncludingDataStreams;
@@ -1261,14 +1257,13 @@ public class IndexNameExpressionResolver {
             ExplicitExpressionResolver.Resolved explicitsAndWildcards = ExplicitExpressionResolver.resolve(
                 context,
                 expressions,
-                options,
                 metadata
             );
             if (explicitsAndWildcards.wildcardsAndExclusions().isEmpty()) {
                 return explicitsAndWildcards.explicitNames();
             } else {
-                Set<String> expandedWildcards = innerResolve(context, explicitsAndWildcards.wildcardsAndExclusions(), options, metadata);
-                if (expandedWildcards.isEmpty() && options.allowNoIndices() == false) {
+                Set<String> expandedWildcards = innerResolve(context, explicitsAndWildcards.wildcardsAndExclusions(), metadata);
+                if (expandedWildcards.isEmpty() && context.options.allowNoIndices() == false) {
                     IndexNotFoundException infe = new IndexNotFoundException((String) null);
                     infe.setResources("index_or_alias", explicitsAndWildcards.wildcardsAndExclusions().toArray(new String[0]));
                     throw infe;
@@ -1281,7 +1276,6 @@ public class IndexNameExpressionResolver {
         private static Set<String> innerResolve(
             Context context,
             List<String> wildcardsAndExclusions,
-            IndicesOptions options,
             Metadata metadata
         ) {
             Set<String> result = new HashSet<>();
@@ -1297,11 +1291,10 @@ public class IndexNameExpressionResolver {
                 }
                 assert Regex.isSimpleMatchPattern(expression);
                 final Map<String, IndexAbstraction> matches = matches(context, metadata, expression);
-                if (false == options.allowNoIndices() && matches.isEmpty()) {
+                if (false == context.options.allowNoIndices() && matches.isEmpty()) {
                     throw indexNotFoundException(expression);
                 }
-                final IndexMetadata.State excludeState = excludeState(options);
-                Set<String> expand = expand(context, excludeState, matches, expression, options.expandWildcardsHidden());
+                Set<String> expand = expand(context, matches, expression);
                 if (exclusion) {
                     result.removeAll(expand);
                 } else {
@@ -1385,11 +1378,11 @@ public class IndexNameExpressionResolver {
 
         private static Set<String> expand(
             Context context,
-            IndexMetadata.State excludeState,
             Map<String, IndexAbstraction> matches,
-            String expression,
-            boolean includeHidden
+            String expression
         ) {
+            final IndexMetadata.State excludeState = excludeState(context.options);
+            final boolean includeHidden = context.options.expandWildcardsHidden();
             Set<String> expand = new HashSet<>();
             for (Map.Entry<String, IndexAbstraction> entry : matches.entrySet()) {
                 String aliasOrIndexName = entry.getKey();

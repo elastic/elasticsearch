@@ -121,7 +121,6 @@ import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -414,14 +413,12 @@ public class ApiKeyService {
         logger.debug("Bulk updating API keys [{}]", request.getIds().size());
 
         findVersionedApiKeyDocsForSubject(authentication, request.getIds().toArray(new String[0]), ActionListener.wrap((versionedDocs) -> {
+            // TODO builder or accumulator
             final BulkUpdateApiKeyResponse response = new BulkUpdateApiKeyResponse();
-            final var bulkRequest = client.prepareBulk();
-            final Set<String> foundIds = new HashSet<>(versionedDocs.size());
+            final BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
             for (VersionedApiKeyDoc versionedDoc : versionedDocs) {
                 final String apiKeyId = versionedDoc.id();
-                foundIds.add(apiKeyId);
                 try {
-                    // TODO could wrap in ES exception here
                     validateCurrentApiKeyDocForUpdate(apiKeyId, authentication, versionedDoc.doc());
                     final IndexRequest indexRequest = maybeBuildIndexRequestForUpdate(
                         authentication,
@@ -434,43 +431,42 @@ public class ApiKeyService {
                     if (isNoop) {
                         response.addToNoops(apiKeyId);
                     } else {
-                        bulkRequest.add(indexRequest);
+                        bulkRequestBuilder.add(indexRequest);
                     }
-                } catch (ElasticsearchException ex) {
-                    response.addToErrors(apiKeyId, ex);
-                } catch (Exception ex) {
-                    response.addToErrors(apiKeyId, new ElasticsearchException(ex));
+                } catch (IllegalArgumentException ex) {
+                    response.addToErrors(apiKeyId, new ElasticsearchException("Validation", ex));
                 }
             }
-            request.getIds().forEach(id -> {
-                if (foundIds.contains(id) == false) {
-                    response.addToErrors(
-                        id,
-                        new ResourceNotFoundException("no API key owned by requesting user found for ID [" + id + "]")
-                    );
-                }
-            });
-
-            if (bulkRequest.numberOfActions() == 0) {
-                // TODO
-                logger.trace("No update required");
+            withNotFound(request.getIds(), versionedDocs, response);
+            if (bulkRequestBuilder.numberOfActions() == 0) {
                 listener.onResponse(response);
                 return;
             }
-            securityIndex.prepareIndexIfNeededThenExecute(
-                listener::onFailure,
-                () -> executeAsyncWithOrigin(
-                    client.threadPool().getThreadContext(),
-                    SECURITY_ORIGIN,
-                    bulkRequest.setRefreshPolicy(RefreshPolicy.WAIT_UNTIL).request(),
-                    ActionListener.<BulkResponse>wrap(
-                        bulkResponse -> translateResponseAndClearCache(bulkResponse, response, listener),
-                        listener::onFailure
-                    ),
-                    client::bulk
-                )
+            executeBulkRequest(
+                bulkRequestBuilder.setRefreshPolicy(RefreshPolicy.WAIT_UNTIL).request(),
+                ActionListener.wrap(bulkResponse -> translateResponseAndClearCache(bulkResponse, response, listener), listener::onFailure)
             );
         }, listener::onFailure));
+    }
+
+    private void withNotFound(
+        final List<String> requestedIds,
+        final Collection<VersionedApiKeyDoc> versionedDocs,
+        final BulkUpdateApiKeyResponse response
+    ) {
+        requestedIds.forEach(id -> {
+            if (versionedDocs.stream().map(VersionedApiKeyDoc::id).collect(Collectors.toUnmodifiableSet()).contains(id) == false) {
+                response.addToErrors(id, new ResourceNotFoundException("no API key owned by requesting user found for ID [" + id + "]"));
+            }
+        });
+    }
+
+    // TODO listener goes last
+    private void executeBulkRequest(final BulkRequest request, final ActionListener<BulkResponse> listener) {
+        securityIndex.prepareIndexIfNeededThenExecute(
+            listener::onFailure,
+            () -> executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, request, listener, client::bulk)
+        );
     }
 
     // package-private for testing
@@ -1481,16 +1477,15 @@ public class ApiKeyService {
 
     private void translateResponseAndClearCache(
         final BulkResponse bulkResponse,
-        // TODO builder?
         final BulkUpdateApiKeyResponse currentResponse,
         final ActionListener<BulkUpdateApiKeyResponse> listener
     ) {
         for (BulkItemResponse bulkItemResponse : bulkResponse.getItems()) {
-            final var id = bulkItemResponse.getId();
+            final String id = bulkItemResponse.getId();
             if (bulkItemResponse.isFailed()) {
                 currentResponse.addToErrors(
                     id,
-                    new ElasticsearchException("Error updating api key", bulkItemResponse.getFailure().getCause())
+                    new ElasticsearchException("Bulk request execution", bulkItemResponse.getFailure().getCause())
                 );
             } else {
                 // Since we made an index request against an existing document, we can't get a NOOP or CREATED here

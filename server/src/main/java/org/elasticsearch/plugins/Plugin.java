@@ -208,9 +208,4 @@ public abstract class Plugin implements Closeable {
     public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders(IndexSettingProvider.Parameters parameters) {
         return Collections.emptyList();
     }
-
-    /**
-     * Called with a Tracer so that each plugin has a chance to work with it.
-     */
-    public void onTracer(Tracer tracer) {}
 }

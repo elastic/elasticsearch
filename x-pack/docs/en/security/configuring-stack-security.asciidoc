@@ -1,5 +1,5 @@
 [[configuring-stack-security]]
-== Start the Elastic Stack with security enabled
+== Start the {stack} with security enabled automatically
 
 When you start {es} for the first time, the following security configuration
 occurs automatically:
@@ -12,8 +12,8 @@ generated for the transport and HTTP layers.
 
 You can then start {kib} and enter the enrollment token, which is valid for 30
 minutes. This token automatically applies the security settings from your {es}
-cluster, authenticates to {es} with the built-in `kibana` service account, and writes the
-security configuration to `kibana.yml`.
+cluster, authenticates to {es} with the built-in `kibana` service account, and
+writes the security configuration to `kibana.yml`.
 
 NOTE: There are <<stack-skip-auto-configuration,some cases>> where security
 can't be configured automatically because the node startup process detects that

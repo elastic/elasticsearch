@@ -288,22 +288,18 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
     }
 
     protected final boolean assertCurrentThreadMayAccessBlobStore() {
-        final String threadName = Thread.currentThread().getName();
-        assert threadName.contains('[' + ThreadPool.Names.SNAPSHOT + ']')
-            || threadName.contains('[' + ThreadPool.Names.GENERIC + ']')
-            || threadName.contains('[' + ThreadPool.Names.SEARCH + ']')
-            || threadName.contains('[' + ThreadPool.Names.SEARCH_THROTTLED + ']')
+        return ThreadPool.assertCurrentThreadPool(
+            ThreadPool.Names.SNAPSHOT,
+            ThreadPool.Names.GENERIC,
+            ThreadPool.Names.SEARCH,
+            ThreadPool.Names.SEARCH_THROTTLED,
 
             // Cache asynchronous fetching runs on a dedicated thread pool.
-            || threadName.contains('[' + SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME + ']')
+            SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME,
 
             // Cache prewarming also runs on a dedicated thread pool.
-            || threadName.contains('[' + SearchableSnapshots.CACHE_PREWARMING_THREAD_POOL_NAME + ']')
-
-            // Unit tests access the blob store on the main test thread; simplest just to permit this rather than have them override this
-            || threadName.startsWith("TEST-")
-            || threadName.startsWith("LuceneTestCase") : "current thread [" + Thread.currentThread() + "] may not read " + fileInfo;
-        return true;
+            SearchableSnapshots.CACHE_PREWARMING_THREAD_POOL_NAME
+        );
     }
 
     protected static boolean isCacheFetchAsyncThread(final String threadName) {

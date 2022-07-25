@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -60,6 +61,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -267,10 +269,108 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         ShardRouting subjectShard = useReplica ? replicaShard : primaryShard;
         validateSizeOf(clusterState, subjectShard, shardSize, expected);
         validateSizeOf(clusterState, subjectShard, Map.of(), ByteSizeUnit.KB.toBytes(1));
+
+        assertThat(createAllocationState(shardSize, clusterState).maxNodeLockedSize(), equalTo(0L));
+    }
+
+    public void testMaxNodeLockedSizeUsingAttributes() {
+        ClusterState.Builder stateBuilder = ClusterState.builder(ClusterName.DEFAULT);
+        Metadata.Builder metaBuilder = Metadata.builder();
+        int numberOfShards = randomIntBetween(1, 10);
+        int numberOfReplicas = randomIntBetween(1, 10);
+        IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(5))
+            .settings(addRandomNodeLockUsingAttributes(settings(Version.CURRENT)))
+            .numberOfShards(numberOfShards)
+            .numberOfReplicas(numberOfReplicas)
+            .build();
+        metaBuilder.put(indexMetadata, true);
+        stateBuilder.metadata(metaBuilder);
+        stateBuilder.routingTable(RoutingTable.builder().addAsNew(indexMetadata).build());
+        ClusterState clusterState = stateBuilder.build();
+
+        long baseSize = between(1, 10);
+        Map<String, Long> shardSizes = IntStream.range(0, numberOfShards)
+            .mapToObj(s -> clusterState.getRoutingTable().index(indexMetadata.getIndex()).shard(s))
+            .flatMap(irt -> Stream.of(irt.primaryShard(), irt.replicaShards().get(0)))
+            .collect(
+                Collectors.toMap(
+                    ClusterInfo::shardIdentifierFromRouting,
+                    s -> s.primary() ? s.shardId().getId() + baseSize : between(1, 100)
+                )
+            );
+
+        // keep the calculation in 2x until the end to avoid rounding.
+        long nodeLockedSize = (baseSize * 2 + numberOfShards - 1) * numberOfShards / 2;
+        assertThat(createAllocationState(shardSizes, clusterState).maxNodeLockedSize(), equalTo(nodeLockedSize));
+
+        ClusterState withResizeSource = ClusterState.builder(clusterState)
+            .metadata(
+                Metadata.builder(clusterState.metadata())
+                    .put(
+                        IndexMetadata.builder(indexMetadata)
+                            .settings(
+                                Settings.builder()
+                                    .put(indexMetadata.getSettings())
+                                    .put(IndexMetadata.INDEX_RESIZE_SOURCE_UUID_KEY, randomAlphaOfLength(9))
+                            )
+                    )
+            )
+            .build();
+
+        assertThat(createAllocationState(shardSizes, withResizeSource).maxNodeLockedSize(), equalTo(nodeLockedSize * 2));
+    }
+
+    public void testNodeLockSplitClone() {
+        ClusterState.Builder stateBuilder = ClusterState.builder(ClusterName.DEFAULT);
+        Metadata.Builder metaBuilder = Metadata.builder();
+        IndexMetadata sourceIndexMetadata = IndexMetadata.builder(randomAlphaOfLength(5))
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(between(1, 10))
+            .build();
+        int numberOfShards = randomIntBetween(1, 2);
+        int numberOfReplicas = randomIntBetween(1, 10);
+        IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(5))
+            .settings(
+                settings(Version.CURRENT).put(IndexMetadata.INDEX_RESIZE_SOURCE_UUID_KEY, sourceIndexMetadata.getIndexUUID())
+                    .put(IndexMetadata.INDEX_RESIZE_SOURCE_NAME_KEY, sourceIndexMetadata.getIndex().getName())
+            )
+            .numberOfShards(numberOfShards)
+            .numberOfReplicas(numberOfReplicas)
+            .build();
+        metaBuilder.put(sourceIndexMetadata, true);
+        metaBuilder.put(indexMetadata, true);
+        stateBuilder.metadata(metaBuilder);
+        stateBuilder.routingTable(RoutingTable.builder().addAsNew(sourceIndexMetadata).addAsNew(indexMetadata).build());
+        ClusterState clusterState = stateBuilder.build();
+
+        long sourceSize = between(1, 10);
+        Map<String, Long> shardSizes = Map.of(
+            ClusterInfo.shardIdentifierFromRouting(
+                clusterState.getRoutingTable().index(sourceIndexMetadata.getIndex()).shard(0).primaryShard()
+            ),
+            sourceSize
+        );
+
+        assertThat(createAllocationState(shardSizes, clusterState).maxNodeLockedSize(), equalTo(sourceSize * 2));
+    }
+
+    private Settings.Builder addRandomNodeLockUsingAttributes(Settings.Builder settings) {
+        String setting = randomFrom(
+            IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING,
+            IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING,
+            IndexMetadata.INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING
+        ).getKey();
+        String attribute = randomFrom(DiscoveryNodeFilters.SINGLE_NODE_NAMES);
+        return settings.put(setting + attribute, randomAlphaOfLength(5));
     }
 
     public void validateSizeOf(ClusterState clusterState, ShardRouting subjectShard, Map<String, Long> shardSize, long expected) {
-        ClusterInfo info = new ClusterInfo(null, null, shardSize, null, null, null);
+        assertThat(createAllocationState(shardSize, clusterState).sizeOf(subjectShard), equalTo(expected));
+    }
+
+    private ReactiveStorageDeciderService.AllocationState createAllocationState(Map<String, Long> shardSize, ClusterState clusterState) {
+        ClusterInfo info = new ClusterInfo(Map.of(), Map.of(), shardSize, Map.of(), Map.of(), Map.of());
         ReactiveStorageDeciderService.AllocationState allocationState = new ReactiveStorageDeciderService.AllocationState(
             clusterState,
             null,
@@ -280,8 +380,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             Set.of(),
             Set.of()
         );
-
-        assertThat(allocationState.sizeOf(subjectShard), equalTo(expected));
+        return allocationState;
     }
 
     private void startShard(RoutingAllocation allocation, ShardRouting unassignedShard, String nodeId) {
@@ -435,7 +534,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         if (shardsWithSizes.isEmpty() == false) {
             shardSize.put(shardIdentifier(randomFrom(shardsWithSizes)), ByteSizeUnit.KB.toBytes(minShardSize));
         }
-        ClusterInfo info = new ClusterInfo(diskUsages, diskUsages, shardSize, null, null, null);
+        ClusterInfo info = new ClusterInfo(diskUsages, diskUsages, shardSize, Map.of(), Map.of(), Map.of());
 
         ReactiveStorageDeciderService.AllocationState allocationState = new ReactiveStorageDeciderService.AllocationState(
             clusterState,
@@ -483,7 +582,12 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
 
         AllocationDecider no = new AllocationDecider() {
             @Override
-            public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+            public Decision canRemain(
+                IndexMetadata indexMetadata,
+                ShardRouting shardRouting,
+                RoutingNode node,
+                RoutingAllocation allocation
+            ) {
                 return Decision.NO;
             }
         };

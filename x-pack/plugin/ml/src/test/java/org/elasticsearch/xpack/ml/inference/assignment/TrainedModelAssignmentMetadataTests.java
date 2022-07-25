@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ml.inference.assignment;
 
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
@@ -64,7 +65,8 @@ public class TrainedModelAssignmentMetadataTests extends AbstractSerializingTest
             randomNonNegativeLong(),
             randomIntBetween(1, 8),
             randomIntBetween(1, 8),
-            randomIntBetween(1, 10000)
+            randomIntBetween(1, 10000),
+            randomBoolean() ? null : ByteSizeValue.ofBytes(randomNonNegativeLong())
         );
     }
 

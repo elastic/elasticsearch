@@ -127,6 +127,7 @@ class RollupShardIndexer {
     }
 
     public RollupIndexerAction.ShardRollupResponse execute() throws IOException {
+        long startTime = System.currentTimeMillis();
         BulkProcessor bulkProcessor = createBulkProcessor();
         try (searcher; bulkProcessor) {
             // TODO: add cancellations
@@ -138,11 +139,12 @@ class RollupShardIndexer {
         }
 
         logger.info(
-            "Shard {} successfully sent [{}], indexed [{}], failed [{}]",
+            "Shard [{}] successfully sent [{}], indexed [{}], failed [{}], took [{}]",
             indexShard.shardId(),
             numSent.get(),
             numIndexed.get(),
-            numFailed.get()
+            numFailed.get(),
+            TimeValue.timeValueMillis(System.currentTimeMillis() - startTime)
         );
 
         if (numIndexed.get() != numSent.get()) {
@@ -209,7 +211,7 @@ class RollupShardIndexer {
         private long bucketsCreated;
         private final RollupBucketBuilder rollupBucketBuilder = new RollupBucketBuilder();
         long lastTimestamp = Long.MAX_VALUE;
-        BytesRef lastTsid = null;
+        long lastHistoTimestamp = Long.MAX_VALUE;
 
         TimeSeriesBucketCollector(BulkProcessor bulkProcessor) {
             this.bulkProcessor = bulkProcessor;
@@ -232,21 +234,28 @@ class RollupShardIndexer {
                     final BytesRef tsid = aggCtx.getTsid();
                     assert tsid != null : "Document without [" + TimeSeriesIdFieldMapper.NAME + "] field was found.";
                     final long timestamp = aggCtx.getTimestamp();
-                    final long histoTimestamp = rounding.round(timestamp);
 
-                    logger.trace(
-                        "Doc: [{}] - _tsid: [{}], @timestamp: [{}}] -> rollup bucket ts: [{}]",
-                        docId,
-                        DocValueFormat.TIME_SERIES_ID.format(tsid),
-                        timestampFormat.format(timestamp),
-                        timestampFormat.format(histoTimestamp)
-                    );
+                    boolean tsidChanged = tsid.equals(rollupBucketBuilder.tsid()) == false;
+                    if (tsidChanged || timestamp < lastHistoTimestamp) {
+                        lastHistoTimestamp = rounding.round(timestamp);
+                    }
+
+                    if (logger.isTraceEnabled()) {
+                        logger.trace(
+                            "Doc: [{}] - _tsid: [{}], @timestamp: [{}}] -> rollup bucket ts: [{}]",
+                            docId,
+                            DocValueFormat.TIME_SERIES_ID.format(tsid),
+                            timestampFormat.format(timestamp),
+                            timestampFormat.format(lastHistoTimestamp)
+                        );
+                    }
 
                     /*
                      * Sanity checks to ensure that we receive documents in the correct order
                      * - _tsid must be sorted in ascending order
                      * - @timestamp must be sorted in descending order within the same _tsid
                      */
+                    BytesRef lastTsid = rollupBucketBuilder.tsid();
                     assert lastTsid == null || lastTsid.compareTo(tsid) <= 0
                         : "_tsid is not sorted in ascending order: ["
                             + DocValueFormat.TIME_SERIES_ID.format(lastTsid)
@@ -259,10 +268,9 @@ class RollupShardIndexer {
                             + "] -> ["
                             + timestampFormat.format(timestamp)
                             + "]";
-                    lastTsid = BytesRef.deepCopyOf(tsid);
                     lastTimestamp = timestamp;
 
-                    if (tsid.equals(rollupBucketBuilder.tsid()) == false || rollupBucketBuilder.timestamp() != histoTimestamp) {
+                    if (tsidChanged || rollupBucketBuilder.timestamp() != lastHistoTimestamp) {
                         // Flush rollup doc if not empty
                         if (rollupBucketBuilder.isEmpty() == false) {
                             Map<String, Object> doc = rollupBucketBuilder.buildRollupDocument();
@@ -270,7 +278,12 @@ class RollupShardIndexer {
                         }
 
                         // Create new rollup bucket
-                        rollupBucketBuilder.init(tsid, histoTimestamp);
+                        if (tsidChanged) {
+                            rollupBucketBuilder.resetTsid(tsid, lastHistoTimestamp);
+                        } else {
+                            rollupBucketBuilder.resetTimestamp(lastHistoTimestamp);
+                        }
+
                         bucketsCreated++;
                     }
 
@@ -339,16 +352,29 @@ class RollupShardIndexer {
             this.metricFieldProducers = MetricFieldProducer.buildMetricFieldProducers(searchExecutionContext, metricFields);
         }
 
-        public RollupBucketBuilder init(BytesRef tsid, long timestamp) {
+        /**
+         * tsid changed, reset tsid and timestamp
+         */
+        public RollupBucketBuilder resetTsid(BytesRef tsid, long timestamp) {
             this.tsid = BytesRef.deepCopyOf(tsid);
+            return resetTimestamp(timestamp);
+        }
+
+        /**
+         * timestamp change, reset builder
+         */
+        public RollupBucketBuilder resetTimestamp(long timestamp) {
             this.timestamp = timestamp;
             this.docCount = 0;
             this.metricFieldProducers.values().stream().forEach(p -> p.reset());
-            logger.trace(
-                "New bucket for _tsid: [{}], @timestamp: [{}]",
-                DocValueFormat.TIME_SERIES_ID.format(tsid),
-                timestampFormat.format(timestamp)
-            );
+            if (logger.isTraceEnabled()) {
+                logger.trace(
+                    "New bucket for _tsid: [{}], @timestamp: [{}]",
+                    DocValueFormat.TIME_SERIES_ID.format(tsid),
+                    timestampFormat.format(timestamp)
+                );
+            }
+
             return this;
         }
 

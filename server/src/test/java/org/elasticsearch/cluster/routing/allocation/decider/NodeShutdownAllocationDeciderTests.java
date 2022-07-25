@@ -117,7 +117,7 @@ public class NodeShutdownAllocationDeciderTests extends ESAllocationTestCase {
         RoutingNode routingNode = RoutingNodesHelper.routingNode(DATA_NODE.getId(), DATA_NODE, shard);
         allocation.debugDecision(true);
 
-        Decision decision = decider.canRemain(shard, routingNode, allocation);
+        Decision decision = decider.canRemain(null, shard, routingNode, allocation);
         assertThat(decision.type(), equalTo(Decision.Type.YES));
         assertThat(
             decision.getExplanation(),
@@ -134,7 +134,7 @@ public class NodeShutdownAllocationDeciderTests extends ESAllocationTestCase {
         RoutingNode routingNode = RoutingNodesHelper.routingNode(DATA_NODE.getId(), DATA_NODE, shard);
         allocation.debugDecision(true);
 
-        Decision decision = decider.canRemain(shard, routingNode, allocation);
+        Decision decision = decider.canRemain(null, shard, routingNode, allocation);
         assertThat(decision.type(), equalTo(Decision.Type.NO));
         assertThat(decision.getExplanation(), equalTo("node [" + DATA_NODE.getId() + "] is preparing to be removed from the cluster"));
     }

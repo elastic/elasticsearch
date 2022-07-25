@@ -20,25 +20,18 @@ import java.io.IOException;
 import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+
+import static org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizerUtils.splitOutNeverSplit;
 
 public class BpeTokenizer extends Tokenizer {
     private final CharTermAttribute termAtt = addAttribute(CharTermAttribute.class);
     private final OffsetAttribute offsetAtt = addAttribute(OffsetAttribute.class);
     private final PositionIncrementAttribute posIncAtt = addAttribute(PositionIncrementAttribute.class);
-
-    private static final Pattern pattern = Pattern.compile(
-        "'s|'t|'re|'ve|'m|'ll|'d| ?\\p{L}+| ?\\p{N}+| ?[^\\s\\p{L}\\p{N}]+|\\s+(?!\\S)|\\s+"
-    );
 
     static char[] byteEncoder() {
         List<Integer> bytes = IntStream.concat(
@@ -93,7 +86,6 @@ public class BpeTokenizer extends Tokenizer {
     }
 
     private final StringBuilder inputStr = new StringBuilder();
-    private final Matcher matcher;
     private final LinkedList<BpeToken> tokens = new LinkedList<>();
     private final List<BpeToken> tokenizedValues = new ArrayList<>();
     private final CharArrayMap<Integer> mergeRanks;
@@ -114,7 +106,6 @@ public class BpeTokenizer extends Tokenizer {
         CharSequence unknownToken
     ) {
         super();
-        matcher = pattern.matcher("");
         this.mergeRanks = mergeRanks;
         this.neverSplitSet = neverSplitSet;
         this.neverSplit = neverSplit;
@@ -173,53 +164,9 @@ public class BpeTokenizer extends Tokenizer {
         return true;
     }
 
-    private LinkedList<DelimitedToken> splitOutNeverSplit() {
-        String str = this.inputStr.toString();
-        char[] chars = str.toCharArray();
-        CharTrie current = neverSplit;
-        LinkedList<DelimitedToken> bigTokens = new LinkedList<>();
-        int windowStart = 0;
-        int neverSplitStart = 0;
-        for (int i = 0; i < chars.length; i++) {
-            CharTrie childNode = current.children.get(chars[i]);
-            if (current == neverSplit && childNode != null) {
-                neverSplitStart = i;
-            }
-            if (childNode == null) {
-                if (current != neverSplit) {
-                    current = neverSplit;
-                }
-                childNode = current.children.get(chars[i]);
-                if (childNode != null) {
-                    neverSplitStart = i;
-                    current = childNode;
-                }
-            } else if (childNode.isLeaf()) {
-                // build char seq view, verify its in never split
-                CharSequence maybeNeverSplit = new CharsRef(chars, neverSplitStart, (i + 1) - neverSplitStart);
-                if (neverSplitSet.contains(maybeNeverSplit)) {
-                    if (windowStart < neverSplitStart) {
-                        bigTokens.add(new DelimitedToken(new CharsRef(chars, windowStart, neverSplitStart), windowStart, neverSplitStart));
-                    }
-                    bigTokens.add(new DelimitedToken(maybeNeverSplit, neverSplitStart, i + 1));
-                }
-                windowStart = i + 1;
-                current = neverSplit;
-            } else {
-                // still in potential never split
-                current = childNode;
-            }
-        }
-        int finalIndex = bigTokens.isEmpty() ? 0 : bigTokens.getLast().endOffset();
-        if (finalIndex < chars.length) {
-            bigTokens.add(new DelimitedToken(new CharsRef(chars, finalIndex, chars.length - finalIndex), finalIndex, chars.length));
-        }
-        return bigTokens;
-    }
-
     private void fillTokens() {
         boolean firstFind = true;
-        LinkedList<DelimitedToken> largeTokensWithNeverSplits = splitOutNeverSplit();
+        LinkedList<DelimitedToken> largeTokensWithNeverSplits = splitOutNeverSplit(inputStr.toString(), neverSplit, neverSplitSet);
         // This contains the sequence split on never_split tokens
         int split = 0;
         for (DelimitedToken token : largeTokensWithNeverSplits) {
@@ -241,10 +188,10 @@ public class BpeTokenizer extends Tokenizer {
             // But should treat the trailing space "Never " as if its part of the never_split sequence, and thus trim it here.
             if (split < largeTokensWithNeverSplits.size() - 1
                 && delimitedTokenSequence.charAt(delimitedTokenSequence.length() - 1) == ' ') {
-                delimitedTokenSequence = new BpeTokenReader.CharSequenceRef(delimitedTokenSequence, 0, delimitedTokenSequence.length() - 1);
+                delimitedTokenSequence = new TokenizerUtils.CharSequenceRef(delimitedTokenSequence, 0, delimitedTokenSequence.length() - 1);
             }
             BpeTokenReader tokenReader = new BpeTokenReader(delimitedTokenSequence);
-            Optional<BpeTokenReader.CharSequenceRef> tokenSequence = Optional.empty();
+            Optional<TokenizerUtils.CharSequenceRef> tokenSequence;
             while ((tokenSequence = tokenReader.next()).isPresent()) {
                 boolean addedSpace = false;
                 final int offsetStart = tokenSequence.get().getOffset();
@@ -378,43 +325,4 @@ public class BpeTokenizer extends Tokenizer {
         }
     }
 
-    private record CharTrie(Map<Character, CharTrie> children) {
-        boolean isLeaf() {
-            return children.isEmpty();
-        }
-
-        private void insert(char[] chars) {
-            if (chars.length == 0) {
-                return;
-            }
-            CharTrie currentNode = this;
-            int currentTokenIndex = 0;
-
-            // find leaf
-            while (currentTokenIndex < chars.length) {
-                CharTrie child = currentNode.children.get(chars[currentTokenIndex]);
-                if (child == null) {
-                    break;
-                } else {
-                    currentNode = child;
-                }
-                currentTokenIndex++;
-            }
-            // add rest of tokens as new nodes
-            while (currentTokenIndex < chars.length) {
-                CharTrie childNode = new CharTrie(new HashMap<>());
-                currentNode.children.put(chars[currentTokenIndex++], childNode);
-                currentNode = childNode;
-            }
-        }
-
-        public static CharTrie build(Collection<String> tokens) {
-            CharTrie root = new CharTrie(new HashMap<>());
-            for (String token : tokens) {
-                char[] chars = token.toCharArray();
-                root.insert(chars);
-            }
-            return root;
-        }
-    }
 }

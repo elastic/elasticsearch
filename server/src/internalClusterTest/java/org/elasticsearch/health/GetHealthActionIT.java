@@ -53,10 +53,6 @@ public class GetHealthActionIT extends ESIntegTestCase {
     private static final String INSTANCE_HAS_MASTER_INDICATOR_NAME = "instance_has_master";
     private static final String NONEXISTENT_INDICATOR_NAME = "test_nonexistent_indicator";
 
-    private static final String ILM_INDICATOR_HELP_URL = "http-colon-slash-slash-ilm";
-    private static final String SLM_INDICATOR_HELP_URL = "http-colon-slash-slash-slm";
-    private static final String INSTANCE_HAS_MASTER_INDICATOR_HELP_URL = "http-colon-slash-slash-instance_has_master";
-
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return appendToCopy(super.nodePlugins(), TestHealthPlugin.class);
@@ -129,20 +125,17 @@ public class GetHealthActionIT extends ESIntegTestCase {
         private final ClusterService clusterService;
         private final String componentName;
         private final String indicatorName;
-        private final String helpURL;
         private final Setting<HealthStatus> statusSetting;
 
         public TestHealthIndicatorService(
             ClusterService clusterService,
             String componentName,
             String indicatorName,
-            String helpURL,
             Setting<HealthStatus> statusSetting
         ) {
             this.clusterService = clusterService;
             this.componentName = componentName;
             this.indicatorName = indicatorName;
-            this.helpURL = helpURL;
             this.statusSetting = statusSetting;
         }
 
@@ -154,11 +147,6 @@ public class GetHealthActionIT extends ESIntegTestCase {
         @Override
         public String component() {
             return componentName;
-        }
-
-        @Override
-        public String helpURL() {
-            return helpURL;
         }
 
         @Override
@@ -176,13 +164,13 @@ public class GetHealthActionIT extends ESIntegTestCase {
 
     public static final class IlmHealthIndicatorService extends TestHealthIndicatorService {
         public IlmHealthIndicatorService(ClusterService clusterService) {
-            super(clusterService, DATA_COMPONENT_NAME, ILM_INDICATOR_NAME, ILM_INDICATOR_HELP_URL, ILM_HEALTH_STATUS_SETTING);
+            super(clusterService, DATA_COMPONENT_NAME, ILM_INDICATOR_NAME, ILM_HEALTH_STATUS_SETTING);
         }
     }
 
     public static final class SlmHealthIndicatorService extends TestHealthIndicatorService {
         public SlmHealthIndicatorService(ClusterService clusterService) {
-            super(clusterService, DATA_COMPONENT_NAME, SLM_INDICATOR_NAME, SLM_INDICATOR_HELP_URL, SLM_HEALTH_STATUS_SETTING);
+            super(clusterService, DATA_COMPONENT_NAME, SLM_INDICATOR_NAME, SLM_HEALTH_STATUS_SETTING);
         }
     }
 
@@ -192,7 +180,6 @@ public class GetHealthActionIT extends ESIntegTestCase {
                 clusterService,
                 CLUSTER_COORDINATION_COMPONENT_NAME,
                 INSTANCE_HAS_MASTER_INDICATOR_NAME,
-                INSTANCE_HAS_MASTER_INDICATOR_HELP_URL,
                 CLUSTER_COORDINATION_HEALTH_STATUS_SETTING
             );
         }
@@ -276,7 +263,6 @@ public class GetHealthActionIT extends ESIntegTestCase {
                             DATA_COMPONENT_NAME,
                             ilmIndicatorStatus,
                             "Health is set to [" + ilmIndicatorStatus + "] by test plugin",
-                            ilmIndicatorStatus.indicatesHealthProblem() ? ILM_INDICATOR_HELP_URL : null,
                             new SimpleHealthIndicatorDetails(Map.of("explain", explain)),
                             Collections.emptyList(),
                             Collections.emptyList()
@@ -286,7 +272,6 @@ public class GetHealthActionIT extends ESIntegTestCase {
                             DATA_COMPONENT_NAME,
                             slmIndicatorStatus,
                             "Health is set to [" + slmIndicatorStatus + "] by test plugin",
-                            slmIndicatorStatus.indicatesHealthProblem() ? SLM_INDICATOR_HELP_URL : null,
                             new SimpleHealthIndicatorDetails(Map.of("explain", explain)),
                             Collections.emptyList(),
                             Collections.emptyList()
@@ -307,7 +292,6 @@ public class GetHealthActionIT extends ESIntegTestCase {
                             CLUSTER_COORDINATION_COMPONENT_NAME,
                             clusterCoordinationIndicatorStatus,
                             "Health is set to [" + clusterCoordinationIndicatorStatus + "] by test plugin",
-                            clusterCoordinationIndicatorStatus.indicatesHealthProblem() ? INSTANCE_HAS_MASTER_INDICATOR_HELP_URL : null,
                             new SimpleHealthIndicatorDetails(Map.of("explain", explain)),
                             Collections.emptyList(),
                             Collections.emptyList()
@@ -337,7 +321,6 @@ public class GetHealthActionIT extends ESIntegTestCase {
                             DATA_COMPONENT_NAME,
                             ilmIndicatorStatus,
                             "Health is set to [" + ilmIndicatorStatus + "] by test plugin",
-                            ilmIndicatorStatus.indicatesHealthProblem() ? ILM_INDICATOR_HELP_URL : null,
                             new SimpleHealthIndicatorDetails(Map.of("explain", explain)),
                             Collections.emptyList(),
                             Collections.emptyList()
@@ -366,7 +349,6 @@ public class GetHealthActionIT extends ESIntegTestCase {
                             DATA_COMPONENT_NAME,
                             ilmIndicatorStatus,
                             "Health is set to [" + ilmIndicatorStatus + "] by test plugin",
-                            ilmIndicatorStatus.indicatesHealthProblem() ? ILM_INDICATOR_HELP_URL : null,
                             new SimpleHealthIndicatorDetails(Map.of("explain", explain)),
                             Collections.emptyList(),
                             Collections.emptyList()
@@ -376,7 +358,6 @@ public class GetHealthActionIT extends ESIntegTestCase {
                             DATA_COMPONENT_NAME,
                             slmIndicatorStatus,
                             "Health is set to [" + slmIndicatorStatus + "] by test plugin",
-                            slmIndicatorStatus.indicatesHealthProblem() ? SLM_INDICATOR_HELP_URL : null,
                             new SimpleHealthIndicatorDetails(Map.of("explain", explain)),
                             Collections.emptyList(),
                             Collections.emptyList()

@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.RestoreService.RestoreInProgressUpdater;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
@@ -78,9 +79,11 @@ public class RoutingAllocation {
 
     private final Map<String, SingleNodeShutdownMetadata> nodeReplacementTargets;
 
-    private static final int MAX_ROUTING_NODES = 512;
+    private static final TimeValue CACHE_TTL = TimeValue.timeValueMinutes(1);
     private static final Cache<RoutingNode, Long> unaccountableSearchableSnapshotSizes = CacheBuilder.<RoutingNode, Long>builder()
-        .setMaximumWeight(MAX_ROUTING_NODES)
+        // Using a TTL cache here so we recalculate new unaccountable searchable snapshot size
+        // for routing nodes when cluster info get changed
+        .setExpireAfterWrite(CACHE_TTL)
         .build();
 
     public RoutingAllocation(

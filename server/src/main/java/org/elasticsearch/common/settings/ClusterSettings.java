@@ -97,7 +97,6 @@ import org.elasticsearch.persistent.decider.EnableAssignmentDecider;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.readiness.ReadinessService;
 import org.elasticsearch.repositories.fs.FsRepository;
-import org.elasticsearch.reservedstate.service.FileSettingsService;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
@@ -525,7 +524,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
         CoordinationDiagnosticsService.NODE_HAS_MASTER_LOOKUP_TIMEFRAME_SETTING,
         MasterHistory.MAX_HISTORY_AGE_SETTING,
         ReadinessService.PORT,
-        FileSettingsService.OPERATOR_DIRECTORY,
         HealthNode.isEnabled() ? HealthNodeTaskExecutor.ENABLED_SETTING : null
     ).filter(Objects::nonNull).collect(Collectors.toSet());
 

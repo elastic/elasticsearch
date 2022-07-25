@@ -1194,7 +1194,6 @@ public class Node implements Closeable {
         if (ReadinessService.enabled(environment)) {
             injector.getInstance(ReadinessService.class).start();
         }
-        injector.getInstance(FileSettingsService.class).start();
         injector.getInstance(MappingUpdatedAction.class).setClient(client);
         injector.getInstance(IndicesService.class).start();
         injector.getInstance(IndicesClusterStateService.class).start();
@@ -1306,6 +1305,7 @@ public class Node implements Closeable {
             }
         }
 
+        injector.getInstance(FileSettingsService.class).start();
         injector.getInstance(HttpServerTransport.class).start();
 
         if (WRITE_PORTS_FILE_SETTING.get(settings())) {

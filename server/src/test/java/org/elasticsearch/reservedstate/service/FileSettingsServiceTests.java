@@ -8,6 +8,11 @@
 
 package org.elasticsearch.reservedstate.service;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -36,9 +41,10 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyBoolean;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -58,12 +64,21 @@ public class FileSettingsServiceTests extends ESTestCase {
 
         threadpool = new TestThreadPool("file_settings_service_tests");
 
-        clusterService = new ClusterService(
-            Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            threadpool,
-            null
+        clusterService = spy(
+            new ClusterService(
+                Settings.EMPTY,
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                threadpool,
+                null
+            )
         );
+
+        final DiscoveryNode localNode = new DiscoveryNode("node", buildNewFakeTransportAddress(), Version.CURRENT);
+        final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).masterNodeId(localNode.getId()))
+            .build();
+        doAnswer((Answer<ClusterState>) invocation -> clusterState).when(clusterService).state();
+
         clusterService.setRerouteService(mock(RerouteService.class));
         env = newEnvironment(Settings.EMPTY);
 
@@ -120,7 +135,6 @@ public class FileSettingsServiceTests extends ESTestCase {
 
     public void testStartStop() {
         fileSettingsService.start();
-        fileSettingsService.startWatcher(false);
         assertTrue(fileSettingsService.watching());
         fileSettingsService.stop();
         assertFalse(fileSettingsService.watching());
@@ -134,10 +148,9 @@ public class FileSettingsServiceTests extends ESTestCase {
         doAnswer((Answer<Void>) invocation -> {
             processFileLatch.countDown();
             return null;
-        }).when(service).processFileSettings(any(), anyBoolean());
+        }).when(service).processFileSettings(any(), any());
 
         service.start();
-        service.startWatcher(false);
         assertTrue(service.watching());
 
         Files.createDirectories(service.operatorSettingsDir());
@@ -149,7 +162,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         processFileLatch.await(30, TimeUnit.SECONDS);
 
         verify(service, Mockito.atLeast(1)).watchedFileChanged(any());
-        verify(service, times(1)).processFileSettings(any(), eq(false));
+        verify(service, times(1)).processFileSettings(any(), any());
 
         service.stop();
         assertFalse(service.watching());
@@ -172,25 +185,34 @@ public class FileSettingsServiceTests extends ESTestCase {
         // contents of the JSON don't matter, we just need a file to exist
         Files.write(service.operatorSettingsFile(), "{}".getBytes(StandardCharsets.UTF_8));
 
-        service.start();
-        assertEquals(
-            "Error applying operator settings",
-            expectThrows(FileSettingsService.OperatorConfigurationError.class, () -> service.startWatcher(true)).getMessage()
+        Exception startupException = expectThrows(IllegalStateException.class, () -> service.start());
+        assertThat(
+            startupException.getCause(),
+            allOf(
+                instanceOf(FileSettingsService.FileSettingsStartupException.class),
+                hasToString(
+                    "org.elasticsearch.reservedstate.service.FileSettingsService$FileSettingsStartupException: "
+                        + "Error applying operator settings"
+                )
+            )
         );
 
-        verify(service, times(1)).processFileSettings(any(), eq(true));
+        verify(service, times(1)).processFileSettings(any(), any());
 
         service.stop();
 
         clearInvocations(service);
 
         // Let's check that if we didn't throw an error that everything works
-        doAnswer((Answer<Void>) invocation -> null).when(stateService).process(any(), (XContentParser) any(), any());
+        doAnswer((Answer<Void>) invocation -> {
+            ((Consumer<Exception>) invocation.getArgument(2)).accept(null);
+            return null;
+        }).when(stateService).process(any(), (XContentParser) any(), any());
 
         service.start();
         service.startWatcher(true);
 
-        verify(service, times(1)).processFileSettings(any(), eq(true));
+        verify(service, times(1)).processFileSettings(any(), any());
 
         service.stop();
         service.close();

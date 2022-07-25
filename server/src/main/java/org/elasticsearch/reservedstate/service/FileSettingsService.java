@@ -15,8 +15,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -31,6 +29,7 @@ import java.nio.file.WatchKey;
 import java.nio.file.WatchService;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.concurrent.CountDownLatch;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.xcontent.XContentType.JSON;
 
@@ -51,6 +50,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
     private static final String SETTINGS_FILE_NAME = "settings.json";
     static final String NAMESPACE = "file_settings";
 
+    private final ClusterService clusterService;
     private final ReservedClusterStateService stateService;
     private final Path operatorSettingsDir;
 
@@ -63,11 +63,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
     private volatile boolean active = false;
     private volatile boolean initialState = true;
 
-    public static final Setting<String> OPERATOR_DIRECTORY = Setting.simpleString(
-        "path.config.operator_directory",
-        "operator",
-        Setting.Property.NodeScope
-    );
+    public static final String OPERATOR_DIRECTORY = "operator";
 
     /**
      * Constructs the {@link FileSettingsService}
@@ -77,12 +73,9 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
      * @param environment we need the environment to pull the location of the config and operator directories
      */
     public FileSettingsService(ClusterService clusterService, ReservedClusterStateService stateService, Environment environment) {
+        this.clusterService = clusterService;
         this.stateService = stateService;
-
-        String dirPath = OPERATOR_DIRECTORY.get(environment.settings());
-        this.operatorSettingsDir = environment.configFile().toAbsolutePath().resolve(dirPath);
-
-        clusterService.addListener(this);
+        this.operatorSettingsDir = environment.configFile().toAbsolutePath().resolve(OPERATOR_DIRECTORY);
     }
 
     // package private for testing
@@ -113,9 +106,11 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
     @Override
     protected void doStart() {
         // We start the file watcher when we know we are master from a cluster state change notification.
-        // We need this additional flag, since cluster state can change after we've shutdown the service
+        // We need the additional active flag, since cluster state can change after we've shutdown the service
         // causing the watcher to start again.
         this.active = true;
+        startIfMaster(clusterService.state());
+        clusterService.addListener(this);
     }
 
     @Override
@@ -129,12 +124,16 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
     protected void doClose() {}
 
     private boolean currentNodeMaster(ClusterState clusterState) {
-        return clusterState.nodes().getMasterNodeId().equals(clusterState.nodes().getLocalNodeId());
+        return clusterState.nodes().getLocalNodeId().equals(clusterState.nodes().getMasterNodeId());
     }
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         ClusterState clusterState = event.state();
+        startIfMaster(clusterState);
+    }
+
+    private void startIfMaster(ClusterState clusterState) {
         setWatching(currentNodeMaster(clusterState), initialState);
         initialState = false;
     }
@@ -168,14 +167,20 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
          *  - any changes to files inside the operator directory if it exists, filtering for settings.json
          */
         try {
-            this.watchService = PathUtils.getDefaultFileSystem().newWatchService();
+            this.watchService = operatorSettingsDir().getParent().getFileSystem().newWatchService();
             if (Files.exists(settingsDir)) {
                 Path settingsFilePath = operatorSettingsFile();
                 if (Files.exists(settingsFilePath)) {
                     logger.debug("found initial operator settings file [{}], applying...", settingsFilePath);
                     // we make a distinction here for startup, so that if we had operator settings before the node started
                     // we would fail startup.
-                    processFileSettings(settingsFilePath, onStartup);
+                    processFileSettings(settingsFilePath, (e) -> {
+                        if (onStartup) {
+                            throw new FileSettingsStartupException("Error applying operator settings", e);
+                        } else {
+                            logger.error("Error processing operator settings json file", e);
+                        }
+                    }).await();
                 }
                 settingsDirWatchKey = enableSettingsWatcher(settingsDirWatchKey, settingsDir);
             } else {
@@ -237,10 +242,10 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
                             settingsDirWatchKey = enableSettingsWatcher(settingsDirWatchKey, settingsDir);
 
                             if (watchedFileChanged(path)) {
-                                processFileSettings(path, false);
+                                processFileSettings(path, (e) -> logger.error("Error processing operator settings json file", e)).await();
                             }
-                        } catch (Exception e) {
-                            logger.warn("error processing operator settings file", e);
+                        } catch (IOException e) {
+                            logger.warn("encountered I/O error while watching file settings", e);
                         }
                     } else {
                         key.pollEvents();
@@ -270,8 +275,10 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
                 if (watcherThreadLatch != null) {
                     watcherThreadLatch.await();
                 }
-            } catch (IOException | InterruptedException e) {
+            } catch (IOException e) {
                 logger.warn("encountered exception while closing watch service", e);
+            } catch (InterruptedException interruptedException) {
+                logger.info("interrupted while closing the watch service", interruptedException);
             } finally {
                 watchService = null;
                 logger.info("watcher service stopped");
@@ -293,23 +300,21 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
         );
     }
 
-    void processFileSettings(Path path, boolean onStartup) throws IOException {
+    CountDownLatch processFileSettings(Path path, Consumer<Exception> errorHandler) throws IOException {
+        CountDownLatch waitForCompletion = new CountDownLatch(1);
         logger.info("processing path [{}] for [{}]", path, NAMESPACE);
         try (var json = new BufferedInputStream(Files.newInputStream(path))) {
             try (XContentParser parser = JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {
                 stateService.process(NAMESPACE, parser, (e) -> {
                     if (e != null) {
-                        // If we encountered an exception trying to apply the operator state at
-                        // startup time, we throw an error to force Elasticsearch to exit.
-                        if (onStartup) {
-                            throw new OperatorConfigurationError("Error applying operator settings", e);
-                        } else {
-                            logger.error("Error processing operator settings json file", e);
-                        }
+                        errorHandler.accept(e);
                     }
+                    waitForCompletion.countDown();
                 });
             }
         }
+
+        return waitForCompletion;
     }
 
     /**
@@ -322,8 +327,8 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
      * Error subclass that is thrown when we encounter a fatal error while applying
      * the operator cluster state at Elasticsearch boot time.
      */
-    public static class OperatorConfigurationError extends Error {
-        public OperatorConfigurationError(String message, Throwable t) {
+    public static class FileSettingsStartupException extends RuntimeException {
+        public FileSettingsStartupException(String message, Throwable t) {
             super(message, t);
         }
     }

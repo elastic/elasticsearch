@@ -11,6 +11,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
+import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.MoveDecision;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
@@ -27,6 +28,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -68,6 +70,10 @@ public class ReactiveReasonTests extends ESTestCase {
             ),
             MoveDecision.NOT_TAKEN
         );
+        var assignedShardAllocateDecision = new ShardAllocationDecision(
+            AllocateUnassignedDecision.NOT_TAKEN,
+            MoveDecision.cannotRebalance(Decision.YES, AllocationDecision.NO, 1, null).withRemainDecision(Decision.YES)
+        );
         var reactiveReason = new ReactiveStorageDeciderService.ReactiveReason(
             reason,
             unassigned,
@@ -75,7 +81,7 @@ public class ReactiveReasonTests extends ESTestCase {
             assigned,
             assignedShardIds,
             unassignedShardAllocationDecision,
-            null
+            assignedShardAllocateDecision
         );
 
         try (
@@ -115,18 +121,23 @@ public class ReactiveReasonTests extends ESTestCase {
             AllocateUnassignedDecision unassignedDecision = unassignedShardAllocationDecision.getAllocateDecision();
             assertEquals(unassignedDecision.getAllocationDecision().toString(), unassignedDecisionAsMap.get("can_allocate"));
             assertEquals(unassignedDecision.getExplanation(), unassignedDecisionAsMap.get("allocate_explanation"));
-            List<Object> nodeAllocationDecisions = (List<Object>) unassignedDecisionAsMap.get("node_allocation_decisions");
-            if (unassignedDecision.getNodeDecisions().size() > 0) {
-                Map<String, Object> nodeAllocationResult = (Map<String, Object>) nodeAllocationDecisions.get(0);
-                assertEquals(
-                    unassignedDecision.getNodeDecisions().get(0).getNodeDecision().toString(),
-                    nodeAllocationResult.get("node_decision")
-                );
-                assertEquals(unassignedDecision.getNodeDecisions().get(0).getNode().getId(), nodeAllocationResult.get("node_id"));
-                assertEquals(unassignedDecision.getNodeDecisions().get(0).getWeightRanking(), nodeAllocationResult.get("weight_ranking"));
-            } else {
-                assertNull(nodeAllocationDecisions);
-            }
+            Map<String, Object> assignedShardAllocateDecisionMap = (Map<String, Object>) map.get("assigned_shard_allocate_decision");
+            assertEquals(
+                assignedShardAllocateDecision.getMoveDecision().getAllocationDecision().toString(),
+                assignedShardAllocateDecisionMap.get("can_rebalance_to_other_node")
+            );
+            assertEquals(
+                assignedShardAllocateDecision.getMoveDecision().getCanRemainDecision().type().toString().toLowerCase(Locale.ROOT),
+                assignedShardAllocateDecisionMap.get("can_remain_on_current_node")
+            );
+            assertEquals(
+                assignedShardAllocateDecision.getMoveDecision().getClusterRebalanceDecision().type().toString().toLowerCase(Locale.ROOT),
+                assignedShardAllocateDecisionMap.get("can_rebalance_cluster")
+            );
+            assertEquals(
+                assignedShardAllocateDecision.getMoveDecision().getExplanation(),
+                assignedShardAllocateDecisionMap.get("rebalance_explanation")
+            );
         }
     }
 

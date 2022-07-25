@@ -163,16 +163,6 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             .total(autoscalingCapacity.total().storage().getBytes() + unassignedBytes + assignedBytes, null, null)
             .node(minimumNodeSize, null, null)
             .build();
-        ShardAllocationDecision unassignedShardAllocateDecision = unassignedBytesUnassignedShards.shards()
-            .stream()
-            .findFirst()
-            .map(allocationState::explainUnassignedShard)
-            .orElse(null);
-        ShardAllocationDecision assignedShardAllocateDecision = assignedBytesUnmovableShards.shards()
-            .stream()
-            .findFirst()
-            .map(allocationState::explainAssignedShard)
-            .orElse(null);
         return new AutoscalingDeciderResult(
             requiredCapacity,
             new ReactiveReason(
@@ -181,8 +171,12 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 unassignedBytesUnassignedShards.shardIds(),
                 assignedBytes,
                 assignedBytesUnmovableShards.shardIds(),
-                unassignedShardAllocateDecision,
-                assignedShardAllocateDecision
+                unassignedBytesUnassignedShards.shards().size() > 0
+                    ? allocationState.explainUnassignedShard(unassignedBytesUnassignedShards.shards().first())
+                    : null,
+                assignedBytesUnmovableShards.shards().size() > 0
+                    ? allocationState.explainAssignedShard(assignedBytesUnmovableShards.shards().first())
+                    : null
             )
         );
     }

@@ -80,6 +80,8 @@ tasks.named("yamlRestTestV7CompatTransform").configure { task ->
   task.skipTest("search.aggregation/20_terms/numeric profiler", "The profiler results aren't backwards compatible.")
   task.skipTest("migration/10_get_feature_upgrade_status/Get feature upgrade status", "Awaits backport")
   task.skipTest("search/330_fetch_fields/Test disable source", "Error no longer thrown")
+  task.skipTest("indices.split/30_copy_settings/Copy settings during split index", "https://github.com/elastic/elasticsearch/issues/86429")
+  task.skipTest("indices.shrink/30_copy_settings/Copy settings during shrink index", "https://github.com/elastic/elasticsearch/issues/86429")
 
   task.replaceValueInMatch("_type", "_doc")
   task.addAllowedWarningRegex("\\[types removal\\].*")

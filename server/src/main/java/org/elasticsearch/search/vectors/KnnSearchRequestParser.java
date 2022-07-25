@@ -35,19 +35,19 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
  * A builder used in {@link RestKnnSearchAction} to convert the kNN REST request
  * into a {@link SearchRequestBuilder}.
  */
-public class KnnSearchRequestBuilder {
+public class KnnSearchRequestParser {
     static final String INDEX_PARAM = "index";
     static final String ROUTING_PARAM = "routing";
 
     static final ParseField KNN_SECTION_FIELD = new ParseField("knn");
     static final ParseField FILTER_FIELD = new ParseField("filter");
-    private static final ObjectParser<KnnSearchRequestBuilder, Void> PARSER;
+    private static final ObjectParser<KnnSearchRequestParser, Void> PARSER;
 
     static {
         PARSER = new ObjectParser<>("knn-search");
-        PARSER.declareField(KnnSearchRequestBuilder::knnSearch, KnnSearch::parse, KNN_SECTION_FIELD, ObjectParser.ValueType.OBJECT);
+        PARSER.declareField(KnnSearchRequestParser::knnSearch, KnnSearch::parse, KNN_SECTION_FIELD, ObjectParser.ValueType.OBJECT);
         PARSER.declareFieldArray(
-            KnnSearchRequestBuilder::filter,
+            KnnSearchRequestParser::filter,
             (p, c) -> AbstractQueryBuilder.parseInnerQueryBuilder(p),
             FILTER_FIELD,
             ObjectParser.ValueType.OBJECT_ARRAY
@@ -58,13 +58,13 @@ public class KnnSearchRequestBuilder {
             ObjectParser.ValueType.OBJECT_ARRAY_BOOLEAN_OR_STRING
         );
         PARSER.declareFieldArray(
-            KnnSearchRequestBuilder::fields,
+            KnnSearchRequestParser::fields,
             (p, c) -> FieldAndFormat.fromXContent(p),
             SearchSourceBuilder.FETCH_FIELDS_FIELD,
             ObjectParser.ValueType.OBJECT_ARRAY
         );
         PARSER.declareFieldArray(
-            KnnSearchRequestBuilder::docValueFields,
+            KnnSearchRequestParser::docValueFields,
             (p, c) -> FieldAndFormat.fromXContent(p),
             SearchSourceBuilder.DOCVALUE_FIELDS_FIELD,
             ObjectParser.ValueType.OBJECT_ARRAY
@@ -81,8 +81,8 @@ public class KnnSearchRequestBuilder {
     /**
      * Parses a {@link RestRequest} representing a kNN search into a request builder.
      */
-    public static KnnSearchRequestBuilder parseRestRequest(RestRequest restRequest) throws IOException {
-        KnnSearchRequestBuilder builder = new KnnSearchRequestBuilder(Strings.splitStringByCommaToArray(restRequest.param("index")));
+    public static KnnSearchRequestParser parseRestRequest(RestRequest restRequest) throws IOException {
+        KnnSearchRequestParser builder = new KnnSearchRequestParser(Strings.splitStringByCommaToArray(restRequest.param("index")));
         builder.routing(restRequest.param("routing"));
 
         if (restRequest.hasContentOrSourceParam()) {
@@ -103,7 +103,7 @@ public class KnnSearchRequestBuilder {
     private List<FieldAndFormat> docValueFields;
     private StoredFieldsContext storedFields;
 
-    private KnnSearchRequestBuilder(String[] indices) {
+    private KnnSearchRequestParser(String[] indices) {
         this.indices = indices;
     }
 
@@ -157,7 +157,7 @@ public class KnnSearchRequestBuilder {
     /**
      * Adds all the request components to the given {@link SearchRequestBuilder}.
      */
-    public void build(SearchRequestBuilder builder) {
+    public void toSearchRequest(SearchRequestBuilder builder) {
         builder.setIndices(indices);
         builder.setRouting(routing);
 
@@ -168,7 +168,7 @@ public class KnnSearchRequestBuilder {
             throw new IllegalArgumentException("missing required [" + KNN_SECTION_FIELD.getPreferredName() + "] section in search body");
         }
 
-        KnnVectorQueryBuilder queryBuilder = knnSearch.buildQuery();
+        KnnVectorQueryBuilder queryBuilder = knnSearch.toQueryBuilder();
         if (filters != null) {
             queryBuilder.addFilterQueries(this.filters);
         }
@@ -241,7 +241,7 @@ public class KnnSearchRequestBuilder {
             this.numCands = numCands;
         }
 
-        public KnnVectorQueryBuilder buildQuery() {
+        public KnnVectorQueryBuilder toQueryBuilder() {
             // We perform validation here instead of the constructor because it makes the errors
             // much clearer. Otherwise, the error message is deeply nested under parsing exceptions.
             if (k < 1) {
@@ -255,7 +255,6 @@ public class KnnSearchRequestBuilder {
             if (numCands > NUM_CANDS_LIMIT) {
                 throw new IllegalArgumentException("[" + NUM_CANDS_FIELD.getPreferredName() + "] cannot exceed [" + NUM_CANDS_LIMIT + "]");
             }
-
             return new KnnVectorQueryBuilder(field, queryVector, numCands);
         }
 

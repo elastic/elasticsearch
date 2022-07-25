@@ -48,7 +48,6 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                     NAME,
                     GREEN,
                     "Snapshot Lifecycle Management is running",
-                    null,
                     new SimpleHealthIndicatorDetails(Map.of("slm_status", RUNNING, "policies", 1)),
                     Collections.emptyList(),
                     Collections.emptyList()
@@ -69,7 +68,6 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                     NAME,
                     YELLOW,
                     "Snapshot Lifecycle Management is not running",
-                    SlmHealthIndicatorService.HELP_URL,
                     new SimpleHealthIndicatorDetails(Map.of("slm_status", status, "policies", 1)),
                     Collections.singletonList(
                         new HealthIndicatorImpact(
@@ -96,7 +94,6 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                     NAME,
                     GREEN,
                     "No Snapshot Lifecycle Management policies configured",
-                    null,
                     new SimpleHealthIndicatorDetails(Map.of("slm_status", status, "policies", 0)),
                     Collections.emptyList(),
                     Collections.emptyList()
@@ -116,7 +113,6 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                     NAME,
                     GREEN,
                     "No Snapshot Lifecycle Management policies configured",
-                    null,
                     new SimpleHealthIndicatorDetails(Map.of("slm_status", RUNNING, "policies", 0)),
                     Collections.emptyList(),
                     Collections.emptyList()

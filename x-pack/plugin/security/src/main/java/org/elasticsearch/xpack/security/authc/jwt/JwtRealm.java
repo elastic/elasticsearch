@@ -125,7 +125,7 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     final List<String> allowedJwksAlgsPkc;
     final List<String> allowedJwksAlgsHmac;
     DelegatedAuthorizationSupport delegatedAuthorizationSupport = null;
-    ContentAndJwksAlgs contentAndJwksAlgsPkc;
+    volatile ContentAndJwksAlgs contentAndJwksAlgsPkc;
     ContentAndJwksAlgs contentAndJwksAlgsHmac;
     final URI jwkSetPathUri;
 
@@ -616,14 +616,13 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
                 primaryException
             );
 
-            this.jwkSetLoader.load(ActionListener.wrap(newContentAndJwksAlgs -> {
-                if (Arrays.equals(this.contentAndJwksAlgsPkc.sha256, newContentAndJwksAlgs.sha256)) {
+            this.jwkSetLoader.reload(ActionListener.wrap(isUpdated -> {
+                if (false == isUpdated) {
                     // No change in JWKSet
                     logger.debug("Reloaded same PKC JWKs, can't retry verify JWT token=[{}]", tokenPrincipal);
                     listener.onFailure(primaryException);
                     return;
                 }
-                this.contentAndJwksAlgsPkc = newContentAndJwksAlgs;
                 // If all PKC JWKs were replaced, all PKC JWT cache entries need to be invalidated.
                 // Enhancement idea: Use separate caches for PKC vs HMAC JWKs, so only PKC entries get invalidated.
                 // Enhancement idea: When some JWKs are retained (ex: rotation), only invalidate for removed JWKs.
@@ -663,9 +662,29 @@ public class JwtRealm extends Realm implements CachingRealm, Releasable {
     private class JwkSetLoader {
         private final AtomicReference<ListenableFuture<ContentAndJwksAlgs>> reloadFutureRef = new AtomicReference<>();
 
+        /**
+         * Load the JWK sets and pass its content to the specified listener.
+         */
         void load(final ActionListener<ContentAndJwksAlgs> listener) {
             final ListenableFuture<ContentAndJwksAlgs> future = this.getFuture();
             future.addListener(listener);
+        }
+
+        /**
+         * Reload the JWK sets, compare to existing JWK sets and update it to the reloaded value if
+         * they are different. The listener is called with false if the reloaded content is the same
+         * as the existing one or true if they are different.
+         */
+        void reload(final ActionListener<Boolean> listener) {
+            load(ActionListener.wrap(newContentAndJwksAlgs -> {
+                if (Arrays.equals(JwtRealm.this.contentAndJwksAlgsPkc.sha256, newContentAndJwksAlgs.sha256)) {
+                    // No change in JWKSet
+                    listener.onResponse(false);
+                } else {
+                    JwtRealm.this.contentAndJwksAlgsPkc = newContentAndJwksAlgs;
+                    listener.onResponse(true);
+                }
+            }, listener::onFailure));
         }
 
         private ListenableFuture<ContentAndJwksAlgs> getFuture() {

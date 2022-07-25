@@ -133,7 +133,7 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
             assertThat(debugInformation, healthResponse.getStatus(), equalTo(expectedStatus));
             assertThat(
                 debugInformation,
-                healthResponse.findComponent("cluster_coordination").findIndicator("master_is_stable").symptom(),
+                healthResponse.findIndicator("master_is_stable").symptom(),
                 containsString(expectedSummarySubstring)
             );
         });

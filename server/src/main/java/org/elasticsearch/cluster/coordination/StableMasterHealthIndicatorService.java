@@ -20,8 +20,6 @@ import org.elasticsearch.health.ImpactArea;
 import java.util.Collection;
 import java.util.List;
 
-import static org.elasticsearch.health.ServerHealthComponents.CLUSTER_COORDINATION;
-
 /**
  * This indicator reports the health of master stability.
  * If we have had a master within the last 30 seconds, and that master has not changed more than 3 times in the last 30 minutes, then
@@ -80,11 +78,6 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
     @Override
     public String name() {
         return NAME;
-    }
-
-    @Override
-    public String component() {
-        return CLUSTER_COORDINATION;
     }
 
     @Override

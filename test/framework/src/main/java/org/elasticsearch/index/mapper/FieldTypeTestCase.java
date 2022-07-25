@@ -8,6 +8,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
@@ -27,6 +28,11 @@ public abstract class FieldTypeTestCase extends ESTestCase {
 
     public static final SearchExecutionContext MOCK_CONTEXT = createMockSearchExecutionContext(true);
     public static final SearchExecutionContext MOCK_CONTEXT_DISALLOW_EXPENSIVE = createMockSearchExecutionContext(false);
+
+    public static final FieldDataContext MOCK_FIELDDATA_CONTEXT = new FieldDataContext(
+        "test",
+        () -> { throw new UnsupportedOperationException(); }
+    );
 
     protected SearchExecutionContext randomMockContext() {
         return randomFrom(MOCK_CONTEXT, MOCK_CONTEXT_DISALLOW_EXPENSIVE);

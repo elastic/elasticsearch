@@ -14,6 +14,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -47,6 +48,11 @@ public class ProvidedIdFieldMapperTests extends MapperServiceTestCase {
         assertEquals(Uid.encodeId("1"), fields[0].binaryValue());
     }
 
+    private static final FieldDataContext FIELD_DATA_CONTEXT = new FieldDataContext(
+        "test",
+        () -> { throw new UnsupportedOperationException(); }
+    );
+
     public void testEnableFieldData() throws IOException {
 
         boolean[] enabled = new boolean[1];
@@ -56,13 +62,13 @@ public class ProvidedIdFieldMapperTests extends MapperServiceTestCase {
 
         IllegalArgumentException exc = expectThrows(
             IllegalArgumentException.class,
-            () -> ft.fielddataBuilder("test", () -> { throw new UnsupportedOperationException(); }).build(null, null)
+            () -> ft.fielddataBuilder(FIELD_DATA_CONTEXT).build(null, null)
         );
         assertThat(exc.getMessage(), containsString(IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey()));
         assertFalse(ft.isAggregatable());
 
         enabled[0] = true;
-        ft.fielddataBuilder("test", () -> { throw new UnsupportedOperationException(); }).build(null, null);
+        ft.fielddataBuilder(FIELD_DATA_CONTEXT).build(null, null);
         assertWarnings(ProvidedIdFieldMapper.ID_FIELD_DATA_DEPRECATION_MESSAGE);
         assertTrue(ft.isAggregatable());
     }

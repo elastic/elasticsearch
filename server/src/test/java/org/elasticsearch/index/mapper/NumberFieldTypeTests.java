@@ -582,10 +582,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
 
         // Create an index writer configured with the same index sort.
         NumberFieldType fieldType = new NumberFieldType("field", type);
-        IndexNumericFieldData fielddata = (IndexNumericFieldData) fieldType.fielddataBuilder(
-            "index",
-            () -> { throw new UnsupportedOperationException(); }
-        ).build(null, null);
+        IndexNumericFieldData fielddata = (IndexNumericFieldData) fieldType.fielddataBuilder(MOCK_FIELDDATA_CONTEXT).build(null, null);
         SortField sortField = fielddata.sortField(null, MultiValueMode.MIN, null, randomBoolean());
 
         IndexWriterConfig writerConfig = new IndexWriterConfig();

@@ -21,6 +21,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
@@ -190,8 +191,7 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
                 scalingFactor
             );
             IndexNumericFieldData fielddata = (IndexNumericFieldData) f1.fielddataBuilder(
-                "index",
-                () -> { throw new UnsupportedOperationException(); }
+                new FieldDataContext("index", () -> { throw new UnsupportedOperationException(); })
             ).build(null, null);
             assertEquals(fielddata.getNumericType(), IndexNumericFieldData.NumericType.DOUBLE);
             LeafNumericFieldData leafFieldData = fielddata.load(reader.leaves().get(0));
@@ -205,8 +205,9 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
                 "scaled_float2",
                 scalingFactor
             );
-            fielddata = (IndexNumericFieldData) f2.fielddataBuilder("index", () -> { throw new UnsupportedOperationException(); })
-                .build(null, null);
+            fielddata = (IndexNumericFieldData) f2.fielddataBuilder(
+                new FieldDataContext("index", () -> { throw new UnsupportedOperationException(); })
+            ).build(null, null);
             leafFieldData = fielddata.load(reader.leaves().get(0));
             values = leafFieldData.getDoubleValues();
             assertTrue(values.advanceExact(0));

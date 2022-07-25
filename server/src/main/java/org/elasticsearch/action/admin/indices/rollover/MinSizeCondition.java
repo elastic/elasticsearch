@@ -32,7 +32,7 @@ public class MinSizeCondition extends Condition<ByteSizeValue> {
 
     public MinSizeCondition(StreamInput in) throws IOException {
         super(NAME, Type.MIN);
-        this.value = new ByteSizeValue(in.readVLong(), ByteSizeUnit.BYTES);
+        this.value = new ByteSizeValue(in);
     }
 
     @Override
@@ -47,11 +47,7 @@ public class MinSizeCondition extends Condition<ByteSizeValue> {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        // While we technically could serialize this with value.writeTo(...), that would
-        // require doing the song and dance around backwards compatibility for this value. Since
-        // in this case the deserialized version is not displayed to a user, it's okay to simply use
-        // bytes.
-        out.writeVLong(value.getBytes());
+        value.writeTo(out);
     }
 
     @Override

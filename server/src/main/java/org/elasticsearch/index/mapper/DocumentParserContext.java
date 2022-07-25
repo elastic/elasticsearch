@@ -127,7 +127,7 @@ public abstract class DocumentParserContext {
         this.newFieldsSeen = new HashSet<>();
         this.dynamicObjectMappers = new HashMap<>();
         this.dynamicRuntimeFields = new ArrayList<>();
-        this.dimensions = indexSettings.getMode().buildDocumentDimensions();
+        this.dimensions = indexSettings.getMode().buildDocumentDimensions(indexSettings);
     }
 
     public final IndexSettings indexSettings() {

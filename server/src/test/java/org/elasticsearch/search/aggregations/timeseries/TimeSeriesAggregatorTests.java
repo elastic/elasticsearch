@@ -77,7 +77,7 @@ public class TimeSeriesAggregatorTests extends AggregatorTestCase {
     public static void writeTS(RandomIndexWriter iw, long timestamp, Object[] dimensions, Object[] metrics) throws IOException {
         final List<IndexableField> fields = new ArrayList<>();
         fields.add(new SortedNumericDocValuesField(DataStreamTimestampFieldMapper.DEFAULT_PATH, timestamp));
-        final TimeSeriesIdBuilder builder = new TimeSeriesIdBuilder();
+        final TimeSeriesIdBuilder builder = new TimeSeriesIdBuilder(null);
         for (int i = 0; i < dimensions.length; i += 2) {
             if (dimensions[i + 1]instanceof Number n) {
                 builder.addLong(dimensions[i].toString(), n.longValue());

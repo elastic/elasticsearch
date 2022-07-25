@@ -15,6 +15,7 @@ import io.netty.channel.ChannelPromise;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
+import io.netty.handler.codec.http.DefaultHttpContent;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.LastHttpContent;
@@ -282,6 +283,57 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
         assertThat(messagesSeen.get(1), instanceOf(Netty4ChunkedHttpResponse.class));
         assertThat(messagesSeen.get(chunks2 + 1), instanceOf(LastHttpContent.class));
         assertTrue(promise2.isDone());
+    }
+
+    public void testPipeliningRequestsAreReleasedAfterFailureOnChunked() {
+        final List<Object> messagesSeen = new ArrayList<>();
+        final EmbeddedChannel embeddedChannel = new EmbeddedChannel(capturingHandler(messagesSeen), getTestHttpHandler());
+        embeddedChannel.writeInbound(createHttpRequest("/chunked"));
+        final Netty4HttpRequest chunkedResponseRequest = embeddedChannel.readInbound();
+
+        final BytesReference chunk = new BytesArray(randomByteArrayOfLength(Netty4WriteThrottlingHandler.MAX_BYTES_PER_WRITE * 2));
+        final HttpResponse chunkedResponse = chunkedResponseRequest.createResponse(
+            RestStatus.OK,
+            getRepeatedChunkResponseBody(randomIntBetween(2, 10), chunk)
+        );
+        final ChannelPromise chunkedWritePromise = embeddedChannel.newPromise();
+        embeddedChannel.write(chunkedResponse, chunkedWritePromise);
+
+        for (int i = 0; i < randomIntBetween(5, 10); i++) {
+            embeddedChannel.writeInbound(createHttpRequest("/" + i));
+        }
+
+        Netty4HttpRequest inbound;
+        ArrayList<Netty4HttpRequest> requests = new ArrayList<>();
+        while ((inbound = embeddedChannel.readInbound()) != null) {
+            requests.add(inbound);
+        }
+
+        ArrayList<ChannelPromise> promises = new ArrayList<>();
+        for (Netty4HttpRequest request : requests) {
+            ChannelPromise promise = embeddedChannel.newPromise();
+            promises.add(promise);
+            Netty4HttpResponse resp = request.createResponse(RestStatus.OK, BytesArray.EMPTY);
+            embeddedChannel.write(resp, promise);
+        }
+        assertFalse(chunkedWritePromise.isDone());
+        for (ChannelPromise promise : promises) {
+            assertFalse(promise.isDone());
+        }
+        embeddedChannel.close().syncUninterruptibly();
+        assertDoneWithClosedChannel(chunkedWritePromise);
+        for (ChannelPromise promise : promises) {
+            assertDoneWithClosedChannel(promise);
+        }
+        // we wrote the first chunk and its headers only
+        assertThat(messagesSeen, hasSize(2));
+        assertThat(messagesSeen.get(0), instanceOf(Netty4ChunkedHttpResponse.class));
+        assertThat(messagesSeen.get(1), instanceOf(DefaultHttpContent.class));
+    }
+
+    private static void assertDoneWithClosedChannel(ChannelPromise chunkedWritePromise) {
+        assertTrue(chunkedWritePromise.isDone());
+        assertThat(chunkedWritePromise.cause(), instanceOf(ClosedChannelException.class));
     }
 
     private Netty4HttpPipeliningHandler getTestHttpHandler() {

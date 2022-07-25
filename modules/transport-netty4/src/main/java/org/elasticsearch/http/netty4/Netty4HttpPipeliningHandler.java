@@ -38,7 +38,6 @@ import org.elasticsearch.transport.netty4.Netty4WriteThrottlingHandler;
 import org.elasticsearch.transport.netty4.NettyAllocator;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.channels.ClosedChannelException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -294,15 +293,9 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
                 // TODO: this is confusing, handle the outstanding first chunk of a chunked write nicer than by putting it in the
                 // queued writes
                 if (currentChunkedWrite != null) {
-                    try {
-                        if (writeChunk(ctx, currentChunkedWrite.combiner, currentChunkedWrite.response.body())) {
-                            finishChunkedWrite();
-                            continue;
-                        }
-                    } catch (IOException e) {
-                        // TODO: this is weird but just failing everything for this connection in case of a serialization exception which
-                        // seems to always be a bug sounds about right?
-                        throw new UncheckedIOException(e);
+                    if (writeChunk(ctx, currentChunkedWrite.combiner, currentChunkedWrite.response.body())) {
+                        finishChunkedWrite();
+                        continue;
                     }
                 }
                 break;
@@ -346,21 +339,27 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
 
     @Override
     public void close(ChannelHandlerContext ctx, ChannelPromise promise) {
-        // TODO: handle current write
-        assert currentChunkedWrite == null;
+        if (currentChunkedWrite != null) {
+            safeFailPromise(currentChunkedWrite.onDone, new ClosedChannelException());
+            currentChunkedWrite = null;
+        }
         List<Tuple<? extends Netty4RestResponse, ChannelPromise>> inflightResponses = removeAllInflightResponses();
 
         if (inflightResponses.isEmpty() == false) {
             ClosedChannelException closedChannelException = new ClosedChannelException();
             for (Tuple<? extends Netty4RestResponse, ChannelPromise> inflightResponse : inflightResponses) {
-                try {
-                    inflightResponse.v2().setFailure(closedChannelException);
-                } catch (RuntimeException e) {
-                    logger.error("unexpected error while releasing pipelined http responses", e);
-                }
+                safeFailPromise(inflightResponse.v2(), closedChannelException);
             }
         }
         ctx.close(promise);
+    }
+
+    private void safeFailPromise(ChannelPromise promise, Exception ex) {
+        try {
+            promise.setFailure(ex);
+        } catch (RuntimeException e) {
+            logger.error("unexpected error while releasing pipelined http responses", e);
+        }
     }
 
     private Future<Void> enqueueWrite(ChannelHandlerContext ctx, HttpObject msg) {

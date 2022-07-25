@@ -33,6 +33,7 @@ import java.util.stream.Collectors;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.startsWith;
 
 @LuceneTestCase.SuppressFileSystems("*")
 public class ListPluginsCommandTests extends CommandTestCase {
@@ -195,15 +196,15 @@ public class ListPluginsCommandTests extends CommandTestCase {
     public void testPluginWithoutDescriptorFile() throws Exception {
         final Path pluginDir = env.pluginsFile().resolve("fake1");
         Files.createDirectories(pluginDir);
-        NoSuchFileException e = expectThrows(NoSuchFileException.class, () -> execute());
-        assertEquals(pluginDir.resolve(PluginDescriptor.INTERNAL_DESCRIPTOR_FILENAME).toString(), e.getFile());
+        var e = expectThrows(IllegalStateException.class, () -> execute());
+        assertThat(e.getMessage(), equalTo("Plugin [fake1] is missing a descriptor properties file."));
     }
 
     public void testPluginWithWrongDescriptorFile() throws Exception {
         final Path pluginDir = env.pluginsFile().resolve("fake1");
         PluginTestUtil.writePluginProperties(pluginDir, "description", "fake desc");
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> execute());
-        assertEquals("Plugin [fake1] is missing a descriptor properties file.", e.getMessage());
+        var e = expectThrows(IllegalArgumentException.class, () -> execute());
+        assertThat(e.getMessage(), startsWith("property [name] is missing for plugin"));
     }
 
     public void testExistingIncompatiblePlugin() throws Exception {

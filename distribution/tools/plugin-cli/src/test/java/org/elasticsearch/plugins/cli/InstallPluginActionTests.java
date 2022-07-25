@@ -115,6 +115,7 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.spy;
 
 @LuceneTestCase.SuppressFileSystems("*")
+@ESTestCase.WithoutSecurityManager
 public class InstallPluginActionTests extends ESTestCase {
 
     private InstallPluginAction skipJarHellAction;
@@ -770,8 +771,8 @@ public class InstallPluginActionTests extends ESTestCase {
     public void testMissingDescriptor() throws Exception {
         Files.createFile(pluginDir.resolve("fake.yml"));
         String pluginZip = writeZip(pluginDir, null).toUri().toURL().toString();
-        NoSuchFileException e = expectThrows(NoSuchFileException.class, () -> installPlugin(pluginZip));
-        assertThat(e.getMessage(), containsString("plugin-descriptor.properties"));
+        var e = expectThrows(IllegalStateException.class, () -> installPlugin(pluginZip));
+        assertThat(e.getMessage(), containsString("missing a descriptor properties file"));
         assertInstallCleaned(env.v2());
     }
 

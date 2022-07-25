@@ -307,7 +307,7 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
         } else {
             // we do not ignore these files on non-macOS systems
             var e = expectThrows(IllegalStateException.class, () -> spawner.spawnNativeControllers(environment));
-            assertThat(e.getMessage(), equalTo("Plugin [.DS_Store] is missing a descriptor properties file"));
+            assertThat(e.getMessage(), equalTo("Plugin [.DS_Store] is missing a descriptor properties file."));
         }
     }
 

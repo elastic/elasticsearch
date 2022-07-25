@@ -55,7 +55,7 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
     private final Tracer tracer;
 
     @Nullable
-    private final HttpTracer httpTracer;
+    private final HttpTracer httpLogger;
 
     DefaultRestChannel(
         HttpChannel httpChannel,
@@ -65,7 +65,7 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
         HttpHandlingSettings settings,
         ThreadContext threadContext,
         CorsHandler corsHandler,
-        @Nullable HttpTracer httpTracer,
+        @Nullable HttpTracer httpLogger,
         Tracer tracer
     ) {
         super(request, settings.detailedErrorsEnabled());
@@ -75,7 +75,7 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
         this.settings = settings;
         this.threadContext = threadContext;
         this.corsHandler = corsHandler;
-        this.httpTracer = httpTracer;
+        this.httpLogger = httpLogger;
         this.tracer = tracer;
     }
 
@@ -152,8 +152,8 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
             if (success == false) {
                 Releasables.close(toClose);
             }
-            if (httpTracer != null) {
-                httpTracer.traceResponse(restResponse, httpChannel, contentLength, opaque, request.getRequestId(), success);
+            if (httpLogger != null) {
+                httpLogger.logResponse(restResponse, httpChannel, contentLength, opaque, request.getRequestId(), success);
             }
         }
     }

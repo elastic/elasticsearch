@@ -88,7 +88,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     private final Set<HttpServerChannel> httpServerChannels = Collections.newSetFromMap(new ConcurrentHashMap<>());
     private final HttpClientStatsTracker httpClientStatsTracker;
 
-    private final HttpTracer httpTracer;
+    private final HttpTracer httpLogger;
     private final Tracer tracer;
 
     private volatile long slowLogThresholdMs;
@@ -127,7 +127,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
 
         this.maxContentLength = SETTING_HTTP_MAX_CONTENT_LENGTH.get(settings);
         this.tracer = tracer;
-        this.httpTracer = new HttpTracer(settings, clusterSettings);
+        this.httpLogger = new HttpTracer(settings, clusterSettings);
         clusterSettings.addSettingsUpdateConsumer(
             TransportSettings.SLOW_OPERATION_THRESHOLD_SETTING,
             slowLogThreshold -> this.slowLogThresholdMs = slowLogThreshold.getMillis()
@@ -411,7 +411,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
             restRequest = innerRestRequest;
         }
 
-        final HttpTracer maybeHttpTracer = httpTracer.maybeTraceRequest(restRequest, exception);
+        final HttpTracer maybeHttpLogger = httpLogger.maybeLogRequest(restRequest, exception);
 
         /*
          * We now want to create a channel used to send the response on. However, creating this channel can fail if there are invalid
@@ -432,7 +432,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
                     handlingSettings,
                     threadContext,
                     corsHandler,
-                    maybeHttpTracer,
+                    maybeHttpLogger,
                     tracer
                 );
             } catch (final IllegalArgumentException e) {
@@ -446,7 +446,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
                     handlingSettings,
                     threadContext,
                     corsHandler,
-                    httpTracer,
+                    httpLogger,
                     tracer
                 );
             }

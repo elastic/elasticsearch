@@ -133,7 +133,7 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
             assertThat(debugInformation, healthResponse.getStatus(), equalTo(expectedStatus));
             assertThat(
                 debugInformation,
-                healthResponse.findComponent("cluster_coordination").findIndicator("master_is_stable").summary(),
+                healthResponse.findComponent("cluster_coordination").findIndicator("master_is_stable").symptom(),
                 containsString(expectedSummarySubstring)
             );
         });
@@ -317,11 +317,11 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
     /**
      * This helper method creates a 3-node cluster where all nodes are master-eligible, and then simulates a long GC on the master node 5
      * times (forcing another node to be elected master 5 times). It then asserts that the master stability health indicator status is
-     * YELLOW, and that expectedMasterStabilitySummarySubstring is contained in the summary.
-     * @param expectedMasterStabilitySummarySubstring A string to expect in the master stability health indictor summary
+     * YELLOW, and that expectedMasterStabilitySymptomSubstring is contained in the symptom.
+     * @param expectedMasterStabilitySymptomSubstring A string to expect in the master stability health indicator symptom
      * @throws Exception
      */
-    public void testRepeatedMasterChanges(String expectedMasterStabilitySummarySubstring) throws Exception {
+    public void testRepeatedMasterChanges(String expectedMasterStabilitySymptomSubstring) throws Exception {
         final List<String> nodes = internalCluster().startNodes(
             3,
             Settings.builder()
@@ -407,7 +407,7 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
          * other node(s) were master, it only saw itself as master. So we want to check with another node.
          */
         Client client = internalCluster().client(randomFrom(nodeNamesExceptFirstMaster));
-        assertMasterStability(client, HealthStatus.YELLOW, expectedMasterStabilitySummarySubstring);
+        assertMasterStability(client, HealthStatus.YELLOW, expectedMasterStabilitySymptomSubstring);
     }
 
     public void testRepeatedNullMasterRecognizedAsGreenIfMasterDoesNotKnowItIsUnstable() throws Exception {

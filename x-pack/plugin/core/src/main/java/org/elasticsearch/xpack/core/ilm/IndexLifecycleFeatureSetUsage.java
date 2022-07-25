@@ -506,6 +506,7 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
                 && Objects.equals(forceMergeMaxNumberOfSegments, that.forceMergeMaxNumberOfSegments)
                 && Objects.equals(rolloverMaxAge, that.rolloverMaxAge)
                 && Objects.equals(rolloverMaxDocs, that.rolloverMaxDocs)
+                && Objects.equals(rolloverMaxPrimaryShardDocs, that.rolloverMaxPrimaryShardDocs)
                 && Objects.equals(rolloverMaxPrimaryShardSize, that.rolloverMaxPrimaryShardSize)
                 && Objects.equals(rolloverMaxSize, that.rolloverMaxSize)
                 && Objects.equals(setPriorityPriority, that.setPriorityPriority)
@@ -520,6 +521,7 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
                 forceMergeMaxNumberOfSegments,
                 rolloverMaxAge,
                 rolloverMaxDocs,
+                rolloverMaxPrimaryShardDocs,
                 rolloverMaxPrimaryShardSize,
                 rolloverMaxSize,
                 setPriorityPriority,

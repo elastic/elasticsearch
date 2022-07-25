@@ -45,10 +45,11 @@ Each impact carries with it a severity level, an area of the system that is affe
 description of the impact on the system.
 
 Some health indicators can determine the root cause of a health problem and prescribe a set of
-user actions that can be performed in order to improve the health of the system. User
-actions contain a message detailing a root cause analysis, the list of affected resources (if
-applicable) and steps to take that will improve the health of your cluster. User actions can
-also optionally provide URLs to troubleshooting documentation.
+steps that can be performed in order to improve the health of the system. The root cause and remediation
+steps are encapsulated in a `diagnosis`.
+A diagnosis contains a cause detailing a root cause analysis, an action containing a brief description
+of the steps to take to fix the problem, the list of affected resources (if applicable), and a detailed
+step by step troubleshooting guide to fix the diagnosed problem.
 
 [[health-api-path-params]]
 ==== {api-path-parms-title}
@@ -199,11 +200,8 @@ for health status set `explain` to `false` to disable the more expensive analysi
     `red`:::
     The indicator is experiencing an outage or certain features are unavailable for use.
 
-`summary`::
+`symptom`::
     (string) A message providing information about the current health status.
-
-`help_url`::
-    (Optional, string) A link to additional troubleshooting guides for this indicator.
 
 `details`::
     (Optional, object) An object that contains additional information about the cluster that
@@ -238,25 +236,29 @@ for health status set `explain` to `false` to disable the more expensive analysi
 
 ========
 
-`user_actions`::
+`diagnosis`::
     (Optional, array) If a non-healthy status is returned, indicators may include a list of
-    user actions to take in order to remediate the health issue. User actions and root cause
-    analysis will not be calculated if the `explain` property is false.
+    diagnosis that encapsulate the cause of the health issue and an action to take in order to remediate the problem.
+    The diagnosis will not be calculated if the `explain` property is false.
 +
-.Properties of `user_actions`
+.Properties of `diagnosis`
 [%collapsible%open]
 ========
-`message`::
-    (string) A description of a root cause of this health status and the steps that should
-    be taken to remediate the problem.
+`cause`::
+    (string) A description of a root cause of this health problem.
+
+`action`::
+    (string) A brief description the steps that should be taken to remediate the problem.
+    A more detailed step by step guide to remediate the problem is provided by the
+    `help_url` field.
 
 `affected_resources`::
     (Optional, array of strings) If the root cause pertains to multiple resources in the
     cluster (like indices, shards, nodes, etc...) this will hold all resources that this
-    user action is applicable for.
+    diagnosis is applicable for.
 
 `help_url`::
-    (string) A link to additional troubleshooting information for this user action.
+    (string) A link to the troubleshooting guide that'll fix the healh problem.
 ========
 =======
 ======

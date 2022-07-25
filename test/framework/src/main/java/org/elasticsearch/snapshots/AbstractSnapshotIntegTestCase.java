@@ -197,7 +197,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
     protected void stopNode(final String node) throws IOException {
         logger.info("--> stopping node {}", node);
-        internalCluster().stopRandomNode(settings -> settings.get("node.name").equals(node));
+        internalCluster().stopNode(node);
     }
 
     protected static String startDataNodeWithLargeSnapshotPool() {

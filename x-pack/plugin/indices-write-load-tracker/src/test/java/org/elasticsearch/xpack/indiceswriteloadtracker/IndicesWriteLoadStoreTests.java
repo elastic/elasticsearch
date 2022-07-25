@@ -351,7 +351,10 @@ public class IndicesWriteLoadStoreTests extends ESTestCase {
         final var averageDocumentSizeInBytes = getWriteLoadDistributionSerializedSize();
         final var maxDocumentsPerBulk = (int) Math.ceil((double) maxBulkSize.getBytes() / averageDocumentSizeInBytes);
 
-        final var settings = Settings.builder().put(IndicesWriteLoadStore.MAX_BULK_SIZE_SETTING.getKey(), maxBulkSize).build();
+        final var settings = Settings.builder()
+            .put(IndicesWriteLoadStore.MAX_BULK_SIZE_SETTING.getKey(), maxBulkSize)
+            .put(IndicesWriteLoadStore.MAX_DOCUMENTS_PER_BULK_SETTING.getKey(), maxDocumentsPerBulk * 2)
+            .build();
         final var receivedBulkRequestCount = new AtomicInteger();
         try (
             var client = new MockClient(threadPool);

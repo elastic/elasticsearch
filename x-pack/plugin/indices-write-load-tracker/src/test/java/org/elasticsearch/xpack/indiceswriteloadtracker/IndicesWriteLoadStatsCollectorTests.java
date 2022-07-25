@@ -11,6 +11,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
+import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
@@ -777,7 +778,9 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
             (indexSettings) -> new Store(
                 shardId,
                 indexSettings,
-                directoryWrapper.apply(newFSDirectory(shardPath.resolveIndex())),
+                // Use an in-memory directory to avoid timings variations
+                // while we run the test suite in slower machines (i.e. in CI).
+                directoryWrapper.apply(new ByteBuffersDirectory()),
                 new DummyShardLock(shardId)
             ),
             null,

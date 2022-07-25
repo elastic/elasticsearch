@@ -33,7 +33,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.aggs.frequentitemsets.EclatMapReducer.EclatResult;
 import org.elasticsearch.xpack.ml.aggs.frequentitemsets.FrequentItemSetCollector.FrequentItemSet;
-import org.elasticsearch.xpack.ml.aggs.mapreduce.InternalMapReduceAggregation;
+import org.elasticsearch.xpack.ml.aggs.frequentitemsets.mr.InternalItemSetMapReduceAggregation;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -201,7 +201,7 @@ public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
                     new SortedSetDocValuesField(KEYWORD_FIELD1, new BytesRef("item-7"))
                 )
             );
-        }, (InternalMapReduceAggregation<?, ?, ?, EclatResult> results) -> {
+        }, (InternalItemSetMapReduceAggregation<?, ?, ?, EclatResult> results) -> {
             assertNotNull(results);
             assertResults(expectedResults, results.getMapReduceResult().getFrequentItemSets(), minimumSupport, minimumSetSize, size);
         }, keywordType);
@@ -377,7 +377,7 @@ public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
                     new SortedSetDocValuesField(KEYWORD_FIELD3, new BytesRef("type-2"))
                 )
             );
-        }, (InternalMapReduceAggregation<?, ?, ?, EclatResult> results) -> {
+        }, (InternalItemSetMapReduceAggregation<?, ?, ?, EclatResult> results) -> {
             assertNotNull(results);
             assertResults(expectedResults, results.getMapReduceResult().getFrequentItemSets(), minimumSupport, minimumSetSize, size);
         }, keywordType1, keywordType2, keywordType3, intType, floatType, ipType);
@@ -565,7 +565,7 @@ public class FrequentItemSetsAggregatorTests extends AggregatorTestCase {
                     new SortedNumericDocValuesField(DATE_FIELD, dateFieldType(DATE_FIELD).parse("2022-06-02"))
                 )
             );
-        }, (InternalMapReduceAggregation<?, ?, ?, EclatResult> results) -> {
+        }, (InternalItemSetMapReduceAggregation<?, ?, ?, EclatResult> results) -> {
             assertNotNull(results);
             assertResults(expectedResults, results.getMapReduceResult().getFrequentItemSets(), minimumSupport, minimumSetSize, size);
         }, keywordType1, keywordType2, keywordType3, dateType, ipType);

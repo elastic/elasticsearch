@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.ml.aggs.mapreduce;
+package org.elasticsearch.xpack.ml.aggs.frequentitemsets.mr;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -18,8 +18,8 @@ import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContent.DelegatingMapParams;
+import org.elasticsearch.xpack.ml.aggs.frequentitemsets.mr.ItemSetMapReduceValueSource.Field;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.ml.aggs.mapreduce.MapReduceValueSource.Field;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -28,13 +28,13 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Stream;
 
-public final class InternalMapReduceAggregation<
+public final class InternalItemSetMapReduceAggregation<
     MapContext extends Closeable,
     MapFinalContext extends Writeable,
     ReduceContext extends Closeable,
     Result extends ToXContent & Writeable> extends InternalAggregation {
 
-    private final AbstractMapReducer<MapContext, MapFinalContext, ReduceContext, Result> mapReducer;
+    private final AbstractItemSetMapReducer<MapContext, MapFinalContext, ReduceContext, Result> mapReducer;
     private final BigArrays bigArraysForMapReduce;
     private final List<Field> fields;
     private final boolean profiling;
@@ -42,10 +42,10 @@ public final class InternalMapReduceAggregation<
     private MapFinalContext mapFinalContext = null;
     private Result mapReduceResult = null;
 
-    InternalMapReduceAggregation(
+    InternalItemSetMapReduceAggregation(
         String name,
         Map<String, Object> metadata,
-        AbstractMapReducer<MapContext, MapFinalContext, ReduceContext, Result> mapReducer,
+        AbstractItemSetMapReducer<MapContext, MapFinalContext, ReduceContext, Result> mapReducer,
         MapFinalContext mapFinalContext,
         Result mapReduceResult,
         List<Field> fields,
@@ -66,9 +66,9 @@ public final class InternalMapReduceAggregation<
         this.bigArraysForMapReduce = BigArrays.NON_RECYCLING_INSTANCE;
     }
 
-    public InternalMapReduceAggregation(
+    public InternalItemSetMapReduceAggregation(
         StreamInput in,
-        Writeable.Reader<AbstractMapReducer<MapContext, MapFinalContext, ReduceContext, Result>> reader
+        Writeable.Reader<AbstractItemSetMapReducer<MapContext, MapFinalContext, ReduceContext, Result>> reader
     ) throws IOException {
         super(in);
 
@@ -110,9 +110,9 @@ public final class InternalMapReduceAggregation<
     public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext aggReduceContext) {
 
         Stream<MapFinalContext> contexts = aggregations.stream().map(agg -> {
-            assert agg.getClass().equals(InternalMapReduceAggregation.class);
+            assert agg.getClass().equals(InternalItemSetMapReduceAggregation.class);
             @SuppressWarnings("unchecked")
-            MapFinalContext context = ((InternalMapReduceAggregation<MapContext, MapFinalContext, ReduceContext, Result>) agg)
+            MapFinalContext context = ((InternalItemSetMapReduceAggregation<MapContext, MapFinalContext, ReduceContext, Result>) agg)
                 .getMapFinalContext();
             return context;
         }).filter(c -> c != null);
@@ -126,14 +126,14 @@ public final class InternalMapReduceAggregation<
                 throw new AggregationExecutionException("Final reduction failed", e);
             }
 
-            return new InternalMapReduceAggregation<>(name, metadata, mapReducer, null, mapReduceResult, fields, profiling);
+            return new InternalItemSetMapReduceAggregation<>(name, metadata, mapReducer, null, mapReduceResult, fields, profiling);
         }
         // else: combine
         // can't use the bigarray from the agg reduce context, because we don't finalize it here
         ReduceContext newMapReduceContext = mapReducer.reduceInit(bigArraysForMapReduce);
         MapFinalContext newMapFinalContext = mapReducer.combine(contexts, newMapReduceContext, aggReduceContext.isCanceled());
 
-        return new InternalMapReduceAggregation<>(name, metadata, mapReducer, newMapFinalContext, null, fields, profiling);
+        return new InternalItemSetMapReduceAggregation<>(name, metadata, mapReducer, newMapFinalContext, null, fields, profiling);
     }
 
     @Override

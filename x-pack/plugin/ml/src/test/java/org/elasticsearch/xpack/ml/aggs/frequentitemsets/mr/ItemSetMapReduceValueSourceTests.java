@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.ml.aggs.mapreduce;
+package org.elasticsearch.xpack.ml.aggs.frequentitemsets.mr;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
@@ -18,8 +18,8 @@ import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ml.aggs.mapreduce.MapReduceValueSource.Field;
-import org.elasticsearch.xpack.ml.aggs.mapreduce.MapReduceValueSource.ValueFormatter;
+import org.elasticsearch.xpack.ml.aggs.frequentitemsets.mr.ItemSetMapReduceValueSource.Field;
+import org.elasticsearch.xpack.ml.aggs.frequentitemsets.mr.ItemSetMapReduceValueSource.ValueFormatter;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -28,7 +28,7 @@ import java.util.List;
 
 import static java.util.Collections.emptyList;
 
-public class MapReduceValueSourceTests extends ESTestCase {
+public class ItemSetMapReduceValueSourceTests extends ESTestCase {
 
     private NamedWriteableRegistry namedWriteableRegistry;
 

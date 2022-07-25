@@ -25,8 +25,8 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.ml.aggs.frequentitemsets.FrequentItemSetCollector.FrequentItemSet;
-import org.elasticsearch.xpack.ml.aggs.mapreduce.AbstractMapReducer;
-import org.elasticsearch.xpack.ml.aggs.mapreduce.MapReduceValueSource.Field;
+import org.elasticsearch.xpack.ml.aggs.frequentitemsets.mr.AbstractItemSetMapReducer;
+import org.elasticsearch.xpack.ml.aggs.frequentitemsets.mr.ItemSetMapReduceValueSource.Field;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -62,7 +62,7 @@ import java.util.stream.Stream;
  *  - a fixed size bitvector to speed up traversal for known branches (C. Borgelt uses a similar technique)
  *  - adaptive pruning based on a changing minimum support (for top-N retrieval)
  */
-public final class EclatMapReducer extends AbstractMapReducer<
+public final class EclatMapReducer extends AbstractItemSetMapReducer<
     HashBasedTransactionStore,
     ImmutableTransactionStore,
     HashBasedTransactionStore,

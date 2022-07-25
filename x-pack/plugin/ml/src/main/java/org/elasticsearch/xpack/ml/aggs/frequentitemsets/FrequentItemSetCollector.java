@@ -20,7 +20,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.aggregations.Aggregation.CommonFields;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.ml.aggs.mapreduce.MapReduceValueSource.Field;
+import org.elasticsearch.xpack.ml.aggs.frequentitemsets.mr.ItemSetMapReduceValueSource.Field;
 
 import java.io.IOException;
 import java.util.ArrayList;

@@ -23,7 +23,7 @@ import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ContextParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.ml.aggs.mapreduce.MapReduceValueSource;
+import org.elasticsearch.xpack.ml.aggs.frequentitemsets.mr.ItemSetMapReduceValueSource;
 
 import java.io.IOException;
 import java.util.List;
@@ -68,22 +68,22 @@ public final class FrequentItemSetsAggregationBuilder extends AbstractAggregatio
         PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), Aggregation.CommonFields.SIZE);
     }
 
-    static final ValuesSourceRegistry.RegistryKey<MapReduceValueSource.ValueSourceSupplier> REGISTRY_KEY =
-        new ValuesSourceRegistry.RegistryKey<>(NAME, MapReduceValueSource.ValueSourceSupplier.class);
+    static final ValuesSourceRegistry.RegistryKey<ItemSetMapReduceValueSource.ValueSourceSupplier> REGISTRY_KEY =
+        new ValuesSourceRegistry.RegistryKey<>(NAME, ItemSetMapReduceValueSource.ValueSourceSupplier.class);
 
     public static void registerAggregators(ValuesSourceRegistry.Builder registry) {
         registry.registerUsage(NAME);
         registry.register(
             REGISTRY_KEY,
             List.of(CoreValuesSourceType.KEYWORD, CoreValuesSourceType.IP),
-            MapReduceValueSource.KeywordValueSource::new,
+            ItemSetMapReduceValueSource.KeywordValueSource::new,
             false
         );
 
         registry.register(
             REGISTRY_KEY,
             List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.NUMERIC, CoreValuesSourceType.BOOLEAN),
-            MapReduceValueSource.NumericValueSource::new,
+            ItemSetMapReduceValueSource.NumericValueSource::new,
             false
         );
     }

@@ -5,21 +5,21 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.ml.aggs.mapreduce;
+package org.elasticsearch.xpack.ml.aggs.frequentitemsets.mr;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.ml.aggs.mapreduce.MapReduceValueSource.Field;
+import org.elasticsearch.xpack.ml.aggs.frequentitemsets.mr.ItemSetMapReduceValueSource.Field;
 import org.junit.Before;
 
 import java.util.List;
 
 import static java.util.Collections.emptyList;
 
-public class MapReduceValueSourceSerializationTests extends AbstractWireSerializingTestCase<Field> {
+public class ItemSetMapReduceValueSourceSerializationTests extends AbstractWireSerializingTestCase<Field> {
 
     private NamedWriteableRegistry namedWriteableRegistry;
 
@@ -32,11 +32,11 @@ public class MapReduceValueSourceSerializationTests extends AbstractWireSerializ
     protected Field createTestInstance() {
         switch (randomIntBetween(0, 2)) {
             case 0:
-                return MapReduceValueSourceTests.createKeywordFieldTestInstance(randomAlphaOfLengthBetween(3, 20), randomInt());
+                return ItemSetMapReduceValueSourceTests.createKeywordFieldTestInstance(randomAlphaOfLengthBetween(3, 20), randomInt());
             case 1:
-                return MapReduceValueSourceTests.createIpFieldTestInstance(randomAlphaOfLengthBetween(3, 20), randomInt());
+                return ItemSetMapReduceValueSourceTests.createIpFieldTestInstance(randomAlphaOfLengthBetween(3, 20), randomInt());
             case 2:
-                return MapReduceValueSourceTests.createLongFieldTestInstance(randomAlphaOfLengthBetween(3, 20), randomInt());
+                return ItemSetMapReduceValueSourceTests.createLongFieldTestInstance(randomAlphaOfLengthBetween(3, 20), randomInt());
         }
         throw new AssertionError("field type missing");
     }

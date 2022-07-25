@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.ml.aggs.mapreduce;
+package org.elasticsearch.xpack.ml.aggs.frequentitemsets.mr;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.SetOnce;
@@ -24,7 +24,7 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xpack.ml.aggs.mapreduce.MapReduceValueSource.Field;
+import org.elasticsearch.xpack.ml.aggs.frequentitemsets.mr.ItemSetMapReduceValueSource.Field;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -34,36 +34,36 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
 
-public abstract class MapReduceAggregator<
+public abstract class ItemSetMapReduceAggregator<
     MapContext extends Closeable,
     MapFinalContext extends Writeable,
     ReduceContext extends Closeable,
     Result extends ToXContent & Writeable> extends AggregatorBase {
 
-    private final List<MapReduceValueSource> extractors;
+    private final List<ItemSetMapReduceValueSource> extractors;
     private final List<Field> fields;
-    private final AbstractMapReducer<MapContext, MapFinalContext, ReduceContext, Result> mapReducer;
+    private final AbstractItemSetMapReducer<MapContext, MapFinalContext, ReduceContext, Result> mapReducer;
     private final BigArrays bigArraysForMapReduce;
     private final LongObjectPagedHashMap<Object> mapReduceContextByBucketOrdinal;
     private final boolean profiling;
     private final DelegatingCircuitBreakerService breakerService;
 
-    protected MapReduceAggregator(
+    protected ItemSetMapReduceAggregator(
         String name,
-        ValuesSourceRegistry.RegistryKey<MapReduceValueSource.ValueSourceSupplier> registryKey,
+        ValuesSourceRegistry.RegistryKey<ItemSetMapReduceValueSource.ValueSourceSupplier> registryKey,
         AggregationContext context,
         Aggregator parent,
         Map<String, Object> metadata,
-        AbstractMapReducer<MapContext, MapFinalContext, ReduceContext, Result> mapReducer,
+        AbstractItemSetMapReducer<MapContext, MapFinalContext, ReduceContext, Result> mapReducer,
         List<ValuesSourceConfig> configs
     ) throws IOException {
         super(name, AggregatorFactories.EMPTY, context, parent, CardinalityUpperBound.NONE, metadata);
 
-        List<MapReduceValueSource> extractors = new ArrayList<>();
+        List<ItemSetMapReduceValueSource> extractors = new ArrayList<>();
         List<Field> fields = new ArrayList<>();
         int id = 0;
         for (ValuesSourceConfig c : configs) {
-            MapReduceValueSource e = context.getValuesSourceRegistry().getAggregator(registryKey, c).build(c, id++);
+            ItemSetMapReduceValueSource e = context.getValuesSourceRegistry().getAggregator(registryKey, c).build(c, id++);
             if (e.getField().getName() != null) {
                 fields.add(e.getField());
                 extractors.add(e);
@@ -85,7 +85,7 @@ public abstract class MapReduceAggregator<
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalMapReduceAggregation<>(name, metadata(), mapReducer, null, null, fields, profiling);
+        return new InternalItemSetMapReduceAggregation<>(name, metadata(), mapReducer, null, null, fields, profiling);
     }
 
     @Override
@@ -164,7 +164,7 @@ public abstract class MapReduceAggregator<
             return buildEmptyAggregation();
         }
 
-        return new InternalMapReduceAggregation<>(name, metadata(), mapReducer, context, null, fields, profiling);
+        return new InternalItemSetMapReduceAggregation<>(name, metadata(), mapReducer, context, null, fields, profiling);
     }
 
 }

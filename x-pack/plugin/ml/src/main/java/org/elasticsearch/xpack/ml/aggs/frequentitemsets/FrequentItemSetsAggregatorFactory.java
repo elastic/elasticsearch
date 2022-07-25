@@ -18,8 +18,8 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.xpack.ml.aggs.mapreduce.InternalMapReduceAggregation;
-import org.elasticsearch.xpack.ml.aggs.mapreduce.MapReduceAggregator;
+import org.elasticsearch.xpack.ml.aggs.frequentitemsets.mr.InternalItemSetMapReduceAggregation;
+import org.elasticsearch.xpack.ml.aggs.frequentitemsets.mr.ItemSetMapReduceAggregator;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -45,8 +45,8 @@ import java.util.Map;
 public class FrequentItemSetsAggregatorFactory extends AggregatorFactory {
 
     // reader that supports different versions, put here to avoid making internals public
-    public static Writeable.Reader<InternalMapReduceAggregation<?, ?, ?, ?>> getResultReader() {
-        return (in -> new InternalMapReduceAggregation<>(in, (mapReducerReader) -> {
+    public static Writeable.Reader<InternalItemSetMapReduceAggregation<?, ?, ?, ?>> getResultReader() {
+        return (in -> new InternalItemSetMapReduceAggregation<>(in, (mapReducerReader) -> {
             String mapReducerName = in.readString();
             if (EclatMapReducer.NAME.equals(mapReducerName)) {
                 return new EclatMapReducer(FrequentItemSetsAggregationBuilder.NAME, in);
@@ -98,7 +98,7 @@ public class FrequentItemSetsAggregatorFactory extends AggregatorFactory {
             );
         }
 
-        return new MapReduceAggregator<
+        return new ItemSetMapReduceAggregator<
             HashBasedTransactionStore,
             ImmutableTransactionStore,
             HashBasedTransactionStore,

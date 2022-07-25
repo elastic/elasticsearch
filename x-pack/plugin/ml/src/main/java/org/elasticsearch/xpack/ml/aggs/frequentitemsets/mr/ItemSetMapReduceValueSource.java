@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.ml.aggs.mapreduce;
+package org.elasticsearch.xpack.ml.aggs.frequentitemsets.mr;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
@@ -31,11 +31,11 @@ import java.util.Objects;
 /**
  * Interface to extract values from Lucene in order to feed it into the MapReducer.
  */
-public abstract class MapReduceValueSource {
+public abstract class ItemSetMapReduceValueSource {
 
     @FunctionalInterface
     public interface ValueSourceSupplier {
-        MapReduceValueSource build(ValuesSourceConfig config, int id);
+        ItemSetMapReduceValueSource build(ValuesSourceConfig config, int id);
     }
 
     enum ValueFormatter {
@@ -126,7 +126,7 @@ public abstract class MapReduceValueSource {
 
     abstract Tuple<Field, List<Object>> collect(LeafReaderContext ctx, int doc) throws IOException;
 
-    MapReduceValueSource(ValuesSourceConfig config, int id, ValueFormatter valueFormatter) {
+    ItemSetMapReduceValueSource(ValuesSourceConfig config, int id, ValueFormatter valueFormatter) {
         String fieldName = config.fieldContext() != null ? config.fieldContext().field() : null;
 
         if (Strings.isNullOrEmpty(fieldName)) {
@@ -140,7 +140,7 @@ public abstract class MapReduceValueSource {
         return field;
     }
 
-    public static class KeywordValueSource extends MapReduceValueSource {
+    public static class KeywordValueSource extends ItemSetMapReduceValueSource {
         private final ValuesSource.Bytes source;
 
         public KeywordValueSource(ValuesSourceConfig config, int id) {
@@ -165,7 +165,7 @@ public abstract class MapReduceValueSource {
         }
     }
 
-    public static class NumericValueSource extends MapReduceValueSource {
+    public static class NumericValueSource extends ItemSetMapReduceValueSource {
         private final ValuesSource.Numeric source;
 
         public NumericValueSource(ValuesSourceConfig config, int id) {

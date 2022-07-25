@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.ml.aggs.mapreduce;
+package org.elasticsearch.xpack.ml.aggs.frequentitemsets.mr;
 
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -17,7 +17,7 @@ import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xpack.ml.aggs.mapreduce.MapReduceValueSource.Field;
+import org.elasticsearch.xpack.ml.aggs.frequentitemsets.mr.ItemSetMapReduceValueSource.Field;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -51,7 +51,7 @@ import java.util.stream.Stream;
  * @param <Result> the result object that holds the result of this map-reducer
  *
  */
-public abstract class AbstractMapReducer<
+public abstract class AbstractItemSetMapReducer<
     MapContext extends Closeable,
     MapFinalContext extends Writeable,
     ReduceContext extends Closeable,
@@ -60,7 +60,7 @@ public abstract class AbstractMapReducer<
     private final String aggregationName;
     private final String mapReducerName;
 
-    protected AbstractMapReducer(String aggregationName, String mapReducerName) {
+    protected AbstractItemSetMapReducer(String aggregationName, String mapReducerName) {
         this.aggregationName = aggregationName;
         this.mapReducerName = mapReducerName;
     }

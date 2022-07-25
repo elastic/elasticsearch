@@ -14,7 +14,7 @@ import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ml.aggs.mapreduce.MapReduceValueSource.Field;
+import org.elasticsearch.xpack.ml.aggs.frequentitemsets.mr.ItemSetMapReduceValueSource.Field;
 import org.junit.After;
 
 import java.io.IOException;
@@ -22,7 +22,7 @@ import java.util.List;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.core.Tuple.tuple;
-import static org.elasticsearch.xpack.ml.aggs.mapreduce.MapReduceValueSourceTests.createKeywordFieldTestInstance;
+import static org.elasticsearch.xpack.ml.aggs.frequentitemsets.mr.ItemSetMapReduceValueSourceTests.createKeywordFieldTestInstance;
 
 public class ItemSetTraverserTests extends ESTestCase {
 

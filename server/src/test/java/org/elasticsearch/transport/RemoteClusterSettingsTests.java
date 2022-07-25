@@ -24,7 +24,7 @@ import static org.elasticsearch.transport.RemoteClusterService.REMOTE_CLUSTER_SK
 import static org.elasticsearch.transport.RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING;
 import static org.elasticsearch.transport.RemoteClusterService.REMOTE_NODE_ATTRIBUTE;
 import static org.elasticsearch.transport.SniffConnectionStrategy.REMOTE_CLUSTERS_PROXY;
-import static org.elasticsearch.transport.SniffConnectionStrategy.REMOTE_CLUSTER_OPTIONAL_CREDENTIAL;
+import static org.elasticsearch.transport.SniffConnectionStrategy.REMOTE_CLUSTER_AUTHORIZATION;
 import static org.elasticsearch.transport.SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS;
 import static org.elasticsearch.transport.SniffConnectionStrategy.REMOTE_CONNECTIONS_PER_CLUSTER;
 import static org.hamcrest.Matchers.emptyCollectionOf;
@@ -76,7 +76,7 @@ public class RemoteClusterSettingsTests extends ESTestCase {
     public void testCredentialsDefault() {
         assumeTrue("Skipped test because CCx2 feature flag is not enabled", ClusterSettings.CCX2_FEATURE_FLAG_ENABLED);
         final String alias = randomAlphaOfLength(8);
-        assertThat(REMOTE_CLUSTER_OPTIONAL_CREDENTIAL.getConcreteSettingForNamespace(alias).get(Settings.EMPTY), equalTo(""));
+        assertThat(REMOTE_CLUSTER_AUTHORIZATION.getConcreteSettingForNamespace(alias).get(Settings.EMPTY), equalTo(""));
     }
 
     public void testProxyDefault() {

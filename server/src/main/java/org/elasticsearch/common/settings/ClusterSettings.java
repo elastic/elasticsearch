@@ -334,7 +334,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         ProxyConnectionStrategy.SERVER_NAME,
         SniffConnectionStrategy.REMOTE_CLUSTERS_PROXY,
         SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS,
-        SniffConnectionStrategy.REMOTE_CLUSTER_OPTIONAL_CREDENTIAL,
+        SniffConnectionStrategy.REMOTE_CLUSTER_AUTHORIZATION,
         SniffConnectionStrategy.REMOTE_NODE_CONNECTIONS,
         TransportCloseIndexAction.CLUSTER_INDICES_CLOSE_ENABLE_SETTING,
         ShardsLimitAllocationDecider.CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING,
@@ -535,7 +535,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         .filter(Objects::nonNull)
         .filter(
             setting -> ClusterSettings.CCX2_FEATURE_FLAG_ENABLED
-                || setting.equals(SniffConnectionStrategy.REMOTE_CLUSTER_OPTIONAL_CREDENTIAL) == false
+                || setting.equals(SniffConnectionStrategy.REMOTE_CLUSTER_AUTHORIZATION) == false
         )
         .collect(Collectors.toSet());
 

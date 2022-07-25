@@ -83,10 +83,10 @@ public class RemoteClusterServiceTests extends ESTestCase {
         assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS));
         assertTrue(
             (ClusterSettings.CCX2_FEATURE_FLAG_ENABLED
-                && ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(SniffConnectionStrategy.REMOTE_CLUSTER_OPTIONAL_CREDENTIAL))
+                && ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(SniffConnectionStrategy.REMOTE_CLUSTER_AUTHORIZATION))
                 || (ClusterSettings.CCX2_FEATURE_FLAG_ENABLED == false
                     && ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(
-                        SniffConnectionStrategy.REMOTE_CLUSTER_OPTIONAL_CREDENTIAL
+                        SniffConnectionStrategy.REMOTE_CLUSTER_AUTHORIZATION
                     ) == false)
         );
         assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(SniffConnectionStrategy.REMOTE_NODE_CONNECTIONS));
@@ -127,7 +127,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
             .put("cluster.remote.emptystring.optional_credential", "")
             .put("cluster.remote.nullstring.optional_credential", (String) null)
             .build();
-        SniffConnectionStrategy.REMOTE_CLUSTER_OPTIONAL_CREDENTIAL.getAllConcreteSettings(settings)
+        SniffConnectionStrategy.REMOTE_CLUSTER_AUTHORIZATION.getAllConcreteSettings(settings)
             .forEach(setting -> setting.get(settings));
     }
 
@@ -136,7 +136,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
         AbstractScopedSettings service = new ClusterSettings(
             Settings.EMPTY,
             new HashSet<>(
-                Arrays.asList(SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS, SniffConnectionStrategy.REMOTE_CLUSTER_OPTIONAL_CREDENTIAL)
+                Arrays.asList(SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS, SniffConnectionStrategy.REMOTE_CLUSTER_AUTHORIZATION)
             )
         );
         {

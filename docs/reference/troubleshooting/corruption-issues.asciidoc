@@ -54,8 +54,7 @@ expose the following problems as file corruptions:
   not have seen enough real-world production usage to be confident that they
 work correctly.
 
-- [kernel
-  bugs]https://www.elastic.co/blog/canonical-elastic-and-google-team-up-to-prevent-data-corruption-in-linux
+- https://www.elastic.co/blog/canonical-elastic-and-google-team-up-to-prevent-data-corruption-in-linux[kernel bugs]
 
 - bugs in firmware running on the drive or RAID controller
 
@@ -78,6 +77,6 @@ than {es} and look for data integrity errors. On Linux the `fio` and
 `stress-ng` tools can both generate challenging I/O workloads and verify the
 integrity of the data they write. You can check that durable writes persist
 across power outages using a script such as
-[`diskchecker.pl`]https://gist.github.com/bradfitz/3172656. Try different
+https://gist.github.com/bradfitz/3172656[`diskchecker.pl`]. Try different
 filesystems, a different kernel, different hardware components and different
 firmware versions.

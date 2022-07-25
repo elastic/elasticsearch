@@ -85,9 +85,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
             (ClusterSettings.CCX2_FEATURE_FLAG_ENABLED
                 && ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(SniffConnectionStrategy.REMOTE_CLUSTER_AUTHORIZATION))
                 || (ClusterSettings.CCX2_FEATURE_FLAG_ENABLED == false
-                    && ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(
-                        SniffConnectionStrategy.REMOTE_CLUSTER_AUTHORIZATION
-                    ) == false)
+                    && ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(SniffConnectionStrategy.REMOTE_CLUSTER_AUTHORIZATION) == false)
         );
         assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(SniffConnectionStrategy.REMOTE_NODE_CONNECTIONS));
         assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(ProxyConnectionStrategy.PROXY_ADDRESS));
@@ -127,17 +125,14 @@ public class RemoteClusterServiceTests extends ESTestCase {
             .put("cluster.remote.emptystring.optional_credential", "")
             .put("cluster.remote.nullstring.optional_credential", (String) null)
             .build();
-        SniffConnectionStrategy.REMOTE_CLUSTER_AUTHORIZATION.getAllConcreteSettings(settings)
-            .forEach(setting -> setting.get(settings));
+        SniffConnectionStrategy.REMOTE_CLUSTER_AUTHORIZATION.getAllConcreteSettings(settings).forEach(setting -> setting.get(settings));
     }
 
     public void testRemoteClusterOptionalCredentialSettingDependencies() {
         assumeTrue("Skipped test because CCx2 feature flag is not enabled", ClusterSettings.CCX2_FEATURE_FLAG_ENABLED);
         AbstractScopedSettings service = new ClusterSettings(
             Settings.EMPTY,
-            new HashSet<>(
-                Arrays.asList(SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS, SniffConnectionStrategy.REMOTE_CLUSTER_AUTHORIZATION)
-            )
+            new HashSet<>(Arrays.asList(SniffConnectionStrategy.REMOTE_CLUSTER_SEEDS, SniffConnectionStrategy.REMOTE_CLUSTER_AUTHORIZATION))
         );
         {
             Settings missingDependentSetting = Settings.builder().put("cluster.remote.foo.optional_credential", randomBoolean()).build();

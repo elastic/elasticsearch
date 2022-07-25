@@ -393,10 +393,10 @@ public class ElasticServiceAccountsTests extends ESTestCase {
         assertThat(role.indices().allowedIndicesMatcher(IndexAction.NAME).test(elasticsearchIndex), is(true));
         assertThat(role.indices().allowedIndicesMatcher(UpdateAction.NAME).test(elasticsearchIndex), is(true));
         // manage
-        assertThat(role.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(enterpriseSearchIndex), is(true));
-        assertThat(role.indices().allowedIndicesMatcher(RefreshAction.NAME).test(enterpriseSearchIndex), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(elasticsearchIndex), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(RefreshAction.NAME).test(elasticsearchIndex), is(true));
         // monitor
-        assertThat(role.indices().allowedIndicesMatcher(IndicesStatsAction.NAME).test(enterpriseSearchIndex), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(IndicesStatsAction.NAME).test(elasticsearchIndex), is(true));
         // write
         assertThat(role.indices().allowedIndicesMatcher(BulkAction.NAME).test(elasticsearchIndex), is(true));
     }

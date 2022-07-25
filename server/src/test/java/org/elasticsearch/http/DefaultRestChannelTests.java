@@ -411,7 +411,7 @@ public class DefaultRestChannelTests extends ESTestCase {
         executeRequest(Settings.EMPTY, "request-host");
 
         verify(tracer).setAttribute(argThat(id -> id.startsWith("rest-")), eq("http.status_code"), eq(200L));
-        verify(tracer).onTraceStopped(argThat(id -> id.startsWith("rest-")));
+        verify(tracer).traceStopped(argThat(id -> id.startsWith("rest-")));
     }
 
     private TestHttpResponse executeRequest(final Settings settings, final String host) {

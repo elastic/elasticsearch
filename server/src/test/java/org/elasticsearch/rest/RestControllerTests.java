@@ -195,7 +195,7 @@ public class RestControllerTests extends ESTestCase {
         });
         AssertingChannel channel = new AssertingChannel(fakeRequest, false, RestStatus.BAD_REQUEST);
         restController.dispatchRequest(fakeRequest, channel, threadContext);
-        verify(tracer).onTraceStarted(
+        verify(tracer).traceStarted(
             eq(threadContext),
             eq("rest-" + channel.request().getRequestId()),
             eq("GET /"),
@@ -761,8 +761,8 @@ public class RestControllerTests extends ESTestCase {
 
         final AssertingChannel channel = new AssertingChannel(request, true, RestStatus.METHOD_NOT_ALLOWED);
         restController.dispatchRequest(request, channel, client.threadPool().getThreadContext());
-        verify(tracer).onTraceStarted(any(), anyString(), anyString(), anyMap());
-        verify(tracer).onTraceException(any(), any(IllegalArgumentException.class));
+        verify(tracer).traceStarted(any(), anyString(), anyString(), anyMap());
+        verify(tracer).traceException(any(), any(IllegalArgumentException.class));
     }
 
     public void testDispatchCompatibleHandler() {

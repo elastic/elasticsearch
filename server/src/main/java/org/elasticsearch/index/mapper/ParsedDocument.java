@@ -74,7 +74,7 @@ public class ParsedDocument {
         seqIdFields.addFields(document);
         Field versionField = VersionFieldMapper.versionField();
         document.add(versionField);
-        document.add(IdFieldMapper.idField(id));
+        document.add(IdFieldMapper.standardIdField(id));
         return new ParsedDocument(
             versionField,
             seqIdFields,
@@ -167,4 +167,7 @@ public class ParsedDocument {
         return "Document id[" + id + "] doc [" + documents + ']';
     }
 
+    public String documentDescription() {
+        return "id";
+    }
 }

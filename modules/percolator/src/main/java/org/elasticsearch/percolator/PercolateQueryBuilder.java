@@ -275,10 +275,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         } else {
             out.writeBoolean(false);
         }
-        out.writeVInt(documents.size());
-        for (BytesReference document : documents) {
-            out.writeBytesReference(document);
-        }
+        out.writeCollection(documents, StreamOutput::writeBytesReference);
         if (documents.isEmpty() == false) {
             XContentHelper.writeTo(out, documentXContentType);
         }

@@ -82,7 +82,7 @@ And the following may be the response:
 ==== Minimum document count
 
 The response above show that no documents has a price that falls within the range of `[100, 150)`. By default the
-response will fill gaps in the histogram with empty buckets. It is possible change that and request buckets with
+response will fill gaps in the histogram with empty buckets. It is possible to change that and request buckets with
 a higher minimum count thanks to the `min_doc_count` setting:
 
 [source,console,id=histogram-aggregation-min-doc-count-example]

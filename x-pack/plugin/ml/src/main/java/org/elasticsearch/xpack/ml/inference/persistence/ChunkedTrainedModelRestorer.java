@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.inference.persistence;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchAction;
@@ -161,7 +160,7 @@ public class ChunkedTrainedModelRestorer {
                     }
 
                 } catch (IOException e) {
-                    logger.error(new ParameterizedMessage("[{}] error writing model definition", modelId), e);
+                    logger.error(() -> "[" + modelId + "] error writing model definition", e);
                     errorConsumer.accept(e);
                     return;
                 }
@@ -228,7 +227,7 @@ public class ChunkedTrainedModelRestorer {
         ) {
             return TrainedModelDefinitionDoc.fromXContent(parser, true).build();
         } catch (IOException e) {
-            logger.error(new ParameterizedMessage("[{}] failed to parse model definition", modelId), e);
+            logger.error(() -> "[" + modelId + "] failed to parse model definition", e);
             throw e;
         }
     }

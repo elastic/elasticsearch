@@ -7,29 +7,23 @@
 
 package org.elasticsearch.xpack.transform.integration;
 
-import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
-import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.client.indices.GetMappingsRequest;
-import org.elasticsearch.client.indices.GetMappingsResponse;
-import org.elasticsearch.client.transform.PreviewTransformResponse;
-import org.elasticsearch.client.transform.transforms.TransformConfig;
-import org.elasticsearch.client.transform.transforms.latest.LatestConfig;
-import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.xpack.core.transform.transforms.QueryConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.latest.LatestConfig;
 import org.junit.After;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
-import java.util.stream.Stream;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
-import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -38,20 +32,19 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
-@SuppressWarnings("removal")
-public class LatestIT extends TransformIntegTestCase {
+public class LatestIT extends TransformRestTestCase {
 
     private static final String SOURCE_INDEX_NAME = "basic-crud-latest-reviews";
     private static final int NUM_USERS = 28;
 
     private static final String TRANSFORM_NAME = "transform-crud-latest";
 
-    private static final Integer getUserIdForRow(int row) {
+    private static Integer getUserIdForRow(int row) {
         int userId = row % (NUM_USERS + 1);
         return userId < NUM_USERS ? userId : null;
     }
 
-    private static final String getDateStringForRow(int row) {
+    private static String getDateStringForRow(int row) {
         int month = 1 + (row / 28);
         int day = 1 + (row % 28);
         return "2017-" + (month < 10 ? "0" + month : month) + "-" + (day < 10 ? "0" + day : day) + "T12:30:00Z";
@@ -64,7 +57,7 @@ public class LatestIT extends TransformIntegTestCase {
     private static final String STARS = "stars";
     private static final String COMMENT = "comment";
 
-    private static final Map<String, Object> row(String userId, String businessId, int count, int stars, String timestamp, String comment) {
+    private static Map<String, Object> row(String userId, String businessId, int count, int stars, String timestamp, String comment) {
         return new HashMap<>() {
             {
                 if (userId != null) {
@@ -113,10 +106,11 @@ public class LatestIT extends TransformIntegTestCase {
         row(null, "business_36", 86, 1, "2017-04-03T12:30:00Z", "Great stuff, deserves 1 stars") };
 
     @After
-    public void cleanTransforms() throws IOException {
+    public void cleanTransforms() throws Exception {
         cleanUp();
     }
 
+    @SuppressWarnings("unchecked")
     public void testLatest() throws Exception {
         createReviewsIndex(SOURCE_INDEX_NAME, 100, NUM_USERS, LatestIT::getUserIdForRow, LatestIT::getDateStringForRow);
 
@@ -124,48 +118,48 @@ public class LatestIT extends TransformIntegTestCase {
         TransformConfig transformConfig = createTransformConfigBuilder(
             TRANSFORM_NAME,
             destIndexName,
-            QueryBuilders.matchAllQuery(),
+            QueryConfig.matchAll(),
             SOURCE_INDEX_NAME
-        ).setLatestConfig(LatestConfig.builder().setUniqueKey(USER_ID).setSort(TIMESTAMP).build()).build();
-        assertTrue(putTransform(transformConfig, RequestOptions.DEFAULT).isAcknowledged());
-        assertTrue(startTransform(transformConfig.getId(), RequestOptions.DEFAULT).isAcknowledged());
+        ).setLatestConfig(new LatestConfig(List.of(USER_ID), TIMESTAMP)).build();
+        putTransform(TRANSFORM_NAME, Strings.toString(transformConfig), RequestOptions.DEFAULT);
+        startTransform(transformConfig.getId(), RequestOptions.DEFAULT);
         waitUntilCheckpoint(transformConfig.getId(), 1L);
         stopTransform(transformConfig.getId());
 
-        try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
-            restClient.indices().refresh(new RefreshRequest(destIndexName), RequestOptions.DEFAULT);
-            // Verify destination index mappings
-            GetMappingsResponse destIndexMapping = restClient.indices()
-                .getMapping(new GetMappingsRequest().indices(destIndexName), RequestOptions.DEFAULT);
-            assertThat(destIndexMapping.mappings().get(destIndexName).sourceAsMap(), allOf(hasKey("_meta"), hasKey("properties")));
-            // Verify destination index contents
-            SearchResponse searchResponse = restClient.search(
-                new SearchRequest(destIndexName).source(new SearchSourceBuilder().size(1000)),
-                RequestOptions.DEFAULT
-            );
-            assertThat(searchResponse.getHits().getTotalHits().value, is(equalTo(Long.valueOf(NUM_USERS + 1))));
-            assertThat(
-                Stream.of(searchResponse.getHits().getHits()).map(SearchHit::getSourceAsMap).collect(toList()),
-                containsInAnyOrder(EXPECTED_DEST_INDEX_ROWS)
-            );
-        }
+        refreshIndex(destIndexName, RequestOptions.DEFAULT);
+        var mappings = getIndexMapping(destIndexName, RequestOptions.DEFAULT);
+        assertThat(
+            (Map<String, Object>) XContentMapValues.extractValue(destIndexName + ".mappings", mappings),
+            allOf(hasKey("_meta"), hasKey("properties"))
+        );
+        var searchResponse = search(destIndexName, 1000, RequestOptions.DEFAULT);
+        assertThat((Integer) XContentMapValues.extractValue("hits.total.value", searchResponse), is(equalTo(NUM_USERS + 1)));
+        var hits = (List<Map<String, Object>>) XContentMapValues.extractValue("hits.hits", searchResponse);
+        var searchedDocs = hits.stream().map(h -> (Map<String, Object>) h.get("_source")).collect(Collectors.toList());
+        assertThat(searchedDocs, containsInAnyOrder(EXPECTED_DEST_INDEX_ROWS));
     }
 
+    private Map<String, Object> search(String index, int size, RequestOptions options) throws IOException {
+        var r = new Request("GET", index + "/_search?size=" + size);
+        r.setOptions(options);
+        return entityAsMap(client().performRequest(r));
+    }
+
+    @SuppressWarnings("unchecked")
     public void testLatestPreview() throws Exception {
         createReviewsIndex(SOURCE_INDEX_NAME, 100, NUM_USERS, LatestIT::getUserIdForRow, LatestIT::getDateStringForRow);
 
-        TransformConfig transformConfig = createTransformConfigBuilder(
-            TRANSFORM_NAME,
-            "dummy",
-            QueryBuilders.matchAllQuery(),
-            SOURCE_INDEX_NAME
-        ).setLatestConfig(LatestConfig.builder().setUniqueKey(USER_ID).setSort(TIMESTAMP).build()).build();
+        TransformConfig transformConfig = createTransformConfigBuilder(TRANSFORM_NAME, "dummy", QueryConfig.matchAll(), SOURCE_INDEX_NAME)
+            .setLatestConfig(new LatestConfig(List.of(USER_ID), TIMESTAMP))
+            .build();
 
-        PreviewTransformResponse previewResponse = previewTransform(transformConfig, RequestOptions.DEFAULT);
+        var previewResponse = previewTransform(Strings.toString(transformConfig), RequestOptions.DEFAULT);
         // Verify preview mappings
-        assertThat(previewResponse.getMappings(), allOf(hasKey("_meta"), hasEntry("properties", emptyMap())));
+        var mappings = (Map<String, Object>) XContentMapValues.extractValue("generated_dest_index.mappings", previewResponse);
+        assertThat(mappings, allOf(hasKey("_meta"), hasEntry("properties", emptyMap())));
         // Verify preview contents
-        assertThat(previewResponse.getDocs(), hasSize(NUM_USERS + 1));
-        assertThat(previewResponse.getDocs(), containsInAnyOrder(EXPECTED_DEST_INDEX_ROWS));
+        var docs = (List<Map<String, Object>>) XContentMapValues.extractValue("preview", previewResponse);
+        assertThat(docs, hasSize(NUM_USERS + 1));
+        assertThat(docs, containsInAnyOrder(EXPECTED_DEST_INDEX_ROWS));
     }
 }

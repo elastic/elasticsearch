@@ -66,6 +66,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.core.Strings.format;
+
 class ClientTransformIndexer extends TransformIndexer {
 
     private static final TimeValue PIT_KEEP_ALIVE = TimeValue.timeValueSeconds(30);
@@ -327,7 +329,7 @@ class ClientTransformIndexer extends TransformIndexer {
                     );
                     assert false : "[" + getJobId() + "] updating stats of transform failed, unexpected version conflict of internal state";
                 } else {
-                    logger.error(new ParameterizedMessage("[{}] updating stats of transform failed.", transformConfig.getId()), statsExc);
+                    logger.error(() -> "[" + transformConfig.getId() + "] updating stats of transform failed.", statsExc);
                     auditor.warning(getJobId(), "Failure updating stats of transform: " + statsExc.getMessage());
                 }
                 listener.onFailure(statsExc);
@@ -336,14 +338,7 @@ class ClientTransformIndexer extends TransformIndexer {
     }
 
     void updateSeqNoPrimaryTermAndIndex(SeqNoPrimaryTermAndIndex expectedValue, SeqNoPrimaryTermAndIndex newValue) {
-        logger.debug(
-            () -> new ParameterizedMessage(
-                "[{}] Updated state document from [{}] to [{}]",
-                transformConfig.getId(),
-                expectedValue,
-                newValue
-            )
-        );
+        logger.debug(() -> format("[%s] Updated state document from [%s] to [%s]", transformConfig.getId(), expectedValue, newValue));
         boolean updated = seqNoPrimaryTermAndIndexHolder.compareAndSet(expectedValue, newValue);
         // This should never happen. We ONLY ever update this value if at initialization or we just finished updating the document
         // famous last words...
@@ -399,7 +394,7 @@ class ClientTransformIndexer extends TransformIndexer {
             closePitRequest,
             ActionListener.wrap(response -> { logger.trace("[{}] closed pit search context [{}]", getJobId(), oldPit); }, e -> {
                 // note: closing the pit should never throw, even if the pit is invalid
-                logger.error(new ParameterizedMessage("[{}] Failed to close point in time reader", getJobId()), e);
+                logger.error(() -> "[" + getJobId() + "] Failed to close point in time reader", e);
             })
         );
     }

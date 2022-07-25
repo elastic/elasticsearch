@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.watcher.rest.action;
 
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
@@ -23,7 +22,6 @@ import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchAction;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
@@ -64,13 +62,11 @@ public class RestPutWatchAction extends BaseRestHandler implements RestRequestFi
         });
     }
 
-    private static final Set<String> FILTERED_FIELDS = Collections.unmodifiableSet(
-        Sets.newHashSet(
-            "input.http.request.auth.basic.password",
-            "input.chain.inputs.*.http.request.auth.basic.password",
-            "actions.*.email.attachments.*.reporting.auth.basic.password",
-            "actions.*.webhook.auth.basic.password"
-        )
+    private static final Set<String> FILTERED_FIELDS = Set.of(
+        "input.http.request.auth.basic.password",
+        "input.chain.inputs.*.http.request.auth.basic.password",
+        "actions.*.email.attachments.*.reporting.auth.basic.password",
+        "actions.*.webhook.auth.basic.password"
     );
 
     @Override

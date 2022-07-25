@@ -170,7 +170,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
         ClusterState state,
         ActionListener<NodeAcknowledgedResponse> listener
     ) {
-        logger.debug(() -> new ParameterizedMessage("[{}] received start request", request.getId()));
+        logger.debug(() -> "[" + request.getId() + "] received start request");
         if (MachineLearningField.ML_API_FEATURE.check(licenseState) == false) {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
             return;

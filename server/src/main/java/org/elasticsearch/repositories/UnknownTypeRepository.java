@@ -30,7 +30,7 @@ import java.util.function.Function;
 
 /**
  * This class represents a repository that could not be initialized due to unknown type.
- * This could happen whe a user creates a snapshot repository using a type from a plugin and then removes the plugin.
+ * This could happen when a user creates a snapshot repository using a type from a plugin and then removes the plugin.
  */
 public class UnknownTypeRepository extends AbstractLifecycleComponent implements Repository {
 

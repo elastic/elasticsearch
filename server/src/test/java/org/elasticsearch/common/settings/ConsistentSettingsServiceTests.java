@@ -37,7 +37,7 @@ public class ConsistentSettingsServiceTests extends ESTestCase {
             final ClusterStateUpdateTask arg0 = (ClusterStateUpdateTask) invocation.getArguments()[1];
             this.clusterState.set(arg0.execute(this.clusterState.get()));
             return null;
-        }).when(clusterService).submitStateUpdateTask(Mockito.isA(String.class), Mockito.isA(ClusterStateUpdateTask.class), Mockito.any());
+        }).when(clusterService).submitUnbatchedStateUpdateTask(Mockito.isA(String.class), Mockito.isA(ClusterStateUpdateTask.class));
     }
 
     public void testSingleStringSetting() throws Exception {

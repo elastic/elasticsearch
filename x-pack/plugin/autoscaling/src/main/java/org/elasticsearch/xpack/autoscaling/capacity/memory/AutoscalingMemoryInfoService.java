@@ -165,8 +165,7 @@ public class AutoscalingMemoryInfoService {
     private void retainAliveNodes(Set<DiscoveryNode> currentNodes) {
         assert Thread.holdsLock(mutex);
         Set<String> ephemeralIds = currentNodes.stream().map(DiscoveryNode::getEphemeralId).collect(Collectors.toSet());
-        Set<String> toRemove = StreamSupport.stream(nodeToMemory.keys().spliterator(), false)
-            .map(c -> c.value)
+        Set<String> toRemove = StreamSupport.stream(nodeToMemory.keySet().spliterator(), false)
             .filter(Predicate.not(ephemeralIds::contains))
             .collect(Collectors.toSet());
         if (toRemove.isEmpty() == false) {

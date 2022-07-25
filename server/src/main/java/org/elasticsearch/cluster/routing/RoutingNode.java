@@ -355,18 +355,12 @@ public class RoutingNode implements Iterable<ShardRouting> {
 
     private boolean invariant() {
         // initializingShards must consistent with that in shards
-        Collection<ShardRouting> shardRoutingsInitializing = shards.values()
-            .stream()
-            .filter(ShardRouting::initializing)
-            .collect(Collectors.toList());
+        Collection<ShardRouting> shardRoutingsInitializing = shards.values().stream().filter(ShardRouting::initializing).toList();
         assert initializingShards.size() == shardRoutingsInitializing.size();
         assert initializingShards.containsAll(shardRoutingsInitializing);
 
         // relocatingShards must consistent with that in shards
-        Collection<ShardRouting> shardRoutingsRelocating = shards.values()
-            .stream()
-            .filter(ShardRouting::relocating)
-            .collect(Collectors.toList());
+        Collection<ShardRouting> shardRoutingsRelocating = shards.values().stream().filter(ShardRouting::relocating).toList();
         assert relocatingShards.size() == shardRoutingsRelocating.size();
         assert relocatingShards.containsAll(shardRoutingsRelocating);
 

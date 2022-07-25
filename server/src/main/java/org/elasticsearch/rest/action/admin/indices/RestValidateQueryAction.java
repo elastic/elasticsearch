@@ -93,7 +93,8 @@ public class RestValidateQueryAction extends BaseRestHandler {
         };
     }
 
-    private void handleException(final ValidateQueryRequest request, final String message, final RestChannel channel) throws IOException {
+    private static void handleException(final ValidateQueryRequest request, final String message, final RestChannel channel)
+        throws IOException {
         channel.sendResponse(buildErrorResponse(channel.newBuilder(), message, request.explain()));
     }
 

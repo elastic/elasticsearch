@@ -10,11 +10,6 @@ package org.elasticsearch.xpack.security.authc;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.client.security.DeleteRoleRequest;
-import org.elasticsearch.client.security.PutRoleRequest;
-import org.elasticsearch.client.security.RefreshPolicy;
-import org.elasticsearch.client.security.user.privileges.Role;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -23,6 +18,7 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.TestSecurityClient;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.junit.BeforeClass;
 
@@ -45,7 +41,6 @@ import static org.hamcrest.Matchers.not;
 public abstract class SecurityRealmSmokeTestCase extends ESRestTestCase {
 
     private static Path httpCAPath;
-    private RestHighLevelClient highLevelAdminClient;
     private TestSecurityClient securityClient;
 
     @BeforeClass
@@ -118,9 +113,13 @@ public abstract class SecurityRealmSmokeTestCase extends ESRestTestCase {
     }
 
     protected void createRole(String name, Collection<String> clusterPrivileges) throws IOException {
-        final RestHighLevelClient client = getHighLevelAdminClient();
-        final Role role = Role.builder().name(name).clusterPrivileges(clusterPrivileges).build();
-        client.security().putRole(new PutRoleRequest(role, RefreshPolicy.WAIT_UNTIL), RequestOptions.DEFAULT);
+        final RoleDescriptor role = new RoleDescriptor(
+            name,
+            clusterPrivileges.toArray(String[]::new),
+            new RoleDescriptor.IndicesPrivileges[0],
+            new String[0]
+        );
+        getSecurityClient().putRole(role);
     }
 
     protected void deleteUser(String username) throws IOException {
@@ -128,16 +127,7 @@ public abstract class SecurityRealmSmokeTestCase extends ESRestTestCase {
     }
 
     protected void deleteRole(String name) throws IOException {
-        final RestHighLevelClient client = getHighLevelAdminClient();
-        client.security().deleteRole(new DeleteRoleRequest(name), RequestOptions.DEFAULT);
-    }
-
-    private RestHighLevelClient getHighLevelAdminClient() {
-        if (highLevelAdminClient == null) {
-            highLevelAdminClient = new RestHighLevelClient(adminClient(), ignore -> {}, List.of()) {
-            };
-        }
-        return highLevelAdminClient;
+        getSecurityClient().deleteRole(name);
     }
 
     protected TestSecurityClient getSecurityClient() {

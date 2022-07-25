@@ -1,0 +1,12 @@
+[cols="^,^,^,^,^,^,^"]
+|====
+| 6+^h| Remote cluster version
+h| Local cluster version
+                  |  6.8        | 7.1–7.16   | 7.17       | 8.0        | 8.1        | 8.2
+| 6.8             |  {yes-icon} | {yes-icon} | {yes-icon} | {no-icon}  | {no-icon}  | {no-icon}
+| 7.1–7.16        |  {yes-icon} | {yes-icon} | {yes-icon} | {no-icon}  | {no-icon}  | {no-icon}
+| 7.17            |  {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon}
+| 8.0             |  {no-icon}  | {no-icon}  | {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon}
+| 8.1             |  {no-icon}  | {no-icon}  | {no-icon}  | {yes-icon} | {yes-icon} | {yes-icon}
+| 8.2             |  {no-icon}  | {no-icon}  | {no-icon}  | {no-icon}  | {yes-icon} | {yes-icon}
+|====

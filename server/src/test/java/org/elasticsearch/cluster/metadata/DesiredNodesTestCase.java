@@ -15,6 +15,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.List;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.node.Node.NODE_EXTERNAL_ID_SETTING;
@@ -38,11 +39,15 @@ public abstract class DesiredNodesTestCase extends ESTestCase {
     }
 
     public static DesiredNodes randomDesiredNodes(Version version, Consumer<Settings.Builder> settingsConsumer) {
-        return new DesiredNodes(
-            UUIDs.randomBase64UUID(),
-            randomIntBetween(1, 20),
-            randomList(1, 10, () -> randomDesiredNode(version, settingsConsumer))
-        );
+        return new DesiredNodes(UUIDs.randomBase64UUID(), randomIntBetween(1, 20), randomDesiredNodeList(version, settingsConsumer));
+    }
+
+    public static List<DesiredNode> randomDesiredNodeListWithRandomSettings(Version version) {
+        return randomDesiredNodeList(version, DesiredNodesTestCase::putRandomSetting);
+    }
+
+    public static List<DesiredNode> randomDesiredNodeList(Version version, Consumer<Settings.Builder> settingsConsumer) {
+        return randomList(2, 10, () -> randomDesiredNode(version, settingsConsumer));
     }
 
     public static DesiredNode randomDesiredNodeWithRandomSettings() {
@@ -50,18 +55,18 @@ public abstract class DesiredNodesTestCase extends ESTestCase {
     }
 
     public static DesiredNode randomDesiredNodeWithRandomSettings(Version version) {
-        return randomDesiredNodeWithRandomSettings(version, randomIntBetween(1, 256));
-    }
-
-    public static DesiredNode randomDesiredNodeWithRandomSettings(Version version, int numProcessors) {
-        return randomDesiredNode(version, numProcessors, DesiredNodesTestCase::putRandomSetting);
+        return randomDesiredNode(version, DesiredNodesTestCase::putRandomSetting);
     }
 
     public static DesiredNode randomDesiredNode(Version version, Consumer<Settings.Builder> settingsProvider) {
-        return randomDesiredNode(version, randomIntBetween(1, 256), settingsProvider);
+        if (randomBoolean()) {
+            return randomDesiredNode(version, randomProcessor(), settingsProvider);
+        } else {
+            return randomDesiredNode(version, randomIntBetween(1, 256) + randomFloat(), settingsProvider);
+        }
     }
 
-    public static DesiredNode randomDesiredNode(Version version, int processors, Consumer<Settings.Builder> settingsProvider) {
+    public static DesiredNode randomDesiredNode(Version version, float processors, Consumer<Settings.Builder> settingsProvider) {
         return new DesiredNode(
             randomSettings(settingsProvider),
             processors,
@@ -69,6 +74,25 @@ public abstract class DesiredNodesTestCase extends ESTestCase {
             ByteSizeValue.ofTb(randomIntBetween(1, 40)),
             version
         );
+    }
+
+    public static DesiredNode randomDesiredNode(
+        Version version,
+        DesiredNode.ProcessorsRange processorsRange,
+        Consumer<Settings.Builder> settingsProvider
+    ) {
+        return new DesiredNode(
+            randomSettings(settingsProvider),
+            processorsRange,
+            ByteSizeValue.ofGb(randomIntBetween(1, 1024)),
+            ByteSizeValue.ofTb(randomIntBetween(1, 40)),
+            version
+        );
+    }
+
+    private static DesiredNode.ProcessorsRange randomProcessor() {
+        float minProcessors = randomFloat() + randomIntBetween(1, 16);
+        return new DesiredNode.ProcessorsRange(minProcessors, randomBoolean() ? null : minProcessors + randomIntBetween(0, 10));
     }
 
     public static Settings randomSettings(Consumer<Settings.Builder> settingsProvider) {

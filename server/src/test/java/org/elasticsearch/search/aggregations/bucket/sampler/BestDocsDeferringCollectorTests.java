@@ -12,7 +12,6 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ScoreDoc;
@@ -25,6 +24,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -81,11 +81,11 @@ public class BestDocsDeferringCollectorTests extends AggregatorTestCase {
     private BucketCollector testCollector(Set<Integer> docIds) {
         return new BucketCollector() {
             @Override
-            public LeafBucketCollector getLeafCollector(LeafReaderContext ctx) throws IOException {
+            public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx) throws IOException {
                 return new LeafBucketCollector() {
                     @Override
                     public void collect(int doc, long bucket) throws IOException {
-                        docIds.add(ctx.docBase + doc);
+                        docIds.add(aggCtx.getLeafReaderContext().docBase + doc);
                     }
                 };
             }

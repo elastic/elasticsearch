@@ -698,7 +698,10 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
             t1.start();
             // Make sure we have at least one reassign check before we count down the latch
             assertBusy(
-                () -> verify(recheckTestClusterService, atLeastOnce()).submitStateUpdateTask(eq("reassign persistent tasks"), any(), any())
+                () -> verify(recheckTestClusterService, atLeastOnce()).submitUnbatchedStateUpdateTask(
+                    eq("reassign persistent tasks"),
+                    any()
+                )
             );
             t2.start();
         } finally {
@@ -709,7 +712,9 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
         }
         // verify that our reassignment is possible again, here we have once from the previous reassignment in the `try` block
         // And one from the line above once the other threads have joined
-        assertBusy(() -> verify(recheckTestClusterService, times(2)).submitStateUpdateTask(eq("reassign persistent tasks"), any(), any()));
+        assertBusy(
+            () -> verify(recheckTestClusterService, times(2)).submitUnbatchedStateUpdateTask(eq("reassign persistent tasks"), any())
+        );
         verifyNoMoreInteractions(recheckTestClusterService);
     }
 
@@ -739,7 +744,7 @@ public class PersistentTasksClusterServiceTests extends ESTestCase {
                 task.clusterStateProcessed(before, after);
             }
             return null;
-        }).when(recheckTestClusterService).submitStateUpdateTask(anyString(), any(ClusterStateUpdateTask.class), any());
+        }).when(recheckTestClusterService).submitUnbatchedStateUpdateTask(anyString(), any(ClusterStateUpdateTask.class));
 
         return recheckTestClusterService;
     }

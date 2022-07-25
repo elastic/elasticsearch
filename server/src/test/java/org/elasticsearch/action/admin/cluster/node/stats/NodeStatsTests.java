@@ -49,7 +49,6 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static java.util.Collections.emptyMap;
@@ -284,7 +283,7 @@ public class NodeStatsTests extends ESTestCase {
                     for (ScriptContextStats generatedStats : stats) {
                         List<ScriptContextStats> maybeDeserStats = deserialized.stream()
                             .filter(s -> s.getContext().equals(generatedStats.getContext()))
-                            .collect(Collectors.toList());
+                            .toList();
 
                         assertEquals(1, maybeDeserStats.size());
                         ScriptContextStats deserStats = maybeDeserStats.get(0);

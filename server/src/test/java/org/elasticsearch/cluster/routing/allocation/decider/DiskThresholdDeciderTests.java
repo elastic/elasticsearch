@@ -669,7 +669,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         usages.put("node2", new DiskUsage("node2", "n2", "/dev/null", 100, 50)); // 50% used
         usages.put("node3", new DiskUsage("node3", "n3", "/dev/null", 100, 0));  // 100% used
 
-        DiskUsage node1Usage = decider.averageUsage(rn, usages.build());
+        DiskUsage node1Usage = DiskThresholdDecider.averageUsage(rn, usages.build());
         assertThat(node1Usage.getTotalBytes(), equalTo(100L));
         assertThat(node1Usage.getFreeBytes(), equalTo(25L));
     }
@@ -681,7 +681,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         usages.put("node2", new DiskUsage("node2", "n2", "/dev/null", 100, 50)); // 50% used
         usages.put("node3", new DiskUsage("node3", "n3", "/dev/null", 100, 0));  // 100% used
 
-        Double after = decider.freeDiskPercentageAfterShardAssigned(
+        Double after = DiskThresholdDecider.freeDiskPercentageAfterShardAssigned(
             new DiskThresholdDecider.DiskUsageWithRelocations(new DiskUsage("node2", "n2", "/dev/null", 100, 30), 0L),
             11L
         );
@@ -923,8 +923,8 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         RoutingTable.Builder builder = RoutingTable.builder()
             .add(
                 IndexRoutingTable.builder(firstRouting.index())
-                    .addIndexShard(new IndexShardRoutingTable.Builder(firstRouting.shardId()).addShard(firstRouting).build())
-                    .addIndexShard(new IndexShardRoutingTable.Builder(secondRouting.shardId()).addShard(secondRouting).build())
+                    .addIndexShard(IndexShardRoutingTable.builder(firstRouting.shardId()).addShard(firstRouting))
+                    .addIndexShard(IndexShardRoutingTable.builder(secondRouting.shardId()).addShard(secondRouting))
             );
         ClusterState clusterState = ClusterState.builder(baseClusterState).routingTable(builder.build()).build();
         RoutingAllocation routingAllocation = new RoutingAllocation(
@@ -955,8 +955,8 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         builder = RoutingTable.builder()
             .add(
                 IndexRoutingTable.builder(firstRouting.index())
-                    .addIndexShard(new IndexShardRoutingTable.Builder(firstRouting.shardId()).addShard(firstRouting).build())
-                    .addIndexShard(new IndexShardRoutingTable.Builder(secondRouting.shardId()).addShard(secondRouting).build())
+                    .addIndexShard(new IndexShardRoutingTable.Builder(firstRouting.shardId()).addShard(firstRouting))
+                    .addIndexShard(new IndexShardRoutingTable.Builder(secondRouting.shardId()).addShard(secondRouting))
             );
         clusterState = ClusterState.builder(baseClusterState).routingTable(builder.build()).build();
         routingAllocation = new RoutingAllocation(
@@ -1021,12 +1021,12 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         // and therefor we will have sufficient disk space on node1.
         ClusterState result = strategy.reroute(clusterState, "reroute");
         assertThat(result, equalTo(clusterState));
-        assertThat(result.routingTable().index("test").getShards().get(0).primaryShard().state(), equalTo(STARTED));
-        assertThat(result.routingTable().index("test").getShards().get(0).primaryShard().currentNodeId(), equalTo("node1"));
-        assertThat(result.routingTable().index("test").getShards().get(0).primaryShard().relocatingNodeId(), nullValue());
-        assertThat(result.routingTable().index("test").getShards().get(1).primaryShard().state(), equalTo(RELOCATING));
-        assertThat(result.routingTable().index("test").getShards().get(1).primaryShard().currentNodeId(), equalTo("node1"));
-        assertThat(result.routingTable().index("test").getShards().get(1).primaryShard().relocatingNodeId(), equalTo("node2"));
+        assertThat(result.routingTable().index("test").shard(0).primaryShard().state(), equalTo(STARTED));
+        assertThat(result.routingTable().index("test").shard(0).primaryShard().currentNodeId(), equalTo("node1"));
+        assertThat(result.routingTable().index("test").shard(0).primaryShard().relocatingNodeId(), nullValue());
+        assertThat(result.routingTable().index("test").shard(1).primaryShard().state(), equalTo(RELOCATING));
+        assertThat(result.routingTable().index("test").shard(1).primaryShard().currentNodeId(), equalTo("node1"));
+        assertThat(result.routingTable().index("test").shard(1).primaryShard().relocatingNodeId(), equalTo("node2"));
     }
 
     public void testWatermarksEnabledForSingleDataNode() {
@@ -1104,7 +1104,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         );
         ClusterState result = strategy.reroute(clusterState, "reroute");
 
-        ShardRouting shardRouting = result.routingTable().index("test").getShards().get(0).primaryShard();
+        ShardRouting shardRouting = result.routingTable().index("test").shard(0).primaryShard();
         assertThat(shardRouting.state(), equalTo(UNASSIGNED));
         assertThat(shardRouting.currentNodeId(), nullValue());
         assertThat(shardRouting.relocatingNodeId(), nullValue());
@@ -1115,7 +1115,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         RoutingTable forceAssignedRoutingTable = RoutingTable.builder()
             .add(
                 IndexRoutingTable.builder(shardId.getIndex())
-                    .addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(startedShard).build())
+                    .addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(startedShard))
             )
             .build();
         clusterState = ClusterState.builder(clusterState).routingTable(forceAssignedRoutingTable).build();

@@ -15,7 +15,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
@@ -24,6 +24,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.Lifecycle.State;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
@@ -237,11 +238,7 @@ public class IndexLifecycleService
             }
 
             if (safeToStop && OperationMode.STOPPING == currentMode) {
-                clusterService.submitStateUpdateTask(
-                    "ilm_operation_mode_update[stopped]",
-                    OperationModeUpdateTask.ilmMode(OperationMode.STOPPED),
-                    ClusterStateTaskExecutor.unbatched()
-                );
+                submitUnbatchedTask("ilm_operation_mode_update[stopped]", OperationModeUpdateTask.ilmMode(OperationMode.STOPPED));
             }
         }
     }
@@ -451,11 +448,7 @@ public class IndexLifecycleService
         }
 
         if (safeToStop && OperationMode.STOPPING == currentMode) {
-            clusterService.submitStateUpdateTask(
-                "ilm_operation_mode_update[stopped]",
-                OperationModeUpdateTask.ilmMode(OperationMode.STOPPED),
-                ClusterStateTaskExecutor.unbatched()
-            );
+            submitUnbatchedTask("ilm_operation_mode_update[stopped]", OperationModeUpdateTask.ilmMode(OperationMode.STOPPED));
         }
     }
 
@@ -497,6 +490,7 @@ public class IndexLifecycleService
 
         Set<String> indicesPreventingShutdown = state.metadata()
             .indices()
+            .entrySet()
             .stream()
             // Filter out to only consider managed indices
             .filter(indexToMetadata -> Strings.hasText(indexToMetadata.getValue().getLifecyclePolicyName()))
@@ -545,5 +539,10 @@ public class IndexLifecycleService
     @Override
     public void signalShutdown(Collection<String> shutdownNodeIds) {
         // TODO: in the future we could take proactive measures for when a shutdown is actually triggered
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 }

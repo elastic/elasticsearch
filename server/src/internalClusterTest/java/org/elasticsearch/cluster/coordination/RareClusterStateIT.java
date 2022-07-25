@@ -17,7 +17,6 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -81,7 +80,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
         final String masterName = internalCluster().getMasterName();
         final ClusterService clusterService = internalCluster().clusterService(masterName);
         final AllocationService allocationService = internalCluster().getInstance(AllocationService.class, masterName);
-        clusterService.submitStateUpdateTask("test-inject-node-and-reroute", new ClusterStateUpdateTask() {
+        clusterService.submitUnbatchedStateUpdateTask("test-inject-node-and-reroute", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 // inject a node
@@ -109,10 +108,10 @@ public class RareClusterStateIT extends ESIntegTestCase {
 
             @Override
             public void onFailure(Exception e) {}
-        }, ClusterStateTaskExecutor.unbatched());
+        });
         ensureGreen(index);
         // remove the extra node
-        clusterService.submitStateUpdateTask("test-remove-injected-node", new ClusterStateUpdateTask() {
+        clusterService.submitUnbatchedStateUpdateTask("test-remove-injected-node", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
                 ClusterState.Builder builder = ClusterState.builder(currentState);
@@ -124,7 +123,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
 
             @Override
             public void onFailure(Exception e) {}
-        }, ClusterStateTaskExecutor.unbatched());
+        });
     }
 
     private <Req extends ActionRequest, Res extends ActionResponse> ActionFuture<Res> executeAndCancelCommittedPublication(

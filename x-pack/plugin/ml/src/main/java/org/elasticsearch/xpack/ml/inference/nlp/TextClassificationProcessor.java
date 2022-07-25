@@ -12,6 +12,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.NlpClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TopClassEntry;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceHelpers;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassificationConfig;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.NlpTokenizer;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.ml.inference.pytorch.results.PyTorchInferenceResu
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -86,18 +88,28 @@ public class TextClassificationProcessor extends NlpTask.Processor {
             throw new ElasticsearchStatusException("Text classification result has no data", RestStatus.INTERNAL_SERVER_ERROR);
         }
 
-        // TODO only the first entry in the batch result is verified and
-        // checked. Implement for all in batch
-        if (pyTorchResult.getInferenceResult()[0][0].length != labels.size()) {
-            throw new ElasticsearchStatusException(
-                "Expected exactly [{}] values in text classification result; got [{}]",
-                RestStatus.INTERNAL_SERVER_ERROR,
-                labels.size(),
-                pyTorchResult.getInferenceResult()[0][0].length
-            );
+        for (double[] result : pyTorchResult.getInferenceResult()[0]) {
+            if (result.length != labels.size()) {
+                throw new ElasticsearchStatusException(
+                    "Expected exactly [{}] values in text classification result; got [{}]",
+                    RestStatus.INTERNAL_SERVER_ERROR,
+                    labels.size(),
+                    result.length
+                );
+            }
         }
+        Map<Integer, List<TokenizationResult.Tokens>> windowedSeq = tokenization.getTokensBySequenceId();
+        // TODO adjust logic when batch is allowed
+        if (windowedSeq.size() > 1) {
+            throw new ElasticsearchStatusException("Unexpected batch input for text classification", RestStatus.INTERNAL_SERVER_ERROR);
+        }
+        double[] normalizedScores = new double[labels.size()];
+        for (int i = 0; i < pyTorchResult.getInferenceResult()[0].length; i++) {
+            double[] scores = NlpHelpers.convertToProbabilitiesBySoftMax(pyTorchResult.getInferenceResult()[0][i]);
+            InferenceHelpers.sumDoubleArrays(normalizedScores, scores);
+        }
+        InferenceHelpers.divMut(normalizedScores, pyTorchResult.getInferenceResult()[0].length);
 
-        double[] normalizedScores = NlpHelpers.convertToProbabilitiesBySoftMax(pyTorchResult.getInferenceResult()[0][0]);
         int[] sortedIndices = IntStream.range(0, normalizedScores.length)
             .boxed()
             .sorted(Comparator.comparing(i -> normalizedScores[(Integer) i]).reversed())

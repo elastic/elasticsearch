@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://github.com/elastic/elasticsearch/tree/master/docs/changelog",
+  "$id": "https://github.com/elastic/elasticsearch/tree/main/docs/changelog",
   "$ref": "#/definitions/Changelog",
   "definitions": {
     "Changelog": {
@@ -56,6 +56,7 @@
             "Infra/Settings",
             "Infra/Transport API",
             "Ingest",
+            "Ingest Node",
             "Java High Level REST Client",
             "Java Low Level REST Client",
             "License",
@@ -82,6 +83,7 @@
             "TLS",
             "Transform",
             "TSDB",
+            "Vector Search",
             "Watcher"
           ]
         },

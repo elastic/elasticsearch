@@ -8,6 +8,8 @@
       indices.create:
         index: test-index
         body:
+          settings:
+            number_of_shards: "1"
           mappings:
             properties:
               bdv:
@@ -92,6 +94,8 @@
       indices.create:
         index: test-index
         body:
+          settings:
+            number_of_shards: "1"
           mappings:
             properties:
               bdv:
@@ -176,6 +180,8 @@
       indices.create:
         index: test-index
         body:
+          settings:
+            number_of_shards: "1"
           mappings:
             properties:
               bdv:
@@ -293,6 +299,8 @@
       indices.create:
         index: test-index
         body:
+          settings:
+            number_of_shards: "1"
           mappings:
             properties:
               bdv:
@@ -409,6 +417,8 @@
       indices.create:
         index: test-index
         body:
+          settings:
+            number_of_shards: "1"
           mappings:
             properties:
               bdv:
@@ -483,6 +493,8 @@
       indices.create:
         index: test-index
         body:
+          settings:
+            number_of_shards: "1"
           mappings:
             properties:
               bdv:
@@ -583,6 +595,8 @@
       indices.create:
         index: test-index
         body:
+          settings:
+            number_of_shards: "1"
           mappings:
             properties:
               bdv:
@@ -699,6 +713,8 @@
       indices.create:
         index: test-index
         body:
+          settings:
+            number_of_shards: "1"
           mappings:
             properties:
               bdv:
@@ -795,6 +811,8 @@
       indices.create:
         index: test-index
         body:
+          settings:
+            number_of_shards: "1"
           mappings:
             properties:
               bdv:

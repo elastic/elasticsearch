@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.eql.parser;
 
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.ParseTree;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.BooleanExpressionContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.EventFilterContext;
@@ -65,15 +64,7 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
 
     static final String FILTER_PIPE = "filter", HEAD_PIPE = "head", TAIL_PIPE = "tail", RUNS = "runs";
 
-    static final Set<String> SUPPORTED_PIPES = Sets.newHashSet(
-        "count",
-        FILTER_PIPE,
-        HEAD_PIPE,
-        "sort",
-        TAIL_PIPE,
-        "unique",
-        "unique_count"
-    );
+    static final Set<String> SUPPORTED_PIPES = Set.of("count", FILTER_PIPE, HEAD_PIPE, "sort", TAIL_PIPE, "unique", "unique_count");
 
     private final UnresolvedRelation RELATION = new UnresolvedRelation(synthetic("<relation>"), null, "", false, "");
     private final EmptyAttribute UNSPECIFIED_FIELD = new EmptyAttribute(synthetic("<unspecified>"));

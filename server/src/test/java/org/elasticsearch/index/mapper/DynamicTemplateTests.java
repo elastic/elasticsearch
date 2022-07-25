@@ -22,7 +22,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -221,7 +220,7 @@ public class DynamicTemplateTests extends ESTestCase {
     public void testMatchTypeTemplateRuntime() {
         List<XContentFieldType> runtimeFieldTypes = Arrays.stream(XContentFieldType.values())
             .filter(XContentFieldType::supportsRuntimeField)
-            .collect(Collectors.toList());
+            .toList();
         for (XContentFieldType runtimeFieldType : runtimeFieldTypes) {
             Map<String, Object> templateDef = new HashMap<>();
             templateDef.put("match_mapping_type", runtimeFieldType.name().toLowerCase(Locale.ROOT));
@@ -241,7 +240,7 @@ public class DynamicTemplateTests extends ESTestCase {
     public void testMatchTypeTemplateRuntimeUnsupported() {
         List<XContentFieldType> xContentFieldTypes = Arrays.stream(XContentFieldType.values())
             .filter(xContentFieldType -> xContentFieldType.supportsRuntimeField() == false)
-            .collect(Collectors.toList());
+            .toList();
         for (XContentFieldType xContentFieldType : xContentFieldTypes) {
             String fieldType = xContentFieldType.name().toLowerCase(Locale.ROOT);
             Map<String, Object> templateDef = new HashMap<>();

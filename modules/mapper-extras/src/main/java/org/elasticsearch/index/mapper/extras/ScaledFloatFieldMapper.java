@@ -33,14 +33,15 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
+import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.script.field.DocValuesField;
+import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.ScaledFloatDocValuesField;
-import org.elasticsearch.script.field.ToScriptField;
+import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -159,8 +160,8 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected List<Parameter<?>> getParameters() {
-            return List.of(indexed, hasDocValues, stored, ignoreMalformed, meta, scalingFactor, coerce, nullValue, metric);
+        protected Parameter<?>[] getParameters() {
+            return new Parameter<?>[] { indexed, hasDocValues, stored, ignoreMalformed, meta, scalingFactor, coerce, nullValue, metric };
         }
 
         @Override
@@ -349,6 +350,20 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         public TimeSeriesParams.MetricType getMetricType() {
             return metricType;
         }
+
+        @Override
+        public String toString() {
+            StringBuilder b = new StringBuilder();
+            b.append("ScaledFloatFieldType[").append(scalingFactor);
+            if (nullValue != null) {
+                b.append(", nullValue=").append(nullValue);
+                ;
+            }
+            if (metricType != null) {
+                b.append(", metricType=").append(metricType);
+            }
+            return b.append("]").toString();
+        }
     }
 
     private final Explicit<Boolean> ignoreMalformed;
@@ -449,7 +464,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 throw new IllegalArgumentException("[scaled_float] only supports finite values, but got [" + doubleValue + "]");
             }
         }
-        long scaledValue = Math.round(doubleValue * scalingFactor);
+        long scaledValue = encode(doubleValue, scalingFactor);
 
         List<Field> fields = NumberFieldMapper.NumberType.LONG.createFields(fieldType().name(), scaledValue, indexed, hasDocValues, stored);
         context.doc().addAll(fields);
@@ -457,6 +472,10 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         if (hasDocValues == false && (indexed || stored)) {
             context.addToFieldNames(fieldType().name());
         }
+    }
+
+    static long encode(double value, double scalingFactor) {
+        return Math.round(value * scalingFactor);
     }
 
     static Double parse(Object value) {
@@ -488,16 +507,16 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
         private final IndexNumericFieldData scaledFieldData;
         private final double scalingFactor;
-        private final ToScriptField<SortedNumericDoubleValues> toScriptField;
+        private final ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory;
 
         ScaledFloatIndexFieldData(
             IndexNumericFieldData scaledFieldData,
             double scalingFactor,
-            ToScriptField<SortedNumericDoubleValues> toScriptField
+            ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory
         ) {
             this.scaledFieldData = scaledFieldData;
             this.scalingFactor = scalingFactor;
-            this.toScriptField = toScriptField;
+            this.toScriptFieldFactory = toScriptFieldFactory;
         }
 
         @Override
@@ -512,12 +531,12 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
         @Override
         public LeafNumericFieldData load(LeafReaderContext context) {
-            return new ScaledFloatLeafFieldData(scaledFieldData.load(context), scalingFactor, toScriptField);
+            return new ScaledFloatLeafFieldData(scaledFieldData.load(context), scalingFactor, toScriptFieldFactory);
         }
 
         @Override
         public LeafNumericFieldData loadDirect(LeafReaderContext context) throws Exception {
-            return new ScaledFloatLeafFieldData(scaledFieldData.loadDirect(context), scalingFactor, toScriptField);
+            return new ScaledFloatLeafFieldData(scaledFieldData.loadDirect(context), scalingFactor, toScriptFieldFactory);
         }
 
         @Override
@@ -546,21 +565,21 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
         private final LeafNumericFieldData scaledFieldData;
         private final double scalingFactorInverse;
-        private final ToScriptField<SortedNumericDoubleValues> toScriptField;
+        private final ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory;
 
         ScaledFloatLeafFieldData(
             LeafNumericFieldData scaledFieldData,
             double scalingFactor,
-            ToScriptField<SortedNumericDoubleValues> toScriptField
+            ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory
         ) {
             this.scaledFieldData = scaledFieldData;
             this.scalingFactorInverse = 1d / scalingFactor;
-            this.toScriptField = toScriptField;
+            this.toScriptFieldFactory = toScriptFieldFactory;
         }
 
         @Override
-        public DocValuesField<?> getScriptField(String name) {
-            return toScriptField.getScriptField(getDoubleValues(), name);
+        public DocValuesScriptFieldFactory getScriptFieldFactory(String name) {
+            return toScriptFieldFactory.getScriptFieldFactory(getDoubleValues(), name);
         }
 
         @Override
@@ -640,5 +659,77 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 }
             };
         }
+    }
+
+    @Override
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        if (hasDocValues == false) {
+            throw new IllegalArgumentException(
+                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it doesn't have doc values"
+            );
+        }
+        if (ignoreMalformed.value()) {
+            throw new IllegalArgumentException(
+                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it ignores malformed numbers"
+            );
+        }
+        if (copyTo.copyToFields().isEmpty() != true) {
+            throw new IllegalArgumentException(
+                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
+            );
+        }
+        return new NumberFieldMapper.NumericSyntheticFieldLoader(name(), simpleName()) {
+            @Override
+            protected void loadNextValue(XContentBuilder b, long value) throws IOException {
+                b.value(decodeForSyntheticSource(value, scalingFactor));
+            }
+        };
+    }
+
+    /**
+     * Convert the scaled value back into it's {@code double} representation,
+     * attempting to undo {@code Math.round(value * scalingFactor)}. It's
+     * important that "round tripping" a value into the index, back out, and
+     * then back in yields the same index. That's important because we use
+     * the synthetic source produced by these this for reindex.
+     * <p>
+     * The tricky thing about undoing {@link Math#round} is that it
+     * "saturates" to {@link Long#MAX_VALUE} when the {@code double} that
+     * it's given is too large to fit into a {@code long}. And
+     * {@link Long#MIN_VALUE} for {@code double}s that are too small. But
+     * {@code Long.MAX_VALUE / scalingFactor} doesn't always yield a value
+     * that would saturate. In other words, sometimes:
+     * <pre>{@code
+     *   long scaled1 = Math.round(BIG * scalingFactor);
+     *   assert scaled1 == Long.MAX_VALUE;
+     *   double decoded = scaled1 / scalingFactor;
+     *   long scaled2 = Math.round(decoded * scalingFactor);
+     *   assert scaled2 != Long.MAX_VALUE;
+     * }</pre>
+     * <p>
+     * We work around this by detecting such cases and artificially bumping them
+     * up by a single digit in the last place, forcing them to always saturate
+     * the {@link Math#round} call.
+     */
+    static double decodeForSyntheticSource(long scaledValue, double scalingFactor) {
+        if (scaledValue == Long.MAX_VALUE) {
+            double max = Long.MAX_VALUE / scalingFactor;
+            if (Math.round(max * scalingFactor) != Long.MAX_VALUE) {
+                double v = max + Math.ulp(max);
+                assert Math.round(v * scalingFactor) == Long.MAX_VALUE;
+                return v;
+            }
+            return max;
+        }
+        if (scaledValue == Long.MIN_VALUE) {
+            double min = Long.MIN_VALUE / scalingFactor;
+            if (Math.round(min * scalingFactor) != Long.MIN_VALUE) {
+                double v = min - Math.ulp(min);
+                assert Math.round(v * scalingFactor) == Long.MIN_VALUE;
+                return v;
+            }
+            return min;
+        }
+        return scaledValue / scalingFactor;
     }
 }

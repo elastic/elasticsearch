@@ -65,7 +65,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
+import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 
 /**
  * NativeUsersStore is a store for users that reads from an Elasticsearch index. This store is responsible for fetching the full
@@ -220,12 +220,9 @@ public class NativeUsersStore {
                         @Override
                         public void onFailure(Exception t) {
                             if (t instanceof IndexNotFoundException) {
-                                logger.trace(
-                                    new ParameterizedMessage("could not retrieve user [{}] because security index does not exist", user),
-                                    t
-                                );
+                                logger.trace(() -> "could not retrieve user [" + user + "] because security index does not exist", t);
                             } else {
-                                logger.error(new ParameterizedMessage("failed to retrieve user [{}]", user), t);
+                                logger.error(() -> "failed to retrieve user [" + user + "]", t);
                             }
                             // We don't invoke the onFailure listener here, instead
                             // we call the response with a null user
@@ -244,7 +241,6 @@ public class NativeUsersStore {
      */
     public void changePassword(final ChangePasswordRequest request, final ActionListener<Void> listener) {
         final String username = request.username();
-        assert User.isInternalUsername(username) == false : username + "is internal!";
         final String docType;
         if (ClientReservedRealm.isReserved(username, settings)) {
             docType = RESERVED_USER_TYPE;
@@ -745,7 +741,7 @@ public class NativeUsersStore {
 
             @Override
             public void onFailure(Exception e) {
-                logger.error(new ParameterizedMessage("unable to clear realm cache for user [{}]", username), e);
+                logger.error(() -> "unable to clear realm cache for user [" + username + "]", e);
                 ElasticsearchException exception = new ElasticsearchException(
                     "clearing the cache for [" + username + "] failed. please clear the realm cache manually",
                     e
@@ -756,7 +752,7 @@ public class NativeUsersStore {
     }
 
     @Nullable
-    private UserAndPassword transformUser(final String id, final Map<String, Object> sourceMap) {
+    private static UserAndPassword transformUser(final String id, final Map<String, Object> sourceMap) {
         if (sourceMap == null) {
             return null;
         }
@@ -777,7 +773,7 @@ public class NativeUsersStore {
             Map<String, Object> metadata = (Map<String, Object>) sourceMap.get(Fields.METADATA.getPreferredName());
             return new UserAndPassword(new User(username, roles, fullName, email, metadata, enabled), password.toCharArray());
         } catch (Exception e) {
-            logger.error(new ParameterizedMessage("error in the format of data for user [{}]", username), e);
+            logger.error(() -> "error in the format of data for user [" + username + "]", e);
             return null;
         }
     }

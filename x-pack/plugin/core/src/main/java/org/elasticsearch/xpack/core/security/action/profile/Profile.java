@@ -24,7 +24,7 @@ public record Profile(
     boolean enabled,
     long lastSynchronized,
     ProfileUser user,
-    Map<String, Object> access,
+    Map<String, Object> labels,
     Map<String, Object> applicationData,
     VersionControl versionControl
 ) implements Writeable, ToXContentObject {
@@ -37,9 +37,7 @@ public record Profile(
         String realmName,
         @Nullable String domainName,
         String email,
-        String fullName,
-        String displayName,
-        boolean active
+        String fullName
     ) implements Writeable, ToXContent {
 
         public ProfileUser(StreamInput in) throws IOException {
@@ -49,9 +47,7 @@ public record Profile(
                 in.readString(),
                 in.readOptionalString(),
                 in.readOptionalString(),
-                in.readOptionalString(),
-                in.readOptionalString(),
-                in.readBoolean()
+                in.readOptionalString()
             );
         }
 
@@ -74,10 +70,6 @@ public record Profile(
             if (fullName != null) {
                 builder.field("full_name", fullName);
             }
-            if (displayName != null) {
-                builder.field("display_name", displayName);
-            }
-            builder.field("active", active);
             builder.endObject();
             return builder;
         }
@@ -90,8 +82,6 @@ public record Profile(
             out.writeOptionalString(domainName);
             out.writeOptionalString(email);
             out.writeOptionalString(fullName);
-            out.writeOptionalString(displayName);
-            out.writeBoolean(active);
         }
     }
 
@@ -135,7 +125,7 @@ public record Profile(
         builder.field("enabled", enabled);
         builder.field("last_synchronized", lastSynchronized);
         user.toXContent(builder, params);
-        builder.field("access", access);
+        builder.field("labels", labels);
         builder.field("data", applicationData);
     }
 
@@ -145,8 +135,8 @@ public record Profile(
         out.writeBoolean(enabled);
         out.writeLong(lastSynchronized);
         user.writeTo(out);
-        out.writeMap(access);
-        out.writeMap(applicationData);
+        out.writeGenericMap(labels);
+        out.writeGenericMap(applicationData);
         versionControl.writeTo(out);
     }
 }

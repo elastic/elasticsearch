@@ -11,6 +11,7 @@ import org.elasticsearch.gradle.LoggedExec;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.file.DirectoryProperty;
+import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
@@ -55,13 +56,12 @@ public class DockerBuildTask extends DefaultTask {
     private MapProperty<String, String> buildArgs;
 
     @Inject
-    public DockerBuildTask(WorkerExecutor workerExecutor, ObjectFactory objectFactory) {
+    public DockerBuildTask(WorkerExecutor workerExecutor, ObjectFactory objectFactory, ProjectLayout projectLayout) {
         this.workerExecutor = workerExecutor;
         this.markerFile = objectFactory.fileProperty();
         this.dockerContext = objectFactory.directoryProperty();
         this.buildArgs = objectFactory.mapProperty(String.class, String.class);
-
-        this.markerFile.set(getProject().getLayout().getBuildDirectory().file("markers/" + this.getName() + ".marker"));
+        this.markerFile.set(projectLayout.getBuildDirectory().file("markers/" + this.getName() + ".marker"));
     }
 
     @TaskAction

@@ -50,6 +50,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
@@ -153,7 +154,7 @@ public class DataFrameAnalyticsTask extends LicensedAllocatedPersistentTask impl
     public void stop(String reason, TimeValue timeout) {
         isStopping = true;
 
-        LOGGER.debug(() -> new ParameterizedMessage("[{}] Stopping task due to reason [{}]", getParams().getId(), reason));
+        LOGGER.debug(() -> format("[%s] Stopping task due to reason [%s]", getParams().getId(), reason));
 
         DataFrameAnalyticsStep cachedCurrentStep = currentStep;
         ActionListener<Void> stepProgressListener = ActionListener.wrap(aVoid -> cachedCurrentStep.cancel(reason, timeout), e -> {
@@ -172,14 +173,11 @@ public class DataFrameAnalyticsTask extends LicensedAllocatedPersistentTask impl
 
     public void setFailed(Exception error) {
         if (analyticsManager.isNodeShuttingDown()) {
-            LOGGER.warn(
-                new ParameterizedMessage("[{}] *Not* setting task to failed because the node is being shutdown", taskParams.getId()),
-                error
-            );
+            LOGGER.warn(() -> "[" + taskParams.getId() + "] *Not* setting task to failed because the node is being shutdown", error);
             return;
         }
         persistProgress(client, taskParams.getId(), () -> {
-            LOGGER.error(new ParameterizedMessage("[{}] Setting task to failed", taskParams.getId()), error);
+            LOGGER.error(() -> "[" + taskParams.getId() + "] Setting task to failed", error);
             String reason = ExceptionsHelper.unwrapCause(error).getMessage();
             DataFrameAnalyticsTaskState newTaskState = new DataFrameAnalyticsTaskState(
                 DataFrameAnalyticsState.FAILED,
@@ -225,7 +223,7 @@ public class DataFrameAnalyticsTask extends LicensedAllocatedPersistentTask impl
             LOGGER.debug("[{}] Successfully indexed progress document: {}", jobId, storedProgress.get().get());
             runnable.run();
         }, indexError -> {
-            LOGGER.error(new ParameterizedMessage("[{}] cannot persist progress as an error occurred while indexing", jobId), indexError);
+            LOGGER.error(() -> "[" + jobId + "] cannot persist progress as an error occurred while indexing", indexError);
             runnable.run();
         });
 
@@ -240,7 +238,7 @@ public class DataFrameAnalyticsTask extends LicensedAllocatedPersistentTask impl
                 try {
                     previous = MlParserUtils.parse(searchResponse.getHits().getHits()[0], StoredProgress.PARSER);
                 } catch (Exception ex) {
-                    LOGGER.warn(new ParameterizedMessage("[{}] failed to parse previously stored progress", jobId), ex);
+                    LOGGER.warn(() -> "[" + jobId + "] failed to parse previously stored progress", ex);
                 }
             }
 
@@ -248,8 +246,8 @@ public class DataFrameAnalyticsTask extends LicensedAllocatedPersistentTask impl
             storedProgress.set(new StoredProgress(progress));
             if (storedProgress.get().equals(previous)) {
                 LOGGER.debug(
-                    () -> new ParameterizedMessage(
-                        "[{}] new progress is the same as previously persisted progress. Skipping storage of progress: {}",
+                    () -> format(
+                        "[%s] new progress is the same as previously persisted progress. Skipping storage of progress: %s",
                         jobId,
                         progress
                     )
@@ -262,7 +260,7 @@ public class DataFrameAnalyticsTask extends LicensedAllocatedPersistentTask impl
                 .setRequireAlias(AnomalyDetectorsIndex.jobStateIndexWriteAlias().equals(indexOrAlias))
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             try (XContentBuilder jsonBuilder = JsonXContent.contentBuilder()) {
-                LOGGER.debug(() -> new ParameterizedMessage("[{}] Persisting progress is: {}", jobId, progress));
+                LOGGER.debug(() -> format("[%s] Persisting progress is: %s", jobId, progress));
                 storedProgress.get().toXContent(jsonBuilder, Payload.XContent.EMPTY_PARAMS);
                 indexRequest.source(jsonBuilder);
             }

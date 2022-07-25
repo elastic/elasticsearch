@@ -116,7 +116,7 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
             return CONTENT_TYPE;
         }
 
-        private long parse(Object value) {
+        private static long parse(Object value) {
             if (value instanceof Number) {
                 double doubleValue = ((Number) value).doubleValue();
                 if (doubleValue < Long.MIN_VALUE || doubleValue > Long.MAX_VALUE) {
@@ -151,7 +151,7 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
 
         @Override
         public Query termsQuery(Collection<?> values, @Nullable SearchExecutionContext context) {
-            long[] v = values.stream().mapToLong(this::parse).toArray();
+            long[] v = values.stream().mapToLong(SeqNoFieldType::parse).toArray();
             return LongPoint.newSetQuery(name(), v);
         }
 

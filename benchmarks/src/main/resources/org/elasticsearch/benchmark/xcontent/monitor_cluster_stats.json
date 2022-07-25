@@ -262,7 +262,6 @@
             "vm_name" : "OpenJDK 64-Bit Server VM",
             "vm_version" : "11.0.7.7",
             "vm_vendor" : "OpenJDK",
-            "bundled_jdk" : false,
             "using_bundled_jdk" : null,
             "count" : 15
           }

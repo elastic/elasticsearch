@@ -216,16 +216,14 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
             + "  \"must\" : [ {"
             + "    \"term\" : {"
             + "      \"user\" : {"
-            + "        \"value\" : \"kimchy\","
-            + "        \"boost\" : 1.0"
+            + "        \"value\" : \"kimchy\""
             + "      }"
             + "    }"
             + "  } ],"
             + "  \"filter\" : [ {"
             + "    \"term\" : {"
             + "      \"tag\" : {"
-            + "        \"value\" : \"tech\","
-            + "        \"boost\" : 1.0"
+            + "        \"value\" : \"tech\""
             + "      }"
             + "    }"
             + "  } ],"
@@ -241,15 +239,13 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
             + "  \"should\" : [ {"
             + "    \"term\" : {"
             + "      \"tag\" : {"
-            + "        \"value\" : \"wow\","
-            + "        \"boost\" : 1.0"
+            + "        \"value\" : \"wow\""
             + "      }"
             + "    }"
             + "  }, {"
             + "    \"term\" : {"
             + "      \"tag\" : {"
-            + "        \"value\" : \"elasticsearch\","
-            + "        \"boost\" : 1.0"
+            + "        \"value\" : \"elasticsearch\""
             + "      }"
             + "    }"
             + "  } ],"
@@ -425,6 +421,12 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         boolQueryBuilder = new BoolQueryBuilder();
         rewritten = Rewriteable.rewrite(boolQueryBuilder, createSearchExecutionContext());
         assertNotEquals(new MatchNoneQueryBuilder(), rewritten);
+
+        boolQueryBuilder = new BoolQueryBuilder();
+        boolQueryBuilder.filter(new TermQueryBuilder(TEXT_FIELD_NAME, "bar"));
+        boolQueryBuilder.mustNot(new WrapperQueryBuilder(new WrapperQueryBuilder(new MatchAllQueryBuilder().toString()).toString()));
+        rewritten = boolQueryBuilder.rewrite(createSearchExecutionContext());
+        assertEquals(new MatchNoneQueryBuilder(), rewritten);
     }
 
     @Override

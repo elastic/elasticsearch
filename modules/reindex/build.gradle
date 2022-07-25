@@ -93,6 +93,11 @@ jdks {
   }
 }
 
+if (Os.isFamily(Os.FAMILY_MAC) && Architecture.current() == Architecture.AARCH64) {
+  jdks.legacy.vendor = 'zulu'
+  jdks.legacy.distributionVersion = '8.56.0.23'
+}
+
 if (Os.isFamily(Os.FAMILY_WINDOWS)) {
   logger.warn("Disabling reindex-from-old tests because we can't get the pid file on windows")
   tasks.named("javaRestTest").configure {

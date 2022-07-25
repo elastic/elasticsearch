@@ -36,8 +36,8 @@ import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
 

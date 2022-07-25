@@ -34,6 +34,8 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import static org.elasticsearch.core.Strings.format;
+
 class AuthenticatorChain {
 
     private static final Logger logger = LogManager.getLogger(AuthenticatorChain.class);
@@ -135,7 +137,7 @@ class AuthenticatorChain {
         iterListener.run();
     }
 
-    private BiConsumer<Authenticator, ActionListener<AuthenticationResult<Authentication>>> getAuthenticatorConsumer(
+    private static BiConsumer<Authenticator, ActionListener<AuthenticationResult<Authentication>>> getAuthenticatorConsumer(
         Authenticator.Context context,
         boolean shouldExtractCredentials
     ) {
@@ -189,11 +191,8 @@ class AuthenticatorChain {
         };
     }
 
-    private void maybeLookupRunAsUser(
-        Authenticator.Context context,
-        Authentication authentication,
-        ActionListener<Authentication> listener
-    ) {
+    // Package private for test
+    void maybeLookupRunAsUser(Authenticator.Context context, Authentication authentication, ActionListener<Authentication> listener) {
         if (false == runAsEnabled) {
             finishAuthentication(context, authentication, listener);
             return;
@@ -201,6 +200,12 @@ class AuthenticatorChain {
 
         final String runAsUsername = context.getThreadContext().getHeader(AuthenticationServiceField.RUN_AS_USER_HEADER);
         if (runAsUsername == null) {
+            finishAuthentication(context, authentication, listener);
+            return;
+        }
+
+        if (false == authentication.supportsRunAs(anonymousUser)) {
+            logger.info("ignore run-as header since it is currently not supported for authentication [{}]", authentication);
             finishAuthentication(context, authentication, listener);
             return;
         }
@@ -233,13 +238,7 @@ class AuthenticatorChain {
         try {
             authentication = authenticationSerializer.readFromContext(context.getThreadContext());
         } catch (Exception e) {
-            logger.error(
-                () -> new ParameterizedMessage(
-                    "caught exception while trying to read authentication from request [{}]",
-                    context.getRequest()
-                ),
-                e
-            );
+            logger.error(() -> format("caught exception while trying to read authentication from request [%s]", context.getRequest()), e);
             throw context.getRequest().tamperedRequest();
         }
         if (authentication != null && context.getRequest() instanceof AuthenticationService.AuditableRestRequest) {
@@ -318,7 +317,7 @@ class AuthenticatorChain {
      * one. If authentication is successful, this method also ensures that the authentication is written to the ThreadContext
      */
     void finishAuthentication(Authenticator.Context context, Authentication authentication, ActionListener<Authentication> listener) {
-        if (authentication.getUser().enabled() == false || authentication.getUser().authenticatedUser().enabled() == false) {
+        if (authentication.getUser().enabled() == false || authentication.getAuthenticatingSubject().getUser().enabled() == false) {
             // TODO: these should be different log messages if the runas vs auth user is disabled?
             logger.debug("user [{}] is disabled. failing authentication", authentication.getUser());
             listener.onFailure(context.getRequest().authenticationFailed(context.getMostRecentAuthenticationToken()));
@@ -350,7 +349,7 @@ class AuthenticatorChain {
         listener.onResponse(authentication);
     }
 
-    private void addMetadata(Authenticator.Context context, ElasticsearchSecurityException ese) {
+    private static void addMetadata(Authenticator.Context context, ElasticsearchSecurityException ese) {
         if (false == context.getUnsuccessfulMessages().isEmpty()) {
             ese.addMetadata("es.additional_unsuccessful_credentials", context.getUnsuccessfulMessages());
         }

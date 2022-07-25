@@ -11,7 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.util.iterable.Iterables;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardRestoreFailedException;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
@@ -215,6 +215,6 @@ public abstract class FileRestoreContext {
 
     @SuppressWarnings("unchecked")
     private static Iterable<StoreFileMetadata> concat(Store.RecoveryDiff diff) {
-        return Iterables.concat(diff.different, diff.missing);
+        return CollectionUtils.concatLists(diff.different, diff.missing);
     }
 }

@@ -20,7 +20,7 @@ import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
-import org.elasticsearch.search.aggregations.metrics.InternalMax;
+import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -57,7 +57,7 @@ public class AggregateMetricBackedMaxAggregatorTests extends AggregatorTestCase 
                 )
             );
         }, max -> {
-            assertEquals(50, max.getValue(), 0d);
+            assertEquals(50, max.value(), 0d);
             assertTrue(AggregationInspectionHelper.hasValue(max));
         });
     }
@@ -66,7 +66,7 @@ public class AggregateMetricBackedMaxAggregatorTests extends AggregatorTestCase 
         testCase(new MatchAllDocsQuery(), iw -> {
             // Intentionally not writing any docs
         }, max -> {
-            assertEquals(Double.NEGATIVE_INFINITY, max.getValue(), 0d);
+            assertEquals(Double.NEGATIVE_INFINITY, max.value(), 0d);
             assertFalse(AggregationInspectionHelper.hasValue(max));
         });
     }
@@ -76,7 +76,7 @@ public class AggregateMetricBackedMaxAggregatorTests extends AggregatorTestCase 
             iw.addDocument(singleton(new NumericDocValuesField("wrong_number", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("wrong_number", 1)));
         }, max -> {
-            assertEquals(Double.NEGATIVE_INFINITY, max.getValue(), 0d);
+            assertEquals(Double.NEGATIVE_INFINITY, max.value(), 0d);
             assertFalse(AggregationInspectionHelper.hasValue(max));
         });
     }
@@ -105,7 +105,7 @@ public class AggregateMetricBackedMaxAggregatorTests extends AggregatorTestCase 
                 )
             );
         }, max -> {
-            assertEquals(20L, max.getValue(), 0d);
+            assertEquals(20L, max.value(), 0d);
             assertTrue(AggregationInspectionHelper.hasValue(max));
         });
     }
@@ -131,7 +131,7 @@ public class AggregateMetricBackedMaxAggregatorTests extends AggregatorTestCase 
         return fieldType;
     }
 
-    private void testCase(Query query, CheckedConsumer<RandomIndexWriter, IOException> buildIndex, Consumer<InternalMax> verify)
+    private void testCase(Query query, CheckedConsumer<RandomIndexWriter, IOException> buildIndex, Consumer<Max> verify)
         throws IOException {
         MappedFieldType fieldType = createDefaultFieldType(FIELD_NAME);
         AggregationBuilder aggregationBuilder = createAggBuilderForTypeTest(fieldType, FIELD_NAME);

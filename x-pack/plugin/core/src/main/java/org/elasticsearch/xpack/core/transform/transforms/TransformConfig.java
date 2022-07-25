@@ -452,7 +452,7 @@ public class TransformConfig implements SimpleDiffable<TransformConfig>, Writeab
             settings.writeTo(out);
         }
         if (out.getVersion().onOrAfter(Version.V_7_16_0)) {
-            out.writeMap(metadata);
+            out.writeGenericMap(metadata);
         }
         if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
             out.writeOptionalNamedWriteable(retentionPolicyConfig);
@@ -657,6 +657,10 @@ public class TransformConfig implements SimpleDiffable<TransformConfig>, Writeab
         }
 
         return builder.setVersion(Version.CURRENT).build();
+    }
+
+    public static Builder builder() {
+        return new Builder();
     }
 
     public static class Builder {

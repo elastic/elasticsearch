@@ -295,7 +295,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
         assertThat(geoData.size(), equalTo(4));
         assertThat(geoData.get("ip"), equalTo(ip));
-        assertThat(geoData.get("asn"), equalTo(1136));
+        assertThat(geoData.get("asn"), equalTo(1136L));
         assertThat(geoData.get("organization_name"), equalTo("KPN B.V."));
         assertThat(geoData.get("network"), equalTo("82.168.0.0/14"));
     }
@@ -498,6 +498,51 @@ public class GeoIpProcessorTests extends ESTestCase {
 
         assertThat(ingestDocument.getSourceAndMetadata().containsKey("target_field"), is(false));
         assertThat(ingestDocument.getSourceAndMetadata(), hasEntry("tags", List.of("_geoip_expired_database")));
+    }
+
+    public void testNoDatabase() throws Exception {
+        GeoIpProcessor processor = new GeoIpProcessor(
+            randomAlphaOfLength(10),
+            null,
+            "source_field",
+            () -> null,
+            () -> true,
+            "target_field",
+            EnumSet.allOf(GeoIpProcessor.Property.class),
+            false,
+            false,
+            "GeoLite2-City"
+        );
+
+        Map<String, Object> document = new HashMap<>();
+        document.put("source_field", "8.8.8.8");
+        IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
+        processor.execute(ingestDocument);
+        assertThat(ingestDocument.getSourceAndMetadata().containsKey("target_field"), is(false));
+        assertThat(ingestDocument.getSourceAndMetadata(), hasEntry("tags", List.of("_geoip_database_unavailable_GeoLite2-City")));
+    }
+
+    public void testNoDatabase_ignoreMissing() throws Exception {
+        GeoIpProcessor processor = new GeoIpProcessor(
+            randomAlphaOfLength(10),
+            null,
+            "source_field",
+            () -> null,
+            () -> true,
+            "target_field",
+            EnumSet.allOf(GeoIpProcessor.Property.class),
+            true,
+            false,
+            "GeoLite2-City"
+        );
+
+        Map<String, Object> document = new HashMap<>();
+        document.put("source_field", "8.8.8.8");
+        IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
+        processor.execute(ingestDocument);
+        assertIngestDocument(originalIngestDocument, ingestDocument);
     }
 
     private CheckedSupplier<DatabaseReaderLazyLoader, IOException> loader(final String path) {

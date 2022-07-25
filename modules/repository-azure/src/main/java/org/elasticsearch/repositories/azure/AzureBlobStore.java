@@ -36,7 +36,6 @@ import com.azure.storage.blob.specialized.BlockBlobAsyncClient;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -80,6 +79,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
 import java.util.stream.StreamSupport;
+
+import static org.elasticsearch.core.Strings.format;
 
 public class AzureBlobStore implements BlobStore {
     private static final Logger logger = LogManager.getLogger(AzureBlobStore.class);
@@ -286,7 +287,7 @@ public class AzureBlobStore implements BlobStore {
     }
 
     public InputStream getInputStream(String blob, long position, final @Nullable Long length) throws IOException {
-        logger.trace(() -> new ParameterizedMessage("reading container [{}], blob [{}]", container, blob));
+        logger.trace(() -> format("reading container [%s], blob [%s]", container, blob));
         final AzureBlobServiceClient azureBlobServiceClient = getAzureBlobServiceClientClient();
         final BlobServiceClient syncClient = azureBlobServiceClient.getSyncClient();
         final BlobServiceAsyncClient asyncClient = azureBlobServiceClient.getAsyncClient();
@@ -315,7 +316,7 @@ public class AzureBlobStore implements BlobStore {
 
     public Map<String, BlobMetadata> listBlobsByPrefix(String keyPath, String prefix) throws IOException {
         final var blobsBuilder = new HashMap<String, BlobMetadata>();
-        logger.trace(() -> new ParameterizedMessage("listing container [{}], keyPath [{}], prefix [{}]", container, keyPath, prefix));
+        logger.trace(() -> format("listing container [%s], keyPath [%s], prefix [%s]", container, keyPath, prefix));
         try {
             final BlobServiceClient client = client();
             SocketAccess.doPrivilegedVoidException(() -> {
@@ -426,7 +427,7 @@ public class AzureBlobStore implements BlobStore {
     public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
         assert inputStream.markSupported()
             : "Should not be used with non-mark supporting streams as their retry handling in the SDK is broken";
-        logger.trace(() -> new ParameterizedMessage("writeBlob({}, stream, {})", blobName, blobSize));
+        logger.trace(() -> format("writeBlob(%s, stream, %s)", blobName, blobSize));
         try {
             if (blobSize <= getLargeBlobThresholdInBytes()) {
                 final Flux<ByteBuffer> byteBufferFlux = convertStreamToByteBuffer(inputStream, blobSize, DEFAULT_UPLOAD_BUFFERS_SIZE);
@@ -445,7 +446,7 @@ public class AzureBlobStore implements BlobStore {
             throw new IOException("Unable to write blob " + blobName, e);
         }
 
-        logger.trace(() -> new ParameterizedMessage("writeBlob({}, stream, {}) - done", blobName, blobSize));
+        logger.trace(() -> format("writeBlob(%s, stream, %s) - done", blobName, blobSize));
     }
 
     private void executeSingleUpload(String blobName, Flux<ByteBuffer> byteBufferFlux, long blobSize, boolean failIfAlreadyExists) {

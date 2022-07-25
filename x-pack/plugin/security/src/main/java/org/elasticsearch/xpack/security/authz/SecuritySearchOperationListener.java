@@ -7,18 +7,15 @@
 package org.elasticsearch.xpack.security.authz;
 
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
-import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
@@ -68,19 +65,10 @@ public final class SecuritySearchOperationListener implements SearchOperationLis
     public void validateReaderContext(ReaderContext readerContext, TransportRequest request) {
         if (readerContext.scrollContext() != null) {
             final Authentication originalAuth = readerContext.getFromContext(AuthenticationField.AUTHENTICATION_KEY);
-            final Authentication current = securityContext.getAuthentication();
-            final ThreadContext threadContext = securityContext.getThreadContext();
-            final String action = threadContext.getTransient(ORIGINATING_ACTION_KEY);
-            ensureAuthenticatedUserIsSame(
-                originalAuth,
-                current,
-                auditTrailService,
-                readerContext.id(),
-                action,
-                request,
-                AuditUtil.extractRequestId(threadContext),
-                threadContext.getTransient(AUTHORIZATION_INFO_KEY)
-            );
+            if (false == securityContext.canIAccessResourcesCreatedBy(originalAuth)) {
+                auditAccessDenied(request);
+                throw new SearchContextMissingException(readerContext.id());
+            }
             // piggyback on context validation to assert the DLS/FLS permissions on the thread context of the scroll search handler
             if (null == securityContext.getThreadContext().getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY)) {
                 // fill in the DLS and FLS permissions for the scroll search action from the scroll context
@@ -122,26 +110,14 @@ public final class SecuritySearchOperationListener implements SearchOperationLis
         }
     }
 
-    /**
-     * Compares the {@link Authentication} that was stored in the {@link ReaderContext} with the
-     * current authentication. We cannot guarantee that all of the details of the authentication will
-     * be the same. Some things that could differ include the roles, the name of the authenticating
-     * (or lookup) realm. To work around this we compare the username and the originating realm type.
-     */
-    static void ensureAuthenticatedUserIsSame(
-        Authentication original,
-        Authentication current,
-        AuditTrailService auditTrailService,
-        ShardSearchContextId id,
-        String action,
-        TransportRequest request,
-        String requestId,
-        AuthorizationInfo authorizationInfo
-    ) {
-        final boolean sameUser = original.canAccessResourcesOf(current);
-        if (sameUser == false) {
-            auditTrailService.get().accessDenied(requestId, current, action, request, authorizationInfo);
-            throw new SearchContextMissingException(id);
-        }
+    private void auditAccessDenied(TransportRequest request) {
+        auditTrailService.get()
+            .accessDenied(
+                AuditUtil.extractRequestId(securityContext.getThreadContext()),
+                securityContext.getAuthentication(),
+                securityContext.getThreadContext().getTransient(ORIGINATING_ACTION_KEY),
+                request,
+                securityContext.getThreadContext().getTransient(AUTHORIZATION_INFO_KEY)
+            );
     }
 }

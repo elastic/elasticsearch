@@ -89,6 +89,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -113,6 +114,10 @@ import static org.mockito.Mockito.when;
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0, supportsDedicatedMasters = false)
 public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
+
+    // The ML jobs can trigger many tasks that are not easily tracked. For this reason, here we list
+    // all the tasks that should be excluded from the cleanup jobs because they are not related to the tests.
+    private static final Set<String> UNRELATED_TASKS = Set.of(ListTasksAction.NAME);
 
     @Override
     protected boolean ignoreExternalCluster() {
@@ -289,8 +294,12 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
     }
 
     public static void indexDocs(Logger logger, String index, long numDocs, long start, long end) {
+        indexDocs(client(), logger, index, numDocs, start, end);
+    }
+
+    public static void indexDocs(Client client, Logger logger, String index, long numDocs, long start, long end) {
         int maxDelta = (int) (end - start - 1);
-        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
+        BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
         for (int i = 0; i < numDocs; i++) {
             IndexRequest indexRequest = new IndexRequest(index);
             long timestamp = start + randomIntBetween(0, maxDelta);
@@ -446,7 +455,7 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
             ListTasksResponse response = client.execute(ListTasksAction.INSTANCE, request).get();
             List<String> activeTasks = response.getTasks()
                 .stream()
-                .filter(t -> t.action().startsWith(ListTasksAction.NAME) == false)
+                .filter(t -> UNRELATED_TASKS.stream().noneMatch(name -> t.action().startsWith(name)))
                 .map(TaskInfo::toString)
                 .collect(Collectors.toList());
             assertThat(activeTasks, empty());
@@ -511,6 +520,10 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
                     .settings(Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0).build())
             )
             .actionGet();
+    }
+
+    protected void ensureStableCluster() {
+        ensureStableCluster(internalCluster().getNodeNames().length, TimeValue.timeValueSeconds(60));
     }
 
     public static class MockPainlessScriptEngine extends MockScriptEngine {

@@ -407,10 +407,7 @@ public class ScriptServiceTests extends ESTestCase {
     }
 
     private ScriptContextStats getByContext(ScriptStats stats, String context) {
-        List<ScriptContextStats> maybeContextStats = stats.getContextStats()
-            .stream()
-            .filter(c -> c.getContext().equals(context))
-            .collect(Collectors.toList());
+        List<ScriptContextStats> maybeContextStats = stats.getContextStats().stream().filter(c -> c.getContext().equals(context)).toList();
         assertEquals(1, maybeContextStats.size());
         return maybeContextStats.get(0);
     }
@@ -459,10 +456,10 @@ public class ScriptServiceTests extends ESTestCase {
             )
             .build();
 
-        assertEquals("abc", scriptService.getStoredScript(cs, new GetStoredScriptRequest("_id")).getSource());
+        assertEquals("abc", ScriptService.getStoredScript(cs, new GetStoredScriptRequest("_id")).getSource());
 
         cs = ClusterState.builder(new ClusterName("_name")).build();
-        assertNull(scriptService.getStoredScript(cs, new GetStoredScriptRequest("_id")));
+        assertNull(ScriptService.getStoredScript(cs, new GetStoredScriptRequest("_id")));
     }
 
     public void testMaxSizeLimit() throws Exception {

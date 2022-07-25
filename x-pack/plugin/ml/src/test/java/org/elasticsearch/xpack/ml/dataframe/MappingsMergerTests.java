@@ -255,6 +255,6 @@ public class MappingsMergerTests extends ESTestCase {
     }
 
     private static DataFrameAnalyticsSource newSourceWithExcludes(String... excludes) {
-        return new DataFrameAnalyticsSource(new String[] { "index" }, null, new FetchSourceContext(true, null, excludes), null);
+        return new DataFrameAnalyticsSource(new String[] { "index" }, null, FetchSourceContext.of(true, null, excludes), null);
     }
 }

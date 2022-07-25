@@ -51,7 +51,7 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
      * Running a clustering algorithm like K-Means is unfeasible because large indices don't fit into memory.
      * But having multiple collection phases lets us accurately bucket the docs in one pass.
      */
-    private abstract class CollectionPhase implements Releasable {
+    private abstract static class CollectionPhase implements Releasable {
 
         /**
          * This method will collect the doc and then either return itself or a new CollectionPhase
@@ -495,7 +495,7 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
         return null;
     }
 
-    private String descendsFromNestedAggregator(Aggregator parent) {
+    private static String descendsFromNestedAggregator(Aggregator parent) {
         while (parent != null) {
             if (parent.getClass() == NestedAggregator.class) {
                 return parent.name();

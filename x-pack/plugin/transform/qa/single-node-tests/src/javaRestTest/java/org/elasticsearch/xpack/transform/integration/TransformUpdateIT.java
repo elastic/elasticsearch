@@ -38,15 +38,18 @@ public class TransformUpdateIT extends TransformRestTestCase {
         TEST_ADMIN_USER_NAME_2,
         TEST_PASSWORD_SECURE_STRING
     );
+    private static final String TEST_ADMIN_USER_NAME_NO_DATA = "transform_admin_no_data";
+    private static final String BASIC_AUTH_VALUE_TRANSFORM_ADMIN_NO_DATA = basicAuthHeaderValue(
+        TEST_ADMIN_USER_NAME_NO_DATA,
+        TEST_PASSWORD_SECURE_STRING
+    );
     private static final String DATA_ACCESS_ROLE = "test_data_access";
     private static final String DATA_ACCESS_ROLE_2 = "test_data_access_2";
-
-    private static boolean indicesCreated = false;
 
     // preserve indices in order to reuse source indices in several test cases
     @Override
     protected boolean preserveIndicesUponCompletion() {
-        return true;
+        return false;
     }
 
     @Override
@@ -70,14 +73,8 @@ public class TransformUpdateIT extends TransformRestTestCase {
         setupUser(TEST_USER_NAME, Arrays.asList("transform_user", DATA_ACCESS_ROLE));
         setupUser(TEST_ADMIN_USER_NAME_1, Arrays.asList("transform_admin", DATA_ACCESS_ROLE));
         setupUser(TEST_ADMIN_USER_NAME_2, Arrays.asList("transform_admin", DATA_ACCESS_ROLE_2));
-
-        // it's not possible to run it as @BeforeClass as clients aren't initialized then, so we need this little hack
-        if (indicesCreated) {
-            return;
-        }
-
+        setupUser(TEST_ADMIN_USER_NAME_NO_DATA, List.of("transform_admin"));
         createReviewsIndex();
-        indicesCreated = true;
     }
 
     @SuppressWarnings("unchecked")
@@ -149,8 +146,15 @@ public class TransformUpdateIT extends TransformRestTestCase {
         assertThat(XContentMapValues.extractValue("settings.max_page_search_size", transform), equalTo(555));
     }
 
-    @SuppressWarnings("unchecked")
     public void testUpdateTransferRights() throws Exception {
+        updateTransferRightsTester(false);
+    }
+
+    public void testUpdateTransferRightsSecondaryAuthHeaders() throws Exception {
+        updateTransferRightsTester(true);
+    }
+
+    private void updateTransferRightsTester(boolean useSecondaryAuthHeaders) throws Exception {
         String transformId = "transform1";
         // Note: Due to a bug the transform does not fail to start after deleting the user and role, therefore invalidating
         // the credentials stored with the config. As a workaround we use a 2nd transform that uses the same config
@@ -160,17 +164,23 @@ public class TransformUpdateIT extends TransformRestTestCase {
         setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, transformDest);
         setupDataAccessRole(DATA_ACCESS_ROLE_2, REVIEWS_INDEX_NAME, transformDest);
 
-        final Request createTransformRequest = createRequestWithAuth(
-            "PUT",
-            getTransformEndpoint() + transformId,
-            BASIC_AUTH_VALUE_TRANSFORM_ADMIN_2
-        );
+        final Request createTransformRequest = useSecondaryAuthHeaders
+            ? createRequestWithSecondaryAuth(
+                "PUT",
+                getTransformEndpoint() + transformId,
+                BASIC_AUTH_VALUE_TRANSFORM_ADMIN_NO_DATA,
+                BASIC_AUTH_VALUE_TRANSFORM_ADMIN_2
+            )
+            : createRequestWithAuth("PUT", getTransformEndpoint() + transformId, BASIC_AUTH_VALUE_TRANSFORM_ADMIN_2);
 
-        final Request createTransformRequest_2 = createRequestWithAuth(
-            "PUT",
-            getTransformEndpoint() + transformIdCloned,
-            BASIC_AUTH_VALUE_TRANSFORM_ADMIN_2
-        );
+        final Request createTransformRequest_2 = useSecondaryAuthHeaders
+            ? createRequestWithSecondaryAuth(
+                "PUT",
+                getTransformEndpoint() + transformIdCloned,
+                BASIC_AUTH_VALUE_TRANSFORM_ADMIN_NO_DATA,
+                BASIC_AUTH_VALUE_TRANSFORM_ADMIN_2
+            )
+            : createRequestWithAuth("PUT", getTransformEndpoint() + transformIdCloned, BASIC_AUTH_VALUE_TRANSFORM_ADMIN_2);
 
         String config = """
             {
@@ -229,20 +239,37 @@ public class TransformUpdateIT extends TransformRestTestCase {
         assertEquals(1, XContentMapValues.extractValue("count", transforms));
 
         // start using admin 1, but as the header is still admin 2
-        // BUG: this should fail, because the transform can not access the source index any longer
-        startAndWaitForTransform(transformId, transformDest, BASIC_AUTH_VALUE_TRANSFORM_ADMIN_1);
-
+        // This fails as the stored header is still admin 2
+        try {
+            if (useSecondaryAuthHeaders) {
+                startAndWaitForTransform(
+                    transformId,
+                    transformDest,
+                    BASIC_AUTH_VALUE_TRANSFORM_ADMIN_NO_DATA,
+                    BASIC_AUTH_VALUE_TRANSFORM_ADMIN_1,
+                    new String[0]
+                );
+            } else {
+                startAndWaitForTransform(transformId, transformDest, BASIC_AUTH_VALUE_TRANSFORM_ADMIN_1);
+            }
+            fail("request should have failed");
+        } catch (ResponseException e) {
+            assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(500));
+        }
         assertBusy(() -> {
             Map<?, ?> transformStatsAsMap = getTransformStateAndStats(transformId);
             assertThat(XContentMapValues.extractValue("stats.documents_indexed", transformStatsAsMap), equalTo(0));
         }, 3, TimeUnit.SECONDS);
 
         // update the transform with an empty body, the credentials (headers) should change
-        final Request updateRequest = createRequestWithAuth(
-            "POST",
-            getTransformEndpoint() + transformIdCloned + "/_update",
-            BASIC_AUTH_VALUE_TRANSFORM_ADMIN_1
-        );
+        final Request updateRequest = useSecondaryAuthHeaders
+            ? createRequestWithSecondaryAuth(
+                "POST",
+                getTransformEndpoint() + transformIdCloned + "/_update",
+                BASIC_AUTH_VALUE_TRANSFORM_ADMIN_NO_DATA,
+                BASIC_AUTH_VALUE_TRANSFORM_ADMIN_1
+            )
+            : createRequestWithAuth("POST", getTransformEndpoint() + transformIdCloned + "/_update", BASIC_AUTH_VALUE_TRANSFORM_ADMIN_1);
         updateRequest.setJsonEntity("{}");
         assertOK(client().performRequest(updateRequest));
 
@@ -252,8 +279,17 @@ public class TransformUpdateIT extends TransformRestTestCase {
         assertEquals(1, XContentMapValues.extractValue("count", transforms));
 
         // start with updated configuration should succeed
-        startAndWaitForTransform(transformIdCloned, transformDest, BASIC_AUTH_VALUE_TRANSFORM_ADMIN_1);
-
+        if (useSecondaryAuthHeaders) {
+            startAndWaitForTransform(
+                transformIdCloned,
+                transformDest,
+                BASIC_AUTH_VALUE_TRANSFORM_ADMIN_NO_DATA,
+                BASIC_AUTH_VALUE_TRANSFORM_ADMIN_1,
+                new String[0]
+            );
+        } else {
+            startAndWaitForTransform(transformIdCloned, transformDest, BASIC_AUTH_VALUE_TRANSFORM_ADMIN_1);
+        }
         assertBusy(() -> {
             Map<?, ?> transformStatsAsMap = getTransformStateAndStats(transformIdCloned);
             assertThat(XContentMapValues.extractValue("stats.documents_indexed", transformStatsAsMap), equalTo(27));

@@ -620,7 +620,7 @@ public class TransformIndexerStateTests extends ESTestCase {
         TransformContext context
     ) {
         CheckpointProvider checkpointProvider = new MockTimebasedCheckpointProvider(config);
-        transformConfigManager.putTransformConfiguration(config, ActionListener.wrap(r -> {}, e -> {}));
+        transformConfigManager.putTransformConfiguration(config, ActionListener.noop());
         TransformServices transformServices = new TransformServices(
             transformConfigManager,
             mock(TransformCheckpointService.class),

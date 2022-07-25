@@ -382,7 +382,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
         out.writeInstant(createTime);
         out.writeOptionalWriteable(definition);
         out.writeCollection(tags, StreamOutput::writeString);
-        out.writeMap(metadata);
+        out.writeGenericMap(metadata);
         input.writeTo(out);
         out.writeVLong(modelSize);
         out.writeVLong(estimatedOperations);

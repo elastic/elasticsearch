@@ -33,7 +33,9 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 
@@ -198,9 +200,23 @@ public class RestActions {
         return new BytesRestResponse(RestStatus.OK, builder);
     }
 
+    private static final String[] queryStringParams = new String[] { "df", "analyzer", "analyze_wildcard", "lenient", "default_operator" };
+
     public static QueryBuilder urlParamsToQueryBuilder(RestRequest request) {
         String queryString = request.param("q");
         if (queryString == null) {
+            List<String> unconsumedParams = Arrays.stream(queryStringParams).filter(key -> request.param(key) != null).toList();
+            if (unconsumedParams.isEmpty() == false) {
+                // this would lead to a non-descriptive error from RestBaseHandler#unrecognized later, so throw a better IAE here
+                throw new IllegalArgumentException(
+                    String.format(
+                        Locale.ROOT,
+                        "request [%s] contains parameters %s but missing query string parameter 'q'.",
+                        request.path(),
+                        unconsumedParams.toString()
+                    )
+                );
+            }
             return null;
         }
         QueryStringQueryBuilder queryBuilder = QueryBuilders.queryStringQuery(queryString);

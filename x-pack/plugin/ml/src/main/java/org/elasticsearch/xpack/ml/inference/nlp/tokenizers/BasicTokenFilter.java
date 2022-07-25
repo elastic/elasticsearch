@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.ml.inference.nlp.tokenizers;
 
-import com.carrotsearch.hppc.IntArrayList;
 import com.ibm.icu.text.Normalizer;
 import com.ibm.icu.text.Normalizer2;
 
@@ -146,8 +145,8 @@ public final class BasicTokenFilter extends TokenFilter {
         if (normalizer.quickCheck(termAtt) != Normalizer.YES) {
             normalizer.normalize(termAtt, accentBuffer);
         }
-        IntArrayList badIndices = new IntArrayList();
-        IntArrayList charCount = new IntArrayList();
+        List<Integer> badIndices = new ArrayList<>();
+        List<Integer> charCount = new ArrayList<>();
         int index = 0;
         for (PrimitiveIterator.OfInt it = accentBuffer.codePoints().iterator(); it.hasNext();) {
             int cp = it.next();

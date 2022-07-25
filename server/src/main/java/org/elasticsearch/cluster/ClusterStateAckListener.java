@@ -8,7 +8,6 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 
 /**
@@ -34,10 +33,16 @@ public interface ClusterStateAckListener {
     /**
      * Called once all the nodes have acknowledged the cluster state update request. Must be
      * very lightweight execution, since it gets executed on the cluster service thread.
+     */
+    void onAllNodesAcked();
+
+    /**
+     * Called after all the nodes have acknowledged the cluster state update request but at least one of them failed. Must be
+     * very lightweight execution, since it gets executed on the cluster service thread.
      *
      * @param e optional error that might have been thrown
      */
-    void onAllNodesAcked(@Nullable Exception e);
+    void onAckFailure(Exception e);
 
     /**
      * Called once the acknowledgement timeout defined by
@@ -46,7 +51,7 @@ public interface ClusterStateAckListener {
     void onAckTimeout();
 
     /**
-     * Acknowledgement timeout, maximum time interval to wait for acknowledgements
+     * @return acknowledgement timeout, maximum time interval to wait for acknowledgements
      */
     TimeValue ackTimeout();
 

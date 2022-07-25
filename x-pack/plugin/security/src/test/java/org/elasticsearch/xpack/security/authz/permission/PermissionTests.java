@@ -11,6 +11,7 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
 import org.elasticsearch.xpack.core.security.support.Automatons;
@@ -28,11 +29,12 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class PermissionTests extends ESTestCase {
+    private static final RestrictedIndices EMPTY_RESTRICTED_INDICES = new RestrictedIndices(Automatons.EMPTY);
     private Role permission;
 
     @Before
     public void init() {
-        Role.Builder builder = Role.builder(Automatons.EMPTY, "test");
+        Role.Builder builder = Role.builder(EMPTY_RESTRICTED_INDICES, "test");
         builder.add(MONITOR, "test_*", "/foo.*/");
         builder.add(READ, "baz_*foo", "/fool.*bar/");
         builder.add(MONITOR, "/bar.*/");
@@ -70,7 +72,7 @@ public class PermissionTests extends ESTestCase {
     }
 
     public void testBuildEmptyRole() {
-        Role.Builder permission = Role.builder(Automatons.EMPTY, "some_role");
+        Role.Builder permission = Role.builder(EMPTY_RESTRICTED_INDICES, "some_role");
         Role role = permission.build();
         assertThat(role, notNullValue());
         assertThat(role.cluster(), notNullValue());
@@ -79,7 +81,7 @@ public class PermissionTests extends ESTestCase {
     }
 
     public void testRunAs() {
-        Role permission = Role.builder(Automatons.EMPTY, "some_role").runAs(new Privilege("name", "user1", "run*")).build();
+        Role permission = Role.builder(EMPTY_RESTRICTED_INDICES, "some_role").runAs(new Privilege("name", "user1", "run*")).build();
         assertThat(permission.runAs().check("user1"), is(true));
         assertThat(permission.runAs().check("user"), is(false));
         assertThat(permission.runAs().check("run" + randomAlphaOfLengthBetween(1, 10)), is(true));

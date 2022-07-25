@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -25,13 +26,11 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * A system index descriptor describes one or more system indices. It can match a number of indices using
@@ -256,8 +255,10 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
             Strings.requireNonEmpty(primaryIndex, "Must supply primaryIndex for a managed system index");
             Strings.requireNonEmpty(versionMetaKey, "Must supply versionMetaKey for a managed system index");
             Strings.requireNonEmpty(origin, "Must supply origin for a managed system index");
+            if (settings.getAsInt(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), 0) != indexFormat) {
+                throw new IllegalArgumentException("Descriptor index format does not match index format in managed settings");
+            }
             this.mappingVersion = extractVersionFromMappings(mappings, versionMetaKey);
-            ;
         } else {
             this.mappingVersion = null;
         }
@@ -278,7 +279,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
             // 3. Prior system index descriptors may not have other prior system index descriptors
             // to avoid multiple branches that need followed
             // 4. Must have same indexPattern, primaryIndex, and alias
-            Set<Version> versions = new HashSet<>(priorSystemIndexDescriptors.size() + 1);
+            Set<Version> versions = Sets.newHashSetWithExpectedSize(priorSystemIndexDescriptors.size() + 1);
             versions.add(minimumNodeVersion);
             for (SystemIndexDescriptor prior : priorSystemIndexDescriptors) {
                 if (versions.add(prior.minimumNodeVersion) == false) {
@@ -400,7 +401,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
      */
     @Override
     public List<String> getMatchingIndices(Metadata metadata) {
-        return metadata.indices().keySet().stream().filter(this::matchesIndexPattern).collect(Collectors.toUnmodifiableList());
+        return metadata.indices().keySet().stream().filter(this::matchesIndexPattern).toList();
     }
 
     /**

@@ -11,7 +11,7 @@ import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -66,8 +66,9 @@ public class ReplicaToPrimaryPromotionIT extends ESIntegTestCase {
         ensureYellowAndNoInitializingShards(indexName);
 
         state = client(internalCluster().getMasterName()).admin().cluster().prepareState().get().getState();
-        for (IndexShardRoutingTable shardRoutingTable : state.routingTable().index(indexName)) {
-            for (ShardRouting shardRouting : shardRoutingTable.activeShards()) {
+        final IndexRoutingTable indexRoutingTable = state.routingTable().index(indexName);
+        for (int i = 0; i < indexRoutingTable.size(); i++) {
+            for (ShardRouting shardRouting : indexRoutingTable.shard(i).activeShards()) {
                 assertThat(shardRouting + " should be promoted as a primary", shardRouting.primary(), is(true));
             }
         }

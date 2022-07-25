@@ -222,7 +222,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         doAnswer(invocationOnMock -> {
             changedOperationMode.set(true);
             return null;
-        }).when(clusterService).submitStateUpdateTask(eq("ilm_operation_mode_update"), any(OperationModeUpdateTask.class), any());
+        }).when(clusterService).submitUnbatchedStateUpdateTask(eq("ilm_operation_mode_update"), any(OperationModeUpdateTask.class));
         indexLifecycleService.applyClusterState(event);
         indexLifecycleService.triggerPolicies(currentState, true);
         assertNull(changedOperationMode.get());
@@ -283,10 +283,9 @@ public class IndexLifecycleServiceTests extends ESTestCase {
             changedOperationMode.set(true);
             return null;
         }).when(clusterService)
-            .submitStateUpdateTask(
+            .submitUnbatchedStateUpdateTask(
                 eq("ilm_operation_mode_update[stopped]"),
-                eq(OperationModeUpdateTask.ilmMode(OperationMode.STOPPED)),
-                any()
+                eq(OperationModeUpdateTask.ilmMode(OperationMode.STOPPED))
             );
         indexLifecycleService.applyClusterState(event);
         indexLifecycleService.triggerPolicies(currentState, true);
@@ -345,7 +344,8 @@ public class IndexLifecycleServiceTests extends ESTestCase {
             assertThat(task.getILMOperationMode(), equalTo(OperationMode.STOPPED));
             moveToMaintenance.set(true);
             return null;
-        }).when(clusterService).submitStateUpdateTask(eq("ilm_operation_mode_update[stopped]"), any(OperationModeUpdateTask.class), any());
+        }).when(clusterService)
+            .submitUnbatchedStateUpdateTask(eq("ilm_operation_mode_update[stopped]"), any(OperationModeUpdateTask.class));
 
         indexLifecycleService.applyClusterState(event);
         indexLifecycleService.triggerPolicies(currentState, randomBoolean());

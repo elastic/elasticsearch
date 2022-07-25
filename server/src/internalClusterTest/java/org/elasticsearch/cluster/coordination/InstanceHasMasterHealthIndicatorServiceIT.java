@@ -45,7 +45,7 @@ public class InstanceHasMasterHealthIndicatorServiceIT extends ESIntegTestCase {
     public void testGetHealthWhenMasterIsElected() throws Exception {
         var client = client();
 
-        var response = client.execute(GetHealthAction.INSTANCE, new GetHealthAction.Request()).get();
+        var response = client.execute(GetHealthAction.INSTANCE, new GetHealthAction.Request(randomBoolean())).get();
 
         assertThat(response.findComponent(CLUSTER_COORDINATION).findIndicator(NAME).status(), equalTo(GREEN));
     }
@@ -66,7 +66,7 @@ public class InstanceHasMasterHealthIndicatorServiceIT extends ESIntegTestCase {
                 ClusterState state = client.admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
                 assertTrue(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
 
-                var response = client.execute(GetHealthAction.INSTANCE, new GetHealthAction.Request()).get();
+                var response = client.execute(GetHealthAction.INSTANCE, new GetHealthAction.Request(randomBoolean())).get();
 
                 assertThat(response.findComponent(CLUSTER_COORDINATION).findIndicator(NAME).status(), equalTo(RED));
             });

@@ -123,7 +123,7 @@ public class TransportImportDanglingIndexAction extends HandledTransportAction<I
 
                 logger.debug(
                     "Metadata versions {} found for index UUID [{}], selecting the highest",
-                    metaDataSortedByVersion.stream().map(IndexMetadata::getVersion).collect(Collectors.toList()),
+                    metaDataSortedByVersion.stream().map(IndexMetadata::getVersion).toList(),
                     indexUUID
                 );
 

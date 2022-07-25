@@ -37,6 +37,7 @@ import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermsQueryBuilder;
+import org.elasticsearch.index.query.WildcardQueryBuilder;
 import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.join.ParentJoinPlugin;
@@ -889,8 +890,8 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         assertAcked(client().admin().indices().prepareCreate("test").setSettings(indexSettings).setMapping(builder));
 
         for (int i = 0; i < 5; i++) {
-            client().prepareIndex("test").setSource("field1", "value1", "vector", new float[] { i, i, i }).get();
-            client().prepareIndex("test").setSource("field2", "value2", "vector", new float[] { i, i, i }).get();
+            client().prepareIndex("test").setSource("field1", "value1", "other", "valueA", "vector", new float[] { i, i, i }).get();
+            client().prepareIndex("test").setSource("field2", "value2", "other", "valueB", "vector", new float[] { i, i, i }).get();
         }
 
         client().admin().indices().prepareRefresh("test").get();
@@ -899,6 +900,10 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         // how the action works (it builds a kNN query under the hood)
         float[] queryVector = new float[] { 0.0f, 0.0f, 0.0f };
         KnnVectorQueryBuilder query = new KnnVectorQueryBuilder("vector", queryVector, 50);
+
+        if (randomBoolean()) {
+            query.addFilterQuery(new WildcardQueryBuilder("other", "value*"));
+        }
 
         // user1 should only be able to see docs with field1: value1
         SearchResponse response = client().filterWithHeader(

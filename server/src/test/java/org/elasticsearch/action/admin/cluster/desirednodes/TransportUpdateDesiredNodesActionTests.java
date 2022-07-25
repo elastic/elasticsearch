@@ -28,10 +28,13 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.action.admin.cluster.desirednodes.UpdateDesiredNodesRequestSerializationTests.randomUpdateDesiredNodesRequest;
 import static org.elasticsearch.cluster.metadata.DesiredNodesMetadataSerializationTests.randomDesiredNodesMetadata;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -47,7 +50,7 @@ public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase
 
     public static final DesiredNodesSettingsValidator NO_OP_SETTINGS_VALIDATOR = new DesiredNodesSettingsValidator(null) {
         @Override
-        public void validate(DesiredNodes desiredNodes) {}
+        public void validate(List<DesiredNode> desiredNodes) {}
     };
 
     public void testWriteBlocks() {
@@ -93,7 +96,7 @@ public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase
     public void testSettingsGetValidated() throws Exception {
         DesiredNodesSettingsValidator validator = new DesiredNodesSettingsValidator(null) {
             @Override
-            public void validate(DesiredNodes desiredNodes) {
+            public void validate(List<DesiredNode> desiredNodes) {
                 throw new IllegalArgumentException("Invalid settings");
             }
         };
@@ -114,7 +117,7 @@ public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, future::actionGet);
         assertThat(exception.getMessage(), containsString("Invalid settings"));
 
-        verify(clusterService, never()).submitStateUpdateTask(any(), any(), any());
+        verify(clusterService, never()).submitUnbatchedStateUpdateTask(any(), any());
     }
 
     public void testUpdateDesiredNodes() {
@@ -142,7 +145,10 @@ public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase
             request = new UpdateDesiredNodesRequest(desiredNodes.historyID(), desiredNodes.version() + 1, updatedNodes);
         }
 
-        final ClusterState updatedClusterState = TransportUpdateDesiredNodesAction.updateDesiredNodes(currentClusterState, request);
+        final ClusterState updatedClusterState = TransportUpdateDesiredNodesAction.replaceDesiredNodes(
+            currentClusterState,
+            TransportUpdateDesiredNodesAction.updateDesiredNodes(DesiredNodes.latestFromClusterState(currentClusterState), request)
+        );
         final DesiredNodesMetadata desiredNodesMetadata = updatedClusterState.metadata().custom(DesiredNodesMetadata.TYPE);
         assertThat(desiredNodesMetadata, is(notNullValue()));
 
@@ -150,35 +156,26 @@ public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase
         assertThat(desiredNodes, is(notNullValue()));
         assertThat(desiredNodes.historyID(), is(equalTo(request.getHistoryID())));
         assertThat(desiredNodes.version(), is(equalTo(request.getVersion())));
-        assertThat(desiredNodes.nodes(), is(equalTo(request.getNodes())));
+        assertThat(desiredNodes.nodes(), containsInAnyOrder(request.getNodes().toArray()));
     }
 
     public void testUpdatesAreIdempotent() {
-        final DesiredNodesMetadata desiredNodesMetadata = randomDesiredNodesMetadata();
-        final ClusterState currentClusterState = ClusterState.builder(new ClusterName(randomAlphaOfLength(10)))
-            .metadata(Metadata.builder().putCustom(DesiredNodesMetadata.TYPE, desiredNodesMetadata).build())
-            .build();
-
-        final DesiredNodes latestDesiredNodes = desiredNodesMetadata.getLatestDesiredNodes();
+        final DesiredNodes latestDesiredNodes = randomDesiredNodesMetadata().getLatestDesiredNodes();
+        final List<DesiredNode> equivalentDesiredNodesList = new ArrayList<>(latestDesiredNodes.nodes());
+        if (randomBoolean()) {
+            Collections.shuffle(equivalentDesiredNodesList, random());
+        }
         final UpdateDesiredNodesRequest request = new UpdateDesiredNodesRequest(
             latestDesiredNodes.historyID(),
             latestDesiredNodes.version(),
-            latestDesiredNodes.nodes()
+            equivalentDesiredNodesList
         );
 
-        final ClusterState updatedClusterState = TransportUpdateDesiredNodesAction.updateDesiredNodes(currentClusterState, request);
-        final DesiredNodesMetadata updatedDesiredNodesMetadata = updatedClusterState.metadata().custom(DesiredNodesMetadata.TYPE);
-        assertThat(updatedDesiredNodesMetadata, is(notNullValue()));
-        assertThat(updatedDesiredNodesMetadata.getLatestDesiredNodes(), is(notNullValue()));
-        assertThat(updatedDesiredNodesMetadata.getLatestDesiredNodes(), is(equalTo(latestDesiredNodes)));
+        assertSame(latestDesiredNodes, TransportUpdateDesiredNodesAction.updateDesiredNodes(latestDesiredNodes, request));
     }
 
     public void testUpdateSameHistoryAndVersionWithDifferentContentsFails() {
         final DesiredNodesMetadata desiredNodesMetadata = randomDesiredNodesMetadata();
-        final ClusterState currentClusterState = ClusterState.builder(new ClusterName(randomAlphaOfLength(10)))
-            .metadata(Metadata.builder().putCustom(DesiredNodesMetadata.TYPE, desiredNodesMetadata).build())
-            .build();
-
         final DesiredNodes latestDesiredNodes = desiredNodesMetadata.getLatestDesiredNodes();
         final UpdateDesiredNodesRequest request = new UpdateDesiredNodesRequest(
             latestDesiredNodes.historyID(),
@@ -188,27 +185,23 @@ public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase
 
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> TransportUpdateDesiredNodesAction.updateDesiredNodes(currentClusterState, request)
+            () -> TransportUpdateDesiredNodesAction.updateDesiredNodes(latestDesiredNodes, request)
         );
         assertThat(exception.getMessage(), containsString("already exists with a different definition"));
     }
 
     public void testBackwardUpdatesFails() {
         final DesiredNodesMetadata desiredNodesMetadata = randomDesiredNodesMetadata();
-        final ClusterState currentClusterState = ClusterState.builder(new ClusterName(randomAlphaOfLength(10)))
-            .metadata(Metadata.builder().putCustom(DesiredNodesMetadata.TYPE, desiredNodesMetadata).build())
-            .build();
-
         final DesiredNodes latestDesiredNodes = desiredNodesMetadata.getLatestDesiredNodes();
         final UpdateDesiredNodesRequest request = new UpdateDesiredNodesRequest(
             latestDesiredNodes.historyID(),
             latestDesiredNodes.version() - 1,
-            latestDesiredNodes.nodes()
+            List.copyOf(latestDesiredNodes.nodes())
         );
 
         VersionConflictException exception = expectThrows(
             VersionConflictException.class,
-            () -> TransportUpdateDesiredNodesAction.updateDesiredNodes(currentClusterState, request)
+            () -> TransportUpdateDesiredNodesAction.updateDesiredNodes(latestDesiredNodes, request)
         );
         assertThat(exception.getMessage(), containsString("has been superseded by version"));
     }

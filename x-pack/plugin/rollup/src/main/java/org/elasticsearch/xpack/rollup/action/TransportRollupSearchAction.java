@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -68,6 +67,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -408,7 +408,7 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
         }
     }
 
-    static RollupSearchContext separateIndices(String[] indices, ImmutableOpenMap<String, IndexMetadata> indexMetadata) {
+    static RollupSearchContext separateIndices(String[] indices, Map<String, IndexMetadata> indexMetadata) {
 
         if (indices.length == 0) {
             throw new IllegalArgumentException("Must specify at least one concrete index.");

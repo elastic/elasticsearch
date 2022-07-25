@@ -25,7 +25,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.TreeMap;
 
@@ -96,11 +95,7 @@ public class BucketScriptPipelineAggregationBuilder extends AbstractPipelineAggr
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeVInt(bucketsPathsMap.size());
-        for (Entry<String, String> e : bucketsPathsMap.entrySet()) {
-            out.writeString(e.getKey());
-            out.writeString(e.getValue());
-        }
+        out.writeMap(bucketsPathsMap, StreamOutput::writeString, StreamOutput::writeString);
         script.writeTo(out);
         out.writeOptionalString(format);
         gapPolicy.writeTo(out);

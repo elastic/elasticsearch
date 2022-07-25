@@ -17,7 +17,6 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MapperService;
@@ -133,7 +132,7 @@ public class IndexTemplateMetadata implements SimpleDiffable<IndexTemplateMetada
         if (this.mappings.isEmpty()) {
             return null;
         }
-        return this.mappings.iterator().next().value;
+        return this.mappings.values().iterator().next();
     }
 
     public CompressedXContent getMappings() {
@@ -208,15 +207,8 @@ public class IndexTemplateMetadata implements SimpleDiffable<IndexTemplateMetada
         out.writeInt(order);
         out.writeStringCollection(patterns);
         Settings.writeSettingsToStream(settings, out);
-        out.writeVInt(mappings.size());
-        for (Map.Entry<String, CompressedXContent> cursor : mappings.entrySet()) {
-            out.writeString(cursor.getKey());
-            cursor.getValue().writeTo(out);
-        }
-        out.writeVInt(aliases.size());
-        for (AliasMetadata aliasMetadata : aliases.values()) {
-            aliasMetadata.writeTo(out);
-        }
+        out.writeMap(mappings, StreamOutput::writeString, (o, v) -> v.writeTo(o));
+        out.writeCollection(aliases.values());
         out.writeOptionalVInt(version);
     }
 
@@ -235,14 +227,7 @@ public class IndexTemplateMetadata implements SimpleDiffable<IndexTemplateMetada
 
     public static class Builder {
 
-        private static final Set<String> VALID_FIELDS = Sets.newHashSet(
-            "order",
-            "mappings",
-            "settings",
-            "index_patterns",
-            "aliases",
-            "version"
-        );
+        private static final Set<String> VALID_FIELDS = Set.of("order", "mappings", "settings", "index_patterns", "aliases", "version");
 
         private String name;
 

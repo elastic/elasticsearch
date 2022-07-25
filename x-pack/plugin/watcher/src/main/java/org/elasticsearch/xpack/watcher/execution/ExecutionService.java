@@ -291,7 +291,7 @@ public class ExecutionService {
             BulkItemResponse itemResponse = response.getItems()[i];
             if (itemResponse.isFailed()) {
                 logger.error(
-                    new ParameterizedMessage("could not store triggered watch with id [{}]", itemResponse.getId()),
+                    () -> "could not store triggered watch with id [" + itemResponse.getId() + "]",
                     itemResponse.getFailure().getCause()
                 );
             } else {
@@ -362,7 +362,7 @@ public class ExecutionService {
                             historyStore.put(record);
                         }
                     } catch (Exception e) {
-                        logger.error(new ParameterizedMessage("failed to update watch record [{}]", ctx.id()), e);
+                        logger.error(() -> "failed to update watch record [" + ctx.id() + "]", e);
                         // TODO log watch record in logger, when saving in history store failed, otherwise the info is gone!
                     }
                 }
@@ -421,7 +421,7 @@ public class ExecutionService {
     private void logWatchRecord(WatchExecutionContext ctx, Exception e) {
         // failed watches stack traces are only logged in debug, otherwise they should be checked out in the history
         if (logger.isDebugEnabled()) {
-            logger.debug(() -> new ParameterizedMessage("failed to execute watch [{}]", ctx.id().watchId()), e);
+            logger.debug(() -> "failed to execute watch [" + ctx.id().watchId() + "]", e);
         } else {
             logger.warn("failed to execute watch [{}]", ctx.id().watchId());
         }
@@ -507,7 +507,7 @@ public class ExecutionService {
             }
         } catch (InterruptedException | ExecutionException | TimeoutException | IOException ioe) {
             final WatchRecord wr = watchRecord;
-            logger.error(new ParameterizedMessage("failed to persist watch record [{}]", wr), ioe);
+            logger.error(() -> "failed to persist watch record [" + wr + "]", ioe);
         }
     }
 

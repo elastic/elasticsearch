@@ -69,7 +69,7 @@ public class InternalGeoCentroidTests extends InternalAggregationTestCase<Intern
     protected void assertSampled(InternalGeoCentroid sampled, InternalGeoCentroid reduced, SamplingContext samplingContext) {
         assertEquals(sampled.centroid().getLat(), reduced.centroid().getLat(), 1e-12);
         assertEquals(sampled.centroid().getLon(), reduced.centroid().getLon(), 1e-12);
-        assertEquals(sampled.count(), samplingContext.inverseScale(reduced.count()), 0);
+        assertEquals(sampled.count(), samplingContext.scaleUp(reduced.count()), 0);
     }
 
     public void testReduceMaxCount() {

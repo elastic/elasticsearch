@@ -95,7 +95,7 @@ public class NerProcessorTests extends ESTestCase {
 
         var e = expectThrows(
             ElasticsearchStatusException.class,
-            () -> processor.processResult(tokenization, new PyTorchInferenceResult("test", null, 0L, null))
+            () -> processor.processResult(tokenization, new PyTorchInferenceResult("test", null, 0L))
         );
         assertThat(e, instanceOf(ElasticsearchStatusException.class));
     }
@@ -116,10 +116,10 @@ public class NerProcessorTests extends ESTestCase {
                 BertTokenizer.SEPARATOR_TOKEN,
                 BertTokenizer.CLASS_TOKEN
             ),
-            new BertTokenization(true, true, null, Tokenization.Truncate.NONE)
+            new BertTokenization(true, true, null, Tokenization.Truncate.NONE, -1)
         ).build();
         TokenizationResult tokenization = tokenizer.buildTokenizationResult(
-            List.of(tokenizer.tokenize("Many use Elasticsearch in London", Tokenization.Truncate.NONE))
+            List.of(tokenizer.tokenize("Many use Elasticsearch in London", Tokenization.Truncate.NONE, -1, 1).get(0))
         );
 
         double[][][] scores = {
@@ -134,7 +134,7 @@ public class NerProcessorTests extends ESTestCase {
                 { 0, 0, 0, 0, 0, 0, 0, 6, 0 }, // london
                 { 7, 0, 0, 0, 0, 0, 0, 0, 0 } // sep
             } };
-        NerResults result = (NerResults) processor.processResult(tokenization, new PyTorchInferenceResult("1", scores, 1L, null));
+        NerResults result = (NerResults) processor.processResult(tokenization, new PyTorchInferenceResult("1", scores, 1L));
 
         assertThat(result.getAnnotatedResult(), equalTo("Many use [Elasticsearch](ORG&Elasticsearch) in [London](LOC&London)"));
         assertThat(result.getEntityGroups().size(), equalTo(2));
@@ -161,7 +161,7 @@ public class NerProcessorTests extends ESTestCase {
                 { 0, 0, 0, 0, 0, 0, 0, 0, 0 }, // in
                 { 0, 0, 0, 0, 0, 0, 0, 6, 0 } // london
             } };
-        NerResults result = (NerResults) processor.processResult(tokenization, new PyTorchInferenceResult("1", scores, 1L, null));
+        NerResults result = (NerResults) processor.processResult(tokenization, new PyTorchInferenceResult("1", scores, 1L));
 
         assertThat(result.getAnnotatedResult(), equalTo("Many use [Elasticsearch](ORG&Elasticsearch) in [London](LOC&London)"));
         assertThat(result.getEntityGroups().size(), equalTo(2));
@@ -198,7 +198,7 @@ public class NerProcessorTests extends ESTestCase {
                 { 0, 0, 0, 0, 0, 0, 0, 0, 5 }, // in
                 { 6, 0, 0, 0, 0, 0, 0, 0, 0 } // london
             } };
-        NerResults result = (NerResults) processor.processResult(tokenization, new PyTorchInferenceResult("1", scores, 1L, null));
+        NerResults result = (NerResults) processor.processResult(tokenization, new PyTorchInferenceResult("1", scores, 1L));
 
         assertThat(result.getAnnotatedResult(), equalTo("[Elasticsearch](ORG&Elasticsearch) in [London](LOC&London)"));
         assertThat(result.getEntityGroups().size(), equalTo(2));
@@ -351,10 +351,10 @@ public class NerProcessorTests extends ESTestCase {
     }
 
     private static TokenizationResult tokenize(List<String> vocab, String input) {
-        BertTokenizer tokenizer = BertTokenizer.builder(vocab, new BertTokenization(true, false, null, Tokenization.Truncate.NONE))
+        BertTokenizer tokenizer = BertTokenizer.builder(vocab, new BertTokenization(true, false, null, Tokenization.Truncate.NONE, -1))
             .setDoLowerCase(true)
             .setWithSpecialTokens(false)
             .build();
-        return tokenizer.buildTokenizationResult(List.of(tokenizer.tokenize(input, Tokenization.Truncate.NONE)));
+        return tokenizer.buildTokenizationResult(tokenizer.tokenize(input, Tokenization.Truncate.NONE, -1, 0));
     }
 }

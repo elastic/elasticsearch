@@ -15,7 +15,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.rest.yaml.ObjectPath;
+import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;

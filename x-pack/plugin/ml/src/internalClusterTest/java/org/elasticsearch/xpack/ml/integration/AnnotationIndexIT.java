@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
@@ -180,12 +178,12 @@ public class AnnotationIndexIT extends MlSingleNodeTestCase {
                 .getAliases();
             assertNotNull(aliases);
             List<String> indicesWithReadAlias = new ArrayList<>();
-            for (ObjectObjectCursor<String, List<AliasMetadata>> entry : aliases) {
-                for (AliasMetadata aliasMetadata : entry.value) {
+            for (var entry : aliases.entrySet()) {
+                for (AliasMetadata aliasMetadata : entry.getValue()) {
                     switch (aliasMetadata.getAlias()) {
-                        case AnnotationIndex.WRITE_ALIAS_NAME -> assertThat(entry.key, is(AnnotationIndex.LATEST_INDEX_NAME));
-                        case AnnotationIndex.READ_ALIAS_NAME -> indicesWithReadAlias.add(entry.key);
-                        default -> fail("Found unexpected alias " + aliasMetadata.getAlias() + " on index " + entry.key);
+                        case AnnotationIndex.WRITE_ALIAS_NAME -> assertThat(entry.getKey(), is(AnnotationIndex.LATEST_INDEX_NAME));
+                        case AnnotationIndex.READ_ALIAS_NAME -> indicesWithReadAlias.add(entry.getKey());
+                        default -> fail("Found unexpected alias " + aliasMetadata.getAlias() + " on index " + entry.getKey());
                     }
                 }
             }
@@ -262,11 +260,11 @@ public class AnnotationIndexIT extends MlSingleNodeTestCase {
             .get()
             .getAliases();
         if (aliases != null) {
-            for (ObjectObjectCursor<String, List<AliasMetadata>> entry : aliases) {
-                for (AliasMetadata aliasMetadata : entry.value) {
+            for (var aliasList : aliases.values()) {
+                for (AliasMetadata aliasMetadata : aliasList) {
                     assertThat("Annotations aliases should be hidden but are not: " + aliases, aliasMetadata.isHidden(), is(true));
                 }
-                count += entry.value.size();
+                count += aliasList.size();
             }
         }
         return count;

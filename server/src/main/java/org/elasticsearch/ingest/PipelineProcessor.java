@@ -40,11 +40,6 @@ public class PipelineProcessor extends AbstractProcessor {
         }
     }
 
-    @Override
-    public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
-        throw new UnsupportedOperationException("this method should not get executed");
-    }
-
     Pipeline getPipeline(IngestDocument ingestDocument) {
         return ingestService.getPipeline(getPipelineToCallName(ingestDocument));
     }
@@ -56,6 +51,12 @@ public class PipelineProcessor extends AbstractProcessor {
     @Override
     public String getType() {
         return TYPE;
+    }
+
+    @Override
+    public boolean isAsync() {
+        // the pipeline processor always presents itself as async
+        return true;
     }
 
     TemplateScript.Factory getPipelineTemplate() {

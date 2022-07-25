@@ -21,7 +21,6 @@ import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -588,7 +587,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             return null;
         }
         Index index = metadata.getIndex();
-        ImmutableOpenMap<String, AliasMetadata> aliases = metadata.getAliases();
+        Map<String, AliasMetadata> aliases = metadata.getAliases();
         Function<AliasMetadata, QueryBuilder> parserFunction = (alias) -> {
             if (alias.filter() == null) {
                 return null;

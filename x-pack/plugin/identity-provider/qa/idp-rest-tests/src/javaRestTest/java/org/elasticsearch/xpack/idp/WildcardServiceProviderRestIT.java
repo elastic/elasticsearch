@@ -8,12 +8,12 @@ package org.elasticsearch.xpack.idp;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.security.user.privileges.ApplicationResourcePrivileges;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.junit.Before;
 
@@ -64,11 +64,11 @@ public class WildcardServiceProviderRestIT extends IdpRestTestCase {
         final String roleName = username + "_role";
         final User user = createUser(username, password, roleName);
 
-        final ApplicationResourcePrivileges applicationPrivilege = new ApplicationResourcePrivileges(
-            "elastic-cloud",
-            List.of("sso:admin"),
-            List.of("sso:" + entityId)
-        );
+        final RoleDescriptor.ApplicationResourcePrivileges applicationPrivilege = RoleDescriptor.ApplicationResourcePrivileges.builder()
+            .application("elastic-cloud")
+            .privileges("sso:admin")
+            .resources("sso:" + entityId)
+            .build();
         createRole(roleName, List.of(), List.of(), List.of(applicationPrivilege));
 
         final String samlResponse = initSso(entityId, acs, new UsernamePasswordToken(username, password));

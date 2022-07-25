@@ -34,8 +34,8 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.support.SecondaryAuthentication;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
 import org.junit.Before;
@@ -84,7 +84,7 @@ public class SecurityRestFilterTests extends ESTestCase {
     public void testProcess() throws Exception {
         RestRequest request = mock(RestRequest.class);
         when(request.getHttpChannel()).thenReturn(mock(HttpChannel.class));
-        Authentication authentication = mock(Authentication.class);
+        Authentication authentication = AuthenticationTestHelper.builder().build();
         doAnswer((i) -> {
             @SuppressWarnings("unchecked")
             ActionListener<Authentication> callback = (ActionListener<Authentication>) i.getArguments()[1];
@@ -102,8 +102,7 @@ public class SecurityRestFilterTests extends ESTestCase {
 
         when(request.getHttpChannel()).thenReturn(mock(HttpChannel.class));
 
-        Authentication primaryAuthentication = mock(Authentication.class);
-        when(primaryAuthentication.encode()).thenReturn(randomAlphaOfLengthBetween(12, 36));
+        Authentication primaryAuthentication = AuthenticationTestHelper.builder().build();
         doAnswer(i -> {
             final Object[] arguments = i.getArguments();
             @SuppressWarnings("unchecked")
@@ -112,8 +111,7 @@ public class SecurityRestFilterTests extends ESTestCase {
             return null;
         }).when(authcService).authenticate(eq(request), anyActionListener());
 
-        Authentication secondaryAuthentication = mock(Authentication.class);
-        when(secondaryAuthentication.encode()).thenReturn(randomAlphaOfLengthBetween(12, 36));
+        Authentication secondaryAuthentication = AuthenticationTestHelper.builder().build();
         doAnswer(i -> {
             final Object[] arguments = i.getArguments();
             @SuppressWarnings("unchecked")
@@ -265,7 +263,7 @@ public class SecurityRestFilterTests extends ESTestCase {
             @SuppressWarnings("unchecked")
             ActionListener<Authentication> callback = (ActionListener<Authentication>) i.getArguments()[1];
             authcServiceRequest.set((RestRequest) i.getArguments()[0]);
-            callback.onResponse(new Authentication(XPackUser.INSTANCE, new RealmRef("test", "test", "t"), null));
+            callback.onResponse(AuthenticationTestHelper.builder().realmRef(new RealmRef("test", "test", "t")).build(false));
             return Void.TYPE;
         }).when(authcService).authenticate(any(RestRequest.class), anyActionListener());
         filter = new SecurityRestFilter(Settings.EMPTY, threadContext, authcService, secondaryAuthenticator, restHandler, false);

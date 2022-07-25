@@ -21,7 +21,6 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.time.ZoneId;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -49,8 +48,8 @@ public class SparseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected List<Parameter<?>> getParameters() {
-            return List.of(meta);
+        protected Parameter<?>[] getParameters() {
+            return new Parameter<?>[] { meta };
         }
 
         @Override

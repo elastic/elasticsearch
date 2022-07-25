@@ -10,7 +10,6 @@ package org.elasticsearch.cluster.routing.allocation;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.client.internal.Client;
@@ -143,8 +142,7 @@ public class DiskThresholdMonitor {
         final long currentTimeMillis = currentTimeMillisSupplier.getAsLong();
 
         // Clean up nodes that have been removed from the cluster
-        final Set<String> nodes = new HashSet<>(usages.size());
-        usages.keys().iterator().forEachRemaining(item -> nodes.add(item.value));
+        final Set<String> nodes = new HashSet<>(usages.keySet());
         cleanUpRemovedNodes(nodes, nodesOverLowThreshold);
         cleanUpRemovedNodes(nodes, nodesOverHighThreshold);
         cleanUpRemovedNodes(nodes, nodesOverHighThresholdAndRelocating);
@@ -435,7 +433,7 @@ public class DiskThresholdMonitor {
         );
     }
 
-    private void markNodesMissingUsageIneligibleForRelease(
+    private static void markNodesMissingUsageIneligibleForRelease(
         RoutingNodes routingNodes,
         ImmutableOpenMap<String, DiskUsage> usages,
         Set<String> indicesToMarkIneligibleForAutoRelease
@@ -460,7 +458,7 @@ public class DiskThresholdMonitor {
             setLastRunTimeMillis();
             listener.onResponse(r);
         }, e -> {
-            logger.debug(new ParameterizedMessage("setting indices [{}] read-only failed", readOnly), e);
+            logger.debug(() -> "setting indices [" + readOnly + "] read-only failed", e);
             setLastRunTimeMillis();
             listener.onFailure(e);
         });
@@ -481,7 +479,7 @@ public class DiskThresholdMonitor {
         }
     }
 
-    private boolean isDedicatedFrozenNode(RoutingNode routingNode) {
+    private static boolean isDedicatedFrozenNode(RoutingNode routingNode) {
         if (routingNode == null) {
             return false;
         }

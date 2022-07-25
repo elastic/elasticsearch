@@ -22,7 +22,7 @@ public class DesiredNodeSerializationTests extends AbstractSerializingTestCase<D
 
     @Override
     protected Writeable.Reader<DesiredNode> instanceReader() {
-        return DesiredNode::new;
+        return DesiredNode::readFrom;
     }
 
     @Override

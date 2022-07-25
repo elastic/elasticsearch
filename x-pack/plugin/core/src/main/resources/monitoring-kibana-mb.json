@@ -3,6 +3,7 @@
   "version": ${xpack.stack.monitoring.template.release.version},
   "template": {
     "mappings": {
+      "dynamic": false,
       "properties": {
         "process": {
           "properties": {
@@ -388,6 +389,74 @@
                       }
                     }
                   }
+                }
+              }
+            },
+            "cluster_rules": {
+              "properties": {
+                "overdue": {
+                  "properties": {
+                    "count": {
+                      "type": "long"
+                    },
+                    "delay": {
+                      "properties": {
+                        "p50": {
+                          "type": "float"
+                        },
+                        "p99": {
+                          "type": "float"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "node_rules": {
+              "properties": {
+                "failures": {
+                  "type": "long"
+                },
+                "executions": {
+                  "type": "long"
+                },
+                "timeouts": {
+                  "type": "long"
+                }
+              }
+            },
+            "cluster_actions": {
+              "properties": {
+                "overdue": {
+                  "properties": {
+                    "count": {
+                      "type": "long"
+                    },
+                    "delay": {
+                      "properties": {
+                        "p50": {
+                          "type": "float"
+                        },
+                        "p99": {
+                          "type": "float"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "node_actions": {
+              "properties": {
+                "failures": {
+                  "type": "long"
+                },
+                "executions": {
+                  "type": "long"
+                },
+                "timeouts": {
+                  "type": "long"
                 }
               }
             }

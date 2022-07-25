@@ -196,14 +196,7 @@ public class XContentHelper {
      * error.
      */
     public static Map<String, Object> convertToMap(XContent xContent, String string, boolean ordered) throws ElasticsearchParseException {
-        // It is safe to use EMPTY here because this never uses namedObject
-        try (
-            XContentParser parser = xContent.createParser(
-                NamedXContentRegistry.EMPTY,
-                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                string
-            )
-        ) {
+        try (XContentParser parser = xContent.createParser(XContentParserConfiguration.EMPTY, string)) {
             return ordered ? parser.mapOrdered() : parser.map();
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse content to map", e);

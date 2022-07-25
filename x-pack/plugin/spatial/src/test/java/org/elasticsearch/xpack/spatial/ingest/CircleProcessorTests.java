@@ -227,12 +227,12 @@ public class CircleProcessorTests extends ESTestCase {
 
         SearchExecutionContext mockedContext = mock(SearchExecutionContext.class);
         when(mockedContext.getFieldType(any())).thenReturn(shapeType);
-        Query sameShapeQuery = shapeType.geoShapeQuery(geometry, fieldName, ShapeRelation.INTERSECTS, mockedContext);
+        Query sameShapeQuery = shapeType.geoShapeQuery(mockedContext, fieldName, ShapeRelation.INTERSECTS, geometry);
         Query pointOnDatelineQuery = shapeType.geoShapeQuery(
-            new Point(180, circle.getLat()),
+            mockedContext,
             fieldName,
             ShapeRelation.INTERSECTS,
-            mockedContext
+            new Point(180, circle.getLat())
         );
 
         try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {

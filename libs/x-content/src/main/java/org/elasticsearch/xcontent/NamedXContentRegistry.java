@@ -90,7 +90,7 @@ public class NamedXContentRegistry {
         this.registry = unmodifiableMap(createRegistry(entries));
     }
 
-    private Map<RestApiVersion, Map<Class<?>, Map<String, Entry>>> createRegistry(List<Entry> entries) {
+    private static Map<RestApiVersion, Map<Class<?>, Map<String, Entry>>> createRegistry(List<Entry> entries) {
         if (entries.isEmpty()) {
             return emptyMap();
         }
@@ -109,7 +109,7 @@ public class NamedXContentRegistry {
         return newRegistry;
     }
 
-    private void registerParsers(
+    private static void registerParsers(
         Map<RestApiVersion, Map<Class<?>, Map<String, Entry>>> newRegistry,
         Entry entry,
         String name,

@@ -10,7 +10,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.ml.action.InternalInferModelAction;
+import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationFeatureImportance;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.RegressionFeatureImportance;
@@ -70,7 +70,7 @@ public class InferenceProcessorTests extends ESTestCase {
         Map<String, Object> ingestMetadata = new HashMap<>();
         IngestDocument document = new IngestDocument(source, ingestMetadata);
 
-        InternalInferModelAction.Response response = new InternalInferModelAction.Response(
+        InferModelAction.Response response = new InferModelAction.Response(
             Collections.singletonList(
                 new ClassificationInferenceResults(1.0, "foo", null, Collections.emptyList(), ClassificationConfig.EMPTY_PARAMS, 1.0, 1.0)
             ),
@@ -109,7 +109,7 @@ public class InferenceProcessorTests extends ESTestCase {
         classes.add(new TopClassEntry("foo", 0.6, 0.6));
         classes.add(new TopClassEntry("bar", 0.4, 0.4));
 
-        InternalInferModelAction.Response response = new InternalInferModelAction.Response(
+        InferModelAction.Response response = new InferModelAction.Response(
             Collections.singletonList(
                 new ClassificationInferenceResults(1.0, "foo", classes, Collections.emptyList(), classificationConfig, 0.6, 0.6)
             ),
@@ -162,7 +162,7 @@ public class InferenceProcessorTests extends ESTestCase {
             )
         );
 
-        InternalInferModelAction.Response response = new InternalInferModelAction.Response(
+        InferModelAction.Response response = new InferModelAction.Response(
             Collections.singletonList(
                 new ClassificationInferenceResults(1.0, "foo", classes, featureInfluence, classificationConfig, 0.6, 0.6)
             ),
@@ -204,7 +204,7 @@ public class InferenceProcessorTests extends ESTestCase {
         classes.add(new TopClassEntry("foo", 0.6, 0.6));
         classes.add(new TopClassEntry("bar", 0.4, 0.4));
 
-        InternalInferModelAction.Response response = new InternalInferModelAction.Response(
+        InferModelAction.Response response = new InferModelAction.Response(
             Collections.singletonList(
                 new ClassificationInferenceResults(1.0, "foo", classes, Collections.emptyList(), classificationConfig, 0.6, 0.6)
             ),
@@ -239,7 +239,7 @@ public class InferenceProcessorTests extends ESTestCase {
         Map<String, Object> ingestMetadata = new HashMap<>();
         IngestDocument document = new IngestDocument(source, ingestMetadata);
 
-        InternalInferModelAction.Response response = new InternalInferModelAction.Response(
+        InferModelAction.Response response = new InferModelAction.Response(
             Collections.singletonList(new RegressionInferenceResults(0.7, regressionConfig)),
             null,
             true
@@ -272,7 +272,7 @@ public class InferenceProcessorTests extends ESTestCase {
         featureInfluence.add(new RegressionFeatureImportance("feature_1", 1.13));
         featureInfluence.add(new RegressionFeatureImportance("feature_2", -42.0));
 
-        InternalInferModelAction.Response response = new InternalInferModelAction.Response(
+        InferModelAction.Response response = new InferModelAction.Response(
             Collections.singletonList(new RegressionInferenceResults(0.7, regressionConfig, featureInfluence)),
             null,
             true
@@ -421,7 +421,7 @@ public class InferenceProcessorTests extends ESTestCase {
 
         assertThat(inferenceProcessor.buildRequest(document).isPreviouslyLicensed(), is(false));
 
-        InternalInferModelAction.Response response = new InternalInferModelAction.Response(
+        InferModelAction.Response response = new InferModelAction.Response(
             Collections.singletonList(new RegressionInferenceResults(0.7, RegressionConfig.EMPTY_PARAMS)),
             null,
             true
@@ -433,7 +433,7 @@ public class InferenceProcessorTests extends ESTestCase {
 
         assertThat(inferenceProcessor.buildRequest(document).isPreviouslyLicensed(), is(true));
 
-        response = new InternalInferModelAction.Response(
+        response = new InferModelAction.Response(
             Collections.singletonList(new RegressionInferenceResults(0.7, RegressionConfig.EMPTY_PARAMS)),
             null,
             false
@@ -471,7 +471,7 @@ public class InferenceProcessorTests extends ESTestCase {
         Map<String, Object> ingestMetadata = new HashMap<>();
         IngestDocument document = new IngestDocument(source, ingestMetadata);
 
-        InternalInferModelAction.Response response = new InternalInferModelAction.Response(
+        InferModelAction.Response response = new InferModelAction.Response(
             Collections.singletonList(new WarningInferenceResults("something broke")),
             null,
             true
@@ -501,7 +501,7 @@ public class InferenceProcessorTests extends ESTestCase {
         Map<String, Object> ingestMetadata = new HashMap<>();
         IngestDocument document = new IngestDocument(source, ingestMetadata);
 
-        InternalInferModelAction.Response response = new InternalInferModelAction.Response(
+        InferModelAction.Response response = new InferModelAction.Response(
             Collections.singletonList(new RegressionInferenceResults(0.7, new RegressionConfig("foo"))),
             modelId,
             true

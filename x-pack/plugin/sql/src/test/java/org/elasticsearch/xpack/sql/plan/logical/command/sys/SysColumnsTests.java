@@ -287,7 +287,8 @@ public class SysColumnsTests extends ESTestCase {
             false,
             false,
             null,
-            null
+            null,
+            false
         );
         Tuple<Command, SqlSession> tuple = sql(sql, emptyList(), config, MAPPING1);
 
@@ -298,7 +299,7 @@ public class SysColumnsTests extends ESTestCase {
                 Cursor c = page.next();
                 rowCount[0] += page.rowSet().size();
                 if (c != Cursor.EMPTY) {
-                    c.nextPage(config, null, null, this);
+                    c.nextPage(config, null, this);
                 }
             }
 
@@ -333,7 +334,8 @@ public class SysColumnsTests extends ESTestCase {
             false,
             false,
             null,
-            null
+            null,
+            false
         );
         Tuple<Command, SqlSession> tuple = sql(sql, params, config, mapping);
 

@@ -32,6 +32,7 @@ import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.SearchContext;
@@ -52,6 +53,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * This is an abstract base class that encapsulates the logic to fan out to all shards in provided {@link GroupShardsIterator}
@@ -165,6 +168,19 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         this.clusters = clusters;
     }
 
+    protected void notifyListShards(
+        SearchProgressListener progressListener,
+        SearchResponse.Clusters clusters,
+        SearchSourceBuilder sourceBuilder
+    ) {
+        progressListener.notifyListShards(
+            SearchProgressListener.buildSearchShards(this.shardsIts),
+            SearchProgressListener.buildSearchShards(toSkipShardsIts),
+            clusters,
+            sourceBuilder == null || sourceBuilder.size() > 0
+        );
+    }
+
     @Override
     public void addReleasable(Releasable releasable) {
         releasables.add(releasable);
@@ -271,7 +287,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         return true;
     }
 
-    private boolean assertExecuteOnStartThread() {
+    private static boolean assertExecuteOnStartThread() {
         // Ensure that the current code has the following stacktrace:
         // AbstractSearchAsyncAction#start -> AbstractSearchAsyncAction#executePhase -> AbstractSearchAsyncAction#performPhaseOnShard
         final StackTraceElement[] stackTraceElements = Thread.currentThread().getStackTrace();
@@ -399,7 +415,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             Throwable cause = shardSearchFailures.length == 0
                 ? null
                 : ElasticsearchException.guessRootCauses(shardSearchFailures[0].getCause())[0];
-            logger.debug(() -> new ParameterizedMessage("All shards failed for phase: [{}]", currentPhase.getName()), cause);
+            logger.debug(() -> "All shards failed for phase: [" + currentPhase.getName() + "]", cause);
             onPhaseFailure(currentPhase, "all shards failed", cause);
         } else {
             Boolean allowPartialResults = request.allowPartialSearchResults();
@@ -412,10 +428,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                         int numShardFailures = shardSearchFailures.length;
                         shardSearchFailures = ExceptionsHelper.groupBy(shardSearchFailures);
                         Throwable cause = ElasticsearchException.guessRootCauses(shardSearchFailures[0].getCause())[0];
-                        logger.debug(
-                            () -> new ParameterizedMessage("{} shards failed for phase: [{}]", numShardFailures, currentPhase.getName()),
-                            cause
-                        );
+                        logger.debug(() -> format("%s shards failed for phase: [%s]", numShardFailures, currentPhase.getName()), cause);
                     }
                     onPhaseFailure(currentPhase, "Partial shards failure", null);
                     return;
@@ -482,7 +495,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         onShardFailure(shardIndex, shard, e);
         final SearchShardTarget nextShard = shardIt.nextOrNull();
         final boolean lastShard = nextShard == null;
-        logger.debug(() -> new ParameterizedMessage("{}: Failed to execute [{}] lastShard [{}]", shard, request, lastShard), e);
+        logger.debug(() -> format("%s: Failed to execute [%s] lastShard [%s]", shard, request, lastShard), e);
         if (lastShard) {
             if (request.allowPartialSearchResults() == false) {
                 if (requestCancelled.compareAndSet(false, true)) {

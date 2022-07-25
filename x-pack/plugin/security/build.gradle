@@ -16,7 +16,6 @@ archivesBaseName = 'x-pack-security'
 dependencies {
   compileOnly project(path: xpackModule('core'))
   api project(path: ':modules:transport-netty4')
-  api project(path: ':plugins:transport-nio')
 
   testImplementation project(path: xpackModule('ilm'))
   testImplementation project(path: xpackModule('monitoring'))
@@ -175,6 +174,12 @@ tasks.named("forbiddenPatterns").configure {
 
 tasks.named('forbiddenApisMain').configure {
   signaturesFiles += files('forbidden/ldap-signatures.txt', 'forbidden/xml-signatures.txt', 'forbidden/oidc-signatures.txt')
+}
+
+tasks.named('forbiddenApisTest').configure {
+  //we are using jdk-internal instead of jdk-non-portable to allow for com.sun.net.httpserver.* usage
+  bundledSignatures -= 'jdk-non-portable'
+  bundledSignatures += 'jdk-internal'
 }
 
 // classes are missing, e.g. com.ibm.icu.lang.UCharacter

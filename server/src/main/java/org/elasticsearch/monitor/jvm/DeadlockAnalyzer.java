@@ -49,7 +49,7 @@ public class DeadlockAnalyzer {
         return createDeadlockDescriptions(cycles);
     }
 
-    private Deadlock[] createDeadlockDescriptions(Set<LinkedHashSet<ThreadInfo>> cycles) {
+    private static Deadlock[] createDeadlockDescriptions(Set<LinkedHashSet<ThreadInfo>> cycles) {
         Deadlock result[] = new Deadlock[cycles.size()];
         int count = 0;
         for (LinkedHashSet<ThreadInfo> cycle : cycles) {
@@ -60,7 +60,7 @@ public class DeadlockAnalyzer {
         return result;
     }
 
-    private Set<LinkedHashSet<ThreadInfo>> calculateCycles(Map<Long, ThreadInfo> threadInfoMap) {
+    private static Set<LinkedHashSet<ThreadInfo>> calculateCycles(Map<Long, ThreadInfo> threadInfoMap) {
         Set<LinkedHashSet<ThreadInfo>> cycles = new HashSet<>();
         for (Map.Entry<Long, ThreadInfo> entry : threadInfoMap.entrySet()) {
             LinkedHashSet<ThreadInfo> cycle = new LinkedHashSet<>();

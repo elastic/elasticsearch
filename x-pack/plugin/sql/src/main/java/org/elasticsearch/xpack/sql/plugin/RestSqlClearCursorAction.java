@@ -10,12 +10,19 @@ package org.elasticsearch.xpack.sql.plugin;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.action.RestResponseListener;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.sql.action.Protocol;
 import org.elasticsearch.xpack.sql.action.SqlClearCursorAction;
 import org.elasticsearch.xpack.sql.action.SqlClearCursorRequest;
+import org.elasticsearch.xpack.sql.action.SqlClearCursorResponse;
+import org.elasticsearch.xpack.sql.proto.Mode;
 
 import java.io.IOException;
 import java.util.List;
@@ -40,7 +47,18 @@ public class RestSqlClearCursorAction extends BaseRestHandler {
             sqlRequest = SqlClearCursorRequest.fromXContent(parser);
         }
 
-        return channel -> client.executeLocally(SqlClearCursorAction.INSTANCE, sqlRequest, new RestToXContentListener<>(channel));
+        return channel -> client.executeLocally(SqlClearCursorAction.INSTANCE, sqlRequest, new RestResponseListener<>(channel) {
+            @Override
+            public RestResponse buildResponse(SqlClearCursorResponse response) throws Exception {
+                Boolean binaryRequest = sqlRequest.binaryCommunication();
+                XContentType type = Boolean.TRUE.equals(binaryRequest) || (binaryRequest == null && Mode.isDriver(sqlRequest.mode()))
+                    ? XContentType.CBOR
+                    : XContentType.JSON;
+                XContentBuilder builder = channel.newBuilder(request.getXContentType(), type, false);
+                response.toXContent(builder, request);
+                return new BytesRestResponse(RestStatus.OK, builder);
+            }
+        });
     }
 
     @Override

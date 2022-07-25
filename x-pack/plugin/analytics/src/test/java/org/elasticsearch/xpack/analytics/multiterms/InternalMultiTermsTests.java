@@ -24,6 +24,7 @@ import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -32,6 +33,7 @@ import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -149,6 +151,29 @@ public class InternalMultiTermsTests extends InternalAggregationTestCase<Interna
             );
         }
         return bucketList;
+    }
+
+    @Override
+    protected boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
+    protected void assertSampled(InternalMultiTerms sampled, InternalMultiTerms reduced, SamplingContext samplingContext) {
+        assertBucketCountsScaled(sampled.getBuckets(), reduced.getBuckets(), samplingContext);
+    }
+
+    protected void assertBucketCountsScaled(
+        List<InternalMultiTerms.Bucket> sampled,
+        List<InternalMultiTerms.Bucket> reduced,
+        SamplingContext samplingContext
+    ) {
+        assertEquals(sampled.size(), reduced.size());
+        Iterator<InternalMultiTerms.Bucket> sampledIt = sampled.iterator();
+        for (InternalMultiTerms.Bucket reducedBucket : reduced) {
+            InternalMultiTerms.Bucket sampledBucket = sampledIt.next();
+            assertEquals(sampledBucket.getDocCount(), samplingContext.scaleUp(reducedBucket.getDocCount()));
+        }
     }
 
     @Override

@@ -16,7 +16,6 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -148,7 +147,7 @@ public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {
         assertEquals("Some unexpected fields were returned: " + fields.keySet(), 0, fields.size());
     }
 
-    private void assertExpectedMappings(ImmutableOpenMap<String, MappingMetadata> mappings) {
+    private void assertExpectedMappings(Map<String, MappingMetadata> mappings) {
         assertEquals(2, mappings.size());
         assertNotFiltered(mappings.get("index1"));
         MappingMetadata filtered = mappings.get("filtered");

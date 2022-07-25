@@ -14,7 +14,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -24,6 +23,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -63,7 +63,7 @@ public class PromoteDataStreamTransportAction extends AcknowledgedTransportMaste
         ActionListener<AcknowledgedResponse> listener
     ) throws Exception {
         systemIndices.validateDataStreamAccess(request.getName(), threadPool.getThreadContext());
-        clusterService.submitStateUpdateTask(
+        submitUnbatchedTask(
             "promote-data-stream [" + request.getName() + "]",
             new ClusterStateUpdateTask(Priority.HIGH, request.masterNodeTimeout()) {
 
@@ -81,9 +81,13 @@ public class PromoteDataStreamTransportAction extends AcknowledgedTransportMaste
                 public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     listener.onResponse(AcknowledgedResponse.TRUE);
                 }
-            },
-            ClusterStateTaskExecutor.unbatched()
+            }
         );
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
     static ClusterState promoteDataStream(ClusterState currentState, PromoteDataStreamAction.Request request) {

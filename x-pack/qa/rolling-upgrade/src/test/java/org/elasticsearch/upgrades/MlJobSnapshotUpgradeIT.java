@@ -17,6 +17,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.test.rest.XPackRestTestConstants;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -41,6 +42,11 @@ import static org.hamcrest.Matchers.is;
 public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
 
     private static final String JOB_ID = "ml-snapshots-upgrade-job";
+
+    @BeforeClass
+    public static void maybeSkip() {
+        assumeFalse("Skip ML tests on unsupported glibc versions", SKIP_ML_TESTS);
+    }
 
     @Override
     protected Collection<String> templatesToWaitFor() {

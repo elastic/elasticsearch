@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.sql.execution.search;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.ql.execution.search.extractor.ConstantExtractorTests;
 import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
 import org.elasticsearch.xpack.sql.AbstractSqlWireSerializingTestCase;
@@ -29,10 +30,11 @@ public class SearchHitCursorTests extends AbstractSqlWireSerializingTestCase<Sea
             extractors.add(randomHitExtractor(0));
         }
         return new SearchHitCursor(
-            new byte[randomInt(256)],
+            new SearchSourceBuilder().size(randomInt(1000)),
             extractors,
             CompositeAggregationCursorTests.randomBitSet(extractorsSize),
             randomIntBetween(10, 1024),
+            randomBoolean(),
             randomBoolean()
         );
     }
@@ -53,7 +55,8 @@ public class SearchHitCursorTests extends AbstractSqlWireSerializingTestCase<Sea
             instance.extractors(),
             randomValueOtherThan(instance.mask(), () -> CompositeAggregationCursorTests.randomBitSet(instance.extractors().size())),
             randomValueOtherThan(instance.limit(), () -> randomIntBetween(1, 1024)),
-            instance.includeFrozen() == false
+            instance.includeFrozen() == false,
+            instance.allowPartialSearchResults() == false
         );
     }
 

@@ -13,7 +13,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.internal.io.Streams;
+import org.elasticsearch.core.Streams;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.xpack.idp.action.SamlValidateAuthnRequestResponse;
@@ -33,7 +33,6 @@ import org.xml.sax.SAXException;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
@@ -98,7 +97,7 @@ public class SamlAuthnRequestValidator {
             // verify if we know of this SP and get its credentials for signature verification
             final Element root = parseSamlMessage(inflate(decodeBase64(parsedQueryString.samlRequest)));
             if (samlFactory.elementNameMatches(root, "urn:oasis:names:tc:SAML:2.0:protocol", "AuthnRequest") == false) {
-                logAndRespond(new ParameterizedMessage("SAML message [{}] is not an AuthnRequest", samlFactory.text(root, 128)), listener);
+                logAndRespond("SAML message [" + samlFactory.text(root, 128) + "] is not an AuthnRequest", listener);
                 return;
             }
             final AuthnRequest authnRequest = samlFactory.buildXmlObject(root, AuthnRequest.class);
@@ -369,8 +368,8 @@ public class SamlAuthnRequestValidator {
         }
     }
 
-    private String urlEncode(String param) throws UnsupportedEncodingException {
-        return URLEncoder.encode(param, StandardCharsets.UTF_8.name());
+    private String urlEncode(String param) {
+        return URLEncoder.encode(param, StandardCharsets.UTF_8);
     }
 
     private void logAndRespond(String message, ActionListener<SamlValidateAuthnRequestResponse> listener) {
@@ -406,13 +405,9 @@ public class SamlAuthnRequestValidator {
         }
 
         public String reconstructQueryParameters() throws ElasticsearchSecurityException {
-            try {
-                return relayState == null
-                    ? "SAMLRequest=" + urlEncode(samlRequest) + "&SigAlg=" + urlEncode(sigAlg)
-                    : "SAMLRequest=" + urlEncode(samlRequest) + "&RelayState=" + urlEncode(relayState) + "&SigAlg=" + urlEncode(sigAlg);
-            } catch (UnsupportedEncodingException e) {
-                throw new ElasticsearchSecurityException("Cannot reconstruct query for signature verification", e);
-            }
+            return relayState == null
+                ? "SAMLRequest=" + urlEncode(samlRequest) + "&SigAlg=" + urlEncode(sigAlg)
+                : "SAMLRequest=" + urlEncode(samlRequest) + "&RelayState=" + urlEncode(relayState) + "&SigAlg=" + urlEncode(sigAlg);
         }
     }
 }

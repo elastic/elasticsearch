@@ -45,7 +45,7 @@ public class NlpTask {
     }
 
     public interface RequestBuilder {
-        Request buildRequest(List<String> inputs, String requestId, Tokenization.Truncate truncate) throws IOException;
+        Request buildRequest(List<String> inputs, String requestId, Tokenization.Truncate truncate, int span) throws IOException;
     }
 
     public interface ResultProcessor {

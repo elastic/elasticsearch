@@ -749,4 +749,47 @@ public class IndexSettingsTests extends ESTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new IndexSettings(metadata, Settings.EMPTY));
         assertThat(e.getMessage(), Matchers.containsString("index.time_series.end_time must be larger than index.time_series.start_time"));
     }
+
+    public void testSame() {
+        final var indexSettingKey = "index.example.setting";
+        final var archivedSettingKey = "archived.example.setting";
+        final var otherSettingKey = "other.example.setting";
+
+        final var builder = Settings.builder();
+        if (randomBoolean()) {
+            builder.put(indexSettingKey, randomAlphaOfLength(10));
+        }
+        if (randomBoolean()) {
+            builder.put(archivedSettingKey, randomAlphaOfLength(10));
+        }
+        if (randomBoolean()) {
+            builder.put(otherSettingKey, randomAlphaOfLength(10));
+        }
+        final var settings = builder.build();
+        assertTrue(IndexSettings.same(settings, Settings.builder().put(settings).build()));
+
+        final var differentIndexSettingBuilder = Settings.builder().put(settings);
+        if (settings.hasValue(indexSettingKey) && randomBoolean()) {
+            differentIndexSettingBuilder.putNull(indexSettingKey);
+        } else {
+            differentIndexSettingBuilder.put(indexSettingKey, randomAlphaOfLength(11));
+        }
+        assertFalse(IndexSettings.same(settings, differentIndexSettingBuilder.build()));
+
+        final var differentArchivedSettingBuilder = Settings.builder().put(settings);
+        if (settings.hasValue(archivedSettingKey) && randomBoolean()) {
+            differentArchivedSettingBuilder.putNull(archivedSettingKey);
+        } else {
+            differentArchivedSettingBuilder.put(archivedSettingKey, randomAlphaOfLength(11));
+        }
+        assertFalse(IndexSettings.same(settings, differentArchivedSettingBuilder.build()));
+
+        final var differentOtherSettingBuilder = Settings.builder().put(settings);
+        if (settings.hasValue(otherSettingKey) && randomBoolean()) {
+            differentOtherSettingBuilder.putNull(otherSettingKey);
+        } else {
+            differentOtherSettingBuilder.put(otherSettingKey, randomAlphaOfLength(11));
+        }
+        assertTrue(IndexSettings.same(settings, differentOtherSettingBuilder.build()));
+    }
 }

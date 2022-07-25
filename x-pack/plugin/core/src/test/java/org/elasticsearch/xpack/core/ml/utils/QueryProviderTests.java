@@ -17,10 +17,10 @@ import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 
@@ -81,7 +81,7 @@ public class QueryProviderTests extends AbstractSerializingTestCase<QueryProvide
 
     public void testEmptyQueryMap() throws IOException {
         XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-            .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, "{}");
+            .createParser(XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry()), "{}");
         ElasticsearchStatusException e = expectThrows(
             ElasticsearchStatusException.class,
             () -> QueryProvider.fromXContent(parser, false, Messages.DATAFEED_CONFIG_QUERY_BAD_FORMAT)

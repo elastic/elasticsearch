@@ -413,8 +413,8 @@ public class MlIndexAndAliasTests extends ESTestCase {
             )
             .metadata(
                 Metadata.builder()
-                    .indices(ImmutableOpenMap.<String, IndexMetadata>builder().putAll(indices).build())
-                    .templates(ImmutableOpenMap.<String, IndexTemplateMetadata>builder().putAll(legacyTemplates).build())
+                    .indices(ImmutableOpenMap.<String, IndexMetadata>builder().putAllFromMap(indices).build())
+                    .templates(ImmutableOpenMap.<String, IndexTemplateMetadata>builder().putAllFromMap(legacyTemplates).build())
                     .indexTemplates(composableTemplates)
                     .build()
             )

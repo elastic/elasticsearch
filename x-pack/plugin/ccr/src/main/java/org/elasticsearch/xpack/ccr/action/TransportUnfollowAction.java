@@ -22,7 +22,6 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -32,6 +31,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.seqno.RetentionLeaseNotFoundException;
@@ -85,7 +85,7 @@ public class TransportUnfollowAction extends AcknowledgedTransportMasterNodeActi
         final ClusterState state,
         final ActionListener<AcknowledgedResponse> listener
     ) {
-        clusterService.submitStateUpdateTask("unfollow_action", new ClusterStateUpdateTask() {
+        submitUnbatchedTask("unfollow_action", new ClusterStateUpdateTask() {
 
             @Override
             public ClusterState execute(final ClusterState current) {
@@ -192,7 +192,7 @@ public class TransportUnfollowAction extends AcknowledgedTransportMasterNodeActi
                 }
             }
 
-            private void handleException(
+            private static void handleException(
                 final ShardId followerShardId,
                 final String retentionLeaseId,
                 final ShardId leaderShardId,
@@ -227,7 +227,12 @@ public class TransportUnfollowAction extends AcknowledgedTransportMasterNodeActi
                 }
             }
 
-        }, ClusterStateTaskExecutor.unbatched());
+        });
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
     @Override

@@ -20,6 +20,7 @@ import org.apache.lucene.index.LogByteSizeMergePolicy;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.ByteBuffersDirectory;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
@@ -87,44 +88,68 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
         final MapperBuilderContext context = MapperBuilderContext.ROOT;
         if (type.equals("string")) {
             if (docValues) {
-                fieldType = new KeywordFieldMapper.Builder(fieldName).build(context).fieldType();
+                fieldType = new KeywordFieldMapper.Builder(fieldName, Version.CURRENT).build(context).fieldType();
             } else {
                 fieldType = new TextFieldMapper.Builder(fieldName, createDefaultIndexAnalyzers()).fielddata(true)
                     .build(context)
                     .fieldType();
             }
         } else if (type.equals("float")) {
-            fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.FLOAT, ScriptCompiler.NONE, false, true)
-                .docValues(docValues)
-                .build(context)
-                .fieldType();
+            fieldType = new NumberFieldMapper.Builder(
+                fieldName,
+                NumberFieldMapper.NumberType.FLOAT,
+                ScriptCompiler.NONE,
+                false,
+                true,
+                Version.CURRENT
+            ).docValues(docValues).build(context).fieldType();
         } else if (type.equals("double")) {
-            fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.DOUBLE, ScriptCompiler.NONE, false, true)
-                .docValues(docValues)
-                .build(context)
-                .fieldType();
+            fieldType = new NumberFieldMapper.Builder(
+                fieldName,
+                NumberFieldMapper.NumberType.DOUBLE,
+                ScriptCompiler.NONE,
+                false,
+                true,
+                Version.CURRENT
+            ).docValues(docValues).build(context).fieldType();
         } else if (type.equals("long")) {
-            fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.LONG, ScriptCompiler.NONE, false, true)
-                .docValues(docValues)
-                .build(context)
-                .fieldType();
+            fieldType = new NumberFieldMapper.Builder(
+                fieldName,
+                NumberFieldMapper.NumberType.LONG,
+                ScriptCompiler.NONE,
+                false,
+                true,
+                Version.CURRENT
+            ).docValues(docValues).build(context).fieldType();
         } else if (type.equals("int")) {
-            fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.INTEGER, ScriptCompiler.NONE, false, true)
-                .docValues(docValues)
-                .build(context)
-                .fieldType();
+            fieldType = new NumberFieldMapper.Builder(
+                fieldName,
+                NumberFieldMapper.NumberType.INTEGER,
+                ScriptCompiler.NONE,
+                false,
+                true,
+                Version.CURRENT
+            ).docValues(docValues).build(context).fieldType();
         } else if (type.equals("short")) {
-            fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.SHORT, ScriptCompiler.NONE, false, true)
-                .docValues(docValues)
-                .build(context)
-                .fieldType();
+            fieldType = new NumberFieldMapper.Builder(
+                fieldName,
+                NumberFieldMapper.NumberType.SHORT,
+                ScriptCompiler.NONE,
+                false,
+                true,
+                Version.CURRENT
+            ).docValues(docValues).build(context).fieldType();
         } else if (type.equals("byte")) {
-            fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.BYTE, ScriptCompiler.NONE, false, true)
-                .docValues(docValues)
-                .build(context)
-                .fieldType();
+            fieldType = new NumberFieldMapper.Builder(
+                fieldName,
+                NumberFieldMapper.NumberType.BYTE,
+                ScriptCompiler.NONE,
+                false,
+                true,
+                Version.CURRENT
+            ).docValues(docValues).build(context).fieldType();
         } else if (type.equals("geo_point")) {
-            fieldType = new GeoPointFieldMapper.Builder(fieldName, ScriptCompiler.NONE, false).docValues(docValues)
+            fieldType = new GeoPointFieldMapper.Builder(fieldName, ScriptCompiler.NONE, false, Version.CURRENT).docValues(docValues)
                 .build(context)
                 .fieldType();
         } else if (type.equals("binary")) {

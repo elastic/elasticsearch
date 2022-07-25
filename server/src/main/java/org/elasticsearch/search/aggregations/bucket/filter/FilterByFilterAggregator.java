@@ -96,6 +96,9 @@ public class FilterByFilterAggregator extends FiltersAggregator {
         }
 
         final void add(QueryToFilterAdapter<?> filter) throws IOException {
+            if (valid == false) {
+                return;
+            }
             QueryToFilterAdapter<?> mergedFilter = filter.union(rewrittenTopLevelQuery);
             if (mergedFilter.isInefficientUnion()) {
                 /*
@@ -108,6 +111,18 @@ public class FilterByFilterAggregator extends FiltersAggregator {
                  */
                 valid = false;
                 return;
+            }
+            if (filters.size() == 1) {
+                /*
+                 * When we add the second filter we check if there are any _doc_count
+                 * fields and bail out of filter-by filter mode if there are. _doc_count
+                 * fields are expensive to decode and the overhead of iterating per
+                 * filter causes us to decode doc counts over and over again.
+                 */
+                if (context.hasDocCountField()) {
+                    valid = false;
+                    return;
+                }
             }
             filters.add(mergedFilter);
         }

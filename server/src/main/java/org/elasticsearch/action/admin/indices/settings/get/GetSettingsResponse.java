@@ -42,8 +42,8 @@ public class GetSettingsResponse extends ActionResponse implements ToXContentObj
 
     public GetSettingsResponse(StreamInput in) throws IOException {
         super(in);
-        indexToSettings = in.readImmutableMap(StreamInput::readString, Settings::readSettingsFromStream);
-        indexToDefaultSettings = in.readImmutableMap(StreamInput::readString, Settings::readSettingsFromStream);
+        indexToSettings = in.readImmutableOpenMap(StreamInput::readString, Settings::readSettingsFromStream);
+        indexToDefaultSettings = in.readImmutableOpenMap(StreamInput::readString, Settings::readSettingsFromStream);
     }
 
     /**
@@ -150,9 +150,11 @@ public class GetSettingsResponse extends ActionResponse implements ToXContentObj
             }
         }
 
-        ImmutableOpenMap<String, Settings> settingsMap = ImmutableOpenMap.<String, Settings>builder().putAll(indexToSettings).build();
+        ImmutableOpenMap<String, Settings> settingsMap = ImmutableOpenMap.<String, Settings>builder()
+            .putAllFromMap(indexToSettings)
+            .build();
         ImmutableOpenMap<String, Settings> defaultSettingsMap = ImmutableOpenMap.<String, Settings>builder()
-            .putAll(indexToDefaultSettings)
+            .putAllFromMap(indexToDefaultSettings)
             .build();
 
         return new GetSettingsResponse(settingsMap, defaultSettingsMap);

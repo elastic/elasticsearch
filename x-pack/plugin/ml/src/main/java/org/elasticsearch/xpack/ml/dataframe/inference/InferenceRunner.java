@@ -48,6 +48,8 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.core.Strings.format;
+
 public class InferenceRunner {
 
     private static final Logger LOGGER = LogManager.getLogger(InferenceRunner.class);
@@ -157,11 +159,11 @@ public class InferenceRunner {
 
         Max maxIncrementalIdAgg = searchResponse.getAggregations().get(DestinationIndex.INCREMENTAL_ID);
         long processedTestDocCount = searchResponse.getHits().getTotalHits().value;
-        Long lastIncrementalId = processedTestDocCount == 0 ? null : (long) maxIncrementalIdAgg.getValue();
+        Long lastIncrementalId = processedTestDocCount == 0 ? null : (long) maxIncrementalIdAgg.value();
         if (lastIncrementalId != null) {
             LOGGER.debug(
-                () -> new ParameterizedMessage(
-                    "[{}] Resuming inference; last incremental id [{}]; processed test doc count [{}]",
+                () -> format(
+                    "[%s] Resuming inference; last incremental id [%s]; processed test doc count [%s]",
                     config.getId(),
                     lastIncrementalId,
                     processedTestDocCount

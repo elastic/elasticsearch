@@ -67,7 +67,7 @@ public class RestHasPrivilegesAction extends SecurityBaseRestHandler {
 
     @Override
     public String getName() {
-        return "security_has_priviledges_action";
+        return "security_has_privileges_action";
     }
 
     @Override

@@ -50,8 +50,8 @@ public class SetStepInfoUpdateTask extends IndexLifecycleClusterStateUpdateTask 
             // Index must have been since deleted, ignore it
             return currentState;
         }
-        LifecycleExecutionState indexILMData = idxMeta.getLifecycleExecutionState();
-        if (policy.equals(idxMeta.getLifecyclePolicyName()) && Objects.equals(currentStepKey, Step.getCurrentStepKey(indexILMData))) {
+        LifecycleExecutionState lifecycleState = idxMeta.getLifecycleExecutionState();
+        if (policy.equals(idxMeta.getLifecyclePolicyName()) && Objects.equals(currentStepKey, Step.getCurrentStepKey(lifecycleState))) {
             return IndexLifecycleTransition.addStepInfoToClusterState(index, currentState, stepInfo);
         } else {
             // either the policy has changed or the step is now

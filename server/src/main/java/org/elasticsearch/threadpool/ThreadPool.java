@@ -48,8 +48,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static java.util.Collections.unmodifiableMap;
 import static java.util.Map.entry;
+import static org.elasticsearch.core.Strings.format;
 
 public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
 
@@ -219,7 +219,10 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             Names.FETCH_SHARD_STARTED,
             new ScalingExecutorBuilder(Names.FETCH_SHARD_STARTED, 1, 2 * allocatedProcessors, TimeValue.timeValueMinutes(5), false)
         );
-        builders.put(Names.FORCE_MERGE, new FixedExecutorBuilder(settings, Names.FORCE_MERGE, 1, -1, false));
+        builders.put(
+            Names.FORCE_MERGE,
+            new FixedExecutorBuilder(settings, Names.FORCE_MERGE, oneEighthAllocatedProcessors(allocatedProcessors), -1, false)
+        );
         builders.put(Names.CLUSTER_COORDINATION, new FixedExecutorBuilder(settings, Names.CLUSTER_COORDINATION, 1, -1, false));
         builders.put(
             Names.FETCH_SHARD_STORE,
@@ -258,13 +261,13 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         }
 
         executors.put(Names.SAME, new ExecutorHolder(EsExecutors.DIRECT_EXECUTOR_SERVICE, new Info(Names.SAME, ThreadPoolType.DIRECT)));
-        this.executors = unmodifiableMap(executors);
+        this.executors = Map.copyOf(executors);
 
         final List<Info> infos = executors.values()
             .stream()
             .filter(holder -> holder.info.getName().equals("same") == false)
             .map(holder -> holder.info)
-            .collect(Collectors.toList());
+            .toList();
         this.threadPoolInfo = new ThreadPoolInfo(infos);
         this.scheduler = Scheduler.initScheduler(settings, "scheduler");
         this.slowSchedulerWarnThresholdNanos = SLOW_SCHEDULER_TASK_WARN_THRESHOLD_SETTING.get(settings).nanos();
@@ -274,6 +277,17 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             LATE_TIME_INTERVAL_WARN_THRESHOLD_SETTING.get(settings).millis()
         );
         this.cachedTimeThread.start();
+    }
+
+    // for subclassing by tests that don't actually use any of the machinery that the regular constructor sets up
+    protected ThreadPool() {
+        this.builders = Map.of();
+        this.executors = Map.of();
+        this.cachedTimeThread = null;
+        this.threadPoolInfo = new ThreadPoolInfo(List.of());
+        this.slowSchedulerWarnThresholdNanos = 0L;
+        this.threadContext = new ThreadContext(Settings.EMPTY);
+        this.scheduler = null;
     }
 
     /**
@@ -469,14 +483,9 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
     public Cancellable scheduleWithFixedDelay(Runnable command, TimeValue interval, String executor) {
         return new ReschedulingRunnable(command, interval, executor, this, (e) -> {
             if (logger.isDebugEnabled()) {
-                logger.debug(() -> new ParameterizedMessage("scheduled task [{}] was rejected on thread pool [{}]", command, executor), e);
+                logger.debug(() -> format("scheduled task [%s] was rejected on thread pool [%s]", command, executor), e);
             }
-        },
-            (e) -> logger.warn(
-                () -> new ParameterizedMessage("failed to run scheduled task [{}] on thread pool [{}]", command, executor),
-                e
-            )
-        );
+        }, (e) -> logger.warn(() -> format("failed to run scheduled task [%s] on thread pool [%s]", command, executor), e));
     }
 
     protected final void stopCachedTimeThread() {
@@ -543,6 +552,10 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
 
     static int twiceAllocatedProcessors(final int allocatedProcessors) {
         return boundedBy(2 * allocatedProcessors, 2, Integer.MAX_VALUE);
+    }
+
+    static int oneEighthAllocatedProcessors(final int allocatedProcessors) {
+        return boundedBy(allocatedProcessors / 8, 1, Integer.MAX_VALUE);
     }
 
     public static int searchThreadPoolSize(final int allocatedProcessors) {

@@ -13,7 +13,6 @@ import org.elasticsearch.action.admin.indices.get.GetIndexRequest.Feature;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -230,7 +229,7 @@ public class GetIndexIT extends ESIntegTestCase {
     }
 
     private void assertSettings(GetIndexResponse response, String indexName) {
-        ImmutableOpenMap<String, Settings> settings = response.settings();
+        Map<String, Settings> settings = response.settings();
         assertThat(settings, notNullValue());
         assertThat(settings.size(), equalTo(1));
         Settings indexSettings = settings.get(indexName);
@@ -239,7 +238,7 @@ public class GetIndexIT extends ESIntegTestCase {
     }
 
     private void assertNonEmptySettings(GetIndexResponse response, String indexName) {
-        ImmutableOpenMap<String, Settings> settings = response.settings();
+        Map<String, Settings> settings = response.settings();
         assertThat(settings, notNullValue());
         assertThat(settings.size(), equalTo(1));
         Settings indexSettings = settings.get(indexName);
@@ -247,7 +246,7 @@ public class GetIndexIT extends ESIntegTestCase {
     }
 
     private void assertMappings(GetIndexResponse response, String indexName) {
-        ImmutableOpenMap<String, MappingMetadata> mappings = response.mappings();
+        Map<String, MappingMetadata> mappings = response.mappings();
         assertThat(mappings, notNullValue());
         assertThat(mappings.size(), equalTo(1));
         MappingMetadata indexMappings = mappings.get(indexName);
@@ -255,7 +254,7 @@ public class GetIndexIT extends ESIntegTestCase {
     }
 
     private void assertEmptyOrOnlyDefaultMappings(GetIndexResponse response, String indexName) {
-        ImmutableOpenMap<String, MappingMetadata> mappings = response.mappings();
+        Map<String, MappingMetadata> mappings = response.mappings();
         assertThat(mappings, notNullValue());
         assertThat(mappings.size(), equalTo(1));
         MappingMetadata indexMappings = mappings.get(indexName);
@@ -263,7 +262,7 @@ public class GetIndexIT extends ESIntegTestCase {
     }
 
     private void assertAliases(GetIndexResponse response, String indexName) {
-        ImmutableOpenMap<String, List<AliasMetadata>> aliases = response.aliases();
+        Map<String, List<AliasMetadata>> aliases = response.aliases();
         assertThat(aliases, notNullValue());
         assertThat(aliases.size(), equalTo(1));
         List<AliasMetadata> indexAliases = aliases.get(indexName);

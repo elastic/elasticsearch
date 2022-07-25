@@ -24,7 +24,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -135,7 +134,7 @@ public class RestHttpResponseHeadersTests extends ESTestCase {
      * compared with the expected 'Allow' header String array.
      */
     private List<String> getMethodNameStringArray(List<RestRequest.Method> methodArray) {
-        return methodArray.stream().map(method -> method.toString()).collect(Collectors.toList());
+        return methodArray.stream().map(method -> method.toString()).toList();
     }
 
 }

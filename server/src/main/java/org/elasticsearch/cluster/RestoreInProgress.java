@@ -61,7 +61,8 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
     @Override
     public String toString() {
         StringBuilder builder = new StringBuilder("RestoreInProgress[");
-        entries.forEach(entry -> builder.append("{").append(entry.key).append("}{").append(entry.value.snapshot).append("},"));
+        entries.entrySet()
+            .forEach(entry -> builder.append("{").append(entry.getKey()).append("}{").append(entry.getValue().snapshot).append("},"));
         builder.setCharAt(builder.length() - 1, ']');
         return builder.toString();
     }
@@ -76,7 +77,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
 
     @Override
     public Iterator<Entry> iterator() {
-        return entries.valuesIt();
+        return entries.values().iterator();
     }
 
     public static final class Builder {
@@ -86,7 +87,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
         public Builder() {}
 
         public Builder(RestoreInProgress restoreInProgress) {
-            entries.putAll(restoreInProgress.entries);
+            entries.putAllFromMap(restoreInProgress.entries);
         }
 
         public Builder add(Entry entry) {
@@ -360,7 +361,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
                     snapshot,
                     state,
                     Collections.unmodifiableList(indexBuilder),
-                    in.readImmutableMap(ShardId::new, ShardRestoreStatus::readShardRestoreStatus)
+                    in.readImmutableOpenMap(ShardId::new, ShardRestoreStatus::readShardRestoreStatus)
                 )
             );
         }
@@ -369,14 +370,13 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(entries.size());
-        for (Entry entry : entries.values()) {
-            out.writeString(entry.uuid);
-            entry.snapshot().writeTo(out);
-            out.writeByte(entry.state().value());
-            out.writeStringCollection(entry.indices);
-            out.writeMap(entry.shards);
-        }
+        out.writeCollection(entries.values(), (o, entry) -> {
+            o.writeString(entry.uuid);
+            entry.snapshot().writeTo(o);
+            o.writeByte(entry.state().value());
+            o.writeStringCollection(entry.indices);
+            o.writeMap(entry.shards);
+        });
     }
 
     @Override
@@ -395,7 +395,7 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
      * @param entry   restore operation metadata
      * @param builder XContent builder
      */
-    public void toXContent(Entry entry, XContentBuilder builder) throws IOException {
+    public static void toXContent(Entry entry, XContentBuilder builder) throws IOException {
         builder.startObject();
         builder.field("snapshot", entry.snapshot().getSnapshotId().getName());
         builder.field("repository", entry.snapshot().getRepository());

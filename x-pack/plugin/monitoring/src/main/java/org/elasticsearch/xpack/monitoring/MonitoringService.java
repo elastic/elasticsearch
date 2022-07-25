@@ -174,7 +174,7 @@ public class MonitoringService extends AbstractLifecycleComponent {
                 scheduleExecution();
                 logger.debug("monitoring service started");
             } catch (Exception e) {
-                logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to start monitoring service"), e);
+                logger.error("failed to start monitoring service", e);
                 started.set(false);
                 throw e;
             }

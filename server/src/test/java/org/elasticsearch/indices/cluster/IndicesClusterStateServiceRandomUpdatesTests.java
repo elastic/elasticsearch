@@ -69,6 +69,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_AUTO_EXPA
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
+import static org.elasticsearch.core.Strings.format;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -106,7 +107,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
                     state = randomlyUpdateClusterState(state, clusterStateServiceMap, MockIndicesService::new);
                 } catch (AssertionError error) {
                     ClusterState finalState = state;
-                    logger.error(() -> new ParameterizedMessage("failed to random change state. last good state: \n{}", finalState), error);
+                    logger.error(() -> format("failed to random change state. last good state: \n%s", finalState), error);
                     throw error;
                 }
             }
@@ -220,6 +221,9 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             ShardRoutingState.STARTED,
             ShardRoutingState.INITIALIZING
         );
+        state = ClusterState.builder(state)
+            .nodes(DiscoveryNodes.builder(state.nodes()).masterNodeId(state.nodes().getLocalNodeId()))
+            .build();
 
         // the initial state which is derived from the newly created cluster state but doesn't contain the index
         ClusterState previousState = ClusterState.builder(state)
@@ -247,6 +251,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         CloseIndexRequest closeIndexRequest = new CloseIndexRequest(state.metadata().index(index).getIndex().getName());
         state = cluster.closeIndices(state, closeIndexRequest);
         OpenIndexRequest openIndexRequest = new OpenIndexRequest(state.metadata().index(index).getIndex().getName());
+        openIndexRequest.waitForActiveShards(ActiveShardCount.NONE);
         state = cluster.openIndices(state, openIndexRequest);
 
         localState = adaptClusterStateToLocalNode(state, node);
@@ -385,7 +390,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         // randomly delete indices
         Set<String> indicesToDelete = new HashSet<>();
         int numberOfIndicesToDelete = randomInt(Math.min(2, state.metadata().indices().size()));
-        for (String index : randomSubsetOf(numberOfIndicesToDelete, state.metadata().indices().keys().toArray(String.class))) {
+        for (String index : randomSubsetOf(numberOfIndicesToDelete, state.metadata().indices().keySet().toArray(new String[0]))) {
             indicesToDelete.add(state.metadata().index(index).getIndex().getName());
         }
         if (indicesToDelete.isEmpty() == false) {
@@ -398,15 +403,16 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
 
         // randomly close indices
         int numberOfIndicesToClose = randomInt(Math.min(1, state.metadata().indices().size()));
-        for (String index : randomSubsetOf(numberOfIndicesToClose, state.metadata().indices().keys().toArray(String.class))) {
+        for (String index : randomSubsetOf(numberOfIndicesToClose, state.metadata().indices().keySet().toArray(new String[0]))) {
             CloseIndexRequest closeIndexRequest = new CloseIndexRequest(state.metadata().index(index).getIndex().getName());
             state = cluster.closeIndices(state, closeIndexRequest);
         }
 
         // randomly open indices
         int numberOfIndicesToOpen = randomInt(Math.min(1, state.metadata().indices().size()));
-        for (String index : randomSubsetOf(numberOfIndicesToOpen, state.metadata().indices().keys().toArray(String.class))) {
+        for (String index : randomSubsetOf(numberOfIndicesToOpen, state.metadata().indices().keySet().toArray(new String[0]))) {
             OpenIndexRequest openIndexRequest = new OpenIndexRequest(state.metadata().index(index).getIndex().getName());
+            openIndexRequest.waitForActiveShards(ActiveShardCount.NONE);
             state = cluster.openIndices(state, openIndexRequest);
         }
 
@@ -414,7 +420,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         Set<String> indicesToUpdate = new HashSet<>();
         boolean containsClosedIndex = false;
         int numberOfIndicesToUpdate = randomInt(Math.min(2, state.metadata().indices().size()));
-        for (String index : randomSubsetOf(numberOfIndicesToUpdate, state.metadata().indices().keys().toArray(String.class))) {
+        for (String index : randomSubsetOf(numberOfIndicesToUpdate, state.metadata().indices().keySet().toArray(new String[0]))) {
             indicesToUpdate.add(state.metadata().index(index).getIndex().getName());
             if (state.metadata().index(index).getState() == IndexMetadata.State.CLOSE) {
                 containsClosedIndex = true;
@@ -498,7 +504,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
     }
 
     private static ClusterState adaptClusterStateToLocalNode(ClusterState state, DiscoveryNode node) {
-        return ClusterState.builder(state).nodes(DiscoveryNodes.builder(state.nodes()).localNodeId(node.getId())).build();
+        return ClusterState.builder(state).nodes(DiscoveryNodes.builder(state.nodes()).add(node).localNodeId(node.getId())).build();
     }
 
     private IndicesClusterStateService createIndicesClusterStateService(

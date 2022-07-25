@@ -450,7 +450,7 @@ public final class BlobStoreTestUtil {
             );
             task.clusterStateProcessed(current, next);
             return null;
-        }).when(clusterService).submitStateUpdateTask(anyString(), any(ClusterStateUpdateTask.class), any());
+        }).when(clusterService).submitUnbatchedStateUpdateTask(anyString(), any(ClusterStateUpdateTask.class));
         doAnswer(invocation -> {
             appliers.add((ClusterStateApplier) invocation.getArguments()[0]);
             return null;

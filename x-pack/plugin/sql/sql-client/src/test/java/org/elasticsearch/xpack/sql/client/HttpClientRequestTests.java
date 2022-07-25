@@ -175,7 +175,8 @@ public class HttpClientRequestTests extends ESTestCase {
             new RequestInfo(mode, ClientVersion.CURRENT),
             randomBoolean(),
             randomBoolean(),
-            isBinary
+            isBinary,
+            randomBoolean()
         );
 
         prepareMockResponse();

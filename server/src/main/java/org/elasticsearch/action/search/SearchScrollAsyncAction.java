@@ -46,7 +46,6 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
     protected final ActionListener<SearchResponse> listener;
     protected final ParsedScrollId scrollId;
     protected final DiscoveryNodes nodes;
-    protected final SearchPhaseController searchPhaseController;
     protected final SearchScrollRequest request;
     protected final SearchTransportService searchTransportService;
     private final long startTime;
@@ -58,7 +57,6 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
         Logger logger,
         DiscoveryNodes nodes,
         ActionListener<SearchResponse> listener,
-        SearchPhaseController searchPhaseController,
         SearchScrollRequest request,
         SearchTransportService searchTransportService
     ) {
@@ -68,7 +66,6 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
         this.logger = logger;
         this.listener = listener;
         this.nodes = nodes;
-        this.searchPhaseController = searchPhaseController;
         this.request = request;
         this.searchTransportService = searchTransportService;
     }
@@ -244,7 +241,7 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
         final AtomicArray<? extends SearchPhaseResult> fetchResults
     ) {
         try {
-            final InternalSearchResponse internalResponse = searchPhaseController.merge(
+            final InternalSearchResponse internalResponse = SearchPhaseController.merge(
                 true,
                 queryPhase,
                 fetchResults.asList(),

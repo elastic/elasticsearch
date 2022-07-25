@@ -73,12 +73,17 @@ that is enough for the use-case among the floating-point types: `double`,
 `float` and `half_float`. Here is a table that compares these types in order
 to help make a decision.
 
-[cols="<,<,<,<",options="header",]
+[[floating_point]]
+[cols="<,<,<,<,<",options="header",]
 |=======================================================================
-|Type |Minimum value |Maximum value |Significant bits / digits
-|`double`|+2^-1074^+ |+(2-2^-52^)·2^1023^+ |+53+ / +15.95+
-|`float`|+2^-149^+ |+(2-2^-23^)·2^127^+ |+24+ / +7.22+
-|`half_float`|+2^-24^+ |+65504+ |+11+ / +3.31+
+|Type        |Minimum value |Maximum value        |Significant +
+                                                     bits / digits  |Example precision loss
+|`double`    |+2^-1074^+    |+(2-2^-52^)·2^1023^+ |  +53+ / +15.95+ | +1.2345678912345678+-> +
+                                                                      +1.234567891234568+
+|`float`     |+2^-149^+     |+(2-2^-23^)·2^127^+  |  +24+ / +7.22+  | +1.23456789+-> +
+                                                                      +1.2345679+
+|`half_float`|+2^-24^+      |+65504+              |  +11+ / +3.31+  | +1.2345+-> +
+                                                                      +1.234375+
 |=======================================================================
 
 [TIP]

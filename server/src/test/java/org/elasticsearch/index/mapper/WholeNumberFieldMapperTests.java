@@ -100,4 +100,8 @@ public abstract class WholeNumberFieldMapperTests extends NumberFieldMapperTests
         registerDimensionChecks(checker);
     }
 
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        return new NumberSyntheticSourceSupport(Number::longValue);
+    }
 }

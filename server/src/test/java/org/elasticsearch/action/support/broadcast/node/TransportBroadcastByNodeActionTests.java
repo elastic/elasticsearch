@@ -264,7 +264,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
                 );
                 IndexShardRoutingTable.Builder indexShard = new IndexShardRoutingTable.Builder(shardId);
                 indexShard.addShard(shard);
-                indexRoutingTable.addIndexShard(indexShard.build());
+                indexRoutingTable.addIndexShard(indexShard);
             }
         }
         discoBuilder.localNodeId(newNode(0).getId());
@@ -384,7 +384,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
 
         DiscoveryNode masterNode = clusterService.state().nodes().getMasterNode();
         DiscoveryNodes.Builder builder = DiscoveryNodes.builder(clusterService.state().getNodes());
-        builder.remove(masterNode.getId());
+        builder.remove(masterNode.getId()).masterNodeId(null);
 
         setState(clusterService, ClusterState.builder(clusterService.state()).nodes(builder));
 

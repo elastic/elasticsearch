@@ -17,14 +17,17 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Optional;
 
 public class RandomSamplerAggregatorFactory extends AggregatorFactory {
 
     private final int seed;
     private final double probability;
+    private final SamplingContext samplingContext;
     private Weight weight;
 
     RandomSamplerAggregatorFactory(
@@ -39,6 +42,12 @@ public class RandomSamplerAggregatorFactory extends AggregatorFactory {
         super(name, context, parent, subFactories, metadata);
         this.probability = probability;
         this.seed = seed;
+        this.samplingContext = new SamplingContext(probability, seed);
+    }
+
+    @Override
+    public Optional<SamplingContext> getSamplingContext() {
+        return Optional.of(samplingContext);
     }
 
     @Override

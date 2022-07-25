@@ -29,7 +29,7 @@ public class AggregationPhase {
     @Inject
     public AggregationPhase() {}
 
-    public void preProcess(SearchContext context) {
+    public static void preProcess(SearchContext context) {
         if (context.aggregations() == null) {
             return;
         }
@@ -58,7 +58,7 @@ public class AggregationPhase {
         }
     }
 
-    private List<Runnable> getCancellationChecks(SearchContext context) {
+    private static List<Runnable> getCancellationChecks(SearchContext context) {
         List<Runnable> cancellationChecks = new ArrayList<>();
         if (context.lowLevelCancellation()) {
             // This searching doesn't live beyond this phase, so we don't need to remove query cancellation
@@ -88,7 +88,7 @@ public class AggregationPhase {
         return cancellationChecks;
     }
 
-    public void execute(SearchContext context) {
+    public static void execute(SearchContext context) {
         if (context.aggregations() == null) {
             context.queryResult().aggregations(null);
             return;

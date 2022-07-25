@@ -58,8 +58,10 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.concurrent.FutureCallback;
 import org.apache.http.config.Registry;
 import org.apache.http.config.RegistryBuilder;
+import org.apache.http.conn.ConnectionKeepAliveStrategy;
 import org.apache.http.entity.ContentType;
 import org.apache.http.impl.auth.BasicScheme;
+import org.apache.http.impl.client.DefaultConnectionKeepAliveStrategy;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
 import org.apache.http.impl.nio.client.HttpAsyncClients;
@@ -93,7 +95,6 @@ import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettin
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
 import java.net.URI;
 import java.net.URL;
 import java.net.URLEncoder;
@@ -115,6 +116,7 @@ import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLContext;
 
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.ALLOWED_CLOCK_SKEW;
+import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.HTTP_CONNECTION_POOL_TTL;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.HTTP_CONNECTION_READ_TIMEOUT;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.HTTP_CONNECT_TIMEOUT;
 import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.HTTP_MAX_CONNECTIONS;
@@ -433,8 +435,9 @@ public class OpenIdConnectAuthenticator {
     /**
      * Handle the UserInfo Response from the OpenID Connect Provider. If successful, merge the returned claims with the claims
      * of the Id Token and call the provided listener.
+     * (This method is package-protected for testing purposes)
      */
-    private void handleUserinfoResponse(
+    void handleUserinfoResponse(
         HttpResponse httpResponse,
         JWTClaimsSet verifiedIdTokenClaims,
         ActionListener<JWTClaimsSet> claimsListener
@@ -481,11 +484,11 @@ public class OpenIdConnectAuthenticator {
                 }
             } else {
                 final Header wwwAuthenticateHeader = httpResponse.getFirstHeader("WWW-Authenticate");
-                if (Strings.hasText(wwwAuthenticateHeader.getValue())) {
+                if (wwwAuthenticateHeader != null && Strings.hasText(wwwAuthenticateHeader.getValue())) {
                     BearerTokenError error = BearerTokenError.parse(wwwAuthenticateHeader.getValue());
                     claimsListener.onFailure(
                         new ElasticsearchSecurityException(
-                            "Failed to get user information from the UserInfo endpoint. Code=[{}], " + "Description=[{}]",
+                            "Failed to get user information from the UserInfo endpoint. Code=[{}], Description=[{}]",
                             error.getCode(),
                             error.getDescription()
                         )
@@ -493,7 +496,7 @@ public class OpenIdConnectAuthenticator {
                 } else {
                     claimsListener.onFailure(
                         new ElasticsearchSecurityException(
-                            "Failed to get user information from the UserInfo endpoint. Code=[{}], " + "Description=[{}]",
+                            "Failed to get user information from the UserInfo endpoint. Code=[{}], Description=[{}]",
                             httpResponse.getStatusLine().getStatusCode(),
                             httpResponse.getStatusLine().getReasonPhrase()
                         )
@@ -568,7 +571,7 @@ public class OpenIdConnectAuthenticator {
                     )
                 );
             }
-            httpPost.setEntity(new UrlEncodedFormEntity(params));
+            httpPost.setEntity(new UrlEncodedFormEntity(params, (Charset) null));
             SpecialPermission.check();
             AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
 
@@ -593,7 +596,7 @@ public class OpenIdConnectAuthenticator {
                 });
                 return null;
             });
-        } catch (AuthenticationException | UnsupportedEncodingException | JOSEException e) {
+        } catch (AuthenticationException | JOSEException e) {
             tokensListener.onFailure(
                 new ElasticsearchSecurityException("Failed to exchange code for Id Token using the Token Endpoint.", e)
             );
@@ -700,9 +703,17 @@ public class OpenIdConnectAuthenticator {
                     .setConnectionRequestTimeout(Math.toIntExact(realmConfig.getSetting(HTTP_CONNECTION_READ_TIMEOUT).getSeconds()))
                     .setSocketTimeout(Math.toIntExact(realmConfig.getSetting(HTTP_SOCKET_TIMEOUT).getMillis()))
                     .build();
+
                 HttpAsyncClientBuilder httpAsyncClientBuilder = HttpAsyncClients.custom()
                     .setConnectionManager(connectionManager)
                     .setDefaultRequestConfig(requestConfig);
+
+                final ConnectionKeepAliveStrategy keepAliveStrategy = getKeepAliveStrategy();
+                if (keepAliveStrategy != null) {
+                    LOGGER.debug("configuring keep-alive strategy for http client used by oidc back-channel");
+                    httpAsyncClientBuilder.setKeepAliveStrategy(keepAliveStrategy);
+                }
+
                 if (realmConfig.hasSetting(HTTP_PROXY_HOST)) {
                     httpAsyncClientBuilder.setProxy(
                         new HttpHost(
@@ -719,6 +730,37 @@ public class OpenIdConnectAuthenticator {
         } catch (PrivilegedActionException e) {
             throw new IllegalStateException("Unable to create a HttpAsyncClient instance", e);
         }
+    }
+
+    // Package private for testing
+    CloseableHttpAsyncClient getHttpClient() {
+        return httpClient;
+    }
+
+    // Package private for testing
+    ConnectionKeepAliveStrategy getKeepAliveStrategy() {
+        // Not customising keep-alive strategy if the setting is either not set (default) or explicitly configured to be negative (-1)
+        if (false == realmConfig.hasSetting(HTTP_CONNECTION_POOL_TTL) || realmConfig.getSetting(HTTP_CONNECTION_POOL_TTL).duration() < 0) {
+            return null;
+        }
+
+        final long userConfiguredKeepAlive = realmConfig.getSetting(HTTP_CONNECTION_POOL_TTL).millis();
+        return (response, context) -> {
+            var serverKeepAlive = DefaultConnectionKeepAliveStrategy.INSTANCE.getKeepAliveDuration(response, context);
+            long actualKeepAlive;
+            if (serverKeepAlive <= -1) {
+                actualKeepAlive = userConfiguredKeepAlive;
+            } else if (userConfiguredKeepAlive <= -1) {
+                actualKeepAlive = serverKeepAlive;
+            } else {
+                actualKeepAlive = Math.min(serverKeepAlive, userConfiguredKeepAlive);
+            }
+            if (actualKeepAlive < -1) {
+                actualKeepAlive = -1;
+            }
+            LOGGER.debug("effective HTTP connection keep-alive: [{}]ms", actualKeepAlive);
+            return actualKeepAlive;
+        };
     }
 
     /*

@@ -39,6 +39,7 @@ import org.elasticsearch.index.mapper.IpScriptFieldType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.KeywordScriptFieldType;
 import org.elasticsearch.index.mapper.LongScriptFieldType;
+import org.elasticsearch.index.mapper.LookupRuntimeFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
@@ -177,6 +178,7 @@ public class IndicesModule extends AbstractModule {
         runtimeParsers.put(KeywordFieldMapper.CONTENT_TYPE, KeywordScriptFieldType.PARSER);
         runtimeParsers.put(GeoPointFieldMapper.CONTENT_TYPE, GeoPointScriptFieldType.PARSER);
         runtimeParsers.put(CompositeRuntimeField.CONTENT_TYPE, CompositeRuntimeField.PARSER);
+        runtimeParsers.put(LookupRuntimeFieldType.CONTENT_TYPE, LookupRuntimeFieldType.PARSER);
 
         for (MapperPlugin mapperPlugin : mapperPlugins) {
             for (Map.Entry<String, RuntimeField.Parser> entry : mapperPlugin.getRuntimeFields().entrySet()) {

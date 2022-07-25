@@ -21,10 +21,12 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.DoubleStream;
 
 import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocument;
 import static org.hamcrest.Matchers.both;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -1080,6 +1082,29 @@ public class IngestDocumentTests extends ESTestCase {
             copiedDoc.getFieldValue(DOUBLE_DOUBLE_ARRAY_FIELD, double[][].class),
             ingestDocument.getFieldValue(DOUBLE_DOUBLE_ARRAY_FIELD, double[][].class)
         );
+    }
+
+    public void testGetAllFields() {
+        Map<String, Object> address = new HashMap<>();
+        address.put("street", "Ipiranga Street");
+        address.put("number", 123);
+
+        Map<String, Object> source = new HashMap<>();
+        source.put("_id", "a123");
+        source.put("name", "eric clapton");
+        source.put("address", address);
+
+        Set<String> result = IngestDocument.getAllFields(source);
+
+        assertThat(result, containsInAnyOrder("_id", "name", "address", "address.street", "address.number"));
+    }
+
+    public void testIsMetadata() {
+        assertTrue(IngestDocument.Metadata.isMetadata("_type"));
+        assertTrue(IngestDocument.Metadata.isMetadata("_index"));
+        assertTrue(IngestDocument.Metadata.isMetadata("_version"));
+        assertFalse(IngestDocument.Metadata.isMetadata("name"));
+        assertFalse(IngestDocument.Metadata.isMetadata("address"));
     }
 
 }

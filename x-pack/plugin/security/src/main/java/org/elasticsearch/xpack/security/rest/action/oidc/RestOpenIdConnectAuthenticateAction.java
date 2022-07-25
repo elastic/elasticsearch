@@ -35,7 +35,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  * Rest handler that authenticates the user based on the information provided as parameters of the redirect_uri
  */
 public class RestOpenIdConnectAuthenticateAction extends OpenIdConnectBaseRestHandler implements RestRequestFilter {
-    private static final Logger logger = LogManager.getLogger();
+    private static final Logger logger = LogManager.getLogger(RestOpenIdConnectAuthenticateAction.class);
 
     static final ObjectParser<OpenIdConnectAuthenticateRequest, Void> PARSER = new ObjectParser<>(
         "oidc_authn",

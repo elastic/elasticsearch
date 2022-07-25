@@ -61,7 +61,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.test.ESTestCase;
@@ -203,13 +203,13 @@ public class FieldSubsetReaderTests extends ESTestCase {
         assertEquals(0, vectorValues.nextDoc());
         assertNotNull(vectorValues.binaryValue());
 
-        TopDocs topDocs = leafReader.searchNearestVectors("fieldA", new float[] { 1.0f, 1.0f, 1.0f }, 5, null);
+        TopDocs topDocs = leafReader.searchNearestVectors("fieldA", new float[] { 1.0f, 1.0f, 1.0f }, 5, null, Integer.MAX_VALUE);
         assertNotNull(topDocs);
         assertEquals(1, topDocs.scoreDocs.length);
 
         // Check that we can't see fieldB
         assertNull(leafReader.getVectorValues("fieldB"));
-        assertNull(leafReader.searchNearestVectors("fieldB", new float[] { 1.0f, 1.0f, 1.0f }, 5, null));
+        assertNull(leafReader.searchNearestVectors("fieldB", new float[] { 1.0f, 1.0f, 1.0f }, 5, null, Integer.MAX_VALUE));
 
         TestUtil.checkReader(ir);
         IOUtils.close(ir, iw, dir);

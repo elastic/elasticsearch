@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.template;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
@@ -16,11 +15,10 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
@@ -52,8 +50,7 @@ public class TemplateUtils {
     ) {
         final String template = loadTemplate(resource, version, versionProperty);
         try (
-            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, template)
+            XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(XContentParserConfiguration.EMPTY, template)
         ) {
             map.put(templateName, IndexTemplateMetadata.Builder.fromXContent(parser, templateName));
         } catch (IOException e) {
@@ -213,7 +210,7 @@ public class TemplateUtils {
                     return false;
                 }
             } catch (ElasticsearchParseException e) {
-                logger.error(new ParameterizedMessage("Cannot parse the template [{}]", templateName), e);
+                logger.error(() -> "Cannot parse the template [" + templateName + "]", e);
                 throw new IllegalStateException("Cannot parse the template " + templateName, e);
             }
         }

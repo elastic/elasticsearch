@@ -213,7 +213,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         ClusterState clusterState = admin().cluster().prepareState().get().getState();
         IndexMetadata indexMd = clusterState.metadata().index("test");
         assertThat(indexMd.getAliases().get("alias1").filter().string(), equalTo("""
-            {"term":{"user":{"value":"kimchy","boost":1.0}}}"""));
+            {"term":{"user":{"value":"kimchy"}}}"""));
 
     }
 
@@ -799,7 +799,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         IndexAbstraction ia = metadata.getIndicesLookup().get("alias1");
         AliasMetadata aliasMetadata = AliasMetadata.getFirstAliasMetadata(metadata, ia);
         assertThat(aliasMetadata.getFilter().toString(), equalTo("""
-            {"term":{"name":{"value":"bar","boost":1.0}}}"""));
+            {"term":{"name":{"value":"bar"}}}"""));
 
         logger.info("--> deleting alias1");
         stopWatch.start();

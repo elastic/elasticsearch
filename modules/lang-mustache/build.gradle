@@ -28,4 +28,5 @@ restResources {
 
 tasks.named("yamlRestTestV7CompatTransform").configure {task ->
   task.addAllowedWarningRegex("\\[types removal\\].*")
+  task.replaceValueInMatch("responses.1.error.root_cause.0.type", "x_content_e_o_f_exception", "Multi-search template with errors")
 }

@@ -1,0 +1,51 @@
+setup:
+  - do:
+      index:
+        index: ip_locations
+        id: 192.168.1.1
+        body: { country: 'Canada', city: 'Montreal' }
+
+  - do:
+      index:
+        index: ip_locations
+        id: 192.168.1.3
+        body: { country: 'Canada', city: 'Toronto' }
+
+  - do:
+      index:
+        index: logs
+        body: { ip: '192.168.1.1', msg: 'The first message', ord: 1 }
+  - do:
+      index:
+        index: logs
+        body: { ip: '192.168.1.2', msg: 'The second message', ord: 2 }
+
+  - do:
+      indices.refresh:
+        index: "ip_locations,logs"
+
+---
+"Retrieve lookup fields":
+  - skip:
+      version: " - 8.1.99"
+      reason: "Lookup fields are introduced in 8.2"
+  - do:
+      search:
+        index: logs
+        body:
+          runtime_mappings:
+            location:
+              type: lookup
+              target_index: ip_locations
+              input_field: ip
+              target_field: _id
+              fetch_fields: [ "city", "country" ]
+          sort: ord
+          fields:
+            - msg
+            - location
+
+  - match: { hits.hits.0.fields.msg: [ 'The first message' ] }
+  - match: { hits.hits.0.fields.location: [ { country: [ 'Canada' ], city: [ 'Montreal' ] } ] }
+  - match: { hits.hits.1.fields.msg: [ 'The second message' ] }
+  - match: { hits.hits.1.fields.location: null }

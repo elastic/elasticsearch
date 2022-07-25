@@ -208,16 +208,16 @@ public class RandomSearchRequestGenerator {
                 excludes[i] = randomAlphaOfLengthBetween(5, 20);
             }
             fetchSourceContext = switch (branch) {
-                case 0 -> new FetchSourceContext(randomBoolean());
-                case 1 -> new FetchSourceContext(true, includes, excludes);
-                case 2 -> new FetchSourceContext(
+                case 0 -> FetchSourceContext.of(randomBoolean());
+                case 1 -> FetchSourceContext.of(true, includes, excludes);
+                case 2 -> FetchSourceContext.of(
                     true,
                     new String[] { randomAlphaOfLengthBetween(5, 20) },
                     new String[] { randomAlphaOfLengthBetween(5, 20) }
                 );
-                case 3 -> new FetchSourceContext(true, includes, excludes);
-                case 4 -> new FetchSourceContext(true, includes, null);
-                case 5 -> new FetchSourceContext(true, new String[] { randomAlphaOfLengthBetween(5, 20) }, null);
+                case 3 -> FetchSourceContext.of(true, includes, excludes);
+                case 4 -> FetchSourceContext.of(true, includes, null);
+                case 5 -> FetchSourceContext.of(true, new String[] { randomAlphaOfLengthBetween(5, 20) }, null);
                 default -> throw new IllegalStateException();
             };
             builder.fetchSource(fetchSourceContext);

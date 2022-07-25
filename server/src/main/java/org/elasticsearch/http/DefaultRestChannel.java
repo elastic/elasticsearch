@@ -8,13 +8,14 @@
 
 package org.elasticsearch.http;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
+import org.elasticsearch.common.io.stream.BytesStream;
+import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.network.CloseableChannel;
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -45,7 +46,7 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
     static final String SET_COOKIE = "set-cookie";
 
     private final HttpRequest httpRequest;
-    private final BigArrays bigArrays;
+    private final Recycler<BytesRef> recycler;
     private final HttpHandlingSettings settings;
     private final ThreadContext threadContext;
     private final HttpChannel httpChannel;
@@ -58,7 +59,7 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
         HttpChannel httpChannel,
         HttpRequest httpRequest,
         RestRequest request,
-        BigArrays bigArrays,
+        Recycler<BytesRef> recycler,
         HttpHandlingSettings settings,
         ThreadContext threadContext,
         CorsHandler corsHandler,
@@ -67,7 +68,7 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
         super(request, settings.getDetailedErrorsEnabled());
         this.httpChannel = httpChannel;
         this.httpRequest = httpRequest;
-        this.bigArrays = bigArrays;
+        this.recycler = recycler;
         this.settings = settings;
         this.threadContext = threadContext;
         this.corsHandler = corsHandler;
@@ -75,8 +76,8 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
     }
 
     @Override
-    protected BytesStreamOutput newBytesOutput() {
-        return new ReleasableBytesStreamOutput(bigArrays);
+    protected BytesStream newBytesOutput() {
+        return new RecyclerBytesStreamOutput(recycler);
     }
 
     @Override
@@ -131,7 +132,9 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
             addCookies(httpResponse);
 
             ActionListener<Void> listener = ActionListener.wrap(() -> Releasables.close(toClose));
-            httpChannel.sendResponse(httpResponse, listener);
+            try (ThreadContext.StoredContext existing = threadContext.stashContext()) {
+                httpChannel.sendResponse(httpResponse, listener);
+            }
             success = true;
         } finally {
             if (success == false) {
@@ -143,17 +146,17 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
         }
     }
 
-    private void setHeaderField(HttpResponse response, String headerField, String value) {
+    private static void setHeaderField(HttpResponse response, String headerField, String value) {
         setHeaderField(response, headerField, value, true);
     }
 
-    private void setHeaderField(HttpResponse response, String headerField, String value, boolean override) {
+    private static void setHeaderField(HttpResponse response, String headerField, String value, boolean override) {
         if (override || response.containsHeader(headerField) == false) {
             response.addHeader(headerField, value);
         }
     }
 
-    private void addCustomHeaders(HttpResponse response, Map<String, List<String>> customHeaders) {
+    private static void addCustomHeaders(HttpResponse response, Map<String, List<String>> customHeaders) {
         if (customHeaders != null) {
             for (Map.Entry<String, List<String>> headerEntry : customHeaders.entrySet()) {
                 for (String headerValue : headerEntry.getValue()) {

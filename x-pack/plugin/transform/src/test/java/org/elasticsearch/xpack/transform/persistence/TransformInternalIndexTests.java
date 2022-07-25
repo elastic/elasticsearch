@@ -31,6 +31,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
@@ -74,16 +75,14 @@ public class TransformInternalIndexTests extends ESTestCase {
         ClusterState.Builder csBuilder = ClusterState.builder(ClusterName.DEFAULT);
         csBuilder.metadata(metaBuilder.build());
 
+        final var index = new Index(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME, UUIDs.randomBase64UUID());
         csBuilder.routingTable(
             RoutingTable.builder()
                 .add(
-                    IndexRoutingTable.builder(
-                        new Index(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME, UUIDs.randomBase64UUID())
-                    )
+                    IndexRoutingTable.builder(index)
                         .addShard(
                             TestShardRouting.newShardRouting(
-                                TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME,
-                                0,
+                                new ShardId(index, 0),
                                 "node_a",
                                 null,
                                 true,

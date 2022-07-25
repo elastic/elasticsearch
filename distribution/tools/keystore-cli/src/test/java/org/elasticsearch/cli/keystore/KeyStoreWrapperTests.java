@@ -16,7 +16,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;

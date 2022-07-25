@@ -97,7 +97,12 @@ public class AllocationDecidersTests extends ESTestCase {
         verify(deciders.canAllocate(shardRouting, allocation), matcher);
         verify(deciders.canRebalance(shardRouting, allocation), matcher);
         verify(deciders.canRebalance(allocation), matcher);
-        verify(deciders.canRemain(shardRouting, routingNode, allocation), matcher);
+        final Decision canRemainResult = deciders.canRemain(shardRouting, routingNode, allocation);
+        if (allocation.debugDecision()) {
+            verify(canRemainResult, matcher);
+        } else {
+            assertSame(canRemainResult, Decision.YES);
+        }
         verify(deciders.canForceAllocatePrimary(shardRouting, routingNode, allocation), matcher);
         verify(deciders.shouldAutoExpandToNode(idx, null, allocation), matcher);
     }

@@ -29,7 +29,7 @@ public class BinaryDenseVectorScriptDocValuesTests extends ESTestCase {
         for (Version indexVersion : Arrays.asList(Version.V_7_4_0, Version.CURRENT)) {
             BinaryDocValues docValues = wrap(vectors, indexVersion);
             BinaryDenseVectorDocValuesField field = new BinaryDenseVectorDocValuesField(docValues, "test", dims, indexVersion);
-            DenseVectorScriptDocValues scriptDocValues = field.getScriptDocValues();
+            DenseVectorScriptDocValues scriptDocValues = field.toScriptDocValues();
             for (int i = 0; i < vectors.length; i++) {
                 field.setNextDocId(i);
                 assertEquals(1, field.size());
@@ -74,7 +74,7 @@ public class BinaryDenseVectorScriptDocValuesTests extends ESTestCase {
         float[][] vectors = { { 1, 1, 1 }, { 1, 1, 2 }, { 1, 1, 3 } };
         BinaryDocValues docValues = wrap(vectors, Version.CURRENT);
         BinaryDenseVectorDocValuesField field = new BinaryDenseVectorDocValuesField(docValues, "test", dims, Version.CURRENT);
-        DenseVectorScriptDocValues scriptDocValues = field.getScriptDocValues();
+        DenseVectorScriptDocValues scriptDocValues = field.toScriptDocValues();
 
         field.setNextDocId(3);
         assertEquals(0, field.size());
@@ -90,7 +90,7 @@ public class BinaryDenseVectorScriptDocValuesTests extends ESTestCase {
         float[][] vectors = { { 1, 1, 1 }, { 1, 1, 2 }, { 1, 1, 3 } };
         BinaryDocValues docValues = wrap(vectors, Version.CURRENT);
         BinaryDenseVectorDocValuesField field = new BinaryDenseVectorDocValuesField(docValues, "test", dims, Version.CURRENT);
-        DenseVectorScriptDocValues scriptDocValues = field.getScriptDocValues();
+        DenseVectorScriptDocValues scriptDocValues = field.toScriptDocValues();
 
         field.setNextDocId(0);
         Exception e = expectThrows(UnsupportedOperationException.class, () -> scriptDocValues.get(0));
@@ -110,7 +110,7 @@ public class BinaryDenseVectorScriptDocValuesTests extends ESTestCase {
         for (Version indexVersion : Arrays.asList(Version.V_7_4_0, Version.CURRENT)) {
             BinaryDocValues docValues = wrap(new float[][] { docVector }, indexVersion);
             BinaryDenseVectorDocValuesField field = new BinaryDenseVectorDocValuesField(docValues, "test", dims, indexVersion);
-            DenseVectorScriptDocValues scriptDocValues = field.getScriptDocValues();
+            DenseVectorScriptDocValues scriptDocValues = field.toScriptDocValues();
 
             field.setNextDocId(0);
 

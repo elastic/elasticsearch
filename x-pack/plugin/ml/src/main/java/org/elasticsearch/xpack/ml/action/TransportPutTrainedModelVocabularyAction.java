@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.core.ml.action.PutTrainedModelVocabularyAction.Re
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RobertaTokenization;
 import org.elasticsearch.xpack.ml.inference.nlp.Vocabulary;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 
@@ -68,21 +69,33 @@ public class TransportPutTrainedModelVocabularyAction extends TransportMasterNod
 
         ActionListener<TrainedModelConfig> configActionListener = ActionListener.wrap(config -> {
             InferenceConfig inferenceConfig = config.getInferenceConfig();
-            if ((inferenceConfig instanceof NlpConfig) == false) {
-                listener.onFailure(
-                    new ElasticsearchStatusException(
-                        "cannot put vocabulary for model [{}] as it is not an NLP model",
-                        RestStatus.BAD_REQUEST,
-                        request.getModelId()
-                    )
+            if (inferenceConfig instanceof NlpConfig nlpConfig) {
+                if (nlpConfig.getTokenization() instanceof RobertaTokenization && request.getMerges().isEmpty()) {
+                    listener.onFailure(
+                        new ElasticsearchStatusException(
+                            "cannot put vocabulary for model [{}] as tokenizer type [{}] requires [{}] to be provided and non-empty",
+                            RestStatus.BAD_REQUEST,
+                            request.getModelId(),
+                            nlpConfig.getTokenization().getName(),
+                            Request.MERGES.getPreferredName()
+                        )
+                    );
+                    return;
+                }
+                trainedModelProvider.storeTrainedModelVocabulary(
+                    request.getModelId(),
+                    ((NlpConfig) inferenceConfig).getVocabularyConfig(),
+                    new Vocabulary(request.getVocabulary(), request.getModelId(), request.getMerges()),
+                    ActionListener.wrap(stored -> listener.onResponse(AcknowledgedResponse.TRUE), listener::onFailure)
                 );
                 return;
             }
-            trainedModelProvider.storeTrainedModelVocabulary(
-                request.getModelId(),
-                ((NlpConfig) inferenceConfig).getVocabularyConfig(),
-                new Vocabulary(request.getVocabulary(), request.getModelId()),
-                ActionListener.wrap(stored -> listener.onResponse(AcknowledgedResponse.TRUE), listener::onFailure)
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    "cannot put vocabulary for model [{}] as it is not an NLP model",
+                    RestStatus.BAD_REQUEST,
+                    request.getModelId()
+                )
             );
         }, listener::onFailure);
 

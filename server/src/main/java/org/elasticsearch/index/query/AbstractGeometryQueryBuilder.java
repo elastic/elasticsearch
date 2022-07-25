@@ -354,7 +354,7 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
      *            Name or path of the field in the Shape Document where the
      *            Shape itself is located
      */
-    private void fetch(Client client, GetRequest getRequest, String path, ActionListener<Geometry> listener) {
+    private static void fetch(Client client, GetRequest getRequest, String path, ActionListener<Geometry> listener) {
         getRequest.preference("_local");
         client.get(getRequest, listener.delegateFailure((l, response) -> {
             try {

@@ -12,7 +12,6 @@ import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApisExtension;
 import groovy.lang.Closure;
 
 import org.elasticsearch.gradle.internal.ExportElasticsearchBuildResourcesTask;
-import org.elasticsearch.gradle.internal.InternalPlugin;
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitPlugin;
 import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.gradle.api.Project;
@@ -32,7 +31,7 @@ import java.util.Set;
 import static de.thetaphi.forbiddenapis.gradle.ForbiddenApisPlugin.FORBIDDEN_APIS_EXTENSION_NAME;
 import static de.thetaphi.forbiddenapis.gradle.ForbiddenApisPlugin.FORBIDDEN_APIS_TASK_NAME;
 
-public class ForbiddenApisPrecommitPlugin extends PrecommitPlugin implements InternalPlugin {
+public class ForbiddenApisPrecommitPlugin extends PrecommitPlugin {
     @Override
     public TaskProvider<? extends Task> createTask(Project project) {
         project.getPluginManager().apply(JavaBasePlugin.class);
@@ -57,20 +56,19 @@ public class ForbiddenApisPrecommitPlugin extends PrecommitPlugin implements Int
             t.copy("forbidden/jdk-deprecated.txt");
             t.copy("forbidden/es-all-signatures.txt");
             t.copy("forbidden/es-test-signatures.txt");
+            t.copy("forbidden/hppc-signatures.txt");
             t.copy("forbidden/http-signatures.txt");
             t.copy("forbidden/es-server-signatures.txt");
-            t.copy("forbidden/snakeyaml-signatures.txt");
         });
 
         project.getExtensions().getByType(SourceSetContainer.class).configureEach(sourceSet -> {
             String sourceSetTaskName = sourceSet.getTaskName(FORBIDDEN_APIS_TASK_NAME, null);
             var sourceSetTask = project.getTasks().register(sourceSetTaskName, CheckForbiddenApisTask.class, t -> {
                 t.setDescription("Runs forbidden-apis checks on '${sourceSet.name}' classes.");
-                t.dependsOn(sourceSet.getOutput());
                 t.getOutputs().upToDateWhen(Specs.SATISFIES_ALL);
                 t.setClassesDirs(sourceSet.getOutput().getClassesDirs());
                 t.dependsOn(resourcesTask);
-                t.setClasspath(project.files(sourceSet.getRuntimeClasspath()).plus(sourceSet.getCompileClasspath()));
+                t.setClasspath(sourceSet.getRuntimeClasspath().plus(sourceSet.getCompileClasspath()).plus(sourceSet.getOutput()));
                 t.setTargetCompatibility(BuildParams.getMinimumRuntimeVersion().getMajorVersion());
                 t.setBundledSignatures(Set.of("jdk-unsafe", "jdk-non-portable", "jdk-system-out"));
                 t.setSignaturesFiles(

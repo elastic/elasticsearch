@@ -216,9 +216,8 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
      * Iterates over all multi-release versions, then the root, for the given jar prefix.
      */
     URL findResourceForPrefixOrNull(String name, JarMeta jarMeta) {
-        URL url;
         if (jarMeta.isMultiRelease) {
-            url = findVersionedResourceForPrefixOrNull(jarMeta.prefix(), name);
+            URL url = findVersionedResourceForPrefixOrNull(jarMeta.prefix(), name);
             if (url != null) {
                 return url;
             }

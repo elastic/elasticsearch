@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.threadpool.Scheduler;
@@ -597,7 +598,11 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
                     assertThat(recentMaster.getName(), notNullValue());
                     assertThat(recentMaster.getId(), not(emptyOrNullString()));
                 }
-                assertThat(result.details().clusterFormationDescription(), startsWith("master not discovered yet"));
+                assertThat(result.details().nodeToClusterFormationDescriptionMap().size(), equalTo(1));
+                assertThat(
+                    result.details().nodeToClusterFormationDescriptionMap().values().iterator().next(),
+                    startsWith("master not" + " discovered")
+                );
             }
             cluster.clusterNodes.addAll(removedClusterNodes);
             while (cluster.clusterNodes.stream().anyMatch(Cluster.ClusterNode::deliverBlackholedRequests)) {
@@ -641,7 +646,11 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
                         assertThat(recentMaster.getName(), notNullValue());
                         assertThat(recentMaster.getId(), not(emptyOrNullString()));
                     }
-                    assertThat(result.details().clusterFormationDescription(), startsWith("master not discovered"));
+                    assertThat(result.details().nodeToClusterFormationDescriptionMap().size(), equalTo(1));
+                    assertThat(
+                        result.details().nodeToClusterFormationDescriptionMap().values().iterator().next(),
+                        startsWith("master not" + " discovered")
+                    );
                     // This restores the PeerFinder so that the test cleanup doesn't fail:
                     node.coordinator.getPeerFinder().activate(lastAcceptedNodes);
                 }
@@ -679,7 +688,11 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
                         assertThat(recentMaster.getName(), notNullValue());
                         assertThat(recentMaster.getId(), not(emptyOrNullString()));
                     }
-                    assertThat(result.details().clusterFormationDescription(), startsWith("master not discovered"));
+                    assertThat(result.details().nodeToClusterFormationDescriptionMap().size(), equalTo(1));
+                    assertThat(
+                        result.details().nodeToClusterFormationDescriptionMap().values().iterator().next(),
+                        startsWith("master not" + " discovered")
+                    );
                 }
             }
             while (cluster.clusterNodes.stream().anyMatch(Cluster.ClusterNode::deliverBlackholedRequests)) {
@@ -712,6 +725,7 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
         Coordinator coordinator = mock(Coordinator.class);
         ClusterFormationFailureHelper.ClusterFormationState localClusterFormationState = getClusterFormationState(true, true);
         when(coordinator.getClusterFormationState()).thenReturn(localClusterFormationState);
+        when(coordinator.getLocalNode()).thenReturn(node1);
         CoordinationDiagnosticsService.CoordinationDiagnosticsResult result = CoordinationDiagnosticsService
             .diagnoseOnHaveNotSeenMasterRecentlyAndWeAreMasterEligible(
                 localMasterHistory,
@@ -1046,7 +1060,7 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
                     originalDetails.recentMasters(),
                     originalDetails.remoteExceptionMessage(),
                     originalDetails.remoteExceptionStackTrace(),
-                    originalDetails.clusterFormationDescription()
+                    originalDetails.nodeToClusterFormationDescriptionMap()
                 );
             }
             case 2 -> {
@@ -1055,7 +1069,7 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
                     List.of(node1, node2, node3),
                     originalDetails.remoteExceptionMessage(),
                     originalDetails.remoteExceptionStackTrace(),
-                    originalDetails.clusterFormationDescription()
+                    originalDetails.nodeToClusterFormationDescriptionMap()
                 );
             }
             case 3 -> {
@@ -1064,7 +1078,7 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
                     originalDetails.recentMasters(),
                     randomAlphaOfLength(30),
                     originalDetails.remoteExceptionStackTrace(),
-                    originalDetails.clusterFormationDescription()
+                    originalDetails.nodeToClusterFormationDescriptionMap()
                 );
             }
             case 4 -> {
@@ -1073,7 +1087,7 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
                     originalDetails.recentMasters(),
                     originalDetails.remoteExceptionMessage(),
                     randomAlphaOfLength(100),
-                    originalDetails.clusterFormationDescription()
+                    originalDetails.nodeToClusterFormationDescriptionMap()
                 );
             }
             case 5 -> {
@@ -1082,7 +1096,7 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
                     originalDetails.recentMasters(),
                     originalDetails.remoteExceptionMessage(),
                     originalDetails.remoteExceptionStackTrace(),
-                    randomAlphaOfLength(100)
+                    randomMap(0, 7, () -> new Tuple<>(randomNodeId(), randomAlphaOfLength(100)))
                 );
             }
             default -> throw new IllegalStateException();
@@ -1147,7 +1161,7 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
             List.of(node1, node2),
             randomNullableStringOfLengthBetween(0, 30),
             randomNullableStringOfLengthBetween(0, 30),
-            randomAlphaOfLengthBetween(0, 30)
+            Map.of(randomNodeId(), randomAlphaOfLengthBetween(0, 30))
         );
     }
 

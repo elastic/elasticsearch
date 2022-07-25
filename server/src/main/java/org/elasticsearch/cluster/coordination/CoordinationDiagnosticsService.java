@@ -226,14 +226,14 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
         boolean explain,
         MasterHistory localMasterHistory,
         @Nullable Exception remoteException,
-        @Nullable String clusterFormationMessage
+        @Nullable Map<String, String> clusterFormationMessages
     ) {
         if (explain == false) {
             return CoordinationDiagnosticsDetails.EMPTY;
         }
         DiscoveryNode masterNode = localMasterHistory.getMostRecentMaster();
         List<DiscoveryNode> recentNonNullMasters = localMasterHistory.getNodes().stream().filter(Objects::nonNull).toList();
-        return new CoordinationDiagnosticsDetails(masterNode, recentNonNullMasters, remoteException, clusterFormationMessage);
+        return new CoordinationDiagnosticsDetails(masterNode, recentNonNullMasters, remoteException, clusterFormationMessages);
     }
 
     /**
@@ -366,7 +366,12 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                         nodeHasMasterLookupTimeframe,
                         entry.getKey().getName()
                     ),
-                    getDetails(explain, localMasterHistory, remoteException, coordinator.getClusterFormationState().getDescription())
+                    getDetails(
+                        explain,
+                        localMasterHistory,
+                        remoteException,
+                        Map.of(coordinator.getLocalNode().getId(), coordinator.getClusterFormationState().getDescription())
+                    )
                 );
             }
         }
@@ -374,6 +379,9 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
             nodeToClusterFormationResponses.entrySet()
                 .stream()
                 .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().clusterFormationState()));
+        Map<String, String> nodeIdToClusterFormationDescription = nodeClusterFormationStateMap.entrySet()
+            .stream()
+            .collect(Collectors.toMap(entry -> entry.getKey().getId(), entry -> entry.getValue().getDescription()));
         if (anyNodeInClusterReportsDiscoveryProblems(masterEligibleNodes, nodeClusterFormationStateMap)) {
             result = new CoordinationDiagnosticsResult(
                 CoordinationDiagnosticsStatus.RED,
@@ -383,7 +391,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                         + "eligible nodes",
                     nodeHasMasterLookupTimeframe
                 ),
-                getDetails(explain, localMasterHistory, null, coordinator.getClusterFormationState().getDescription())
+                getDetails(explain, localMasterHistory, null, nodeIdToClusterFormationDescription)
             );
         } else {
             if (anyNodeInClusterReportsQuorumProblems(nodeClusterFormationStateMap)) {
@@ -394,7 +402,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                         "No master node observed in the last %s, and the master eligible nodes are unable to form a quorum",
                         nodeHasMasterLookupTimeframe
                     ),
-                    getDetails(explain, localMasterHistory, null, coordinator.getClusterFormationState().getDescription())
+                    getDetails(explain, localMasterHistory, null, nodeIdToClusterFormationDescription)
                 );
             } else {
                 result = new CoordinationDiagnosticsResult(
@@ -404,7 +412,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                         "No master node observed in the last %s, and the cause has not been determined.",
                         nodeHasMasterLookupTimeframe
                     ),
-                    getDetails(explain, localMasterHistory, null, coordinator.getClusterFormationState().getDescription())
+                    getDetails(explain, localMasterHistory, null, nodeIdToClusterFormationDescription)
                 );
             }
         }
@@ -504,7 +512,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
             explain,
             localMasterHistory,
             null,
-            coordinator.getClusterFormationState().getDescription()
+            Map.of(coordinator.getLocalNode().getId(), coordinator.getClusterFormationState().getDescription())
         );
         return new CoordinationDiagnosticsResult(CoordinationDiagnosticsStatus.RED, summary, details);
     }
@@ -534,7 +542,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
             explain,
             localMasterHistory,
             null,
-            coordinator.getClusterFormationState().getDescription()
+            Map.of(coordinator.getLocalNode().getId(), coordinator.getClusterFormationState().getDescription())
         );
         return new CoordinationDiagnosticsResult(CoordinationDiagnosticsStatus.RED, summary, details);
     }
@@ -791,25 +799,31 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
         List<DiscoveryNode> recentMasters,
         @Nullable String remoteExceptionMessage,
         @Nullable String remoteExceptionStackTrace,
-        @Nullable String clusterFormationDescription
+        @Nullable Map<String, String> nodeToClusterFormationDescriptionMap
     ) implements Writeable {
         public CoordinationDiagnosticsDetails(
             DiscoveryNode currentMaster,
             List<DiscoveryNode> recentMasters,
             Exception remoteException,
-            String clusterFormationDescription
+            Map<String, String> nodeToClusterFormationDescriptionMap
         ) {
             this(
                 currentMaster,
                 recentMasters,
                 remoteException == null ? null : remoteException.getMessage(),
                 getStackTrace(remoteException),
-                clusterFormationDescription
+                nodeToClusterFormationDescriptionMap
             );
         }
 
         public CoordinationDiagnosticsDetails(StreamInput in) throws IOException {
-            this(readCurrentMaster(in), readRecentMasters(in), in.readOptionalString(), in.readOptionalString(), in.readOptionalString());
+            this(
+                readCurrentMaster(in),
+                readRecentMasters(in),
+                in.readOptionalString(),
+                in.readOptionalString(),
+                readClusterFormationStates(in)
+            );
         }
 
         private static DiscoveryNode readCurrentMaster(StreamInput in) throws IOException {
@@ -832,6 +846,14 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                 recentMasters = null;
             }
             return recentMasters;
+        }
+
+        private static Map<String, String> readClusterFormationStates(StreamInput in) throws IOException {
+            if (in.readBoolean()) {
+                return in.readMap(StreamInput::readString, StreamInput::readString);
+            } else {
+                return Map.of();
+            }
         }
 
         private static String getStackTrace(Exception e) {
@@ -861,7 +883,12 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
             }
             out.writeOptionalString(remoteExceptionMessage);
             out.writeOptionalString(remoteExceptionStackTrace);
-            out.writeOptionalString(clusterFormationDescription);
+            if (nodeToClusterFormationDescriptionMap == null) {
+                out.writeBoolean(false);
+            } else {
+                out.writeBoolean(true);
+                out.writeMap(nodeToClusterFormationDescriptionMap, StreamOutput::writeString, StreamOutput::writeString);
+            }
         }
 
     }

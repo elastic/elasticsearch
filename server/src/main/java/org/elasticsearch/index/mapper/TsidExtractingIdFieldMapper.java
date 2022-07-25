@@ -126,7 +126,15 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
         ByteUtils.writeLongBE(timestamp, suffix, 8);   // Big Ending shrinks the inverted index by ~37%
 
         IndexRouting.ExtractFromSource indexRouting = (IndexRouting.ExtractFromSource) context.indexSettings().getIndexRouting();
-        String id = routingBuilder.createId(suffix, () -> 0);
+        String id = routingBuilder.createId(suffix, () -> {
+            if (context.getDynamicMappers().isEmpty() == false) {
+                throw new IllegalStateException(
+                    "Didn't find any fields to include in the routing which would be fine if there are"
+                        + " dynamic mapping waiting but we couldn't find any of those either!"
+                );
+            }
+            return 0;
+        });
         assert Uid.isURLBase64WithoutPadding(id); // Make sure we get to use Uid's nice optimizations
         /*
          * Make sure that _id from extracting the tsid matches that _id

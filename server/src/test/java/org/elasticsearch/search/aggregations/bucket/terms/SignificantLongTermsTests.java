@@ -81,23 +81,13 @@ public class SignificantLongTermsTests extends InternalSignificantTermsTestCase 
             List<SignificantLongTerms.Bucket> buckets = longTerms.getBuckets();
             SignificanceHeuristic significanceHeuristic = longTerms.significanceHeuristic;
             Map<String, Object> metadata = longTerms.getMetadata();
-            switch (between(0, 5)) {
-                case 0:
-                    name += randomAlphaOfLength(5);
-                    break;
-                case 1:
-                    requiredSize += between(1, 100);
-                    break;
-                case 2:
-                    minDocCount += between(1, 100);
-                    break;
-                case 3:
-                    subsetSize += between(1, 100);
-                    break;
-                case 4:
-                    supersetSize += between(1, 100);
-                    break;
-                case 5:
+            switch (between(0, 6)) {
+                case 0 -> name += randomAlphaOfLength(5);
+                case 1 -> requiredSize += between(1, 100);
+                case 2 -> minDocCount += between(1, 100);
+                case 3 -> subsetSize += between(1, 100);
+                case 4 -> supersetSize += between(1, 100);
+                case 5 -> {
                     buckets = new ArrayList<>(buckets);
                     buckets.add(
                         new SignificantLongTerms.Bucket(
@@ -111,8 +101,8 @@ public class SignificantLongTermsTests extends InternalSignificantTermsTestCase 
                             0
                         )
                     );
-                    break;
-                case 8:
+                }
+                case 6 -> {
                     if (metadata == null) {
                         metadata = new HashMap<>(1);
                     } else {
@@ -140,25 +130,18 @@ public class SignificantLongTermsTests extends InternalSignificantTermsTestCase 
             long minDocCount = instance.minDocCount;
             Map<String, Object> metadata = instance.getMetadata();
             switch (between(0, 3)) {
-                case 0:
-                    name += randomAlphaOfLength(5);
-                    break;
-                case 1:
-                    requiredSize += between(1, 100);
-                    break;
-                case 2:
-                    minDocCount += between(1, 100);
-                    break;
-                case 3:
+                case 0 -> name += randomAlphaOfLength(5);
+                case 1 -> requiredSize += between(1, 100);
+                case 2 -> minDocCount += between(1, 100);
+                case 3 -> {
                     if (metadata == null) {
-                        metadata = new HashMap<>(1);
+                        metadata = Maps.newMapWithExpectedSize(1);
                     } else {
                         metadata = new HashMap<>(instance.getMetadata());
                     }
                     metadata.put(randomAlphaOfLength(15), randomInt());
-                    break;
-                default:
-                    throw new AssertionError("Illegal randomisation branch");
+                }
+                default -> throw new AssertionError("Illegal randomisation branch");
             }
             return new UnmappedSignificantTerms(name, requiredSize, minDocCount, metadata);
         }

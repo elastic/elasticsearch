@@ -12,40 +12,26 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RelativeByteSizeValue;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.EnumSet;
 import java.util.Objects;
 
 /**
  * A cluster state entry that contains a list of all the thresholds used to determine if a node is healthy.
  */
-public final class HealthMetadata extends AbstractNamedDiffable<Metadata.Custom> implements Metadata.Custom {
+public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Custom> implements ClusterState.Custom {
 
     public static final String TYPE = "health";
 
-    public static final ConstructingObjectParser<HealthMetadata, Void> PARSER = new ConstructingObjectParser<>(
-        TYPE,
-        true,
-        args -> new HealthMetadata((Disk) args[0])
-    );
-
     private static final ParseField DISK_METADATA = new ParseField(Disk.TYPE);
-
-    static {
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> Disk.fromXContent(p), DISK_METADATA);
-    }
 
     private final Disk diskMetadata;
 
@@ -72,8 +58,8 @@ public final class HealthMetadata extends AbstractNamedDiffable<Metadata.Custom>
         diskMetadata.writeTo(out);
     }
 
-    public static NamedDiff<Metadata.Custom> readDiffFrom(StreamInput in) throws IOException {
-        return readDiffFrom(Metadata.Custom.class, TYPE, in);
+    public static NamedDiff<ClusterState.Custom> readDiffFrom(StreamInput in) throws IOException {
+        return readDiffFrom(ClusterState.Custom.class, TYPE, in);
     }
 
     @Override
@@ -84,22 +70,13 @@ public final class HealthMetadata extends AbstractNamedDiffable<Metadata.Custom>
         return builder;
     }
 
-    public static HealthMetadata fromXContent(XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
-    }
-
-    public static HealthMetadata getHealthCustomMetadata(ClusterState clusterState) {
-        return clusterState.getMetadata().custom(HealthMetadata.TYPE);
+    public static HealthMetadata getFromClusterState(ClusterState clusterState) {
+        return clusterState.custom(HealthMetadata.TYPE);
     }
 
     @Override
     public boolean isFragment() {
         return true;
-    }
-
-    @Override
-    public EnumSet<Metadata.XContentContext> context() {
-        return Metadata.API_AND_GATEWAY;
     }
 
     public Disk getDiskMetadata() {
@@ -137,24 +114,6 @@ public final class HealthMetadata extends AbstractNamedDiffable<Metadata.Custom>
         private static final ParseField FROZEN_FLOOD_STAGE_WATERMARK_FIELD = new ParseField("frozen_flood_stage_watermark");
         private static final ParseField FROZEN_FLOOD_STAGE_MAX_HEADROOM_FIELD = new ParseField("frozen_flood_stage_max_headroom");
 
-        public static final ConstructingObjectParser<Disk, Void> PARSER = new ConstructingObjectParser<>(
-            TYPE,
-            true,
-            (args) -> new Disk(
-                RelativeByteSizeValue.parseRelativeByteSizeValue((String) args[0], HIGH_WATERMARK_FIELD.getPreferredName()),
-                RelativeByteSizeValue.parseRelativeByteSizeValue((String) args[1], FLOOD_STAGE_WATERMARK_FIELD.getPreferredName()),
-                RelativeByteSizeValue.parseRelativeByteSizeValue((String) args[2], FROZEN_FLOOD_STAGE_WATERMARK_FIELD.getPreferredName()),
-                ByteSizeValue.parseBytesSizeValue((String) args[3], FROZEN_FLOOD_STAGE_MAX_HEADROOM_FIELD.getPreferredName())
-            )
-        );
-
-        static {
-            PARSER.declareString(ConstructingObjectParser.constructorArg(), HIGH_WATERMARK_FIELD);
-            PARSER.declareString(ConstructingObjectParser.constructorArg(), FLOOD_STAGE_WATERMARK_FIELD);
-            PARSER.declareString(ConstructingObjectParser.constructorArg(), FROZEN_FLOOD_STAGE_WATERMARK_FIELD);
-            PARSER.declareString(ConstructingObjectParser.constructorArg(), FROZEN_FLOOD_STAGE_MAX_HEADROOM_FIELD);
-        }
-
         Disk(StreamInput in) throws IOException {
             this(
                 RelativeByteSizeValue.parseRelativeByteSizeValue(in.readString(), HIGH_WATERMARK_FIELD.getPreferredName()),
@@ -162,10 +121,6 @@ public final class HealthMetadata extends AbstractNamedDiffable<Metadata.Custom>
                 RelativeByteSizeValue.parseRelativeByteSizeValue(in.readString(), FROZEN_FLOOD_STAGE_WATERMARK_FIELD.getPreferredName()),
                 new ByteSizeValue(in)
             );
-        }
-
-        static Disk fromXContent(XContentParser parser) throws IOException {
-            return PARSER.parse(parser, null);
         }
 
         @Override
@@ -255,39 +210,39 @@ public final class HealthMetadata extends AbstractNamedDiffable<Metadata.Custom>
 
             private Builder() {}
 
-            Disk.Builder highWatermark(RelativeByteSizeValue highWatermark) {
+            Builder highWatermark(RelativeByteSizeValue highWatermark) {
                 this.highWatermark = highWatermark;
                 return this;
             }
 
-            Disk.Builder highWatermark(String highWatermark, String setting) {
+            Builder highWatermark(String highWatermark, String setting) {
                 return highWatermark(RelativeByteSizeValue.parseRelativeByteSizeValue(highWatermark, setting));
             }
 
-            Disk.Builder floodStageWatermark(RelativeByteSizeValue floodStageWatermark) {
+            Builder floodStageWatermark(RelativeByteSizeValue floodStageWatermark) {
                 this.floodStageWatermark = floodStageWatermark;
                 return this;
             }
 
-            public Disk.Builder floodStageWatermark(String floodStageWatermark, String setting) {
+            public Builder floodStageWatermark(String floodStageWatermark, String setting) {
                 return floodStageWatermark(RelativeByteSizeValue.parseRelativeByteSizeValue(floodStageWatermark, setting));
             }
 
-            Disk.Builder frozenFloodStageWatermark(RelativeByteSizeValue frozenFloodStageWatermark) {
+            Builder frozenFloodStageWatermark(RelativeByteSizeValue frozenFloodStageWatermark) {
                 this.frozenFloodStageWatermark = frozenFloodStageWatermark;
                 return this;
             }
 
-            Disk.Builder frozenFloodStageWatermark(String frozenFloodStageWatermark, String setting) {
+            Builder frozenFloodStageWatermark(String frozenFloodStageWatermark, String setting) {
                 return frozenFloodStageWatermark(RelativeByteSizeValue.parseRelativeByteSizeValue(frozenFloodStageWatermark, setting));
             }
 
-            Disk.Builder frozenFloodStageMaxHeadroom(ByteSizeValue frozenFloodStageMaxHeadroom) {
+            Builder frozenFloodStageMaxHeadroom(ByteSizeValue frozenFloodStageMaxHeadroom) {
                 this.frozenFloodStageMaxHeadroom = frozenFloodStageMaxHeadroom;
                 return this;
             }
 
-            Disk.Builder frozenFloodStageMaxHeadroom(String frozenFloodStageMaxHeadroom, String setting) {
+            Builder frozenFloodStageMaxHeadroom(String frozenFloodStageMaxHeadroom, String setting) {
                 return frozenFloodStageMaxHeadroom(ByteSizeValue.parseBytesSizeValue(frozenFloodStageMaxHeadroom, setting));
             }
 

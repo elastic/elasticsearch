@@ -1243,22 +1243,14 @@ public class IndexNameExpressionResolver {
                     // dedup backing indices if expand hidden indices option is true
                     Set<String> resolvedIncludingDataStreams = new HashSet<>(resolvedExpressions);
                     resolvedIncludingDataStreams.addAll(
-                        expand(
-                            context,
-                            dataStreamsAbstractions,
-                            expressions.isEmpty() ? "_all" : expressions.get(0)
-                        )
+                        expand(context, dataStreamsAbstractions, expressions.isEmpty() ? "_all" : expressions.get(0))
                     );
                     return resolvedIncludingDataStreams;
                 }
                 return resolvedExpressions;
             }
 
-            ExplicitExpressionResolver.Resolved explicitsAndWildcards = ExplicitExpressionResolver.resolve(
-                context,
-                expressions,
-                metadata
-            );
+            ExplicitExpressionResolver.Resolved explicitsAndWildcards = ExplicitExpressionResolver.resolve(context, expressions, metadata);
             if (explicitsAndWildcards.wildcardsAndExclusions().isEmpty()) {
                 return explicitsAndWildcards.explicitNames();
             } else {
@@ -1273,11 +1265,7 @@ public class IndexNameExpressionResolver {
             }
         }
 
-        private static Set<String> innerResolve(
-            Context context,
-            List<String> wildcardsAndExclusions,
-            Metadata metadata
-        ) {
+        private static Set<String> innerResolve(Context context, List<String> wildcardsAndExclusions, Metadata metadata) {
             Set<String> result = new HashSet<>();
             for (int i = 0; i < wildcardsAndExclusions.size(); i++) {
                 String expression = wildcardsAndExclusions.get(i);
@@ -1376,11 +1364,7 @@ public class IndexNameExpressionResolver {
             }
         }
 
-        private static Set<String> expand(
-            Context context,
-            Map<String, IndexAbstraction> matches,
-            String expression
-        ) {
+        private static Set<String> expand(Context context, Map<String, IndexAbstraction> matches, String expression) {
             final IndexMetadata.State excludeState = excludeState(context.options);
             final boolean includeHidden = context.options.expandWildcardsHidden();
             Set<String> expand = new HashSet<>();

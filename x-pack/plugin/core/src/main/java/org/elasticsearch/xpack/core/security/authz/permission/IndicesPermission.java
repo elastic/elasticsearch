@@ -553,10 +553,10 @@ public final class IndicesPermission {
                         boolean bwcMappingActionCheck = isMappingUpdateAction
                             && false == resource.isPartOfDataStream()
                             && containsPrivilegeThatGrantsMappingUpdatesForBwc(group);
+                        bwcGrantMappingUpdate = bwcGrantMappingUpdate || bwcMappingActionCheck;
+
                         if (bwcMappingActionCheck) {
-                            bwcGrantMappingUpdate = true;
                             logDeprecatedBwcPrivilegeUsage(action, resource, group, bwcDeprecationLogActions);
-                            break;
                         }
                     }
                 }

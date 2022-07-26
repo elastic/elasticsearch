@@ -1241,8 +1241,11 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             for (RoleDescriptor roleDescriptor : createApiKeyRequest.getRoleDescriptors()) {
                 withRoleDescriptor(builder, roleDescriptor);
             }
-            builder.endArray() // role_descriptors
-                .endObject(); // apikey
+            builder.endArray(); // role_descriptors
+            if (createApiKeyRequest.getMetadata() != null && createApiKeyRequest.getMetadata().isEmpty() == false) {
+                builder.field("metadata", createApiKeyRequest.getMetadata());
+            }
+            builder.endObject(); // apikey
         }
 
         private void withRequestBody(final XContentBuilder builder, final UpdateApiKeyRequest updateApiKeyRequest) throws IOException {
@@ -1253,6 +1256,11 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     withRoleDescriptor(builder, roleDescriptor);
                 }
                 builder.endArray();
+            }
+            if (updateApiKeyRequest.getMetadata() != null) {
+                // Include in entry even if metadata is empty. It's meaningful to track an empty metadata request parameter
+                // because it replaces any metadata previously associated with the API key
+                builder.field("metadata", updateApiKeyRequest.getMetadata());
             }
             builder.endObject();
         }

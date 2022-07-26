@@ -69,7 +69,7 @@ public class ActionConfigStatsTests extends AbstractWireSerializingTestCase<Acti
     @Override
     protected ActionConfigStats mutateInstance(ActionConfigStats instance) throws IOException {
         ActionConfigStats.Builder builder = ActionConfigStats.builder(instance);
-        switch (between(0, 8)) {
+        switch (between(0, 9)) {
             case 0 -> {
                 int numberOfReplicas = randomValueOtherThan(instance.getAllocateNumberOfReplicas(), () -> randomIntBetween(0, 10000));
                 builder.setAllocateNumberOfReplicas(numberOfReplicas);

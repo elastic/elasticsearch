@@ -430,16 +430,16 @@ public class ApiKeyService {
         final Collection<VersionedApiKeyDoc> versionedDocsToUpdate,
         final ActionListener<BulkUpdateApiKeyResponse> listener
     ) {
-        logger.trace("Found [{}] API keys for update", versionedDocsToUpdate.size());
+        logger.trace("Found [{}] API keys to update", versionedDocsToUpdate.size());
         final BulkUpdateApiKeyResponse.Builder responseBuilder = BulkUpdateApiKeyResponse.builder();
         final BulkRequestBuilder requestBuilder = client.prepareBulk();
         for (VersionedApiKeyDoc versionedDoc : versionedDocsToUpdate) {
             try {
                 validateForUpdate(versionedDoc.id(), authentication, versionedDoc.doc());
-                final var indexRequest = maybeBuildIndexRequest(versionedDoc, authentication, request, userRoleDescriptors);
+                final IndexRequest indexRequest = maybeBuildIndexRequest(versionedDoc, authentication, request, userRoleDescriptors);
                 final boolean isNoop = indexRequest == null;
                 if (isNoop) {
-                    logger.debug("Detected noop update request for API key [{}]. Skipping index request.", versionedDoc.id());
+                    logger.debug("Detected noop update request for API key [{}]. Skipping index request", versionedDoc.id());
                     responseBuilder.noop(versionedDoc.id());
                 } else {
                     requestBuilder.add(indexRequest);

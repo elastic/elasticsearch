@@ -95,6 +95,7 @@ public final class ShardAllocationDecision implements ToXContentFragment, Writea
 
     @Override
     public boolean equals(Object o) {
+        if (o == this) return true;
         return o instanceof ShardAllocationDecision that
             && Objects.equals(allocateDecision, that.allocateDecision)
             && Objects.equals(moveDecision, that.moveDecision);

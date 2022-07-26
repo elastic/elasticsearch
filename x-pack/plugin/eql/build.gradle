@@ -39,7 +39,7 @@ dependencies {
  *  TODO: Enable for all builds upon this feature release       *
  ****************************************************************/
 if (BuildParams.isSnapshotBuild()) {
-  addQaCheckDependencies()
+  addQaCheckDependencies(project)
 }
 
 /**********************************************

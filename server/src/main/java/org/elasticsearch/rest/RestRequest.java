@@ -14,7 +14,6 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedConsumer;
@@ -615,9 +614,8 @@ public class RestRequest implements ToXContent.Params {
 
     public static class MediaTypeHeaderException extends RuntimeException {
 
-        private String message;
-        private Set<String> failedHeaderNames;
-        private Object[] params;
+        private final String message;
+        private final Set<String> failedHeaderNames;
 
         MediaTypeHeaderException(final RuntimeException cause, String... failedHeaderNames) {
             super(cause);
@@ -631,7 +629,7 @@ public class RestRequest implements ToXContent.Params {
 
         @Override
         public String getMessage() {
-            return LoggerMessageFormat.format(message, params);
+            return message;
         }
     }
 

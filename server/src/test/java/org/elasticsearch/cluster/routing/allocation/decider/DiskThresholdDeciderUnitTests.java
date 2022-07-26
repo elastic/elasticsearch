@@ -32,7 +32,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDeciderTests.DevNullClusterInfo;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
@@ -108,7 +108,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             leastAvailableUsages,
             mostAvailableUsage,
             Map.of("[test][0][p]", 10L), // 10 bytes,
-            null,
+            Map.of(),
             Map.of(),
             Map.of()
         );
@@ -128,8 +128,8 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         assertThat(
             ((Decision.Single) decision).getExplanation(),
             containsString(
-                "the node is above the high watermark cluster "
-                    + "setting [cluster.routing.allocation.disk.watermark.high=90%], using more disk space than the maximum allowed [90.0%]"
+                "the node is above the high watermark cluster setting [cluster.routing.allocation.disk.watermark.high=90%], "
+                    + "having less than the minimum required"
             )
         );
     }
@@ -186,7 +186,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             leastAvailableUsages,
             mostAvailableUsage,
             Map.of("[test][0][p]", shardSize),
-            null,
+            Map.of(),
             Map.of(),
             Map.of()
         );
@@ -201,15 +201,19 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         Decision decision = decider.canAllocate(test_0, RoutingNodesHelper.routingNode("node_0", node_0), allocation);
         assertEquals(Decision.Type.NO, decision.type());
 
+        double usedPercentage = 100.0 * (100 - freeBytes) / 100;
+
         assertThat(
             decision.getExplanation(),
             containsString(
                 "allocating the shard to this node will bring the node above the high watermark cluster setting "
                     + "[cluster.routing.allocation.disk.watermark.high=90%] "
-                    + "and cause it to have less than the minimum required [0b] of free space "
+                    + "and cause it to have less than the minimum required [10b] of free space "
                     + "(free: ["
                     + freeBytes
-                    + "b], estimated shard size: ["
+                    + "b], used: ["
+                    + Strings.format1Decimals(usedPercentage, "%")
+                    + "], estimated shard size: ["
                     + shardSize
                     + "b])"
             )
@@ -308,7 +312,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             leastAvailableUsages,
             mostAvailableUsage,
             shardSizes,
-            null,
+            Map.of(),
             shardRoutingMap,
             Map.of()
         );
@@ -320,43 +324,43 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             System.nanoTime()
         );
         allocation.debugDecision(true);
-        Decision decision = decider.canRemain(test_0, RoutingNodesHelper.routingNode("node_0", node_0), allocation);
+        Decision decision = decider.canRemain(indexMetadata, test_0, RoutingNodesHelper.routingNode("node_0", node_0), allocation);
         assertEquals(Decision.Type.YES, decision.type());
         assertThat(
             ((Decision.Single) decision).getExplanation(),
             containsString("there is enough disk on this node for the shard to remain, free: [10b]")
         );
-        decision = decider.canRemain(test_1, RoutingNodesHelper.routingNode("node_1", node_1), allocation);
+        decision = decider.canRemain(indexMetadata, test_1, RoutingNodesHelper.routingNode("node_1", node_1), allocation);
         assertEquals(Decision.Type.NO, decision.type());
         assertThat(
             ((Decision.Single) decision).getExplanation(),
             containsString(
                 "the shard cannot remain on this node because it is above the high watermark cluster setting "
-                    + "[cluster.routing.allocation.disk.watermark.high=90%] and there is less than the required [10.0%] "
-                    + "free disk on node, actual free: [9.0%]"
+                    + "[cluster.routing.allocation.disk.watermark.high=90%] and there is less than the required [10b] "
+                    + "free space on node, actual free: [9b], actual used: [91%]"
             )
         );
         try {
-            decider.canRemain(test_0, RoutingNodesHelper.routingNode("node_1", node_1), allocation);
+            decider.canRemain(indexMetadata, test_0, RoutingNodesHelper.routingNode("node_1", node_1), allocation);
             fail("not allocated on this node");
         } catch (IllegalArgumentException ex) {
             // not allocated on that node
         }
         try {
-            decider.canRemain(test_1, RoutingNodesHelper.routingNode("node_0", node_0), allocation);
+            decider.canRemain(indexMetadata, test_1, RoutingNodesHelper.routingNode("node_0", node_0), allocation);
             fail("not allocated on this node");
         } catch (IllegalArgumentException ex) {
             // not allocated on that node
         }
 
-        decision = decider.canRemain(test_2, RoutingNodesHelper.routingNode("node_1", node_1), allocation);
+        decision = decider.canRemain(indexMetadata, test_2, RoutingNodesHelper.routingNode("node_1", node_1), allocation);
         assertEquals("can stay since allocated on a different path with enough space", Decision.Type.YES, decision.type());
         assertThat(
             ((Decision.Single) decision).getExplanation(),
             containsString("this shard is not allocated on the most utilized disk and can remain")
         );
 
-        decision = decider.canRemain(test_2, RoutingNodesHelper.routingNode("node_1", node_1), allocation);
+        decision = decider.canRemain(indexMetadata, test_2, RoutingNodesHelper.routingNode("node_1", node_1), allocation);
         assertEquals("can stay since we don't have information about this shard", Decision.Type.YES, decision.type());
         assertThat(
             ((Decision.Single) decision).getExplanation(),
@@ -365,12 +369,12 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
     }
 
     public void testShardSizeAndRelocatingSize() {
-        ImmutableOpenMap.Builder<String, Long> shardSizes = ImmutableOpenMap.builder();
+        Map<String, Long> shardSizes = new HashMap<>();
         shardSizes.put("[test][0][r]", 10L);
         shardSizes.put("[test][1][r]", 100L);
         shardSizes.put("[test][2][r]", 1000L);
         shardSizes.put("[other][0][p]", 10000L);
-        ClusterInfo info = new DevNullClusterInfo(ImmutableOpenMap.of(), ImmutableOpenMap.of(), shardSizes.build());
+        ClusterInfo info = new DevNullClusterInfo(Map.of(), Map.of(), shardSizes);
         Metadata.Builder metaBuilder = Metadata.builder();
         metaBuilder.put(
             IndexMetadata.builder("test")
@@ -488,13 +492,13 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
     }
 
     public void testSizeShrinkIndex() {
-        ImmutableOpenMap.Builder<String, Long> shardSizes = ImmutableOpenMap.builder();
+        Map<String, Long> shardSizes = new HashMap<>();
         shardSizes.put("[test][0][p]", 10L);
         shardSizes.put("[test][1][p]", 100L);
         shardSizes.put("[test][2][p]", 500L);
         shardSizes.put("[test][3][p]", 500L);
 
-        ClusterInfo info = new DevNullClusterInfo(ImmutableOpenMap.of(), ImmutableOpenMap.of(), shardSizes.build());
+        ClusterInfo info = new DevNullClusterInfo(Map.of(), Map.of(), shardSizes);
         Metadata.Builder metaBuilder = Metadata.builder();
         metaBuilder.put(
             IndexMetadata.builder("test")
@@ -746,7 +750,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             allFullUsages,
             allFullUsages,
             Map.of("[test][0][p]", 10L),
-            null,
+            Map.of(),
             Map.of(),
             Map.of()
         );
@@ -763,7 +767,12 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         assertThat(decision.type(), equalTo(Decision.Type.YES));
         assertThat(decision.getExplanation(), containsString("disk watermarks are ignored on this index"));
 
-        decision = decider.canRemain(test_0.initialize(node_0.getId(), null, 0L).moveToStarted(), routingNode, allocation);
+        decision = decider.canRemain(
+            metadata.getIndexSafe(test_0.index()),
+            test_0.initialize(node_0.getId(), null, 0L).moveToStarted(),
+            routingNode,
+            allocation
+        );
         assertThat(decision.type(), equalTo(Decision.Type.YES));
         assertThat(decision.getExplanation(), containsString("disk watermarks are ignored on this index"));
     }
@@ -812,11 +821,11 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         Map<String, DiskUsage> leastAvailableUsages = Map.of("node_0", new DiskUsage("node_0", "node_0", "_na_", 100, 0)); // all full
         Map<String, DiskUsage> mostAvailableUsage = Map.of("node_0", new DiskUsage("node_0", "node_0", "_na_", 100, 0)); // all full
 
-        ImmutableOpenMap.Builder<String, Long> shardSizes = ImmutableOpenMap.builder();
+        Map<String, Long> shardSizes = new HashMap<>();
         // bigger than available space
         final long shardSize = randomIntBetween(1, 10);
         shardSizes.put("[test][0][p]", shardSize);
-        ClusterInfo clusterInfo = new ClusterInfo(leastAvailableUsages, mostAvailableUsage, shardSizes.build(), null, Map.of(), Map.of());
+        ClusterInfo clusterInfo = new ClusterInfo(leastAvailableUsages, mostAvailableUsage, shardSizes, Map.of(), Map.of(), Map.of());
         RoutingAllocation allocation = new RoutingAllocation(
             new AllocationDeciders(Collections.singleton(decider)),
             clusterState,

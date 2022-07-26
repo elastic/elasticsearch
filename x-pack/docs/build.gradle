@@ -21,7 +21,7 @@ tasks.named("buildRestTests").configure {
 
 dependencies {
   yamlRestTestImplementation(testArtifact(project(xpackModule('core'))))
-  yamlRestTestImplementation(testArtifact(project(xpackProject('plugin').path)))
+  yamlRestTestImplementation(testArtifact(project(':x-pack:plugin')))
 }
 
 restResources {
@@ -31,9 +31,9 @@ restResources {
 }
 
 testClusters.matching { it.name == "yamlRestTest" }.configureEach {
-  extraConfigFile 'op-jwks.json', xpackProject('test:idp-fixture').file("oidc/op-jwks.json")
-  extraConfigFile 'idp-docs-metadata.xml', xpackProject('test:idp-fixture').file("idp/shibboleth-idp/metadata/idp-docs-metadata.xml")
-  extraConfigFile 'testClient.crt', xpackProject('plugin:security').file("src/test/resources/org/elasticsearch/xpack/security/action/pki_delegation/testClient.crt")
+  extraConfigFile 'op-jwks.json', project(':x-pack:test:idp-fixture').file("oidc/op-jwks.json")
+  extraConfigFile 'idp-docs-metadata.xml', project(':x-pack:test:idp-fixture').file("idp/shibboleth-idp/metadata/idp-docs-metadata.xml")
+  extraConfigFile 'testClient.crt', project(':x-pack:plugin:security').file("src/test/resources/org/elasticsearch/xpack/security/action/pki_delegation/testClient.crt")
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.security.authc.api_key.enabled', 'true'
   setting 'xpack.security.authc.token.enabled', 'true'
@@ -65,6 +65,7 @@ testClusters.matching { it.name == "yamlRestTest" }.configureEach {
   setting 'xpack.security.authc.realms.saml.saml1.attributes.name', 'urn:oid:2.5.4.3'
 
   user username: 'test_admin'
+  user username: 'test_user'
 }
 
 tasks.named("buildRestTests").configure { buildRestTests ->

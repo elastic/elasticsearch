@@ -1,6 +1,0 @@
-pr: 85788
-summary: GeoBoundingBox query should work on bounding box with equal latitude or longitude
-area: Search
-type: enhancement
-issues:
-  - 77717

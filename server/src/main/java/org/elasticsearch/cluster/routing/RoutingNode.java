@@ -17,6 +17,7 @@ import org.elasticsearch.index.shard.ShardId;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -44,15 +45,21 @@ public class RoutingNode implements Iterable<ShardRouting> {
 
     private final LinkedHashSet<ShardRouting> relocatingShards;
 
-    private final Map<Index, LinkedHashSet<ShardRouting>> shardsByIndex;
+    private final Map<Index, Set<ShardRouting>> shardsByIndex;
 
-    RoutingNode(String nodeId, @Nullable DiscoveryNode node) {
+    /**
+     * @param nodeId    node id of this routing node
+     * @param node      discovery node for this routing node
+     * @param sizeGuess estimate for the number of shards that will be added to this instance to save re-hashing on subsequent calls to
+     *                  {@link #add(ShardRouting)}
+     */
+    RoutingNode(String nodeId, @Nullable DiscoveryNode node, int sizeGuess) {
         this.nodeId = nodeId;
         this.node = node;
-        this.shards = new LinkedHashMap<>();
+        this.shards = Maps.newLinkedHashMapWithExpectedSize(sizeGuess);
         this.relocatingShards = new LinkedHashSet<>();
         this.initializingShards = new LinkedHashSet<>();
-        this.shardsByIndex = new LinkedHashMap<>();
+        this.shardsByIndex = Maps.newHashMapWithExpectedSize(sizeGuess);
         assert invariant();
     }
 
@@ -62,10 +69,7 @@ public class RoutingNode implements Iterable<ShardRouting> {
         this.shards = new LinkedHashMap<>(original.shards);
         this.relocatingShards = new LinkedHashSet<>(original.relocatingShards);
         this.initializingShards = new LinkedHashSet<>(original.initializingShards);
-        this.shardsByIndex = Maps.newLinkedHashMapWithExpectedSize(original.shardsByIndex.size());
-        for (Map.Entry<Index, LinkedHashSet<ShardRouting>> entry : original.shardsByIndex.entrySet()) {
-            shardsByIndex.put(entry.getKey(), new LinkedHashSet<>(entry.getValue()));
-        }
+        this.shardsByIndex = Maps.copyOf(original.shardsByIndex, HashSet::new);
         assert invariant();
     }
 
@@ -91,6 +95,10 @@ public class RoutingNode implements Iterable<ShardRouting> {
     @Nullable
     public ShardRouting getByShardId(ShardId id) {
         return shards.get(id);
+    }
+
+    public boolean hasIndex(Index index) {
+        return shardsByIndex.containsKey(index);
     }
 
     /**
@@ -133,7 +141,7 @@ public class RoutingNode implements Iterable<ShardRouting> {
         } else if (shard.relocating()) {
             relocatingShards.add(shard);
         }
-        shardsByIndex.computeIfAbsent(shard.index(), k -> new LinkedHashSet<>()).add(shard);
+        shardsByIndex.computeIfAbsent(shard.index(), k -> new HashSet<>()).add(shard);
         assert invariant();
     }
 
@@ -154,16 +162,14 @@ public class RoutingNode implements Iterable<ShardRouting> {
             boolean exist = relocatingShards.remove(oldShard);
             assert exist : "expected shard " + oldShard + " to exist in relocatingShards";
         }
-        shardsByIndex.get(oldShard.index()).remove(oldShard);
-        if (shardsByIndex.get(oldShard.index()).isEmpty()) {
-            shardsByIndex.remove(oldShard.index());
-        }
+        final Set<ShardRouting> byIndex = shardsByIndex.get(oldShard.index());
+        byIndex.remove(oldShard);
+        byIndex.add(newShard);
         if (newShard.initializing()) {
             initializingShards.add(newShard);
         } else if (newShard.relocating()) {
             relocatingShards.add(newShard);
         }
-        shardsByIndex.computeIfAbsent(newShard.index(), k -> new LinkedHashSet<>()).add(newShard);
         assert invariant();
     }
 
@@ -178,8 +184,9 @@ public class RoutingNode implements Iterable<ShardRouting> {
             boolean exist = relocatingShards.remove(shard);
             assert exist : "expected shard " + shard + " to exist in relocatingShards";
         }
-        shardsByIndex.get(shard.index()).remove(shard);
-        if (shardsByIndex.get(shard.index()).isEmpty()) {
+        final Set<ShardRouting> byIndex = shardsByIndex.get(shard.index());
+        byIndex.remove(shard);
+        if (byIndex.isEmpty()) {
             shardsByIndex.remove(shard.index());
         }
         assert invariant();
@@ -212,27 +219,32 @@ public class RoutingNode implements Iterable<ShardRouting> {
 
     /**
      * Determine the shards with a specific state
-     * @param states set of states which should be listed
+     * @param state state which should be listed
      * @return List of shards
      */
-    public List<ShardRouting> shardsWithState(ShardRoutingState... states) {
-        if (states.length == 1) {
-            if (states[0] == ShardRoutingState.INITIALIZING) {
-                return new ArrayList<>(initializingShards);
-            } else if (states[0] == ShardRoutingState.RELOCATING) {
-                return new ArrayList<>(relocatingShards);
-            }
+    public List<ShardRouting> shardsWithState(ShardRoutingState state) {
+        if (state == ShardRoutingState.INITIALIZING) {
+            return new ArrayList<>(initializingShards);
+        } else if (state == ShardRoutingState.RELOCATING) {
+            return new ArrayList<>(relocatingShards);
         }
-
         List<ShardRouting> shards = new ArrayList<>();
         for (ShardRouting shardEntry : this) {
-            for (ShardRoutingState state : states) {
-                if (shardEntry.state() == state) {
-                    shards.add(shardEntry);
-                }
+            if (shardEntry.state() == state) {
+                shards.add(shardEntry);
             }
         }
         return shards;
+    }
+
+    private static final ShardRouting[] EMPTY_SHARD_ROUTING_ARRAY = new ShardRouting[0];
+
+    public ShardRouting[] initializing() {
+        return initializingShards.toArray(EMPTY_SHARD_ROUTING_ARRAY);
+    }
+
+    public ShardRouting[] relocating() {
+        return relocatingShards.toArray(EMPTY_SHARD_ROUTING_ARRAY);
     }
 
     /**
@@ -285,7 +297,7 @@ public class RoutingNode implements Iterable<ShardRouting> {
     }
 
     public int numberOfOwningShardsForIndex(final Index index) {
-        final LinkedHashSet<ShardRouting> shardRoutings = shardsByIndex.get(index);
+        final Set<ShardRouting> shardRoutings = shardsByIndex.get(index);
         if (shardRoutings == null) {
             return 0;
         } else {

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.rollup.v2;
 
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -21,32 +22,29 @@ import java.util.Map;
  * values. Based on the supported metric types, the subclasses of this class compute values for
  * gauge and metric types.
  */
-abstract class MetricFieldProducer {
-    private final String field;
-
+abstract class MetricFieldProducer extends AbstractRollupFieldProducer<Number> {
     /**
      * a list of metrics that will be computed for the field
      */
     private final List<Metric> metrics;
-    private boolean isEmpty = true;
 
-    MetricFieldProducer(String field, List<Metric> metrics) {
-        this.field = field;
+    MetricFieldProducer(String name, List<Metric> metrics) {
+        super(name);
         this.metrics = metrics;
     }
 
     /**
      * Reset all values collected for the field
      */
-    void reset() {
+    public void reset() {
         for (Metric metric : metrics) {
             metric.reset();
         }
         isEmpty = true;
     }
 
-    public String field() {
-        return field;
+    public String name() {
+        return name;
     }
 
     /** return the list of metrics that are computed for the field */
@@ -55,19 +53,17 @@ abstract class MetricFieldProducer {
     }
 
     /** Collect the value of a raw field and compute all downsampled metrics */
-    public void collectMetric(Double value) {
+    @Override
+    public void collect(Number value) {
         for (MetricFieldProducer.Metric metric : metrics) {
             metric.collect(value);
         }
         isEmpty = false;
     }
 
-    public boolean isEmpty() {
-        return isEmpty;
-    }
-
     /**
      * Return the downsampled value as computed after collecting all raw values.
+     * @return
      */
     public abstract Object value();
 
@@ -82,7 +78,7 @@ abstract class MetricFieldProducer {
             this.name = name;
         }
 
-        abstract void collect(double number);
+        abstract void collect(Number number);
 
         abstract Number get();
 
@@ -100,8 +96,8 @@ abstract class MetricFieldProducer {
         }
 
         @Override
-        void collect(double value) {
-            this.max = max != null ? Math.max(value, max) : value;
+        void collect(Number value) {
+            this.max = max != null ? Math.max(value.doubleValue(), max) : value.doubleValue();
         }
 
         @Override
@@ -126,8 +122,8 @@ abstract class MetricFieldProducer {
         }
 
         @Override
-        void collect(double value) {
-            this.min = min != null ? Math.min(value, min) : value;
+        void collect(Number value) {
+            this.min = min != null ? Math.min(value.doubleValue(), min) : value.doubleValue();
         }
 
         @Override
@@ -145,26 +141,25 @@ abstract class MetricFieldProducer {
      * Metric implementation that computes the sum of all values of a field
      */
     static class Sum extends Metric {
-        private double sum = 0;
+        private final CompensatedSum kahanSummation = new CompensatedSum();
 
         Sum() {
             super("sum");
         }
 
         @Override
-        void collect(double value) {
-            // TODO: switch to Kahan summation ?
-            this.sum += value;
+        void collect(Number value) {
+            kahanSummation.add(value.doubleValue());
         }
 
         @Override
         Number get() {
-            return sum;
+            return kahanSummation.value();
         }
 
         @Override
         void reset() {
-            sum = 0;
+            kahanSummation.reset(0, 0);
         }
     }
 
@@ -179,7 +174,7 @@ abstract class MetricFieldProducer {
         }
 
         @Override
-        void collect(double value) {
+        void collect(Number value) {
             count++;
         }
 
@@ -209,9 +204,9 @@ abstract class MetricFieldProducer {
         }
 
         @Override
-        void collect(double value) {
+        void collect(Number value) {
             if (lastValue == null) {
-                lastValue = value;
+                lastValue = value.doubleValue();
             }
         }
 
@@ -231,8 +226,8 @@ abstract class MetricFieldProducer {
      */
     static class CounterMetricFieldProducer extends MetricFieldProducer {
 
-        CounterMetricFieldProducer(String field) {
-            super(field, List.of(new LastValue()));
+        CounterMetricFieldProducer(String name) {
+            super(name, List.of(new LastValue()));
         }
 
         @Override
@@ -247,8 +242,8 @@ abstract class MetricFieldProducer {
      */
     static class GaugeMetricFieldProducer extends MetricFieldProducer {
 
-        GaugeMetricFieldProducer(String field) {
-            super(field, List.of(new Min(), new Max(), new Sum(), new ValueCount()));
+        GaugeMetricFieldProducer(String name) {
+            super(name, List.of(new Min(), new Max(), new Sum(), new ValueCount()));
         }
 
         @Override

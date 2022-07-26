@@ -15,11 +15,12 @@ dependencies {
   compileOnly project(path: xpackModule('core'))
   compileOnly project(path: xpackModule('analytics'))
   compileOnly project(path: xpackModule('mapper-aggregate-metric'))
+  compileOnly project(path: xpackModule('ilm'))
   compileOnly project(':modules:data-streams')
   testImplementation(testArtifact(project(xpackModule('core'))))
 }
 
-addQaCheckDependencies()
+addQaCheckDependencies(project)
 
 tasks.named("test").configure {
   if (BuildParams.isSnapshotBuild() == false) {

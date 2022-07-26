@@ -277,4 +277,34 @@ public class AssignmentPlanTests extends ESTestCase {
         assertThat(planUsingLessMemory.compareTo(planUsingMoreMemory), greaterThan(0));
         assertThat(planUsingMoreMemory.compareTo(planUsingLessMemory), lessThan(0));
     }
+
+    public void testSatisfiesAllModels_GivenAllModelsAreSatisfied() {
+        Node node1 = new Node("n_1", 100, 4);
+        Node node2 = new Node("n_2", 100, 4);
+        Model model1 = new Model("m_1", 50, 1, 2, Map.of());
+        Model model2 = new Model("m_2", 30, 2, 1, Map.of());
+        Model model3 = new Model("m_3", 20, 4, 1, Map.of());
+        AssignmentPlan plan = AssignmentPlan.builder(List.of(node1, node2), List.of(model1, model2, model3))
+            .assignModelToNode(model1, node1, 1)
+            .assignModelToNode(model2, node2, 2)
+            .assignModelToNode(model3, node1, 2)
+            .assignModelToNode(model3, node2, 2)
+            .build();
+        assertThat(plan.satisfiesAllModels(), is(true));
+    }
+
+    public void testSatisfiesAllModels_GivenOneModelHasOneAllocationLess() {
+        Node node1 = new Node("n_1", 100, 4);
+        Node node2 = new Node("n_2", 100, 4);
+        Model model1 = new Model("m_1", 50, 1, 2, Map.of());
+        Model model2 = new Model("m_2", 30, 2, 1, Map.of());
+        Model model3 = new Model("m_3", 20, 4, 1, Map.of());
+        AssignmentPlan plan = AssignmentPlan.builder(List.of(node1, node2), List.of(model1, model2, model3))
+            .assignModelToNode(model1, node1, 1)
+            .assignModelToNode(model2, node2, 2)
+            .assignModelToNode(model3, node1, 1)
+            .assignModelToNode(model3, node2, 2)
+            .build();
+        assertThat(plan.satisfiesAllModels(), is(false));
+    }
 }

@@ -112,7 +112,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             "Computation of mapping/analysis stats runs expensive computations on mappings found in "
                 + "the cluster state that are too slow for a transport thread"
         );
-        assert Thread.currentThread().getName().contains("[" + ThreadPool.Names.MANAGEMENT + "]") : Thread.currentThread().getName();
+        assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.MANAGEMENT);
         assert task instanceof CancellableTask;
         final CancellableTask cancellableTask = (CancellableTask) task;
         final ClusterState state = clusterService.state();

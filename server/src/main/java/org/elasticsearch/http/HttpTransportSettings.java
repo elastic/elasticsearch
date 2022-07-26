@@ -106,7 +106,7 @@ public final class HttpTransportSettings {
     );
     public static final Setting<ByteSizeValue> SETTING_HTTP_MAX_HEADER_SIZE = Setting.byteSizeSetting(
         "http.max_header_size",
-        new ByteSizeValue(8, ByteSizeUnit.KB),
+        new ByteSizeValue(16, ByteSizeUnit.KB),
         Property.NodeScope
     );
     public static final Setting<Integer> SETTING_HTTP_MAX_WARNING_HEADER_COUNT = intSetting(

@@ -23,6 +23,7 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.ReaderSlice;
+import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
@@ -45,6 +46,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldData;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
@@ -52,9 +54,9 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
+import org.elasticsearch.script.SortedSetDocValuesStringFieldScript;
 import org.elasticsearch.script.StringFieldScript;
 import org.elasticsearch.script.field.KeywordDocValuesField;
-import org.elasticsearch.script.field.SortedSetDocValuesStringFieldScript;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -76,7 +78,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static org.apache.lucene.index.IndexWriter.MAX_TERM_LENGTH;
@@ -682,7 +683,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+        public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             failIfNoDocValues();
             return new SortedSetOrdinalsIndexFieldData.Builder(
                 name(),
@@ -1062,8 +1063,14 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
         return new SortedSetDocValuesFieldLoader(name(), simpleName) {
             @Override
-            protected void loadNextValue(XContentBuilder b, BytesRef value) throws IOException {
-                b.value(value.utf8ToString());
+            protected BytesRef convert(BytesRef value) {
+                return value;
+            }
+
+            @Override
+            protected BytesRef preserve(BytesRef value) {
+                // Preserve must make a deep copy because convert gets a shallow copy from the iterator
+                return BytesRef.deepCopyOf(value);
             }
         };
     }
@@ -1083,42 +1090,165 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Leaf leaf(LeafReader reader) throws IOException {
-            SortedSetDocValues leaf = DocValues.getSortedSet(reader, name);
+        public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException {
+            SortedSetDocValues dv = DocValues.getSortedSet(reader, name);
+            if (dv.getValueCount() == 0) {
+                return SourceLoader.SyntheticFieldLoader.NOTHING_LEAF;
+            }
+            if (docIdsInLeaf.length == 1) {
+                /*
+                 * The singleton optimization is mostly about looking up ordinals
+                 * in sorted order and doesn't buy anything if there is only a single
+                 * document.
+                 */
+                return new ImmediateLeaf(dv);
+            }
+            SortedDocValues singleton = DocValues.unwrapSingleton(dv);
+            if (singleton != null) {
+                return singletonLeaf(singleton, docIdsInLeaf);
+            }
+            return new ImmediateLeaf(dv);
+        }
+
+        /**
+         * Load all ordinals for all docs up front and resolve to their string
+         * values in order. This should be much more disk-friendly than
+         * {@link ImmediateLeaf} because it resolves the ordinals in order and
+         * marginally more cpu friendly because it resolves the ordinals one time.
+         */
+        private Leaf singletonLeaf(SortedDocValues singleton, int[] docIdsInLeaf) throws IOException {
+            int[] ords = new int[docIdsInLeaf.length];
+            int found = 0;
+            for (int d = 0; d < docIdsInLeaf.length; d++) {
+                if (false == singleton.advanceExact(docIdsInLeaf[d])) {
+                    ords[d] = -1;
+                    continue;
+                }
+                ords[d] = singleton.ordValue();
+                found++;
+            }
+            if (found == 0) {
+                return SourceLoader.SyntheticFieldLoader.NOTHING_LEAF;
+            }
+            int[] sortedOrds = ords.clone();
+            Arrays.sort(sortedOrds);
+            int unique = 0;
+            int prev = -1;
+            for (int ord : sortedOrds) {
+                if (ord != prev) {
+                    prev = ord;
+                    unique++;
+                }
+            }
+            int[] uniqueOrds = new int[unique];
+            BytesRef[] converted = new BytesRef[unique];
+            unique = 0;
+            prev = -1;
+            for (int ord : sortedOrds) {
+                if (ord != prev) {
+                    prev = ord;
+                    uniqueOrds[unique] = ord;
+                    converted[unique] = preserve(convert(singleton.lookupOrd(ord)));
+                    unique++;
+                }
+            }
+            logger.debug("loading [{}] on [{}] docs covering [{}] ords", name, docIdsInLeaf.length, uniqueOrds.length);
             return new SourceLoader.SyntheticFieldLoader.Leaf() {
-                private boolean hasValue;
+                private int idx = -1;
 
                 @Override
-                public void advanceToDoc(int docId) throws IOException {
-                    hasValue = leaf.advanceExact(docId);
+                public boolean empty() {
+                    return false;
                 }
 
                 @Override
-                public boolean hasValue(FieldsVisitor fieldsVisitor) {
-                    return hasValue;
+                public boolean advanceToDoc(FieldsVisitor fieldsVisitor, int docId) throws IOException {
+                    idx++;
+                    if (docIdsInLeaf[idx] != docId) {
+                        throw new IllegalArgumentException(
+                            "expected to be called with [" + docIdsInLeaf[idx] + "] but was called with " + docId + " instead"
+                        );
+                    }
+                    return ords[idx] >= 0;
                 }
 
                 @Override
-                public void load(FieldsVisitor fieldsVisitor, XContentBuilder b) throws IOException {
-                    long first = leaf.nextOrd();
-                    long next = leaf.nextOrd();
-                    if (next == SortedSetDocValues.NO_MORE_ORDS) {
-                        b.field(simpleName);
-                        loadNextValue(b, leaf.lookupOrd(first));
+                public void write(FieldsVisitor fieldsVisitor, XContentBuilder b) throws IOException {
+                    if (ords[idx] < 0) {
                         return;
                     }
-                    b.startArray(simpleName);
-                    loadNextValue(b, leaf.lookupOrd(first));
-                    loadNextValue(b, leaf.lookupOrd(next));
-                    while ((next = leaf.nextOrd()) != SortedSetDocValues.NO_MORE_ORDS) {
-                        loadNextValue(b, leaf.lookupOrd(next));
+                    int convertedIdx = Arrays.binarySearch(uniqueOrds, ords[idx]);
+                    if (convertedIdx < 0) {
+                        throw new IllegalStateException(
+                            "received unexpected ord [" + ords[idx] + "]. Expected " + Arrays.toString(uniqueOrds)
+                        );
                     }
-                    b.endArray();
+                    BytesRef c = converted[convertedIdx];
+                    b.field(simpleName).utf8Value(c.bytes, c.offset, c.length);
                 }
             };
         }
 
-        protected abstract void loadNextValue(XContentBuilder b, BytesRef value) throws IOException;
+        /**
+         * Load ordinals in line with populating the doc and immediately
+         * convert from ordinals into {@link BytesRef}s.
+         */
+        private class ImmediateLeaf implements Leaf {
+            private final SortedSetDocValues dv;
+            private boolean hasValue;
+
+            ImmediateLeaf(SortedSetDocValues dv) {
+                this.dv = dv;
+            }
+
+            @Override
+            public boolean empty() {
+                return false;
+            }
+
+            @Override
+            public boolean advanceToDoc(FieldsVisitor fieldsVisitor, int docId) throws IOException {
+                return hasValue = dv.advanceExact(docId);
+            }
+
+            @Override
+            public void write(FieldsVisitor fieldsVisitor, XContentBuilder b) throws IOException {
+                if (false == hasValue) {
+                    return;
+                }
+                long first = dv.nextOrd();
+                long next = dv.nextOrd();
+                if (next == SortedSetDocValues.NO_MORE_ORDS) {
+                    BytesRef c = convert(dv.lookupOrd(first));
+                    b.field(simpleName).utf8Value(c.bytes, c.offset, c.length);
+                    return;
+                }
+                b.startArray(simpleName);
+                BytesRef c = convert(dv.lookupOrd(first));
+                b.utf8Value(c.bytes, c.offset, c.length);
+                c = convert(dv.lookupOrd(next));
+                b.utf8Value(c.bytes, c.offset, c.length);
+                while ((next = dv.nextOrd()) != SortedSetDocValues.NO_MORE_ORDS) {
+                    c = convert(dv.lookupOrd(next));
+                    b.utf8Value(c.bytes, c.offset, c.length);
+                }
+                b.endArray();
+            }
+        }
+
+        /**
+         * Convert a {@link BytesRef} read from the source into bytes to write
+         * to the xcontent. This shouldn't make a deep copy if the conversion
+         * process itself doesn't require one.
+         */
+        protected abstract BytesRef convert(BytesRef value);
+
+        /**
+         * Preserves {@link BytesRef bytes} returned by {@link #convert}
+         * to by written later. This should make a
+         * {@link BytesRef#deepCopyOf deep copy} if {@link #convert} didn't.
+         */
+        protected abstract BytesRef preserve(BytesRef value);
     }
 
     public static class StoredFieldFieldLoader implements SourceLoader.SyntheticFieldLoader {
@@ -1136,22 +1266,20 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Leaf leaf(LeafReader reader) throws IOException {
+        public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException {
             return new SourceLoader.SyntheticFieldLoader.Leaf() {
-                private int docId;
-
                 @Override
-                public void advanceToDoc(int docId) throws IOException {
-                    this.docId = docId;
+                public boolean empty() {
+                    return false; // NOCOMMIT this could be quite inefficient if there are many of these
                 }
 
                 @Override
-                public boolean hasValue(FieldsVisitor fieldsVisitor) {
+                public boolean advanceToDoc(FieldsVisitor fieldsVisitor, int docId) throws IOException {
                     return fieldsVisitor.fields().containsKey(name);
                 }
 
                 @Override
-                public void load(FieldsVisitor fieldsVisitor, XContentBuilder b) throws IOException {
+                public void write(FieldsVisitor fieldsVisitor, XContentBuilder b) throws IOException {
                     List<Object> values = fieldsVisitor.fields().get(name);
                     assert values.isEmpty() == false;
                     if (values.size() == 1) {

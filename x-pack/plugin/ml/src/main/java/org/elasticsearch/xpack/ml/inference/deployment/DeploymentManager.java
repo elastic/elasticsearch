@@ -20,6 +20,7 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -87,7 +88,7 @@ public class DeploymentManager {
         this.pyTorchProcessFactory = Objects.requireNonNull(pyTorchProcessFactory);
         this.threadPool = Objects.requireNonNull(threadPool);
         this.executorServiceForDeployment = threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME);
-        this.executorServiceForProcess = threadPool.executor(MachineLearning.JOB_COMMS_THREAD_POOL_NAME);
+        this.executorServiceForProcess = threadPool.executor(MachineLearning.NATIVE_INFERENCE_COMMS_THREAD_POOL_NAME);
     }
 
     public void startDeployment(TrainedModelDeploymentTask task, ActionListener<TrainedModelDeploymentTask> listener) {
@@ -97,19 +98,22 @@ public class DeploymentManager {
     public Optional<ModelStats> getStats(TrainedModelDeploymentTask task) {
         return Optional.ofNullable(processContextByAllocation.get(task.getId())).map(processContext -> {
             var stats = processContext.getResultProcessor().getResultStats();
+            var recentStats = stats.recentStats();
             return new ModelStats(
                 processContext.startTime,
                 stats.timingStats(),
                 stats.lastUsed(),
                 processContext.executorService.queueSize() + stats.numberOfPendingResults(),
                 stats.errorCount(),
+                stats.cacheHitCount(),
                 processContext.rejectedExecutionCount.intValue(),
                 processContext.timeoutCount.intValue(),
                 processContext.numThreadsPerAllocation,
                 processContext.numAllocations,
                 stats.peakThroughput(),
-                stats.recentStats().requestsProcessed(),
-                stats.recentStats().avgInferenceTime()
+                recentStats.requestsProcessed(),
+                recentStats.avgInferenceTime(),
+                recentStats.cacheHitCount()
             );
         });
     }
@@ -224,7 +228,7 @@ public class DeploymentManager {
             processContext = processContextByAllocation.get(task.getId());
         }
         if (processContext != null) {
-            logger.info("[{}] Stopping deployment", task.getModelId());
+            logger.info("[{}] Stopping deployment, reason [{}]", task.getModelId(), task.stoppedReason().orElse("unknown"));
             processContext.stopProcess();
         } else {
             logger.warn("[{}] No process context to stop", task.getModelId());
@@ -237,6 +241,7 @@ public class DeploymentManager {
         Map<String, Object> doc,
         boolean skipQueue,
         TimeValue timeout,
+        Task parentActionTask,
         ActionListener<InferenceResults> listener
     ) {
         var processContext = getProcessContext(task, listener::onFailure);
@@ -254,6 +259,7 @@ public class DeploymentManager {
             config,
             doc,
             threadPool,
+            parentActionTask,
             listener
         );
 

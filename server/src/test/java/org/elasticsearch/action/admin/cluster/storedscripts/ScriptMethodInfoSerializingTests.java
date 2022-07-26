@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.cluster.storedscripts;
 
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.script.ScriptContextInfo.ScriptMethodInfo;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
@@ -135,7 +136,7 @@ public class ScriptMethodInfoSerializingTests extends AbstractSerializingTestCas
     static Set<ScriptMethodInfo> randomGetterInstances() {
         Set<String> suffixes = new HashSet<>();
         int numGetters = randomIntBetween(0, MAX_LENGTH);
-        Set<ScriptMethodInfo> getters = new HashSet<>(numGetters);
+        Set<ScriptMethodInfo> getters = Sets.newHashSetWithExpectedSize(numGetters);
         for (int i = 0; i < numGetters; i++) {
             String suffix = randomValueOtherThanMany(suffixes::contains, () -> randomAlphaOfLengthBetween(MIN_LENGTH, MAX_LENGTH));
             suffixes.add(suffix);

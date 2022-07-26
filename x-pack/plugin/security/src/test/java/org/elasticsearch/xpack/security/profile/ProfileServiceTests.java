@@ -98,6 +98,7 @@ import static org.elasticsearch.common.util.concurrent.ThreadContext.ACTION_ORIG
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_PROFILE_ORIGIN;
+import static org.elasticsearch.xpack.core.security.support.Validation.VALID_NAME_CHARS;
 import static org.elasticsearch.xpack.security.Security.SECURITY_CRYPTO_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_PROFILE_ALIAS;
 import static org.hamcrest.Matchers.arrayWithSize;
@@ -715,11 +716,23 @@ public class ProfileServiceTests extends ESTestCase {
         assertThat(profile2.user().username(), equalTo(subject2.getUser().principal()));
 
         // Domain with literal username, but the username is invalid
-        final String invalidUsername = randomFrom("", "fóóbár", randomAlphaOfLength(257));
+        final List<Character> invalidFirstCharsOfLiteralUsername = VALID_NAME_CHARS.stream()
+            .filter(c -> false == Character.isLetterOrDigit(c))
+            .toList();
+        final List<Character> invalidCharsOfLiteralUsername = invalidFirstCharsOfLiteralUsername.stream()
+            .filter(c -> c != '_' && c != '-')
+            .toList();
+        final String invalidLiteralUsername = randomFrom(
+            "",
+            "fóóbár",
+            randomAlphaOfLength(257),
+            randomFrom(invalidFirstCharsOfLiteralUsername) + randomAlphaOfLengthBetween(0, 8),
+            randomAlphaOfLengthBetween(1, 8) + randomFrom(invalidCharsOfLiteralUsername) + randomAlphaOfLengthBetween(0, 8)
+        );
         final Authentication.RealmRef realmRef3 = realmRef2;
         final Authentication authentication3 = AuthenticationTestHelper.builder()
             .realm()
-            .user(new User(invalidUsername))
+            .user(new User(invalidLiteralUsername))
             .realmRef(realmRef3)
             .build();
         final PlainActionFuture<Profile> future3 = new PlainActionFuture<>();
@@ -730,7 +743,7 @@ public class ProfileServiceTests extends ESTestCase {
             e3.getMessage(),
             containsString("Security domain [" + realmRef3.getDomain().name() + "] is configured to use literal username.")
         );
-        assertThat(e3.getMessage(), containsString("The username can contain alphanumeric characters"));
+        assertThat(e3.getMessage(), containsString("The username must begin with an alphanumeric character"));
     }
 
     private void mockGetRequest(String uid, long lastSynchronized) {

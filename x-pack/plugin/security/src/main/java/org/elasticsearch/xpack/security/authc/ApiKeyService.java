@@ -412,8 +412,7 @@ public class ApiKeyService {
             return;
         }
 
-        logger.debug("Bulk updating API keys [{}]", request.getIds().size());
-
+        logger.debug("Bulk updating [{}] API keys", request.getIds().size());
         findVersionedApiKeyDocsForSubject(
             authentication,
             request.getIds().toArray(new String[0]),
@@ -431,6 +430,7 @@ public class ApiKeyService {
         final Collection<VersionedApiKeyDoc> versionedDocsToUpdate,
         final ActionListener<BulkUpdateApiKeyResponse> listener
     ) throws IOException {
+        logger.trace("Found [{}] API keys for update", versionedDocsToUpdate.size());
         final BulkUpdateApiKeyResponse.Builder responseBuilder = BulkUpdateApiKeyResponse.builder();
         final BulkRequestBuilder requestBuilder = client.prepareBulk();
         for (VersionedApiKeyDoc versionedDoc : versionedDocsToUpdate) {
@@ -457,7 +457,7 @@ public class ApiKeyService {
             return;
         }
 
-        logger.trace("Executing bulk request to update API keys [{}]", requestBuilder.numberOfActions());
+        logger.trace("Executing bulk request to update [{}] API keys", requestBuilder.numberOfActions());
         securityIndex.prepareIndexIfNeededThenExecute(
             ex -> listener.onFailure(traceLog("prepare security index before update", ex)),
             () -> executeAsyncWithOrigin(

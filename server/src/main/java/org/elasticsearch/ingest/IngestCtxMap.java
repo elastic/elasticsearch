@@ -79,6 +79,7 @@ class IngestCtxMap extends CtxMap<IngestDocMetadata> {
 
     @Override
     protected Map<String, Object> wrapSource(Map<String, Object> source) {
+        // Not wrapped in Ingest
         return source;
     }
 

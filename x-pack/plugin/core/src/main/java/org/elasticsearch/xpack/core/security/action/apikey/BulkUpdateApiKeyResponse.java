@@ -24,13 +24,9 @@ import java.util.Map;
 public final class BulkUpdateApiKeyResponse extends ActionResponse implements ToXContentObject, Writeable {
     private final List<String> updated;
     private final List<String> noops;
-    private final Map<String, ElasticsearchException> errorDetails;
+    private final Map<String, Exception> errorDetails;
 
-    public BulkUpdateApiKeyResponse(
-        final List<String> updated,
-        final List<String> noops,
-        final Map<String, ElasticsearchException> errorDetails
-    ) {
+    public BulkUpdateApiKeyResponse(final List<String> updated, final List<String> noops, final Map<String, Exception> errorDetails) {
         this.updated = updated;
         this.noops = noops;
         this.errorDetails = errorDetails;
@@ -51,7 +47,7 @@ public final class BulkUpdateApiKeyResponse extends ActionResponse implements To
         return noops;
     }
 
-    public Map<String, ElasticsearchException> getErrorDetails() {
+    public Map<String, Exception> getErrorDetails() {
         return errorDetails;
     }
 
@@ -64,7 +60,7 @@ public final class BulkUpdateApiKeyResponse extends ActionResponse implements To
             .field("count", errorDetails.size());
         if (errorDetails.isEmpty() == false) {
             builder.startObject("details");
-            for (Map.Entry<String, ElasticsearchException> idWithException : errorDetails.entrySet()) {
+            for (Map.Entry<String, Exception> idWithException : errorDetails.entrySet()) {
                 builder.startObject(idWithException.getKey());
                 ElasticsearchException.generateThrowableXContent(builder, params, idWithException.getValue());
                 builder.endObject();
@@ -89,7 +85,7 @@ public final class BulkUpdateApiKeyResponse extends ActionResponse implements To
     public static class Builder {
         private final List<String> updated;
         private final List<String> noops;
-        private final Map<String, ElasticsearchException> errorDetails;
+        private final Map<String, Exception> errorDetails;
 
         public Builder() {
             updated = new ArrayList<>();
@@ -107,7 +103,7 @@ public final class BulkUpdateApiKeyResponse extends ActionResponse implements To
             return this;
         }
 
-        public Builder error(final String id, final ElasticsearchException ex) {
+        public Builder error(final String id, final Exception ex) {
             errorDetails.put(id, ex);
             return this;
         }

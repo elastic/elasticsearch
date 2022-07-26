@@ -447,7 +447,7 @@ public class ApiKeyService {
                     bulkRequestBuilder.add(indexRequest);
                 }
             } catch (Exception ex) {
-                responseBuilder.error(apiKeyId, traceLog("preparing index request for update", new ElasticsearchException(ex)));
+                responseBuilder.error(apiKeyId, traceLog("prepare index request for update", ex));
             }
         }
         addNotFound(responseBuilder, request.getIds(), targetVersionedDocs);

@@ -353,4 +353,86 @@ public class MapperServiceTests extends MapperServiceTestCase {
         assertFalse(mapperService.isMultiField("object.subfield1"));
     }
 
+    public void testLegacyFormatParsing() throws IOException {
+        var oldIndexSettings = Settings.builder().put("index.version.created", Version.CURRENT.minimumIndexCompatibilityVersion()).build();
+        MapperService mapperServiceOldIndex = createMapperService(
+            Version.CURRENT.minimumIndexCompatibilityVersion(),
+            oldIndexSettings,
+            () -> true,
+            mapping(b -> {})
+        );
+
+        merge(mapperServiceOldIndex, """
+            { "_doc" : {
+                  "properties" : {
+                     "field1" : {
+                       "type" : "date",
+                       "format": "strictDateOptionalTime"
+                     }
+                  }
+              }
+            }
+            """);
+
+        var content = mapperServiceOldIndex.documentMapper().mappingSource();
+        assertThat(content.string(), containsString("\"format\":\"strict_date_optional_time\""));
+    }
+
+    private IndexMetadata indexMetadataWithMapping(String source) {
+        IndexMetadata.Builder builder = new IndexMetadata.Builder("test");
+        Settings settings = Settings.builder()
+            .put("index.number_of_replicas", 0)
+            .put("index.number_of_shards", 1)
+            .put("index.version.created", Version.CURRENT.minimumIndexCompatibilityVersion())
+            .build();
+        builder.settings(settings);
+        builder.putMapping(source);
+
+        return builder.build();
+    }
+
+    public void testFormatUpgraders() throws IOException {
+        var oldIndexSettings = Settings.builder().put("index.version.created", Version.CURRENT.minimumIndexCompatibilityVersion()).build();
+        MapperService mapperServiceOldIndex = createMapperService(
+            Version.CURRENT.minimumIndexCompatibilityVersion(),
+            oldIndexSettings,
+            () -> true,
+            mapping(b -> {})
+        );
+
+        IndexMetadata indexMetadata = indexMetadataWithMapping("""
+            {"_doc" :
+                {"properties":{"field":{"type":"date","format":"strictDateOptionalTime","store":"true"}}}
+            }""");
+
+        assertThat(indexMetadata.mapping().source().string(), containsString("\"format\":\"strictDateOptionalTime\""));
+        IndexMetadata remapped = mapperServiceOldIndex.mergeAndUpgrade(indexMetadata, MergeReason.MAPPING_RECOVERY);
+        assertFalse(indexMetadata.mapping().equals(remapped.mapping()));
+        assertThat(remapped.mapping().source().string(), containsString("\"format\":\"strict_date_optional_time\""));
+        // ensure we only changed that format field, nothing else
+        assertEquals(
+            indexMetadata.mapping().source().string(),
+            remapped.mapping()
+                .source()
+                .string()
+                .replace("\"format\":\"strict_date_optional_time\"", "\"format\":\"strictDateOptionalTime\"")
+        );
+
+        // We don't remap if the document types don't match
+        IndexMetadata indexMetadataNoType = indexMetadataWithMapping("""
+            {"properties":{"field1":{"type":"date","format":"strictDateOptionalTime","store":"true"}}}""");
+
+        remapped = mapperServiceOldIndex.mergeAndUpgrade(indexMetadataNoType, MergeReason.MAPPING_RECOVERY);
+        assertTrue(remapped == indexMetadataNoType);
+
+        // We don't remap if there's nothing to remap
+        IndexMetadata indexMetadataNoFormat = indexMetadataWithMapping("""
+            {"_doc" :
+                {"properties":{"field2":{"type":"keyword","store":"true"}}}
+            }""");
+
+        remapped = mapperServiceOldIndex.mergeAndUpgrade(indexMetadataNoFormat, MergeReason.MAPPING_RECOVERY);
+        assertTrue(remapped == indexMetadataNoFormat);
+    }
+
 }

@@ -16,7 +16,7 @@ import java.io.IOException;
 import java.util.Map;
 
 /**
- * Contains a list of index mapping upgraders
+ * Contains a collection of helper methods for index mapping upgrades
  */
 public class MapperServiceUpgraders {
     @SuppressWarnings("unchecked")
@@ -39,15 +39,20 @@ public class MapperServiceUpgraders {
      * Upgrades the format field of mapping properties
      * <p>
      * This method checks is the new mapping source has a different format than the original mapping, and if it
-     * does, then it returns the mapping source with updated format field.
+     * does, then it returns the original mapping source with updated format field. We cannot simply replace the
+     * MappingMetadata mappingSource with the new parsedSource, because the parsed source contains additional
+     * properties which cannot be serialized and reread.
+     *
+     * @param mappingMetadata the current mapping metadata
+     * @param parsedSource the mapping source as it was parsed
      */
     @SuppressWarnings({ "unchecked", "rawtypes" })
-    public static CompressedXContent upgradeFormatsIfNeeded(String type, MappingMetadata source, CompressedXContent newMappingSource) {
-        Map<String, Object> sourceMap = source.rawSourceAsMap();
-        Map<String, Object> newMap = XContentHelper.convertToMap(newMappingSource.compressedReference(), true).v2();
+    public static CompressedXContent upgradeFormatsIfNeeded(MappingMetadata mappingMetadata, CompressedXContent parsedSource) {
+        Map<String, Object> sourceMap = mappingMetadata.rawSourceAsMap();
+        Map<String, Object> newMap = XContentHelper.convertToMap(parsedSource.compressedReference(), true).v2();
 
-        Map<String, Object> properties = getMappingProperties(sourceMap, type);
-        Map<String, Object> parsedProperties = getMappingProperties(newMap, type);
+        Map<String, Object> properties = getMappingProperties(sourceMap, mappingMetadata.type());
+        Map<String, Object> parsedProperties = getMappingProperties(newMap, mappingMetadata.type());
         if (properties != null && parsedProperties != null) {
             for (var property : properties.entrySet()) {
                 if (property.getValue()instanceof Map map) {

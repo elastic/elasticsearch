@@ -344,11 +344,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         if (mappingMetadata != null) {
             var docMapper = merge(mappingMetadata.type(), mappingMetadata.source(), reason);
             if (indexVersionCreated.major <= Version.CURRENT.previousMajor().major) {
-                var upgradedSource = MapperServiceUpgraders.upgradeFormatsIfNeeded(
-                    mappingMetadata.type(),
-                    mappingMetadata,
-                    docMapper.mappingSource()
-                );
+                var upgradedSource = MapperServiceUpgraders.upgradeFormatsIfNeeded(mappingMetadata, docMapper.mappingSource());
 
                 if (mappingMetadata.source().equals(upgradedSource) == false) {
                     return IndexMetadata.builder(indexMetadata).putMapping(new MappingMetadata(upgradedSource)).build();

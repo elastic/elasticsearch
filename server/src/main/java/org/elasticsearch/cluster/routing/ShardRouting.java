@@ -30,13 +30,12 @@ import java.util.Objects;
  * {@link ShardRouting} immutably encapsulates information about shard
  * indexRoutings like id, state, version, etc.
  */
-public final class ShardRouting implements Writeable, ToXContentObject, Comparable<ShardRouting> {
+public final class ShardRouting implements Writeable, ToXContentObject {
 
     /**
      * Used if shard size is not available
      */
     public static final long UNAVAILABLE_EXPECTED_SHARD_SIZE = -1;
-    private static final Comparator<ShardRouting> COMPARATOR = Comparator.comparing(ShardRouting::shardId);
 
     private final ShardId shardId;
     private final String currentNodeId;
@@ -797,10 +796,5 @@ public final class ShardRouting implements Writeable, ToXContentObject, Comparab
     @Nullable
     public RecoverySource recoverySource() {
         return recoverySource;
-    }
-
-    @Override
-    public int compareTo(ShardRouting o) {
-        return COMPARATOR.compare(this, o);
     }
 }

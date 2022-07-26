@@ -163,7 +163,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
             verify(ReactiveStorageDeciderService.AllocationState::storagePreventsAllocation, emptyShardsSize());
             // verify empty tier (no cold nodes) are always assumed a storage reason.
             SortedSet<ShardRouting> unassignedShards = StreamSupport.stream(state.getRoutingNodes().unassigned().spliterator(), false)
-                .collect(Collectors.toCollection(TreeSet::new));
+                .collect(Collectors.toCollection(this::shardRoutingSortedSet));
             verify(
                 moveToCold(allIndices()),
                 ReactiveStorageDeciderService.AllocationState::storagePreventsAllocation,
@@ -247,7 +247,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
                 RoutingNodesHelper.shardsWithState(state.getRoutingNodes(), ShardRoutingState.STARTED)
                     .stream()
                     .filter(sr -> subjectShards.contains(sr.shardId()))
-                    .collect(Collectors.toCollection(TreeSet::new))
+                    .collect(Collectors.toCollection(this::shardRoutingSortedSet))
             ),
             mockCanAllocateDiskDecider
         );
@@ -288,7 +288,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         SortedSet<ShardRouting> allocatedShards = RoutingNodesHelper.shardsWithState(state.getRoutingNodes(), ShardRoutingState.STARTED)
             .stream()
             .filter(sr -> candidates.stream().anyMatch(c -> c.getIndex().equals(sr.index())))
-            .collect(Collectors.toCollection(TreeSet::new));
+            .collect(Collectors.toCollection(this::shardRoutingSortedSet));
 
         verify(
             moveToCold(candidates),
@@ -345,7 +345,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         SortedSet<ShardRouting> shards = RoutingNodesHelper.shardsWithState(state.getRoutingNodes(), ShardRoutingState.STARTED)
             .stream()
             .filter(o -> subjectShards.contains(o.shardId()))
-            .collect(Collectors.toCollection(TreeSet::new));
+            .collect(Collectors.toCollection(this::shardRoutingSortedSet));
 
         verify(
             ReactiveStorageDeciderService.AllocationState::storagePreventsRemainOrMove,
@@ -373,6 +373,10 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         verifyScale(nodes, "not enough storage available, needs " + nodes + "b", mockCanRemainDiskDecider, CAN_ALLOCATE_NO_DECIDER);
         verifyScale(0, "storage ok", mockCanRemainDiskDecider, CAN_REMAIN_NO_DECIDER, CAN_ALLOCATE_NO_DECIDER);
         verifyScale(0, "storage ok");
+    }
+
+    private SortedSet<ShardRouting> shardRoutingSortedSet() {
+        return new TreeSet<>(Comparator.comparing(ShardRouting::shardId));
     }
 
     private static ShardsSize emptyShardsSize() {
@@ -451,7 +455,10 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
                 shard -> allocation.routingNodes().stream().anyMatch(node -> deciders.canAllocate(shard, node, allocation) != Decision.NO)
             )
             .toList();
-        return new AllocatableShards(allocatableShards.size(), new TreeSet<>(allocatableShards));
+        return new AllocatableShards(
+            allocatableShards.size(),
+            allocatableShards.stream().collect(Collectors.toCollection(this::shardRoutingSortedSet))
+        );
     }
 
     private boolean hasStartedSubjectShard() {

@@ -63,6 +63,7 @@ import java.io.IOException;
 import java.math.BigInteger;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -299,7 +300,10 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 .filter(shard -> canAllocate(shard, allocation) == false)
                 .filter(shard -> cannotAllocateDueToStorage(shard, allocation))
                 .toList();
-            return new ShardsSize(unassignedShards.stream().mapToLong(this::sizeOf).sum(), new TreeSet<>(unassignedShards));
+            return new ShardsSize(
+                unassignedShards.stream().mapToLong(this::sizeOf).sum(),
+                unassignedShards.stream().collect(Collectors.toCollection(this::shardRoutingSortingSet))
+            );
         }
 
         public ShardsSize storagePreventsRemainOrMove() {
@@ -336,8 +340,13 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
 
             return new ShardsSize(
                 unallocatableBytes + unmovableBytes,
-                Stream.concat(unmovableShards.stream(), unallocatedShards.stream()).collect(Collectors.toCollection(TreeSet::new))
+                Stream.concat(unmovableShards.stream(), unallocatedShards.stream())
+                    .collect(Collectors.toCollection(this::shardRoutingSortingSet))
             );
+        }
+
+        private SortedSet<ShardRouting> shardRoutingSortingSet() {
+            return new TreeSet<>(Comparator.comparing(ShardRouting::shardId));
         }
 
         /**

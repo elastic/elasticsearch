@@ -396,15 +396,15 @@ class RollupShardIndexer {
         }
 
         public void collect(final String field, int docValueCount, final Function<Integer, Object[]> fieldValues) {
-            final Object[] value = fieldValues.apply(docValueCount);
+            final Object[] values = fieldValues.apply(docValueCount);
             if (metricFieldProducers.containsKey(field)) {
                 // TODO: missing support for array metrics
-                collectMetric(field, value[0]);
+                collectMetric(field, values);
             } else if (labelFieldProducers.containsKey(field)) {
-                if (value.length == 1) {
-                    collectLabel(field, value[0]);
+                if (values.length == 1) {
+                    collectLabel(field, values[0]);
                 } else {
-                    collectLabel(field, value);
+                    collectLabel(field, values);
                 }
             } else {
                 throw new IllegalArgumentException(
@@ -423,13 +423,15 @@ class RollupShardIndexer {
             labelFieldProducers.get(field).collect(value);
         }
 
-        private void collectMetric(final String field, final Object value) {
-            if (value instanceof Number number) {
-                metricFieldProducers.get(field).collect(number);
-            } else {
-                throw new IllegalArgumentException(
-                    "Expected numeric value for field '" + field + "' but got non numeric value: '" + value + "'"
-                );
+        private void collectMetric(final String field, final Object[] values) {
+            for (var value : values) {
+                if (value instanceof Number number) {
+                    metricFieldProducers.get(field).collect(number);
+                } else {
+                    throw new IllegalArgumentException(
+                        "Expected numeric value for field '" + field + "' but got non numeric value: '" + value + "'"
+                    );
+                }
             }
         }
 

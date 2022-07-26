@@ -1737,6 +1737,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         final var service = createApiKeyService();
 
         final XContentBuilder builder = service.maybeBuildUpdatedDocument(
+            request.getId(),
             oldApiKeyDoc,
             newVersion,
             newAuthentication,

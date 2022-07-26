@@ -36,24 +36,16 @@ public final class TransportUpdateApiKeyAction extends TransportBaseUpdateApiKey
         final CompositeRolesStore rolesStore,
         final NamedXContentRegistry xContentRegistry
     ) {
-        super(
-            UpdateApiKeyAction.NAME,
-            transportService,
-            actionFilters,
-            UpdateApiKeyRequest::new,
-            context,
-            rolesStore,
-            xContentRegistry
-        );
+        super(UpdateApiKeyAction.NAME, transportService, actionFilters, UpdateApiKeyRequest::new, context, rolesStore, xContentRegistry);
         this.apiKeyService = apiKeyService;
     }
 
     @Override
     void doUpdate(
         final UpdateApiKeyRequest request,
-        final ActionListener<UpdateApiKeyResponse> listener,
         final Authentication authentication,
-        final Set<RoleDescriptor> roleDescriptors
+        final Set<RoleDescriptor> roleDescriptors,
+        final ActionListener<UpdateApiKeyResponse> listener
     ) {
         apiKeyService.updateApiKey(authentication, request, roleDescriptors, listener);
     }

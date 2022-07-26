@@ -53,9 +53,9 @@ public final class TransportBulkUpdateApiKeyAction extends TransportBaseUpdateAp
     @Override
     void doUpdate(
         final BulkUpdateApiKeyRequest request,
-        final ActionListener<BulkUpdateApiKeyResponse> listener,
         final Authentication authentication,
-        final Set<RoleDescriptor> roleDescriptors
+        final Set<RoleDescriptor> roleDescriptors,
+        final ActionListener<BulkUpdateApiKeyResponse> listener
     ) {
         apiKeyService.bulkUpdateApiKeys(authentication, request, roleDescriptors, listener);
     }

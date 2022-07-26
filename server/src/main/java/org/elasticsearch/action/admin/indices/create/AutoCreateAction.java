@@ -34,8 +34,8 @@ import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener;
 import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionMultiListener;
-import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
@@ -55,6 +55,7 @@ import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_HIDDEN;
+import static org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener.rerouteCompletionIsNotRequired;
 
 /**
  * Api that auto creates an index or data stream that originate from requests that write into an index that doesn't yet exist.
@@ -254,7 +255,9 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                     ClusterState clusterState = metadataCreateDataStreamService.createDataStream(
                         createRequest,
                         currentState,
-                        DesiredBalanceShardsAllocator.REMOVE_ME
+                        rerouteCompletionIsNotRequired(
+                            () -> { assert createRequest.performReroute() == false : "Reroute should not be called by underlying service"; }
+                        )
                     );
 
                     final var indexName = clusterState.metadata().dataStreams().get(request.index()).getIndices().get(0).getName();
@@ -315,7 +318,9 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                         currentState,
                         updateRequest,
                         false,
-                        DesiredBalanceShardsAllocator.REMOVE_ME
+                        AllocationActionListener.rerouteCompletionIsNotRequired(
+                            () -> { assert updateRequest.performReroute() == false : "Reroute should not be called by underlying service"; }
+                        )
                     );
                     taskContext.success(getAckListener(indexName, allocationActionMultiListener));
                     successfulRequests.put(request, indexName);

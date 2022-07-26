@@ -85,6 +85,46 @@ setup:
   - match: {assignment.task_parameters.cache_size: 10kb}
 
   - do:
+      ml.infer_trained_model:
+        model_id: "test_model"
+        body: >
+          {
+            "docs": [
+              { "input": "words" }
+            ]
+          }
+  - is_true: inference_results
+
+  - do:
+      ml.infer_trained_model:
+        model_id: "test_model"
+        body: >
+          {
+            "docs": [
+              { "input": "are" }
+            ]
+          }
+  - is_true: inference_results
+
+  - do:
+      ml.infer_trained_model:
+        model_id: "test_model"
+        body: >
+          {
+            "docs": [
+              { "input": "words" }
+            ]
+          }
+  - is_true: inference_results
+
+  - do:
+      ml.get_trained_models_stats:
+        model_id: "test_model"
+  - match: { count: 1 }
+  - match: { trained_model_stats.0.deployment_stats.nodes.0.inference_count: 3 }
+  - match: { trained_model_stats.0.deployment_stats.nodes.0.inference_cache_hit_count: 1 }
+
+  - do:
       ml.stop_trained_model_deployment:
         model_id: test_model
   - match: { stopped: true }

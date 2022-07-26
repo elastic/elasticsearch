@@ -503,7 +503,11 @@ public class AssignmentStats implements ToXContentObject, Writeable {
             nodeStats.stream().filter(n -> n.getInferenceCount().isPresent()).mapToLong(n -> n.getInferenceCount().get()).sum(),
             // This is for ALL failures, so sum the error counts, timeouts, and rejections
             nodeStats.stream().mapToLong(n -> n.getErrorCount() + n.getTimeoutCount() + n.getRejectedExecutionCount()).sum(),
-            nodeStats.stream().filter(n -> n.getCacheHitCount().isPresent()).mapToLong(n -> n.getCacheHitCount().get()).sum(),
+            // The number below is a cache miss count for the JVM model cache. We know the cache hit count for
+            // the inference cache in the native process, but that's completely different, so it doesn't make
+            // sense to reuse the same field here.
+            // TODO: consider adding another field here for inference cache hits, but mindful of the naming collision
+            0L,
             modelId,
             null,
             Instant.now()

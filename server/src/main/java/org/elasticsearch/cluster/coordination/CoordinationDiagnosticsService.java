@@ -340,6 +340,19 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
         return result;
     }
 
+    /**
+     * This method handles the case when we have not had an elected master node recently, and we are on a master-eligible node. In this
+     * case we look at the cluster formation information from all master-eligible nodes, trying to understand if we have a discovery
+     * problem, a problem forming a quorum, or something else.
+     * @param localMasterHistory The master history, as seen from this node
+     * @param masterEligibleNodes The known master eligible nodes in the cluster
+     * @param coordinator The Coordinator for this node
+     * @param clusterFormationResponses A map that contains the cluster formation information (or exception encountered while requesting
+     *                                  it) from each master eligible node in the cluster
+     * @param nodeHasMasterLookupTimeframe The value of health.master_history.has_master_lookup_timeframe
+     * @param explain If true, details are returned
+     * @return A CoordinationDiagnosticsResult with a RED status
+     */
     static CoordinationDiagnosticsResult diagnoseOnHaveNotSeenMasterRecentlyAndWeAreMasterEligible(
         MasterHistory localMasterHistory,
         Collection<DiscoveryNode> masterEligibleNodes,

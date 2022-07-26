@@ -398,7 +398,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 similarityService,
                 mapperRegistry,
                 () -> createShardContext(null),
-                idxSettings.getMode().buildNoFieldDataIdFieldMapper(),
+                idxSettings.getMode().idFieldMapperWithoutFieldData(),
                 ScriptCompiler.NONE
             );
             IndicesFieldDataCache indicesFieldDataCache = new IndicesFieldDataCache(nodeSettings, new IndexFieldDataCache.Listener() {

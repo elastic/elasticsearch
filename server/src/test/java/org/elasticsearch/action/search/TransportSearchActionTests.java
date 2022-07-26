@@ -8,6 +8,8 @@
 
 package org.elasticsearch.action.search;
 
+import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
@@ -68,6 +70,9 @@ import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.sort.SortBuilders;
+import org.elasticsearch.search.suggest.SuggestBuilder;
+import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
+import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -1049,6 +1054,7 @@ public class TransportSearchActionTests extends ESTestCase {
             SearchSourceBuilder source = searchRequest.source();
             if (source != null) {
                 source.pointInTimeBuilder(null);
+                source.knnSearch(null);
                 CollapseBuilder collapse = source.collapse();
                 if (collapse != null) {
                     collapse.setInnerHits(Collections.emptyList());
@@ -1058,6 +1064,48 @@ public class TransportSearchActionTests extends ESTestCase {
             assertTrue(TransportSearchAction.shouldMinimizeRoundtrips(searchRequest));
             searchRequest.setCcsMinimizeRoundtrips(false);
             assertFalse(TransportSearchAction.shouldMinimizeRoundtrips(searchRequest));
+        }
+        {
+            SearchRequest searchRequest = new SearchRequest();
+            SearchSourceBuilder source = new SearchSourceBuilder();
+            source.knnSearch(new KnnSearchBuilder("field", new float[] { 1, 2, 3 }, 10, 50));
+            searchRequest.source(source);
+
+            searchRequest.setCcsMinimizeRoundtrips(true);
+            assertFalse(TransportSearchAction.shouldMinimizeRoundtrips(searchRequest));
+            searchRequest.setCcsMinimizeRoundtrips(false);
+            assertFalse(TransportSearchAction.shouldMinimizeRoundtrips(searchRequest));
+        }
+    }
+
+    public void testAdjustSearchType() {
+        {
+            // If the search includes kNN, we should always use DFS_QUERY_THEN_FETCH
+            SearchRequest searchRequest = new SearchRequest();
+            SearchSourceBuilder source = new SearchSourceBuilder();
+            source.knnSearch(new KnnSearchBuilder("field", new float[] { 1, 2, 3 }, 10, 50));
+            searchRequest.source(source);
+
+            TransportSearchAction.adjustSearchType(searchRequest, randomBoolean());
+            assertEquals(SearchType.DFS_QUERY_THEN_FETCH, searchRequest.searchType());
+        }
+        {
+            // Suggest-only searches should always use QUERY_THEN_FETCH
+            SearchRequest searchRequest = new SearchRequest().searchType(RandomPicks.randomFrom(random(), SearchType.values()));
+            SearchSourceBuilder source = new SearchSourceBuilder();
+            source.suggest(new SuggestBuilder().addSuggestion("field", new TermSuggestionBuilder("value")));
+            searchRequest.source(source);
+
+            TransportSearchAction.adjustSearchType(searchRequest, randomBoolean());
+            assertFalse(searchRequest.requestCache());
+            assertEquals(SearchType.QUERY_THEN_FETCH, searchRequest.searchType());
+        }
+        {
+            // Single-shard searches should always use QUERY_THEN_FETCH in absence of kNN search
+            SearchRequest searchRequest = new SearchRequest().searchType(RandomPicks.randomFrom(random(), SearchType.values()));
+
+            TransportSearchAction.adjustSearchType(searchRequest, true);
+            assertEquals(SearchType.QUERY_THEN_FETCH, searchRequest.searchType());
         }
     }
 

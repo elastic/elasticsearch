@@ -73,6 +73,7 @@ public class AssignmentStatsTests extends AbstractWireSerializingTestCase<Assign
             avgInferenceTime,
             randomIntBetween(0, 100),
             randomIntBetween(0, 100),
+            randomLongBetween(0, 100),
             randomIntBetween(0, 100),
             randomIntBetween(0, 100),
             lastAccess,
@@ -81,7 +82,8 @@ public class AssignmentStatsTests extends AbstractWireSerializingTestCase<Assign
             randomIntBetween(1, 16),
             randomIntBetween(0, 100),
             randomIntBetween(0, 100),
-            avgInferenceTimeLastPeriod
+            avgInferenceTimeLastPeriod,
+            randomLongBetween(0, 100)
         );
     }
 
@@ -102,6 +104,7 @@ public class AssignmentStatsTests extends AbstractWireSerializingTestCase<Assign
                     randomDoubleBetween(0.0, 100.0, true),
                     randomIntBetween(1, 10),
                     5,
+                    4L,
                     12,
                     3,
                     Instant.now(),
@@ -110,7 +113,8 @@ public class AssignmentStatsTests extends AbstractWireSerializingTestCase<Assign
                     randomIntBetween(1, 2),
                     randomNonNegativeLong(),
                     randomNonNegativeLong(),
-                    null
+                    null,
+                    1L
                 ),
                 AssignmentStats.NodeStats.forStartedState(
                     new DiscoveryNode("node_started_2", buildNewFakeTransportAddress(), Version.CURRENT),
@@ -118,6 +122,7 @@ public class AssignmentStatsTests extends AbstractWireSerializingTestCase<Assign
                     randomDoubleBetween(0.0, 100.0, true),
                     randomIntBetween(1, 10),
                     15,
+                    3L,
                     4,
                     2,
                     Instant.now(),
@@ -126,7 +131,8 @@ public class AssignmentStatsTests extends AbstractWireSerializingTestCase<Assign
                     randomIntBetween(1, 2),
                     randomNonNegativeLong(),
                     randomNonNegativeLong(),
-                    null
+                    null,
+                    1L
                 ),
                 AssignmentStats.NodeStats.forNotStartedState(
                     new DiscoveryNode("node_not_started_3", buildNewFakeTransportAddress(), Version.CURRENT),

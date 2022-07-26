@@ -64,6 +64,8 @@ include::modules/discovery/discovery-settings.asciidoc[]
 
 include::modules/indices/fielddata.asciidoc[]
 
+include::settings/health-diagnostic-settings.asciidoc[]
+
 include::settings/ilm-settings.asciidoc[]
 
 include::modules/indices/index_management.asciidoc[]

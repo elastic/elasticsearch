@@ -20,6 +20,7 @@ import org.elasticsearch.common.geo.GeometryFormatterFactory;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.DistanceUnit;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.GeoPointScriptFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.AbstractLongFieldScript;
@@ -40,7 +41,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPointFieldScript.LeafFactory> implements GeoShapeQueryable {
 
@@ -102,8 +102,12 @@ public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPo
     }
 
     @Override
-    public GeoPointScriptFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-        return new GeoPointScriptFieldData.Builder(name(), leafFactory(searchLookup.get()), GeoPointDocValuesField::new);
+    public GeoPointScriptFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
+        return new GeoPointScriptFieldData.Builder(
+            name(),
+            leafFactory(fieldDataContext.lookupSupplier().get()),
+            GeoPointDocValuesField::new
+        );
     }
 
     @Override

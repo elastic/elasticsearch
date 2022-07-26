@@ -387,7 +387,7 @@ public class ApiKeyService {
             validateCurrentApiKeyDocForUpdate(apiKeyId, authentication, versionedDoc.doc());
 
             doUpdateApiKey(authentication, request, userRoleDescriptors, versionedDoc, listener);
-        }, listener::onFailure));
+        }, ex -> listener.onFailure(traceLog("update", ex))));
     }
 
     // package-private for testing
@@ -1112,14 +1112,14 @@ public class ApiKeyService {
             .request();
         logger.trace("Executing index request to update API key [{}]", request.getId());
         securityIndex.prepareIndexIfNeededThenExecute(
-            listener::onFailure,
+            ex -> listener.onFailure(traceLog("prepare security index before update", ex)),
             () -> executeAsyncWithOrigin(
                 client.threadPool().getThreadContext(),
                 SECURITY_ORIGIN,
                 client.prepareBulk().add(indexRequest).setRefreshPolicy(RefreshPolicy.WAIT_UNTIL).request(),
                 ActionListener.<BulkResponse>wrap(
                     bulkResponse -> translateResponseAndClearCache(request.getId(), bulkResponse, listener),
-                    listener::onFailure
+                    ex -> listener.onFailure(traceLog("execute bulk request for update", ex))
                 ),
                 client::bulk
             )

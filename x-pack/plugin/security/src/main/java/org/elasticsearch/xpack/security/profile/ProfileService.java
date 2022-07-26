@@ -490,7 +490,8 @@ public class ProfileService {
 
     private static final String INVALID_USERNAME_MESSAGE = "Security domain [%s] is configured to use literal username. "
         + "As a result, creating new user profile requires the username to be at least 1 and no more than 256 characters. "
-        + "The username must contain only alphanumeric characters (a-z, A-Z, 0-9).";
+        + "The username must begin with an alphanumeric character (a-z, A-Z, 0-9) and followed by any alphanumeric, "
+        + "underscore (_) or dash (-) characters.";
 
     private void validateUsername(Subject subject) {
         final RealmDomain realmDomain = subject.getRealm().getDomain();

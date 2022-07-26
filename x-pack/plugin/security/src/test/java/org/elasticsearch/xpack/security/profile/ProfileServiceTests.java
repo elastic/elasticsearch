@@ -739,7 +739,7 @@ public class ProfileServiceTests extends ESTestCase {
             e3.getMessage(),
             containsString("Security domain [" + realmRef3.getDomain().name() + "] is configured to use literal username.")
         );
-        assertThat(e3.getMessage(), containsString("The username must contain only alphanumeric characters"));
+        assertThat(e3.getMessage(), containsString("The username must begin with an alphanumeric character"));
     }
 
     private void mockGetRequest(String uid, long lastSynchronized) {

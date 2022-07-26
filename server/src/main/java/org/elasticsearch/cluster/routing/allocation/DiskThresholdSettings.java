@@ -410,9 +410,10 @@ public class DiskThresholdSettings {
 
         // If watermark is percentage/ratio, calculate the total needed disk space.
         // This may not be the minimum, due to the possible max headroom value which can cap the free disk space required.
-        double ratioThreshold = watermark.getRatio().getAsRatio();
-        if (ratioThreshold >= 0.0 && ratioThreshold < 1.0) {
-            ByteSizeValue totalBytes = ByteSizeValue.ofBytes((long) Math.ceil(used.getBytes() / ratioThreshold));
+        double ratioThreshold = watermark.getRatio().getAsPercent;
+        if (ratioThreshold >= 0.0 && ratioThreshold < 100.0) {
+            // Use percentage instead of ratio, and multiple bytes with 100, to make division with double more accurate (issue #88791).
+            ByteSizeValue totalBytes = ByteSizeValue.ofBytes((long) Math.ceil((100 * used.getBytes()) / percentThreshold));
 
             // Now calculate the minimum free bytes, taking into account the possible max headroom value as well.
             ByteSizeValue minimumFreeBytes = ByteSizeValue.ofBytes(

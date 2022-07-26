@@ -89,7 +89,6 @@ public class DiskThresholdSettingsTests extends ESTestCase {
         );
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/88791")
     public void testMinimumTotalSizeForBelowLowWatermark() {
         ClusterSettings nss = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         DiskThresholdSettings diskThresholdSettings = new DiskThresholdSettings(Settings.EMPTY, nss);
@@ -190,6 +189,15 @@ public class DiskThresholdSettingsTests extends ESTestCase {
         assertThat(
             diskThresholdSettings.getMinimumTotalSizeForBelowLowWatermark(ByteSizeValue.ofBytes(4080L)),
             Matchers.equalTo(ByteSizeValue.ofBytes(6000))
+
+        // Test case for 17777 used bytes & threshold 0.29. Should return 61300 bytes. Test case originates from issue #88791.
+        newSettings = Settings.builder()
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "29%")
+            .build();
+        nss.applySettings(newSettings);
+        assertThat(
+            diskThresholdSettings.getMinimumTotalSizeForBelowLowWatermark(ByteSizeValue.ofBytes(17777L)),
+            Matchers.equalTo(ByteSizeValue.ofBytes(61300))
         );
 
         // Test random absolute values

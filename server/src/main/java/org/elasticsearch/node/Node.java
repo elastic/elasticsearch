@@ -160,9 +160,14 @@ import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.ShutdownAwarePlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
+import org.elasticsearch.plugins.TracerPlugin;
 import org.elasticsearch.readiness.ReadinessService;
 import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
+import org.elasticsearch.reservedstate.ReservedClusterStateHandlerProvider;
+import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
+import org.elasticsearch.reservedstate.service.FileSettingsService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
@@ -212,7 +217,6 @@ import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -513,9 +517,6 @@ public class Node implements Closeable {
             Stream<NamedXContentRegistry.Entry> healthNodeTaskNamedXContentParsers = HealthNode.isEnabled()
                 ? HealthNodeTaskExecutor.getNamedXContentParsers().stream()
                 : Stream.empty();
-            Stream<NamedXContentRegistry.Entry> healthMetadataNamedXContentParsers = HealthNode.isEnabled()
-                ? HealthMetadataService.getNamedXContentParsers().stream()
-                : Stream.empty();
             NamedXContentRegistry xContentRegistry = new NamedXContentRegistry(
                 Stream.of(
                     NetworkModule.getNamedXContents().stream(),
@@ -524,8 +525,7 @@ public class Node implements Closeable {
                     pluginsService.flatMap(Plugin::getNamedXContent),
                     ClusterModule.getNamedXWriteables().stream(),
                     SystemIndexMigrationExecutor.getNamedXContentParsers().stream(),
-                    healthNodeTaskNamedXContentParsers,
-                    healthMetadataNamedXContentParsers
+                    healthNodeTaskNamedXContentParsers
                 ).flatMap(Function.identity()).collect(toList())
             );
             final List<SystemIndices.Feature> features = pluginsService.filterPlugins(SystemIndexPlugin.class).stream().map(plugin -> {
@@ -689,9 +689,10 @@ public class Node implements Closeable {
                 clusterModule.getAllocationService(),
                 settingsModule.getIndexScopedSettings(),
                 indicesService,
-                shardLimitValidator,
-                threadPool
+                shardLimitValidator
             );
+
+            final Tracer tracer = getTracer(pluginsService, clusterService, settings);
 
             Collection<Object> pluginComponents = pluginsService.flatMap(
                 p -> p.createComponents(
@@ -705,13 +706,21 @@ public class Node implements Closeable {
                     nodeEnvironment,
                     namedWriteableRegistry,
                     clusterModule.getIndexNameExpressionResolver(),
-                    repositoriesServiceReference::get
+                    repositoriesServiceReference::get,
+                    tracer
                 )
             ).toList();
 
-            final Tracer tracer = getTracer(pluginComponents);
+            List<ReservedClusterStateHandler<?>> reservedStateHandlers = new ArrayList<>();
 
-            taskManager.setTracer(tracer);
+            // add all reserved state handlers from server
+            reservedStateHandlers.add(new ReservedClusterSettingsAction(settingsModule.getClusterSettings()));
+
+            // add all reserved state handlers from plugins
+            List<? extends ReservedClusterStateHandlerProvider> pluginHandlers = pluginsService.loadServiceProviders(
+                ReservedClusterStateHandlerProvider.class
+            );
+            pluginHandlers.forEach(h -> reservedStateHandlers.addAll(h.handlers()));
 
             ActionModule actionModule = new ActionModule(
                 settings,
@@ -725,7 +734,9 @@ public class Node implements Closeable {
                 circuitBreakerService,
                 usageService,
                 systemIndices,
-                tracer
+                tracer,
+                clusterService,
+                reservedStateHandlers
             );
             modules.add(actionModule);
 
@@ -939,6 +950,12 @@ public class Node implements Closeable {
                 ? new HealthMetadataService(clusterService, settings)
                 : null;
 
+            FileSettingsService fileSettingsService = new FileSettingsService(
+                clusterService,
+                actionModule.getReservedClusterStateService(),
+                environment
+            );
+
             modules.add(b -> {
                 b.bind(Node.class).toInstance(this);
                 b.bind(NodeService.class).toInstance(nodeService);
@@ -1027,6 +1044,7 @@ public class Node implements Closeable {
                     b.bind(HealthMetadataService.class).toInstance(healthMetadataService);
                 }
                 b.bind(Tracer.class).toInstance(tracer);
+                b.bind(FileSettingsService.class).toInstance(fileSettingsService);
             });
 
             if (ReadinessService.enabled(environment)) {
@@ -1112,14 +1130,14 @@ public class Node implements Closeable {
         }
     }
 
-    private Tracer getTracer(Collection<Object> pluginComponents) {
-        final List<Tracer> tracers = pluginComponents.stream().map(c -> c instanceof Tracer t ? t : null).filter(Objects::nonNull).toList();
+    private Tracer getTracer(PluginsService pluginsService, ClusterService clusterService, Settings settings) {
+        final List<TracerPlugin> tracerPlugins = pluginsService.filterPlugins(TracerPlugin.class);
 
-        if (tracers.size() > 1) {
-            throw new IllegalStateException("A single Tracer was expected but got: " + tracers);
+        if (tracerPlugins.size() > 1) {
+            throw new IllegalStateException("A single TracerPlugin was expected but got: " + tracerPlugins);
         }
 
-        return tracers.isEmpty() ? Tracer.NOOP : tracers.get(0);
+        return tracerPlugins.isEmpty() ? Tracer.NOOP : tracerPlugins.get(0).getTracer(clusterService, settings);
     }
 
     private HealthService createHealthService(
@@ -1337,6 +1355,7 @@ public class Node implements Closeable {
             }
         }
 
+        injector.getInstance(FileSettingsService.class).start();
         injector.getInstance(HttpServerTransport.class).start();
 
         if (WRITE_PORTS_FILE_SETTING.get(settings())) {
@@ -1374,6 +1393,7 @@ public class Node implements Closeable {
         if (ReadinessService.enabled(environment)) {
             injector.getInstance(ReadinessService.class).stop();
         }
+        injector.getInstance(FileSettingsService.class).stop();
         injector.getInstance(ResourceWatcherService.class).close();
         injector.getInstance(HttpServerTransport.class).stop();
 
@@ -1457,6 +1477,7 @@ public class Node implements Closeable {
         if (ReadinessService.enabled(environment)) {
             toClose.add(injector.getInstance(ReadinessService.class));
         }
+        toClose.add(injector.getInstance(FileSettingsService.class));
 
         for (LifecycleComponent plugin : pluginLifecycleComponents) {
             toClose.add(() -> stopWatch.stop().start("plugin(" + plugin.getClass().getName() + ")"));

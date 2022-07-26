@@ -18,9 +18,11 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.TracerPlugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -34,7 +36,7 @@ import java.util.function.Supplier;
  * {@link APMTracer}. We use the OpenTelemetry API to capture "spans", and attach the
  * Elastic APM Java to ship those spans to an APM server. Although it is possible to
  * programmatically attach the agent, the Security Manager permissions required for this
- * make this approach excessively difficult.
+ * make this approach difficult to the point of impossibility.
  * <p>
  * All settings are found under the <code>xpack.apm.</code> prefix. Any setting under
  * the <code>xpack.apm.agent.</code> prefix will be forwarded on to the APM Java agent
@@ -48,12 +50,19 @@ import java.util.function.Supplier;
  * be passed via system properties to the Java agent, which periodically checks for changes
  * and applies the new settings values, provided those settings can be dynamically updated.
  */
-public class APM extends Plugin implements NetworkPlugin {
+public class APM extends Plugin implements NetworkPlugin, TracerPlugin {
     private final SetOnce<APMTracer> tracer = new SetOnce<>();
     private final Settings settings;
 
     public APM(Settings settings) {
         this.settings = settings;
+    }
+
+    @Override
+    public Tracer getTracer(ClusterService clusterService, Settings settings) {
+        final APMTracer apmTracer = new APMTracer(settings, clusterService);
+        tracer.set(apmTracer);
+        return apmTracer;
     }
 
     @Override
@@ -68,17 +77,15 @@ public class APM extends Plugin implements NetworkPlugin {
         NodeEnvironment nodeEnvironment,
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier
+        Supplier<RepositoriesService> repositoriesServiceSupplier,
+        Tracer unused
     ) {
         final APMAgentSettings apmAgentSettings = new APMAgentSettings();
-        final APMTracer apmTracer = new APMTracer(settings, clusterService);
-
-        tracer.set(apmTracer);
 
         apmAgentSettings.syncAgentSystemProperties(settings);
-        apmAgentSettings.addClusterSettingsListeners(clusterService, apmTracer);
+        apmAgentSettings.addClusterSettingsListeners(clusterService, tracer.get());
 
-        return List.of(apmTracer);
+        return List.of();
     }
 
     @Override

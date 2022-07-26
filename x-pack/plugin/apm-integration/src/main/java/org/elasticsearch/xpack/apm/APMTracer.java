@@ -134,7 +134,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     }
 
     @Override
-    public void onTraceStarted(ThreadContext threadContext, String spanId, String spanName, @Nullable Map<String, Object> attributes) {
+    public void startTrace(ThreadContext threadContext, String spanId, String spanName, @Nullable Map<String, Object> attributes) {
         assert threadContext != null;
         assert spanId != null;
         assert spanName != null;
@@ -272,7 +272,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     }
 
     @Override
-    public void onTraceException(String spanId, Throwable throwable) {
+    public void addError(String spanId, Throwable throwable) {
         final var span = Span.fromContextOrNull(spans.get(spanId));
         if (span != null) {
             span.recordException(throwable);
@@ -312,7 +312,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     }
 
     @Override
-    public void onTraceStopped(String spanId) {
+    public void stopTrace(String spanId) {
         final var span = Span.fromContextOrNull(spans.remove(spanId));
         if (span != null) {
             LOGGER.trace("Finishing trace [{}]", spanId);
@@ -321,7 +321,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     }
 
     @Override
-    public void onTraceEvent(String spanId, String eventName) {
+    public void addEvent(String spanId, String eventName) {
         final var span = Span.fromContextOrNull(spans.get(spanId));
         if (span != null) {
             span.addEvent(eventName);

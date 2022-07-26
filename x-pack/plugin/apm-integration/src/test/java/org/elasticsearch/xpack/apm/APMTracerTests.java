@@ -38,7 +38,7 @@ public class APMTracerTests extends ESTestCase {
         Settings settings = Settings.builder().put(APM_ENABLED_SETTING.getKey(), false).build();
         APMTracer apmTracer = buildTracer(settings);
 
-        apmTracer.onTraceStarted(new ThreadContext(settings), "id1", "name1", null);
+        apmTracer.startTrace(new ThreadContext(settings), "id1", "name1", null);
 
         assertThat(apmTracer.getSpans(), anEmptyMap());
     }
@@ -53,7 +53,7 @@ public class APMTracerTests extends ESTestCase {
             .build();
         APMTracer apmTracer = buildTracer(settings);
 
-        apmTracer.onTraceStarted(new ThreadContext(settings), "id1", "name1", null);
+        apmTracer.startTrace(new ThreadContext(settings), "id1", "name1", null);
 
         assertThat(apmTracer.getSpans(), anEmptyMap());
     }
@@ -65,7 +65,7 @@ public class APMTracerTests extends ESTestCase {
         Settings settings = Settings.builder().put(APM_ENABLED_SETTING.getKey(), true).build();
         APMTracer apmTracer = buildTracer(settings);
 
-        apmTracer.onTraceStarted(new ThreadContext(settings), "id1", "name1", null);
+        apmTracer.startTrace(new ThreadContext(settings), "id1", "name1", null);
 
         assertThat(apmTracer.getSpans(), aMapWithSize(1));
         assertThat(apmTracer.getSpans(), hasKey("id1"));
@@ -78,8 +78,8 @@ public class APMTracerTests extends ESTestCase {
         Settings settings = Settings.builder().put(APM_ENABLED_SETTING.getKey(), true).build();
         APMTracer apmTracer = buildTracer(settings);
 
-        apmTracer.onTraceStarted(new ThreadContext(settings), "id1", "name1", null);
-        apmTracer.onTraceStopped("id1");
+        apmTracer.startTrace(new ThreadContext(settings), "id1", "name1", null);
+        apmTracer.stopTrace("id1");
 
         assertThat(apmTracer.getSpans(), anEmptyMap());
     }
@@ -96,7 +96,7 @@ public class APMTracerTests extends ESTestCase {
         APMTracer apmTracer = buildTracer(settings);
 
         ThreadContext threadContext = new ThreadContext(settings);
-        apmTracer.onTraceStarted(threadContext, "id1", "name1", null);
+        apmTracer.startTrace(threadContext, "id1", "name1", null);
         assertThat(threadContext.getTransient(Task.APM_TRACE_CONTEXT), notNullValue());
     }
 
@@ -117,9 +117,9 @@ public class APMTracerTests extends ESTestCase {
             .build();
         APMTracer apmTracer = buildTracer(settings);
 
-        apmTracer.onTraceStarted(new ThreadContext(settings), "id1", "name-aaa", null);
-        apmTracer.onTraceStarted(new ThreadContext(settings), "id2", "name-bbb", null);
-        apmTracer.onTraceStarted(new ThreadContext(settings), "id3", "name-ccc", null);
+        apmTracer.startTrace(new ThreadContext(settings), "id1", "name-aaa", null);
+        apmTracer.startTrace(new ThreadContext(settings), "id2", "name-bbb", null);
+        apmTracer.startTrace(new ThreadContext(settings), "id3", "name-ccc", null);
 
         assertThat(apmTracer.getSpans(), hasKey("id1"));
         assertThat(apmTracer.getSpans(), hasKey("id2"));
@@ -140,7 +140,7 @@ public class APMTracerTests extends ESTestCase {
             .build();
         APMTracer apmTracer = buildTracer(settings);
 
-        apmTracer.onTraceStarted(new ThreadContext(settings), "id1", "name-aaa", null);
+        apmTracer.startTrace(new ThreadContext(settings), "id1", "name-aaa", null);
 
         assertThat(apmTracer.getSpans(), not(hasKey("id1")));
     }
@@ -162,9 +162,9 @@ public class APMTracerTests extends ESTestCase {
             .build();
         APMTracer apmTracer = buildTracer(settings);
 
-        apmTracer.onTraceStarted(new ThreadContext(settings), "id1", "name-aaa", null);
-        apmTracer.onTraceStarted(new ThreadContext(settings), "id2", "name-bbb", null);
-        apmTracer.onTraceStarted(new ThreadContext(settings), "id3", "name-ccc", null);
+        apmTracer.startTrace(new ThreadContext(settings), "id1", "name-aaa", null);
+        apmTracer.startTrace(new ThreadContext(settings), "id2", "name-bbb", null);
+        apmTracer.startTrace(new ThreadContext(settings), "id3", "name-ccc", null);
 
         assertThat(apmTracer.getSpans(), not(hasKey("id1")));
         assertThat(apmTracer.getSpans(), not(hasKey("id2")));

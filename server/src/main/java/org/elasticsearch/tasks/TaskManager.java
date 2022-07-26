@@ -89,7 +89,7 @@ public class TaskManager implements ClusterStateApplier {
 
     private DiscoveryNodes lastDiscoveryNodes = DiscoveryNodes.EMPTY_NODES;
 
-    private volatile Tracer tracer;
+    private final Tracer tracer;
 
     private final ByteSizeValue maxHeaderSize;
     private final Map<TcpChannel, ChannelPendingTaskTracker> channelPendingTaskTrackers = ConcurrentCollections.newConcurrentMap();
@@ -159,7 +159,7 @@ public class TaskManager implements ClusterStateApplier {
             Tracer.AttributeKeys.PARENT_TASK_ID,
             parentTask.toString()
         );
-        tracer.onTraceStarted(threadContext, "task-" + task.getId(), task.getAction(), attributes);
+        tracer.startTrace(threadContext, "task-" + task.getId(), task.getAction(), attributes);
     }
 
     public <Request extends ActionRequest, Response extends ActionResponse> Task registerAndExecute(
@@ -275,7 +275,7 @@ public class TaskManager implements ClusterStateApplier {
                 return removedTask;
             }
         } finally {
-            tracer.onTraceStopped("task-" + task.getId());
+            tracer.stopTrace("task-" + task.getId());
         }
     }
 
@@ -462,10 +462,6 @@ public class TaskManager implements ClusterStateApplier {
     // for testing
     public boolean assertCancellableTaskConsistency() {
         return cancellableTasks.assertConsistent();
-    }
-
-    public void setTracer(Tracer tracer) {
-        this.tracer = tracer;
     }
 
     private class Ban {

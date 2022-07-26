@@ -291,7 +291,7 @@ public class TaskManagerTests extends ESTestCase {
             }
         });
 
-        verify(mockTracer).onTraceStarted(any(), eq("task-" + task.getId()), eq("testAction"), anyMap());
+        verify(mockTracer).startTrace(any(), eq("task-" + task.getId()), eq("testAction"), anyMap());
     }
 
     /**
@@ -314,7 +314,7 @@ public class TaskManagerTests extends ESTestCase {
 
         taskManager.unregister(task);
 
-        verify(mockTracer).onTraceStopped("task-" + task.getId());
+        verify(mockTracer).stopTrace("task-" + task.getId());
     }
 
     /**
@@ -350,7 +350,7 @@ public class TaskManagerTests extends ESTestCase {
             ActionTestUtils.assertNoFailureListener(r -> {})
         );
 
-        verify(mockTracer).onTraceStarted(any(), eq("task-" + task.getId()), eq("actionName"), anyMap());
+        verify(mockTracer).startTrace(any(), eq("task-" + task.getId()), eq("actionName"), anyMap());
     }
 
     static class CancellableRequest extends TransportRequest {

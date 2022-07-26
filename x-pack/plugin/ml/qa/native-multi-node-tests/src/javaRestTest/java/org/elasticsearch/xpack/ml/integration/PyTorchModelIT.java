@@ -773,6 +773,26 @@ public class PyTorchModelIT extends ESRestTestCase {
         assertSystemNotificationsContain("Rebalanced trained model allocations because [model deployment started]");
     }
 
+    public void testStartDeployment_TooManyAllocations() throws IOException {
+        String modelId = "test_start_deployment_too_many_allocations";
+        createTrainedModel(modelId);
+        putModelDefinition(modelId);
+        putVocabulary(List.of("these", "are", "my", "words"), modelId);
+
+        ResponseException ex = expectThrows(
+            ResponseException.class,
+            () -> startDeployment(modelId, AllocationStatus.State.STARTED.toString(), 100, 1)
+        );
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(429));
+        assertThat(
+            EntityUtils.toString(ex.getResponse().getEntity()),
+            containsString("Could not start deployment because there are not enough resources to provide all requested allocations")
+        );
+
+        Response response = getTrainedModelStats(modelId);
+        assertThat(EntityUtils.toString(response.getEntity()), not(containsString("deployment_stats")));
+    }
+
     @SuppressWarnings("unchecked")
     private void assertAllocationCount(String modelId, int expectedAllocationCount) throws IOException {
         Response response = getTrainedModelStats(modelId);

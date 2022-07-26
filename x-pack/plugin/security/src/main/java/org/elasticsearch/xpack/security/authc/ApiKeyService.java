@@ -1185,10 +1185,9 @@ public class ApiKeyService {
         final BaseUpdateApiKeyRequest request,
         final Set<RoleDescriptor> userRoleDescriptors
     ) throws IOException {
-        final String apiKeyId = currentVersionedDoc.id();
         logger.trace(
             "Building index request for update of API key doc [{}] with seqNo [{}] and primaryTerm [{}]",
-            apiKeyId,
+            currentVersionedDoc.id(),
             currentVersionedDoc.seqNo(),
             currentVersionedDoc.primaryTerm()
         );
@@ -1196,10 +1195,15 @@ public class ApiKeyService {
         final var currentDocVersion = Version.fromId(currentVersionedDoc.doc().version);
         assert currentDocVersion.onOrBefore(targetDocVersion) : "current API key doc version must be on or before target version";
         if (currentDocVersion.before(targetDocVersion)) {
-            logger.debug("API key update for [{}] will update version from [{}] to [{}]", apiKeyId, currentDocVersion, targetDocVersion);
+            logger.debug(
+                "API key update for [{}] will update version from [{}] to [{}]",
+                currentVersionedDoc.id(),
+                currentDocVersion,
+                targetDocVersion
+            );
         }
         final XContentBuilder builder = maybeBuildUpdatedDocument(
-            apiKeyId,
+            currentVersionedDoc.id(),
             currentVersionedDoc.doc(),
             targetDocVersion,
             authentication,
@@ -1210,7 +1214,7 @@ public class ApiKeyService {
         return isNoop
             ? null
             : client.prepareIndex(SECURITY_MAIN_ALIAS)
-                .setId(apiKeyId)
+                .setId(currentVersionedDoc.id())
                 .setSource(builder)
                 .setIfSeqNo(currentVersionedDoc.seqNo())
                 .setIfPrimaryTerm(currentVersionedDoc.primaryTerm())

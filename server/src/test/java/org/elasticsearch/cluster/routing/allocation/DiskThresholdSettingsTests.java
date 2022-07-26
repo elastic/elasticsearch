@@ -189,6 +189,7 @@ public class DiskThresholdSettingsTests extends ESTestCase {
         assertThat(
             diskThresholdSettings.getMinimumTotalSizeForBelowLowWatermark(ByteSizeValue.ofBytes(4080L)),
             Matchers.equalTo(ByteSizeValue.ofBytes(6000))
+        );
 
         // Test case for 17777 used bytes & threshold 0.29. Should return 61300 bytes. Test case originates from issue #88791.
         newSettings = Settings.builder()

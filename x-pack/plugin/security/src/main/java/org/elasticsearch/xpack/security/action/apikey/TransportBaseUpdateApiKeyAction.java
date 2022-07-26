@@ -19,7 +19,6 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.support.ApiKeyUserRoleDescriptorResolver;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 
@@ -36,7 +35,6 @@ public abstract class TransportBaseUpdateApiKeyAction<Request extends ActionRequ
         final TransportService transportService,
         final ActionFilters actionFilters,
         final Writeable.Reader<Request> requestReader,
-        final ApiKeyService apiKeyService,
         final SecurityContext context,
         final CompositeRolesStore rolesStore,
         final NamedXContentRegistry xContentRegistry

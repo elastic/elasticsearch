@@ -35,8 +35,8 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public abstract class AbstractProfileIntegTestCase extends SecurityIntegTestCase {
 
-    protected static final String RAC_USER_NAME = "rac_user";
-    protected static final String OTHER_RAC_USER_NAME = "other_rac_user";
+    protected static final String RAC_USER_NAME = "rac-user";
+    protected static final String OTHER_RAC_USER_NAME = "other-rac-user";
     protected static final String RAC_ROLE = "rac_role";
     protected static final String NATIVE_RAC_ROLE = "native_rac_role";
     protected static final SecureString NATIVE_RAC_USER_PASSWORD = new SecureString("native_rac_user_password".toCharArray());

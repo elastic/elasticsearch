@@ -43,17 +43,7 @@ public class RelativeByteSizeValue {
         return ratio;
     }
 
-    /**
-     * Calculate the size to use, optionally catering for a max headroom.
-     * @param total the total size to use
-     * @param maxHeadroom the max headroom to cater for or null (or -1) to ignore.
-     * @param floorInsteadOfCeil if true, and in case a ratio/percentage value exists, then when calculating ratio * total bytes, use
-     *                           Math.floor() instead of Math.ceil(). This is used for example in case of trying to calculate the minimum
-     *                           free bytes for staying lower than the ratio, where one would need to subtract the result of this function
-     *                           from the total bytes.
-     * @return the size to use
-     */
-    public ByteSizeValue calculateValue(ByteSizeValue total, ByteSizeValue maxHeadroom, boolean floorInsteadOfCeil) {
+    private ByteSizeValue calculateValue(ByteSizeValue total, ByteSizeValue maxHeadroom, boolean floorInsteadOfCeil) {
         if (ratio != null) {
             double res = ratio.getAsRatio() * total.getBytes();
             long ratioBytes = (long) (floorInsteadOfCeil ? Math.floor(res) : Math.ceil(res));
@@ -65,6 +55,30 @@ public class RelativeByteSizeValue {
         } else {
             return absolute;
         }
+    }
+
+    /**
+     * Calculate the size to use, optionally catering for a max headroom.
+     * If a ratio/percentage is used, the resulting bytes are rounded to the next integer value.
+     * @param total the total size to use
+     * @param maxHeadroom the max headroom to cater for or null (or -1) to ignore.
+     * @return the size to use
+     */
+    public ByteSizeValue calculateValueWithCeil(ByteSizeValue total, ByteSizeValue maxHeadroom) {
+        return calculateValue(total, maxHeadroom, false);
+    }
+
+    /**
+     * Calculate the size to use, optionally catering for a max headroom.
+     * If a ratio/percentage is used, the resulting bytes are rounded to the previous integer value. This is used for example in case of
+     * trying to calculate the minimum free bytes for staying lower than the ratio, where one would need to subtract the result of this
+     * function from the total bytes.
+     * @param total the total size to use
+     * @param maxHeadroom the max headroom to cater for or null (or -1) to ignore.
+     * @return the size to use
+     */
+    public ByteSizeValue calculateValueWithFloor(ByteSizeValue total, ByteSizeValue maxHeadroom) {
+        return calculateValue(total, maxHeadroom, true);
     }
 
     public boolean isNonZeroSize() {

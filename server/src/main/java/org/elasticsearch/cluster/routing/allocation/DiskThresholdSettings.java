@@ -374,33 +374,28 @@ public class DiskThresholdSettings {
         this.frozenFloodStageMaxHeadroom = maxHeadroom;
     }
 
-    private ByteSizeValue getFreeBytesThreshold(
-        ByteSizeValue total,
-        RelativeByteSizeValue watermark,
-        ByteSizeValue maxHeadroom,
-        boolean floorInsteadOfCeil
-    ) {
+    private ByteSizeValue getFreeBytesThreshold(ByteSizeValue total, RelativeByteSizeValue watermark, ByteSizeValue maxHeadroom) {
         // If bytes are given, they can be readily returned as free bytes. If percentages are given, we need to calculate the free bytes.
         if (watermark.isAbsolute()) {
             return watermark.getAbsolute();
         }
-        return ByteSizeValue.ofBytes(total.getBytes() - watermark.calculateValue(total, maxHeadroom, floorInsteadOfCeil).getBytes());
+        return ByteSizeValue.ofBytes(total.getBytes() - watermark.calculateValueWithCeil(total, maxHeadroom).getBytes());
     }
 
     public ByteSizeValue getFreeBytesThresholdLowStage(ByteSizeValue total) {
-        return getFreeBytesThreshold(total, lowStageWatermark, lowStageMaxHeadroom, false);
+        return getFreeBytesThreshold(total, lowStageWatermark, lowStageMaxHeadroom);
     }
 
     public ByteSizeValue getFreeBytesThresholdHighStage(ByteSizeValue total) {
-        return getFreeBytesThreshold(total, highStageWatermark, highStageMaxHeadroom, false);
+        return getFreeBytesThreshold(total, highStageWatermark, highStageMaxHeadroom);
     }
 
     public ByteSizeValue getFreeBytesThresholdFloodStage(ByteSizeValue total) {
-        return getFreeBytesThreshold(total, floodStageWatermark, floodStageMaxHeadroom, false);
+        return getFreeBytesThreshold(total, floodStageWatermark, floodStageMaxHeadroom);
     }
 
     public ByteSizeValue getFreeBytesThresholdFrozenFloodStage(ByteSizeValue total) {
-        return getFreeBytesThreshold(total, frozenFloodStageWatermark, frozenFloodStageMaxHeadroom, false);
+        return getFreeBytesThreshold(total, frozenFloodStageWatermark, frozenFloodStageMaxHeadroom);
     }
 
     private ByteSizeValue getMinimumTotalSizeForBelowWatermark(
@@ -420,7 +415,9 @@ public class DiskThresholdSettings {
             ByteSizeValue totalBytes = ByteSizeValue.ofBytes((long) Math.ceil(used.getBytes() / ratioThreshold));
 
             // Now calculate the minimum free bytes, taking into account the possible max headroom value as well.
-            ByteSizeValue minimumFreeBytes = getFreeBytesThreshold(totalBytes, watermark, maxHeadroom, true);
+            ByteSizeValue minimumFreeBytes = ByteSizeValue.ofBytes(
+                totalBytes.getBytes() - watermark.calculateValueWithFloor(totalBytes, maxHeadroom).getBytes()
+            );
 
             // Finally return used + minimum free bytes
             return ByteSizeValue.ofBytes(minimumFreeBytes.getBytes() + used.getBytes());
@@ -451,7 +448,7 @@ public class DiskThresholdSettings {
     ) {
         if (watermark.isAbsolute()) {
             return includeSettingKey ? watermarkSettingKey + "=" + watermark.getStringRep() : watermark.getStringRep();
-        } else if (watermark.calculateValue(total, maxHeadroom, false).equals(watermark.calculateValue(total, null, false))) {
+        } else if (watermark.calculateValueWithCeil(total, maxHeadroom).equals(watermark.calculateValueWithCeil(total, null))) {
             String value = watermark.getStringRep();
             return includeSettingKey ? watermarkSettingKey + "=" + value : value;
         } else {

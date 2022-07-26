@@ -486,7 +486,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
             // Do not override settings that have already been set in the rollup index.
             // Also, we don't want to copy the `index.block.write` setting that we know
             // it is set in the source index settings.
-            if (IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey().equals(key) || targetSettings.keys().contains(key)) {
+            if (IndexMetadata.SETTING_BLOCKS_WRITE.equals(key) || targetSettings.keys().contains(key)) {
                 continue;
             }
             targetSettings.copy(key, sourceIndexMetadata.getSettings());

@@ -25,5 +25,5 @@ diagnosing the cluster health. Defaults to `30m` (30 minutes).
 Defaults to `4`.
 
 `health.master_history.no_master_transitions_threshold`::
-(<<static-cluster-setting,Static>>) The number of times that it is _not_ OK to have a master switch to no
+(<<static-cluster-setting,Static>>) The number of transitions to no master witnessed by a node that indicates the cluster is not healthy.
 Defaults to `4`.

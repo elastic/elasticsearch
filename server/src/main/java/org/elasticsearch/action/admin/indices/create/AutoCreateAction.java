@@ -34,7 +34,6 @@ import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener;
 import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionMultiListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
@@ -318,7 +317,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                         currentState,
                         updateRequest,
                         false,
-                        AllocationActionListener.rerouteCompletionIsNotRequired(
+                        rerouteCompletionIsNotRequired(
                             () -> { assert updateRequest.performReroute() == false : "Reroute should not be called by underlying service"; }
                         )
                     );

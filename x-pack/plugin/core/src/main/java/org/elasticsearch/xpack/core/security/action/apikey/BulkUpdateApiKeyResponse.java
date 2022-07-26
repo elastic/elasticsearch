@@ -57,12 +57,24 @@ public final class BulkUpdateApiKeyResponse extends ActionResponse implements To
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        throw new UnsupportedOperationException();
+        builder.startObject().stringListField("updated", updated).stringListField("noops", noops);
+        builder.startObject("errors");
+        {
+            builder.field("count", errorDetails.size());
+            if (errorDetails.isEmpty() == false) {
+                // TODO will this work?
+                builder.field("error_details", errorDetails);
+            }
+        }
+        return builder.endObject() // errors
+            .endObject();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        throw new UnsupportedOperationException();
+        out.writeStringCollection(updated);
+        out.writeStringCollection(noops);
+        out.writeMap(errorDetails, StreamOutput::writeString, StreamOutput::writeException);
     }
 
     public static Builder builder() {

@@ -87,6 +87,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.DiscoveryModule;
@@ -1112,7 +1113,7 @@ public class Node implements Closeable {
                 final String[] parts = agentArg.split("=", 2);
                 if (parts[0].matches("modules/x-pack-apm-integration/elastic-apm-agent-\\d+\\.\\d+\\.\\d+\\.jar")) {
                     if (parts.length == 2 && parts[1].startsWith("c=")) {
-                        final Path apmConfig = Path.of(parts[1].substring(2));
+                        final Path apmConfig = PathUtils.get(parts[1].substring(2));
                         if (apmConfig.getFileName().toString().matches("^\\.elstcapm\\..*\\.tmp")) {
                             try {
                                 Files.deleteIfExists(apmConfig);

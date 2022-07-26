@@ -5,8 +5,9 @@ type: deprecation
 issues: []
 deprecation:
   title: Deprecate the `_knn_search` endpoint
-  area: Vector Search
-  details: The kNN search API is deprecated in favor of the new 'knn' option
-  inside the search API. The 'knn' option is now the recommended way of running
-  ANN search.
+  area: REST API
+  details: -|
+    The kNN search API is deprecated in favor of the new 'knn' option
+    inside the search API. The 'knn' option is now the recommended way of running
+    ANN search.
   impact: Users should switch from `_knn_search` to the search `knn` option.

@@ -289,7 +289,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
         CopySettingsStep copySettingsStep = new CopySettingsStep(
             copyLifecyclePolicySettingKey,
             dataStreamCheckBranchingKey,
-            getRestoredIndexPrefix(copyLifecyclePolicySettingKey),
+            (index, lifecycleState) -> getRestoredIndexPrefix(copyLifecyclePolicySettingKey) + index,
             LifecycleSettings.LIFECYCLE_NAME
         );
         BranchingStep isDataStreamBranchingStep = new BranchingStep(

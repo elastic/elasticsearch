@@ -65,21 +65,21 @@ You can use the following settings to control disk-based allocation:
 // tag::cluster-routing-disk-threshold-tag[]
 `cluster.routing.allocation.disk.threshold_enabled`::
 (<<dynamic-cluster-setting,Dynamic>>)
-Defaults to `true`. Set to `false` to disable the disk allocation decider.
+Defaults to `true`. Set to `false` to disable the disk allocation decider. Upon disabling, it will also remove any existing `index.blocks.read_only_allow_delete` index blocks.
 // end::cluster-routing-disk-threshold-tag[]
 
 [[cluster-routing-watermark-low]]
 // tag::cluster-routing-watermark-low-tag[]
 `cluster.routing.allocation.disk.watermark.low` {ess-icon}::
 (<<dynamic-cluster-setting,Dynamic>>)
-Controls the low watermark for disk usage. It defaults to `85%`, meaning that {es} will not allocate shards to nodes that have more than 85% disk used. It can also be set to an absolute byte value (like `500mb`) to prevent {es} from allocating shards if less than the specified amount of space is available. This setting has no effect on the primary shards of newly-created indices but will prevent their replicas from being allocated.
+Controls the low watermark for disk usage. It defaults to `85%`, meaning that {es} will not allocate shards to nodes that have more than 85% disk used. It can alternatively be set to a ratio value, e.g., `0.85`. It can also be set to an absolute byte value (like `500mb`) to prevent {es} from allocating shards if less than the specified amount of space is available. This setting has no effect on the primary shards of newly-created indices but will prevent their replicas from being allocated.
 // end::cluster-routing-watermark-low-tag[]
 
 [[cluster-routing-watermark-high]]
 // tag::cluster-routing-watermark-high-tag[]
 `cluster.routing.allocation.disk.watermark.high` {ess-icon}::
 (<<dynamic-cluster-setting,Dynamic>>)
-Controls the high watermark. It defaults to `90%`, meaning that {es} will attempt to relocate shards away from a node whose disk usage is above 90%. It can also be set to an absolute byte value (similarly to the low watermark) to relocate shards away from a node if it has less than the specified amount of free space. This setting affects the allocation of all shards, whether previously allocated or not.
+Controls the high watermark. It defaults to `90%`, meaning that {es} will attempt to relocate shards away from a node whose disk usage is above 90%. It can alternatively be set to a ratio value, e.g., `0.9`. It can also be set to an absolute byte value (similarly to the low watermark) to relocate shards away from a node if it has less than the specified amount of free space. This setting affects the allocation of all shards, whether previously allocated or not.
 // end::cluster-routing-watermark-high-tag[]
 
 `cluster.routing.allocation.disk.watermark.enable_for_single_data_node`::
@@ -95,10 +95,10 @@ is now `true`. The setting will be removed in a future release.
 +
 --
 (<<dynamic-cluster-setting,Dynamic>>)
-Controls the flood stage watermark, which defaults to 95%. {es} enforces a read-only index block (`index.blocks.read_only_allow_delete`) on every index that has one or more shards allocated on the node, and that has at least one disk exceeding the flood stage. This setting is a last resort to prevent nodes from running out of disk space. The index block is automatically released when the disk utilization falls below the high watermark.
+Controls the flood stage watermark, which defaults to 95%. {es} enforces a read-only index block (`index.blocks.read_only_allow_delete`) on every index that has one or more shards allocated on the node, and that has at least one disk exceeding the flood stage. This setting is a last resort to prevent nodes from running out of disk space. The index block is automatically released when the disk utilization falls below the high watermark. Similarly to the low and high watermark values, it can alternatively be set to a ratio value, e.g., `0.95`, or an absolute byte value.
 
-NOTE: You cannot mix the usage of percentage values and byte values within
-these settings. Either all values are set to percentage values, or all are set to byte values. This enforcement is so that {es} can validate that the settings are internally consistent, ensuring that the low disk threshold is less than the high disk threshold, and the high disk threshold is less than the flood stage threshold.
+NOTE: You cannot mix the usage of percentage/ratio values and byte values within
+the watermark settings. Either all values are set to percentage/ratio values, or all are set to byte values. This enforcement is so that {es} can validate that the settings are internally consistent, ensuring that the low disk threshold is less than the high disk threshold, and the high disk threshold is less than the flood stage threshold.
 
 An example of resetting the read-only index block on the `my-index-000001` index:
 

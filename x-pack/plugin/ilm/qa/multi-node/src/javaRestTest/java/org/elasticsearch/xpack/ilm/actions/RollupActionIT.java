@@ -10,8 +10,10 @@ package org.elasticsearch.xpack.ilm.actions;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexMetadata.RollupTaskStatus;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
@@ -145,14 +147,19 @@ public class RollupActionIT extends ESRestTestCase {
         createNewSingletonPolicy(client(), policy, phaseName, new RollupILMAction(ConfigTestHelpers.randomInterval()));
         updatePolicy(client(), index, policy);
 
-        assertBusy(() -> assertNotNull("Cannot retrieve rollup index name", getRollupIndexName(index)), 30, TimeUnit.SECONDS);
-        String rollupIndex = getRollupIndexName(index);
+        String rollupIndex = waitAndGetRollupIndexName(client(), index);
+        assertNotNull("Cannot retrieve rollup index name", rollupIndex);
         assertBusy(() -> assertTrue("Rollup index does not exist", indexExists(rollupIndex)), 30, TimeUnit.SECONDS);
         assertBusy(() -> assertFalse("Source index should have been deleted", indexExists(index)), 30, TimeUnit.SECONDS);
-        assertBusy(() -> assertThat(getStepKeyForIndex(client(), rollupIndex), equalTo(PhaseCompleteStep.finalStep(phaseName).getKey())));
+        assertBusy(
+            () -> assertThat(getStepKeyForIndex(client(), rollupIndex), equalTo(PhaseCompleteStep.finalStep(phaseName).getKey())),
+            30,
+            TimeUnit.SECONDS
+        );
         assertBusy(() -> {
             Map<String, Object> settings = getOnlyIndexSettings(client(), rollupIndex);
-            assertThat(settings.get(IndexMetadata.INDEX_ROLLUP_SOURCE_NAME.getKey()), equalTo(index));
+            assertEquals(index, settings.get(IndexMetadata.INDEX_ROLLUP_SOURCE_NAME.getKey()));
+            assertEquals(RollupTaskStatus.SUCCESS.toString(), settings.get(IndexMetadata.INDEX_ROLLUP_STATUS.getKey()));
         });
         assertBusy(
             () -> assertTrue("Alias [" + alias + "] does not point to index [" + rollupIndex + "]", aliasExists(rollupIndex, alias))
@@ -218,15 +225,19 @@ public class RollupActionIT extends ESRestTestCase {
             randomAlphaOfLength(5)
         );
 
-        assertBusy(() -> assertNotNull("Cannot retrieve rollup index name", getRollupIndexName(originalIndex)), 30, TimeUnit.SECONDS);
-        String rollupIndex = getRollupIndexName(originalIndex);
-
+        String rollupIndex = waitAndGetRollupIndexName(client(), originalIndex);
+        assertNotNull("Cannot retrieve rollup index name", rollupIndex);
         assertBusy(() -> assertTrue("Rollup index does not exist", indexExists(rollupIndex)), 30, TimeUnit.SECONDS);
         assertBusy(() -> assertFalse("Source index should have been deleted", indexExists(originalIndex)), 30, TimeUnit.SECONDS);
-        assertBusy(() -> assertThat(getStepKeyForIndex(client(), rollupIndex), equalTo(PhaseCompleteStep.finalStep("hot").getKey())));
+        assertBusy(
+            () -> assertThat(getStepKeyForIndex(client(), rollupIndex), equalTo(PhaseCompleteStep.finalStep("hot").getKey())),
+            30,
+            TimeUnit.SECONDS
+        );
         assertBusy(() -> {
             Map<String, Object> settings = getOnlyIndexSettings(client(), rollupIndex);
-            assertThat(settings.get(IndexMetadata.INDEX_ROLLUP_SOURCE_NAME.getKey()), equalTo(originalIndex));
+            assertEquals(originalIndex, settings.get(IndexMetadata.INDEX_ROLLUP_SOURCE_NAME.getKey()));
+            assertEquals(RollupTaskStatus.SUCCESS.toString(), settings.get(IndexMetadata.INDEX_ROLLUP_STATUS.getKey()));
         });
     }
 
@@ -255,23 +266,41 @@ public class RollupActionIT extends ESRestTestCase {
 
         // Manual rollover the original index such that it's not the write index in the data stream anymore
         rolloverMaxOneDocCondition(client(), dataStream);
-        assertBusy(() -> assertNotNull("Cannot retrieve rollup index name", getRollupIndexName(backingIndexName)), 30, TimeUnit.SECONDS);
 
-        String rollupIndex = getRollupIndexName(backingIndexName);
+        String rollupIndex = waitAndGetRollupIndexName(client(), backingIndexName);
+        assertNotNull("Cannot retrieve rollup index name", rollupIndex);
         assertBusy(() -> assertTrue("Rollup index does not exist", indexExists(rollupIndex)), 30, TimeUnit.SECONDS);
         assertBusy(() -> assertFalse("Source index should have been deleted", indexExists(backingIndexName)), 30, TimeUnit.SECONDS);
+        assertBusy(() -> {
+            Map<String, Object> settings = getOnlyIndexSettings(client(), rollupIndex);
+            assertEquals(backingIndexName, settings.get(IndexMetadata.INDEX_ROLLUP_SOURCE_NAME.getKey()));
+            assertEquals(RollupTaskStatus.SUCCESS.toString(), settings.get(IndexMetadata.INDEX_ROLLUP_STATUS.getKey()));
+        });
     }
 
     /**
-     * gets the generated rollup index name for a given index by looking at newly created indices that match the rollup index name pattern
+     * Gets the generated rollup index name for a given index by looking at newly created indices that match the rollup index name pattern
      *
-     * @param index the name of the source index used to generate the rollup index name
+     * @param originalIndexName the name of the source index used to generate the rollup index name
      * @return the name of the rollup index for a given index, null if none exist
-     * @throws IOException if request fails
      */
-    private String getRollupIndexName(String index) throws IOException {
-        Response response = client().performRequest(
-            new Request("GET", "/" + RollupILMAction.ROLLUP_INDEX_PREFIX + "*-" + index + "/?expand_wildcards=all")
+    public String waitAndGetRollupIndexName(RestClient client, String originalIndexName) throws InterruptedException {
+        final String[] rollupIndexName = new String[1];
+        waitUntil(() -> {
+            try {
+                rollupIndexName[0] = getRollupIndexName(client, originalIndexName);
+                return rollupIndexName[0] != null;
+            } catch (IOException e) {
+                return false;
+            }
+        }, 60, TimeUnit.SECONDS);
+        logger.info("--> original index name is [{}], rollup index name is [{}]", originalIndexName, rollupIndexName[0]);
+        return rollupIndexName[0];
+    }
+
+    public static String getRollupIndexName(RestClient client, String originalIndexName) throws IOException {
+        Response response = client.performRequest(
+            new Request("GET", "/" + RollupILMAction.ROLLUP_INDEX_PREFIX + "*-" + originalIndexName + "/?expand_wildcards=all")
         );
         Map<String, Object> asMap = responseAsMap(response);
         if (asMap.size() == 1) {

@@ -89,6 +89,7 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.env.Environment;
@@ -1106,6 +1107,7 @@ public class Node implements Closeable {
      * delete the config file. The agent only reads it once, when supplied in this fashion, and it
      * may contain a secret token.
      */
+    @SuppressForbidden(reason = "Cannot guarantee that the temp config path is relative to the environment")
     private void deleteTemporaryApmConfig(JvmInfo jvmInfo) {
         for (String inputArgument : jvmInfo.getInputArguments()) {
             if (inputArgument.startsWith("-javaagent:")) {

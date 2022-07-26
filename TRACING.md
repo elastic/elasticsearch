@@ -13,7 +13,7 @@ Separately, there is the [`apm-integration`](./x-pack/plugins/apm-integration/)
 module, which works with the OpenTelemetry API directly to record trace data.
 Underneath the OTel API, we use Elastic's [APM agent for Java][agent], which
 attaches at runtime to the Elasticsearch JVM and removes the need for
-Elasticsearch to hard-code the use of an SDK.
+Elasticsearch to hard-code the use of an OTel implementation.
 
 ## How is tracing configured?
 
@@ -46,10 +46,10 @@ that can read system properties.
 
 Instead, when Elasticsearch bootstraps itself, it compiles all APM settings
 together, including any `secret_key` or `api_key` values from the ES keystore,
-and writes out a temporary APM config file containin all static configuration
+and writes out a temporary APM config file containing all static configuration
 (i.e. values that cannot change after the agent starts).  This file is deleted
 soon after ES starts up. Settings that are not sensitive and can be changed
-dynamically are configure via system properties. Calls to the ES settings REST
+dynamically are configured via system properties. Calls to the ES settings REST
 API are translated into system property writes, which the agent later picks up
 and applies.
 

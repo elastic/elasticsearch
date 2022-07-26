@@ -429,25 +429,26 @@ public class ApiKeyService {
         final Set<RoleDescriptor> userRoleDescriptors,
         final Collection<VersionedApiKeyDoc> versionedDocsToUpdate,
         final ActionListener<BulkUpdateApiKeyResponse> listener
-    ) throws IOException {
+    ) {
         logger.trace("Found [{}] API keys for update", versionedDocsToUpdate.size());
         final BulkUpdateApiKeyResponse.Builder responseBuilder = BulkUpdateApiKeyResponse.builder();
         final BulkRequestBuilder requestBuilder = client.prepareBulk();
         for (VersionedApiKeyDoc versionedDoc : versionedDocsToUpdate) {
             try {
                 validateForUpdate(versionedDoc.id(), authentication, versionedDoc.doc());
-            } catch (IllegalArgumentException ex) {
-                responseBuilder.error(versionedDoc.id(), new ElasticsearchException("Validation", ex));
-                continue;
-            }
-
-            final var indexRequest = maybeBuildIndexRequestForUpdate(versionedDoc, authentication, request, userRoleDescriptors);
-            final boolean isNoop = indexRequest == null;
-            if (isNoop) {
-                logger.debug("Detected noop update request for API key [{}]. Skipping index request.", versionedDoc.id());
-                responseBuilder.noop(versionedDoc.id());
-            } else {
-                requestBuilder.add(indexRequest);
+                final var indexRequest = maybeBuildIndexRequest(versionedDoc, authentication, request, userRoleDescriptors);
+                final boolean isNoop = indexRequest == null;
+                if (isNoop) {
+                    logger.debug("Detected noop update request for API key [{}]. Skipping index request.", versionedDoc.id());
+                    responseBuilder.noop(versionedDoc.id());
+                } else {
+                    requestBuilder.add(indexRequest);
+                }
+            } catch (Exception ex) {
+                responseBuilder.error(
+                    versionedDoc.id(),
+                    traceLog("preparing request", new ElasticsearchException("Request preparation", ex))
+                );
             }
         }
         addNotFound(responseBuilder, request.getIds(), versionedDocsToUpdate);
@@ -1165,12 +1166,7 @@ public class ApiKeyService {
         final VersionedApiKeyDoc currentVersionedDoc,
         final ActionListener<UpdateApiKeyResponse> listener
     ) throws IOException {
-        final IndexRequest indexRequest = maybeBuildIndexRequestForUpdate(
-            currentVersionedDoc,
-            authentication,
-            request,
-            userRoleDescriptors
-        );
+        final IndexRequest indexRequest = maybeBuildIndexRequest(currentVersionedDoc, authentication, request, userRoleDescriptors);
         final boolean isNoop = indexRequest == null;
         if (isNoop) {
             logger.debug("Detected noop update request for API key [{}]. Skipping index request.", currentVersionedDoc.id());
@@ -1194,7 +1190,7 @@ public class ApiKeyService {
     }
 
     @Nullable
-    private IndexRequest maybeBuildIndexRequestForUpdate(
+    private IndexRequest maybeBuildIndexRequest(
         final VersionedApiKeyDoc currentVersionedDoc,
         final Authentication authentication,
         final BaseUpdateApiKeyRequest request,

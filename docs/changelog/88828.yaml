@@ -1,0 +1,11 @@
+pr: 88828
+summary: Deprecate the `_knn_search` endpoint
+area: Vector Search
+type: deprecation
+issues: []
+deprecation:
+  title: Deprecate the `_knn_search` endpoint
+  area: Vector Search
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users

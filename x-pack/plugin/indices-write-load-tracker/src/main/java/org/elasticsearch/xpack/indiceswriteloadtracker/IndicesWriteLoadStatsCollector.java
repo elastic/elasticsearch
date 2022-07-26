@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.indiceswriteloadtracker;
 import org.HdrHistogram.ShortCountsHistogram;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Nullable;
@@ -260,17 +261,17 @@ class IndicesWriteLoadStatsCollector implements IndexEventListener {
         // This kind of histogram as a lower memory footprint than a DoubleHistogram,
         // and provides enough granularity for our use case
         private final ShortCountsHistogram delegate;
+        private final MeanMetric average;
 
         Histogram(int numberOfSignificantValueDigits) {
             this.delegate = new ShortCountsHistogram(numberOfSignificantValueDigits);
+            this.average = new MeanMetric();
         }
 
         void recordValue(double value) {
-            delegate.recordValue((int) (value * ADJUST_FACTOR));
-        }
-
-        void recordValue(long value) {
-            delegate.recordValue(value);
+            int recordedValue = (int) (value * ADJUST_FACTOR);
+            delegate.recordValue(recordedValue);
+            average.inc(recordedValue);
         }
 
         void reset() {
@@ -283,6 +284,10 @@ class IndicesWriteLoadStatsCollector implements IndexEventListener {
 
         public double getMaxValue() {
             return delegate.getMaxValue() / ADJUST_FACTOR;
+        }
+
+        public double getAverage() {
+            return average.mean() / ADJUST_FACTOR;
         }
     }
 }

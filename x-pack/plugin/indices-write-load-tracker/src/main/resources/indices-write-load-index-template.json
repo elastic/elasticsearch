@@ -40,6 +40,9 @@
         },
         "index_load_histogram": {
           "properties": {
+            "average": {
+              "type": "double"
+            },
             "50": {
               "type": "double"
             },
@@ -59,6 +62,9 @@
         },
         "merge_load_histogram": {
           "properties": {
+            "average": {
+              "type": "double"
+            },
             "50": {
               "type": "double"
             },
@@ -78,6 +84,9 @@
         },
         "refresh_load_histogram": {
           "properties": {
+            "average": {
+              "type": "double"
+            },
             "50": {
               "type": "double"
             },

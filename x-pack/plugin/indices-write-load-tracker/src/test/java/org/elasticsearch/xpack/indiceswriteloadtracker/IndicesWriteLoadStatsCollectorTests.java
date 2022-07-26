@@ -316,7 +316,7 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
             assertThat(shardWriteLoadDistribution, is(notNullValue()));
 
             final HistogramSnapshot refreshLoadHistogramSnapshot = shardWriteLoadDistribution.refreshLoadHistogramSnapshot();
-            assertThat(refreshLoadHistogramSnapshot.max(), is(closeTo(1.0, 0.2)));
+            assertThat(refreshLoadHistogramSnapshot.max(), is(closeTo(1.0, 0.3)));
         }
     }
 

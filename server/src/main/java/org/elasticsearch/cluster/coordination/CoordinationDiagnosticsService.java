@@ -116,7 +116,10 @@ public class CoordinationDiagnosticsService implements ClusterStateListener, Coo
 
     /**
      * This field has a reference to an AtomicBoolean indicating whether the most recent attempt at polling for remote coordination
-     * diagnostics ought to still be running.
+     * diagnostics ought to still be running. There is one AtomicBoolean per remote coordination diagnostics poll. We keep track of the
+     * current (or most recent anyway) one here so that the cancelPollingRemoteStableMasterHealthIndicatorService can cancel it. All
+     * older copies will have already been cancelled, which will help any still-running polls to know that they have been cancelled (only
+     * one needs to be running at any given time).
      */
     private volatile AtomicBoolean remoteCoordinationDiagnosticsCancelled = new AtomicBoolean(true);
 
@@ -527,7 +530,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener, Coo
     }
 
     /**
-     * This wraps the responseConsumer in a Consumer that will run fetchClusterFormationInfo() after responseConsumer has
+     * This wraps the responseConsumer in a Consumer that will run rescheduleClusterFormationFetchConsumer() after responseConsumer has
      * completed, adding the resulting Cancellable to cancellableConsumer.
      * @param masterEligibleNode The node being polled
      * @param responseConsumer The response consumer to be wrapped
@@ -681,7 +684,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener, Coo
     }
 
     /**
-     * This wraps the responseConsumer in a Consumer that will run fetchCoordinationDiagnostics() after responseConsumer has
+     * This wraps the responseConsumer in a Consumer that will run rescheduleDiagnosticsFetchConsumer() after responseConsumer has
      * completed, adding the resulting Cancellable to cancellableConsumer.
      * @param masterEligibleNode The node being polled
      * @param responseConsumer The response consumer to be wrapped
@@ -819,7 +822,8 @@ public class CoordinationDiagnosticsService implements ClusterStateListener, Coo
     public void onFoundPeersUpdated() {
         /*
          * If we are on a non-master-eligible node, and the list of peers in PeerFinder is non-empty, that implies that there is
-         * currently no master node elected.
+         * currently no master node elected. At the time that clusterChanged is called notifying us that there is no master, the list of
+         * peers is empty (it is before this method is called). That is why this logic is in here rather than in clusterChanged.
          * This begins polling a random master-eligible node for its result from this service. However there's a 10-second delay before it
          * starts, so in the normal situation where during a master transition it flips from master1 -> null -> master2, it the
          * polling tasks will be canceled before any requests are actually made.

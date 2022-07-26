@@ -2345,7 +2345,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
     private UpdateApiKeyResponse executeUpdateApiKey(final String username, final UpdateApiKeyRequest request) throws ExecutionException,
         InterruptedException {
-        return executeUpdateApiKey(username, request, false);
+        return executeUpdateApiKey(username, request, true);
     }
 
     private UpdateApiKeyResponse executeUpdateApiKey(final String username, final UpdateApiKeyRequest request, final boolean useBulkRoute)

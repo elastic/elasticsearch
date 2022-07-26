@@ -843,13 +843,13 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
 
         public ShardAllocationDecision explainUnassignedShard(ShardRouting shard) {
             var routingAllocation = new RoutingAllocation(allocationDeciders, state, info, shardSizeInfo, System.nanoTime());
-            routingAllocation.setDebugMode(RoutingAllocation.DebugMode.ON);
+            routingAllocation.debugDecision(true);
             return allocationService.explainShardAllocation(shard, routingAllocation);
         }
 
         public ShardAllocationDecision explainAssignedShard(ShardRouting shard) {
             var routingAllocation = new RoutingAllocation(allocationDeciders, state, info, shardSizeInfo, System.nanoTime());
-            routingAllocation.setDebugMode(RoutingAllocation.DebugMode.ON);
+            routingAllocation.debugDecision(true);
             return allocationService.explainShardAllocation(shard, routingAllocation);
         }
     }

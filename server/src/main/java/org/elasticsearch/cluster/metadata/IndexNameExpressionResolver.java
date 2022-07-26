@@ -1307,15 +1307,13 @@ public class IndexNameExpressionResolver {
         }
 
         public static Map<String, IndexAbstraction> matches(Context context, Metadata metadata, String expression) {
-            boolean filterHidden = false == context.options.expandWildcardsHidden()
-                && expression.startsWith(".")
-                && Regex.isSimpleMatchPattern(expression);
+            boolean includeDotHidden = expression.startsWith(".") && Regex.isSimpleMatchPattern(expression);
             if (Regex.isMatchAllPattern(expression)) {
-                return filterIndicesLookup(context, metadata.getIndicesLookup(), null, filterHidden);
+                return filterIndicesLookup(context, metadata.getIndicesLookup(), null, includeDotHidden);
             } else if (expression.indexOf("*") == expression.length() - 1) {
-                return suffixWildcard(context, metadata.getIndicesLookup(), expression, filterHidden);
+                return suffixWildcard(context, metadata.getIndicesLookup(), expression, includeDotHidden);
             } else {
-                return otherWildcard(context, metadata.getIndicesLookup(), expression, filterHidden);
+                return otherWildcard(context, metadata.getIndicesLookup(), expression, includeDotHidden);
             }
         }
 
@@ -1323,7 +1321,7 @@ public class IndexNameExpressionResolver {
             Context context,
             SortedMap<String, IndexAbstraction> indicesLookup,
             String expression,
-            boolean filterHidden
+            boolean includeDotHidden
         ) {
             assert expression.length() >= 2 : "expression [" + expression + "] should have at least a length of 2";
             String fromPrefix = expression.substring(0, expression.length() - 1);
@@ -1331,24 +1329,24 @@ public class IndexNameExpressionResolver {
             toPrefixCharArr[toPrefixCharArr.length - 1]++;
             String toPrefix = new String(toPrefixCharArr);
             SortedMap<String, IndexAbstraction> subMap = indicesLookup.subMap(fromPrefix, toPrefix);
-            return filterIndicesLookup(context, subMap, null, filterHidden);
+            return filterIndicesLookup(context, subMap, null, includeDotHidden);
         }
 
         private static Map<String, IndexAbstraction> otherWildcard(
             Context context,
             SortedMap<String, IndexAbstraction> indicesLookup,
             String expression,
-            boolean filterHidden
+            boolean includeDotHidden
         ) {
             final String pattern = expression;
-            return filterIndicesLookup(context, indicesLookup, e -> Regex.simpleMatch(pattern, e.getKey()), filterHidden);
+            return filterIndicesLookup(context, indicesLookup, e -> Regex.simpleMatch(pattern, e.getKey()), includeDotHidden);
         }
 
         private static Map<String, IndexAbstraction> filterIndicesLookup(
             Context context,
             Map<String, IndexAbstraction> indicesLookup,
             Predicate<? super Map.Entry<String, IndexAbstraction>> filter,
-            boolean filterHidden
+            boolean includeDotHidden
         ) {
             Stream<Map.Entry<String, IndexAbstraction>> stream = indicesLookup.entrySet().stream();
             if (context.options.ignoreAliases()) {
@@ -1369,8 +1367,12 @@ public class IndexNameExpressionResolver {
                         || indexAbstraction.getParentDataStream() != null)
                     && (false == context.systemIndexAccessPredicate.test(indexAbstraction.getName())));
             });
-            if (filterHidden) {
-                stream = stream.filter(e -> false == e.getValue().isHidden() || false == e.getKey().startsWith("."));
+            if (false == context.options.expandWildcardsHidden()) {
+                if (includeDotHidden) {
+                    stream = stream.filter(e -> e.getKey().startsWith(".") || false == e.getValue().isHidden());
+                } else {
+                    stream = stream.filter(e -> false == e.getValue().isHidden());
+                }
             }
 
             return stream.collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));

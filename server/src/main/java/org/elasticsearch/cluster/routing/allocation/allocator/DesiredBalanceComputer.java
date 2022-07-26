@@ -115,6 +115,9 @@ public class DesiredBalanceComputer {
             }
 
             final var targetNodesIterator = targetNodes.iterator();
+
+            // shards are moved to the desired locations before initializing unassigned to guarantee
+            // that there are no more started shards then desired locations for them
             for (final var shardRouting : shardsToRelocate) {
                 assert shardRouting.started();
                 if (targetNodesIterator.hasNext()) {

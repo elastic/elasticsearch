@@ -626,7 +626,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
 
             @Override
             public void onFailure(Exception deleteException) {
-                listener.onFailure(new ElasticsearchException("Unable to delete the temporary rollup index [" + rollupIndex + "]", e));
+                listener.onFailure(new ElasticsearchException("Unable to delete rollup index [" + rollupIndex + "]", e));
             }
         });
     }

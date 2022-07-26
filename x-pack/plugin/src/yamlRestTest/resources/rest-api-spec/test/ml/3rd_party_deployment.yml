@@ -75,6 +75,9 @@ setup:
   - match: { stopped: true }
 ---
 "Test start and stop deployment with cache":
+  - skip:
+      features: allowed_warnings
+
   - do:
       ml.start_trained_model_deployment:
         model_id: test_model
@@ -85,6 +88,8 @@ setup:
   - match: {assignment.task_parameters.cache_size: 10kb}
 
   - do:
+      allowed_warnings:
+        - '[POST /_ml/trained_models/{model_id}/deployment/_infer] is deprecated! Use [POST /_ml/trained_models/{model_id}/_infer] instead.'
       ml.infer_trained_model:
         model_id: "test_model"
         body: >
@@ -93,9 +98,10 @@ setup:
               { "input": "words" }
             ]
           }
-  - is_true: inference_results
 
   - do:
+      allowed_warnings:
+        - '[POST /_ml/trained_models/{model_id}/deployment/_infer] is deprecated! Use [POST /_ml/trained_models/{model_id}/_infer] instead.'
       ml.infer_trained_model:
         model_id: "test_model"
         body: >
@@ -104,9 +110,10 @@ setup:
               { "input": "are" }
             ]
           }
-  - is_true: inference_results
 
   - do:
+      allowed_warnings:
+        - '[POST /_ml/trained_models/{model_id}/deployment/_infer] is deprecated! Use [POST /_ml/trained_models/{model_id}/_infer] instead.'
       ml.infer_trained_model:
         model_id: "test_model"
         body: >
@@ -115,7 +122,6 @@ setup:
               { "input": "words" }
             ]
           }
-  - is_true: inference_results
 
   - do:
       ml.get_trained_models_stats:

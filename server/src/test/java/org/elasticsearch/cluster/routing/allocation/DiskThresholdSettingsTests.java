@@ -303,8 +303,8 @@ public class DiskThresholdSettingsTests extends ESTestCase {
 
         boolean watermarksAbsolute = randomBoolean();
         boolean lowHeadroomEnabled = randomBoolean();
-        boolean highHeadroomEnabled = randomBoolean();
-        boolean floodHeadroomEnabled = randomBoolean();
+        boolean highHeadroomEnabled = lowHeadroomEnabled ? true : randomBoolean();
+        boolean floodHeadroomEnabled = highHeadroomEnabled ? true : randomBoolean();
         boolean frozenFloodHeadroomEnabled = randomBoolean();
 
         Settings newSettings = Settings.builder()
@@ -548,26 +548,6 @@ public class DiskThresholdSettingsTests extends ESTestCase {
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
         final IllegalArgumentException cause = (IllegalArgumentException) e.getCause();
         assertThat(cause, hasToString(containsString("flood disk max headroom [500mb] more than high disk max headroom [400mb]")));
-    }
-
-    public void testInvalidLowFloodMaxHeadroomUpdate() {
-        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        new DiskThresholdSettings(Settings.EMPTY, clusterSettings); // this has the effect of registering the settings updater
-
-        final Settings newSettings = Settings.builder()
-            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING.getKey(), "-1")
-            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_MAX_HEADROOM_SETTING.getKey(), "300m")
-            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_MAX_HEADROOM_SETTING.getKey(), "500m")
-            .build();
-
-        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> clusterSettings.applySettings(newSettings));
-        final String expected =
-            "illegal value can't update [cluster.routing.allocation.disk.watermark.low.max_headroom] from [150GB] to [300m]";
-        assertThat(e, hasToString(containsString(expected)));
-        assertNotNull(e.getCause());
-        assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
-        final IllegalArgumentException cause = (IllegalArgumentException) e.getCause();
-        assertThat(cause, hasToString(containsString("flood disk max headroom [500mb] more than low disk max headroom [300mb]")));
     }
 
     public void testInvalidLowHeadroomSetAndHighNotSet() {

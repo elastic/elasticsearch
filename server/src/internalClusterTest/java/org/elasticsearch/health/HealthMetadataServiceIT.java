@@ -43,7 +43,7 @@ public class HealthMetadataServiceIT extends ESIntegTestCase {
             for (int i = 0; i < numberOfNodes; i++) {
                 ByteSizeValue randomBytes = new ByteSizeValue(randomLongBetween(6, 19));
                 String customWatermark = percentageMode ? randomIntBetween(86, 94) + "%" : randomBytes.toString();
-                ByteSizeValue customMaxHeadroom = percentageMode ? randomBytes : new ByteSizeValue(-1L);
+                ByteSizeValue customMaxHeadroom = randomBytes;
                 String nodeName = startNode(internalCluster, customWatermark, customMaxHeadroom.toString());
                 watermarkByNode.put(nodeName, customWatermark);
                 maxHeadroomByNode.put(nodeName, customMaxHeadroom);
@@ -76,7 +76,7 @@ public class HealthMetadataServiceIT extends ESIntegTestCase {
             int numberOfNodes = 3;
             ByteSizeValue randomBytes = new ByteSizeValue(randomLongBetween(6, 19));
             String initialWatermark = percentageMode ? randomIntBetween(86, 94) + "%" : randomBytes.toString();
-            ByteSizeValue initialMaxHeadroom = percentageMode ? randomBytes : new ByteSizeValue(-1L);
+            ByteSizeValue initialMaxHeadroom = randomBytes;
             for (int i = 0; i < numberOfNodes; i++) {
                 startNode(internalCluster, initialWatermark, initialMaxHeadroom.toString());
             }

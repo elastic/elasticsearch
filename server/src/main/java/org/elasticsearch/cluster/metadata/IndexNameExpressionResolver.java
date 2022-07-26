@@ -1332,7 +1332,12 @@ public class IndexNameExpressionResolver {
             } else if (expression.indexOf("*") == expression.length() - 1) {
                 return suffixWildcard(context, metadata, expression);
             } else {
-                return otherWildcard(context, metadata, expression);
+                return filterIndicesLookup(
+                    context,
+                    metadata.getIndicesLookup(),
+                    e -> Regex.simpleMatch(expression, e.getKey()),
+                    context.getOptions()
+                );
             }
         }
 
@@ -1344,16 +1349,6 @@ public class IndexNameExpressionResolver {
             String toPrefix = new String(toPrefixCharArr);
             SortedMap<String, IndexAbstraction> subMap = metadata.getIndicesLookup().subMap(fromPrefix, toPrefix);
             return filterIndicesLookup(context, subMap, null, context.getOptions());
-        }
-
-        private static Map<String, IndexAbstraction> otherWildcard(Context context, Metadata metadata, String expression) {
-            final String pattern = expression;
-            return filterIndicesLookup(
-                context,
-                metadata.getIndicesLookup(),
-                e -> Regex.simpleMatch(pattern, e.getKey()),
-                context.getOptions()
-            );
         }
 
         private static Map<String, IndexAbstraction> filterIndicesLookup(

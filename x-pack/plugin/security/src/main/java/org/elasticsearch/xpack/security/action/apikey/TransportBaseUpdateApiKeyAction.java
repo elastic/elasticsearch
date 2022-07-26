@@ -17,6 +17,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.action.apikey.BaseUpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.authc.support.ApiKeyUserRoleDescriptorResolver;
@@ -24,7 +25,7 @@ import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 
 import java.util.Set;
 
-public abstract class TransportBaseUpdateApiKeyAction<Request extends ActionRequest, Response extends ActionResponse> extends
+public abstract class TransportBaseUpdateApiKeyAction<Request extends BaseUpdateApiKeyRequest, Response extends ActionResponse> extends
     HandledTransportAction<Request, Response> {
 
     private final SecurityContext securityContext;

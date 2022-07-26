@@ -22,7 +22,6 @@ import java.util.Map;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-// TODO package-private?
 public abstract class BaseUpdateApiKeyRequest extends ActionRequest {
 
     @Nullable

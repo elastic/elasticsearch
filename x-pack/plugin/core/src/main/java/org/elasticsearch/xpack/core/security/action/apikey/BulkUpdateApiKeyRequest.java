@@ -41,6 +41,7 @@ public final class BulkUpdateApiKeyRequest extends BaseUpdateApiKeyRequest {
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validate();
+        // TODO validate IDs?
         if (ids.isEmpty()) {
             validationException = addValidationError("Bulk update request must include API key IDs", validationException);
         }

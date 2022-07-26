@@ -57,14 +57,19 @@ public final class BulkUpdateApiKeyResponse extends ActionResponse implements To
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject().stringListField("updated", updated).stringListField("noops", noops);
-        builder.startObject("errors");
-        {
-            builder.field("count", errorDetails.size());
-            if (errorDetails.isEmpty() == false) {
-                // TODO will this work?
-                builder.field("error_details", errorDetails);
+        builder.startObject()
+            .stringListField("updated", updated)
+            .stringListField("noops", noops)
+            .startObject("errors")
+            .field("count", errorDetails.size());
+        if (errorDetails.isEmpty() == false) {
+            builder.startObject("details");
+            for (Map.Entry<String, ElasticsearchException> idWithException : errorDetails.entrySet()) {
+                builder.startObject(idWithException.getKey());
+                ElasticsearchException.generateThrowableXContent(builder, params, idWithException.getValue());
+                builder.endObject();
             }
+            builder.endObject();
         }
         return builder.endObject() // errors
             .endObject();
@@ -111,5 +116,4 @@ public final class BulkUpdateApiKeyResponse extends ActionResponse implements To
             return new BulkUpdateApiKeyResponse(updated, noops, errorDetails);
         }
     }
-
 }

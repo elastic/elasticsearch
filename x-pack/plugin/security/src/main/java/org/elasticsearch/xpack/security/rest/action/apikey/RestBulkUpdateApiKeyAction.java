@@ -14,6 +14,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -58,10 +59,9 @@ public final class RestBulkUpdateApiKeyAction extends ApiKeyBaseRestHandler {
 
     @Override
     protected RestChannelConsumer innerPrepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        return channel -> client.execute(
-            BulkUpdateApiKeyAction.INSTANCE,
-            PARSER.parse(request.contentParser(), null),
-            new RestToXContentListener<>(channel)
-        );
+        try (XContentParser parser = request.contentParser()) {
+            final BulkUpdateApiKeyRequest parsed = PARSER.parse(parser, null);
+            return channel -> client.execute(BulkUpdateApiKeyAction.INSTANCE, parsed, new RestToXContentListener<>(channel));
+        }
     }
 }

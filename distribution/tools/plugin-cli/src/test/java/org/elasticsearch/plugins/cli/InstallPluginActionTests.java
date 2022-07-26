@@ -114,7 +114,6 @@ import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.spy;
 
 @LuceneTestCase.SuppressFileSystems("*")
-@ESTestCase.WithoutSecurityManager
 public class InstallPluginActionTests extends ESTestCase {
 
     private InstallPluginAction skipJarHellAction;

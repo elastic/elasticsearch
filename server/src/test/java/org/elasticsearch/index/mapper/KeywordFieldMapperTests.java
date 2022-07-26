@@ -13,6 +13,7 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.LowerCaseFilter;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
@@ -41,6 +42,7 @@ import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.StringFieldScript;
+import org.elasticsearch.test.FieldMaskingReader;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -626,8 +628,26 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         return new KeywordSyntheticSourceSupport();
     }
 
+    protected void validateRoundTripReader(String syntheticSource, DirectoryReader reader, DirectoryReader roundTripReader)
+        throws IOException {
+        assertReaderEquals(
+            "round trip " + syntheticSource,
+            new FieldMaskingReader(IgnoredFieldMapper.NAME, new FieldMaskingReader(SourceFieldMapper.RECOVERY_SOURCE_NAME, reader)),
+            new FieldMaskingReader(IgnoredFieldMapper.NAME, new FieldMaskingReader(SourceFieldMapper.RECOVERY_SOURCE_NAME, roundTripReader))
+        );
+    }
+
     static class KeywordSyntheticSourceSupport implements SyntheticSourceSupport {
         private final String nullValue = usually() ? null : randomAlphaOfLength(2);
+        private final Integer ignoreAbove;
+
+        KeywordSyntheticSourceSupport(Integer ignoreAbove) {
+            this.ignoreAbove = ignoreAbove;
+        }
+
+        KeywordSyntheticSourceSupport() {
+            this(usually() ? null : between(10, 100));
+        }
 
         @Override
         public SyntheticSourceExample example(int maxValues) {
@@ -637,8 +657,18 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             }
             List<Tuple<String, String>> values = randomList(1, maxValues, this::generateValue);
             List<String> in = values.stream().map(Tuple::v1).toList();
-            List<String> outList = values.stream().map(Tuple::v2).collect(Collectors.toSet()).stream().sorted().toList();
-            Object out = outList.size() == 1 ? outList.get(0) : outList;
+            List<String> outList = values.stream()
+                .map(Tuple::v2)
+                .filter(s -> s != null)
+                .collect(Collectors.toSet())
+                .stream()
+                .sorted()
+                .toList();
+            Object out = switch (outList.size()) {
+                case 0 -> null;
+                case 1 -> outList.get(0);
+                default -> outList;
+            };
             return new SyntheticSourceExample(in, out, this::mapping);
         }
 
@@ -646,7 +676,15 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             if (nullValue != null && randomBoolean()) {
                 return Tuple.tuple(null, nullValue);
             }
-            String v = randomAlphaOfLength(5);
+            if (ignoreAbove == null) {
+                String v = randomAlphaOfLengthBetween(1, 1000);
+                return Tuple.tuple(v, v);
+            }
+            if (randomBoolean()) {
+                String v = randomAlphaOfLengthBetween(ignoreAbove + 1, ignoreAbove * 2);
+                return Tuple.tuple(v, null);
+            }
+            String v = randomAlphaOfLengthBetween(1, ignoreAbove);
             return Tuple.tuple(v, v);
         }
 
@@ -654,6 +692,9 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             b.field("type", "keyword");
             if (nullValue != null) {
                 b.field("null_value", nullValue);
+            }
+            if (ignoreAbove != null) {
+                b.field("ignore_above", ignoreAbove);
             }
         }
 
@@ -665,8 +706,14 @@ public class KeywordFieldMapperTests extends MapperTestCase {
                     b -> b.field("type", "keyword").field("doc_values", false)
                 ),
                 new SyntheticSourceInvalidExample(
-                    equalTo("field [field] of type [keyword] doesn't support synthetic source because it declares ignore_above"),
-                    b -> b.field("type", "keyword").field("ignore_above", 10)
+                    equalTo(
+                        "field [field] of type [keyword] doesn't support synthetic source because it declares ignore_above "
+                            + "and has sub-fields"
+                    ),
+                    b -> {
+                        b.field("type", "keyword").field("ignore_above", 10);
+                        b.startObject("fields").startObject("foo").field("type", "long").endObject().endObject();
+                    }
                 ),
                 new SyntheticSourceInvalidExample(
                     equalTo("field [field] of type [keyword] doesn't support synthetic source because it declares a normalizer"),

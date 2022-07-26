@@ -167,3 +167,59 @@ force_synthetic_source_bad_mapping:
         index: test
         id: 1
         force_synthetic_source: true
+
+---
+ignore_above removes long strings:
+  - skip:
+      version: " - 8.3.99"
+      reason: introduced in 8.4.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              pristine:
+                type: keyword
+              not_big:
+                type: keyword
+                ignore_above: 10
+
+  - do:
+      bulk:
+        refresh: true
+        index: test
+        body:
+          - '{"index": {"_id": "1"}}'
+          - '{"pristine": "I am the very model of a modern Major-Gineral,", "not_big": "small"}'
+          - '{"index": {"_id": "2"}}'
+          - '{"pristine": "Ive information vegetable, animal, and mineral,", "not_big": "I know the kings of England, and I quote the fights historical"}'
+
+  - do:
+      get:
+        index: test
+        id:    1
+  - match: {_index: "test"}
+  - match: {_id: "1"}
+  - match: {_version: 1}
+  - match: {found: true}
+  - match:
+      _source:
+        pristine: "I am the very model of a modern Major-Gineral,"
+        not_big: small
+
+  - do:
+      get:
+        index: test
+        id:    2
+  - match: {_index: "test"}
+  - match: {_id: "2"}
+  - match: {_version: 1}
+  - match: {found: true}
+  - match:
+      _source:
+        pristine: "Ive information vegetable, animal, and mineral,"
+        # not_big isn't in the list

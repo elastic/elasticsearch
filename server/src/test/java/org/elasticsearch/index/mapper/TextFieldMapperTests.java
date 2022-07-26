@@ -1096,7 +1096,7 @@ public class TextFieldMapperTests extends MapperTestCase {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
-        SyntheticSourceSupport supportDelegate = new KeywordFieldMapperTests.KeywordSyntheticSourceSupport();
+        SyntheticSourceSupport supportDelegate = new KeywordFieldMapperTests.KeywordSyntheticSourceSupport(null);
         return new SyntheticSourceSupport() {
             @Override
             public SyntheticSourceExample example(int maxValues) throws IOException {

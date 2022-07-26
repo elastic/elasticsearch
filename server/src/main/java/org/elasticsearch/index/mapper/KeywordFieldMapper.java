@@ -1044,9 +1044,13 @@ public final class KeywordFieldMapper extends FieldMapper {
                 "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it doesn't have doc values"
             );
         }
-        if (fieldType().ignoreAbove() != Defaults.IGNORE_ABOVE) {
+        if (fieldType().ignoreAbove() != Defaults.IGNORE_ABOVE && false == multiFields().isEmpty()) {
             throw new IllegalArgumentException(
-                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares ignore_above"
+                "field ["
+                    + name()
+                    + "] of type ["
+                    + typeName()
+                    + "] doesn't support synthetic source because it declares ignore_above and has sub-fields"
             );
         }
         if (copyTo.copyToFields().isEmpty() != true) {

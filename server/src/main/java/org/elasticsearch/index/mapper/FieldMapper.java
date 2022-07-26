@@ -458,6 +458,10 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             context.path().remove();
         }
 
+        public boolean isEmpty() {
+            return mappers.length == 0;
+        }
+
         @Override
         public Iterator<FieldMapper> iterator() {
             return Iterators.forArray(mappers);

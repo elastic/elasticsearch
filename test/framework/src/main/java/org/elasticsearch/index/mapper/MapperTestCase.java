@@ -785,10 +785,18 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             syntheticSourceExample.mapping().accept(b);
             b.endObject();
         }));
-        String expected = Strings.toString(
-            JsonXContent.contentBuilder().startObject().field("field", syntheticSourceExample.result).endObject()
+        assertThat(
+            syntheticSource(mapper, b -> b.field("field", syntheticSourceExample.inputValue)),
+            equalTo(expectedSyntheticSource(syntheticSourceExample.result))
         );
-        assertThat(syntheticSource(mapper, b -> b.field("field", syntheticSourceExample.inputValue)), equalTo(expected));
+    }
+
+    private String expectedSyntheticSource(Object o) throws IOException {
+        XContentBuilder expected = JsonXContent.contentBuilder().startObject();
+        if (o != null) {
+            expected.field("field", o);
+        }
+        return Strings.toString(expected.endObject());
     }
 
     protected boolean supportsEmptyInputArray() {
@@ -820,7 +828,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                         continue;
                     }
                     SyntheticSourceExample example = support.example(maxValues);
-                    expected[i] = Strings.toString(JsonXContent.contentBuilder().startObject().field("field", example.result).endObject());
+                    expected[i] = expectedSyntheticSource(example.result);
                     iw.addDocument(mapper.parse(source(b -> b.field("field", example.inputValue))).rootDoc());
                 }
             }
@@ -857,17 +865,14 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             syntheticSourceExample.mapping().accept(b);
             b.endObject().endObject().endObject();
         }));
-        String expected = Strings.toString(
-            JsonXContent.contentBuilder()
-                .startObject()
-                .startObject("obj")
-                .field("field", syntheticSourceExample.result)
-                .endObject()
-                .endObject()
-        );
+        XContentBuilder expected = JsonXContent.contentBuilder().startObject();
+        if (syntheticSourceExample.result != null) {
+            expected.startObject("obj").field("field", syntheticSourceExample.result).endObject();
+        }
+        expected.endObject();
         assertThat(
             syntheticSource(mapper, b -> b.startObject("obj").field("field", syntheticSourceExample.inputValue).endObject()),
-            equalTo(expected)
+            equalTo(Strings.toString(expected))
         );
     }
 

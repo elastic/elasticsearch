@@ -21,8 +21,12 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
 
 /**
@@ -30,9 +34,17 @@ import static org.hamcrest.Matchers.not;
  */
 public class ApmIT extends ESRestTestCase {
 
+    private static final String DATA_STREAM = "traces-apm-default";
+
     /**
      * Check that if we send HTTP traffic to Elasticsearch, then traces are captured in APM server. The traces are generated in
-     * a separate Docker container, which continually fetches `/_nodes/stats`.
+     * a separate Docker container, which continually fetches `/_nodes/stats`. We check for the following:
+     * <ul>
+     *     <li>A transaction for the REST API call
+     *     <li>A span for the task started by the REST call
+     *     <li>A child span started by the above span
+     * </ul>
+     * <p>This proves that the hierarchy of spans is being correctly captured.
      */
     public void testCapturesTracesForHttpTraffic() throws Exception {
         checkTracesDataStream();
@@ -42,14 +54,17 @@ public class ApmIT extends ESRestTestCase {
 
     private void checkTracesDataStream() throws Exception {
         assertBusy(() -> {
-            final Response response = performRequestTolerantly(new Request("GET", "/_data_stream/traces-apm-default"));
+            final Response response = performRequestTolerantly(new Request("GET", "/_data_stream/" + DATA_STREAM));
             assertOK(response);
         }, 1, TimeUnit.MINUTES);
     }
 
     private void assertTracesExist() throws Exception {
+        // First look for a transaction for the REST calls that we make via the `tracegenerator` Docker container
+
+        final AtomicReference<String> transactionId = new AtomicReference<>();
         assertBusy(() -> {
-            final Request tracesSearchRequest = new Request("GET", "/traces-apm-default/_search");
+            final Request tracesSearchRequest = new Request("GET", "/" + DATA_STREAM + "/_search");
             tracesSearchRequest.setJsonEntity("""
                 {
                   "query": {
@@ -61,7 +76,79 @@ public class ApmIT extends ESRestTestCase {
 
             final List<Map<String, Object>> documents = getDocuments(tracesSearchResponse);
             assertThat(documents, not(empty()));
-        }, 2, TimeUnit.MINUTES);
+
+            final Map<String, Object> tx = documents.get(0);
+
+            check(tx, "http.request.method", "GET");
+            check(tx, "http.response.status_code", 200);
+            check(tx, "labels.es_cluster_name", "docker-cluster");
+            check(tx, "labels.http_request_headers_authorization", "[REDACTED]");
+            check(tx, "span.kind", "SERVER");
+            check(tx, "transaction.result", "HTTP 2xx");
+            check(tx, "url.path", "/_nodes/stats");
+
+            final String txId = pluck(tx, "transaction.id");
+            transactionId.set(txId);
+        }, 1, TimeUnit.MINUTES);
+
+        // Then look for the task that the REST call starts
+
+        final AtomicReference<String> monitorNodeStatsSpanId = new AtomicReference<>();
+        assertBusy(() -> {
+            final List<Map<String, Object>> documents = searchByParentId(transactionId.get());
+            assertThat(documents, not(empty()));
+
+            final Map<String, Object> spansByName = documents.stream()
+                .collect(Collectors.toMap(d -> pluck(d, "span.name"), d -> d));
+
+            assertThat(spansByName, hasKey("cluster:monitor/nodes/stats"));
+
+            @SuppressWarnings("unchecked")
+            final Map<String, Object> span = (Map<String, Object>) spansByName.get("cluster:monitor/nodes/stats");
+            check(span, "span.kind", "INTERNAL");
+
+            final String spanId = pluck(span, "span.id");
+            monitorNodeStatsSpanId.set(spanId);
+        }, 1, TimeUnit.MINUTES);
+
+        // Finally look for the child task that the task above started
+
+        assertBusy(() -> {
+            final List<Map<String, Object>> documents = searchByParentId(monitorNodeStatsSpanId.get());
+            assertThat(documents, not(empty()));
+
+            final Map<String, Object> spansByName = documents.stream()
+                .collect(Collectors.toMap(d -> pluck(d, "span.name"), d -> d));
+
+            assertThat(spansByName, hasKey("cluster:monitor/nodes/stats[n]"));
+        }, 1, TimeUnit.MINUTES);
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T> T pluck(Map<String, Object> map, String path) {
+        String[] parts = path.split("\\.");
+
+        Object result = map;
+
+        for (String part : parts) {
+            result = ((Map<String, ?>) result).get(part);
+        }
+
+        return (T) result;
+    }
+
+    private List<Map<String, Object>> searchByParentId(String parentId) throws IOException {
+        final Request searchRequest = new Request("GET", "/" + DATA_STREAM + "/_search");
+        searchRequest.setJsonEntity("""
+                {
+                  "query": {
+                     "match": { "parent.id": "%s" }
+                  }
+                }""".formatted(parentId));
+        final Response response = performRequestTolerantly(searchRequest);
+        assertOK(response);
+
+        return getDocuments(response);
     }
 
     /**
@@ -116,5 +203,9 @@ public class ApmIT extends ESRestTestCase {
             );
         }
         return value;
+    }
+
+    private <T> void check(Map<String, Object> doc, String path, T expected) {
+        assertThat(pluck(doc, path), equalTo(expected));
     }
 }

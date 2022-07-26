@@ -185,7 +185,7 @@ public class RollupActionIT extends ESRestTestCase {
         // add a policy
         Map<String, LifecycleAction> hotActions = Map.of(
             RolloverAction.NAME,
-            new RolloverAction(null, null, null, 1L, null),
+            new RolloverAction(null, null, null, 1L, null, null, null, null, null, null),
             RollupILMAction.NAME,
             new RollupILMAction(ConfigTestHelpers.randomInterval())
         );

@@ -53,7 +53,7 @@ setup:
       version: ' - 8.0.99'
       reason: 'dense_vector field usage was added in 8.1'
   - do:
-      knn_search:
+      search:
         index: futest
         body:
           fields: [ "name" ]

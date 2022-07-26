@@ -46,6 +46,7 @@ GET my-index/_knn_search
 }
 ----
 // TEST[continued]
+// TEST[warning:The kNN search API has been replaced by the `knn` option in the search API.]
 
 [[knn-search-api-request]]
 ==== {api-request-title}

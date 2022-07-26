@@ -84,7 +84,6 @@ import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.RED;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
-import static org.elasticsearch.health.ServerHealthComponents.DATA;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -1154,7 +1153,6 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
     ) {
         return new HealthIndicatorResult(
             NAME,
-            DATA,
             status,
             symptom,
             new SimpleHealthIndicatorDetails(addDefaults(details)),
@@ -1164,7 +1162,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
     }
 
     private HealthIndicatorResult createExpectedTruncatedResult(HealthStatus status, String symptom, List<HealthIndicatorImpact> impacts) {
-        return new HealthIndicatorResult(NAME, DATA, status, symptom, HealthIndicatorDetails.EMPTY, impacts, Collections.emptyList());
+        return new HealthIndicatorResult(NAME, status, symptom, HealthIndicatorDetails.EMPTY, impacts, Collections.emptyList());
     }
 
     private static ClusterState createClusterStateWith(List<IndexRoutingTable> indexRoutes, List<NodeShutdown> nodeShutdowns) {

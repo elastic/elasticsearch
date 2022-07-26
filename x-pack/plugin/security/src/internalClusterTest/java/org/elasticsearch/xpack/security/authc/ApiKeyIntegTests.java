@@ -1567,7 +1567,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             newClusterPrivileges.toArray(new String[0])
         );
 
-        UpdateApiKeyResponse response = executeUpdateApiKey(nativeRealmUser, UpdateApiKeyRequest.usingApiKeyId(apiKeyId));
+        UpdateApiKeyResponse response = executeUpdateApiKey(nativeRealmUser, UpdateApiKeyRequest.usingApiKeyId(apiKeyId), randomBoolean());
 
         assertNotNull(response);
         assertTrue(response.isUpdated());
@@ -1586,7 +1586,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         updateUser(updatedUser);
 
         // Update API key
-        response = executeUpdateApiKey(nativeRealmUser, UpdateApiKeyRequest.usingApiKeyId(apiKeyId));
+        response = executeUpdateApiKey(nativeRealmUser, UpdateApiKeyRequest.usingApiKeyId(apiKeyId), randomBoolean());
 
         assertNotNull(response);
         assertTrue(response.isUpdated());
@@ -1609,7 +1609,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final var request = new UpdateApiKeyRequest(apiKeyId, List.of(expectedRoleDescriptor), ApiKeyTests.randomMetadata());
 
         // Validate can update own API key
-        final UpdateApiKeyResponse response = executeUpdateApiKey(TEST_USER_NAME, request);
+        final UpdateApiKeyResponse response = executeUpdateApiKey(TEST_USER_NAME, request, randomBoolean());
         assertNotNull(response);
         assertTrue(response.isUpdated());
 
@@ -2006,14 +2006,15 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         };
     }
 
-    private void doTestUpdateApiKeyNotFound(UpdateApiKeyRequest request) {
-        final PlainActionFuture<UpdateApiKeyResponse> listener = new PlainActionFuture<>();
-        final Client client = client().filterWithHeader(
-            Collections.singletonMap("Authorization", basicAuthHeaderValue(TEST_USER_NAME, TEST_PASSWORD_SECURE_STRING))
-        );
-        client.execute(UpdateApiKeyAction.INSTANCE, request, listener);
-        final var ex = expectThrows(ExecutionException.class, listener::get);
-        assertThat(ex.getCause(), instanceOf(ResourceNotFoundException.class));
+    private void doTestUpdateApiKeyNotFound(final UpdateApiKeyRequest request) {
+        final boolean useBulkRoute = randomBoolean();
+        final var ex = expectThrows(Exception.class, () -> executeUpdateApiKey(TEST_USER_NAME, request, useBulkRoute));
+        if (useBulkRoute) {
+            assertThat(ex, instanceOf(ResourceNotFoundException.class));
+        } else {
+            assertThat(ex, instanceOf(ExecutionException.class));
+            assertThat(ex.getCause(), instanceOf(ResourceNotFoundException.class));
+        }
         assertThat(ex.getMessage(), containsString("no API key owned by requesting user found for ID [" + request.getId() + "]"));
     }
 

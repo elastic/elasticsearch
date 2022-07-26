@@ -7,15 +7,11 @@
 
 package org.elasticsearch.xpack.apm;
 
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.HashSet;
 import java.util.List;
 
 import static org.elasticsearch.xpack.apm.APMAgentSettings.APM_ENABLED_SETTING;
@@ -26,8 +22,6 @@ import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class APMTracerTests extends ESTestCase {
 
@@ -172,13 +166,7 @@ public class APMTracerTests extends ESTestCase {
     }
 
     private APMTracer buildTracer(Settings settings) {
-        APM apm = new APM(settings);
-
-        ClusterService clusterService = mock(ClusterService.class);
-        when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(settings, new HashSet<>(apm.getSettings())));
-        when(clusterService.getClusterName()).thenReturn(new ClusterName("testCluster"));
-
-        APMTracer tracer = new APMTracer(settings, clusterService);
+        APMTracer tracer = new APMTracer(settings);
         tracer.doStart();
         return tracer;
     }

@@ -59,8 +59,8 @@ public class APM extends Plugin implements NetworkPlugin, TracerPlugin {
     }
 
     @Override
-    public Tracer getTracer(ClusterService clusterService, Settings settings) {
-        final APMTracer apmTracer = new APMTracer(settings, clusterService);
+    public Tracer getTracer(Settings settings) {
+        final APMTracer apmTracer = new APMTracer(settings);
         tracer.set(apmTracer);
         return apmTracer;
     }
@@ -80,12 +80,16 @@ public class APM extends Plugin implements NetworkPlugin, TracerPlugin {
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         Tracer unused
     ) {
+        final APMTracer apmTracer = tracer.get();
+
+        apmTracer.setClusterName(clusterService.getClusterName().value());
+        apmTracer.setNodeName(clusterService.getNodeName());
+
         final APMAgentSettings apmAgentSettings = new APMAgentSettings();
-
         apmAgentSettings.syncAgentSystemProperties(settings);
-        apmAgentSettings.addClusterSettingsListeners(clusterService, tracer.get());
+        apmAgentSettings.addClusterSettingsListeners(clusterService, apmTracer);
 
-        return List.of();
+        return List.of(apmTracer);
     }
 
     @Override

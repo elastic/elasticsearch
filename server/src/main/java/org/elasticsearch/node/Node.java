@@ -423,7 +423,9 @@ public class Node implements Closeable {
                 Task.HEADERS_TO_COPY.stream()
             ).collect(Collectors.toSet());
 
-            final TaskManager taskManager = new TaskManager(settings, threadPool, taskHeaders, Tracer.NOOP); // set a real tracer later
+            final Tracer tracer = getTracer(pluginsService, settings);
+
+            final TaskManager taskManager = new TaskManager(settings, threadPool, taskHeaders, tracer);
 
             // register the node.data, node.ingest, node.master, node.remote_cluster_client settings here so we can mark them private
             final List<Setting<?>> additionalSettings = new ArrayList<>(pluginsService.flatMap(Plugin::getSettings).toList());
@@ -691,8 +693,6 @@ public class Node implements Closeable {
                 indicesService,
                 shardLimitValidator
             );
-
-            final Tracer tracer = getTracer(pluginsService, clusterService, settings);
 
             Collection<Object> pluginComponents = pluginsService.flatMap(
                 p -> p.createComponents(
@@ -1130,14 +1130,14 @@ public class Node implements Closeable {
         }
     }
 
-    private Tracer getTracer(PluginsService pluginsService, ClusterService clusterService, Settings settings) {
+    private Tracer getTracer(PluginsService pluginsService, Settings settings) {
         final List<TracerPlugin> tracerPlugins = pluginsService.filterPlugins(TracerPlugin.class);
 
         if (tracerPlugins.size() > 1) {
             throw new IllegalStateException("A single TracerPlugin was expected but got: " + tracerPlugins);
         }
 
-        return tracerPlugins.isEmpty() ? Tracer.NOOP : tracerPlugins.get(0).getTracer(clusterService, settings);
+        return tracerPlugins.isEmpty() ? Tracer.NOOP : tracerPlugins.get(0).getTracer(settings);
     }
 
     private HealthService createHealthService(

@@ -59,7 +59,6 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
 
     /** Holds in-flight span information. */
     private final Map<String, Context> spans = ConcurrentCollections.newConcurrentMap();
-    private final ClusterService clusterService;
 
     private volatile boolean enabled;
     private volatile APMServices services;
@@ -68,18 +67,27 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     private List<String> excludeNames;
     /** Built using {@link #includeNames} and {@link #excludeNames}, and filters out spans based on their name. */
     private volatile CharacterRunAutomaton filterAutomaton;
+    private String clusterName;
+    private String nodeName;
+
+    public void setClusterName(String clusterName) {
+        this.clusterName = clusterName;
+    }
+
+    public void setNodeName(String nodeName) {
+        this.nodeName = nodeName;
+    }
 
     /**
      * This class is used to make all OpenTelemetry services visible at once
      */
     record APMServices(Tracer tracer, OpenTelemetry openTelemetry) {}
 
-    public APMTracer(Settings settings, ClusterService clusterService) {
+    public APMTracer(Settings settings) {
         this.includeNames = APM_TRACING_NAMES_INCLUDE_SETTING.get(settings);
         this.excludeNames = APM_TRACING_NAMES_EXCLUDE_SETTING.get(settings);
         this.filterAutomaton = buildAutomaton(includeNames, excludeNames);
         this.enabled = APM_ENABLED_SETTING.get(settings);
-        this.clusterService = clusterService;
     }
 
     void setEnabled(boolean enabled) {
@@ -262,8 +270,8 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
             spanBuilder.setSpanKind(SpanKind.INTERNAL);
         }
 
-        spanBuilder.setAttribute(org.elasticsearch.tracing.Tracer.AttributeKeys.NODE_NAME, clusterService.getNodeName());
-        spanBuilder.setAttribute(org.elasticsearch.tracing.Tracer.AttributeKeys.CLUSTER_NAME, clusterService.getClusterName().value());
+        spanBuilder.setAttribute(org.elasticsearch.tracing.Tracer.AttributeKeys.NODE_NAME, nodeName);
+        spanBuilder.setAttribute(org.elasticsearch.tracing.Tracer.AttributeKeys.CLUSTER_NAME, clusterName);
 
         final String xOpaqueId = threadContext.getHeader(Task.X_OPAQUE_ID_HTTP_HEADER);
         if (xOpaqueId != null) {

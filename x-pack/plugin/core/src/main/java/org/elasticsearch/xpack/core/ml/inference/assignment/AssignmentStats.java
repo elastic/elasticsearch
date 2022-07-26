@@ -45,7 +45,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
         private final long peakThroughput;
         private final long throughputLastPeriod;
         private final Double avgInferenceTimeLastPeriod;
-        private final long cacheHitCountLastPeriod;
+        private final Long cacheHitCountLastPeriod;
 
         public static AssignmentStats.NodeStats forStartedState(
             DiscoveryNode node,
@@ -104,7 +104,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
                 0L,
                 0L,
                 null,
-                0L
+                null
             );
         }
 
@@ -125,7 +125,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
             long peakThroughput,
             long throughputLastPeriod,
             Double avgInferenceTimeLastPeriod,
-            long cacheHitCountLastPeriod
+            Long cacheHitCountLastPeriod
         ) {
             this.node = node;
             this.inferenceCount = inferenceCount;
@@ -180,11 +180,11 @@ public class AssignmentStats implements ToXContentObject, Writeable {
                 this.avgInferenceTimeLastPeriod = null;
             }
             if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
-                this.cacheHitCount = in.readOptionalLong();
-                this.cacheHitCountLastPeriod = in.readVLong();
+                this.cacheHitCount = in.readOptionalVLong();
+                this.cacheHitCountLastPeriod = in.readOptionalVLong();
             } else {
                 this.cacheHitCount = null;
-                this.cacheHitCountLastPeriod = 0L;
+                this.cacheHitCountLastPeriod = null;
             }
         }
 
@@ -252,8 +252,8 @@ public class AssignmentStats implements ToXContentObject, Writeable {
             return avgInferenceTimeLastPeriod;
         }
 
-        public long getCacheHitCountLastPeriod() {
-            return cacheHitCountLastPeriod;
+        public Optional<Long> getCacheHitCountLastPeriod() {
+            return Optional.ofNullable(cacheHitCountLastPeriod);
         }
 
         @Override
@@ -304,7 +304,9 @@ public class AssignmentStats implements ToXContentObject, Writeable {
             if (avgInferenceTimeLastPeriod != null) {
                 builder.field("average_inference_time_ms_last_minute", avgInferenceTimeLastPeriod);
             }
-            builder.field("inference_cache_hit_count_last_minute", cacheHitCountLastPeriod);
+            if (cacheHitCountLastPeriod != null) {
+                builder.field("inference_cache_hit_count_last_minute", cacheHitCountLastPeriod);
+            }
 
             builder.endObject();
             return builder;
@@ -332,8 +334,8 @@ public class AssignmentStats implements ToXContentObject, Writeable {
                 out.writeOptionalDouble(avgInferenceTimeLastPeriod);
             }
             if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
-                out.writeOptionalLong(cacheHitCount);
-                out.writeVLong(cacheHitCountLastPeriod);
+                out.writeOptionalVLong(cacheHitCount);
+                out.writeOptionalVLong(cacheHitCountLastPeriod);
             }
         }
 

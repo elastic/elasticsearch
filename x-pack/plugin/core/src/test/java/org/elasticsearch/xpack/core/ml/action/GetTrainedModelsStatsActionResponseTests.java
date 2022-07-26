@@ -136,7 +136,7 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                                     0L,
                                                     0L,
                                                     null,
-                                                    0L
+                                                    null
                                                 )
                                             )
                                             .toList()
@@ -191,14 +191,14 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                                     0L,
                                                     0L,
                                                     null,
-                                                    0L
+                                                    null
                                                 )
                                             )
                                             .toList()
                                     )
                             )
                         )
-                        .collect(Collectors.toList()),
+                        .toList(),
                     instance.getResources().count(),
                     RESULTS_FIELD
                 )
@@ -246,7 +246,7 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                                     nodeStats.getPeakThroughput(),
                                                     nodeStats.getThroughputLastPeriod(),
                                                     nodeStats.getAvgInferenceTimeLastPeriod(),
-                                                    0L
+                                                    null
                                                 )
                                             )
                                             .toList()

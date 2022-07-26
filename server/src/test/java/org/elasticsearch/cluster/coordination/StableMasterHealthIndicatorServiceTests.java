@@ -113,7 +113,6 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
         assertThat(result.symptom(), equalTo("the summary of the diagnostic"));
         assertThat(result.impacts().size(), equalTo(3));
         assertThat(result.name(), equalTo(StableMasterHealthIndicatorService.NAME));
-        assertThat(result.component(), equalTo("cluster_coordination"));
         HealthIndicatorDetails details = result.details();
         Map<String, Object> detailsMap = xContentToMap(details);
         assertThat(detailsMap.size(), equalTo(2));
@@ -155,7 +154,6 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
         assertThat(result.symptom(), equalTo("the summary of the diagnostic"));
         assertThat(result.impacts().size(), equalTo(3));
         assertThat(result.name(), equalTo(StableMasterHealthIndicatorService.NAME));
-        assertThat(result.component(), equalTo("cluster_coordination"));
         assertThat(result.details(), equalTo(HealthIndicatorDetails.EMPTY));
         List<Diagnosis> diagnosis = result.diagnosisList();
         assertThat(diagnosis.size(), equalTo(0));
@@ -183,7 +181,6 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
         assertThat(result.symptom(), equalTo("the summary of the diagnostic"));
         assertThat(result.impacts().size(), equalTo(0));
         assertThat(result.name(), equalTo(StableMasterHealthIndicatorService.NAME));
-        assertThat(result.component(), equalTo("cluster_coordination"));
         HealthIndicatorDetails details = result.details();
         Map<String, Object> detailsMap = xContentToMap(details);
         assertThat(detailsMap.size(), equalTo(2));

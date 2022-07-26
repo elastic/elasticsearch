@@ -16,7 +16,6 @@ import java.util.List;
 
 public record HealthIndicatorResult(
     String name,
-    String component,
     HealthStatus status,
     String symptom,
     HealthIndicatorDetails details,

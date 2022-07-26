@@ -57,6 +57,7 @@ public class MockPluginsService extends PluginsService {
                 null,
                 Collections.emptyList(),
                 false,
+                false,
                 false
             );
             if (logger.isTraceEnabled()) {

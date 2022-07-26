@@ -24,6 +24,7 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -99,7 +100,8 @@ public class GetHealthActionIT extends ESIntegTestCase {
             NodeEnvironment nodeEnvironment,
             NamedWriteableRegistry namedWriteableRegistry,
             IndexNameExpressionResolver indexNameExpressionResolver,
-            Supplier<RepositoriesService> repositoriesServiceSupplier
+            Supplier<RepositoriesService> repositoriesServiceSupplier,
+            Tracer tracer
         ) {
             healthIndicatorServices.add(new IlmHealthIndicatorService(clusterService));
             healthIndicatorServices.add(new SlmHealthIndicatorService(clusterService));

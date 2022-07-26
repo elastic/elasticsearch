@@ -46,6 +46,9 @@
             "50": {
               "type": "double"
             },
+            "75": {
+              "type": "double"
+            },
             "90": {
               "type": "double"
             },
@@ -68,6 +71,9 @@
             "50": {
               "type": "double"
             },
+            "75": {
+              "type": "double"
+            },
             "90": {
               "type": "double"
             },
@@ -88,6 +94,9 @@
               "type": "double"
             },
             "50": {
+              "type": "double"
+            },
+            "75": {
               "type": "double"
             },
             "90": {

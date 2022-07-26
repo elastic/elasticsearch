@@ -20,7 +20,7 @@ import java.util.List;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 
-public class ShardAllocationDecisionTest extends AbstractWireTestCase<ShardAllocationDecision> {
+public class ShardAllocationDecisionTests extends AbstractWireTestCase<ShardAllocationDecision> {
 
     @Override
     protected ShardAllocationDecision createTestInstance() {

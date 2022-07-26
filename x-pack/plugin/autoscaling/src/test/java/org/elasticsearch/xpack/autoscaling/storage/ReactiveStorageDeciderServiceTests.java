@@ -660,7 +660,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             Set.of(DiscoveryNodeRole.DATA_WARM_NODE_ROLE)
         );
 
-        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, clusterState, null, null, randomLong());
+        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, clusterState, null, null, randomLong(), "test");
         return allocationState.canRemainOnlyHighestTierPreference(shardRouting, allocation);
     }
 
@@ -763,7 +763,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             Set.of(DiscoveryNodeRole.DATA_WARM_NODE_ROLE)
         );
 
-        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, clusterState, null, null, randomLong());
+        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, clusterState, null, null, randomLong(), "test");
 
         assertThat(allocationState.needsThisTier(shardRouting, allocation), is(expected));
     }

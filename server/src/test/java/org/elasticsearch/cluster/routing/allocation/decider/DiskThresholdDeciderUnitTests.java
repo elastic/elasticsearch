@@ -116,7 +116,8 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             clusterState,
             clusterInfo,
             null,
-            System.nanoTime()
+            System.nanoTime(),
+            "test"
         );
         allocation.debugDecision(true);
         Decision decision = decider.canAllocate(test_0, RoutingNodesHelper.routingNode("node_0", node_0), allocation);
@@ -194,7 +195,8 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             clusterState,
             clusterInfo,
             null,
-            System.nanoTime()
+            System.nanoTime(),
+            "test"
         );
         allocation.debugDecision(true);
         Decision decision = decider.canAllocate(test_0, RoutingNodesHelper.routingNode("node_0", node_0), allocation);
@@ -316,7 +318,8 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             clusterState,
             clusterInfo,
             null,
-            System.nanoTime()
+            System.nanoTime(),
+            "test"
         );
         allocation.debugDecision(true);
         Decision decision = decider.canRemain(indexMetadata, test_0, RoutingNodesHelper.routingNode("node_0", node_0), allocation);
@@ -390,7 +393,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         ClusterState clusterState = ClusterState.builder(
             org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
         ).metadata(metadata).routingTable(routingTableBuilder.build()).build();
-        RoutingAllocation allocation = new RoutingAllocation(null, clusterState, info, null, 0);
+        RoutingAllocation allocation = new RoutingAllocation(null, clusterState, info, null, 0, "test");
 
         final Index index = new Index("test", "1234");
         ShardRouting test_0 = ShardRouting.newUnassigned(
@@ -540,7 +543,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             clusterState.getRoutingTable().index("test").shardsWithState(ShardRoutingState.UNASSIGNED)
         );
 
-        RoutingAllocation allocation = new RoutingAllocation(null, clusterState, info, null, 0);
+        RoutingAllocation allocation = new RoutingAllocation(null, clusterState, info, null, 0, "test");
 
         final Index index = new Index("test", "1234");
         ShardRouting test_0 = ShardRouting.newUnassigned(
@@ -612,7 +615,14 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             .build();
 
         allocationService.reroute(clusterState, "foo");
-        RoutingAllocation allocationWithMissingSourceIndex = new RoutingAllocation(null, clusterStateWithMissingSourceIndex, info, null, 0);
+        RoutingAllocation allocationWithMissingSourceIndex = new RoutingAllocation(
+            null,
+            clusterStateWithMissingSourceIndex,
+            info,
+            null,
+            0,
+            "test"
+        );
         assertEquals(42L, getExpectedShardSize(target, 42L, allocationWithMissingSourceIndex));
         assertEquals(42L, getExpectedShardSize(target2, 42L, allocationWithMissingSourceIndex));
     }
@@ -754,7 +764,8 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             clusterState,
             clusterInfo,
             null,
-            System.nanoTime()
+            System.nanoTime(),
+            "test"
         );
         allocation.debugDecision(true);
         final RoutingNode routingNode = RoutingNodesHelper.routingNode("node_0", node_0);
@@ -826,7 +837,8 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
             clusterState,
             clusterInfo,
             null,
-            System.nanoTime()
+            System.nanoTime(),
+            "test"
         );
         allocation.debugDecision(true);
         Decision decision = decider.canForceAllocateDuringReplace(test_0, RoutingNodesHelper.routingNode("node_0", node_0), allocation);

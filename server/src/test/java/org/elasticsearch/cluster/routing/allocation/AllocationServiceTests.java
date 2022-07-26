@@ -258,7 +258,8 @@ public class AllocationServiceTests extends ESTestCase {
             clusterState,
             ClusterInfo.EMPTY,
             null,
-            0L
+            0L,
+            "test"
         );
         allocation.setDebugMode(randomBoolean() ? RoutingAllocation.DebugMode.ON : RoutingAllocation.DebugMode.EXCLUDE_YES_DECISIONS);
 

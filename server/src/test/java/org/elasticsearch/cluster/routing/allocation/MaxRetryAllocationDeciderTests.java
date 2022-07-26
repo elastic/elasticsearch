@@ -187,7 +187,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
                 new MaxRetryAllocationDecider().canForceAllocatePrimary(
                     unassignedPrimary,
                     null,
-                    new RoutingAllocation(null, clusterState, null, null, 0)
+                    new RoutingAllocation(null, clusterState, null, null, 0, "test")
                 )
             );
         }
@@ -211,7 +211,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
                 new MaxRetryAllocationDecider().canForceAllocatePrimary(
                     unassignedPrimary,
                     null,
-                    new RoutingAllocation(null, clusterState, null, null, 0)
+                    new RoutingAllocation(null, clusterState, null, null, 0, "test")
                 )
             );
         }
@@ -251,7 +251,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
             new MaxRetryAllocationDecider().canForceAllocatePrimary(
                 routingTable.index("idx").shard(0).shard(0),
                 null,
-                new RoutingAllocation(null, clusterState, null, null, 0)
+                new RoutingAllocation(null, clusterState, null, null, 0, "test")
             )
         );
 
@@ -283,7 +283,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
             new MaxRetryAllocationDecider().canForceAllocatePrimary(
                 unassignedPrimary,
                 null,
-                new RoutingAllocation(null, clusterState, null, null, 0)
+                new RoutingAllocation(null, clusterState, null, null, 0, "test")
             )
         );
     }

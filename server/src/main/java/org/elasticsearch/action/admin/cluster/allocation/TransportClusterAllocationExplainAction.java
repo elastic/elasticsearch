@@ -97,7 +97,8 @@ public class TransportClusterAllocationExplainAction extends TransportMasterNode
             state,
             clusterInfo,
             snapshotsInfoService.snapshotShardSizes(),
-            System.nanoTime()
+            System.nanoTime(),
+            "TransportClusterAllocationExplainAction"
         );
 
         ShardRouting shardRouting = findShardToExplain(request, allocation);

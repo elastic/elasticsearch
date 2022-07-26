@@ -221,7 +221,8 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
                 clusterState,
                 null,
                 null,
-                0L
+                0L,
+                "test"
             );
             routingAllocation.debugDecision(true);
 

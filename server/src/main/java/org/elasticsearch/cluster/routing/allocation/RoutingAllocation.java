@@ -80,9 +80,10 @@ public class RoutingAllocation {
         ClusterState clusterState,
         ClusterInfo clusterInfo,
         SnapshotShardSizeInfo shardSizeInfo,
-        long currentNanoTime
+        long currentNanoTime,
+        String reason
     ) {
-        this(deciders, null, clusterState, clusterInfo, shardSizeInfo, currentNanoTime, false, null);
+        this(deciders, null, clusterState, clusterInfo, shardSizeInfo, currentNanoTime, false, reason);
     }
 
     /**

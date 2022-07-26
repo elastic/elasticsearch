@@ -346,14 +346,22 @@ public class AutoFollowIT extends ESCCRRestTestCase {
                 verifyDataStream(leaderClient, dataStreamName, backingIndexName(dataStreamName, 1));
                 verifyDocuments(leaderClient, dataStreamName, numDocs);
             }
+            logger.info(
+                "--> checking {} with index {} has been auto followed to {} with backing index {}",
+                dataStreamName,
+                backingIndexName(dataStreamName, 1),
+                dataStreamNameFollower,
+                backingIndexName(dataStreamNameFollower, 1)
+            );
             assertBusy(() -> {
                 assertThat(getNumberOfSuccessfulFollowedIndices(), equalTo(initialNumberOfSuccessfulFollowedIndices + 1));
-                verifyDataStream(client(), dataStreamNameFollower, backingIndexName(dataStreamName, 1));
-                ensureYellow(dataStreamName);
+                verifyDataStream(client(), dataStreamNameFollower, backingIndexName(dataStreamNameFollower, 1));
+                ensureYellow(dataStreamNameFollower);
                 verifyDocuments(client(), dataStreamNameFollower, numDocs);
             });
 
             // First rollover and ensure second backing index is replicated:
+            logger.info("--> rolling over");
             try (RestClient leaderClient = buildLeaderClient()) {
                 Request rolloverRequest = new Request("POST", "/" + dataStreamName + "/_rollover");
                 assertOK(leaderClient.performRequest(rolloverRequest));
@@ -373,11 +381,12 @@ public class AutoFollowIT extends ESCCRRestTestCase {
                     backingIndexName(dataStreamNameFollower, 1),
                     backingIndexName(dataStreamNameFollower, 2)
                 );
-                ensureYellow(dataStreamName);
+                ensureYellow(dataStreamNameFollower);
                 verifyDocuments(client(), dataStreamNameFollower, numDocs + 1);
             });
 
             // Second rollover and ensure third backing index is replicated:
+            logger.info("--> rolling over");
             try (RestClient leaderClient = buildLeaderClient()) {
                 Request rolloverRequest = new Request("POST", "/" + dataStreamName + "/_rollover");
                 assertOK(leaderClient.performRequest(rolloverRequest));

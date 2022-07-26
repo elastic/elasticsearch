@@ -426,11 +426,11 @@ public class ApiKeyService {
                 }
 
                 final IndexRequest indexRequest = maybeBuildIndexRequestForUpdate(
+                    versionedDoc,
                     authentication,
                     request.getRoleDescriptors(),
                     userRoleDescriptors,
-                    request.getMetadata(),
-                    versionedDoc
+                    request.getMetadata()
                 );
                 final boolean isNoop = indexRequest == null;
                 if (isNoop) {
@@ -447,13 +447,13 @@ public class ApiKeyService {
                 return;
             }
 
-            requestBuilder.setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
+            logger.trace("Executing bulk request to update API keys [{}]", requestBuilder.numberOfActions());
             securityIndex.prepareIndexIfNeededThenExecute(
                 ex -> listener.onFailure(traceLog("prepare security index before update", ex)),
                 () -> executeAsyncWithOrigin(
                     client.threadPool().getThreadContext(),
                     SECURITY_ORIGIN,
-                    requestBuilder.request(),
+                    requestBuilder.setRefreshPolicy(RefreshPolicy.WAIT_UNTIL).request(),
                     ActionListener.<BulkResponse>wrap(
                         bulkResponse -> translateResponseAndClearCache(bulkResponse, responseBuilder, listener),
                         ex -> listener.onFailure(traceLog("execute bulk request for update", ex))
@@ -1159,11 +1159,11 @@ public class ApiKeyService {
         final ActionListener<UpdateApiKeyResponse> listener
     ) throws IOException {
         final IndexRequest indexRequest = maybeBuildIndexRequestForUpdate(
+            currentVersionedDoc,
             authentication,
             request.getRoleDescriptors(),
             userRoleDescriptors,
-            request.getMetadata(),
-            currentVersionedDoc
+            request.getMetadata()
         );
         final boolean isNoop = indexRequest == null;
         if (isNoop) {
@@ -1189,11 +1189,11 @@ public class ApiKeyService {
 
     @Nullable
     private IndexRequest maybeBuildIndexRequestForUpdate(
+        final VersionedApiKeyDoc currentVersionedDoc,
         final Authentication authentication,
         final List<RoleDescriptor> keyRoleDescriptors,
         final Set<RoleDescriptor> userRoleDescriptors,
-        final Map<String, Object> metadata,
-        final VersionedApiKeyDoc currentVersionedDoc
+        final Map<String, Object> metadata
     ) throws IOException {
         logger.trace(
             "Building index request for update of API key doc [{}] with seqNo [{}] and primaryTerm [{}]",

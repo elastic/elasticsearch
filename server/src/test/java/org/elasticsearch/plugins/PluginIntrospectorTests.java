@@ -33,6 +33,7 @@ import org.elasticsearch.test.PrivilegedOperations;
 import org.elasticsearch.test.compiler.InMemoryJavaCompiler;
 import org.elasticsearch.test.jar.JarUtils;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -264,7 +265,8 @@ public class PluginIntrospectorTests extends ESTestCase {
                 NodeEnvironment nodeEnvironment,
                 NamedWriteableRegistry namedWriteableRegistry,
                 IndexNameExpressionResolver indexNameExpressionResolver,
-                Supplier<RepositoriesService> repositoriesServiceSupplier
+                Supplier<RepositoriesService> repositoriesServiceSupplier,
+                Tracer tracer
             ) {
                 return null;
             }

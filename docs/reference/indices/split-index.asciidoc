@@ -164,9 +164,9 @@ for efficient file copying.
 =====================================
 
 Hard links are not supported in Elasticsearch versions < 7.11 for quota aware file systems 
-(e.g. `xfs` used in Elastic Cloud). When Split Index API is run on these earlier versions, 
-it will not be able to reuse segments for efficiency and require copying of full segment files 
-with disk usage and IO implications.
+(e.g. `xfs` used in Elastic Cloud). When Split Index API is run on these quota aware file systems 
+in earlier versions, it will not be able to reuse segments for efficiency and require copying of 
+full segment files with disk usage and IO implications.
 
 =====================================
 

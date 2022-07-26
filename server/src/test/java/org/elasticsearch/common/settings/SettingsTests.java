@@ -431,7 +431,7 @@ public class SettingsTests extends ESTestCase {
         builder.putList("test.key4.foo", "1", "2");
         builder.setSecureSettings(secureSettings);
         assertEquals(7, builder.build().size());
-        Settings.writeSettingsToStream(builder.build(), out);
+        builder.build().writeTo(out);
         StreamInput in = StreamInput.wrap(out.bytes().toBytesRef().bytes);
         Settings settings = Settings.readSettingsFromStream(in);
         assertEquals(3, settings.size());
@@ -596,7 +596,7 @@ public class SettingsTests extends ESTestCase {
         BytesStreamOutput output = new BytesStreamOutput();
         output.setVersion(randomFrom(Version.CURRENT, Version.V_7_0_0));
         Settings settings = Settings.builder().putList("foo.bar", "0", "1", "2", "3").put("foo.bar.baz", "baz").build();
-        Settings.writeSettingsToStream(settings, output);
+        settings.writeTo(output);
         StreamInput in = StreamInput.wrap(BytesReference.toBytes(output.bytes()));
         Settings build = Settings.readSettingsFromStream(in);
         assertEquals(2, build.size());

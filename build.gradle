@@ -210,6 +210,7 @@ allprojects {
 
   def checkPart1 = tasks.register('checkPart1')
   def checkPart2 = tasks.register('checkPart2')
+  def checkPart3 = tasks.register('checkPart3')
   plugins.withId('lifecycle-base') {
     if (project.path.startsWith(":x-pack:")) {
       checkPart2.configure { dependsOn 'check' }

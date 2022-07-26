@@ -115,16 +115,10 @@ public class DesiredBalanceComputer {
             }
 
             final var targetNodesIterator = targetNodes.iterator();
-            for (final var shardRouting : routings.unassigned()) {
-                assert shardRouting.unassigned();
-                if (targetNodesIterator.hasNext()) {
-                    unassignedShardsToInitialize.computeIfAbsent(shardRouting, ignored -> new LinkedList<>())
-                        .add(targetNodesIterator.next());
-                } else {
-                    break;
-                }
-            }
 
+            // Here existing shards are moved to desired locations before initializing unassigned shards because we prefer not to leave
+            // immovable shards allocated to undesirable locations (e.g. a node that is shutting down). In contrast, reconciliation prefers
+            // to initialize the unassigned shards first.
             for (final var shardRouting : shardsToRelocate) {
                 assert shardRouting.started();
                 if (targetNodesIterator.hasNext()) {
@@ -133,6 +127,16 @@ public class DesiredBalanceComputer {
                         routingNodes.relocateShard(shardRouting, targetNodesIterator.next(), 0L, changes).v2(),
                         changes
                     );
+                } else {
+                    break;
+                }
+            }
+
+            for (final var shardRouting : routings.unassigned()) {
+                assert shardRouting.unassigned();
+                if (targetNodesIterator.hasNext()) {
+                    unassignedShardsToInitialize.computeIfAbsent(shardRouting, ignored -> new LinkedList<>())
+                        .add(targetNodesIterator.next());
                 } else {
                     break;
                 }

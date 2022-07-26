@@ -38,6 +38,7 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NameOrDefinition;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -450,7 +451,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
 
             @Override
             protected IndexFieldData<?> buildFieldData(MappedFieldType ft) {
-                return ft.fielddataBuilder("test", null, MappedFieldType.FielddataOperation.SEARCH)
+                return ft.fielddataBuilder(FieldDataContext.noRuntimeFields("test"))
                     .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
             }
 
@@ -625,8 +626,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
 
             }
         }),
-            (ft, idxName, lookup, fdt) -> ft.fielddataBuilder(idxName, lookup, fdt)
-                .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService()),
+            (ft, fdc) -> ft.fielddataBuilder(fdc).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService()),
             mapperService,
             mapperService.mappingLookup(),
             similarityService,
@@ -644,10 +644,10 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         );
     }
 
-    protected
-        TriFunction<MappedFieldType, Supplier<SearchLookup>, MappedFieldType.FielddataOperation, IndexFieldData<?>>
-        fieldDataLookup() {
-        return (mft, lookupSource, fdt) -> mft.fielddataBuilder("test", lookupSource, fdt)
+    protected TriFunction<MappedFieldType, Supplier<SearchLookup>, MappedFieldType.FielddataOperation, IndexFieldData<?>> fieldDataLookup(
+        Function<String, Set<String>> sourcePathsLookup
+    ) {
+        return (mft, lookupSource, fdo) -> mft.fielddataBuilder(new FieldDataContext("test", lookupSource, sourcePathsLookup, fdo))
             .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
     }
 

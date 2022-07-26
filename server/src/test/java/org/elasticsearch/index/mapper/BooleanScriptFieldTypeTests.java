@@ -68,7 +68,7 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 BooleanScriptFieldType ft = simpleMappedFieldType();
-                BooleanScriptFieldData ifd = ft.fielddataBuilder("test", mockContext()::lookup, MappedFieldType.FielddataOperation.SEARCH)
+                BooleanScriptFieldData ifd = ft.fielddataBuilder(mockFielddataContext(MappedFieldType.FielddataOperation.SEARCH))
                     .build(null, null);
                 searcher.search(new MatchAllDocsQuery(), new Collector() {
                     @Override
@@ -107,9 +107,7 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 BooleanScriptFieldData ifd = simpleMappedFieldType().fielddataBuilder(
-                    "test",
-                    mockContext()::lookup,
-                    MappedFieldType.FielddataOperation.SEARCH
+                    mockFielddataContext(MappedFieldType.FielddataOperation.SEARCH)
                 ).build(null, null);
                 SortField sf = ifd.sortField(null, MultiValueMode.MIN, null, false);
                 TopFieldDocs docs = searcher.search(new MatchAllDocsQuery(), 3, new Sort(sf));

@@ -1,13 +1,13 @@
 diff --git a/connector-packager/setup.py b/connector-packager/setup.py
-index 1601492..eb1cc27 100644
+index e84c8a0..ceab20f 100644
 --- a/connector-packager/setup.py
 +++ b/connector-packager/setup.py
 @@ -16,7 +16,7 @@ setup(
      description='A Python module for packaging a Tableau connector.',
      test_suite='tests',
      python_requires='>3.7',
--    install_requires=['xmlschema', 'defusedxml'],
-+    install_requires=['elementpath==2.4.0', 'xmlschema==1.9.2', 'defusedxml==0.7.1'],
+-    install_requires=['xmlschema', 'defusedxml', 'packaging'],
++    install_requires=['elementpath==3.0.0', 'xmlschema==2.0.1', 'defusedxml==0.7.1', 'packaging==21.3'],
      tests_require=['six'],
      include_package_data=True
  )

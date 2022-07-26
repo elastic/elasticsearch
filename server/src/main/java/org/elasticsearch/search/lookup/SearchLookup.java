@@ -46,7 +46,6 @@ public class SearchLookup {
         Supplier<SearchLookup>,
         MappedFieldType.FielddataOperation,
         IndexFieldData<?>> fieldDataLookup;
-    private final Function<String, Set<String>> sourcePathsLookup;
 
     /**
      * Create the top level field lookup for a search request. Provides a way to look up fields from  doc_values,
@@ -54,14 +53,12 @@ public class SearchLookup {
      */
     public SearchLookup(
         Function<String, MappedFieldType> fieldTypeLookup,
-        TriFunction<MappedFieldType, Supplier<SearchLookup>, MappedFieldType.FielddataOperation, IndexFieldData<?>> fieldDataLookup,
-        Function<String, Set<String>> sourcePathsLookup
+        TriFunction<MappedFieldType, Supplier<SearchLookup>, MappedFieldType.FielddataOperation, IndexFieldData<?>> fieldDataLookup
     ) {
         this.fieldTypeLookup = fieldTypeLookup;
         this.fieldChain = Collections.emptySet();
         this.sourceLookup = new SourceLookup();
         this.fieldDataLookup = fieldDataLookup;
-        this.sourcePathsLookup = sourcePathsLookup;
     }
 
     /**
@@ -76,7 +73,6 @@ public class SearchLookup {
         this.sourceLookup = searchLookup.sourceLookup;
         this.fieldTypeLookup = searchLookup.fieldTypeLookup;
         this.fieldDataLookup = searchLookup.fieldDataLookup;
-        this.sourcePathsLookup = searchLookup.sourcePathsLookup;
     }
 
     /**
@@ -115,10 +111,6 @@ public class SearchLookup {
 
     public IndexFieldData<?> getForField(MappedFieldType fieldType, MappedFieldType.FielddataOperation options) {
         return fieldDataLookup.apply(fieldType, () -> forkAndTrackFieldReferences(fieldType.name()), options);
-    }
-
-    public Set<String> sourcePaths(String fieldName) {
-        return sourcePathsLookup.apply(fieldName);
     }
 
     public SourceLookup source() {

@@ -57,7 +57,7 @@ public class BooleanFieldScriptTests extends FieldScriptTestCase<BooleanFieldScr
                 BooleanFieldScript script = new BooleanFieldScript(
                     "test",
                     Map.of(),
-                    new SearchLookup(field -> null, (ft, lookup, fdt) -> null, field -> null),
+                    new SearchLookup(field -> null, (ft, lookup, fdt) -> null),
                     reader.leaves().get(0)
                 ) {
                     @Override

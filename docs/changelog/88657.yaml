@@ -1,0 +1,5 @@
+pr: 88657
+summary: Make `bucket_count_ks_test` aggregation generally available
+area: Machine Learning
+type: feature
+issues: []

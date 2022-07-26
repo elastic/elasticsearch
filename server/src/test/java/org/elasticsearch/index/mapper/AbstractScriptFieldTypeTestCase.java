@@ -15,6 +15,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.BooleanFieldScript;
 import org.elasticsearch.script.DateFieldScript;
@@ -182,6 +183,10 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         return mockContext(true);
     }
 
+    protected static FieldDataContext mockFielddataContext(MappedFieldType.FielddataOperation fielddataOperation) {
+        return new FieldDataContext("test", mockContext()::lookup, mockContext()::sourcePath, fielddataOperation);
+    }
+
     protected static SearchExecutionContext mockContext(boolean allowExpensiveQueries) {
         return mockContext(allowExpensiveQueries, null);
     }
@@ -202,8 +207,8 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         when(context.allowExpensiveQueries()).thenReturn(allowExpensiveQueries);
         SearchLookup lookup = new SearchLookup(
             context::getFieldType,
-            (mft, lookupSupplier, fdt) -> mft.fielddataBuilder("test", lookupSupplier, fdt).build(null, null),
-            context::sourcePath
+            (mft, lookupSupplier, fdo) -> mft.fielddataBuilder(new FieldDataContext("test", lookupSupplier, context::sourcePath, fdo))
+                .build(null, null)
         );
         when(context.lookup()).thenReturn(lookup);
         return context;

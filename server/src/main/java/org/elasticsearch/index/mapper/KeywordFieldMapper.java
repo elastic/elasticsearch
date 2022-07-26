@@ -46,6 +46,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldData;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.SourceValueFetcherSortedBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
@@ -77,7 +78,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Supplier;
+import java.util.Set;
 
 import static org.apache.lucene.index.IndexWriter.MAX_TERM_LENGTH;
 import static org.elasticsearch.core.Strings.format;
@@ -682,11 +683,9 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(
-            String fullyQualifiedIndexName,
-            Supplier<SearchLookup> searchLookup,
-            FielddataOperation operation
-        ) {
+        public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
+            FielddataOperation operation = fieldDataContext.fielddataOperation();
+
             if (operation == FielddataOperation.SEARCH) {
                 failIfNoDocValues();
             }
@@ -700,10 +699,13 @@ public final class KeywordFieldMapper extends FieldMapper {
             }
 
             if (operation == FielddataOperation.SCRIPT) {
+                SearchLookup searchLookup = fieldDataContext.lookupSupplier().get();
+                Set<String> sourcePaths = fieldDataContext.sourcePathsLookup().apply(name());
+
                 return new SourceValueFetcherSortedBinaryIndexFieldData.Builder(
                     name(),
                     CoreValuesSourceType.KEYWORD,
-                    new SourceValueFetcher(searchLookup.get().sourcePaths(name()), nullValue) {
+                    new SourceValueFetcher(sourcePaths, nullValue) {
                         @Override
                         protected String parseSourceValue(Object value) {
                             String keywordValue = value.toString();
@@ -714,7 +716,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                             return normalizeValue(normalizer(), name(), keywordValue);
                         }
                     },
-                    searchLookup.get().source(),
+                    searchLookup.source(),
                     KeywordDocValuesField::new
                 );
             }

@@ -46,6 +46,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.LuceneDocument;
@@ -645,9 +646,12 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                 MappedFieldType.FielddataOperation fielddataOperation
             ) {
                 IndexFieldData.Builder builder = fieldType.fielddataBuilder(
-                    delegate.getFullyQualifiedIndex().getName(),
-                    delegate::lookup,
-                    fielddataOperation
+                    new FieldDataContext(
+                        delegate.getFullyQualifiedIndex().getName(),
+                        delegate::lookup,
+                        this::sourcePath,
+                        fielddataOperation
+                    )
                 );
                 IndexFieldDataCache cache = new IndexFieldDataCache.None();
                 CircuitBreakerService circuitBreaker = new NoneCircuitBreakerService();

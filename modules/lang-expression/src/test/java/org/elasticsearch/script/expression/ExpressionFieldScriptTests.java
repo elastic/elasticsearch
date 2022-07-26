@@ -20,7 +20,6 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.text.ParseException;
 import java.util.Collections;
-import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
@@ -50,11 +49,7 @@ public class ExpressionFieldScriptTests extends ESTestCase {
         when(fieldData.load(any())).thenReturn(atomicFieldData);
 
         service = new ExpressionScriptEngine();
-        lookup = new SearchLookup(
-            field -> field.equals("field") ? fieldType : null,
-            (ignored, _lookup, fdt) -> fieldData,
-            field -> field.equals("field") ? Set.of("field") : null
-        );
+        lookup = new SearchLookup(field -> field.equals("field") ? fieldType : null, (ignored, _lookup, fdt) -> fieldData);
     }
 
     private FieldScript.LeafFactory compile(String expression) {

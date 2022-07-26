@@ -70,8 +70,7 @@ public class RoutingFieldMapperTests extends MetadataMapperTestCase {
             iw -> {
                 SearchLookup lookup = new SearchLookup(
                     mapperService::fieldType,
-                    fieldDataLookup(),
-                    mapperService.mappingLookup()::sourcePaths
+                    fieldDataLookup(mapperService.mappingLookup()::sourcePaths)
                 );
                 SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
                 when(searchExecutionContext.lookup()).thenReturn(lookup);

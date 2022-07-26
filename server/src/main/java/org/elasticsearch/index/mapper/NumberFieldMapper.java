@@ -33,6 +33,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.SourceValueFetcherSortedNumericIndexFieldData;
@@ -67,9 +68,9 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 /** A {@link FieldMapper} for numeric types: byte, short, int, long, float and double. */
 public class NumberFieldMapper extends FieldMapper {
@@ -1423,12 +1424,10 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(
-            String fullyQualifiedIndexName,
-            Supplier<SearchLookup> searchLookup,
-            FielddataOperation operation
-        ) {
-            if (operation == FielddataOperation.SEARCH) {
+        public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
+            FielddataOperation operation = fieldDataContext.fielddataOperation();
+
+            if (fieldDataContext.fielddataOperation() == FielddataOperation.SEARCH) {
                 failIfNoDocValues();
             }
 
@@ -1437,10 +1436,13 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             if (operation == FielddataOperation.SCRIPT) {
+                SearchLookup searchLookup = fieldDataContext.lookupSupplier().get();
+                Set<String> sourcePaths = fieldDataContext.sourcePathsLookup().apply(name());
+
                 return this.type.getValueFetcherFieldDataBuilder(
                     name(),
-                    searchLookup.get().source(),
-                    new SourceValueFetcher(searchLookup.get().sourcePaths(name()), nullValue) {
+                    searchLookup.source(),
+                    new SourceValueFetcher(sourcePaths, nullValue) {
                         @Override
                         protected Object parseSourceValue(Object value) {
                             if (value.equals("")) {

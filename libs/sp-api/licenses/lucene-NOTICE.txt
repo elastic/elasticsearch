@@ -18,13 +18,13 @@ Some data files (under analysis/icu/src/data) are derived from Unicode data such
 as the Unicode Character Database. See http://unicode.org/copyright.html for more
 details.
 
-Brics Automaton (under core/src/java/org/apache/lucene/util/automaton) is
+Brics Automaton (under core/src/java/org/apache/lucene/util/automaton) is 
 BSD-licensed, created by Anders Møller. See http://www.brics.dk/automaton/
 
 The levenshtein automata tables (under core/src/java/org/apache/lucene/util/automaton) were
 automatically generated with the moman/finenight FSA library, created by
 Jean-Philippe Barrette-LaPierre. This library is available under an MIT license,
-see http://sites.google.com/site/rrettesite/moman and
+see http://sites.google.com/site/rrettesite/moman and 
 http://bitbucket.org/jpbarrette/moman/overview/
 
 The class org.apache.lucene.util.WeakIdentityMap was derived from
@@ -79,7 +79,7 @@ analysis/common/src/java/org/apache/lucene/analysis/pt/PortugueseLightStemmer.ja
 analysis/common/src/java/org/apache/lucene/analysis/ru/RussianLightStemmer.java
 analysis/common/src/java/org/apache/lucene/analysis/sv/SwedishLightStemmer.java
 
-The Stempel analyzer (stempel) includes BSD-licensed software developed
+The Stempel analyzer (stempel) includes BSD-licensed software developed 
 by the Egothor project http://egothor.sf.net/, created by Leo Galambos, Martin Kvapil,
 and Edmond Nolan.
 
@@ -91,8 +91,8 @@ See http://project.carrot2.org/license.html.
 The SmartChineseAnalyzer source code (smartcn) was
 provided by Xiaoping Gao and copyright 2009 by www.imdict.net.
 
-WordBreakTestUnicode_*.java (under modules/analysis/common/src/test/)
-is derived from Unicode data such as the Unicode Character Database.
+WordBreakTestUnicode_*.java (under modules/analysis/common/src/test/) 
+is derived from Unicode data such as the Unicode Character Database. 
 See http://unicode.org/copyright.html for more details.
 
 The Morfologik analyzer (morfologik) includes BSD-licensed software

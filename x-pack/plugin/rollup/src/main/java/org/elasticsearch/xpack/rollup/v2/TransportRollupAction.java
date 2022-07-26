@@ -483,8 +483,10 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                 // the same rules with resize apply
                 continue;
             }
-            // do not override settings that have already been set in the rollup index
-            if (targetSettings.keys().contains(key)) {
+            // Do not override settings that have already been set in the rollup index.
+            // Also, we don't want to copy the `index.block.write` setting that we know
+            // it is set in the source index settings.
+            if (IndexMetadata.SETTING_BLOCKS_WRITE.equals(key) || targetSettings.keys().contains(key)) {
                 continue;
             }
             targetSettings.copy(key, sourceIndexMetadata.getSettings());

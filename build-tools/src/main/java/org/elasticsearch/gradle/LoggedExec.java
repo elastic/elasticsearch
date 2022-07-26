@@ -54,7 +54,7 @@ public abstract class LoggedExec extends DefaultTask implements FileSystemOperat
 
     private static final Logger LOGGER = Logging.getLogger(LoggedExec.class);
     protected FileSystemOperations fileSystemOperations;
-    private ProjectLayout projectLayout;
+    protected ProjectLayout projectLayout;
     private ExecOperations execOperations;
 
     @Input

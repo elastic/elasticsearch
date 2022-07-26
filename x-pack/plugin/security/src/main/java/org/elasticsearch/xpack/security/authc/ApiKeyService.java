@@ -83,6 +83,7 @@ import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheAction;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheRequest;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
+import org.elasticsearch.xpack.core.security.action.apikey.BaseUpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
@@ -417,25 +418,18 @@ public class ApiKeyService {
             final BulkUpdateApiKeyResponse.Builder responseBuilder = BulkUpdateApiKeyResponse.builder();
             final BulkRequestBuilder requestBuilder = client.prepareBulk();
             for (VersionedApiKeyDoc versionedDoc : versionedDocs) {
-                final String apiKeyId = versionedDoc.id();
                 try {
-                    validateForUpdate(apiKeyId, authentication, versionedDoc.doc());
+                    validateForUpdate(versionedDoc.id(), authentication, versionedDoc.doc());
                 } catch (IllegalArgumentException ex) {
-                    responseBuilder.error(apiKeyId, new ElasticsearchException("Validation", ex));
+                    responseBuilder.error(versionedDoc.id(), new ElasticsearchException("Validation", ex));
                     continue;
                 }
 
-                final IndexRequest indexRequest = maybeBuildIndexRequestForUpdate(
-                    versionedDoc,
-                    authentication,
-                    request.getRoleDescriptors(),
-                    userRoleDescriptors,
-                    request.getMetadata()
-                );
+                final var indexRequest = maybeBuildIndexRequestForUpdate(versionedDoc, authentication, request, userRoleDescriptors);
                 final boolean isNoop = indexRequest == null;
                 if (isNoop) {
-                    logger.debug("Detected noop update request for API key [{}]. Skipping index request.", apiKeyId);
-                    responseBuilder.noop(apiKeyId);
+                    logger.debug("Detected noop update request for API key [{}]. Skipping index request.", versionedDoc.id());
+                    responseBuilder.noop(versionedDoc.id());
                 } else {
                     requestBuilder.add(indexRequest);
                 }
@@ -533,13 +527,14 @@ public class ApiKeyService {
      */
     @Nullable
     XContentBuilder maybeBuildUpdatedDocument(
+        final String apiKeyId,
         final ApiKeyDoc currentApiKeyDoc,
         final Version targetDocVersion,
         final Authentication authentication,
-        final UpdateApiKeyRequest request,
+        final BaseUpdateApiKeyRequest request,
         final Set<RoleDescriptor> userRoleDescriptors
     ) throws IOException {
-        if (isNoop(currentApiKeyDoc, targetDocVersion, authentication, request, userRoleDescriptors)) {
+        if (isNoop(apiKeyId, currentApiKeyDoc, targetDocVersion, authentication, request, userRoleDescriptors)) {
             return null;
         }
 
@@ -589,10 +584,11 @@ public class ApiKeyService {
     }
 
     private boolean isNoop(
+        final String apiKeyId,
         final ApiKeyDoc apiKeyDoc,
         final Version targetDocVersion,
         final Authentication authentication,
-        final UpdateApiKeyRequest request,
+        final BaseUpdateApiKeyRequest request,
         final Set<RoleDescriptor> userRoleDescriptors
     ) {
         if (apiKeyDoc.version != targetDocVersion.id) {
@@ -644,11 +640,7 @@ public class ApiKeyService {
 
         final List<RoleDescriptor> newRoleDescriptors = request.getRoleDescriptors();
         if (newRoleDescriptors != null) {
-            final List<RoleDescriptor> currentRoleDescriptors = parseRoleDescriptorsBytes(
-                request.getId(),
-                apiKeyDoc.roleDescriptorsBytes,
-                false
-            );
+            final List<RoleDescriptor> currentRoleDescriptors = parseRoleDescriptorsBytes(apiKeyId, apiKeyDoc.roleDescriptorsBytes, false);
             if (false == (newRoleDescriptors.size() == currentRoleDescriptors.size()
                 && Set.copyOf(newRoleDescriptors).containsAll(currentRoleDescriptors))) {
                 return false;
@@ -657,7 +649,7 @@ public class ApiKeyService {
 
         assert userRoleDescriptors != null;
         final List<RoleDescriptor> currentLimitedByRoleDescriptors = parseRoleDescriptorsBytes(
-            request.getId(),
+            apiKeyId,
             apiKeyDoc.limitedByRoleDescriptorsBytes,
             // We want the 7.x `LEGACY_SUPERUSER_ROLE_DESCRIPTOR` role descriptor to be returned here to auto-update
             // `LEGACY_SUPERUSER_ROLE_DESCRIPTOR` to `ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR`, when we update a 7.x API key.
@@ -1161,9 +1153,8 @@ public class ApiKeyService {
         final IndexRequest indexRequest = maybeBuildIndexRequestForUpdate(
             currentVersionedDoc,
             authentication,
-            request.getRoleDescriptors(),
-            userRoleDescriptors,
-            request.getMetadata()
+            request,
+            userRoleDescriptors
         );
         final boolean isNoop = indexRequest == null;
         if (isNoop) {
@@ -1191,13 +1182,13 @@ public class ApiKeyService {
     private IndexRequest maybeBuildIndexRequestForUpdate(
         final VersionedApiKeyDoc currentVersionedDoc,
         final Authentication authentication,
-        final List<RoleDescriptor> keyRoleDescriptors,
-        final Set<RoleDescriptor> userRoleDescriptors,
-        final Map<String, Object> metadata
+        final BaseUpdateApiKeyRequest request,
+        final Set<RoleDescriptor> userRoleDescriptors
     ) throws IOException {
+        final String apiKeyId = currentVersionedDoc.id();
         logger.trace(
             "Building index request for update of API key doc [{}] with seqNo [{}] and primaryTerm [{}]",
-            currentVersionedDoc.id(),
+            apiKeyId,
             currentVersionedDoc.seqNo(),
             currentVersionedDoc.primaryTerm()
         );
@@ -1205,26 +1196,21 @@ public class ApiKeyService {
         final var currentDocVersion = Version.fromId(currentVersionedDoc.doc().version);
         assert currentDocVersion.onOrBefore(targetDocVersion) : "current API key doc version must be on or before target version";
         if (currentDocVersion.before(targetDocVersion)) {
-            logger.debug(
-                "API key update for [{}] will update version from [{}] to [{}]",
-                currentVersionedDoc.id(),
-                currentDocVersion,
-                targetDocVersion
-            );
+            logger.debug("API key update for [{}] will update version from [{}] to [{}]", apiKeyId, currentDocVersion, targetDocVersion);
         }
         final XContentBuilder builder = maybeBuildUpdatedDocument(
+            apiKeyId,
             currentVersionedDoc.doc(),
             targetDocVersion,
             authentication,
-            // TODO
-            new UpdateApiKeyRequest(currentVersionedDoc.id(), keyRoleDescriptors, metadata),
+            request,
             userRoleDescriptors
         );
         final boolean isNoop = builder == null;
         return isNoop
             ? null
             : client.prepareIndex(SECURITY_MAIN_ALIAS)
-                .setId(currentVersionedDoc.id())
+                .setId(apiKeyId)
                 .setSource(builder)
                 .setIfSeqNo(currentVersionedDoc.seqNo())
                 .setIfPrimaryTerm(currentVersionedDoc.primaryTerm())

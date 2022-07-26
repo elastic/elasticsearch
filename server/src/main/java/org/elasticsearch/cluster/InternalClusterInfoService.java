@@ -166,7 +166,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
 
         void execute() {
             if (enabled == false) {
-                logger.info("skipping collecting info from cluster, notifying listeners with empty cluster info");
+                logger.trace("skipping collecting info from cluster, notifying listeners with empty cluster info");
                 leastAvailableSpaceUsages = Map.of();
                 mostAvailableSpaceUsages = Map.of();
                 indicesStatsSummary = IndicesStatsSummary.EMPTY;

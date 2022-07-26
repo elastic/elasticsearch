@@ -57,8 +57,10 @@ import static org.elasticsearch.core.Strings.format;
  * Listens for changes in the number of data nodes and immediately submits a
  * ClusterInfoUpdateJob if a node has been added.
  *
- * Every time the timer runs, gathers information about the disk usage and
- * shard sizes across the cluster.
+ * Every time the timer runs, if <code>cluster.routing.allocation.disk.threshold_enabled</code>
+ * is enabled, gathers information about the disk usage and shard sizes across the cluster,
+ * computes a new cluster info and notifies the registered listeners. If disk threshold
+ * monitoring is disabled, listeners are called with an empty cluster info.
  */
 public class InternalClusterInfoService implements ClusterInfoService, ClusterStateListener {
 
@@ -163,8 +165,16 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         }
 
         void execute() {
-            assert countDown.isCountedDown() == false;
+            if (enabled == false) {
+                logger.trace("skipping collecting info from cluster, notifying listeners with empty cluster info");
+                leastAvailableSpaceUsages = Map.of();
+                mostAvailableSpaceUsages = Map.of();
+                indicesStatsSummary = IndicesStatsSummary.EMPTY;
+                callListeners();
+                return;
+            }
 
+            assert countDown.isCountedDown() == false;
             logger.trace("starting async refresh");
 
             final NodesStatsRequest nodesStatsRequest = new NodesStatsRequest("data:true");
@@ -283,26 +293,30 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         private void onStatsProcessed() {
             if (countDown.countDown()) {
                 logger.trace("stats all received, computing cluster info and notifying listeners");
-                try {
-                    final ClusterInfo clusterInfo = getClusterInfo();
-                    boolean anyListeners = false;
-                    for (final Consumer<ClusterInfo> listener : listeners) {
-                        anyListeners = true;
-                        try {
-                            logger.trace("notifying [{}] of new cluster info", listener);
-                            listener.accept(clusterInfo);
-                        } catch (Exception e) {
-                            logger.info(() -> "failed to notify [" + listener + "] of new cluster info", e);
-                        }
-                    }
-                    assert anyListeners : "expected to notify at least one listener";
+                callListeners();
+            }
+        }
 
-                    for (final ActionListener<ClusterInfo> listener : thisRefreshListeners) {
-                        listener.onResponse(clusterInfo);
+        private void callListeners() {
+            try {
+                final ClusterInfo clusterInfo = getClusterInfo();
+                boolean anyListeners = false;
+                for (final Consumer<ClusterInfo> listener : listeners) {
+                    anyListeners = true;
+                    try {
+                        logger.trace("notifying [{}] of new cluster info", listener);
+                        listener.accept(clusterInfo);
+                    } catch (Exception e) {
+                        logger.info(() -> "failed to notify [" + listener + "] of new cluster info", e);
                     }
-                } finally {
-                    onRefreshComplete(this);
                 }
+                assert anyListeners : "expected to notify at least one listener";
+
+                for (final ActionListener<ClusterInfo> listener : thisRefreshListeners) {
+                    listener.onResponse(clusterInfo);
+                }
+            } finally {
+                onRefreshComplete(this);
             }
         }
     }
@@ -335,17 +349,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         final ArrayList<ActionListener<ClusterInfo>> thisRefreshListeners = new ArrayList<>(nextRefreshListeners);
         nextRefreshListeners.clear();
 
-        if (enabled) {
-            currentRefresh = new AsyncRefresh(thisRefreshListeners);
-            return currentRefresh::execute;
-        } else {
-            return () -> {
-                leastAvailableSpaceUsages = Map.of();
-                mostAvailableSpaceUsages = Map.of();
-                indicesStatsSummary = IndicesStatsSummary.EMPTY;
-                thisRefreshListeners.forEach(l -> l.onResponse(ClusterInfo.EMPTY));
-            };
-        }
+        currentRefresh = new AsyncRefresh(thisRefreshListeners);
+        return currentRefresh::execute;
     }
 
     private boolean assertRefreshInvariant() {

@@ -165,17 +165,12 @@ public abstract class MappedFieldType {
         return null;
     }
 
-    private static final FieldDataContext AGGREGATOR_CHECK_CONTEXT = new FieldDataContext(
-        "",
-        () -> { throw new UnsupportedOperationException("SearchLookup not available"); }
-    );
-
     /** Returns true if the field is aggregatable.
      *
      */
     public boolean isAggregatable() {
         try {
-            fielddataBuilder(AGGREGATOR_CHECK_CONTEXT);
+            fielddataBuilder(FieldDataContext.noRuntimeFields("aggregation_check"));
             return true;
         } catch (IllegalArgumentException e) {
             return false;

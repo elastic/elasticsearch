@@ -23,6 +23,7 @@ import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
@@ -181,7 +182,8 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
             this.geoFormatterFactory = geoFormatterFactory;
         }
 
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+        @Override
+        public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             failIfNoDocValues();
             return new AbstractLatLonShapeIndexFieldData.Builder(name(), GeoShapeValuesSourceType.instance(), GeoShapeDocValuesField::new);
         }

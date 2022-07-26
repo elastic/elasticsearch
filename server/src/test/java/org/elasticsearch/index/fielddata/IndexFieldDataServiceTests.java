@@ -80,7 +80,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
         MapperBuilderContext context = MapperBuilderContext.ROOT;
         final MappedFieldType stringMapper = new KeywordFieldMapper.Builder("string", Version.CURRENT).build(context).fieldType();
         ifdService.clear();
-        IndexFieldData<?> fd = ifdService.getForField(stringMapper, FieldDataContext.staticContext("test"));
+        IndexFieldData<?> fd = ifdService.getForField(stringMapper, FieldDataContext.noRuntimeFields("test"));
         assertTrue(fd instanceof SortedSetOrdinalsIndexFieldData);
 
         for (MappedFieldType mapper : Arrays.asList(
@@ -90,7 +90,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             new NumberFieldMapper.Builder("long", LONG, ScriptCompiler.NONE, false, true, Version.CURRENT).build(context).fieldType()
         )) {
             ifdService.clear();
-            fd = ifdService.getForField(mapper, FieldDataContext.staticContext("test"));
+            fd = ifdService.getForField(mapper, FieldDataContext.noRuntimeFields("test"));
             assertTrue(fd instanceof SortedNumericIndexFieldData);
         }
 
@@ -103,7 +103,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             Version.CURRENT
         ).build(context).fieldType();
         ifdService.clear();
-        fd = ifdService.getForField(floatMapper, FieldDataContext.staticContext("test"));
+        fd = ifdService.getForField(floatMapper, FieldDataContext.noRuntimeFields("test"));
         assertTrue(fd instanceof SortedDoublesIndexFieldData);
 
         final MappedFieldType doubleMapper = new NumberFieldMapper.Builder(
@@ -115,7 +115,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             Version.CURRENT
         ).build(context).fieldType();
         ifdService.clear();
-        fd = ifdService.getForField(doubleMapper, FieldDataContext.staticContext("test"));
+        fd = ifdService.getForField(doubleMapper, FieldDataContext.noRuntimeFields("test"));
         assertTrue(fd instanceof SortedDoublesIndexFieldData);
     }
 
@@ -176,8 +176,8 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
                 onRemovalCalled.incrementAndGet();
             }
         });
-        IndexFieldData<?> ifd1 = ifdService.getForField(mapper1, FieldDataContext.staticContext("test"));
-        IndexFieldData<?> ifd2 = ifdService.getForField(mapper2, FieldDataContext.staticContext("test"));
+        IndexFieldData<?> ifd1 = ifdService.getForField(mapper1, FieldDataContext.noRuntimeFields("test"));
+        IndexFieldData<?> ifd2 = ifdService.getForField(mapper2, FieldDataContext.noRuntimeFields("test"));
         LeafReaderContext leafReaderContext = reader.getContext().leaves().get(0);
         LeafFieldData loadField1 = ifd1.load(leafReaderContext);
         LeafFieldData loadField2 = ifd2.load(leafReaderContext);
@@ -251,7 +251,7 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
                 onRemovalCalled.incrementAndGet();
             }
         });
-        IndexFieldData<?> ifd = ifdService.getForField(mapper1, FieldDataContext.staticContext("test"));
+        IndexFieldData<?> ifd = ifdService.getForField(mapper1, FieldDataContext.noRuntimeFields("test"));
         LeafReaderContext leafReaderContext = reader.getContext().leaves().get(0);
         LeafFieldData load = ifd.load(leafReaderContext);
         assertEquals(1, onCacheCalled.get());
@@ -313,11 +313,11 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
                 null
             );
             if (ft.hasDocValues()) {
-                ifds.getForField(ft, FieldDataContext.staticContext("test")); // no exception
+                ifds.getForField(ft, FieldDataContext.noRuntimeFields("test")); // no exception
             } else {
                 IllegalArgumentException e = expectThrows(
                     IllegalArgumentException.class,
-                    () -> ifds.getForField(ft, FieldDataContext.staticContext("test"))
+                    () -> ifds.getForField(ft, FieldDataContext.noRuntimeFields("test"))
                 );
                 assertThat(e.getMessage(), containsString("doc values"));
             }

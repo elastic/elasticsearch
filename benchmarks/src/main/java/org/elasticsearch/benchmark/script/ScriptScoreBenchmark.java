@@ -84,9 +84,9 @@ public class ScriptScoreBenchmark {
     );
     private final IndexFieldDataCache fieldDataCache = new IndexFieldDataCache.None();
     private final CircuitBreakerService breakerService = new NoneCircuitBreakerService();
-    private SearchLookup lookup = new SearchLookup(
+    private final SearchLookup lookup = new SearchLookup(
         fieldTypes::get,
-        (mft, lookup) -> mft.fielddataBuilder(FieldDataContext.staticContext("benchmark")).build(fieldDataCache, breakerService)
+        (mft, lookup) -> mft.fielddataBuilder(FieldDataContext.noRuntimeFields("benchmark")).build(fieldDataCache, breakerService)
     );
 
     @Param({ "expression", "metal", "painless_cast", "painless_def" })

@@ -48,11 +48,6 @@ public class ProvidedIdFieldMapperTests extends MapperServiceTestCase {
         assertEquals(Uid.encodeId("1"), fields[0].binaryValue());
     }
 
-    private static final FieldDataContext FIELD_DATA_CONTEXT = new FieldDataContext(
-        "test",
-        () -> { throw new UnsupportedOperationException(); }
-    );
-
     public void testEnableFieldData() throws IOException {
 
         boolean[] enabled = new boolean[1];
@@ -62,13 +57,13 @@ public class ProvidedIdFieldMapperTests extends MapperServiceTestCase {
 
         IllegalArgumentException exc = expectThrows(
             IllegalArgumentException.class,
-            () -> ft.fielddataBuilder(FIELD_DATA_CONTEXT).build(null, null)
+            () -> ft.fielddataBuilder(FieldDataContext.noRuntimeFields("test")).build(null, null)
         );
         assertThat(exc.getMessage(), containsString(IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey()));
         assertFalse(ft.isAggregatable());
 
         enabled[0] = true;
-        ft.fielddataBuilder(FIELD_DATA_CONTEXT).build(null, null);
+        ft.fielddataBuilder(FieldDataContext.noRuntimeFields("test")).build(null, null);
         assertWarnings(ProvidedIdFieldMapper.ID_FIELD_DATA_DEPRECATION_MESSAGE);
         assertTrue(ft.isAggregatable());
     }

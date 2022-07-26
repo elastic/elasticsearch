@@ -29,11 +29,6 @@ public abstract class FieldTypeTestCase extends ESTestCase {
     public static final SearchExecutionContext MOCK_CONTEXT = createMockSearchExecutionContext(true);
     public static final SearchExecutionContext MOCK_CONTEXT_DISALLOW_EXPENSIVE = createMockSearchExecutionContext(false);
 
-    public static final FieldDataContext MOCK_FIELDDATA_CONTEXT = new FieldDataContext(
-        "test",
-        () -> { throw new UnsupportedOperationException(); }
-    );
-
     protected SearchExecutionContext randomMockContext() {
         return randomFrom(MOCK_CONTEXT, MOCK_CONTEXT_DISALLOW_EXPENSIVE);
     }

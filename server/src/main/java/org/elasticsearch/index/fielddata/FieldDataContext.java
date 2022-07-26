@@ -20,7 +20,17 @@ import java.util.function.Supplier;
  */
 public record FieldDataContext(String fullyQualifiedIndexName, Supplier<SearchLookup> lookupSupplier) {
 
-    public static FieldDataContext staticContext(String reason) {
-        return new FieldDataContext("", () -> { throw new UnsupportedOperationException("Scripting not supported for [" + reason + "]"); });
+    /**
+     * A context to use when runtime fields are not available
+     *
+     * Used for validating index sorts, eager global ordinal loading, etc
+     *
+     * @param reason the reason that runtime fields are not supported
+     */
+    public static FieldDataContext noRuntimeFields(String reason) {
+        return new FieldDataContext(
+            "",
+            () -> { throw new UnsupportedOperationException("Runtime fields not supported for [" + reason + "]"); }
+        );
     }
 }

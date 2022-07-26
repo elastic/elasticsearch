@@ -340,8 +340,6 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         });
     }
 
-    protected static FieldDataContext EMPTY_CONTEXT = new FieldDataContext("test", null);
-
     protected final XContentBuilder runtimeMapping(CheckedConsumer<XContentBuilder, IOException> buildFields) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("runtime");
         buildFields.accept(builder);
@@ -453,7 +451,8 @@ public abstract class MapperServiceTestCase extends ESTestCase {
 
             @Override
             protected IndexFieldData<?> buildFieldData(MappedFieldType ft) {
-                return ft.fielddataBuilder(EMPTY_CONTEXT).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
+                return ft.fielddataBuilder(FieldDataContext.noRuntimeFields("test"))
+                    .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
             }
 
             @Override

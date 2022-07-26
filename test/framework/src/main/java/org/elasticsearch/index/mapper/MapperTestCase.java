@@ -576,7 +576,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         SourceToParse source = source(b -> b.field(ft.name(), value));
         ValueFetcher docValueFetcher = new DocValueFetcher(
             ft.docValueFormat(format, null),
-            ft.fielddataBuilder(new FieldDataContext("test", () -> null))
+            ft.fielddataBuilder(FieldDataContext.noRuntimeFields("test"))
                 .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService())
         );
         SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
@@ -655,16 +655,15 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
             LeafReaderContext ctx = ir.leaves().get(0);
 
-            DocValuesScriptFieldFactory docValuesFieldSource = fieldType.fielddataBuilder(
-                new FieldDataContext("test", () -> { throw new UnsupportedOperationException(); })
-            ).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService()).load(ctx).getScriptFieldFactory("test");
+            DocValuesScriptFieldFactory docValuesFieldSource = fieldType.fielddataBuilder(FieldDataContext.noRuntimeFields("test"))
+                .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService())
+                .load(ctx)
+                .getScriptFieldFactory("test");
 
             docValuesFieldSource.setNextDocId(0);
 
             DocumentLeafReader reader = new DocumentLeafReader(doc.rootDoc(), Collections.emptyMap());
-            DocValuesScriptFieldFactory indexData = fieldType.fielddataBuilder(
-                new FieldDataContext("test", () -> { throw new UnsupportedOperationException(); })
-            )
+            DocValuesScriptFieldFactory indexData = fieldType.fielddataBuilder(FieldDataContext.noRuntimeFields("test"))
                 .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService())
                 .load(reader.getContext())
                 .getScriptFieldFactory("test");

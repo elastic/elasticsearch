@@ -215,6 +215,6 @@ public class IndexSortSettingsTests extends ESTestCase {
         IndicesFieldDataCache cache = new IndicesFieldDataCache(indexSettings.getSettings(), null);
         NoneCircuitBreakerService circuitBreakerService = new NoneCircuitBreakerService();
         IndexFieldDataService indexFieldDataService = new IndexFieldDataService(indexSettings, cache, circuitBreakerService);
-        return config.buildIndexSort(lookup::get, (ft, s) -> indexFieldDataService.getForField(ft, FieldDataContext.staticContext("sort")));
+        return config.buildIndexSort(lookup::get, (ft, s) -> indexFieldDataService.getForField(ft, FieldDataContext.noRuntimeFields("sort")));
     }
 }

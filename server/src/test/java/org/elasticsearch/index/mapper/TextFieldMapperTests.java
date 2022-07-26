@@ -530,12 +530,12 @@ public class TextFieldMapperTests extends MapperTestCase {
         MapperService disabledMapper = createMapperService(fieldMapping(this::minimalMapping));
         Exception e = expectThrows(
             IllegalArgumentException.class,
-            () -> disabledMapper.fieldType("field").fielddataBuilder(FieldDataContext.staticContext("test"))
+            () -> disabledMapper.fieldType("field").fielddataBuilder(FieldDataContext.noRuntimeFields("test"))
         );
         assertThat(e.getMessage(), containsString("Text fields are not optimised for operations that require per-document field data"));
 
         MapperService enabledMapper = createMapperService(fieldMapping(b -> b.field("type", "text").field("fielddata", true)));
-        enabledMapper.fieldType("field").fielddataBuilder(FieldDataContext.staticContext("test")); // no exception
+        enabledMapper.fieldType("field").fielddataBuilder(FieldDataContext.noRuntimeFields("test")); // no exception
                                                                                                    // this time
 
         e = expectThrows(
@@ -1199,7 +1199,7 @@ public class TextFieldMapperTests extends MapperTestCase {
         expectThrows(
             IllegalArgumentException.class,
             () -> ((TextFieldMapper) finalMapperService.documentMapper().mappers().getMapper("field")).fieldType()
-                .fielddataBuilder(FieldDataContext.staticContext("test"))
+                .fielddataBuilder(FieldDataContext.noRuntimeFields("test"))
         );
     }
 

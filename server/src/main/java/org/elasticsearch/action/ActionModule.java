@@ -251,6 +251,7 @@ import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.NamedRegistry;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.TypeLiteral;
@@ -274,6 +275,8 @@ import org.elasticsearch.persistent.UpdatePersistentTaskStatusAction;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ActionPlugin.ActionHandler;
 import org.elasticsearch.plugins.interceptor.RestInterceptorActionPlugin;
+import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
+import org.elasticsearch.reservedstate.service.ReservedClusterStateService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestHeaderDefinition;
@@ -449,6 +452,7 @@ public class ActionModule extends AbstractModule {
     private final RequestValidators<PutMappingRequest> mappingRequestValidators;
     private final RequestValidators<IndicesAliasesRequest> indicesAliasesRequestRequestValidators;
     private final ThreadPool threadPool;
+    private final ReservedClusterStateService reservedClusterStateService;
 
     public ActionModule(
         Settings settings,
@@ -462,7 +466,9 @@ public class ActionModule extends AbstractModule {
         CircuitBreakerService circuitBreakerService,
         UsageService usageService,
         SystemIndices systemIndices,
-        Tracer tracer
+        Tracer tracer,
+        ClusterService clusterService,
+        List<ReservedClusterStateHandler<?>> reservedStateHandlers
     ) {
         this.settings = settings;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
@@ -513,6 +519,7 @@ public class ActionModule extends AbstractModule {
         );
 
         restController = new RestController(headers, restInterceptor, nodeClient, circuitBreakerService, usageService, tracer);
+        reservedClusterStateService = new ReservedClusterStateService(clusterService, reservedStateHandlers);
     }
 
     public Map<String, ActionHandler<?, ?>> getActions() {
@@ -921,5 +928,9 @@ public class ActionModule extends AbstractModule {
 
     public RestController getRestController() {
         return restController;
+    }
+
+    public ReservedClusterStateService getReservedClusterStateService() {
+        return reservedClusterStateService;
     }
 }

@@ -93,6 +93,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
+    private static final Double MAX_ERROR = 0.4;
+
     public void testRegularIndicesLoadIsNotTracked() throws Exception {
         try (var shardRef = createRegularIndexShard()) {
             final var shard = shardRef.shard();
@@ -194,13 +196,13 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
                 // ensure that we never measure more than the number of processors
                 assertThat(indexingLoadHistogramSnapshot.max(), is(lessThanOrEqualTo((double) numberOfProcessors)));
 
-                assertThat(indexingLoadHistogramSnapshot.max(), is(closeTo(usedProcessors, 0.4)));
+                assertThat(indexingLoadHistogramSnapshot.max(), is(closeTo(usedProcessors, MAX_ERROR)));
                 // We run a few fast operations after the slow indexing ops, therefore the median
                 // indexing load should be close to 0.
                 assertThat(
                     Strings.toString(indexingLoadHistogramSnapshot, true, true),
                     indexingLoadHistogramSnapshot.p50(),
-                    is(closeTo(0.0, 0.1))
+                    is(closeTo(0.0, MAX_ERROR))
                 );
             }
 
@@ -264,7 +266,7 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
 
                 final HistogramSnapshot indexingLoadHistogramSnapshot = shardWriteLoadHistogramSnapshot.indexLoadHistogramSnapshot();
 
-                assertThat(indexingLoadHistogramSnapshot.max(), is(closeTo(1, 0.1)));
+                assertThat(indexingLoadHistogramSnapshot.max(), is(closeTo(1, MAX_ERROR)));
             }
         }
     }
@@ -316,7 +318,7 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
             assertThat(shardWriteLoadDistribution, is(notNullValue()));
 
             final HistogramSnapshot refreshLoadHistogramSnapshot = shardWriteLoadDistribution.refreshLoadHistogramSnapshot();
-            assertThat(refreshLoadHistogramSnapshot.max(), is(closeTo(1.0, 0.3)));
+            assertThat(refreshLoadHistogramSnapshot.max(), is(closeTo(1.0, MAX_ERROR)));
         }
     }
 
@@ -362,7 +364,7 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
             final ShardWriteLoadHistogramSnapshot shardWriteLoadDistribution = shardLoadHistograms.get(indexName);
             assertThat(shardWriteLoadDistribution, is(notNullValue()));
 
-            assertThat(shardWriteLoadDistribution.mergeLoadHistogramSnapshot().max(), is(closeTo(1.0, 0.2)));
+            assertThat(shardWriteLoadDistribution.mergeLoadHistogramSnapshot().max(), is(closeTo(1.0, MAX_ERROR)));
         }
     }
 
@@ -564,7 +566,10 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
             final var nodeWriteLoadHistogramSnapshot = indicesWriteLoadStatsCollector.getNodeWriteLoadHistogramSnapshotAndReset();
 
             assertThat(nodeWriteLoadHistogramSnapshot.nodeId(), is(equalTo("nodeId")));
-            assertThat(nodeWriteLoadHistogramSnapshot.indexLoadHistogramSnapshot().max(), is(closeTo(totalMaxIndexingWriteLoad, 0.1)));
+            assertThat(
+                nodeWriteLoadHistogramSnapshot.indexLoadHistogramSnapshot().max(),
+                is(closeTo(totalMaxIndexingWriteLoad, MAX_ERROR))
+            );
         }
     }
 
@@ -591,7 +596,7 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
 
             final NodeWriteLoadHistogramSnapshot nodeWriteLoadHistogramSnapshot = indicesWriteLoadStatsCollector
                 .getNodeWriteLoadHistogramSnapshotAndReset();
-            assertThat(nodeWriteLoadHistogramSnapshot.indexLoadHistogramSnapshot().max(), is(closeTo(1.0, 0.1)));
+            assertThat(nodeWriteLoadHistogramSnapshot.indexLoadHistogramSnapshot().max(), is(closeTo(1.0, MAX_ERROR)));
         }
     }
 

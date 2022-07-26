@@ -54,6 +54,9 @@ import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheRequest;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKeyTests;
+import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyAction;
@@ -124,6 +127,7 @@ import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswo
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7;
 import static org.elasticsearch.xpack.security.Security.SECURITY_CRYPTO_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -1463,7 +1467,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         );
         final var request = new UpdateApiKeyRequest(apiKeyId, newRoleDescriptors, ApiKeyTests.randomMetadata());
 
-        final UpdateApiKeyResponse response = executeUpdateApiKey(TEST_USER_NAME, request);
+        final UpdateApiKeyResponse response = executeUpdateApiKey(TEST_USER_NAME, request, randomBoolean());
 
         assertNotNull(response);
         // In this test, non-null roleDescriptors always result in an update since they either update the role name, or associated
@@ -2338,13 +2342,51 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         );
     }
 
-    private UpdateApiKeyResponse executeUpdateApiKey(final String username, final UpdateApiKeyRequest request) throws InterruptedException,
-        ExecutionException {
-        final var listener = new PlainActionFuture<UpdateApiKeyResponse>();
+    private UpdateApiKeyResponse executeUpdateApiKey(final String username, final UpdateApiKeyRequest request) throws ExecutionException,
+        InterruptedException {
+        return executeUpdateApiKey(username, request, false);
+    }
+
+    private UpdateApiKeyResponse executeUpdateApiKey(final String username, final UpdateApiKeyRequest request, final boolean useBulkRoute)
+        throws InterruptedException, ExecutionException {
+        if (useBulkRoute) {
+            final var response = executeBulkUpdateApiKey(
+                username,
+                new BulkUpdateApiKeyRequest(List.of(request.getId()), request.getRoleDescriptors(), request.getMetadata())
+            );
+            if (response.getErrorDetails().isEmpty() == false) {
+                assertEquals(1, response.getErrorDetails().size());
+                assertThat(response.getUpdated(), empty());
+                assertThat(response.getNoops(), empty());
+                throw response.getErrorDetails().values().iterator().next();
+            } else if (response.getUpdated().isEmpty() == false) {
+                assertEquals(1, response.getUpdated().size());
+                assertThat(response.getErrorDetails(), anEmptyMap());
+                assertThat(response.getNoops(), empty());
+                return new UpdateApiKeyResponse(true);
+            } else {
+                assertEquals(1, response.getNoops().size());
+                assertThat(response.getErrorDetails(), anEmptyMap());
+                assertThat(response.getUpdated(), empty());
+                return new UpdateApiKeyResponse(false);
+            }
+        } else {
+            final var listener = new PlainActionFuture<UpdateApiKeyResponse>();
+            final Client client = client().filterWithHeader(
+                Collections.singletonMap("Authorization", basicAuthHeaderValue(username, TEST_PASSWORD_SECURE_STRING))
+            );
+            client.execute(UpdateApiKeyAction.INSTANCE, request, listener);
+            return listener.get();
+        }
+    }
+
+    private BulkUpdateApiKeyResponse executeBulkUpdateApiKey(final String username, final BulkUpdateApiKeyRequest request)
+        throws ExecutionException, InterruptedException {
+        final var listener = new PlainActionFuture<BulkUpdateApiKeyResponse>();
         final Client client = client().filterWithHeader(
             Collections.singletonMap("Authorization", basicAuthHeaderValue(username, TEST_PASSWORD_SECURE_STRING))
         );
-        client.execute(UpdateApiKeyAction.INSTANCE, request, listener);
+        client.execute(BulkUpdateApiKeyAction.INSTANCE, request, listener);
         return listener.get();
     }
 

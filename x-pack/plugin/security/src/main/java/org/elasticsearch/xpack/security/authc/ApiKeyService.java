@@ -432,7 +432,7 @@ public class ApiKeyService {
     ) {
         logger.trace("Found [{}] API keys to update", versionedDocsToUpdate.size());
         final BulkUpdateApiKeyResponse.Builder responseBuilder = BulkUpdateApiKeyResponse.builder();
-        final BulkRequestBuilder requestBuilder = client.prepareBulk();
+        final BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
         for (VersionedApiKeyDoc versionedDoc : versionedDocsToUpdate) {
             try {
                 validateForUpdate(versionedDoc.id(), authentication, versionedDoc.doc());
@@ -442,7 +442,7 @@ public class ApiKeyService {
                     logger.debug("Detected noop update request for API key [{}]. Skipping index request", versionedDoc.id());
                     responseBuilder.noop(versionedDoc.id());
                 } else {
-                    requestBuilder.add(indexRequest);
+                    bulkRequestBuilder.add(indexRequest);
                 }
             } catch (Exception ex) {
                 responseBuilder.error(
@@ -452,19 +452,19 @@ public class ApiKeyService {
             }
         }
         addNotFound(responseBuilder, request.getIds(), versionedDocsToUpdate);
-        if (requestBuilder.numberOfActions() == 0) {
+        if (bulkRequestBuilder.numberOfActions() == 0) {
             logger.trace("No bulk request execution necessary for API key update");
             listener.onResponse(responseBuilder.build());
             return;
         }
 
-        logger.trace("Executing bulk request to update [{}] API keys", requestBuilder.numberOfActions());
+        logger.trace("Executing bulk request to update [{}] API keys", bulkRequestBuilder.numberOfActions());
         securityIndex.prepareIndexIfNeededThenExecute(
             ex -> listener.onFailure(traceLog("prepare security index before update", ex)),
             () -> executeAsyncWithOrigin(
                 client.threadPool().getThreadContext(),
                 SECURITY_ORIGIN,
-                requestBuilder.setRefreshPolicy(RefreshPolicy.WAIT_UNTIL).request(),
+                bulkRequestBuilder.setRefreshPolicy(RefreshPolicy.WAIT_UNTIL).request(),
                 ActionListener.<BulkResponse>wrap(
                     bulkResponse -> translateResponseAndClearCache(bulkResponse, responseBuilder, listener),
                     ex -> listener.onFailure(traceLog("execute bulk request for update", ex))

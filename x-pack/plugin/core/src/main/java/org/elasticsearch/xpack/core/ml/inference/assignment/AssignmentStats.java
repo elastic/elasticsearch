@@ -35,6 +35,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
         private final Instant lastAccess;
         private final Integer pendingCount;
         private final int errorCount;
+        private final Long cacheHitCount;
         private final int rejectedExecutionCount;
         private final int timeoutCount;
         private final RoutingStateAndReason routingState;
@@ -44,6 +45,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
         private final long peakThroughput;
         private final long throughputLastPeriod;
         private final Double avgInferenceTimeLastPeriod;
+        private final long cacheHitCountLastPeriod;
 
         public static AssignmentStats.NodeStats forStartedState(
             DiscoveryNode node,
@@ -51,6 +53,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
             Double avgInferenceTime,
             int pendingCount,
             int errorCount,
+            long cacheHitCount,
             int rejectedExecutionCount,
             int timeoutCount,
             Instant lastAccess,
@@ -59,7 +62,8 @@ public class AssignmentStats implements ToXContentObject, Writeable {
             Integer numberOfAllocations,
             long peakThroughput,
             long throughputLastPeriod,
-            Double avgInferenceTimeLastPeriod
+            Double avgInferenceTimeLastPeriod,
+            long cacheHitCountLastPeriod
         ) {
             return new AssignmentStats.NodeStats(
                 node,
@@ -68,6 +72,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
                 lastAccess,
                 pendingCount,
                 errorCount,
+                cacheHitCount,
                 rejectedExecutionCount,
                 timeoutCount,
                 new RoutingStateAndReason(RoutingState.STARTED, null),
@@ -76,7 +81,8 @@ public class AssignmentStats implements ToXContentObject, Writeable {
                 numberOfAllocations,
                 peakThroughput,
                 throughputLastPeriod,
-                avgInferenceTimeLastPeriod
+                avgInferenceTimeLastPeriod,
+                cacheHitCountLastPeriod
             );
         }
 
@@ -88,15 +94,17 @@ public class AssignmentStats implements ToXContentObject, Writeable {
                 null,
                 null,
                 0,
+                null,
                 0,
                 0,
                 new RoutingStateAndReason(state, reason),
                 null,
                 null,
                 null,
-                0,
-                0,
-                null
+                0L,
+                0L,
+                null,
+                0L
             );
         }
 
@@ -107,6 +115,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
             @Nullable Instant lastAccess,
             Integer pendingCount,
             int errorCount,
+            Long cacheHitCount,
             int rejectedExecutionCount,
             int timeoutCount,
             RoutingStateAndReason routingState,
@@ -115,7 +124,8 @@ public class AssignmentStats implements ToXContentObject, Writeable {
             @Nullable Integer numberOfAllocations,
             long peakThroughput,
             long throughputLastPeriod,
-            Double avgInferenceTimeLastPeriod
+            Double avgInferenceTimeLastPeriod,
+            long cacheHitCountLastPeriod
         ) {
             this.node = node;
             this.inferenceCount = inferenceCount;
@@ -123,6 +133,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
             this.lastAccess = lastAccess;
             this.pendingCount = pendingCount;
             this.errorCount = errorCount;
+            this.cacheHitCount = cacheHitCount;
             this.rejectedExecutionCount = rejectedExecutionCount;
             this.timeoutCount = timeoutCount;
             this.routingState = routingState;
@@ -132,6 +143,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
             this.peakThroughput = peakThroughput;
             this.throughputLastPeriod = throughputLastPeriod;
             this.avgInferenceTimeLastPeriod = avgInferenceTimeLastPeriod;
+            this.cacheHitCountLastPeriod = cacheHitCountLastPeriod;
 
             // if lastAccess time is null there have been no inferences
             assert this.lastAccess != null || (inferenceCount == null || inferenceCount == 0);
@@ -167,6 +179,13 @@ public class AssignmentStats implements ToXContentObject, Writeable {
                 this.throughputLastPeriod = 0;
                 this.avgInferenceTimeLastPeriod = null;
             }
+            if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
+                this.cacheHitCount = in.readOptionalLong();
+                this.cacheHitCountLastPeriod = in.readVLong();
+            } else {
+                this.cacheHitCount = null;
+                this.cacheHitCountLastPeriod = 0L;
+            }
         }
 
         public DiscoveryNode getNode() {
@@ -195,6 +214,10 @@ public class AssignmentStats implements ToXContentObject, Writeable {
 
         public int getErrorCount() {
             return errorCount;
+        }
+
+        public Optional<Long> getCacheHitCount() {
+            return Optional.ofNullable(cacheHitCount);
         }
 
         public int getRejectedExecutionCount() {
@@ -229,6 +252,10 @@ public class AssignmentStats implements ToXContentObject, Writeable {
             return avgInferenceTimeLastPeriod;
         }
 
+        public long getCacheHitCountLastPeriod() {
+            return cacheHitCountLastPeriod;
+        }
+
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
@@ -244,6 +271,9 @@ public class AssignmentStats implements ToXContentObject, Writeable {
             // avoid reporting the average time as 0 if count < 1
             if (avgInferenceTime != null && (inferenceCount != null && inferenceCount > 0)) {
                 builder.field("average_inference_time_ms", avgInferenceTime);
+            }
+            if (cacheHitCount != null) {
+                builder.field("inference_cache_hit_count", cacheHitCount);
             }
             if (lastAccess != null) {
                 builder.timeField("last_access", "last_access_string", lastAccess.toEpochMilli());
@@ -274,6 +304,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
             if (avgInferenceTimeLastPeriod != null) {
                 builder.field("average_inference_time_ms_last_minute", avgInferenceTimeLastPeriod);
             }
+            builder.field("inference_cache_hit_count_last_minute", cacheHitCountLastPeriod);
 
             builder.endObject();
             return builder;
@@ -300,6 +331,10 @@ public class AssignmentStats implements ToXContentObject, Writeable {
                 out.writeVLong(throughputLastPeriod);
                 out.writeOptionalDouble(avgInferenceTimeLastPeriod);
             }
+            if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
+                out.writeOptionalLong(cacheHitCount);
+                out.writeVLong(cacheHitCountLastPeriod);
+            }
         }
 
         @Override
@@ -313,6 +348,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
                 && Objects.equals(lastAccess, that.lastAccess)
                 && Objects.equals(pendingCount, that.pendingCount)
                 && Objects.equals(errorCount, that.errorCount)
+                && Objects.equals(cacheHitCount, that.cacheHitCount)
                 && Objects.equals(rejectedExecutionCount, that.rejectedExecutionCount)
                 && Objects.equals(timeoutCount, that.timeoutCount)
                 && Objects.equals(routingState, that.routingState)
@@ -321,7 +357,8 @@ public class AssignmentStats implements ToXContentObject, Writeable {
                 && Objects.equals(numberOfAllocations, that.numberOfAllocations)
                 && Objects.equals(peakThroughput, that.peakThroughput)
                 && Objects.equals(throughputLastPeriod, that.throughputLastPeriod)
-                && Objects.equals(avgInferenceTimeLastPeriod, that.avgInferenceTimeLastPeriod);
+                && Objects.equals(avgInferenceTimeLastPeriod, that.avgInferenceTimeLastPeriod)
+                && Objects.equals(cacheHitCountLastPeriod, that.cacheHitCountLastPeriod);
         }
 
         @Override
@@ -333,6 +370,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
                 lastAccess,
                 pendingCount,
                 errorCount,
+                cacheHitCount,
                 rejectedExecutionCount,
                 timeoutCount,
                 routingState,
@@ -341,7 +379,8 @@ public class AssignmentStats implements ToXContentObject, Writeable {
                 numberOfAllocations,
                 peakThroughput,
                 throughputLastPeriod,
-                avgInferenceTimeLastPeriod
+                avgInferenceTimeLastPeriod,
+                cacheHitCountLastPeriod
             );
         }
     }
@@ -462,8 +501,7 @@ public class AssignmentStats implements ToXContentObject, Writeable {
             nodeStats.stream().filter(n -> n.getInferenceCount().isPresent()).mapToLong(n -> n.getInferenceCount().get()).sum(),
             // This is for ALL failures, so sum the error counts, timeouts, and rejections
             nodeStats.stream().mapToLong(n -> n.getErrorCount() + n.getTimeoutCount() + n.getRejectedExecutionCount()).sum(),
-            // TODO Update when we actually have cache miss/hit values
-            0L,
+            nodeStats.stream().filter(n -> n.getCacheHitCount().isPresent()).mapToLong(n -> n.getCacheHitCount().get()).sum(),
             modelId,
             null,
             Instant.now()

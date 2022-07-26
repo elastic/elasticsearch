@@ -88,7 +88,7 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                 null
                             )
                         )
-                        .collect(Collectors.toList()),
+                        .toList(),
                     instance.getResources().count(),
                     RESULTS_FIELD
                 )
@@ -126,6 +126,7 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                                     nodeStats.getLastAccess(),
                                                     nodeStats.getPendingCount(),
                                                     0,
+                                                    null,
                                                     0,
                                                     0,
                                                     nodeStats.getRoutingState(),
@@ -134,14 +135,15 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                                     null,
                                                     0L,
                                                     0L,
-                                                    null
+                                                    null,
+                                                    0L
                                                 )
                                             )
                                             .toList()
                                     )
                             )
                         )
-                        .collect(Collectors.toList()),
+                        .toList(),
                     instance.getResources().count(),
                     RESULTS_FIELD
                 )
@@ -179,6 +181,7 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                                     nodeStats.getLastAccess(),
                                                     nodeStats.getPendingCount(),
                                                     nodeStats.getErrorCount(),
+                                                    null,
                                                     nodeStats.getRejectedExecutionCount(),
                                                     nodeStats.getTimeoutCount(),
                                                     nodeStats.getRoutingState(),
@@ -187,7 +190,8 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                                     nodeStats.getNumberOfAllocations(),
                                                     0L,
                                                     0L,
-                                                    null
+                                                    null,
+                                                    0L
                                                 )
                                             )
                                             .toList()
@@ -232,6 +236,7 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                                     nodeStats.getLastAccess(),
                                                     nodeStats.getPendingCount(),
                                                     nodeStats.getErrorCount(),
+                                                    null,
                                                     nodeStats.getRejectedExecutionCount(),
                                                     nodeStats.getTimeoutCount(),
                                                     nodeStats.getRoutingState(),
@@ -240,14 +245,15 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                                     nodeStats.getNumberOfAllocations(),
                                                     nodeStats.getPeakThroughput(),
                                                     nodeStats.getThroughputLastPeriod(),
-                                                    nodeStats.getAvgInferenceTimeLastPeriod()
+                                                    nodeStats.getAvgInferenceTimeLastPeriod(),
+                                                    0L
                                                 )
                                             )
                                             .toList()
                                     )
                             )
                         )
-                        .collect(Collectors.toList()),
+                        .toList(),
                     instance.getResources().count(),
                     RESULTS_FIELD
                 )
@@ -255,5 +261,4 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
         }
         return instance;
     }
-
 }

@@ -237,7 +237,7 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
     public static class UnknownCondition extends Condition<Object> {
 
         public UnknownCondition(String name, Object value) {
-            super(name);
+            super(name, null);
             this.value = value;
         }
 
@@ -259,6 +259,12 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
 
         @Override
         public Result evaluate(Stats stats) {
+            assert false;
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Type type() {
             assert false;
             throw new UnsupportedOperationException();
         }

@@ -157,7 +157,7 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
 
         // Determine if the most recent snapshot is a failure
         SnapshotInvocationRecord lastSuccess = policyMetadata.getLastSuccess();
-        if (lastSuccess != null && lastSuccess.getSnapshotStartTimestamp() > lastFailure.getSnapshotStartTimestamp()) {
+        if (lastSuccess != null && policyMetadata.getInvocationsSinceLastSuccess() == 0) {
             // Success was more recent than last failure
             return false;
         }

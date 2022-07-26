@@ -427,28 +427,30 @@ public class ApiKeyService {
         final Authentication authentication,
         final BulkUpdateApiKeyRequest request,
         final Set<RoleDescriptor> userRoleDescriptors,
-        final Collection<VersionedApiKeyDoc> versionedDocsToUpdate,
+        final Collection<VersionedApiKeyDoc> targetVersionedDocs,
         final ActionListener<BulkUpdateApiKeyResponse> listener
     ) {
-        logger.trace("Found [{}] API keys to update", versionedDocsToUpdate.size());
+        logger.trace("Found [{}] API keys to update", targetVersionedDocs.size());
+        // TODO
         final BulkUpdateApiKeyResponse.Builder responseBuilder = BulkUpdateApiKeyResponse.builder();
         final BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
-        for (VersionedApiKeyDoc versionedDoc : versionedDocsToUpdate) {
+        for (VersionedApiKeyDoc versionedDoc : targetVersionedDocs) {
+            final String apiKeyId = versionedDoc.id();
             try {
-                validateForUpdate(versionedDoc.id(), authentication, versionedDoc.doc());
+                validateForUpdate(apiKeyId, authentication, versionedDoc.doc());
                 final IndexRequest indexRequest = maybeBuildIndexRequest(versionedDoc, authentication, request, userRoleDescriptors);
                 final boolean isNoop = indexRequest == null;
                 if (isNoop) {
-                    logger.debug("Detected noop update request for API key [{}]. Skipping index request", versionedDoc.id());
-                    responseBuilder.noop(versionedDoc.id());
+                    logger.debug("Detected noop update request for API key [{}]. Skipping index request", apiKeyId);
+                    responseBuilder.noop(apiKeyId);
                 } else {
                     bulkRequestBuilder.add(indexRequest);
                 }
             } catch (Exception ex) {
-                responseBuilder.error(versionedDoc.id(), traceLog("preparing request", new ElasticsearchException(ex)));
+                responseBuilder.error(apiKeyId, traceLog("preparing index request for update", new ElasticsearchException(ex)));
             }
         }
-        addNotFound(responseBuilder, request.getIds(), versionedDocsToUpdate);
+        addNotFound(responseBuilder, request.getIds(), targetVersionedDocs);
         if (bulkRequestBuilder.numberOfActions() == 0) {
             logger.trace("No bulk request execution necessary for API key update");
             listener.onResponse(responseBuilder.build());

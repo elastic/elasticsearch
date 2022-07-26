@@ -229,7 +229,7 @@ public class Reindexer {
                 scriptService,
                 sslConfig
             );
-            this.destinationIndexIdMapper = destinationIndexMode(state).buildNoFieldDataIdFieldMapper();
+            this.destinationIndexIdMapper = destinationIndexMode(state).idFieldMapperWithoutFieldData();
         }
 
         private IndexMode destinationIndexMode(ClusterState state) {

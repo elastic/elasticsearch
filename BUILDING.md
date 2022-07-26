@@ -70,7 +70,7 @@ Elasticsearch specific build logic is located in the `build-tools-internal` subp
 
 - Gradle plugins and Tasks should be written in Java
 - We use a groovy and spock for setting up Gradle integration tests.
-  (see https://github.com/elastic/elasticsearch/blob/master/build-tools/src/testFixtures/groovy/org/elasticsearch/gradle/fixtures/AbstractGradleFuncTest.groovy)
+  (see https://github.com/elastic/elasticsearch/blob/main/build-tools/src/testFixtures/groovy/org/elasticsearch/gradle/fixtures/AbstractGradleFuncTest.groovy)
 
 #### Declaring tasks
 
@@ -95,7 +95,7 @@ Therefore we register test cluster by using the following syntax:
 
     def someClusterProvider = testClusters.register('someCluster') { ... }
 
-This registers a potential testCluster named `somecluster` and provides a provider instance, but doesn't create it yet nor configures it. This makes the gradle configuration phase more efficient by 
+This registers a potential testCluster named `somecluster` and provides a provider instance, but doesn't create it yet nor configures it. This makes the gradle configuration phase more efficient by
 doing less.
 
 To wire this registered cluster into a `TestClusterAware` task (e.g. `RestIntegTest`) you can resolve the actual cluster from the provider instance:
@@ -170,9 +170,9 @@ To test an unreleased development version of a third party dependency you have s
 
 #### How to use a maven built based third party dependency with jitpack repository?
 
-https://jitpack.io is an adhoc repository that supports building maven projects transparently in the background when 
+https://jitpack.io is an adhoc repository that supports building maven projects transparently in the background when
 resolving unreleased snapshots from a github repository. This approach also works as temporally solution
-and is compliant with our CI builds. 
+and is compliant with our CI builds.
 
 1. Add the JitPack repository to the root build file:
 
@@ -190,11 +190,11 @@ dependencies {
 }
 ```
 
-As version you could also use a certain short commit hash or `master-SNAPSHOT`.
+As version you could also use a certain short commit hash or `main-SNAPSHOT`.
 In addition to snapshot builds JitPack supports building Pull Requests. Simply use PR<NR>-SNAPSHOT as the version.
 
-3. Run the gradle build as needed. Keep in mind the initial resolution might take a bit longer as this needs to be built 
-by JitPack in the background before we can resolve the adhoc built dependency. 
+3. Run the gradle build as needed. Keep in mind the initial resolution might take a bit longer as this needs to be built
+by JitPack in the background before we can resolve the adhoc built dependency.
 
 ---
 
@@ -213,7 +213,7 @@ a flat directory repository that resolves artifacts from a flat directory on you
 2. Declare a flatDir repository in your root build.gradle file
 
 ```
-allprojects { 
+allprojects {
   repositories {
       flatDir {
           dirs 'localRepo'
@@ -222,9 +222,9 @@ allprojects {
 }
 ```
 
-3. Update the dependency declaration of the artifact in question to match the custom build version. For a file named e.g. `jmxri-1.2.1.jar` the 
+3. Update the dependency declaration of the artifact in question to match the custom build version. For a file named e.g. `jmxri-1.2.1.jar` the
   dependency definition would be `:jmxri:1.2.1` as it comes with no group information:
-  
+
   ```
   dependencies {
       implementation ':jmxri:1.2.1'

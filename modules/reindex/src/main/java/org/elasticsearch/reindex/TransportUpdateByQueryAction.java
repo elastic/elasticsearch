@@ -100,8 +100,8 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
         ) {
             super(
                 task,
-                // use sequence number powered optimistic concurrency control, TODO(stu): no way to access version #55745
-                false,
+                // use sequence number powered optimistic concurrency control unless requested
+                request.getSearchRequest().source() != null && Boolean.TRUE.equals(request.getSearchRequest().source().version()),
                 true,
                 logger,
                 client,

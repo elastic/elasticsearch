@@ -122,22 +122,22 @@ public class MetricFieldProducerTests extends AggregatorTestCase {
     public void testCounterMetricFieldProducer() {
         MetricFieldProducer producer = new MetricFieldProducer.CounterMetricFieldProducer("field");
         assertTrue(producer.isEmpty());
-        producer.collectMetric(55.0);
-        producer.collectMetric(12.2);
-        producer.collectMetric(5.5);
+        producer.collect(55.0);
+        producer.collect(12.2);
+        producer.collect(5.5);
 
         assertFalse(producer.isEmpty());
         Object o = producer.value();
         assertEquals(55.0, o);
-        assertEquals("field", producer.field());
+        assertEquals("field", producer.name());
     }
 
     public void testGaugeMetricFieldProducer() {
         MetricFieldProducer producer = new MetricFieldProducer.GaugeMetricFieldProducer("field");
         assertTrue(producer.isEmpty());
-        producer.collectMetric(55.0);
-        producer.collectMetric(12.2);
-        producer.collectMetric(5.5);
+        producer.collect(55.0);
+        producer.collect(12.2);
+        producer.collect(5.5);
 
         assertFalse(producer.isEmpty());
         Object o = producer.value();
@@ -148,7 +148,7 @@ public class MetricFieldProducerTests extends AggregatorTestCase {
         } else {
             fail("Value is not a Map");
         }
-        assertEquals("field", producer.field());
+        assertEquals("field", producer.name());
     }
 
     public void testBuildMetricProducers() {

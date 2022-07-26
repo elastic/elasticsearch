@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.indices.rollover;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -24,7 +25,6 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexAliasesService;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
-import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -99,7 +99,8 @@ public class MetadataRolloverService {
         List<Condition<?>> metConditions,
         Instant now,
         boolean silent,
-        boolean onlyValidate
+        boolean onlyValidate,
+        ActionListener<Void> rerouteListener
     ) throws Exception {
         validate(currentState.metadata(), rolloverTarget, newIndexName, createIndexRequest);
         final IndexAbstraction indexAbstraction = currentState.metadata().getIndicesLookup().get(rolloverTarget);
@@ -112,7 +113,8 @@ public class MetadataRolloverService {
                 createIndexRequest,
                 metConditions,
                 silent,
-                onlyValidate
+                onlyValidate,
+                rerouteListener
             );
             case DATA_STREAM -> rolloverDataStream(
                 currentState,
@@ -122,7 +124,8 @@ public class MetadataRolloverService {
                 metConditions,
                 now,
                 silent,
-                onlyValidate
+                onlyValidate,
+                rerouteListener
             );
             default ->
                 // the validate method above prevents this case
@@ -180,7 +183,8 @@ public class MetadataRolloverService {
         CreateIndexRequest createIndexRequest,
         List<Condition<?>> metConditions,
         boolean silent,
-        boolean onlyValidate
+        boolean onlyValidate,
+        ActionListener<Void> rerouteListener
     ) throws Exception {
         final NameResolution names = resolveAliasRolloverNames(currentState.metadata(), alias, newIndexName);
         final String sourceIndexName = names.sourceName;
@@ -208,7 +212,7 @@ public class MetadataRolloverService {
             currentState,
             createIndexClusterStateRequest,
             silent,
-            DesiredBalanceShardsAllocator.REMOVE_ME
+            rerouteListener
         );
         newState = indexAliasesService.applyAliasActions(
             newState,
@@ -234,7 +238,8 @@ public class MetadataRolloverService {
         List<Condition<?>> metConditions,
         Instant now,
         boolean silent,
-        boolean onlyValidate
+        boolean onlyValidate,
+        ActionListener<Void> rerouteListener
     ) throws Exception {
 
         if (SnapshotsService.snapshottingDataStreams(currentState, Collections.singleton(dataStream.getName())).isEmpty() == false) {
@@ -287,7 +292,7 @@ public class MetadataRolloverService {
             (builder, indexMetadata) -> builder.put(
                 ds.rollover(indexMetadata.getIndex(), newGeneration, metadata.isTimeSeriesTemplate(templateV2))
             ),
-            DesiredBalanceShardsAllocator.REMOVE_ME
+            rerouteListener
         );
 
         RolloverInfo rolloverInfo = new RolloverInfo(dataStreamName, metConditions, threadPool.absoluteTimeInMillis());

@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -332,7 +333,8 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                     metConditions,
                     Instant.now(),
                     false,
-                    false
+                    false,
+                    DesiredBalanceShardsAllocator.REMOVE_ME
                 );
                 results.add(rolloverResult);
                 logger.trace("rollover result [{}]", rolloverResult);

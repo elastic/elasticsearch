@@ -17,7 +17,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -81,17 +80,17 @@ public final class BulkUpdateApiKeyResponse extends ActionResponse implements To
             errorDetails = new HashMap<>();
         }
 
-        public Builder addUpdated(final String id) {
+        public Builder update(final String id) {
             updated.add(id);
             return this;
         }
 
-        public Builder addNoop(final String id) {
+        public Builder noop(final String id) {
             noops.add(id);
             return this;
         }
 
-        public Builder addError(final String id, final ElasticsearchException ex) {
+        public Builder error(final String id, final ElasticsearchException ex) {
             errorDetails.put(id, ex);
             return this;
         }

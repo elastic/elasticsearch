@@ -780,7 +780,7 @@ public class SecurityTests extends ESTestCase {
                 null,
                 usageService,
                 null,
-                Tracer.NOOP
+                Tracer.NOOP,
                 mock(ClusterService.class),
                 List.of()
             );

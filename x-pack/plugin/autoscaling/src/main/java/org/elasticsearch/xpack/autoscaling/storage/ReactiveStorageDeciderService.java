@@ -408,14 +408,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             IndexMetadata indexMetadata = indexMetadata(shard, allocation);
             Set<Decision.Type> decisionTypes = allocation.routingNodes()
                 .stream()
-                .map(
-                    node -> DataTierAllocationDecider.shouldFilter(
-                        indexMetadata,
-                        node.node().getRoles(),
-                        this::highestPreferenceTier,
-                        allocation
-                    )
-                )
+                .map(node -> DataTierAllocationDecider.shouldFilter(indexMetadata, node.node(), this::highestPreferenceTier, allocation))
                 .map(Decision::type)
                 .collect(Collectors.toSet());
             if (decisionTypes.contains(Decision.Type.NO)) {

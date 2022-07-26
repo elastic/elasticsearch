@@ -104,7 +104,7 @@ public class CtxMap extends AbstractMap<String, Object> {
         return oldSource;
     }
 
-    @SuppressWarnings({"unchecked", "raw"})
+    @SuppressWarnings({ "unchecked", "raw" })
     private static Map<String, Object> castSourceMap(Object value) {
         return (Map<String, Object>) value;
     }

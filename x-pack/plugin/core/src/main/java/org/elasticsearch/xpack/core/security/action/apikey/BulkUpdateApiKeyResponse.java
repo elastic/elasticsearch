@@ -47,14 +47,6 @@ public final class BulkUpdateApiKeyResponse extends ActionResponse implements To
         return updated;
     }
 
-    public List<String> getNoops() {
-        return noops;
-    }
-
-    public Map<String, ElasticsearchException> getErrorDetails() {
-        return errorDetails;
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject().stringListField("updated", updated).stringListField("noops", noops);

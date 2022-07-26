@@ -17,6 +17,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyResponse;
@@ -28,12 +29,14 @@ import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 
 import java.util.Set;
 
-public final class TransportUpdateApiKeyAction extends TransportBaseUpdateApiKeyAction<UpdateApiKeyRequest, UpdateApiKeyResponse> {
+public final class TransportBulkUpdateApiKeyAction extends TransportBaseUpdateApiKeyAction<
+    BulkUpdateApiKeyRequest,
+    BulkUpdateApiKeyResponse> {
 
     private final ApiKeyService apiKeyService;
 
     @Inject
-    public TransportUpdateApiKeyAction(
+    public TransportBulkUpdateApiKeyAction(
         final TransportService transportService,
         final ActionFilters actionFilters,
         final ApiKeyService apiKeyService,
@@ -42,10 +45,10 @@ public final class TransportUpdateApiKeyAction extends TransportBaseUpdateApiKey
         final NamedXContentRegistry xContentRegistry
     ) {
         super(
-            UpdateApiKeyAction.NAME,
+            BulkUpdateApiKeyAction.NAME,
             transportService,
             actionFilters,
-            UpdateApiKeyRequest::new,
+            BulkUpdateApiKeyRequest::new,
             apiKeyService,
             context,
             rolesStore,
@@ -56,11 +59,11 @@ public final class TransportUpdateApiKeyAction extends TransportBaseUpdateApiKey
 
     @Override
     void doUpdate(
-        final UpdateApiKeyRequest request,
-        final ActionListener<UpdateApiKeyResponse> listener,
+        final BulkUpdateApiKeyRequest request,
+        final ActionListener<BulkUpdateApiKeyResponse> listener,
         final Authentication authentication,
         final Set<RoleDescriptor> roleDescriptors
     ) {
-        apiKeyService.updateApiKey(authentication, request, roleDescriptors, listener);
+        apiKeyService.bulkUpdateApiKeys(authentication, request, roleDescriptors, listener);
     }
 }

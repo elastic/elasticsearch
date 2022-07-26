@@ -630,7 +630,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
         cancelPollingClusterFormationInfo();
         ConcurrentMap<DiscoveryNode, ClusterFormationStateOrException> responses = new ConcurrentHashMap<>();
         List<Scheduler.Cancellable> cancellables = new CopyOnWriteArrayList<>();
-        beginPollingClusterFormationInfo(getMasterEligibleNodes(), responses::put, cancellables::add);
+        beginPollingClusterFormationInfo(getMasterEligibleNodes(), responses::put, cancellables);
         clusterFormationResponses = responses;
         clusterFormationInfoTasks = cancellables;
     }
@@ -640,20 +640,20 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
      * repeats doing that until cancel() is called on all of the Cancellable that this method inserts into cancellables. This method
      * exists (rather than being just part of the beginPollingClusterFormationInfo() above) in order to facilitate unit testing.
      * @param nodeResponseConsumer A consumer for any results produced for a node by this method
-     * @param cancellableConsumer A consumer for any Cancellable tasks produced by this method
+     * @param cancellables A consumer for any Cancellable tasks produced by this method
      */
     // Non-private for testing
     void beginPollingClusterFormationInfo(
         Collection<DiscoveryNode> masterEligibleNodes,
         BiConsumer<DiscoveryNode, ClusterFormationStateOrException> nodeResponseConsumer,
-        Consumer<Scheduler.Cancellable> cancellableConsumer
+        List<Scheduler.Cancellable> cancellables
     ) {
         masterEligibleNodes.forEach(masterEligibleNode -> {
             Consumer<ClusterFormationStateOrException> responseConsumer = result -> nodeResponseConsumer.accept(masterEligibleNode, result);
-            cancellableConsumer.accept(
+            cancellables.add(
                 fetchClusterFormationInfo(
                     masterEligibleNode,
-                    responseConsumer.andThen(rescheduleFetchConsumer(masterEligibleNode, responseConsumer, cancellableConsumer))
+                    responseConsumer.andThen(rescheduleFetchConsumer(masterEligibleNode, responseConsumer, cancellables))
                 )
             );
         });
@@ -664,30 +664,36 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
      * completed, adding the resulting Cancellable to cancellableConsumer.
      * @param masterEligibleNode The node being polled
      * @param responseConsumer The response consumer to be wrapped
-     * @param cancellableConsumer The list of Cancellables
+     * @param cancellables The list of Cancellables
      * @return
      */
     private Consumer<CoordinationDiagnosticsService.ClusterFormationStateOrException> rescheduleFetchConsumer(
         DiscoveryNode masterEligibleNode,
         Consumer<CoordinationDiagnosticsService.ClusterFormationStateOrException> responseConsumer,
-        Consumer<Scheduler.Cancellable> cancellableConsumer
+        List<Scheduler.Cancellable> cancellables
     ) {
         return response -> {
-            cancellableConsumer.accept(
-                fetchClusterFormationInfo(
-                    masterEligibleNode,
-                    responseConsumer.andThen(rescheduleFetchConsumer(masterEligibleNode, responseConsumer, cancellableConsumer))
-                )
-            );
+            if (clusterFormationInfoTasks != null) {
+                if (clusterFormationInfoTasks.equals(cancellables)) {
+                    cancellables.add(
+                        fetchClusterFormationInfo(
+                            masterEligibleNode,
+                            responseConsumer.andThen(rescheduleFetchConsumer(masterEligibleNode, responseConsumer, cancellables))
+                        )
+                    );
+                } else {
+                   cancellables.forEach(Scheduler.Cancellable::cancel);
+                }
+            }
         };
     }
 
     private void cancelPollingClusterFormationInfo() {
         assert ThreadPool.assertCurrentThreadPool(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME);
-        if (clusterFormationResponses != null) {
+        if (clusterFormationInfoTasks != null) {
             clusterFormationInfoTasks.forEach(Scheduler.Cancellable::cancel);
-            clusterFormationResponses = null;
             clusterFormationInfoTasks = null;
+            clusterFormationResponses = null;
         }
     }
 

@@ -39,6 +39,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
@@ -926,7 +927,7 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
                 node.coordinationDiagnosticsService.beginPollingClusterFormationInfo(
                     masterNodes,
                     nodeToClusterFormationStateMap::put,
-                    cancellable -> {}
+                    new CopyOnWriteArrayList<>()
                 );
 
                 cluster.runRandomly(false, true, EXTREME_DELAY_VARIABILITY);
@@ -1006,7 +1007,7 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
                 node.coordinationDiagnosticsService.beginPollingClusterFormationInfo(
                     masterNodes,
                     nodeToClusterFormationStateMap::put,
-                    cancellables::add
+                    cancellables
                 );
                 cancellables.forEach(Scheduler.Cancellable::cancel); // This is what will most often happen in practice
                 cluster.runRandomly(false, true, EXTREME_DELAY_VARIABILITY);

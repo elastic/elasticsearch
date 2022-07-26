@@ -390,7 +390,7 @@ public class ApiKeyService {
             validateForUpdate(apiKeyId, authentication, versionedDoc.doc());
 
             doUpdateApiKey(authentication, request, userRoleDescriptors, versionedDoc, listener);
-        }, listener::onFailure));
+        }, ex -> listener.onFailure(traceLog("update", ex))));
     }
 
     public void bulkUpdateApiKeys(
@@ -433,6 +433,7 @@ public class ApiKeyService {
                 );
                 final boolean isNoop = indexRequest == null;
                 if (isNoop) {
+                    logger.debug("Detected noop update request for API key [{}]. Skipping index request.", versionedDoc.id());
                     responseBuilder.addNoop(versionedDoc.id());
                 } else {
                     requestBuilder.add(indexRequest);
@@ -1173,14 +1174,14 @@ public class ApiKeyService {
         }
         logger.trace("Executing bulk request to update API key [{}]", currentVersionedDoc.id());
         securityIndex.prepareIndexIfNeededThenExecute(
-            listener::onFailure,
+            ex -> listener.onFailure(traceLog("prepare security index before update", ex)),
             () -> executeAsyncWithOrigin(
                 client.threadPool().getThreadContext(),
                 SECURITY_ORIGIN,
                 client.prepareBulk().add(indexRequest).setRefreshPolicy(RefreshPolicy.WAIT_UNTIL).request(),
                 ActionListener.<BulkResponse>wrap(
                     bulkResponse -> translateResponseAndClearCache(request.getId(), bulkResponse, listener),
-                    listener::onFailure
+                    ex -> listener.onFailure(traceLog("execute bulk request for update", ex))
                 ),
                 client::bulk
             )

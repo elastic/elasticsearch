@@ -65,6 +65,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
@@ -345,7 +346,7 @@ public class ReservedLifecycleStateServiceTests extends ESTestCase {
             controller.process("operator", parser, (e) -> x.set(e));
 
             assertTrue(x.get() instanceof IllegalStateException);
-            assertEquals("Error processing state change request for operator", x.get().getMessage());
+            assertThat(x.get().getMessage(), containsString("Error processing state change request for operator"));
         }
 
         Client client = mock(Client.class);
@@ -410,7 +411,7 @@ public class ReservedLifecycleStateServiceTests extends ESTestCase {
         controller.process("operator", pack, (e) -> x.set(e));
 
         assertTrue(x.get() instanceof IllegalStateException);
-        assertEquals("Error processing state change request for operator", x.get().getMessage());
+        assertThat(x.get().getMessage(), containsString("Error processing state change request for operator"));
 
         Client client = mock(Client.class);
         when(client.settings()).thenReturn(Settings.EMPTY);

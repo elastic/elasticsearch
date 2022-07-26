@@ -18,7 +18,7 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
-public class AbstractKeywordDocValuesField extends AbstractScriptFieldFactory<String>
+public abstract class BaseKeywordDocValuesField extends AbstractScriptFieldFactory<String>
     implements
         Field<String>,
         DocValuesScriptFieldFactory,
@@ -34,7 +34,7 @@ public class AbstractKeywordDocValuesField extends AbstractScriptFieldFactory<St
     // as a delegate to this field class
     protected ScriptDocValues.Strings strings = null;
 
-    public AbstractKeywordDocValuesField(SortedBinaryDocValues input, String name) {
+    public BaseKeywordDocValuesField(SortedBinaryDocValues input, String name) {
         this.input = input;
         this.name = name;
     }

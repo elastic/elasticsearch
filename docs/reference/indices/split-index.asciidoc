@@ -163,9 +163,10 @@ for efficient file copying.
 [IMPORTANT]
 =====================================
 
-Hard links are not supported in Elasticsearch versions < 7.11.  When Split Index API
-is run on these earlier versions, it will not be able to reuse segments for efficiency 
-and require copying of full segment files with disk usage and IO implications.
+Hard links are not supported in Elasticsearch versions < 7.11 for quota aware file systems 
+like `xfs` in Elastic Cloud. When Split Index API is run on these earlier versions, 
+it will not be able to reuse segments for efficiency and require copying of full segment files 
+with disk usage and IO implications.
 
 =====================================
 

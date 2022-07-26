@@ -16,14 +16,14 @@ is not recommended to change any of these from their default values.
 a master at all, before moving on with other checks. Defaults to `30s` (30 seconds).
 
 `master_history.max_age`::
-(<<static-cluster-setting,Static>>) The maximum amount of time that the master history is kept in memory
-for use in the health diagnostic. Master node changes older than this time will not be considered in the
-health diagnostic calculations. Defaults to `30m` (30 minutes).
+(<<static-cluster-setting,Static>>) The timeframe we record the master history 
+to be used for diagnosing the cluster health. Master node changes older than this time will not be considered when
+diagnosing the cluster health. Defaults to `30m` (30 minutes).
 
 `health.master_history.identity_changes_threshold`::
-(<<static-cluster-setting,Static>>) The number of times that it is _not_ OK to have a master change identity
-to another node. This many changes or more will be reported as a unhealthy. Defaults to `4`.
+(<<static-cluster-setting,Static>>) The number of master identity changes witnessed by a node that indicates the cluster is not healthy.
+Defaults to `4`.
 
 `health.master_history.no_master_transitions_threshold`::
 (<<static-cluster-setting,Static>>) The number of times that it is _not_ OK to have a master switch to no
-master. This many transitions or more will be reported as unhealthy. Defaults to `4`.
+Defaults to `4`.

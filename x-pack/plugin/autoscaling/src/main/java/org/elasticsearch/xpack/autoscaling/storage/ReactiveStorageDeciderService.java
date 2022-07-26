@@ -928,10 +928,12 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             return assignedShardIds;
         }
 
+        @Nullable
         public ShardAllocationDecision unassignedShardAllocateDecision() {
             return unassignedShardAllocateDecision;
         }
 
+        @Nullable
         public ShardAllocationDecision assignedShardAllocateDecision() {
             return assignedShardAllocateDecision;
         }

@@ -11,7 +11,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.rollup.RollupActionConfig;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -72,7 +71,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
     // keeping the migrate action disabled as otherwise it could conflict with the allocate action if both are randomly selected for the
     // same phase
     private static final MigrateAction TEST_MIGRATE_ACTION = MigrateAction.DISABLED;
-    private static final RollupILMAction TEST_ROLLUP_ACTION = new RollupILMAction(new RollupActionConfig(DateHistogramInterval.DAY), null);
+    private static final RollupILMAction TEST_ROLLUP_ACTION = new RollupILMAction(DateHistogramInterval.DAY);
 
     public void testValidatePhases() {
         boolean invalid = randomBoolean();

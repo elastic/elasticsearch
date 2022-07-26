@@ -180,7 +180,7 @@ public class RestControllerTests extends ESTestCase {
         });
         AssertingChannel channel = new AssertingChannel(fakeRequest, false, RestStatus.BAD_REQUEST);
         restController.dispatchRequest(fakeRequest, channel, threadContext);
-        verify(tracer).onTraceStarted(
+        verify(tracer).startTrace(
             eq(threadContext),
             eq("rest-" + channel.request().getRequestId()),
             eq("GET /"),

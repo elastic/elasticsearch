@@ -8,7 +8,6 @@
 
 package org.elasticsearch.gradle.internal.release;
 
-import org.elasticsearch.gradle.internal.test.GradleUnitTestCase;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -17,6 +16,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
 
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -32,7 +32,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-public class GenerateReleaseNotesTaskTest extends GradleUnitTestCase {
+public class GenerateReleaseNotesTaskTest {
     private GitWrapper gitWrapper;
 
     @Before

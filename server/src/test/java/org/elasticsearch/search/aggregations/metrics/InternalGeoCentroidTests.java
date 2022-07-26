@@ -84,7 +84,7 @@ public class InternalGeoCentroidTests extends InternalAggregationTestCase<Intern
         GeoPoint centroid = instance.centroid();
         long count = instance.count();
         Map<String, Object> metadata = instance.getMetadata();
-        switch (between(0, 2)) {
+        switch (between(0, 3)) {
             case 0:
                 name += randomAlphaOfLength(5);
                 break;

@@ -17,7 +17,6 @@ import com.fasterxml.jackson.databind.node.TextNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.dataformat.yaml.YAMLParser;
 
-import org.elasticsearch.gradle.internal.test.GradleUnitTestCase;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.core.IsCollectionContaining;
 import org.junit.Test;
@@ -33,7 +32,11 @@ import java.util.Map;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.stream.Collectors;
 
-public class InjectHeaderTests extends GradleUnitTestCase {
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
+
+public class InjectHeaderTests {
 
     private static final YAMLFactory yaml = new YAMLFactory();
     private static final ObjectMapper mapper = new ObjectMapper(yaml);

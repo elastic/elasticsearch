@@ -26,10 +26,14 @@ import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
+import org.elasticsearch.cluster.routing.allocation.MoveDecision;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -50,6 +54,7 @@ import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderContext;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderResult;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 import org.junit.Before;
+import org.mockito.Mockito;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -75,6 +80,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * Test the higher level parts of {@link ReactiveStorageDeciderService} that all require a similar setup.
@@ -403,7 +409,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         AllocationDecider... allocationDeciders
     ) {
         ReactiveStorageDeciderService.AllocationState allocationState = new ReactiveStorageDeciderService.AllocationState(
-            createContext(state, Set.of(role)),
+            createContext(state, Set.of(role), mock(AllocationService.class)),
             DISK_THRESHOLD_SETTINGS,
             createAllocationDeciders(allocationDeciders)
         );
@@ -420,7 +426,24 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             createAllocationDeciders(allocationDeciders)
         );
-        TestAutoscalingDeciderContext context = createContext(state, Set.of(DiscoveryNodeRole.DATA_HOT_NODE_ROLE));
+        AllocationService allocationService = mock(AllocationService.class);
+        TestAutoscalingDeciderContext context = createContext(state, Set.of(DiscoveryNodeRole.DATA_HOT_NODE_ROLE), allocationService);
+        SortedSet<ShardRouting> assignedShards = decider.allocationState(context).storagePreventsRemainOrMove().shards();
+        if (assignedShards.size() > 0) {
+            when(allocationService.explainShardAllocation(assignedShards.first(), Mockito.any(RoutingAllocation.class))).thenReturn(
+                new ShardAllocationDecision(AllocateUnassignedDecision.NOT_TAKEN, MoveDecision.stay(Decision.YES))
+            );
+        }
+        SortedSet<ShardRouting> unassignedShards = decider.allocationState(context).storagePreventsAllocation().shards();
+        if (unassignedShards.size() > 0) {
+            when(allocationService.explainShardAllocation(unassignedShards.first(), Mockito.any(RoutingAllocation.class))).thenReturn(
+                new ShardAllocationDecision(
+                    AllocateUnassignedDecision.no(UnassignedInfo.AllocationStatus.DECIDERS_NO, List.of(), false),
+                    MoveDecision.NOT_TAKEN
+                )
+            );
+        }
+
         AutoscalingDeciderResult result = decider.scale(Settings.EMPTY, context);
         ReactiveStorageDeciderService.ReactiveReason resultReason = (ReactiveStorageDeciderService.ReactiveReason) result.reason();
 
@@ -432,11 +455,29 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
             assertThat(resultReason.summary(), equalTo(reason));
             assertThat(resultReason.unassignedShardIds(), equalTo(decider.allocationState(context).storagePreventsAllocation().shardIds()));
             assertThat(resultReason.assignedShardIds(), equalTo(decider.allocationState(context).storagePreventsRemainOrMove().shardIds()));
+            assertThat(
+                resultReason.assignedShardAllocateDecision(),
+                equalTo(
+                    assignedShards.size() > 0
+                        ? new ShardAllocationDecision(AllocateUnassignedDecision.NOT_TAKEN, MoveDecision.stay(Decision.YES))
+                        : null
+                )
+            );
+            assertThat(
+                resultReason.unassignedShardAllocateDecision(),
+                equalTo(
+                    unassignedShards.size() > 0
+                        ? AllocateUnassignedDecision.no(UnassignedInfo.AllocationStatus.DECIDERS_NO, List.of(), false)
+                        : null
+                )
+            );
         } else {
             assertThat(result.requiredCapacity(), is(nullValue()));
             assertThat(resultReason.summary(), equalTo("current capacity not available"));
             assertThat(resultReason.unassignedShardIds(), equalTo(Set.of()));
             assertThat(resultReason.assignedShardIds(), equalTo(Set.of()));
+            assertThat(resultReason.unassignedShardAllocateDecision(), is(nullValue()));
+            assertThat(resultReason.assignedShardAllocateDecision(), is(nullValue()));
         }
     }
 
@@ -542,8 +583,12 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         });
     }
 
-    private static TestAutoscalingDeciderContext createContext(ClusterState state, Set<DiscoveryNodeRole> roles) {
-        return new TestAutoscalingDeciderContext(state, roles, randomCurrentCapacity(), mock(AllocationService.class));
+    private static TestAutoscalingDeciderContext createContext(
+        ClusterState state,
+        Set<DiscoveryNodeRole> roles,
+        AllocationService allocationService
+    ) {
+        return new TestAutoscalingDeciderContext(state, roles, randomCurrentCapacity(), allocationService);
     }
 
     static AutoscalingCapacity randomCurrentCapacity() {

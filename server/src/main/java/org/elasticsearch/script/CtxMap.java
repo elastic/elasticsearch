@@ -159,7 +159,10 @@ public class CtxMap extends AbstractMap<String, Object> {
     public boolean containsKey(Object key) {
         // uses map directly to avoid AbstractMaps linear time implementation using entrySet()
         if (key instanceof String str) {
-            return metadata.containsKey(str) || directSourceAccess() ? source.containsKey(key) : SOURCE.equals(key);
+            if (metadata.isAvailable(str)) {
+                return metadata.containsKey(str);
+            }
+            return directSourceAccess() ? source.containsKey(key) : SOURCE.equals(key);
         }
         return false;
     }

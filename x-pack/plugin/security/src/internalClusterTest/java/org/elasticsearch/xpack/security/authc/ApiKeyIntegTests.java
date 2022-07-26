@@ -1654,7 +1654,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
         final var roleDescriptor = new RoleDescriptor(randomAlphaOfLength(10), new String[] { "manage_own_api_key" }, null, null);
         final var request = new UpdateApiKeyRequest(apiKeyId, List.of(roleDescriptor), ApiKeyTests.randomMetadata());
-        PlainActionFuture<UpdateApiKeyResponse> updateListener = new PlainActionFuture<>();
+        final PlainActionFuture<UpdateApiKeyResponse> updateListener = new PlainActionFuture<>();
         client().filterWithHeader(
             Collections.singletonMap(
                 "Authorization",
@@ -1687,13 +1687,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             assertThat(expirationDateUpdatedResponse.getResult(), is(DocWriteResponse.Result.UPDATED));
         }
 
-        updateListener = new PlainActionFuture<>();
-        final Client client = client().filterWithHeader(
-            Collections.singletonMap("Authorization", basicAuthHeaderValue(TEST_USER_NAME, TEST_PASSWORD_SECURE_STRING))
-        );
-        client.execute(UpdateApiKeyAction.INSTANCE, request, updateListener);
-        final var ex = expectThrows(ExecutionException.class, updateListener::get);
-
+        final var ex = expectThrows(Exception.class, () -> executeUpdateApiKey(TEST_USER_NAME, request));
         assertThat(ex.getCause(), instanceOf(IllegalArgumentException.class));
         if (invalidated) {
             assertThat(ex.getMessage(), containsString("cannot update invalidated API key [" + apiKeyId + "]"));
@@ -2345,7 +2339,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
     private UpdateApiKeyResponse executeUpdateApiKey(final String username, final UpdateApiKeyRequest request) throws ExecutionException,
         InterruptedException {
-        return executeUpdateApiKey(username, request, true);
+        return executeUpdateApiKey(username, request, randomBoolean());
     }
 
     private UpdateApiKeyResponse executeUpdateApiKey(final String username, final UpdateApiKeyRequest request, final boolean useBulkRoute)

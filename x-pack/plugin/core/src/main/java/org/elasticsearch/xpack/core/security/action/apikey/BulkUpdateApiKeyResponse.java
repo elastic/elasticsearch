@@ -17,35 +17,31 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
-// TODO consider builder
 public final class BulkUpdateApiKeyResponse extends ActionResponse implements ToXContentObject, Writeable {
     private final List<String> updated;
     private final List<String> noops;
+    private final Map<String, ElasticsearchException> errorDetails;
 
-    // TODO
-    private final List<ElasticsearchException> errors;
-
-    public BulkUpdateApiKeyResponse() {
-        this.updated = new ArrayList<>();
-        this.noops = new ArrayList<>();
-        this.errors = new ArrayList<>();
-    }
-
-    public BulkUpdateApiKeyResponse(final List<String> updated, final List<String> noops, final List<ElasticsearchException> errors) {
+    public BulkUpdateApiKeyResponse(
+        final List<String> updated,
+        final List<String> noops,
+        final Map<String, ElasticsearchException> errorDetails
+    ) {
         this.updated = updated;
         this.noops = noops;
-        this.errors = errors;
+        this.errorDetails = errorDetails;
     }
 
     public BulkUpdateApiKeyResponse(StreamInput in) throws IOException {
         super(in);
         this.updated = in.readStringList();
         this.noops = in.readStringList();
-        this.errors = in.readList(StreamInput::readException);
+        this.errorDetails = in.readMap(StreamInput::readString, StreamInput::readException);
     }
 
     public List<String> getUpdated() {
@@ -56,22 +52,8 @@ public final class BulkUpdateApiKeyResponse extends ActionResponse implements To
         return noops;
     }
 
-    public List<ElasticsearchException> getErrors() {
-        return errors;
-    }
-
-    // TODO builder?
-
-    public void addToUpdated(final String id) {
-        updated.add(id);
-    }
-
-    public void addToNoops(final String id) {
-        noops.add(id);
-    }
-
-    public void addToErrors(final String id, final ElasticsearchException ex) {
-        errors.add(ex);
+    public Map<String, ElasticsearchException> getErrorDetails() {
+        return errorDetails;
     }
 
     @Override
@@ -82,6 +64,41 @@ public final class BulkUpdateApiKeyResponse extends ActionResponse implements To
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         throw new UnsupportedOperationException();
+    }
+
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    public static class Builder {
+        private final List<String> updated;
+        private final List<String> noops;
+        private final Map<String, ElasticsearchException> errorDetails;
+
+        public Builder() {
+            updated = new ArrayList<>();
+            noops = new ArrayList<>();
+            errorDetails = new HashMap<>();
+        }
+
+        public Builder addUpdated(final String id) {
+            updated.add(id);
+            return this;
+        }
+
+        public Builder addNoop(final String id) {
+            noops.add(id);
+            return this;
+        }
+
+        public Builder addError(final String id, final ElasticsearchException ex) {
+            errorDetails.put(id, ex);
+            return this;
+        }
+
+        public BulkUpdateApiKeyResponse build() {
+            return new BulkUpdateApiKeyResponse(updated, noops, errorDetails);
+        }
     }
 
 }

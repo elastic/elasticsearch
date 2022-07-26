@@ -98,8 +98,7 @@ public class ApmIT extends ESRestTestCase {
             final List<Map<String, Object>> documents = searchByParentId(transactionId.get());
             assertThat(documents, not(empty()));
 
-            final Map<String, Object> spansByName = documents.stream()
-                .collect(Collectors.toMap(d -> pluck(d, "span.name"), d -> d));
+            final Map<String, Object> spansByName = documents.stream().collect(Collectors.toMap(d -> pluck(d, "span.name"), d -> d));
 
             assertThat(spansByName, hasKey("cluster:monitor/nodes/stats"));
 
@@ -117,8 +116,7 @@ public class ApmIT extends ESRestTestCase {
             final List<Map<String, Object>> documents = searchByParentId(monitorNodeStatsSpanId.get());
             assertThat(documents, not(empty()));
 
-            final Map<String, Object> spansByName = documents.stream()
-                .collect(Collectors.toMap(d -> pluck(d, "span.name"), d -> d));
+            final Map<String, Object> spansByName = documents.stream().collect(Collectors.toMap(d -> pluck(d, "span.name"), d -> d));
 
             assertThat(spansByName, hasKey("cluster:monitor/nodes/stats[n]"));
         }, 1, TimeUnit.MINUTES);
@@ -140,11 +138,11 @@ public class ApmIT extends ESRestTestCase {
     private List<Map<String, Object>> searchByParentId(String parentId) throws IOException {
         final Request searchRequest = new Request("GET", "/" + DATA_STREAM + "/_search");
         searchRequest.setJsonEntity("""
-                {
-                  "query": {
-                     "match": { "parent.id": "%s" }
-                  }
-                }""".formatted(parentId));
+            {
+              "query": {
+                 "match": { "parent.id": "%s" }
+              }
+            }""".formatted(parentId));
         final Response response = performRequestTolerantly(searchRequest);
         assertOK(response);
 

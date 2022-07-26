@@ -34,7 +34,7 @@ public class UpdateCtxMapTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testSourceWrapping() {
         assertThat((Map<String, Object>) map.get("_source"), hasEntry("foo", "bar"));
-        assertEquals("bar", map.getSource().get("foo"));
+        assertThat(map.getSource(), hasEntry("foo", "bar"));
     }
 
     public void testGetters() {

@@ -2232,7 +2232,7 @@ public class IngestServiceTests extends ESTestCase {
         public boolean matches(IngestDocument other) {
             // ingest metadata and IngestCtxMap will not be the same (timestamp differs every time)
             return Objects.equals(ingestDocument.getSource(), other.getSource())
-                && Objects.equals(ingestDocument.getMetadata().asMap(), other.getMetadata().asMap());
+                && Objects.equals(ingestDocument.getMetadata().getMap(), other.getMetadata().getMap());
         }
     }
 

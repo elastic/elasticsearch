@@ -37,7 +37,7 @@ import java.util.stream.Collectors;
  *
  * Validates all updates whether originating in map-like interface or setters.
  */
-public class Metadata implements RestrictedMap {
+public class Metadata {
     protected static final String INDEX = "_index";
     protected static final String ID = "_id";
     protected static final String ROUTING = "_routing";
@@ -239,17 +239,10 @@ public class Metadata implements RestrictedMap {
         return new Metadata(new HashMap<>(map), properties);
     }
 
-    @Override
-    public void clear() {
-        for (String key : keySet()) {
-            remove(key);
-        }
-    }
-
     /**
      * Get the backing map, if modified then the guarantees of this class may not hold
      */
-    public Map<String, Object> asMap() {
+    public Map<String, Object> getMap() {
         return map;
     }
 

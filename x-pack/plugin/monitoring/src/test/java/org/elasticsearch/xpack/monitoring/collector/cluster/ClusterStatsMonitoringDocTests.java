@@ -335,6 +335,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
             null,
             Collections.emptyList(),
             false,
+            false,
             false
         );
         final PluginRuntimeInfo pluginRuntimeInfo = new PluginRuntimeInfo(pluginDescriptor);

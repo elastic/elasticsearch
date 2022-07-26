@@ -414,48 +414,63 @@ public class ApiKeyService {
 
         logger.debug("Bulk updating API keys [{}]", request.getIds().size());
 
-        findVersionedApiKeyDocsForSubject(authentication, request.getIds().toArray(new String[0]), ActionListener.wrap((versionedDocs) -> {
-            final BulkUpdateApiKeyResponse.Builder responseBuilder = BulkUpdateApiKeyResponse.builder();
-            final BulkRequestBuilder requestBuilder = client.prepareBulk();
-            for (VersionedApiKeyDoc versionedDoc : versionedDocs) {
-                try {
-                    validateForUpdate(versionedDoc.id(), authentication, versionedDoc.doc());
-                } catch (IllegalArgumentException ex) {
-                    responseBuilder.error(versionedDoc.id(), new ElasticsearchException("Validation", ex));
-                    continue;
-                }
+        findVersionedApiKeyDocsForSubject(
+            authentication,
+            request.getIds().toArray(new String[0]),
+            ActionListener.wrap(
+                versionedDocs -> bulkUpdateApiKeys(authentication, request, userRoleDescriptors, versionedDocs, listener),
+                ex -> listener.onFailure(traceLog("bulk update", ex))
+            )
+        );
+    }
 
-                final var indexRequest = maybeBuildIndexRequestForUpdate(versionedDoc, authentication, request, userRoleDescriptors);
-                final boolean isNoop = indexRequest == null;
-                if (isNoop) {
-                    logger.debug("Detected noop update request for API key [{}]. Skipping index request.", versionedDoc.id());
-                    responseBuilder.noop(versionedDoc.id());
-                } else {
-                    requestBuilder.add(indexRequest);
-                }
-            }
-            addNotFound(responseBuilder, request.getIds(), versionedDocs);
-            if (requestBuilder.numberOfActions() == 0) {
-                logger.trace("No bulk request execution necessary for API key update");
-                listener.onResponse(responseBuilder.build());
-                return;
+    private void bulkUpdateApiKeys(
+        final Authentication authentication,
+        final BulkUpdateApiKeyRequest request,
+        final Set<RoleDescriptor> userRoleDescriptors,
+        final Collection<VersionedApiKeyDoc> versionedDocsToUpdate,
+        final ActionListener<BulkUpdateApiKeyResponse> listener
+    ) throws IOException {
+        final BulkUpdateApiKeyResponse.Builder responseBuilder = BulkUpdateApiKeyResponse.builder();
+        final BulkRequestBuilder requestBuilder = client.prepareBulk();
+        for (VersionedApiKeyDoc versionedDoc : versionedDocsToUpdate) {
+            try {
+                validateForUpdate(versionedDoc.id(), authentication, versionedDoc.doc());
+            } catch (IllegalArgumentException ex) {
+                responseBuilder.error(versionedDoc.id(), new ElasticsearchException("Validation", ex));
+                continue;
             }
 
-            logger.trace("Executing bulk request to update API keys [{}]", requestBuilder.numberOfActions());
-            securityIndex.prepareIndexIfNeededThenExecute(
-                ex -> listener.onFailure(traceLog("prepare security index before update", ex)),
-                () -> executeAsyncWithOrigin(
-                    client.threadPool().getThreadContext(),
-                    SECURITY_ORIGIN,
-                    requestBuilder.setRefreshPolicy(RefreshPolicy.WAIT_UNTIL).request(),
-                    ActionListener.<BulkResponse>wrap(
-                        bulkResponse -> translateResponseAndClearCache(bulkResponse, responseBuilder, listener),
-                        ex -> listener.onFailure(traceLog("execute bulk request for update", ex))
-                    ),
-                    client::bulk
-                )
-            );
-        }, ex -> listener.onFailure(traceLog("bulk update", ex))));
+            final var indexRequest = maybeBuildIndexRequestForUpdate(versionedDoc, authentication, request, userRoleDescriptors);
+            final boolean isNoop = indexRequest == null;
+            if (isNoop) {
+                logger.debug("Detected noop update request for API key [{}]. Skipping index request.", versionedDoc.id());
+                responseBuilder.noop(versionedDoc.id());
+            } else {
+                requestBuilder.add(indexRequest);
+            }
+        }
+        addNotFound(responseBuilder, request.getIds(), versionedDocsToUpdate);
+        if (requestBuilder.numberOfActions() == 0) {
+            logger.trace("No bulk request execution necessary for API key update");
+            listener.onResponse(responseBuilder.build());
+            return;
+        }
+
+        logger.trace("Executing bulk request to update API keys [{}]", requestBuilder.numberOfActions());
+        securityIndex.prepareIndexIfNeededThenExecute(
+            ex -> listener.onFailure(traceLog("prepare security index before update", ex)),
+            () -> executeAsyncWithOrigin(
+                client.threadPool().getThreadContext(),
+                SECURITY_ORIGIN,
+                requestBuilder.setRefreshPolicy(RefreshPolicy.WAIT_UNTIL).request(),
+                ActionListener.<BulkResponse>wrap(
+                    bulkResponse -> translateResponseAndClearCache(bulkResponse, responseBuilder, listener),
+                    ex -> listener.onFailure(traceLog("execute bulk request for update", ex))
+                ),
+                client::bulk
+            )
+        );
     }
 
     private void addNotFound(

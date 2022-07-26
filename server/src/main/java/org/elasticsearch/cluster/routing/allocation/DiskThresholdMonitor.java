@@ -482,8 +482,8 @@ public class DiskThresholdMonitor {
             checkFinished();
         });
         final ClusterState state = clusterStateSupplier.get();
-        final Set<String> indicesToRelease = state.routingTable()
-            .indicesRouting()
+        final Set<String> indicesToRelease = state.getBlocks()
+            .indices()
             .keySet()
             .stream()
             .filter(index -> state.getBlocks().hasIndexBlock(index, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK))

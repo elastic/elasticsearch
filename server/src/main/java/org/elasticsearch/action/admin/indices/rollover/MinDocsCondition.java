@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.indices.rollover;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -16,19 +17,19 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 
 /**
- * Condition for maximum index docs. Evaluates to <code>true</code>
+ * Condition for minimum index docs. Evaluates to <code>true</code>
  * when the index has at least {@link #value} docs
  */
-public class MaxDocsCondition extends Condition<Long> {
-    public static final String NAME = "max_docs";
+public class MinDocsCondition extends Condition<Long> {
+    public static final String NAME = "min_docs";
 
-    public MaxDocsCondition(Long value) {
-        super(NAME, Type.MAX);
+    public MinDocsCondition(Long value) {
+        super(NAME, Type.MIN);
         this.value = value;
     }
 
-    public MaxDocsCondition(StreamInput in) throws IOException {
-        super(NAME, Type.MAX);
+    public MinDocsCondition(StreamInput in) throws IOException {
+        super(NAME, Type.MIN);
         this.value = in.readLong();
     }
 
@@ -52,11 +53,16 @@ public class MaxDocsCondition extends Condition<Long> {
         return builder.field(NAME, value);
     }
 
-    public static MaxDocsCondition fromXContent(XContentParser parser) throws IOException {
+    public static MinDocsCondition fromXContent(XContentParser parser) throws IOException {
         if (parser.nextToken() == XContentParser.Token.VALUE_NUMBER) {
-            return new MaxDocsCondition(parser.longValue());
+            return new MinDocsCondition(parser.longValue());
         } else {
             throw new IllegalArgumentException("invalid token when parsing " + NAME + " condition: " + parser.currentToken());
         }
+    }
+
+    @Override
+    boolean includedInVersion(Version version) {
+        return version.onOrAfter(Version.V_8_4_0);
     }
 }

@@ -8,9 +8,9 @@
 
 package org.elasticsearch.action.admin.indices.rollover;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -18,20 +18,20 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 
 /**
- * A maximum size-based condition for an index size.
+ * A minimum size-based condition for an index size.
  * Evaluates to <code>true</code> if the index size is at least {@link #value}.
  */
-public class MaxSizeCondition extends Condition<ByteSizeValue> {
-    public static final String NAME = "max_size";
+public class MinSizeCondition extends Condition<ByteSizeValue> {
+    public static final String NAME = "min_size";
 
-    public MaxSizeCondition(ByteSizeValue value) {
-        super(NAME, Type.MAX);
+    public MinSizeCondition(ByteSizeValue value) {
+        super(NAME, Type.MIN);
         this.value = value;
     }
 
-    public MaxSizeCondition(StreamInput in) throws IOException {
-        super(NAME, Type.MAX);
-        this.value = new ByteSizeValue(in.readVLong(), ByteSizeUnit.BYTES);
+    public MinSizeCondition(StreamInput in) throws IOException {
+        super(NAME, Type.MIN);
+        this.value = new ByteSizeValue(in);
     }
 
     @Override
@@ -46,11 +46,7 @@ public class MaxSizeCondition extends Condition<ByteSizeValue> {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        // While we technically could serialize this with value.writeTo(...), that would
-        // require doing the song and dance around backwards compatibility for this value. Since
-        // in this case the deserialized version is not displayed to a user, it's okay to simply use
-        // bytes.
-        out.writeVLong(value.getBytes());
+        value.writeTo(out);
     }
 
     @Override
@@ -58,11 +54,16 @@ public class MaxSizeCondition extends Condition<ByteSizeValue> {
         return builder.field(NAME, value.getStringRep());
     }
 
-    public static MaxSizeCondition fromXContent(XContentParser parser) throws IOException {
+    public static MinSizeCondition fromXContent(XContentParser parser) throws IOException {
         if (parser.nextToken() == XContentParser.Token.VALUE_STRING) {
-            return new MaxSizeCondition(ByteSizeValue.parseBytesSizeValue(parser.text(), NAME));
+            return new MinSizeCondition(ByteSizeValue.parseBytesSizeValue(parser.text(), NAME));
         } else {
             throw new IllegalArgumentException("invalid token when parsing " + NAME + " condition: " + parser.currentToken());
         }
+    }
+
+    @Override
+    boolean includedInVersion(Version version) {
+        return version.onOrAfter(Version.V_8_4_0);
     }
 }

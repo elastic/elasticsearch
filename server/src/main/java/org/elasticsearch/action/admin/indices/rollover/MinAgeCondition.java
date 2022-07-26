@@ -8,35 +8,36 @@
 
 package org.elasticsearch.action.admin.indices.rollover;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
 /**
- * A maximum size-based condition for an index size.
- * Evaluates to <code>true</code> if the index size is at least {@link #value}.
+ * Condition for index minimum age. Evaluates to <code>true</code>
+ * when the index is at least {@link #value} old
  */
-public class MaxSizeCondition extends Condition<ByteSizeValue> {
-    public static final String NAME = "max_size";
+public class MinAgeCondition extends Condition<TimeValue> {
+    public static final String NAME = "min_age";
 
-    public MaxSizeCondition(ByteSizeValue value) {
-        super(NAME, Type.MAX);
+    public MinAgeCondition(TimeValue value) {
+        super(NAME, Type.MIN);
         this.value = value;
     }
 
-    public MaxSizeCondition(StreamInput in) throws IOException {
-        super(NAME, Type.MAX);
-        this.value = new ByteSizeValue(in.readVLong(), ByteSizeUnit.BYTES);
+    public MinAgeCondition(StreamInput in) throws IOException {
+        super(NAME, Type.MIN);
+        this.value = in.readTimeValue();
     }
 
     @Override
-    public Result evaluate(Stats stats) {
-        return new Result(this, stats.indexSize().getBytes() >= value.getBytes());
+    public Result evaluate(final Stats stats) {
+        long indexAge = System.currentTimeMillis() - stats.indexCreated();
+        return new Result(this, this.value.getMillis() <= indexAge);
     }
 
     @Override
@@ -46,11 +47,7 @@ public class MaxSizeCondition extends Condition<ByteSizeValue> {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        // While we technically could serialize this with value.writeTo(...), that would
-        // require doing the song and dance around backwards compatibility for this value. Since
-        // in this case the deserialized version is not displayed to a user, it's okay to simply use
-        // bytes.
-        out.writeVLong(value.getBytes());
+        out.writeTimeValue(value);
     }
 
     @Override
@@ -58,11 +55,16 @@ public class MaxSizeCondition extends Condition<ByteSizeValue> {
         return builder.field(NAME, value.getStringRep());
     }
 
-    public static MaxSizeCondition fromXContent(XContentParser parser) throws IOException {
+    public static MinAgeCondition fromXContent(XContentParser parser) throws IOException {
         if (parser.nextToken() == XContentParser.Token.VALUE_STRING) {
-            return new MaxSizeCondition(ByteSizeValue.parseBytesSizeValue(parser.text(), NAME));
+            return new MinAgeCondition(TimeValue.parseTimeValue(parser.text(), NAME));
         } else {
             throw new IllegalArgumentException("invalid token when parsing " + NAME + " condition: " + parser.currentToken());
         }
+    }
+
+    @Override
+    boolean includedInVersion(Version version) {
+        return version.onOrAfter(Version.V_8_4_0);
     }
 }

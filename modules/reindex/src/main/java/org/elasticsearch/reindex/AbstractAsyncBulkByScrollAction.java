@@ -818,6 +818,8 @@ public abstract class AbstractAsyncBulkByScrollAction<
     public abstract static class ScriptApplier<T extends Metadata>
         implements
             BiFunction<RequestWrapper<?>, ScrollableHitSource.Hit, RequestWrapper<?>> {
+
+        // "index" is the default operation
         protected static final String INDEX = "index";
 
         private final WorkerBulkByScrollTaskState taskWorker;
@@ -887,6 +889,8 @@ public abstract class AbstractAsyncBulkByScrollAction<
             );
         }
 
+        protected abstract void updateRequest(RequestWrapper<?> request, T metadata);
+
         protected RequestWrapper<?> requestFromOp(RequestWrapper<?> request, String op) {
             switch (op) {
                 case "noop" -> {
@@ -906,8 +910,6 @@ public abstract class AbstractAsyncBulkByScrollAction<
                 default -> throw new IllegalArgumentException("Unsupported operation type change from [" + INDEX + "] to [" + op + "]");
             }
         }
-
-        protected abstract void updateRequest(RequestWrapper<?> request, T metadata);
     }
 
     static class ScrollConsumableHitsResponse {

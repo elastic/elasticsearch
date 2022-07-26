@@ -8,23 +8,21 @@
 
 package org.elasticsearch.health.metadata;
 
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.common.unit.RelativeByteSizeValue;
-import org.elasticsearch.test.SimpleDiffableSerializationTestCase;
-import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.test.SimpleDiffableWireSerializationTestCase;
 
-import java.io.IOException;
 import java.util.List;
 
-public class HealthMetadataSerializationTests extends SimpleDiffableSerializationTestCase<Metadata.Custom> {
+public class HealthMetadataSerializationTests extends SimpleDiffableWireSerializationTestCase<ClusterState.Custom> {
 
     @Override
-    protected Metadata.Custom makeTestChanges(Metadata.Custom testInstance) {
+    protected ClusterState.Custom makeTestChanges(ClusterState.Custom testInstance) {
         if (randomBoolean()) {
             return testInstance;
         }
@@ -32,29 +30,24 @@ public class HealthMetadataSerializationTests extends SimpleDiffableSerializatio
     }
 
     @Override
-    protected Writeable.Reader<Diff<Metadata.Custom>> diffReader() {
+    protected Writeable.Reader<Diff<ClusterState.Custom>> diffReader() {
         return HealthMetadata::readDiffFrom;
     }
 
     @Override
-    protected Metadata.Custom doParseInstance(XContentParser parser) throws IOException {
-        return HealthMetadata.fromXContent(parser);
-    }
-
-    @Override
-    protected Writeable.Reader<Metadata.Custom> instanceReader() {
+    protected Writeable.Reader<ClusterState.Custom> instanceReader() {
         return HealthMetadata::new;
     }
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(
-            List.of(new NamedWriteableRegistry.Entry(Metadata.Custom.class, HealthMetadata.TYPE, HealthMetadata::new))
+            List.of(new NamedWriteableRegistry.Entry(ClusterState.Custom.class, HealthMetadata.TYPE, HealthMetadata::new))
         );
     }
 
     @Override
-    protected Metadata.Custom createTestInstance() {
+    protected ClusterState.Custom createTestInstance() {
         return randomHealthMetadata();
     }
 

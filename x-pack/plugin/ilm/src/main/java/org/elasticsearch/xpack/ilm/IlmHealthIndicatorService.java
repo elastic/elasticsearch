@@ -24,7 +24,6 @@ import java.util.Map;
 
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
-import static org.elasticsearch.health.ServerHealthComponents.DATA;
 
 /**
  * This indicator reports health for index lifecycle management component.
@@ -58,11 +57,6 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
     @Override
     public String name() {
         return NAME;
-    }
-
-    @Override
-    public String component() {
-        return DATA;
     }
 
     @Override

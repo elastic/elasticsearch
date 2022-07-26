@@ -262,7 +262,10 @@ public class DiskThresholdSettings {
     }
 
     /**
-     * Validates that low, high and flood stage max headrooms adhere to the comparison: flood &lt; high &lt; low. Else, throws an exception.
+     * Validates that low, high and flood stage max headrooms adhere to the comparison: flood &lt; high &lt; low.
+     * Also validates that if the low max headroom is set, then the high max headroom must be set as well.
+     * Also validates that if the high max headroom is set, then the flood stage max headroom must be set as well.
+     * Else, throws an exception.
      */
     static class MaxHeadroomValidator implements Setting.Validator<ByteSizeValue> {
 
@@ -279,16 +282,26 @@ public class DiskThresholdSettings {
                 CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_MAX_HEADROOM_SETTING
             );
 
-            // For the comparisons, we need to mind that headroom values can default to -1.
-            if (floodHeadroom.compareTo(highHeadroom) > 0 && highHeadroom.getBytes() > 0) {
+            if (lowHeadroom.getBytes() > 0 && highHeadroom.getBytes() < 0) {
+                throw new IllegalArgumentException(
+                    "high disk max headroom ["
+                        + highHeadroom.getStringRep()
+                        + "] is not set, while the low disk max headroom is set ["
+                        + lowHeadroom.getStringRep()
+                        + "]"
+                );
+            }
+            if (highHeadroom.getBytes() > 0 && floodHeadroom.getBytes() < 0) {
                 throw new IllegalArgumentException(
                     "flood disk max headroom ["
                         + floodHeadroom.getStringRep()
-                        + "] more than high disk max headroom ["
+                        + "] is not set, while the high disk max headroom is set ["
                         + highHeadroom.getStringRep()
                         + "]"
                 );
             }
+
+            // For the comparisons, we need to mind that headroom values can default to -1.
             if (highHeadroom.compareTo(lowHeadroom) > 0 && lowHeadroom.getBytes() > 0) {
                 throw new IllegalArgumentException(
                     "high disk max headroom ["
@@ -298,13 +311,12 @@ public class DiskThresholdSettings {
                         + "]"
                 );
             }
-            // This check is also needed in case high headroom is -1 and relevant check above was skipped.
-            if (floodHeadroom.compareTo(lowHeadroom) > 0 && lowHeadroom.getBytes() > 0) {
+            if (floodHeadroom.compareTo(highHeadroom) > 0 && highHeadroom.getBytes() > 0) {
                 throw new IllegalArgumentException(
                     "flood disk max headroom ["
                         + floodHeadroom.getStringRep()
-                        + "] more than low disk max headroom ["
-                        + lowHeadroom.getStringRep()
+                        + "] more than high disk max headroom ["
+                        + highHeadroom.getStringRep()
                         + "]"
                 );
             }

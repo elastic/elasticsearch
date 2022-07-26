@@ -214,18 +214,8 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
         final ClusterService clusterService = clusterServiceHolder.get();
         return List.of(
             new FixedAutoscalingDeciderService(),
-            new ReactiveStorageDeciderService(
-                clusterService.getSettings(),
-                clusterService.getClusterSettings(),
-                allocationDeciders.get(),
-                clusterService.getAllocationService()
-            ),
-            new ProactiveStorageDeciderService(
-                clusterService.getSettings(),
-                clusterService.getClusterSettings(),
-                allocationDeciders.get(),
-                clusterService.getAllocationService()
-            ),
+            new ReactiveStorageDeciderService(clusterService.getSettings(), clusterService.getClusterSettings(), allocationDeciders.get()),
+            new ProactiveStorageDeciderService(clusterService.getSettings(), clusterService.getClusterSettings(), allocationDeciders.get()),
             new FrozenShardsDeciderService(),
             new FrozenStorageDeciderService(),
             new FrozenExistenceDeciderService()

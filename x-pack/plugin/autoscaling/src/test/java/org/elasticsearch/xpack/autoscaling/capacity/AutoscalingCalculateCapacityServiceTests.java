@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Tuple;
@@ -46,6 +47,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.Mockito.mock;
 
 public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCase {
     public void testMultiplePoliciesFixedCapacity() {
@@ -67,7 +69,8 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
             ClusterInfo.EMPTY,
             null,
             AutoscalingNodesInfo.EMPTY,
-            () -> {}
+            () -> {},
+            mock(AllocationService.class)
         );
         assertThat(resultsMap.keySet(), equalTo(policyNames));
         for (Map.Entry<String, AutoscalingDeciderResults> entry : resultsMap.entrySet()) {
@@ -128,10 +131,14 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
             .build();
 
         assertThat(
-            service.calculate(state, ClusterInfo.EMPTY, SnapshotShardSizeInfo.EMPTY, AutoscalingNodesInfo.EMPTY, () -> {})
-                .get("test")
-                .results()
-                .keySet(),
+            service.calculate(
+                state,
+                ClusterInfo.EMPTY,
+                SnapshotShardSizeInfo.EMPTY,
+                AutoscalingNodesInfo.EMPTY,
+                () -> {},
+                mock(AllocationService.class)
+            ).get("test").results().keySet(),
             equalTo(Set.of(defaultOn.name()))
         );
     }
@@ -184,7 +191,8 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
             info,
             snapshotShardSizeInfo,
             n -> Optional.of(new AutoscalingNodeInfo(randomNonNegativeLong(), randomInt(64))),
-            () -> {}
+            () -> {},
+            mock(AllocationService.class)
         );
 
         assertSame(state, context.state());
@@ -209,7 +217,8 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
             info,
             null,
             n -> Optional.of(new AutoscalingNodeInfo(memory, randomInt(64))),
-            () -> {}
+            () -> {},
+            mock(AllocationService.class)
         );
 
         assertThat(context.nodes().size(), equalTo(1));
@@ -267,7 +276,8 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
             info,
             null,
             n -> Optional.of(new AutoscalingNodeInfo(memory, randomInt(64))),
-            () -> {}
+            () -> {},
+            mock(AllocationService.class)
         );
 
         assertThat(context.nodes(), equalTo(expectedNodes));
@@ -288,7 +298,8 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
                 info,
                 null,
                 AutoscalingNodesInfo.EMPTY,
-                () -> {}
+                () -> {},
+                mock(AllocationService.class)
             );
             assertThat(context.nodes(), equalTo(expectedNodes));
             assertThat(context.currentCapacity(), is(nullValue()));
@@ -313,7 +324,8 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
                 info,
                 null,
                 n -> Optional.of(new AutoscalingNodeInfo(memory, randomInt(64))),
-                () -> {}
+                () -> {},
+                mock(AllocationService.class)
             );
             assertThat(context.nodes(), equalTo(expectedNodes));
             if (hasDataRole) {

@@ -11,6 +11,7 @@ import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 
 import java.util.Set;
@@ -52,4 +53,6 @@ public interface AutoscalingDeciderContext {
      * For long running ops, call this from time to time to check if operation has been cancelled.
       */
     void ensureNotCancelled();
+
+    AllocationService allocationService();
 }

@@ -405,8 +405,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         ReactiveStorageDeciderService.AllocationState allocationState = new ReactiveStorageDeciderService.AllocationState(
             createContext(state, Set.of(role)),
             DISK_THRESHOLD_SETTINGS,
-            createAllocationDeciders(allocationDeciders),
-            mock(AllocationService.class)
+            createAllocationDeciders(allocationDeciders)
         );
         assertThat(subject.invoke(allocationState), equalTo(expected));
     }
@@ -419,8 +418,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         ReactiveStorageDeciderService decider = new ReactiveStorageDeciderService(
             Settings.EMPTY,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            createAllocationDeciders(allocationDeciders),
-            mock(AllocationService.class)
+            createAllocationDeciders(allocationDeciders)
         );
         TestAutoscalingDeciderContext context = createContext(state, Set.of(DiscoveryNodeRole.DATA_HOT_NODE_ROLE));
         AutoscalingDeciderResult result = decider.scale(Settings.EMPTY, context);
@@ -545,7 +543,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
     }
 
     private static TestAutoscalingDeciderContext createContext(ClusterState state, Set<DiscoveryNodeRole> roles) {
-        return new TestAutoscalingDeciderContext(state, roles, randomCurrentCapacity());
+        return new TestAutoscalingDeciderContext(state, roles, randomCurrentCapacity(), mock(AllocationService.class));
     }
 
     static AutoscalingCapacity randomCurrentCapacity() {
@@ -572,13 +570,20 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         private final Set<DiscoveryNode> nodes;
         private final ClusterInfo info;
         private final Set<DiscoveryNodeRole> roles;
+        private final AllocationService allocationService;
 
-        private TestAutoscalingDeciderContext(ClusterState state, Set<DiscoveryNodeRole> roles, AutoscalingCapacity currentCapacity) {
+        private TestAutoscalingDeciderContext(
+            ClusterState state,
+            Set<DiscoveryNodeRole> roles,
+            AutoscalingCapacity currentCapacity,
+            AllocationService allocationService
+        ) {
             this.state = state;
             this.currentCapacity = currentCapacity;
             this.nodes = state.nodes().stream().filter(n -> roles.stream().anyMatch(n.getRoles()::contains)).collect(Collectors.toSet());
             this.roles = roles;
             this.info = createClusterInfo(state);
+            this.allocationService = allocationService;
         }
 
         @Override
@@ -614,6 +619,11 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         @Override
         public void ensureNotCancelled() {
 
+        }
+
+        @Override
+        public AllocationService allocationService() {
+            return allocationService;
         }
     }
 

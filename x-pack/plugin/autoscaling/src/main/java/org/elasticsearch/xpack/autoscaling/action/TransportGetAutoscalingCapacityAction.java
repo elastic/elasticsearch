@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -46,6 +47,7 @@ public class TransportGetAutoscalingCapacityAction extends TransportMasterNodeAc
         run -> threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(run),
         this::computeCapacity
     );
+    private final AllocationService allocationService;
 
     @Inject
     public TransportGetAutoscalingCapacityAction(
@@ -59,7 +61,8 @@ public class TransportGetAutoscalingCapacityAction extends TransportMasterNodeAc
         final SnapshotsInfoService snapshotsInfoService,
         final AutoscalingNodeInfoService nodeInfoService,
         final AllocationDeciders allocationDeciders,
-        final AutoscalingLicenseChecker autoscalingLicenseChecker
+        final AutoscalingLicenseChecker autoscalingLicenseChecker,
+        final AllocationService allocationService
     ) {
         super(
             GetAutoscalingCapacityAction.NAME,
@@ -77,6 +80,7 @@ public class TransportGetAutoscalingCapacityAction extends TransportMasterNodeAc
         this.capacityService = capacityServiceHolder.get(allocationDeciders);
         this.clusterInfoService = clusterInfoService;
         this.autoscalingLicenseChecker = Objects.requireNonNull(autoscalingLicenseChecker);
+        this.allocationService = allocationService;
         assert this.capacityService != null;
     }
 
@@ -105,7 +109,8 @@ public class TransportGetAutoscalingCapacityAction extends TransportMasterNodeAc
                 clusterInfoService.getClusterInfo(),
                 snapshotsInfoService.snapshotShardSizes(),
                 nodeInfoService.snapshot(),
-                ensureNotCancelled
+                ensureNotCancelled,
+                allocationService
             )
         );
         logger.debug("autoscaling capacity response [{}]", response);

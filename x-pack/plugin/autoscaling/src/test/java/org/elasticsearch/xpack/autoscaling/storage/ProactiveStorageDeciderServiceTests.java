@@ -94,12 +94,7 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             }
         });
         AllocationDeciders allocationDeciders = new AllocationDeciders(allocationDecidersList);
-        ProactiveStorageDeciderService service = new ProactiveStorageDeciderService(
-            Settings.EMPTY,
-            clusterSettings,
-            allocationDeciders,
-            mock(AllocationService.class)
-        );
+        ProactiveStorageDeciderService service = new ProactiveStorageDeciderService(Settings.EMPTY, clusterSettings, allocationDeciders);
         AutoscalingCapacity currentCapacity = ReactiveStorageDeciderDecisionTests.randomCurrentCapacity();
         ClusterInfo info = randomClusterInfo(state);
         AutoscalingDeciderContext context = new AutoscalingDeciderContext() {
@@ -135,6 +130,11 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
 
             @Override
             public void ensureNotCancelled() {}
+
+            @Override
+            public AllocationService allocationService() {
+                return mock(AllocationService.class);
+            }
         };
         AutoscalingDeciderResult deciderResult = service.scale(Settings.EMPTY, context);
 

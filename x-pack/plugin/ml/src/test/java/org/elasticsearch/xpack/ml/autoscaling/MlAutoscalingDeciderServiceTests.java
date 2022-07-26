@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -1525,6 +1526,11 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
         @Override
         public void ensureNotCancelled() {
 
+        }
+
+        @Override
+        public AllocationService allocationService() {
+            return mock(AllocationService.class);
         }
     }
 

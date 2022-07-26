@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -110,7 +111,8 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
         ClusterInfo clusterInfo,
         SnapshotShardSizeInfo shardSizeInfo,
         AutoscalingNodesInfo autoscalingNodesInfo,
-        Runnable ensureNotCancelled
+        Runnable ensureNotCancelled,
+        AllocationService allocationService
     ) {
         AutoscalingMetadata autoscalingMetadata = state.metadata().custom(AutoscalingMetadata.NAME);
         if (autoscalingMetadata != null) {
@@ -127,7 +129,8 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
                                 clusterInfo,
                                 shardSizeInfo,
                                 autoscalingNodesInfo,
-                                ensureNotCancelled
+                                ensureNotCancelled,
+                                allocationService
                             )
                         )
                     )
@@ -144,7 +147,8 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
         ClusterInfo clusterInfo,
         SnapshotShardSizeInfo shardSizeInfo,
         AutoscalingNodesInfo autoscalingNodesInfo,
-        Runnable ensureNotCancelled
+        Runnable ensureNotCancelled,
+        AllocationService allocationService
     ) {
         if (hasUnknownRoles(policy)) {
             return new AutoscalingDeciderResults(
@@ -160,7 +164,8 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
             clusterInfo,
             shardSizeInfo,
             autoscalingNodesInfo,
-            ensureNotCancelled
+            ensureNotCancelled,
+            allocationService
         );
         SortedMap<String, AutoscalingDeciderResult> results = deciders.entrySet()
             .stream()
@@ -201,9 +206,18 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
         ClusterInfo clusterInfo,
         SnapshotShardSizeInfo shardSizeInfo,
         AutoscalingNodesInfo autoscalingNodesInfo,
-        Runnable ensureNotCancelled
+        Runnable ensureNotCancelled,
+        AllocationService allocationService
     ) {
-        return new DefaultAutoscalingDeciderContext(roles, state, clusterInfo, shardSizeInfo, autoscalingNodesInfo, ensureNotCancelled);
+        return new DefaultAutoscalingDeciderContext(
+            roles,
+            state,
+            clusterInfo,
+            shardSizeInfo,
+            autoscalingNodesInfo,
+            ensureNotCancelled,
+            allocationService
+        );
     }
 
     /**
@@ -237,6 +251,7 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
         private final AutoscalingCapacity currentCapacity;
         private final boolean currentCapacityAccurate;
         private final Runnable ensureNotCancelled;
+        private final AllocationService allocationService;
 
         DefaultAutoscalingDeciderContext(
             SortedSet<String> roles,
@@ -244,7 +259,8 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
             ClusterInfo clusterInfo,
             SnapshotShardSizeInfo snapshotShardSizeInfo,
             AutoscalingNodesInfo autoscalingNodesInfo,
-            Runnable ensureNotCancelled
+            Runnable ensureNotCancelled,
+            AllocationService allocationService
         ) {
             this.roles = roles.stream().map(DiscoveryNodeRole::getRoleFromRoleName).collect(Sets.toUnmodifiableSortedSet());
             Objects.requireNonNull(state);
@@ -260,6 +276,7 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
             this.currentCapacity = calculateCurrentCapacity();
             this.currentCapacityAccurate = calculateCurrentCapacityAccurate();
             this.ensureNotCancelled = ensureNotCancelled;
+            this.allocationService = allocationService;
         }
 
         @Override
@@ -357,6 +374,11 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
 
         public void ensureNotCancelled() {
             ensureNotCancelled.run();
+        }
+
+        @Override
+        public AllocationService allocationService() {
+            return allocationService;
         }
     }
 }

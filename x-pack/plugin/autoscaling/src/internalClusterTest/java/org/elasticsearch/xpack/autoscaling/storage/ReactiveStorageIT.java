@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -28,7 +27,6 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.autoscaling.action.GetAutoscalingCapacityAction;
 import org.elasticsearch.xpack.autoscaling.action.PutAutoscalingPolicyAction;
 import org.hamcrest.Matchers;
-import org.mockito.Mockito;
 
 import java.util.Arrays;
 import java.util.Locale;
@@ -478,8 +476,7 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
         ReactiveStorageDeciderService service = new ReactiveStorageDeciderService(
             Settings.EMPTY,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            null,
-            Mockito.mock(AllocationService.class)
+            null
         );
         assertThat(
             service.roles().stream().sorted().collect(Collectors.toList()),

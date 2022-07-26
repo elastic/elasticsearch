@@ -88,7 +88,6 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
 
     private final DiskThresholdSettings diskThresholdSettings;
     private final AllocationDeciders allocationDeciders;
-    private final AllocationService allocationService;
 
     private static final Predicate<String> REMOVE_NODE_LOCKED_FILTER_INITIAL = removeNodeLockedFilterPredicate(
         IndexMetadata.INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING.getKey()
@@ -108,15 +107,9 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         );
     }
 
-    public ReactiveStorageDeciderService(
-        Settings settings,
-        ClusterSettings clusterSettings,
-        AllocationDeciders allocationDeciders,
-        AllocationService allocationService
-    ) {
+    public ReactiveStorageDeciderService(Settings settings, ClusterSettings clusterSettings, AllocationDeciders allocationDeciders) {
         this.diskThresholdSettings = new DiskThresholdSettings(settings, clusterSettings);
         this.allocationDeciders = allocationDeciders;
-        this.allocationService = allocationService;
     }
 
     @Override
@@ -183,7 +176,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
     }
 
     AllocationState allocationState(AutoscalingDeciderContext context) {
-        return new AllocationState(context, diskThresholdSettings, allocationDeciders, allocationService);
+        return new AllocationState(context, diskThresholdSettings, allocationDeciders);
     }
 
     static String message(long unassignedBytes, long assignedBytes) {
@@ -256,8 +249,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         AllocationState(
             AutoscalingDeciderContext context,
             DiskThresholdSettings diskThresholdSettings,
-            AllocationDeciders allocationDeciders,
-            AllocationService allocationService
+            AllocationDeciders allocationDeciders
         ) {
             this(
                 context.state(),
@@ -267,7 +259,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 context.snapshotShardSizeInfo(),
                 context.nodes(),
                 context.roles(),
-                allocationService
+                context.allocationService()
             );
         }
 

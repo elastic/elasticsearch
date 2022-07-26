@@ -1,5 +1,5 @@
 pr: 88825
-summary: Fix tokenization when using <mask> in roberta
+summary: fix minor tokenization bug when using fill_mask task with roberta tokenizer
 area: Machine Learning
 type: bug
 issues: []

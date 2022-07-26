@@ -3,6 +3,10 @@ setup:
   - skip:
       version: " - 8.3.99"
       reason: "Support for the dry run option was added in in 8.4.0"
+---
+teardown:
+  - do:
+      _internal.delete_desired_nodes: { }
 
 ---
 "Test dry run doesn't update empty desired nodes":

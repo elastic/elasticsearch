@@ -7,14 +7,11 @@
 
 package org.elasticsearch.xpack.core.security.action.apikey;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xpack.core.security.action.role.RoleDescriptorRequestValidator;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 
 import java.io.IOException;
 import java.util.List;
@@ -23,47 +20,29 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public final class BulkUpdateApiKeyRequest extends ActionRequest {
+public final class BulkUpdateApiKeyRequest extends BaseUpdateApiKeyRequest {
 
     private final List<String> ids;
-    @Nullable
-    private final Map<String, Object> metadata;
-    @Nullable
-    private final List<RoleDescriptor> roleDescriptors;
 
     public BulkUpdateApiKeyRequest(
         final List<String> ids,
         @Nullable final List<RoleDescriptor> roleDescriptors,
         @Nullable final Map<String, Object> metadata
     ) {
+        super(roleDescriptors, metadata);
         this.ids = Objects.requireNonNull(ids, "API key ID must not be null");
-        this.roleDescriptors = roleDescriptors;
-        this.metadata = metadata;
     }
 
     public BulkUpdateApiKeyRequest(StreamInput in) throws IOException {
         super(in);
         this.ids = in.readStringList();
-        this.roleDescriptors = in.readOptionalList(RoleDescriptor::new);
-        this.metadata = in.readMap();
     }
 
     @Override
     public ActionRequestValidationException validate() {
-        ActionRequestValidationException validationException = null;
+        ActionRequestValidationException validationException = super.validate();
         if (ids.isEmpty()) {
             validationException = addValidationError("Bulk update request must include API key IDs", validationException);
-        }
-        if (metadata != null && MetadataUtils.containsReservedMetadata(metadata)) {
-            validationException = addValidationError(
-                "API key metadata keys may not start with [" + MetadataUtils.RESERVED_PREFIX + "]",
-                validationException
-            );
-        }
-        if (roleDescriptors != null) {
-            for (RoleDescriptor roleDescriptor : roleDescriptors) {
-                validationException = RoleDescriptorRequestValidator.validate(roleDescriptor, validationException);
-            }
         }
         return validationException;
     }
@@ -72,36 +51,9 @@ public final class BulkUpdateApiKeyRequest extends ActionRequest {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeStringCollection(ids);
-        out.writeOptionalCollection(roleDescriptors);
-        out.writeGenericMap(metadata);
-    }
-
-    public static BulkUpdateApiKeyRequest usingApiKeyIds(List<String> ids) {
-        return new BulkUpdateApiKeyRequest(ids, null, null);
     }
 
     public List<String> getIds() {
         return ids;
-    }
-
-    public Map<String, Object> getMetadata() {
-        return metadata;
-    }
-
-    public List<RoleDescriptor> getRoleDescriptors() {
-        return roleDescriptors;
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        BulkUpdateApiKeyRequest that = (BulkUpdateApiKeyRequest) o;
-        return ids.equals(that.ids) && Objects.equals(metadata, that.metadata) && Objects.equals(roleDescriptors, that.roleDescriptors);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(ids, metadata, roleDescriptors);
     }
 }

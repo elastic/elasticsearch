@@ -10,7 +10,6 @@ package org.elasticsearch.repositories.blobstore;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
-
 import org.apache.http.ConnectionClosedException;
 import org.apache.http.HttpStatus;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -281,7 +280,11 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
                 .or(containsString("Read timed out"))
                 .or(containsString("unexpected end of file from server"))
         );
-        assertThat(exception.getSuppressed().length, equalTo(maxRetries));
+        assertThat(exception.getSuppressed().length, getMaxRetriesMatcher(maxRetries));
+    }
+
+    protected org.hamcrest.Matcher<Integer> getMaxRetriesMatcher(int maxRetries) {
+        return equalTo(maxRetries);
     }
 
     public void testReadBlobWithNoHttpResponse() {
@@ -304,7 +307,6 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         );
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/88666")
     public void testReadBlobWithPrematureConnectionClose() {
         final int maxRetries = randomInt(20);
         final BlobContainer blobContainer = createBlobContainer(maxRetries, null, null, null);
@@ -331,7 +333,7 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
                 containsString("premature end of content-length delimited message body")
             ).or(containsString("connection closed prematurely"))
         );
-        assertThat(exception.getSuppressed().length, equalTo(Math.min(10, maxRetries)));
+        assertThat(exception.getSuppressed().length, getMaxRetriesMatcher(Math.min(10, maxRetries)));
     }
 
     protected static byte[] randomBlobContent() {

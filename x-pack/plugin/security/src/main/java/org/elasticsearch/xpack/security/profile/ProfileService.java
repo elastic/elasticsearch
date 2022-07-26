@@ -486,7 +486,7 @@ public class ProfileService {
         });
     }
 
-    private static final Pattern VALID_LITERAL_USERNAME = Pattern.compile("^[a-zA-Z0-9][a-zA-Z0-9_-]{0,255}$");
+    private static final Pattern VALID_LITERAL_USERNAME = Pattern.compile("^[a-zA-Z0-9][a-zA-Z0-9-]{0,255}$");
 
     private static final String INVALID_USERNAME_MESSAGE = "Security domain [%s] is configured to use literal username. "
         + "As a result, creating new user profile requires the username to be at least 1 and no more than 256 characters. "

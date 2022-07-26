@@ -707,7 +707,11 @@ public class ProfileServiceTests extends ESTestCase {
             new RealmDomain("literal", Set.of(new RealmConfig.RealmIdentifier(realmRef2.getType(), realmRef2.getName())))
         );
 
-        final Authentication authentication2 = AuthenticationTestHelper.builder().realm().realmRef(realmRef2).build();
+        // Username is allowed to have dash as long it is not the 1st character
+        final User user2 = AuthenticationTestHelper.userWithRandomMetadataAndDetails(
+            randomFrom(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(1, 8) + "-" + randomAlphaOfLengthBetween(0, 8))
+        );
+        final Authentication authentication2 = AuthenticationTestHelper.builder().user(user2).realm().realmRef(realmRef2).build();
         final Subject subject2 = authentication2.getEffectiveSubject();
         final PlainActionFuture<Profile> future2 = new PlainActionFuture<>();
         service.activateProfile(authentication2, future2);
@@ -719,9 +723,7 @@ public class ProfileServiceTests extends ESTestCase {
         final List<Character> invalidFirstCharsOfLiteralUsername = VALID_NAME_CHARS.stream()
             .filter(c -> false == Character.isLetterOrDigit(c))
             .toList();
-        final List<Character> invalidCharsOfLiteralUsername = invalidFirstCharsOfLiteralUsername.stream()
-            .filter(c -> c != '_' && c != '-')
-            .toList();
+        final List<Character> invalidCharsOfLiteralUsername = invalidFirstCharsOfLiteralUsername.stream().filter(c -> c != '-').toList();
         final String invalidLiteralUsername = randomFrom(
             "",
             "fóóbár",

@@ -1449,7 +1449,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         });
     }
 
-    public void testUpdateApiKey() throws ExecutionException, InterruptedException, IOException {
+    public void testUpdateApiKey() throws Exception {
         final Tuple<CreateApiKeyResponse, Map<String, Object>> createdApiKey = createApiKey(TEST_USER_NAME, null);
         final var apiKeyId = createdApiKey.v1().getId();
         final Map<String, Object> oldMetadata = createdApiKey.v2();
@@ -1526,7 +1526,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         }
     }
 
-    public void testUpdateApiKeyAutoUpdatesUserFields() throws IOException, ExecutionException, InterruptedException {
+    public void testUpdateApiKeyAutoUpdatesUserFields() throws Exception {
         // Create separate native realm user and role for user role change test
         final var nativeRealmUser = randomAlphaOfLengthBetween(5, 10);
         final var nativeRealmRole = randomAlphaOfLengthBetween(5, 10);
@@ -1602,7 +1602,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         expectCreatorForApiKey(expectedCreator, updatedApiKeyDoc);
     }
 
-    public void testUpdateApiKeyNotFoundScenarios() throws ExecutionException, InterruptedException {
+    public void testUpdateApiKeyNotFoundScenarios() throws Exception {
         final Tuple<CreateApiKeyResponse, Map<String, Object>> createdApiKey = createApiKey(TEST_USER_NAME, null);
         final var apiKeyId = createdApiKey.v1().getId();
         final var expectedRoleDescriptor = new RoleDescriptor(randomAlphaOfLength(10), new String[] { "all" }, null, null);
@@ -1741,7 +1741,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         expectCreatorForApiKey(expectedCreator, getApiKeyDocument(apiKeyId));
     }
 
-    public void testNoopUpdateApiKey() throws ExecutionException, InterruptedException, IOException {
+    public void testNoopUpdateApiKey() throws Exception {
         final Tuple<CreateApiKeyResponse, Map<String, Object>> createdApiKey = createApiKey(TEST_USER_NAME, null);
         final var apiKeyId = createdApiKey.v1().getId();
 
@@ -1911,7 +1911,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertFalse(response.isUpdated());
     }
 
-    public void testUpdateApiKeyClearsApiKeyDocCache() throws IOException, ExecutionException, InterruptedException {
+    public void testUpdateApiKeyClearsApiKeyDocCache() throws Exception {
         final List<ServiceWithNodeName> services = Arrays.stream(internalCluster().getNodeNames())
             .map(n -> new ServiceWithNodeName(internalCluster().getInstance(ApiKeyService.class, n), n))
             .toList();
@@ -1946,17 +1946,16 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final int serviceForDoc2AuthCacheCount = serviceForDoc2.getApiKeyAuthCache().count();
 
         // Update the first key
-        final PlainActionFuture<UpdateApiKeyResponse> listener = new PlainActionFuture<>();
-        final Client client = client().filterWithHeader(
-            Collections.singletonMap("Authorization", basicAuthHeaderValue(ES_TEST_ROOT_USER, TEST_PASSWORD_SECURE_STRING))
+        final UpdateApiKeyResponse response = executeUpdateApiKey(
+            ES_TEST_ROOT_USER,
+            new UpdateApiKeyRequest(
+                apiKey1.v1(),
+                List.of(),
+                // Set metadata to ensure update
+                Map.of(randomAlphaOfLength(5), randomAlphaOfLength(10))
+            )
         );
-        client.execute(
-            UpdateApiKeyAction.INSTANCE,
-            // Set metadata to ensure update
-            new UpdateApiKeyRequest(apiKey1.v1(), List.of(), Map.of(randomAlphaOfLength(5), randomAlphaOfLength(10))),
-            listener
-        );
-        final var response = listener.get();
+
         assertNotNull(response);
         assertTrue(response.isUpdated());
 
@@ -2337,13 +2336,12 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         );
     }
 
-    private UpdateApiKeyResponse executeUpdateApiKey(final String username, final UpdateApiKeyRequest request) throws ExecutionException,
-        InterruptedException {
+    private UpdateApiKeyResponse executeUpdateApiKey(final String username, final UpdateApiKeyRequest request) throws Exception {
         return executeUpdateApiKey(username, request, randomBoolean());
     }
 
     private UpdateApiKeyResponse executeUpdateApiKey(final String username, final UpdateApiKeyRequest request, final boolean useBulkRoute)
-        throws InterruptedException, ExecutionException {
+        throws Exception {
         if (useBulkRoute) {
             final var response = executeBulkUpdateApiKey(
                 username,

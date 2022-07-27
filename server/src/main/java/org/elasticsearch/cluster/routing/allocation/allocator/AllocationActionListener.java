@@ -29,11 +29,6 @@ public class AllocationActionListener<T> {
         return ActionListener.noop();
     }
 
-    public static ActionListener<Void> rerouteCompletionIsNotRequired(Runnable assertion) {
-        assertion.run();
-        return ActionListener.noop();
-    }
-
     public AllocationActionListener(ActionListener<T> delegate) {
         this.delegate = delegate;
     }

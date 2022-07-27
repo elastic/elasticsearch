@@ -251,12 +251,12 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                         request.timeout(),
                         false
                     );
+                    assert createRequest.performReroute() == false
+                        : "rerouteCompletionIsNotRequired() assumes reroute is not called by underlying service";
                     ClusterState clusterState = metadataCreateDataStreamService.createDataStream(
                         createRequest,
                         currentState,
-                        rerouteCompletionIsNotRequired(
-                            () -> { assert createRequest.performReroute() == false : "Reroute should not be called by underlying service"; }
-                        )
+                        rerouteCompletionIsNotRequired()
                     );
 
                     final var indexName = clusterState.metadata().dataStreams().get(request.index()).getIndices().get(0).getName();
@@ -313,13 +313,13 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                         updateRequest = buildUpdateRequest(indexName);
                     }
 
+                    assert updateRequest.performReroute() == false
+                        : "rerouteCompletionIsNotRequired() assumes reroute is not called by underlying service";
                     final var clusterState = createIndexService.applyCreateIndexRequest(
                         currentState,
                         updateRequest,
                         false,
-                        rerouteCompletionIsNotRequired(
-                            () -> { assert updateRequest.performReroute() == false : "Reroute should not be called by underlying service"; }
-                        )
+                        rerouteCompletionIsNotRequired()
                     );
                     taskContext.success(getAckListener(indexName, allocationActionMultiListener));
                     successfulRequests.put(request, indexName);

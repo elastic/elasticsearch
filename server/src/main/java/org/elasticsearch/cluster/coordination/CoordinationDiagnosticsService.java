@@ -47,7 +47,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -85,18 +84,25 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
     private final int unacceptableIdentityChanges;
 
     /*
-     * This is a list of tasks that are periodically reaching out to other master eligible nodes to get their ClusterFormationStates for
-     * diagnosis.
+     * This is a Map of tasks that are periodically reaching out to other master eligible nodes to get their ClusterFormationStates for
+     * diagnosis. The key is the DisoveryNode for the master eligible node being polled, and the value is a Cancellable.
      * The field is accessed (reads/writes) from multiple threads, but the reference itself is only ever changed on the cluster change
      * event thread.
      */
-    private volatile List<Scheduler.Cancellable> clusterFormationInfoTasks = null;
+    // Non-private for testing
+    volatile Map<DiscoveryNode, Scheduler.Cancellable> clusterFormationInfoTasks = null;
     /*
      * This field holds the results of the tasks in the clusterFormationInfoTasks field above. The field is accessed (reads/writes) from
      * multiple threads, but the reference itself is only ever changed on the cluster change event thread.
      */
     // Non-private for testing
     volatile ConcurrentMap<DiscoveryNode, ClusterFormationStateOrException> clusterFormationResponses = null;
+
+    /*
+     * This is used to disable automatically polling master eligible nodes during unit tests so that we can better capture what is
+     * happening.
+     */
+    boolean disableAutoPollingForTestMode = false;
 
     private static final Logger logger = LogManager.getLogger(CoordinationDiagnosticsService.class);
 
@@ -609,15 +615,17 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                 }
             }
         }
-        if (currentMaster == null && clusterService.localNode().isMasterNode()) {
-            /*
-             * This begins polling all master-eligible nodes for cluster formation information. However there's a 10-second delay before it
-             * starts, so in the normal situation where during a master transition it flips from master1 -> null -> master2, it the
-             * polling tasks will be canceled before any requests are actually made.
-             */
-            beginPollingClusterFormationInfo();
-        } else {
-            cancelPollingClusterFormationInfo();
+        if (disableAutoPollingForTestMode == false) {
+            if (currentMaster == null && clusterService.localNode().isMasterNode()) {
+                /*
+                 * This begins polling all master-eligible nodes for cluster formation information. However there's a 10-second delay before it
+                 * starts, so in the normal situation where during a master transition it flips from master1 -> null -> master2, it the
+                 * polling tasks will be canceled before any requests are actually made.
+                 */
+                beginPollingClusterFormationInfo();
+            } else {
+                cancelPollingClusterFormationInfo();
+            }
         }
     }
 
@@ -629,7 +637,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
         assert ThreadPool.assertCurrentThreadPool(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME);
         cancelPollingClusterFormationInfo();
         ConcurrentMap<DiscoveryNode, ClusterFormationStateOrException> responses = new ConcurrentHashMap<>();
-        List<Scheduler.Cancellable> cancellables = new CopyOnWriteArrayList<>();
+        Map<DiscoveryNode, Scheduler.Cancellable> cancellables = new ConcurrentHashMap<>();
         /*
          * Assignment of clusterFormationInfoTasks must be done before the call to beginPollingClusterFormationInfo because it is used
          * asynchronously by rescheduleFetchConsumer, called from beginPollingClusterFormationInfo.
@@ -644,17 +652,18 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
      * repeats doing that until cancel() is called on all of the Cancellable that this method inserts into cancellables. This method
      * exists (rather than being just part of the beginPollingClusterFormationInfo() above) in order to facilitate unit testing.
      * @param nodeResponseConsumer A consumer for any results produced for a node by this method
-     * @param cancellables A consumer for any Cancellable tasks produced by this method
+     * @param cancellables The Map of Cancellables, one for each node being polled
      */
     // Non-private for testing
     void beginPollingClusterFormationInfo(
         Collection<DiscoveryNode> masterEligibleNodes,
         BiConsumer<DiscoveryNode, ClusterFormationStateOrException> nodeResponseConsumer,
-        List<Scheduler.Cancellable> cancellables
+        Map<DiscoveryNode, Scheduler.Cancellable> cancellables
     ) {
         masterEligibleNodes.forEach(masterEligibleNode -> {
             Consumer<ClusterFormationStateOrException> responseConsumer = result -> nodeResponseConsumer.accept(masterEligibleNode, result);
-            cancellables.add(
+            cancellables.put(
+                masterEligibleNode,
                 fetchClusterFormationInfo(
                     masterEligibleNode,
                     responseConsumer.andThen(rescheduleFetchConsumer(masterEligibleNode, responseConsumer, cancellables))
@@ -668,13 +677,13 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
      * completed, adding the resulting Cancellable to cancellableConsumer.
      * @param masterEligibleNode The node being polled
      * @param responseConsumer The response consumer to be wrapped
-     * @param cancellables The list of Cancellables
+     * @param cancellables The Map of Cancellables, one for each node being polled
      * @return
      */
     private Consumer<CoordinationDiagnosticsService.ClusterFormationStateOrException> rescheduleFetchConsumer(
         DiscoveryNode masterEligibleNode,
         Consumer<CoordinationDiagnosticsService.ClusterFormationStateOrException> responseConsumer,
-        List<Scheduler.Cancellable> cancellables
+        Map<DiscoveryNode, Scheduler.Cancellable> cancellables
     ) {
         return response -> {
             if (clusterFormationInfoTasks != null) {
@@ -684,17 +693,18 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                      * add a task here for a poll that has already been cancelled. But when it completes and runs rescheduleFetchConsumer()
                      * we will then see that clusterFormationInfoTasks does not equal cancellables, so it will not be run again.
                      */
-                    cancellables.add(
+                    cancellables.put(
+                        masterEligibleNode,
                         fetchClusterFormationInfo(
                             masterEligibleNode,
                             responseConsumer.andThen(rescheduleFetchConsumer(masterEligibleNode, responseConsumer, cancellables))
                         )
                     );
                 } else {
-                    cancellables.forEach(Scheduler.Cancellable::cancel);
+                    cancellables.values().forEach(Scheduler.Cancellable::cancel);
                 }
             } else {
-                cancellables.forEach(Scheduler.Cancellable::cancel);
+                cancellables.values().forEach(Scheduler.Cancellable::cancel);
             }
         };
     }
@@ -705,9 +715,10 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
             /*
              * There is a slight risk here that a new Cancellable is added to clusterFormationInfoTasks after we begin iterating in the next
              * line. We are calling this an acceptable risk because it will result in an un-cancelled un-cancellable task, but it will not
-             * reschedule itself so it will not be around long.
+             * reschedule itself so it will not be around long. It is possible that a cancellable will be called concurrently by multiple
+             *  threads.
              */
-            clusterFormationInfoTasks.forEach(Scheduler.Cancellable::cancel);
+            clusterFormationInfoTasks.values().forEach(Scheduler.Cancellable::cancel);
             clusterFormationInfoTasks = null;
             clusterFormationResponses = null;
         }

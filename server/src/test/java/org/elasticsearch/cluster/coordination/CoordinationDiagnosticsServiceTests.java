@@ -39,7 +39,6 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
@@ -924,15 +923,16 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
                 .toList();
             cluster.clusterNodes.stream().filter(node -> node.getLocalNode().isMasterNode()).forEach(node -> {
                 ConcurrentMap<DiscoveryNode, ClusterFormationStateOrException> nodeToClusterFormationStateMap = new ConcurrentHashMap<>();
+                node.coordinationDiagnosticsService.clusterFormationInfoTasks = new ConcurrentHashMap<>();
+                node.coordinationDiagnosticsService.disableAutoPollingForTestMode = true;
                 node.coordinationDiagnosticsService.beginPollingClusterFormationInfo(
                     masterNodes,
                     nodeToClusterFormationStateMap::put,
-                    new CopyOnWriteArrayList<>()
+                    node.coordinationDiagnosticsService.clusterFormationInfoTasks
                 );
 
                 cluster.runRandomly(false, true, EXTREME_DELAY_VARIABILITY);
                 cluster.stabilise();
-
                 /*
                  * The cluster has now run normally for some period of time, so check that the outputs of
                  * beginPollingClusterFormationInfo() are present with no exceptions:
@@ -1003,13 +1003,13 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
                 .toList();
             cluster.clusterNodes.stream().filter(node -> node.getLocalNode().isMasterNode()).forEach(node -> {
                 ConcurrentMap<DiscoveryNode, ClusterFormationStateOrException> nodeToClusterFormationStateMap = new ConcurrentHashMap<>();
-                List<Scheduler.Cancellable> cancellables = new ArrayList<>();
+                Map<DiscoveryNode, Scheduler.Cancellable> cancellables = new ConcurrentHashMap<>();
                 node.coordinationDiagnosticsService.beginPollingClusterFormationInfo(
                     masterNodes,
                     nodeToClusterFormationStateMap::put,
                     cancellables
                 );
-                cancellables.forEach(Scheduler.Cancellable::cancel); // This is what will most often happen in practice
+                cancellables.values().forEach(Scheduler.Cancellable::cancel); // This is what will most often happen in practice
                 cluster.runRandomly(false, true, EXTREME_DELAY_VARIABILITY);
                 cluster.stabilise();
                 assertThat(nodeToClusterFormationStateMap.size(), equalTo(0));  // Everything was cancelled

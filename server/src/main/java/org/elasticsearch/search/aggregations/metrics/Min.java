@@ -31,7 +31,7 @@ public class Min extends InternalNumericMetricsAggregation.SingleValue {
         this.nonEmpty = true;
     }
 
-    public static Min EmptyMin(String name, DocValueFormat formatter, Map<String, Object> metadata) {
+    public static Min createEmptyMin(String name, DocValueFormat formatter, Map<String, Object> metadata) {
         return new Min(name, formatter, metadata);
     }
 

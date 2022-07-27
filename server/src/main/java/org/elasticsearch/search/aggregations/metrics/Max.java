@@ -30,7 +30,7 @@ public class Max extends InternalNumericMetricsAggregation.SingleValue {
         this.nonEmpty = true;
     }
 
-    public static Max EmptyMax(String name, DocValueFormat formatter, Map<String, Object> metadata) {
+    public static Max createEmptyMax(String name, DocValueFormat formatter, Map<String, Object> metadata) {
         return new Max(name, formatter, metadata);
     }
 

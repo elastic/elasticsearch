@@ -455,8 +455,9 @@ public class SearchResponseMergerTests extends ESTestCase {
         }
     }
 
-    // Test merging results where one result has a raw format, for instance if
-    // searching over multiple indexes where the field isn't mapped in all indexes.
+    /** Test merging results where one result has a raw format, for instance if
+     * searching over multiple indexes where the field isn't mapped in all indexes.
+     */
     public void testMergeEmptyFormat() throws InterruptedException {
         DateFormatter dateFormatter = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
         Max max1 = Max.EmptyMax("field1", DocValueFormat.RAW, Collections.emptyMap());

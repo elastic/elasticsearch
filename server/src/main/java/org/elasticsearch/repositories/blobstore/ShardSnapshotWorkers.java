@@ -26,7 +26,7 @@ import static org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSna
 
 /**
  * ShardSnapshotWorkers performs snapshotting tasks in the order dictated by the PriorityQueue of snapshot tasks.
- * Each enqueued shard to snapshot results in one @{@link ShardSnapshotTask} and 0 or more @{@link FileSnapshotTask}.
+ * Each enqueued shard to snapshot results in one @{@link ShardSnapshotTask} and zero or more @{@link FileSnapshotTask}.
  */
 public class ShardSnapshotWorkers {
     private static final Logger logger = LogManager.getLogger(ShardSnapshotWorkers.class);

@@ -2908,7 +2908,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
     }
 
-    public static Releasable incrementStoreRef(Store store, IndexShardSnapshotStatus snapshotStatus, ShardId shardId) {
+    private static Releasable incrementStoreRef(Store store, IndexShardSnapshotStatus snapshotStatus, ShardId shardId) {
         if (store.tryIncRef() == false) {
             if (snapshotStatus.isAborted()) {
                 throw new AbortedSnapshotException();

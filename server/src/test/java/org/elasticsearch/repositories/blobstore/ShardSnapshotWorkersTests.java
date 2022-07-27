@@ -111,6 +111,10 @@ public class ShardSnapshotWorkersTests extends ESTestCase {
         public int finishedShardSnapshots() {
             return finishedShardSnapshots.get();
         }
+
+        public int finishedShardSnapshotTasks() {
+            return finishedShardSnapshotTasks.get();
+        }
     }
 
     private static BlobStoreIndexShardSnapshot.FileInfo createDummyFileInfo() {
@@ -156,7 +160,7 @@ public class ShardSnapshotWorkersTests extends ESTestCase {
         MockedRepo repo = new MockedRepo(snapshotBlocker);
         ShardSnapshotWorkers workers = new ShardSnapshotWorkers(maxSize, executor, repo::snapshotShard, repo::snapshotFile);
         repo.setWorkers(workers);
-        int enqueuedSnapshots = maxSize - 1; // It's possible to create at least one more worker
+        int enqueuedSnapshots = maxSize - 1; // So that it is possible to create at least one more worker
         for (int i = 0; i < enqueuedSnapshots; i++) {
             workers.enqueueShardSnapshot(createDummyContext());
         }
@@ -172,6 +176,7 @@ public class ShardSnapshotWorkersTests extends ESTestCase {
         // Eventually all workers exit
         assertBusy(() -> assertThat(workers.size(), equalTo(0)));
         assertThat(repo.finishedFileSnapshotTasks(), equalTo(repo.expectedFileSnapshotTasks()));
+        assertThat(repo.finishedShardSnapshotTasks(), equalTo(enqueuedSnapshots));
         assertThat(repo.finishedShardSnapshots(), equalTo(enqueuedSnapshots));
     }
 

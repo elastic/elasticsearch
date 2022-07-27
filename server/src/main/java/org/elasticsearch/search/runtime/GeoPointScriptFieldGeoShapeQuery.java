@@ -38,8 +38,8 @@ public class GeoPointScriptFieldGeoShapeQuery extends AbstractGeoPointScriptFiel
     }
 
     @Override
-    protected boolean matches(long[] values, int count) {
-        return predicate.matches(values, count);
+    protected boolean matches(double[] lats, double[] lons, int count) {
+        return predicate.matches(lats, lons, count);
     }
 
     @Override
@@ -66,7 +66,7 @@ public class GeoPointScriptFieldGeoShapeQuery extends AbstractGeoPointScriptFiel
 
     @FunctionalInterface
     private interface SpatialPredicate {
-        boolean matches(long[] values, int count);
+        boolean matches(double[] lats, double[] lons, int count);
     }
 
     private static SpatialPredicate getPredicate(ShapeRelation relation, LatLonGeometry... geometries) {
@@ -75,11 +75,10 @@ public class GeoPointScriptFieldGeoShapeQuery extends AbstractGeoPointScriptFiel
                 final GeoEncodingUtils.Component2DPredicate predicate = GeoEncodingUtils.createComponentPredicate(
                     LatLonGeometry.create(geometries)
                 );
-                return (values, count) -> {
+                return (lats, lons, count) -> {
                     for (int i = 0; i < count; i++) {
-                        final long value = values[i];
-                        final int lat = (int) (value >>> 32);
-                        final int lon = (int) (value & 0xFFFFFFFF);
+                        final int lat = GeoEncodingUtils.encodeLatitude(lats[i]);
+                        final int lon = GeoEncodingUtils.encodeLongitude(lons[i]);
                         if (predicate.test(lat, lon)) {
                             return true;
                         }
@@ -91,11 +90,10 @@ public class GeoPointScriptFieldGeoShapeQuery extends AbstractGeoPointScriptFiel
                 final GeoEncodingUtils.Component2DPredicate predicate = GeoEncodingUtils.createComponentPredicate(
                     LatLonGeometry.create(geometries)
                 );
-                return (values, count) -> {
+                return (lats, lons, count) -> {
                     for (int i = 0; i < count; i++) {
-                        final long value = values[i];
-                        final int lat = (int) (value >>> 32);
-                        final int lon = (int) (value & 0xFFFFFFFF);
+                        final int lat = GeoEncodingUtils.encodeLatitude(lats[i]);
+                        final int lon = GeoEncodingUtils.encodeLongitude(lons[i]);
                         if (predicate.test(lat, lon)) {
                             return false;
                         }
@@ -108,11 +106,10 @@ public class GeoPointScriptFieldGeoShapeQuery extends AbstractGeoPointScriptFiel
                 final GeoEncodingUtils.Component2DPredicate predicate = GeoEncodingUtils.createComponentPredicate(
                     LatLonGeometry.create(geometries)
                 );
-                return (values, count) -> {
+                return (lats, lons, count) -> {
                     for (int i = 0; i < count; i++) {
-                        final long value = values[i];
-                        final int lat = (int) (value >>> 32);
-                        final int lon = (int) (value & 0xFFFFFFFF);
+                        final int lat = GeoEncodingUtils.encodeLatitude(lats[i]);
+                        final int lon = GeoEncodingUtils.encodeLongitude(lons[i]);
                         if (predicate.test(lat, lon) == false) {
                             return false;
                         }
@@ -126,12 +123,11 @@ public class GeoPointScriptFieldGeoShapeQuery extends AbstractGeoPointScriptFiel
                 for (int i = 0; i < geometries.length; i++) {
                     component2DS[i] = LatLonGeometry.create(geometries[i]);
                 }
-                return (values, count) -> {
+                return (lats, lons, count) -> {
                     Component2D.WithinRelation answer = Component2D.WithinRelation.DISJOINT;
                     for (int i = 0; i < count; i++) {
-                        final long value = values[i];
-                        final double lat = GeoEncodingUtils.decodeLatitude((int) (value >>> 32));
-                        final double lon = GeoEncodingUtils.decodeLongitude((int) (value & 0xFFFFFFFF));
+                        final int lat = GeoEncodingUtils.encodeLatitude(lats[i]);
+                        final int lon = GeoEncodingUtils.encodeLongitude(lons[i]);
                         for (Component2D component2D : component2DS) {
                             Component2D.WithinRelation withinRelation = component2D.withinPoint(lon, lat);
                             if (withinRelation == Component2D.WithinRelation.NOTWITHIN) {

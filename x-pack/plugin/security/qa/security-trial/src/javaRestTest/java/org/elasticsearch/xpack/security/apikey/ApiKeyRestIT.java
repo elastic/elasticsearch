@@ -17,7 +17,6 @@ import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
-import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyAction;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
@@ -219,6 +218,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         doTestUpdateApiKey(apiKeyName, apiKeyId, apiKeyEncoded, apiKeyMetadata);
     }
 
+    @SuppressWarnings({ "unchecked" })
     public void testBulkUpdateApiKey() throws IOException {
         final EncodedApiKey apiKeyExpectingUpdate = createApiKey("my-api-key-name-1", Map.of("not", "returned"));
         final EncodedApiKey apiKeyExpectingNoop = createApiKey("my-api-key-name-2", Map.of("not", "returned (changed)", "foo", "bar"));
@@ -239,24 +239,34 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         final Response bulkUpdateApiKeyResponse = performRequestUsingRandomAuthMethod(bulkUpdateApiKeyRequest);
 
         assertOK(bulkUpdateApiKeyResponse);
-        final BulkUpdateApiKeyResponse response = BulkUpdateApiKeyResponse.fromXContent(responseAsParser(bulkUpdateApiKeyResponse));
-        assertEquals(List.of(apiKeyExpectingUpdate.id()), response.getUpdated());
-        assertEquals(List.of(apiKeyExpectingNoop.id()), response.getNoops());
-        assertEquals(2, response.getErrorDetails().size());
-        final Exception notFoundError = response.getErrorDetails().get(notFoundApiKeyId);
-        assertNotNull(notFoundError);
-        assertThat(
-            notFoundError.getMessage(),
-            containsString("no API key owned by requesting user found for ID [" + notFoundApiKeyId + "]")
+        final Map<String, Object> response = responseAsMap(bulkUpdateApiKeyResponse);
+        assertEquals(List.of(apiKeyExpectingUpdate.id()), response.get("updated"));
+        assertEquals(List.of(apiKeyExpectingNoop.id()), response.get("noops"));
+        final Map<String, Object> errors = (Map<String, Object>) response.get("errors");
+        assertEquals(2, errors.get("count"));
+        final Map<String, Map<String, Object>> errorDetails = (Map<String, Map<String, Object>>) errors.get("details");
+        assertEquals(2, errorDetails.size());
+        expectErrorFields(
+            "resource_not_found_exception",
+            "no API key owned by requesting user found for ID [" + notFoundApiKeyId + "]",
+            errorDetails.get(notFoundApiKeyId)
         );
-        final Exception validationError = response.getErrorDetails().get(invalidatedApiKey.id);
-        assertNotNull(validationError);
-        assertThat(validationError.getMessage(), containsString("cannot update invalidated API key [" + invalidatedApiKey.id + "]"));
+        expectErrorFields(
+            "illegal_argument_exception",
+            "cannot update invalidated API key [" + invalidatedApiKey.id + "]",
+            errorDetails.get(invalidatedApiKey.id)
+        );
         expectMetadata(apiKeyExpectingUpdate.id, expectedApiKeyMetadata);
         expectMetadata(apiKeyExpectingNoop.id, expectedApiKeyMetadata);
         expectMetadata(invalidatedApiKey.id, metadataForInvalidatedKey);
         doTestAuthenticationWithApiKey(apiKeyExpectingUpdate.name, apiKeyExpectingUpdate.id, apiKeyExpectingUpdate.encoded);
         doTestAuthenticationWithApiKey(apiKeyExpectingNoop.name, apiKeyExpectingNoop.id, apiKeyExpectingNoop.encoded);
+    }
+
+    private void expectErrorFields(final String type, final String reason, final Map<String, Object> rawError) {
+        assertNotNull(rawError);
+        assertEquals(type, rawError.get("type"));
+        assertEquals(reason, rawError.get("reason"));
     }
 
     public void testGrantTargetCanUpdateApiKey() throws IOException {

@@ -431,7 +431,6 @@ public class ApiKeyService {
         final ActionListener<BulkUpdateApiKeyResponse> listener
     ) {
         logger.trace("Found [{}] API keys to update", targetVersionedDocs.size());
-        // TODO
         final BulkUpdateApiKeyResponse.Builder responseBuilder = BulkUpdateApiKeyResponse.builder();
         final BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
         for (VersionedApiKeyDoc versionedDoc : targetVersionedDocs) {
@@ -1493,7 +1492,7 @@ public class ApiKeyService {
             if (bulkItemResponse.isFailed()) {
                 responseBuilder.error(
                     apiKeyId,
-                    new ElasticsearchException("Bulk request execution failure", bulkItemResponse.getFailure().getCause())
+                    new ElasticsearchException("bulk request execution failure", bulkItemResponse.getFailure().getCause())
                 );
             } else {
                 // Since we made an index request against an existing document, we can't get a NOOP or CREATED here

@@ -1,8 +1,8 @@
 ---
 setup:
   - skip:
-      version: " - 7.9.99"
-      reason:  TODO temporary version skip while we wait for backport to 7.x of search_after properties
+      version: " - 7.15.0"
+      reason:  original indices are propagated correctly in 7.15.1
       features: headers
   - do:
       cluster.health:
@@ -40,6 +40,16 @@ setup:
 
   - do:
       security.put_role:
+        name: "dls_alias_role"
+        body: >
+          {
+            "indices": [
+              { "names": ["alias_security"], "privileges": ["read"], "query": "{\"term\": {\"ck\": \"const\"}}" }
+            ]
+          }
+
+  - do:
+      security.put_role:
         name: "dls_none_role"
         body:  >
             {
@@ -54,6 +64,16 @@ setup:
           {
             "password" : "x-pack-test-password",
             "roles" : [ "dls_none_role", "dls_all_role" ],
+            "full_name" : "user with access to all docs in test_security index (using DLS)"
+          }
+
+  - do:
+      security.put_user:
+        username: "dls_alias_user"
+        body: >
+          {
+            "password" : "x-pack-test-password",
+            "roles" : [ "dls_alias_role" ],
             "full_name" : "user with access to all docs in test_security index (using DLS)"
           }
 
@@ -106,6 +126,9 @@ setup:
             properties:
               foo:
                 type : keyword
+              foo_non_indexed:
+                type: keyword
+                index: false
               timestamp:
                 type : date
   - do:
@@ -121,6 +144,22 @@ setup:
               foo:
                 type : constant_keyword
                 value: bar_ck
+              other:
+                type : text
+              timestamp:
+                type : date
+  - do:
+      indices.create:
+        index: test_ck_without_constant_field
+        body:
+          settings:
+            index:
+              number_of_shards:   1
+              number_of_replicas: 0
+          mappings:
+            properties:
+              foo:
+                type : constant_keyword
               other:
                 type : text
               timestamp:
@@ -143,6 +182,8 @@ setup:
       indices.create:
         index: test_security
         body:
+          aliases:
+            alias_security: {}
           settings:
             index:
               number_of_shards:   1
@@ -154,29 +195,38 @@ setup:
                 value: const
               foo:
                 type : keyword
+              foo_non_indexed:
+                type: keyword
+                index: false
 
   - do:
       index:
           index:  test_k
-          id:     1
-          body:   { foo: "bar_k", "timestamp":"2021-01-01T01:01:01.000Z" }
+          id:     "1"
+          body:   { foo: "bar_k", foo_non_indexed: "bar_k", "timestamp":"2021-01-01T01:01:01.000Z" }
 
   - do:
       index:
           index:  test_ck
-          id:     2
+          id:     "2"
           body:   { other: "foo", "timestamp":"2020-01-01T01:01:01.000Z"  }
 
   - do:
       index:
+        index:  test_ck_without_constant_field
+        id:     "2"
+        body:   { other: "foo", "timestamp":"2020-01-01T01:01:01.000Z"  }
+
+  - do:
+      index:
           index:  test_f
-          id:     3
+          id:     "3"
           body:   { foo: { bar: "bar_f" }, "timestamp":"2019-01-01T01:01:01.000Z" }
   - do:
       index:
           index:  test_security
-          id:     4
-          body:   { foo: "bar_dls"}
+          id:     "4"
+          body:   { foo: "bar_dls", foo_non_indexed: "bar_dls"}
 
   - do: #superuser
       headers: { Authorization: "Basic dGVzdF9hZG1pbjp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # admin
@@ -197,6 +247,16 @@ teardown:
   - do:
       security.delete_role:
         name: "dls_all_role"
+        ignore: 404
+
+  - do:
+      security.delete_user:
+        username: "dls_alias_user"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "dls_alias_role"
         ignore: 404
   - do:
       security.delete_role:
@@ -247,6 +307,18 @@ teardown:
   - length: {terms: 1}
 
 ---
+"Test basic term enumeration on doc value only field":
+  - skip:
+      version: " - 8.1.99"
+      reason: "terms enum support for doc value only keyword fields was added in 8.2.0"
+
+  - do:
+      terms_enum:
+        index:  test_*
+        body:  {"field": "foo_non_indexed", "string":"b"}
+  - length: {terms: 2}
+
+---
 "Test case insensitivity":
   - do:
       terms_enum:
@@ -279,6 +351,24 @@ teardown:
   - length: {terms: 0}
 
 ---
+"Test case insensitivity on doc value only field":
+  - skip:
+      version: " - 8.1.99"
+      reason: "terms enum support for doc value only keyword fields was added in 8.2.0"
+
+  - do:
+      terms_enum:
+        index:  test_k
+        body:  {"field": "foo_non_indexed", "string":"B"}
+  - length: {terms: 0}
+
+  - do:
+      terms_enum:
+        index:  test_k
+        body:  {"field": "foo_non_indexed", "string":"B", "case_insensitive": true}
+  - length: {terms: 1}
+
+---
 "Test null search string allowed":
   - skip:
       version: " - 7.99.99"
@@ -289,6 +379,7 @@ teardown:
         index:  test_k
         body:  {"field": "foo"}
   - length: {terms: 1}
+
 ---
 "Test search after keyword field":
   - do:
@@ -315,6 +406,35 @@ teardown:
         body:  {"field": "foo", "string":"", "search_after":"baa"}
   - length: {terms: 1}
 
+---
+"Test search after on doc value only keyword field":
+  - skip:
+      version: " - 8.1.99"
+      reason: "terms enum support for doc value only keyword fields was added in 8.2.0"
+
+  - do:
+      terms_enum:
+        index:  test_k
+        body:  {"field": "foo_non_indexed", "string":"b", "search_after":"baz"}
+  - length: {terms: 0}
+
+  - do:
+      terms_enum:
+        index:  test_k
+        body:  {"field": "foo_non_indexed", "string":"b", "search_after":"bar_k"}
+  - length: {terms: 0}
+
+  - do:
+      terms_enum:
+        index:  test_k
+        body:  {"field": "foo_non_indexed", "string":"b", "search_after":"baa"}
+  - length: {terms: 1}
+
+  - do:
+      terms_enum:
+        index:  test_k
+        body:  {"field": "foo_non_indexed", "string":"", "search_after":"baa"}
+  - length: {terms: 1}
 
 ---
 "Test search after flattened field":
@@ -369,6 +489,18 @@ teardown:
   - length: {terms: 1}
 
 ---
+"Test search after on unconfigured constant keyword field":
+  - skip:
+      version: " - 8.2.99"
+      reason:  bug fixed in 8.3.0
+
+  - do:
+      terms_enum:
+        index:  test_ck_without_constant_field
+        body:  {"field": "foo", "string":"b", "search_after":"baz"}
+  - length: {terms: 0}
+
+---
 "Test index filtering":
   - do:
       terms_enum:
@@ -389,6 +521,7 @@ teardown:
       terms_enum:
         index:  test_*
         body:  {"field": "foo", "string":"b", "timeout": "2m"}
+
 ---
 "Test security":
 
@@ -405,6 +538,13 @@ teardown:
         index:  test_security
         body:  {"field": "foo", "string":"b"}
   - length: {terms: 1}
+
+  - do:
+      headers: { Authorization: "Basic ZGxzX2FsaWFzX3VzZXI6eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" } # dls_alias_user sees all docs through the alias
+      terms_enum:
+        index: alias_security
+        body: { "field": "foo", "string": "b" }
+  - length: { terms: 1 }
 
   - do:
       headers: { Authorization: "Basic ZGxzX3NvbWVfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # dls_some_user sees selected docs

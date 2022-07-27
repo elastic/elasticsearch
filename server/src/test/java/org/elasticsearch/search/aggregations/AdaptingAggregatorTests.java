@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search.aggregations;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
@@ -67,11 +66,8 @@ public class AdaptingAggregatorTests extends MapperServiceTestCase {
         }
 
         @Override
-        protected Aggregator createInternal(
-            Aggregator parent,
-            CardinalityUpperBound cardinality,
-            Map<String, Object> metadata
-        ) throws IOException {
+        protected Aggregator createInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
+            throws IOException {
             return new DummyAdaptingAggregator(
                 parent,
                 factories,
@@ -110,14 +106,14 @@ public class AdaptingAggregatorTests extends MapperServiceTestCase {
         }
 
         @Override
-        protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
+        protected LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) {
             // TODO Auto-generated method stub
             return null;
         }
 
         @Override
         public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
-            return new InternalAggregation[] {null};
+            return new InternalAggregation[] { null };
         }
 
         @Override

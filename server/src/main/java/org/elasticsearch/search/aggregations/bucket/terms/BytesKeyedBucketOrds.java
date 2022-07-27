@@ -9,10 +9,10 @@
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefHash;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 
 /**
@@ -159,7 +159,15 @@ public abstract class BytesKeyedBucketOrds implements Releasable {
 
         private FromMany(BigArrays bigArrays) {
             bytesToLong = new BytesRefHash(1, bigArrays);
-            longToBucketOrds = LongKeyedBucketOrds.build(bigArrays, CardinalityUpperBound.MANY);
+            boolean success = false;
+            try {
+                longToBucketOrds = LongKeyedBucketOrds.build(bigArrays, CardinalityUpperBound.MANY);
+                success = true;
+            } finally {
+                if (success == false) {
+                    close();
+                }
+            }
         }
 
         @Override

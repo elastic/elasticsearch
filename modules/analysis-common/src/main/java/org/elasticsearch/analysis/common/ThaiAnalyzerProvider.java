@@ -20,9 +20,8 @@ public class ThaiAnalyzerProvider extends AbstractIndexAnalyzerProvider<ThaiAnal
     private final ThaiAnalyzer analyzer;
 
     ThaiAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-        super(indexSettings, name, settings);
-        analyzer = new ThaiAnalyzer(
-            Analysis.parseStopWords(env, settings, ThaiAnalyzer.getDefaultStopSet()));
+        super(name, settings);
+        analyzer = new ThaiAnalyzer(Analysis.parseStopWords(env, settings, ThaiAnalyzer.getDefaultStopSet()));
     }
 
     @Override

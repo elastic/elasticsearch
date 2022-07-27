@@ -9,17 +9,19 @@ package org.elasticsearch.rest;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.xcontent.ParsedMediaType;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ParsedMediaType;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
@@ -42,7 +44,7 @@ public abstract class AbstractRestChannel implements RestChannel {
     private final boolean human;
     private final String acceptHeader;
 
-    private BytesStreamOutput bytesOut;
+    private BytesStream bytesOut;
 
     /**
      * Construct a channel for handling the request.
@@ -92,8 +94,11 @@ public abstract class AbstractRestChannel implements RestChannel {
      * is {@code null}.
      */
     @Override
-    public XContentBuilder newBuilder(@Nullable XContentType requestContentType, @Nullable XContentType responseContentType,
-            boolean useFiltering) throws IOException {
+    public XContentBuilder newBuilder(
+        @Nullable XContentType requestContentType,
+        @Nullable XContentType responseContentType,
+        boolean useFiltering
+    ) throws IOException {
 
         if (responseContentType == null) {
             if (Strings.hasText(format)) {
@@ -126,13 +131,19 @@ public abstract class AbstractRestChannel implements RestChannel {
 
         OutputStream unclosableOutputStream = Streams.flushOnCloseStream(bytesOutput());
 
-        Map<String, String> parameters = request.getParsedAccept() != null ?
-            request.getParsedAccept().getParameters() : Collections.emptyMap();
+        Map<String, String> parameters = request.getParsedAccept() != null
+            ? request.getParsedAccept().getParameters()
+            : Collections.emptyMap();
         ParsedMediaType responseMediaType = ParsedMediaType.parseMediaType(responseContentType, parameters);
 
-        XContentBuilder builder =
-            new XContentBuilder(XContentFactory.xContent(responseContentType), unclosableOutputStream,
-                includes, excludes, responseMediaType, request.getRestApiVersion());
+        XContentBuilder builder = new XContentBuilder(
+            XContentFactory.xContent(responseContentType),
+            unclosableOutputStream,
+            includes,
+            excludes,
+            responseMediaType,
+            request.getRestApiVersion()
+        );
         if (pretty) {
             builder.prettyPrint().lfAtEnd();
         }
@@ -146,7 +157,7 @@ public abstract class AbstractRestChannel implements RestChannel {
      * by a call to {@link #newBytesOutput()}. This method should only be called once per request.
      */
     @Override
-    public final BytesStreamOutput bytesOutput() {
+    public final BytesStream bytesOutput() {
         if (bytesOut != null) {
             // fallback in case of encountering a bug, release the existing buffer if any (to avoid leaking memory) and acquire a new one
             // to send out an error response
@@ -164,12 +175,18 @@ public abstract class AbstractRestChannel implements RestChannel {
      */
     protected final void releaseOutputBuffer() {
         if (bytesOut != null) {
-            bytesOut.close();
+            try {
+                bytesOut.close();
+            } catch (IOException e) {
+                // should never throw
+                assert false : e;
+                throw new UncheckedIOException(e);
+            }
             bytesOut = null;
         }
     }
 
-    protected BytesStreamOutput newBytesOutput() {
+    protected BytesStream newBytesOutput() {
         return new BytesStreamOutput();
     }
 

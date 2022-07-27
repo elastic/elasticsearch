@@ -9,13 +9,14 @@ package org.elasticsearch.xpack.core.ml.action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 
@@ -34,16 +35,17 @@ public class PutJobAction extends ActionType<PutJobAction.Response> {
 
     public static class Request extends AcknowledgedRequest<Request> {
 
-        public static Request parseRequest(String jobId, XContentParser parser) {
+        public static Request parseRequest(String jobId, XContentParser parser, IndicesOptions indicesOptions) {
             Job.Builder jobBuilder = Job.STRICT_PARSER.apply(parser, null);
             if (jobBuilder.getId() == null) {
                 jobBuilder.setId(jobId);
             } else if (Strings.isNullOrEmpty(jobId) == false && jobId.equals(jobBuilder.getId()) == false) {
                 // If we have both URI and body jobBuilder ID, they must be identical
-                throw new IllegalArgumentException(Messages.getMessage(Messages.INCONSISTENT_ID, Job.ID.getPreferredName(),
-                        jobBuilder.getId(), jobId));
+                throw new IllegalArgumentException(
+                    Messages.getMessage(Messages.INCONSISTENT_ID, Job.ID.getPreferredName(), jobBuilder.getId(), jobId)
+                );
             }
-
+            jobBuilder.setDatafeedIndicesOptionsIfRequired(indicesOptions);
             return new Request(jobBuilder);
         }
 
@@ -60,8 +62,9 @@ public class PutJobAction extends ActionType<PutJobAction.Response> {
             // Some fields cannot be set at create time
             List<String> invalidJobCreationSettings = jobBuilder.invalidCreateTimeSettings();
             if (invalidJobCreationSettings.isEmpty() == false) {
-                throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_INVALID_CREATE_SETTINGS,
-                        String.join(",", invalidJobCreationSettings)));
+                throw new IllegalArgumentException(
+                    Messages.getMessage(Messages.JOB_CONFIG_INVALID_CREATE_SETTINGS, String.join(",", invalidJobCreationSettings))
+                );
             }
 
             this.jobBuilder = jobBuilder;

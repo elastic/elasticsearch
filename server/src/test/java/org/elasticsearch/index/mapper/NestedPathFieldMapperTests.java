@@ -10,7 +10,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -20,7 +20,7 @@ public class NestedPathFieldMapperTests extends MapperServiceTestCase {
 
     public void testDefaults() throws IOException {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
-        ParsedDocument document = mapper.parse(new SourceToParse("index", "id", new BytesArray("{}"), XContentType.JSON));
+        ParsedDocument document = mapper.parse(new SourceToParse("id", new BytesArray("{}"), XContentType.JSON));
         assertEquals(Collections.<IndexableField>emptyList(), Arrays.asList(document.rootDoc().getFields(NestedPathFieldMapper.NAME)));
     }
 }

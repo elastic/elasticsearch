@@ -8,12 +8,10 @@
 
 package org.elasticsearch.search.aggregations.bucket.filter;
 
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
@@ -23,6 +21,9 @@ import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator.KeyedFilter;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -98,6 +99,11 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
         return new FiltersAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
+    @Override
+    public boolean supportsSampling() {
+        return true;
+    }
+
     /**
      * Read from a stream.
      */
@@ -122,16 +128,7 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeBoolean(keyed);
-        out.writeVInt(filters.size());
-        if (keyed) {
-            for (KeyedFilter keyedFilter : filters) {
-                keyedFilter.writeTo(out);
-            }
-        } else {
-            for (KeyedFilter keyedFilter : filters) {
-                out.writeNamedWriteable(keyedFilter.filter());
-            }
-        }
+        out.writeCollection(filters, keyed ? (o, v) -> v.writeTo(o) : (o, v) -> o.writeNamedWriteable(v.filter()));
         out.writeBoolean(otherBucket);
         out.writeString(otherBucketKey);
     }
@@ -214,8 +211,17 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
     @Override
     protected AggregatorFactory doBuild(AggregationContext context, AggregatorFactory parent, Builder subFactoriesBuilder)
         throws IOException {
-        return new FiltersAggregatorFactory(name, filters, keyed, otherBucket, otherBucketKey, context, parent,
-            subFactoriesBuilder, metadata);
+        return new FiltersAggregatorFactory(
+            name,
+            filters,
+            keyed,
+            otherBucket,
+            otherBucketKey,
+            context,
+            parent,
+            subFactoriesBuilder,
+            metadata
+        );
     }
 
     @Override
@@ -240,8 +246,7 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
         return builder;
     }
 
-    public static FiltersAggregationBuilder parse(String aggregationName, XContentParser parser)
-        throws IOException {
+    public static FiltersAggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
 
         List<FiltersAggregator.KeyedFilter> filters = new ArrayList<>();
 
@@ -257,15 +262,19 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
                 if (OTHER_BUCKET_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     otherBucket = parser.booleanValue();
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(),
-                        "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "]."
+                    );
                 }
             } else if (token == XContentParser.Token.VALUE_STRING) {
                 if (OTHER_BUCKET_KEY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     otherBucketKey = parser.text();
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(),
-                        "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "]."
+                    );
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (FILTERS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -280,8 +289,10 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
                     }
                     keyed = true;
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(),
-                        "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "]."
+                    );
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if (FILTERS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -294,12 +305,16 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
                         filters.add(new KeyedFilter(String.valueOf(i), builders.get(i)));
                     }
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(),
-                        "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "]."
+                    );
                 }
             } else {
-                throw new ParsingException(parser.getTokenLocation(),
-                    "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+                throw new ParsingException(
+                    parser.getTokenLocation(),
+                    "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "]."
+                );
             }
         }
 
@@ -342,5 +357,10 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
     @Override
     public String getType() {
         return NAME;
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
     }
 }

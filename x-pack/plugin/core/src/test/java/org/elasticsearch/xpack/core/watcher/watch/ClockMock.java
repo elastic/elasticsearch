@@ -35,7 +35,6 @@ public class ClockMock extends Clock {
         this.wrappedClock = wrappedClock;
     }
 
-
     @Override
     public ZoneId getZone() {
         return wrappedClock.getZone();

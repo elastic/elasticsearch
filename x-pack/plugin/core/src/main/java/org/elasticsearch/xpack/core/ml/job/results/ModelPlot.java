@@ -6,17 +6,17 @@
  */
 package org.elasticsearch.xpack.core.ml.job.results;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.common.time.TimeUtils;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
-import org.elasticsearch.xpack.core.common.time.TimeUtils;
 
 import java.io.IOException;
 import java.util.Date;
@@ -50,12 +50,19 @@ public class ModelPlot implements ToXContentObject, Writeable {
     public static final ConstructingObjectParser<ModelPlot, Void> LENIENT_PARSER = createParser(true);
 
     private static ConstructingObjectParser<ModelPlot, Void> createParser(boolean ignoreUnknownFields) {
-        ConstructingObjectParser<ModelPlot, Void> parser = new ConstructingObjectParser<>(RESULT_TYPE_VALUE, ignoreUnknownFields,
-                a -> new ModelPlot((String) a[0], (Date) a[1], (long) a[2], (int) a[3]));
+        ConstructingObjectParser<ModelPlot, Void> parser = new ConstructingObjectParser<>(
+            RESULT_TYPE_VALUE,
+            ignoreUnknownFields,
+            a -> new ModelPlot((String) a[0], (Date) a[1], (long) a[2], (int) a[3])
+        );
 
         parser.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
-        parser.declareField(ConstructingObjectParser.constructorArg(),
-                p -> TimeUtils.parseTimeField(p, Result.TIMESTAMP.getPreferredName()), Result.TIMESTAMP, ValueType.VALUE);
+        parser.declareField(
+            ConstructingObjectParser.constructorArg(),
+            p -> TimeUtils.parseTimeField(p, Result.TIMESTAMP.getPreferredName()),
+            Result.TIMESTAMP,
+            ValueType.VALUE
+        );
         parser.declareLong(ConstructingObjectParser.constructorArg(), BUCKET_SPAN);
         parser.declareInt(ConstructingObjectParser.constructorArg(), DETECTOR_INDEX);
         parser.declareString((modelPlot, s) -> {}, Result.RESULT_TYPE);
@@ -146,8 +153,7 @@ public class ModelPlot implements ToXContentObject, Writeable {
         builder.field(DETECTOR_INDEX.getPreferredName(), detectorIndex);
 
         if (timestamp != null) {
-            builder.timeField(Result.TIMESTAMP.getPreferredName(),
-                    Result.TIMESTAMP.getPreferredName() + "_string", timestamp.getTime());
+            builder.timeField(Result.TIMESTAMP.getPreferredName(), Result.TIMESTAMP.getPreferredName() + "_string", timestamp.getTime());
         }
         if (partitionFieldName != null) {
             builder.field(PARTITION_FIELD_NAME.getPreferredName(), partitionFieldName);
@@ -185,8 +191,15 @@ public class ModelPlot implements ToXContentObject, Writeable {
     }
 
     public String getId() {
-        return jobId + "_model_plot_" + timestamp.getTime() + "_" + bucketSpan
-                + "_" + detectorIndex + "_" + MachineLearningField.valuesToId(byFieldValue, overFieldValue, partitionFieldValue);
+        return jobId
+            + "_model_plot_"
+            + timestamp.getTime()
+            + "_"
+            + bucketSpan
+            + "_"
+            + detectorIndex
+            + "_"
+            + MachineLearningField.valuesToId(byFieldValue, overFieldValue, partitionFieldValue);
     }
 
     public Date getTimestamp() {
@@ -298,27 +311,41 @@ public class ModelPlot implements ToXContentObject, Writeable {
             return false;
         }
         ModelPlot that = (ModelPlot) other;
-        return Objects.equals(this.jobId, that.jobId) &&
-                Objects.equals(this.timestamp, that.timestamp) &&
-                Objects.equals(this.partitionFieldValue, that.partitionFieldValue) &&
-                Objects.equals(this.partitionFieldName, that.partitionFieldName) &&
-                Objects.equals(this.overFieldValue, that.overFieldValue) &&
-                Objects.equals(this.overFieldName, that.overFieldName) &&
-                Objects.equals(this.byFieldValue, that.byFieldValue) &&
-                Objects.equals(this.byFieldName, that.byFieldName) &&
-                Objects.equals(this.modelFeature, that.modelFeature) &&
-                this.modelLower == that.modelLower &&
-                this.modelUpper == that.modelUpper &&
-                this.modelMedian == that.modelMedian &&
-                Objects.equals(this.actual, that.actual) &&
-                this.bucketSpan ==  that.bucketSpan &&
-                this.detectorIndex == that.detectorIndex;
+        return Objects.equals(this.jobId, that.jobId)
+            && Objects.equals(this.timestamp, that.timestamp)
+            && Objects.equals(this.partitionFieldValue, that.partitionFieldValue)
+            && Objects.equals(this.partitionFieldName, that.partitionFieldName)
+            && Objects.equals(this.overFieldValue, that.overFieldValue)
+            && Objects.equals(this.overFieldName, that.overFieldName)
+            && Objects.equals(this.byFieldValue, that.byFieldValue)
+            && Objects.equals(this.byFieldName, that.byFieldName)
+            && Objects.equals(this.modelFeature, that.modelFeature)
+            && this.modelLower == that.modelLower
+            && this.modelUpper == that.modelUpper
+            && this.modelMedian == that.modelMedian
+            && Objects.equals(this.actual, that.actual)
+            && this.bucketSpan == that.bucketSpan
+            && this.detectorIndex == that.detectorIndex;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(jobId, timestamp, partitionFieldName, partitionFieldValue,
-                overFieldName, overFieldValue, byFieldName, byFieldValue,
-                modelFeature, modelLower, modelUpper, modelMedian, actual, bucketSpan, detectorIndex);
+        return Objects.hash(
+            jobId,
+            timestamp,
+            partitionFieldName,
+            partitionFieldValue,
+            overFieldName,
+            overFieldValue,
+            byFieldName,
+            byFieldValue,
+            modelFeature,
+            modelLower,
+            modelUpper,
+            modelMedian,
+            actual,
+            bucketSpan,
+            detectorIndex
+        );
     }
 }

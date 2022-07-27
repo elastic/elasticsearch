@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[es-monitoring-collectors]]
 == Collectors
 

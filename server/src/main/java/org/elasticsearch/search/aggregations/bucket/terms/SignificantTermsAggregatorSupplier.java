@@ -19,17 +19,19 @@ import java.io.IOException;
 import java.util.Map;
 
 interface SignificantTermsAggregatorSupplier {
-    Aggregator build(String name,
-                     AggregatorFactories factories,
-                     ValuesSourceConfig valuesSourceConfig,
-                     DocValueFormat format,
-                     TermsAggregator.BucketCountThresholds bucketCountThresholds,
-                     IncludeExclude includeExclude,
-                     String executionHint,
-                     AggregationContext context,
-                     Aggregator parent,
-                     SignificanceHeuristic significanceHeuristic,
-                     SignificanceLookup lookup,
-                     CardinalityUpperBound cardinality,
-                     Map<String, Object> metadata) throws IOException;
+    Aggregator build(
+        String name,
+        AggregatorFactories factories,
+        ValuesSourceConfig valuesSourceConfig,
+        DocValueFormat format,
+        TermsAggregator.BucketCountThresholds bucketCountThresholds,
+        IncludeExclude includeExclude,
+        String executionHint,
+        AggregationContext context,
+        Aggregator parent,
+        SignificanceHeuristic significanceHeuristic,
+        SignificanceLookup lookup,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException;
 }

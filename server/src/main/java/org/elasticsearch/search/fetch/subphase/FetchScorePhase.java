@@ -21,14 +21,13 @@ import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
 import java.io.IOException;
 
 public class FetchScorePhase implements FetchSubPhase {
-
     @Override
     public FetchSubPhaseProcessor getProcessor(FetchContext context) throws IOException {
         if (context.fetchScores() == false) {
             return null;
         }
         final IndexSearcher searcher = context.searcher();
-        final Weight weight = searcher.createWeight(searcher.rewrite(context.query()), ScoreMode.COMPLETE, 1);
+        final Weight weight = searcher.createWeight(context.rewrittenQuery(), ScoreMode.COMPLETE, 1);
         return new FetchSubPhaseProcessor() {
 
             Scorer scorer;

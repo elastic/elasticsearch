@@ -23,7 +23,9 @@ public class PutDatafeedActionResponseTests extends AbstractWireSerializingTestC
     @Override
     protected Response createTestInstance() {
         DatafeedConfig.Builder datafeedConfig = new DatafeedConfig.Builder(
-                DatafeedConfigTests.randomValidDatafeedId(), randomAlphaOfLength(10));
+            DatafeedConfigTests.randomValidDatafeedId(),
+            randomAlphaOfLength(10)
+        );
         datafeedConfig.setIndices(Arrays.asList(randomAlphaOfLength(10)));
         return new Response(datafeedConfig.build());
     }

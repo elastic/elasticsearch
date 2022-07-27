@@ -9,7 +9,6 @@
 package org.elasticsearch.search.aggregations.bucket;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.search.aggregations.BucketOrder;
@@ -52,32 +51,32 @@ public class TermsTests extends BaseAggregationTestCase<TermsAggregationBuilder>
         if (randomBoolean()) {
             int minDocCount = randomInt(4);
             switch (minDocCount) {
-            case 0:
-                break;
-            case 1:
-            case 2:
-            case 3:
-            case 4:
-                minDocCount = randomIntBetween(0, Integer.MAX_VALUE);
-                break;
-            default:
-                fail();
+                case 0:
+                    break;
+                case 1:
+                case 2:
+                case 3:
+                case 4:
+                    minDocCount = randomIntBetween(0, Integer.MAX_VALUE);
+                    break;
+                default:
+                    fail();
             }
             factory.minDocCount(minDocCount);
         }
         if (randomBoolean()) {
             int shardMinDocCount = randomInt(4);
             switch (shardMinDocCount) {
-            case 0:
-                break;
-            case 1:
-            case 2:
-            case 3:
-            case 4:
-                shardMinDocCount = randomIntBetween(0, Integer.MAX_VALUE);
-                break;
-            default:
-                fail();
+                case 0:
+                    break;
+                case 1:
+                case 2:
+                case 3:
+                case 4:
+                    shardMinDocCount = randomIntBetween(0, Integer.MAX_VALUE);
+                    break;
+                default:
+                    fail();
             }
             factory.shardMinDocCount(shardMinDocCount);
         }
@@ -91,14 +90,14 @@ public class TermsTests extends BaseAggregationTestCase<TermsAggregationBuilder>
             factory.format("###.##");
         }
         if (randomBoolean()) {
-            RegExp includeRegexp = null, excludeRegexp = null;
+            String includeRegexp = null, excludeRegexp = null;
             SortedSet<BytesRef> includeValues = null, excludeValues = null;
             boolean hasIncludeOrExclude = false;
 
             if (randomBoolean()) {
                 hasIncludeOrExclude = true;
                 if (randomBoolean()) {
-                    includeRegexp = new RegExp(randomAlphaOfLengthBetween(5, 10));
+                    includeRegexp = randomAlphaOfLengthBetween(5, 10);
                 } else {
                     includeValues = new TreeSet<>();
                     int numIncs = randomIntBetween(1, 20);
@@ -111,7 +110,7 @@ public class TermsTests extends BaseAggregationTestCase<TermsAggregationBuilder>
             if (randomBoolean()) {
                 hasIncludeOrExclude = true;
                 if (randomBoolean()) {
-                    excludeRegexp = new RegExp(randomAlphaOfLengthBetween(5, 10));
+                    excludeRegexp = randomAlphaOfLengthBetween(5, 10);
                 } else {
                     excludeValues = new TreeSet<>();
                     int numIncs = randomIntBetween(1, 20);
@@ -133,7 +132,7 @@ public class TermsTests extends BaseAggregationTestCase<TermsAggregationBuilder>
         }
         if (randomBoolean()) {
             List<BucketOrder> order = randomOrder();
-            if(order.size() == 1 && randomBoolean()) {
+            if (order.size() == 1 && randomBoolean()) {
                 factory.order(order.get(0));
             } else {
                 factory.order(order);
@@ -148,26 +147,19 @@ public class TermsTests extends BaseAggregationTestCase<TermsAggregationBuilder>
     private List<BucketOrder> randomOrder() {
         List<BucketOrder> orders = new ArrayList<>();
         switch (randomInt(4)) {
-        case 0:
-            orders.add(BucketOrder.key(randomBoolean()));
-            break;
-        case 1:
-            orders.add(BucketOrder.count(randomBoolean()));
-            break;
-        case 2:
-            orders.add(BucketOrder.aggregation(randomAlphaOfLengthBetween(3, 20), randomBoolean()));
-            break;
-        case 3:
-            orders.add(BucketOrder.aggregation(randomAlphaOfLengthBetween(3, 20), randomAlphaOfLengthBetween(3, 20), randomBoolean()));
-            break;
-        case 4:
-            int numOrders = randomIntBetween(1, 3);
-            for (int i = 0; i < numOrders; i++) {
-                orders.addAll(randomOrder());
+            case 0 -> orders.add(BucketOrder.key(randomBoolean()));
+            case 1 -> orders.add(BucketOrder.count(randomBoolean()));
+            case 2 -> orders.add(BucketOrder.aggregation(randomAlphaOfLengthBetween(3, 20), randomBoolean()));
+            case 3 -> orders.add(
+                BucketOrder.aggregation(randomAlphaOfLengthBetween(3, 20), randomAlphaOfLengthBetween(3, 20), randomBoolean())
+            );
+            case 4 -> {
+                int numOrders = randomIntBetween(1, 3);
+                for (int i = 0; i < numOrders; i++) {
+                    orders.addAll(randomOrder());
+                }
             }
-            break;
-        default:
-            fail();
+            default -> fail();
         }
         return orders;
     }

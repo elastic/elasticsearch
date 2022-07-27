@@ -57,7 +57,7 @@ public abstract class FunctionalBinaryProcessor<T, U, R, F extends BiFunction<T,
 
         FunctionalBinaryProcessor<?, ?, ?, ?> other = (FunctionalBinaryProcessor<?, ?, ?, ?>) obj;
         return Objects.equals(function(), other.function())
-                && Objects.equals(left(), other.left())
-                && Objects.equals(right(), other.right());
+            && Objects.equals(left(), other.left())
+            && Objects.equals(right(), other.right());
     }
 }

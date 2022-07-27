@@ -24,28 +24,28 @@ public class IpRangeTests extends BaseAggregationTestCase<IpRangeAggregationBuil
                 key = randomAlphaOfLengthBetween(1, 20);
             }
             switch (randomInt(3)) {
-            case 0:
-                boolean v4 = randomBoolean();
-                int prefixLength;
-                if (v4) {
-                    prefixLength = randomInt(32);
-                } else {
-                    prefixLength = randomInt(128);
-                }
-                factory.addMaskRange(key, NetworkAddress.format(randomIp(v4)) + "/" + prefixLength);
-                break;
-            case 1:
-                factory.addUnboundedFrom(key, NetworkAddress.format(randomIp(randomBoolean())));
-                break;
-            case 2:
-                factory.addUnboundedTo(key, NetworkAddress.format(randomIp(randomBoolean())));
-                break;
-            case 3:
-                v4 = randomBoolean();
-                factory.addRange(key, NetworkAddress.format(randomIp(v4)), NetworkAddress.format(randomIp(v4)));
-                break;
-            default:
-                fail();
+                case 0:
+                    boolean v4 = randomBoolean();
+                    int prefixLength;
+                    if (v4) {
+                        prefixLength = randomInt(32);
+                    } else {
+                        prefixLength = randomInt(128);
+                    }
+                    factory.addMaskRange(key, NetworkAddress.format(randomIp(v4)) + "/" + prefixLength);
+                    break;
+                case 1:
+                    factory.addUnboundedFrom(key, NetworkAddress.format(randomIp(randomBoolean())));
+                    break;
+                case 2:
+                    factory.addUnboundedTo(key, NetworkAddress.format(randomIp(randomBoolean())));
+                    break;
+                case 3:
+                    v4 = randomBoolean();
+                    factory.addRange(key, NetworkAddress.format(randomIp(v4)), NetworkAddress.format(randomIp(v4)));
+                    break;
+                default:
+                    fail();
             }
         }
         factory.field(IP_FIELD_NAME);

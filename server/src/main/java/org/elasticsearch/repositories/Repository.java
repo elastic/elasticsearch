@@ -23,6 +23,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.snapshots.SnapshotDeleteListener;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -133,24 +134,9 @@ public interface Repository extends LifecycleComponent {
      * <p>
      * This method is called on master after all shards are snapshotted.
      *
-     * @param shardGenerations      updated shard generations
-     * @param repositoryStateId     the unique id identifying the state of the repository when the snapshot began
-     * @param clusterMetadata       cluster metadata
-     * @param snapshotInfo     SnapshotInfo instance to write for this snapshot
-     * @param repositoryMetaVersion version of the updated repository metadata to write
-     * @param stateTransformer      a function that filters the last cluster state update that the snapshot finalization will execute and
-     *                              is used to remove any state tracked for the in-progress snapshot from the cluster state
-     * @param listener              listener to be invoked with the new {@link RepositoryData} after completing the snapshot
+     * @param finalizeSnapshotContext finalization context
      */
-    void finalizeSnapshot(
-        ShardGenerations shardGenerations,
-        long repositoryStateId,
-        Metadata clusterMetadata,
-        SnapshotInfo snapshotInfo,
-        Version repositoryMetaVersion,
-        Function<ClusterState, ClusterState> stateTransformer,
-        ActionListener<RepositoryData> listener
-    );
+    void finalizeSnapshot(FinalizeSnapshotContext finalizeSnapshotContext);
 
     /**
      * Deletes snapshots
@@ -164,7 +150,7 @@ public interface Repository extends LifecycleComponent {
         Collection<SnapshotId> snapshotIds,
         long repositoryStateId,
         Version repositoryMetaVersion,
-        ActionListener<RepositoryData> listener
+        SnapshotDeleteListener listener
     );
 
     /**
@@ -309,7 +295,7 @@ public interface Repository extends LifecycleComponent {
         SnapshotId source,
         SnapshotId target,
         RepositoryShardId shardId,
-        @Nullable String shardGeneration,
+        @Nullable ShardGeneration shardGeneration,
         ActionListener<ShardSnapshotResult> listener
     );
 
@@ -321,10 +307,16 @@ public interface Repository extends LifecycleComponent {
         return userMetadata;
     }
 
+    /**
+     * Block until all in-flight operations for this repository have completed. Must only be called after this instance has been closed
+     * by a call to stop {@link #close()}.
+     * Waiting for ongoing operations should be implemented here instead of in {@link #stop()} or {@link #close()} hooks of this interface
+     * as these are expected to be called on the cluster state applier thread (which must not block) if a repository is removed from the
+     * cluster. This method is intended to be called on node shutdown instead as a means to ensure no repository operations are leaked.
+     */
+    void awaitIdle();
+
     static boolean assertSnapshotMetaThread() {
-        final String threadName = Thread.currentThread().getName();
-        assert threadName.contains('[' + ThreadPool.Names.SNAPSHOT_META + ']') || threadName.startsWith("TEST-")
-            : "Expected current thread [" + Thread.currentThread() + "] to be a snapshot meta thread.";
-        return true;
+        return ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SNAPSHOT_META);
     }
 }

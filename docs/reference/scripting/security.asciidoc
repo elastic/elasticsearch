@@ -1,114 +1,63 @@
 [[modules-scripting-security]]
 == Scripting and security
+Painless and {es} implement layers of security to build a defense in depth
+strategy for running scripts safely.
 
-While Elasticsearch contributors make every effort to prevent scripts from
-running amok, security is something best done in
-{wikipedia}/Defense_in_depth_(computing)[layers] because
-all software has bugs and it is important to minimize the risk of failure in
-any security layer. Find below rules of thumb for how to keep Elasticsearch
-from being a vulnerability.
+Painless uses a fine-grained allowlist. Anything that is not part of the
+allowlist results in a compilation error. This capability is the first layer of
+security in a defense in depth strategy for scripting.
 
-[discrete]
-=== Do not run as root
-First and foremost, never run Elasticsearch as the `root` user as this would
-allow any successful effort to circumvent the other security layers to do
-*anything* on your server. Elasticsearch will refuse to start if it detects
-that it is running as `root` but this is so important that it is worth double
-and triple checking.
+The second layer of security is the https://www.oracle.com/java/technologies/javase/seccodeguide.html[Java Security Manager]. As part of its startup
+sequence, {es} enables the Java Security Manager to limit the actions that
+portions of the code can take. <<modules-scripting-painless,Painless>> uses 
+the Java Security Manager as an additional layer of defense to prevent scripts 
+from doing things like writing files and listening to sockets.
 
-[discrete]
-=== Do not expose Elasticsearch directly to users
-Do not expose Elasticsearch directly to users, instead have an application
-make requests on behalf of users. If this is not possible, have an application
-to sanitize requests from users. If *that* is not possible then have some
-mechanism to track which users did what. Understand that it is quite possible
-to write a <<search, `_search`>> that overwhelms Elasticsearch and brings down
-the cluster. All such searches should be considered bugs and the Elasticsearch
-contributors make an effort to prevent this but they are still possible.
-
-[discrete]
-=== Do not expose Elasticsearch directly to the Internet
-Do not expose Elasticsearch to the Internet, instead have an application
-make requests on behalf of the Internet. Do not entertain the thought of having
-an application "sanitize" requests to Elasticsearch. Understand that it is
-possible for a sufficiently determined malicious user to write searches that
-overwhelm the Elasticsearch cluster and bring it down. For example:
-
-Good:
-
-* Users type text into a search box and the text is sent directly to a
-<<query-dsl-match-query>>, <<query-dsl-match-query-phrase>>,
-<<query-dsl-simple-query-string-query>>, or any of the <<search-suggesters>>.
-* Running a script with any of the above queries that was written as part of
-the application development process.
-* Running a script with `params` provided by users.
-* User actions makes documents with a fixed structure.
-
-Bad:
-
-* Users can write arbitrary scripts, queries, `_search` requests.
-* User actions make documents with structure defined by users.
-
-[discrete]
-[[modules-scripting-other-layers]]
-=== Other security layers
-In addition to user privileges and script sandboxing Elasticsearch uses the
-https://www.oracle.com/java/technologies/javase/seccodeguide.html[Java Security Manager]
-and native security tools as additional layers of security.
-
-As part of its startup sequence Elasticsearch enables the Java Security Manager
-which limits the actions that can be taken by portions of the code. Painless
-uses this to limit the actions that generated Painless scripts can take,
-preventing them from being able to do things like write files and listen to
-sockets.
-
-Elasticsearch uses
+{es} uses
 {wikipedia}/Seccomp[seccomp] in Linux,
 https://www.chromium.org/developers/design-documents/sandbox/osx-sandboxing-design[Seatbelt]
 in macOS, and
 https://msdn.microsoft.com/en-us/library/windows/desktop/ms684147[ActiveProcessLimit]
-on Windows to prevent Elasticsearch from forking or executing other processes.
+on Windows as additional security layers to prevent {es} from forking or 
+running other processes.
 
-Below this we describe the security settings for scripts and how you can
-change from the defaults described above. You should be very, very careful
-when allowing more than the defaults. Any extra permissions weakens the total
-security of the Elasticsearch deployment.
+You can modify the following script settings to restrict the type of scripts
+that are allowed to run, and control the available 
+{painless}/painless-contexts.html[contexts] that scripts can run in. To
+implement additional layers in your defense in depth strategy, follow the 
+<<es-security-principles,{es} security principles>>.
 
 [[allowed-script-types-setting]]
 [discrete]
 === Allowed script types setting
 
-Elasticsearch supports two script types: `inline` and `stored` (<<modules-scripting-using>>).
-By default, {es} is configured to run both types of scripts.
-To limit what type of scripts are run, set `script.allowed_types` to `inline` or `stored`.
-To prevent any scripts from running, set `script.allowed_types` to `none`.
+{es} supports two script types: `inline` and `stored`. By default, {es} is 
+configured to run both types of scripts. To limit what type of scripts are run, 
+set `script.allowed_types` to `inline` or `stored`. To prevent any scripts from 
+running, set `script.allowed_types` to `none`.
 
 IMPORTANT: If you use {kib}, set `script.allowed_types` to `both` or `inline`.
 Some {kib} features rely on inline scripts and do not function as expected
 if {es} does not allow inline scripts.
 
-For example, to run `inline` scripts but not `stored` scripts, specify:
+For example, to run `inline` scripts but not `stored` scripts:
 
 [source,yaml]
 ----
-script.allowed_types: inline <1>
+script.allowed_types: inline
 ----
-<1> This will allow only inline scripts to be executed but not stored scripts
-(or any other types).
-
 
 [[allowed-script-contexts-setting]]
 [discrete]
 === Allowed script contexts setting
 
-By default all script contexts are allowed to be executed. This can be modified using the
-setting `script.allowed_contexts`. Only the contexts specified as part of the setting will
-be allowed to be executed. To specify no contexts are allowed, set `script.allowed_contexts`
-to be `none`.
+By default, all script contexts are permitted. Use the `script.allowed_contexts`
+setting to specify the contexts that are allowed. To specify that no contexts
+are allowed, set `script.allowed_contexts` to `none`.
+
+For example, to allow scripts to run only in `scoring` and `update` contexts:
 
 [source,yaml]
 ----
-script.allowed_contexts: score, update <1>
+script.allowed_contexts: score, update
 ----
-<1> This will allow only scoring and update scripts to be executed but not
-aggs or plugin scripts (or any other contexts).

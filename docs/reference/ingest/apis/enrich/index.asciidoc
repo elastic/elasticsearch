@@ -1,3 +1,4 @@
+[role="xpack"]
 [[enrich-apis]]
 == Enrich APIs
 

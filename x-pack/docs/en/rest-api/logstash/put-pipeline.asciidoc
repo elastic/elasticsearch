@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[logstash-api-put-pipeline]]
 === Create or update {ls} pipeline API
 ++++

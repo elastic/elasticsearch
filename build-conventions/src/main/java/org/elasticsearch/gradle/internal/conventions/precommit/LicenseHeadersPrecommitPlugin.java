@@ -11,7 +11,7 @@ package org.elasticsearch.gradle.internal.conventions.precommit;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.plugins.JavaBasePlugin;
-import org.gradle.api.plugins.JavaPluginConvention;
+import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.TaskProvider;
@@ -29,7 +29,7 @@ public class LicenseHeadersPrecommitPlugin extends PrecommitPlugin {
     public TaskProvider<? extends Task> createTask(Project project) {
         return project.getTasks().register("licenseHeaders", LicenseHeadersTask.class, licenseHeadersTask -> {
             project.getPlugins().withType(JavaBasePlugin.class, javaBasePlugin -> {
-                final SourceSetContainer sourceSets = project.getConvention().getPlugin(JavaPluginConvention.class).getSourceSets();
+                final SourceSetContainer sourceSets = project.getExtensions().getByType(JavaPluginExtension.class).getSourceSets();
                 licenseHeadersTask.getSourceFolders()
                     .addAll(providerFactory.provider(() -> sourceSets.stream().map(s -> s.getAllJava()).collect(Collectors.toList())));
             });

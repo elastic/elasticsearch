@@ -16,7 +16,6 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -26,11 +25,12 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.lucene.store.ESIndexInputTestCase;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
@@ -41,7 +41,6 @@ import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.ClusterServiceUtils;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolStats;
@@ -71,6 +70,7 @@ import java.util.concurrent.TimeUnit;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiLettersOfLengthBetween;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.randomPopulateAndReads;
+import static org.elasticsearch.xpack.searchablesnapshots.cache.shared.SharedBytes.PAGE_SIZE;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.shared.SharedBytes.pageAligned;
 
 public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTestCase {
@@ -94,15 +94,8 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
 
     @Before
     public void setUpTest() throws Exception {
-        final DiscoveryNode node = new DiscoveryNode(
-            "node",
-            ESTestCase.buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            DiscoveryNodeRole.roles(),
-            Version.CURRENT
-        );
         threadPool = new TestThreadPool(getTestName(), SearchableSnapshots.executorBuilders(Settings.EMPTY));
-        clusterService = ClusterServiceUtils.createClusterService(threadPool, node, CLUSTER_SETTINGS);
+        clusterService = ClusterServiceUtils.createClusterService(threadPool, CLUSTER_SETTINGS);
         nodeEnvironment = newNodeEnvironment();
         singlePathNodeEnvironment = newSinglePathNodeEnvironment();
     }
@@ -151,16 +144,16 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
     protected FrozenCacheService randomFrozenCacheService() {
         final Settings.Builder cacheSettings = Settings.builder();
         if (randomBoolean()) {
-            cacheSettings.put(FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), randomFrozenCacheSize());
+            cacheSettings.put(FrozenCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), randomFrozenCacheSize());
         }
         if (randomBoolean()) {
-            cacheSettings.put(FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), pageAligned(randomFrozenCacheSize()));
+            cacheSettings.put(FrozenCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), pageAligned(randomFrozenCacheSize()));
         }
         if (randomBoolean()) {
             cacheSettings.put(FrozenCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), randomFrozenCacheRangeSize());
         }
         if (randomBoolean()) {
-            cacheSettings.put(FrozenCacheService.FROZEN_CACHE_RECOVERY_RANGE_SIZE_SETTING.getKey(), randomFrozenCacheRangeSize());
+            cacheSettings.put(FrozenCacheService.SHARED_CACHE_RECOVERY_RANGE_SIZE_SETTING.getKey(), randomFrozenCacheRangeSize());
         }
         return new FrozenCacheService(singlePathNodeEnvironment, cacheSettings.build(), threadPool);
     }
@@ -181,7 +174,7 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
         return new FrozenCacheService(
             singlePathNodeEnvironment,
             Settings.builder()
-                .put(FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), cacheSize)
+                .put(FrozenCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), cacheSize)
                 .put(FrozenCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), cacheRangeSize)
                 .build(),
             threadPool
@@ -191,7 +184,7 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
     private NodeEnvironment newSinglePathNodeEnvironment() throws IOException {
         Settings build = Settings.builder()
             .put(buildEnvSettings(Settings.EMPTY))
-            .put(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
+            .putList(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toAbsolutePath().toString())
             .build();
         return new NodeEnvironment(build, TestEnvironment.newEnvironment(build));
     }
@@ -199,8 +192,8 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
     /**
      * Returns a random shard data path for the specified {@link ShardId}. The returned path can be located on any of the data node paths.
      */
-    protected Path shardPath(ShardId shardId) {
-        return nodeEnvironment.availableShardPath(shardId);
+    protected Path randomShardPath(ShardId shardId) {
+        return randomFrom(nodeEnvironment.availableShardPaths(shardId));
     }
 
     protected static ByteSizeValue randomFrozenCacheSize() {
@@ -211,25 +204,20 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
      * @return a random {@link ByteSizeValue} that can be used to set {@link CacheService#SNAPSHOT_CACHE_RANGE_SIZE_SETTING}
      */
     protected static ByteSizeValue randomCacheRangeSize() {
-        return pageAligned(
-            new ByteSizeValue(
-                randomLongBetween(
-                    CacheService.MIN_SNAPSHOT_CACHE_RANGE_SIZE.getBytes(),
-                    CacheService.MAX_SNAPSHOT_CACHE_RANGE_SIZE.getBytes()
-                )
-            )
-        );
+        return pageAlignedBetween(CacheService.MIN_SNAPSHOT_CACHE_RANGE_SIZE, CacheService.MAX_SNAPSHOT_CACHE_RANGE_SIZE);
     }
 
     protected static ByteSizeValue randomFrozenCacheRangeSize() {
-        return pageAligned(
-            new ByteSizeValue(
-                randomLongBetween(
-                    FrozenCacheService.MIN_SNAPSHOT_CACHE_RANGE_SIZE.getBytes(),
-                    FrozenCacheService.MAX_SNAPSHOT_CACHE_RANGE_SIZE.getBytes()
-                )
-            )
-        );
+        return pageAlignedBetween(new ByteSizeValue(4, ByteSizeUnit.KB), new ByteSizeValue(Integer.MAX_VALUE, ByteSizeUnit.BYTES));
+    }
+
+    private static ByteSizeValue pageAlignedBetween(ByteSizeValue min, ByteSizeValue max) {
+        ByteSizeValue aligned = pageAligned(new ByteSizeValue(randomLongBetween(min.getBytes(), max.getBytes())));
+        if (aligned.compareTo(max) > 0) {
+            // minus one page in case page alignment moved us past the max setting value
+            return new ByteSizeValue(aligned.getBytes() - PAGE_SIZE);
+        }
+        return aligned;
     }
 
     protected static SearchableSnapshotRecoveryState createRecoveryState(boolean finalizedDone) {
@@ -287,7 +275,7 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
                     ShardId shardId = new ShardId(indexId.getName(), indexId.getId(), shards);
 
                     final Path cacheDir = Files.createDirectories(
-                        CacheService.resolveSnapshotCache(shardPath(shardId)).resolve(snapshotUUID)
+                        CacheService.resolveSnapshotCache(randomShardPath(shardId)).resolve(snapshotUUID)
                     );
 
                     for (int files = 0; files < between(1, 2); files++) {

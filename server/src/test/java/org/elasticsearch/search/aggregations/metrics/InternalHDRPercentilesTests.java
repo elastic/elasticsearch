@@ -9,7 +9,9 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.HdrHistogram.DoubleHistogram;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -18,13 +20,19 @@ import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
+import static org.hamcrest.Matchers.equalTo;
 
 public class InternalHDRPercentilesTests extends InternalPercentilesTestCase<InternalHDRPercentiles> {
 
     @Override
-    protected InternalHDRPercentiles createTestInstance(String name,
-                                                        Map<String, Object> metadata,
-                                                        boolean keyed, DocValueFormat format, double[] percents, double[] values) {
+    protected InternalHDRPercentiles createTestInstance(
+        String name,
+        Map<String, Object> metadata,
+        boolean keyed,
+        DocValueFormat format,
+        double[] percents,
+        double[] values
+    ) {
 
         final DoubleHistogram state = new DoubleHistogram(3);
         Arrays.stream(values).forEach(state::recordValue);
@@ -43,19 +51,32 @@ public class InternalHDRPercentilesTests extends InternalPercentilesTestCase<Int
     }
 
     @Override
+    protected boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
+    protected void assertSampled(InternalHDRPercentiles sampled, InternalHDRPercentiles reduced, SamplingContext samplingContext) {
+        Iterator<Percentile> it1 = sampled.iterator();
+        Iterator<Percentile> it2 = reduced.iterator();
+        while (it1.hasNext() && it2.hasNext()) {
+            assertThat(it1.next(), equalTo(it2.next()));
+        }
+    }
+
+    @Override
     protected Class<? extends ParsedPercentiles> implementationClass() {
         return ParsedHDRPercentiles.class;
     }
 
     public void testIterator() {
-        final double[] percents =  randomPercents(false);
+        final double[] percents = randomPercents(false);
         final double[] values = new double[frequently() ? randomIntBetween(1, 10) : 0];
         for (int i = 0; i < values.length; ++i) {
             values[i] = randomDouble();
         }
 
-        InternalHDRPercentiles aggregation =
-                createTestInstance("test", emptyMap(), false, randomNumericDocValueFormat(), percents, values);
+        InternalHDRPercentiles aggregation = createTestInstance("test", emptyMap(), false, randomNumericDocValueFormat(), percents, values);
 
         Iterator<Percentile> iterator = aggregation.iterator();
         Iterator<String> nameIterator = aggregation.valueNames().iterator();
@@ -85,33 +106,28 @@ public class InternalHDRPercentilesTests extends InternalPercentilesTestCase<Int
         DocValueFormat formatter = instance.formatter();
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 4)) {
-        case 0:
-            name += randomAlphaOfLength(5);
-            break;
-        case 1:
-            percents = Arrays.copyOf(percents, percents.length + 1);
-            percents[percents.length - 1] = randomDouble() * 100;
-            Arrays.sort(percents);
-            break;
-        case 2:
-            state = new DoubleHistogram(state);
-            for (int i = 0; i < between(10, 100); i++) {
-                state.recordValue(randomDouble());
+            case 0 -> name += randomAlphaOfLength(5);
+            case 1 -> {
+                percents = Arrays.copyOf(percents, percents.length + 1);
+                percents[percents.length - 1] = randomDouble() * 100;
+                Arrays.sort(percents);
             }
-            break;
-        case 3:
-            keyed = keyed == false;
-            break;
-        case 4:
-            if (metadata == null) {
-                metadata = new HashMap<>(1);
-            } else {
-                metadata = new HashMap<>(instance.getMetadata());
+            case 2 -> {
+                state = new DoubleHistogram(state);
+                for (int i = 0; i < between(10, 100); i++) {
+                    state.recordValue(randomDouble());
+                }
             }
-            metadata.put(randomAlphaOfLength(15), randomInt());
-            break;
-        default:
-            throw new AssertionError("Illegal randomisation branch");
+            case 3 -> keyed = keyed == false;
+            case 4 -> {
+                if (metadata == null) {
+                    metadata = Maps.newMapWithExpectedSize(1);
+                } else {
+                    metadata = new HashMap<>(instance.getMetadata());
+                }
+                metadata.put(randomAlphaOfLength(15), randomInt());
+            }
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalHDRPercentiles(name, percents, state, keyed, formatter, metadata);
     }

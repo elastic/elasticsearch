@@ -11,7 +11,6 @@ import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotR
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
@@ -36,13 +35,12 @@ public class SearchableSnapshotsSettingValidationIntegTests extends BaseFrozenSe
 
         assertAcked(client().admin().indices().prepareDelete(indexName));
 
-        final Settings.Builder indexSettingsBuilder = Settings.builder().put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), false);
         final MountSearchableSnapshotRequest req = new MountSearchableSnapshotRequest(
             indexName,
             repoName,
             snapshotName,
             indexName,
-            indexSettingsBuilder.build(),
+            Settings.EMPTY,
             Strings.EMPTY_ARRAY,
             true,
             randomFrom(MountSearchableSnapshotRequest.Storage.values())

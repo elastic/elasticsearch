@@ -4,8 +4,10 @@
 <titleabbrev>Refresh</titleabbrev>
 ++++
 
-Refreshes one or more indices. For data streams, the API refreshes the stream's
-backing indices.
+A refresh makes recent operations performed on one or more indices available for
+search. For data streams, the API runs the refresh operation on the stream's
+backing indices. For more information about the refresh operation, see
+<<near-real-time>>.
 
 [source,console]
 ----
@@ -35,11 +37,9 @@ stream, index, or alias.
 [[refresh-api-desc]]
 ==== {api-description-title}
 
-Use the refresh API to explicitly refresh one or more indices.
+Use the refresh API to explicitly make all operations performed on one or more
+indices since the last refresh available for search.
 If the request targets a data stream, it refreshes the stream's backing indices.
-A _refresh_ makes all operations performed on an index
-since the last refresh
-available for search.
 
 // tag::refresh-interval-default[]
 By default, Elasticsearch periodically refreshes indices every second, but only on

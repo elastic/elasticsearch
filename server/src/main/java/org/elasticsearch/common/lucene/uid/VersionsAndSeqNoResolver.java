@@ -69,15 +69,15 @@ public final class VersionsAndSeqNoResolver {
         }
 
         if (lookupState.length > 0 && Objects.equals(lookupState[0].uidField, uidField) == false) {
-            throw new AssertionError("Index does not consistently use the same uid field: ["
-                    + uidField + "] != [" + lookupState[0].uidField + "]");
+            throw new AssertionError(
+                "Index does not consistently use the same uid field: [" + uidField + "] != [" + lookupState[0].uidField + "]"
+            );
         }
 
         return lookupState;
     }
 
-    private VersionsAndSeqNoResolver() {
-    }
+    private VersionsAndSeqNoResolver() {}
 
     /** Wraps an {@link LeafReaderContext}, a doc ID <b>relative to the context doc base</b> and a version. */
     public static class DocIdAndVersion {
@@ -111,7 +111,6 @@ public final class VersionsAndSeqNoResolver {
         }
     }
 
-
     /**
      * Load the internal doc ID and version for the uid from the reader, returning<ul>
      * <li>null if the uid wasn't found,
@@ -126,6 +125,19 @@ public final class VersionsAndSeqNoResolver {
         for (int i = leaves.size() - 1; i >= 0; i--) {
             final LeafReaderContext leaf = leaves.get(i);
             PerThreadIDVersionAndSeqNoLookup lookup = lookups[leaf.ord];
+            DocIdAndVersion result = lookup.lookupVersion(term.bytes(), loadSeqNo, leaf);
+            if (result != null) {
+                return result;
+            }
+        }
+        return null;
+    }
+
+    public static DocIdAndVersion loadDocIdAndVersionUncached(IndexReader reader, Term term, boolean loadSeqNo) throws IOException {
+        List<LeafReaderContext> leaves = reader.leaves();
+        for (int i = leaves.size() - 1; i >= 0; i--) {
+            final LeafReaderContext leaf = leaves.get(i);
+            PerThreadIDVersionAndSeqNoLookup lookup = new PerThreadIDVersionAndSeqNoLookup(leaf.reader(), term.field(), false);
             DocIdAndVersion result = lookup.lookupVersion(term.bytes(), loadSeqNo, leaf);
             if (result != null) {
                 return result;

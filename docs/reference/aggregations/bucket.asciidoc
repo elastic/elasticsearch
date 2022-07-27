@@ -13,14 +13,14 @@ aggregated for the buckets created by their "parent" bucket aggregation.
 There are different bucket aggregators, each with a different "bucketing" strategy. Some define a single bucket, some
 define fixed number of multiple buckets, and others dynamically create the buckets during the aggregation process.
 
-NOTE: The maximum number of buckets allowed in a single response is limited by a
-dynamic cluster setting named
-<<search-settings-max-buckets,`search.max_buckets`>>. It defaults to 65,536.
-Requests that try to return more than the limit will fail with an exception.
+NOTE: The <<search-settings-max-buckets,`search.max_buckets`>> cluster setting
+limits the number of buckets allowed in a single response.
 
 include::bucket/adjacency-matrix-aggregation.asciidoc[]
 
 include::bucket/autodatehistogram-aggregation.asciidoc[]
+
+include::bucket/categorize-text-aggregation.asciidoc[]
 
 include::bucket/children-aggregation.asciidoc[]
 
@@ -36,15 +36,21 @@ include::bucket/filter-aggregation.asciidoc[]
 
 include::bucket/filters-aggregation.asciidoc[]
 
+include::bucket/frequent-items-aggregation.asciidoc[]
+
 include::bucket/geodistance-aggregation.asciidoc[]
 
 include::bucket/geohashgrid-aggregation.asciidoc[]
+
+include::bucket/geohexgrid-aggregation.asciidoc[]
 
 include::bucket/geotilegrid-aggregation.asciidoc[]
 
 include::bucket/global-aggregation.asciidoc[]
 
 include::bucket/histogram-aggregation.asciidoc[]
+
+include::bucket/ipprefix-aggregation.asciidoc[]
 
 include::bucket/iprange-aggregation.asciidoc[]
 
@@ -55,6 +61,8 @@ include::bucket/multi-terms-aggregation.asciidoc[]
 include::bucket/nested-aggregation.asciidoc[]
 
 include::bucket/parent-aggregation.asciidoc[]
+
+include::bucket/random-sampler-aggregation.asciidoc[]
 
 include::bucket/range-aggregation.asciidoc[]
 

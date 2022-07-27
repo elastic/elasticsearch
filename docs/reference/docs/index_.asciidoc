@@ -346,8 +346,9 @@ additional document parsing pass. If the `_routing` mapping is defined
 and set to be `required`, the index operation will fail if no routing
 value is provided or extracted.
 
-NOTE: Data streams do not support custom routing. Instead, target the
-appropriate backing index for the stream.
+NOTE: Data streams do not support custom routing unless they were created with
+the <<put-index-template-api-request-body,`allow_custom_routing`>> setting
+enabled in the template.
 
 [discrete]
 [[index-distributed]]

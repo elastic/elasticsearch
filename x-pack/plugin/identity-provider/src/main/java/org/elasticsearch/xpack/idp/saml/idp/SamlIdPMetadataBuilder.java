@@ -65,7 +65,6 @@ public class SamlIdPMetadataBuilder {
     private SamlIdentityProvider.OrganizationInfo organization;
     private final List<SamlIdentityProvider.ContactInfo> contacts;
 
-
     public SamlIdPMetadataBuilder(String entityId) {
         this.entityId = entityId;
         this.locale = Locale.getDefault();
@@ -93,7 +92,7 @@ public class SamlIdPMetadataBuilder {
     }
 
     public SamlIdPMetadataBuilder withSingleSignOnServiceUrl(String binding, URL url) {
-        if ( null != url) {
+        if (null != url) {
             this.singleSignOnServiceUrls.put(binding, url);
         }
         return this;
@@ -114,7 +113,7 @@ public class SamlIdPMetadataBuilder {
     }
 
     public SamlIdPMetadataBuilder withSigningCertificate(X509Certificate signingCertificate) {
-        if ( null != signingCertificate ) {
+        if (null != signingCertificate) {
             return withSigningCertificates(Collections.singletonList(signingCertificate));
         }
         return this;
@@ -203,7 +202,7 @@ public class SamlIdPMetadataBuilder {
         }
         for (String nameIdFormat : nameIdFormats) {
             final NameIDFormat format = new NameIDFormatBuilder().buildObject();
-            format.setFormat(nameIdFormat);
+            format.setURI(nameIdFormat);
             formats.add(format);
 
         }
@@ -237,7 +236,7 @@ public class SamlIdPMetadataBuilder {
         displayName.setValue(this.organization.displayName);
         displayName.setXMLLang(lang);
         final OrganizationURL url = new OrganizationURLBuilder().buildObject();
-        url.setValue(this.organization.url);
+        url.setURI(this.organization.url);
         url.setXMLLang(lang);
 
         final Organization org = new OrganizationBuilder().buildObject();
@@ -249,11 +248,11 @@ public class SamlIdPMetadataBuilder {
 
     private ContactPerson buildContact(SamlIdentityProvider.ContactInfo contact) {
         final GivenName givenName = new GivenNameBuilder().buildObject();
-        givenName.setName(contact.givenName);
+        givenName.setValue(contact.givenName);
         final SurName surName = new SurNameBuilder().buildObject();
-        surName.setName(contact.surName);
+        surName.setValue(contact.surName);
         final EmailAddress email = new EmailAddressBuilder().buildObject();
-        email.setAddress(contact.email);
+        email.setURI(contact.email);
 
         final ContactPerson person = new ContactPersonBuilder().buildObject();
         person.setType(contact.type);

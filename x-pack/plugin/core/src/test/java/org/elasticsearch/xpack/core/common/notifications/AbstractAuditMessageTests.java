@@ -6,17 +6,18 @@
  */
 package org.elasticsearch.xpack.core.common.notifications;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Date;
+import java.util.Optional;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -27,8 +28,11 @@ public class AbstractAuditMessageTests extends AbstractXContentTestCase<Abstract
     static class TestAuditMessage extends AbstractAuditMessage {
 
         private static final ParseField TEST_ID = new ParseField("test_id");
-        public static final ConstructingObjectParser<TestAuditMessage, Void> PARSER =
-            createParser("test_audit_message", TestAuditMessage::new, TEST_ID);
+        public static final ConstructingObjectParser<TestAuditMessage, Void> PARSER = createParser(
+            "test_audit_message",
+            TestAuditMessage::new,
+            TEST_ID
+        );
 
         TestAuditMessage(String resourceId, String message, Level level, Date timestamp, String nodeName) {
             super(resourceId, message, level, timestamp, nodeName);
@@ -40,8 +44,8 @@ public class AbstractAuditMessageTests extends AbstractXContentTestCase<Abstract
         }
 
         @Override
-        protected String getResourceField() {
-            return TEST_ID.getPreferredName();
+        protected Optional<String> getResourceField() {
+            return Optional.of(TEST_ID.getPreferredName());
         }
     }
 
@@ -52,7 +56,7 @@ public class AbstractAuditMessageTests extends AbstractXContentTestCase<Abstract
 
     public void testGetResourceField() {
         TestAuditMessage message = new TestAuditMessage(RESOURCE_ID, MESSAGE, Level.INFO, TIMESTAMP, NODE_NAME);
-        assertThat(message.getResourceField(), equalTo(TestAuditMessage.TEST_ID.getPreferredName()));
+        assertThat(message.getResourceField().get(), equalTo(TestAuditMessage.TEST_ID.getPreferredName()));
     }
 
     public void testGetJobType() {
@@ -101,8 +105,8 @@ public class AbstractAuditMessageTests extends AbstractXContentTestCase<Abstract
             }
 
             @Override
-            protected String getResourceField() {
-                return "unused";
+            protected Optional<String> getResourceField() {
+                return Optional.of("unused");
             }
         };
 

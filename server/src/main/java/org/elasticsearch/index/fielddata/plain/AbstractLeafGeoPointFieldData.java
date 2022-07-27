@@ -7,17 +7,20 @@
  */
 package org.elasticsearch.index.fielddata.plain;
 
-import org.apache.lucene.util.Accountable;
-import org.elasticsearch.index.fielddata.LeafGeoPointFieldData;
 import org.elasticsearch.index.fielddata.FieldData;
+import org.elasticsearch.index.fielddata.LeafGeoPointFieldData;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
+import org.elasticsearch.script.field.ToScriptFieldFactory;
 
-import java.util.Collection;
-import java.util.Collections;
+public abstract class AbstractLeafGeoPointFieldData extends LeafGeoPointFieldData {
 
-public abstract class AbstractLeafGeoPointFieldData implements LeafGeoPointFieldData {
+    protected final ToScriptFieldFactory<MultiGeoPointValues> toScriptFieldFactory;
+
+    public AbstractLeafGeoPointFieldData(ToScriptFieldFactory<MultiGeoPointValues> toScriptFieldFactory) {
+        this.toScriptFieldFactory = toScriptFieldFactory;
+    }
 
     @Override
     public final SortedBinaryDocValues getBytesValues() {
@@ -25,31 +28,7 @@ public abstract class AbstractLeafGeoPointFieldData implements LeafGeoPointField
     }
 
     @Override
-    public final ScriptDocValues.GeoPoints getScriptValues() {
-        return new ScriptDocValues.GeoPoints(getGeoPointValues());
-    }
-
-    public static LeafGeoPointFieldData empty(final int maxDoc) {
-        return new AbstractLeafGeoPointFieldData() {
-
-            @Override
-            public long ramBytesUsed() {
-                return 0;
-            }
-
-            @Override
-            public Collection<Accountable> getChildResources() {
-                return Collections.emptyList();
-            }
-
-            @Override
-            public void close() {
-            }
-
-            @Override
-            public MultiGeoPointValues getGeoPointValues() {
-                return FieldData.emptyMultiGeoPoints();
-            }
-        };
+    public DocValuesScriptFieldFactory getScriptFieldFactory(String name) {
+        return toScriptFieldFactory.getScriptFieldFactory(getGeoPointValues(), name);
     }
 }

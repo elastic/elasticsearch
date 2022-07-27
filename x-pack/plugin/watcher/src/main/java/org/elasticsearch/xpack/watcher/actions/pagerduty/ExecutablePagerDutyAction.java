@@ -25,8 +25,12 @@ public class ExecutablePagerDutyAction extends ExecutableAction<PagerDutyAction>
     private final TextTemplateEngine templateEngine;
     private final PagerDutyService pagerDutyService;
 
-    public ExecutablePagerDutyAction(PagerDutyAction action, Logger logger, PagerDutyService pagerDutyService,
-                                     TextTemplateEngine templateEngine) {
+    public ExecutablePagerDutyAction(
+        PagerDutyAction action,
+        Logger logger,
+        PagerDutyService pagerDutyService,
+        TextTemplateEngine templateEngine
+    ) {
         super(action, logger);
         this.pagerDutyService = pagerDutyService;
         this.templateEngine = templateEngine;

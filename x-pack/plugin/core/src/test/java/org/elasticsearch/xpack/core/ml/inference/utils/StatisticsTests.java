@@ -17,18 +17,18 @@ import static org.hamcrest.Matchers.closeTo;
 public class StatisticsTests extends ESTestCase {
 
     public void testSoftMax() {
-        double[] values = new double[] {Double.NEGATIVE_INFINITY, 1.0, -0.5, Double.NaN, Double.NaN, Double.POSITIVE_INFINITY, 1.0, 5.0};
+        double[] values = new double[] { Double.NEGATIVE_INFINITY, 1.0, -0.5, Double.NaN, Double.NaN, Double.POSITIVE_INFINITY, 1.0, 5.0 };
         double[] softMax = Statistics.softMax(values);
 
-        double[] expected = new double[] {0.0, 0.017599040, 0.003926876, 0.0, 0.0, 0.0, 0.017599040, 0.960875042};
+        double[] expected = new double[] { 0.0, 0.017599040, 0.003926876, 0.0, 0.0, 0.0, 0.017599040, 0.960875042 };
 
-        for(int i = 0; i < expected.length; i++) {
+        for (int i = 0; i < expected.length; i++) {
             assertThat(softMax[i], closeTo(expected[i], 0.000001));
         }
     }
 
     public void testSoftMaxWithNoValidValues() {
-        double[] values = new double[] {Double.NEGATIVE_INFINITY, Double.NaN, Double.POSITIVE_INFINITY};
+        double[] values = new double[] { Double.NEGATIVE_INFINITY, Double.NaN, Double.POSITIVE_INFINITY };
         expectThrows(IllegalArgumentException.class, () -> Statistics.softMax(values));
     }
 

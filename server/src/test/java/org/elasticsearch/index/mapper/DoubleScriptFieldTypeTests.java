@@ -11,7 +11,6 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
@@ -23,13 +22,15 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
+import org.elasticsearch.index.fielddata.DoubleScriptFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.index.fielddata.DoubleScriptFieldData;
+import org.elasticsearch.script.DocReader;
 import org.elasticsearch.script.DoubleFieldScript;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
@@ -64,7 +65,7 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 DoubleScriptFieldType ft = build("add_param", Map.of("param", 1));
-                DoubleScriptFieldData ifd = ft.fielddataBuilder("test", mockContext()::lookup).build(null, null);
+                DoubleScriptFieldData ifd = ft.fielddataBuilder(mockFielddataContext()).build(null, null);
                 searcher.search(new MatchAllDocsQuery(), new Collector() {
                     @Override
                     public ScoreMode scoreMode() {
@@ -102,7 +103,7 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [2.1]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                DoubleScriptFieldData ifd = simpleMappedFieldType().fielddataBuilder("test", mockContext()::lookup).build(null, null);
+                DoubleScriptFieldData ifd = simpleMappedFieldType().fielddataBuilder(mockFielddataContext()).build(null, null);
                 SortField sf = ifd.sortField(null, MultiValueMode.MIN, null, false);
                 TopFieldDocs docs = searcher.search(new MatchAllDocsQuery(), 3, new Sort(sf));
                 assertThat(reader.document(docs.scoreDocs[0].doc).getBinaryValue("_source").utf8ToString(), equalTo("{\"foo\": [1.1]}"));
@@ -128,8 +129,8 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
                     }
 
                     @Override
-                    public ScoreScript newInstance(LeafReaderContext ctx) {
-                        return new ScoreScript(Map.of(), searchContext.lookup(), ctx) {
+                    public ScoreScript newInstance(DocReader docReader) {
+                        return new ScoreScript(Map.of(), searchContext.lookup(), docReader) {
                             @Override
                             public double execute(ExplanationHolder explanation) {
                                 ScriptDocValues.Doubles doubles = (ScriptDocValues.Doubles) getDoc().get("test");
@@ -137,7 +138,7 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
                             }
                         };
                     }
-                }, 2.5f, "test", 0, Version.CURRENT)), equalTo(1));
+                }, searchContext.lookup(), 2.5f, "test", 0, Version.CURRENT)), equalTo(1));
             }
         }
     }
@@ -240,37 +241,33 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
     }
 
     private static DoubleFieldScript.Factory factory(Script script) {
-        switch (script.getIdOrCode()) {
-            case "read_foo":
-                return (fieldName, params, lookup) -> (ctx) -> new DoubleFieldScript(fieldName, params, lookup, ctx) {
-                    @Override
-                    public void execute() {
-                        for (Object foo : (List<?>) lookup.source().get("foo")) {
-                            emit(((Number) foo).doubleValue());
-                        }
+        return switch (script.getIdOrCode()) {
+            case "read_foo" -> (fieldName, params, lookup) -> (ctx) -> new DoubleFieldScript(fieldName, params, lookup, ctx) {
+                @Override
+                public void execute() {
+                    for (Object foo : (List<?>) lookup.source().get("foo")) {
+                        emit(((Number) foo).doubleValue());
                     }
-                };
-            case "add_param":
-                return (fieldName, params, lookup) -> (ctx) -> new DoubleFieldScript(fieldName, params, lookup, ctx) {
-                    @Override
-                    public void execute() {
-                        for (Object foo : (List<?>) lookup.source().get("foo")) {
-                            emit(((Number) foo).doubleValue() + ((Number) getParams().get("param")).doubleValue());
-                        }
+                }
+            };
+            case "add_param" -> (fieldName, params, lookup) -> (ctx) -> new DoubleFieldScript(fieldName, params, lookup, ctx) {
+                @Override
+                public void execute() {
+                    for (Object foo : (List<?>) lookup.source().get("foo")) {
+                        emit(((Number) foo).doubleValue() + ((Number) getParams().get("param")).doubleValue());
                     }
-                };
-            case "loop":
-                return (fieldName, params, lookup) -> {
-                    // Indicate that this script wants the field call "test", which *is* the name of this field
-                    lookup.forkAndTrackFieldReferences("test");
-                    throw new IllegalStateException("shoud have thrown on the line above");
-                };
-            default:
-                throw new IllegalArgumentException("unsupported script [" + script.getIdOrCode() + "]");
-        }
+                }
+            };
+            case "loop" -> (fieldName, params, lookup) -> {
+                // Indicate that this script wants the field call "test", which *is* the name of this field
+                lookup.forkAndTrackFieldReferences("test");
+                throw new IllegalStateException("shoud have thrown on the line above");
+            };
+            default -> throw new IllegalArgumentException("unsupported script [" + script.getIdOrCode() + "]");
+        };
     }
 
     private static DoubleScriptFieldType build(Script script) {
-        return new DoubleScriptFieldType("test", factory(script), script, emptyMap(), (builder, params) -> builder);
+        return new DoubleScriptFieldType("test", factory(script), script, emptyMap());
     }
 }

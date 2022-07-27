@@ -10,7 +10,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -37,18 +37,28 @@ public class TransportGetAsyncStatusAction extends HandledTransportAction<GetAsy
     private final AsyncTaskIndexService<AsyncSearchResponse> store;
 
     @Inject
-    public TransportGetAsyncStatusAction(TransportService transportService,
-                                         ActionFilters actionFilters,
-                                         ClusterService clusterService,
-                                         NamedWriteableRegistry registry,
-                                         Client client,
-                                         ThreadPool threadPool,
-                                         BigArrays bigArrays) {
+    public TransportGetAsyncStatusAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        ClusterService clusterService,
+        NamedWriteableRegistry registry,
+        Client client,
+        ThreadPool threadPool,
+        BigArrays bigArrays
+    ) {
         super(GetAsyncStatusAction.NAME, transportService, actionFilters, GetAsyncStatusRequest::new);
         this.transportService = transportService;
         this.clusterService = clusterService;
-        this.store = new AsyncTaskIndexService<>(XPackPlugin.ASYNC_RESULTS_INDEX, clusterService,
-            threadPool.getThreadContext(), client, ASYNC_SEARCH_ORIGIN, AsyncSearchResponse::new, registry, bigArrays);
+        this.store = new AsyncTaskIndexService<>(
+            XPackPlugin.ASYNC_RESULTS_INDEX,
+            clusterService,
+            threadPool.getThreadContext(),
+            client,
+            ASYNC_SEARCH_ORIGIN,
+            AsyncSearchResponse::new,
+            registry,
+            bigArrays
+        );
     }
 
     @Override
@@ -66,8 +76,12 @@ public class TransportGetAsyncStatusAction extends HandledTransportAction<GetAsy
                 listener
             );
         } else {
-            transportService.sendRequest(node, GetAsyncStatusAction.NAME, request,
-                new ActionListenerResponseHandler<>(listener, AsyncStatusResponse::new, ThreadPool.Names.SAME));
+            transportService.sendRequest(
+                node,
+                GetAsyncStatusAction.NAME,
+                request,
+                new ActionListenerResponseHandler<>(listener, AsyncStatusResponse::new, ThreadPool.Names.SAME)
+            );
         }
     }
 }

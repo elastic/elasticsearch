@@ -15,10 +15,10 @@ import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
-import org.elasticsearch.xpack.core.action.DeleteDataStreamAction;
 import org.elasticsearch.xpack.core.ilm.ExplainLifecycleRequest;
 import org.elasticsearch.xpack.core.ilm.ExplainLifecycleResponse;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleExplainResponse;
@@ -29,8 +29,6 @@ import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 import org.elasticsearch.xpack.core.ilm.action.ExplainLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
-import org.elasticsearch.xpack.datastreams.DataStreamsPlugin;
-import org.junit.After;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -53,21 +51,12 @@ public class ILMMultiNodeIT extends ESIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings))
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(LifecycleSettings.LIFECYCLE_POLL_INTERVAL, "1s")
             // This just generates less churn and makes it easier to read the log file if needed
             .put(LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED, false)
             .build();
-    }
-
-    @After
-    public void cleanup() {
-        try {
-            client().execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(new String[]{index})).get();
-        } catch (Exception e) {
-            // Okay to ignore this
-            logger.info("failed to clean up data stream", e);
-        }
     }
 
     public void testShrinkOnTiers() throws Exception {
@@ -75,7 +64,7 @@ public class ILMMultiNodeIT extends ESIntegTestCase {
         startWarmOnlyNode();
         ensureGreen();
 
-        RolloverAction rolloverAction = new RolloverAction(null, null, null, 1L);
+        RolloverAction rolloverAction = new RolloverAction(null, null, null, 1L, null, null, null, null, null, null);
         Phase hotPhase = new Phase("hot", TimeValue.ZERO, Collections.singletonMap(rolloverAction.getWriteableName(), rolloverAction));
         ShrinkAction shrinkAction = new ShrinkAction(1, null);
         Phase warmPhase = new Phase("warm", TimeValue.ZERO, Collections.singletonMap(shrinkAction.getWriteableName(), shrinkAction));
@@ -85,11 +74,15 @@ public class ILMMultiNodeIT extends ESIntegTestCase {
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy("shrink-policy", phases);
         client().execute(PutLifecycleAction.INSTANCE, new PutLifecycleAction.Request(lifecyclePolicy)).get();
 
-        Template t = new Template(Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(LifecycleSettings.LIFECYCLE_NAME, "shrink-policy")
-            .build(), null, null);
+        Template t = new Template(
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(LifecycleSettings.LIFECYCLE_NAME, "shrink-policy")
+                .build(),
+            null,
+            null
+        );
 
         ComposableIndexTemplate template = new ComposableIndexTemplate(
             Collections.singletonList(index),
@@ -108,15 +101,14 @@ public class ILMMultiNodeIT extends ESIntegTestCase {
         client().prepareIndex(index).setCreate(true).setId("1").setSource("@timestamp", "2020-09-09").get();
 
         assertBusy(() -> {
-            ExplainLifecycleResponse explain =
-                client().execute(ExplainLifecycleAction.INSTANCE, new ExplainLifecycleRequest().indices("*")).get();
+            ExplainLifecycleResponse explain = client().execute(ExplainLifecycleAction.INSTANCE, new ExplainLifecycleRequest().indices("*"))
+                .get();
             logger.info("--> explain: {}", Strings.toString(explain));
 
             String backingIndexName = DataStream.getDefaultBackingIndexName(index, 1);
             IndexLifecycleExplainResponse indexResp = null;
             for (Map.Entry<String, IndexLifecycleExplainResponse> indexNameAndResp : explain.getIndexResponses().entrySet()) {
-                if (indexNameAndResp.getKey().startsWith(SHRUNKEN_INDEX_PREFIX) &&
-                    indexNameAndResp.getKey().contains(backingIndexName)) {
+                if (indexNameAndResp.getKey().startsWith(SHRUNKEN_INDEX_PREFIX) && indexNameAndResp.getKey().contains(backingIndexName)) {
                     indexResp = indexNameAndResp.getValue();
                     assertNotNull(indexResp);
                     assertThat(indexResp.getPhase(), equalTo("warm"));

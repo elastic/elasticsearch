@@ -9,9 +9,9 @@
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.ingest.IngestDocument.Metadata;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.RandomDocumentPicks;
+import org.elasticsearch.ingest.TestIngestDocument;
 import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.ingest.ValueSource;
 import org.elasticsearch.test.ESTestCase;
@@ -27,6 +27,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.ingest.IngestDocument.Metadata;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -35,6 +36,9 @@ public class SetProcessorTests extends ESTestCase {
     public void testSetExistingFields() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         String fieldName = RandomDocumentPicks.randomExistingFieldName(random(), ingestDocument);
+        while (Metadata.isMetadata(fieldName)) {
+            fieldName = RandomDocumentPicks.randomExistingFieldName(random(), ingestDocument);
+        }
         Object fieldValue = RandomDocumentPicks.randomFieldValue(random());
         Processor processor = createSetProcessor(fieldName, fieldValue, null, true, false);
         processor.execute(ingestDocument);
@@ -44,7 +48,7 @@ public class SetProcessorTests extends ESTestCase {
 
     public void testSetNewFields() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
-        //used to verify that there are no conflicts between subsequent fields going to be added
+        // used to verify that there are no conflicts between subsequent fields going to be added
         IngestDocument testIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         Object fieldValue = RandomDocumentPicks.randomFieldValue(random());
         String fieldName = RandomDocumentPicks.addRandomField(random(), testIngestDocument, fieldValue);
@@ -61,14 +65,16 @@ public class SetProcessorTests extends ESTestCase {
         try {
             processor.execute(ingestDocument);
             fail("processor execute should have failed");
-        } catch(IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("cannot set [inner] with parent object of type [java.lang.String] as " +
-                    "part of path [field.inner]"));
+        } catch (IllegalArgumentException e) {
+            assertThat(
+                e.getMessage(),
+                equalTo("cannot set [inner] with parent object of type [java.lang.String] as " + "part of path [field.inner]")
+            );
         }
     }
 
     public void testSetNewFieldWithOverrideDisabled() throws Exception {
-        IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
+        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
         String fieldName = RandomDocumentPicks.randomFieldName(random());
         Object fieldValue = RandomDocumentPicks.randomFieldValue(random());
         Processor processor = createSetProcessor(fieldName, fieldValue, null, false, false);
@@ -78,7 +84,7 @@ public class SetProcessorTests extends ESTestCase {
     }
 
     public void testSetExistingFieldWithOverrideDisabled() throws Exception {
-        IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
+        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
         Object fieldValue = "foo";
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, fieldValue);
         Processor processor = createSetProcessor(fieldName, "bar", null, false, false);
@@ -88,7 +94,7 @@ public class SetProcessorTests extends ESTestCase {
     }
 
     public void testSetExistingNullFieldWithOverrideDisabled() throws Exception {
-        IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
+        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
         Object fieldValue = null;
         Object newValue = "bar";
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, fieldValue);
@@ -142,7 +148,8 @@ public class SetProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         int iters = between(1, 3);
         for (int i = 0; i < iters; i++) {
-            Map<String, String> dynamicTemplates = IntStream.range(0, between(0, 3)).boxed()
+            Map<String, String> dynamicTemplates = IntStream.range(0, between(0, 3))
+                .boxed()
                 .collect(Collectors.toMap(n -> "field-" + n, n -> randomFrom("int", "geo_point", "keyword")));
             Processor processor = createSetProcessor(Metadata.DYNAMIC_TEMPLATES.getFieldName(), dynamicTemplates, null, true, false);
             processor.execute(ingestDocument);
@@ -179,8 +186,7 @@ public class SetProcessorTests extends ESTestCase {
     }
 
     private static void assertMapEquals(Object actual, Object expected) {
-        if (expected instanceof Map) {
-            Map<?, ?> expectedMap = (Map<?, ?>) expected;
+        if (expected instanceof Map<?, ?> expectedMap) {
             Map<?, ?> actualMap = (Map<?, ?>) actual;
             assertThat(actualMap.keySet().toArray(), arrayContainingInAnyOrder(expectedMap.keySet().toArray()));
             for (Map.Entry<?, ?> entry : actualMap.entrySet()) {
@@ -251,9 +257,21 @@ public class SetProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getFieldValue(targetField, Object.class), equalTo(preservedDate));
     }
 
-    private static Processor createSetProcessor(String fieldName, Object fieldValue, String copyFrom, boolean overrideEnabled,
-        boolean ignoreEmptyValue) {
-        return new SetProcessor(randomAlphaOfLength(10), null, new TestTemplateService.MockTemplateScript.Factory(fieldName),
-                ValueSource.wrap(fieldValue, TestTemplateService.instance()), copyFrom, overrideEnabled, ignoreEmptyValue);
+    private static Processor createSetProcessor(
+        String fieldName,
+        Object fieldValue,
+        String copyFrom,
+        boolean overrideEnabled,
+        boolean ignoreEmptyValue
+    ) {
+        return new SetProcessor(
+            randomAlphaOfLength(10),
+            null,
+            new TestTemplateService.MockTemplateScript.Factory(fieldName),
+            ValueSource.wrap(fieldValue, TestTemplateService.instance()),
+            copyFrom,
+            overrideEnabled,
+            ignoreEmptyValue
+        );
     }
 }

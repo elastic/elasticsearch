@@ -10,4 +10,3 @@
  * Aggregations module
  */
 package org.elasticsearch.search.aggregations.metrics;
-

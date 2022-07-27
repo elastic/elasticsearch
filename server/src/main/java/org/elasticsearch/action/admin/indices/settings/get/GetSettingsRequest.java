@@ -23,8 +23,10 @@ import java.util.Objects;
 
 public class GetSettingsRequest extends MasterNodeReadRequest<GetSettingsRequest> implements IndicesRequest.Replaceable {
 
+    public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.fromOptions(false, true, true, true);
+
     private String[] indices = Strings.EMPTY_ARRAY;
-    private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, true, true, true);
+    private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
     private String[] names = Strings.EMPTY_ARRAY;
     private boolean humanReadable = false;
     private boolean includeDefaults = false;
@@ -49,8 +51,7 @@ public class GetSettingsRequest extends MasterNodeReadRequest<GetSettingsRequest
         return this;
     }
 
-    public GetSettingsRequest() {
-    }
+    public GetSettingsRequest() {}
 
     public GetSettingsRequest(StreamInput in) throws IOException {
         super(in);
@@ -122,11 +123,11 @@ public class GetSettingsRequest extends MasterNodeReadRequest<GetSettingsRequest
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         GetSettingsRequest that = (GetSettingsRequest) o;
-        return humanReadable == that.humanReadable &&
-            includeDefaults == that.includeDefaults &&
-            Arrays.equals(indices, that.indices) &&
-            Objects.equals(indicesOptions, that.indicesOptions) &&
-            Arrays.equals(names, that.names);
+        return humanReadable == that.humanReadable
+            && includeDefaults == that.includeDefaults
+            && Arrays.equals(indices, that.indices)
+            && Objects.equals(indicesOptions, that.indicesOptions)
+            && Arrays.equals(names, that.names);
     }
 
     @Override

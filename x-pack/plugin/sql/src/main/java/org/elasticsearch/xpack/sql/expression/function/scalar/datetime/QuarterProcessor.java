@@ -22,7 +22,6 @@ public class QuarterProcessor extends BaseDateTimeProcessor {
     public static final String NAME = "q";
     private static final DateTimeFormatter QUARTER_FORMAT = DateTimeFormatter.ofPattern("q", Locale.ROOT);
 
-
     public QuarterProcessor(ZoneId zoneId) {
         super(zoneId);
     }

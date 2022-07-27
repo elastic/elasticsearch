@@ -33,8 +33,7 @@ public class StatsAccumulator implements Writeable {
     private Double min;
     private Double max;
 
-    public StatsAccumulator() {
-    }
+    public StatsAccumulator() {}
 
     public StatsAccumulator(StreamInput in) throws IOException {
         count = in.readLong();
@@ -66,7 +65,7 @@ public class StatsAccumulator implements Writeable {
     }
 
     public double getAvg() {
-        return count == 0.0 ? 0.0 : total/count;
+        return count == 0.0 ? 0.0 : total / count;
     }
 
     public double getTotal() {
@@ -100,8 +99,12 @@ public class StatsAccumulator implements Writeable {
     }
 
     public static StatsAccumulator fromStatsAggregation(Stats statsAggregation) {
-        return new StatsAccumulator(statsAggregation.getCount(), statsAggregation.getSum(), statsAggregation.getMin(),
-                statsAggregation.getMax());
+        return new StatsAccumulator(
+            statsAggregation.getCount(),
+            statsAggregation.getSum(),
+            statsAggregation.getMin(),
+            statsAggregation.getMax()
+        );
     }
 
     @Override
@@ -120,8 +123,9 @@ public class StatsAccumulator implements Writeable {
         }
 
         StatsAccumulator other = (StatsAccumulator) obj;
-        return Objects.equals(count, other.count) && Objects.equals(total, other.total) && Objects.equals(min, other.min)
-                && Objects.equals(max, other.max);
+        return Objects.equals(count, other.count)
+            && Objects.equals(total, other.total)
+            && Objects.equals(min, other.min)
+            && Objects.equals(max, other.max);
     }
 }
-

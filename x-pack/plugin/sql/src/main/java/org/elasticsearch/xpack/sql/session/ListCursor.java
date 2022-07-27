@@ -8,8 +8,7 @@
 package org.elasticsearch.xpack.sql.session;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.ql.type.Schema;
@@ -74,22 +73,20 @@ public class ListCursor implements Cursor {
     // why this method is not exposed
     private static Page of(Schema schema, List<List<?>> data, int pageSize, int columnCount) {
         List<List<?>> nextData = data.size() > pageSize ? data.subList(pageSize, data.size()) : emptyList();
-        Cursor next = nextData.isEmpty()
-                ? Cursor.EMPTY
-                : new ListCursor(nextData, pageSize, columnCount);
-        List<List<?>> currData = data.isEmpty() || pageSize == 0
-                ? emptyList()
-                : data.size() == pageSize ? data : data.subList(0, Math.min(pageSize, data.size()));
+        Cursor next = nextData.isEmpty() ? Cursor.EMPTY : new ListCursor(nextData, pageSize, columnCount);
+        List<List<?>> currData = data.isEmpty() || pageSize == 0 ? emptyList()
+            : data.size() == pageSize ? data
+            : data.subList(0, Math.min(pageSize, data.size()));
         return new Page(new ListRowSet(schema, currData, columnCount), next);
     }
 
     @Override
-    public void nextPage(SqlConfiguration cfg, Client client, NamedWriteableRegistry registry, ActionListener<Page> listener) {
+    public void nextPage(SqlConfiguration cfg, Client client, ActionListener<Page> listener) {
         listener.onResponse(of(Schema.EMPTY, data, pageSize, columnCount));
     }
 
     @Override
-    public void clear(SqlConfiguration cfg, Client client, ActionListener<Boolean> listener) {
+    public void clear(Client client, ActionListener<Boolean> listener) {
         listener.onResponse(true);
     }
 
@@ -110,8 +107,8 @@ public class ListCursor implements Cursor {
 
         ListCursor other = (ListCursor) obj;
         return Objects.equals(pageSize, other.pageSize)
-                && Objects.equals(columnCount, other.columnCount)
-                && Objects.equals(data, other.data);
+            && Objects.equals(columnCount, other.columnCount)
+            && Objects.equals(data, other.data);
     }
 
     @Override

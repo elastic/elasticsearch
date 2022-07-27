@@ -40,7 +40,8 @@ public class KeepTypesFilterFactory extends AbstractTokenFilterFactory {
     static final String KEEP_TYPES_MODE_KEY = "mode";
 
     enum KeepTypesMode {
-        INCLUDE, EXCLUDE;
+        INCLUDE,
+        EXCLUDE;
 
         @Override
         public String toString() {
@@ -54,14 +55,21 @@ public class KeepTypesFilterFactory extends AbstractTokenFilterFactory {
             } else if (lc.equals("exclude")) {
                 return EXCLUDE;
             } else {
-                throw new IllegalArgumentException("`keep_types` tokenfilter mode can only be [" + KeepTypesMode.INCLUDE + "] or ["
-                        + KeepTypesMode.EXCLUDE + "] but was [" + modeString + "].");
+                throw new IllegalArgumentException(
+                    "`keep_types` tokenfilter mode can only be ["
+                        + KeepTypesMode.INCLUDE
+                        + "] or ["
+                        + KeepTypesMode.EXCLUDE
+                        + "] but was ["
+                        + modeString
+                        + "]."
+                );
             }
         }
     }
 
     KeepTypesFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-        super(indexSettings, name, settings);
+        super(name, settings);
 
         final List<String> arrayKeepTypes = settings.getAsList(KEEP_TYPES_KEY, null);
         if ((arrayKeepTypes == null)) {

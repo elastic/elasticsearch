@@ -14,25 +14,25 @@ import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotR
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.IndexMetaDataGenerations;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
+import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentFactory;
 
-import java.io.IOException;
 import java.nio.channels.SeekableByteChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -41,7 +41,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -132,7 +131,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         logger.info("--> make sure snapshot doesn't exist");
         expectThrows(
             SnapshotMissingException.class,
-            () -> client.admin().cluster().prepareGetSnapshots(repoName).addSnapshots(snapshot).get().getSnapshots(repoName)
+            () -> client.admin().cluster().prepareGetSnapshots(repoName).addSnapshots(snapshot).get()
         );
     }
 
@@ -209,7 +208,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         logger.info("--> make sure snapshot doesn't exist");
         expectThrows(
             SnapshotMissingException.class,
-            () -> client().admin().cluster().prepareGetSnapshots(repoName).addSnapshots(snapshot).get().getSnapshots(repoName)
+            () -> client().admin().cluster().prepareGetSnapshots(repoName).addSnapshots(snapshot).get()
         );
     }
 
@@ -261,7 +260,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
                 .collect(
                     Collectors.toMap(
                         SnapshotId::getUUID,
-                        s -> new RepositoryData.SnapshotDetails(repositoryData.getSnapshotState(s), null, -1, -1)
+                        s -> new RepositoryData.SnapshotDetails(repositoryData.getSnapshotState(s), null, -1, -1, null)
                     )
                 ),
             Collections.emptyMap(),
@@ -279,7 +278,6 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         );
 
         logger.info("--> verify that repo is assumed in old metadata format");
-        final SnapshotsService snapshotsService = internalCluster().getCurrentMasterNodeInstance(SnapshotsService.class);
         final ThreadPool threadPool = internalCluster().getCurrentMasterNodeInstance(ThreadPool.class);
         assertThat(
             PlainActionFuture.get(
@@ -287,7 +285,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
                     .execute(
                         ActionRunnable.supply(
                             f,
-                            () -> snapshotsService.minCompatibleVersion(Version.CURRENT, getRepositoryData(repoName), null)
+                            () -> SnapshotsService.minCompatibleVersion(Version.CURRENT, getRepositoryData(repoName), null)
                         )
                     )
             ),
@@ -304,7 +302,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
                     .execute(
                         ActionRunnable.supply(
                             f,
-                            () -> snapshotsService.minCompatibleVersion(Version.CURRENT, getRepositoryData(repoName), null)
+                            () -> SnapshotsService.minCompatibleVersion(Version.CURRENT, getRepositoryData(repoName), null)
                         )
                     )
             ),
@@ -367,15 +365,11 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         expectThrows(RepositoryException.class, () -> getRepositoryData(otherRepo));
     }
 
-    public void testHandleSnapshotErrorWithBwCFormat() throws IOException, ExecutionException, InterruptedException {
+    public void testHandleSnapshotErrorWithBwCFormat() throws Exception {
         final String repoName = "test-repo";
         final Path repoPath = randomRepoPath();
         createRepository(repoName, "fs", repoPath);
         final String oldVersionSnapshot = initWithSnapshotVersion(repoName, repoPath, SnapshotsService.OLD_SNAPSHOT_FORMAT);
-
-        logger.info("--> recreating repository to clear caches");
-        client().admin().cluster().prepareDeleteRepository(repoName).get();
-        createRepository(repoName, "fs", repoPath);
 
         final String indexName = "test-index";
         createIndex(indexName);
@@ -402,10 +396,6 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         createRepository(repoName, "fs", repoPath);
         final String oldVersionSnapshot = initWithSnapshotVersion(repoName, repoPath, SnapshotsService.OLD_SNAPSHOT_FORMAT);
 
-        logger.info("--> recreating repository to clear caches");
-        client().admin().cluster().prepareDeleteRepository(repoName).get();
-        createRepository(repoName, "fs", repoPath);
-
         final String indexName = "test-index";
         createIndex(indexName);
 
@@ -430,7 +420,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
             snapshotIds,
             snapshotIds.values().stream().collect(Collectors.toMap(SnapshotId::getUUID, repositoryData::getSnapshotDetails)),
             repositoryData.getIndices().values().stream().collect(Collectors.toMap(Function.identity(), repositoryData::getSnapshots)),
-            ShardGenerations.builder().putAll(repositoryData.shardGenerations()).put(indexId, 0, "0").build(),
+            ShardGenerations.builder().putAll(repositoryData.shardGenerations()).put(indexId, 0, new ShardGeneration(0L)).build(),
             repositoryData.indexMetaDataGenerations(),
             repositoryData.getClusterUUID()
         );
@@ -453,6 +443,8 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
      * Tests that a shard snapshot with a corrupted shard index file can still be used for restore and incremental snapshots.
      */
     public void testSnapshotWithCorruptedShardIndexFile() throws Exception {
+        disableRepoConsistencyCheck("This test intentionally corrupts the repository contents");
+
         final Client client = client();
         final Path repo = randomRepoPath();
         final String indexName = "test-idx";
@@ -490,7 +482,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         }
 
         logger.info("-->  verifying snapshot state for [{}]", snapshot1);
-        List<SnapshotInfo> snapshotInfos = clusterAdmin().prepareGetSnapshots("test-repo").get().getSnapshots("test-repo");
+        List<SnapshotInfo> snapshotInfos = clusterAdmin().prepareGetSnapshots("test-repo").get().getSnapshots();
         assertThat(snapshotInfos.size(), equalTo(1));
         assertThat(snapshotInfos.get(0).state(), equalTo(SnapshotState.SUCCESS));
         assertThat(snapshotInfos.get(0).snapshotId().getName(), equalTo(snapshot1));
@@ -571,7 +563,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
 
         expectThrows(
             SnapshotMissingException.class,
-            () -> client.admin().cluster().prepareGetSnapshots("test-repo").addSnapshots("test-snap-1").get().getSnapshots("test-repo")
+            () -> client.admin().cluster().prepareGetSnapshots("test-repo").addSnapshots("test-snap-1").get()
         );
 
         for (String index : indices) {
@@ -615,7 +607,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         logger.info("--> make sure snapshot doesn't exist");
         expectThrows(
             SnapshotMissingException.class,
-            () -> client.admin().cluster().prepareGetSnapshots("test-repo").addSnapshots("test-snap-1").get().getSnapshots("test-repo")
+            () -> client.admin().cluster().prepareGetSnapshots("test-repo").addSnapshots("test-snap-1").get()
         );
     }
 
@@ -663,7 +655,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         logger.info("--> make sure snapshot doesn't exist");
         expectThrows(
             SnapshotMissingException.class,
-            () -> client.admin().cluster().prepareGetSnapshots("test-repo").addSnapshots("test-snap-1").get().getSnapshots("test-repo")
+            () -> client.admin().cluster().prepareGetSnapshots("test-repo").addSnapshots("test-snap-1").get().getSnapshots()
         );
 
         logger.info("--> make sure that we can create the snapshot again");
@@ -712,7 +704,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
             }
         }
 
-        List<SnapshotInfo> snapshotInfos = clusterAdmin().prepareGetSnapshots("test-repo").get().getSnapshots("test-repo");
+        List<SnapshotInfo> snapshotInfos = clusterAdmin().prepareGetSnapshots("test-repo").get().getSnapshots();
         assertThat(snapshotInfos.size(), equalTo(1));
         assertThat(snapshotInfos.get(0).state(), equalTo(SnapshotState.SUCCESS));
         assertThat(snapshotInfos.get(0).snapshotId().getName(), equalTo("test-snap"));
@@ -722,10 +714,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         assertThat(snapshotStatusResponse.getSnapshots().get(0).getSnapshot().getSnapshotId().getName(), equalTo("test-snap"));
 
         assertAcked(startDeleteSnapshot("test-repo", "test-snap").get());
-        expectThrows(
-            SnapshotMissingException.class,
-            () -> clusterAdmin().prepareGetSnapshots("test-repo").addSnapshots("test-snap").get().getSnapshots("test-repo")
-        );
+        expectThrows(SnapshotMissingException.class, () -> clusterAdmin().prepareGetSnapshots("test-repo").addSnapshots("test-snap").get());
         assertRequestBuilderThrows(
             clusterAdmin().prepareSnapshotStatus("test-repo").addSnapshots("test-snap"),
             SnapshotMissingException.class

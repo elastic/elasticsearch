@@ -35,7 +35,7 @@ public abstract class WeightedAggregatorTests<T extends OutputAggregator> extend
         int numberOfValues = randomIntBetween(5, 10);
         double[][] values = new double[numberOfValues][];
         for (int i = 0; i < numberOfValues; i++) {
-            values[i] = new double[] {randomDouble()};
+            values[i] = new double[] { randomDouble() };
         }
 
         OutputAggregator outputAggregatorWithTooFewWeights = createTestInstance(randomIntBetween(1, numberOfValues - 1));

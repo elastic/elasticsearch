@@ -13,9 +13,9 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.bootstrap.BootstrapInfo;
-import org.elasticsearch.client.AdminClient;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.ClusterAdminClient;
+import org.elasticsearch.client.internal.AdminClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ClusterAdminClient;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
@@ -31,7 +31,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -62,9 +62,16 @@ public class NodeStatsCollectorTests extends BaseCollectorTestCase {
         final NodeStatsCollector collector = new NodeStatsCollector(clusterService, licenseState, client);
         assertEquals(timeout, collector.getCollectionTimeout());
 
-        final FailedNodeException e = expectThrows(FailedNodeException.class, () ->
-                collector.doCollect(randomMonitoringNode(random()), randomNonNegativeLong(), clusterState));
+        final FailedNodeException e = expectThrows(
+            FailedNodeException.class,
+            () -> collector.doCollect(randomMonitoringNode(random()), randomNonNegativeLong(), clusterState)
+        );
         assertEquals(exception, e);
+
+        assertWarnings(
+            "[xpack.monitoring.collection.node.stats.timeout] setting was deprecated in Elasticsearch and will be removed "
+                + "in a future release."
+        );
     }
 
     public void testDoCollect() throws Exception {
@@ -118,6 +125,11 @@ public class NodeStatsCollectorTests extends BaseCollectorTestCase {
         assertThat(document.getNodeId(), equalTo(node.getUUID()));
         assertThat(document.getNodeStats(), is(nodeStats));
         assertThat(document.isMlockall(), equalTo(BootstrapInfo.isMemoryLocked()));
+
+        assertWarnings(
+            "[xpack.monitoring.collection.node.stats.timeout] setting was deprecated in Elasticsearch and will be removed "
+                + "in a future release."
+        );
     }
 
     public void testDoCollectThrowsTimeout() throws Exception {
@@ -134,8 +146,9 @@ public class NodeStatsCollectorTests extends BaseCollectorTestCase {
 
         final NodesStatsResponse nodesStatsResponse = mock(NodesStatsResponse.class);
         when(nodesStatsResponse.hasFailures()).thenReturn(true);
-        when(nodesStatsResponse.failures()).thenReturn(List.of(new FailedNodeException("node", "msg",
-                new ElasticsearchTimeoutException("test"))));
+        when(nodesStatsResponse.failures()).thenReturn(
+            List.of(new FailedNodeException("node", "msg", new ElasticsearchTimeoutException("test")))
+        );
 
         final Client client = mock(Client.class);
         thenReturnNodeStats(client, timeout, nodesStatsResponse);
@@ -146,6 +159,11 @@ public class NodeStatsCollectorTests extends BaseCollectorTestCase {
         final long interval = randomNonNegativeLong();
 
         expectThrows(ElasticsearchTimeoutException.class, () -> collector.doCollect(node, interval, clusterState));
+
+        assertWarnings(
+            "[xpack.monitoring.collection.node.stats.timeout] setting was deprecated in Elasticsearch and will be removed "
+                + "in a future release."
+        );
     }
 
     private void thenReturnNodeStats(final Client client, final TimeValue timeout, final NodesStatsResponse nodesStatsResponse) {

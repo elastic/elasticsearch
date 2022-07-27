@@ -15,8 +15,12 @@ import java.util.Map;
 public class GeoTileGridTests extends GeoGridTestCase<InternalGeoTileGridBucket, InternalGeoTileGrid> {
 
     @Override
-    protected InternalGeoTileGrid createInternalGeoGrid(String name, int size, List<InternalGeoGridBucket> buckets,
-                                                        Map<String, Object> metadata) {
+    protected InternalGeoTileGrid createInternalGeoGrid(
+        String name,
+        int size,
+        List<InternalGeoGridBucket> buckets,
+        Map<String, Object> metadata
+    ) {
         return new InternalGeoTileGrid(name, size, buckets, metadata);
     }
 

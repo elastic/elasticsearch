@@ -30,8 +30,7 @@ public class DeleteRoleRequest extends ActionRequest implements WriteRequest<Del
         refreshPolicy = RefreshPolicy.readFrom(in);
     }
 
-    public DeleteRoleRequest() {
-    }
+    public DeleteRoleRequest() {}
 
     @Override
     public DeleteRoleRequest setRefreshPolicy(RefreshPolicy refreshPolicy) {

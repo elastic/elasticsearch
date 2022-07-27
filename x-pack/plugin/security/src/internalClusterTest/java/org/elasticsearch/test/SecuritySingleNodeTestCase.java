@@ -6,31 +6,28 @@
  */
 package org.elasticsearch.test;
 
-import io.netty.util.ThreadDeathWatcher;
-import io.netty.util.concurrent.GlobalEventExecutor;
 import org.apache.http.HttpHost;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
-import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.rules.ExternalResource;
 
@@ -39,7 +36,6 @@ import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
@@ -57,19 +53,13 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
 
     private static SecuritySettingsSource SECURITY_DEFAULT_SETTINGS = null;
     private static CustomSecuritySettingsSource customSecuritySettingsSource = null;
+    private TestSecurityClient securityClient;
     private static RestClient restClient = null;
-    private static SecureString BOOTSTRAP_PASSWORD = null;
-
-    @BeforeClass
-    public static void generateBootstrapPassword() {
-        BOOTSTRAP_PASSWORD = TEST_PASSWORD_SECURE_STRING.clone();
-    }
 
     @BeforeClass
     public static void initDefaultSettings() {
         if (SECURITY_DEFAULT_SETTINGS == null) {
-            SECURITY_DEFAULT_SETTINGS =
-                    new SecuritySettingsSource(randomBoolean(), createTempDir(), ESIntegTestCase.Scope.SUITE);
+            SECURITY_DEFAULT_SETTINGS = new SecuritySettingsSource(randomBoolean(), createTempDir(), ESIntegTestCase.Scope.SUITE);
         }
     }
 
@@ -82,10 +72,6 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
     public static void destroyDefaultSettings() {
         SECURITY_DEFAULT_SETTINGS = null;
         customSecuritySettingsSource = null;
-        if (BOOTSTRAP_PASSWORD != null) {
-            BOOTSTRAP_PASSWORD.close();
-            BOOTSTRAP_PASSWORD = null;
-        }
         tearDownRestClient();
     }
 
@@ -105,48 +91,22 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
     }
 
     @Rule
-    //Rules are the only way to have something run before the before (final) method inherited from ESSingleNodeTestCase
+    // Rules are the only way to have something run before the before (final) method inherited from ESSingleNodeTestCase
     public ExternalResource externalResource = new ExternalResource() {
         @Override
         protected void before() {
             if (customSecuritySettingsSource == null) {
-                customSecuritySettingsSource =
-                        new CustomSecuritySettingsSource(transportSSLEnabled(), createTempDir(), ESIntegTestCase.Scope.SUITE);
-            }
-        }
-    };
-
-    /**
-     * A JUnit class level rule that runs after the AfterClass method in {@link ESIntegTestCase},
-     * which stops the cluster. After the cluster is stopped, there are a few netty threads that
-     * can linger, so we wait for them to finish otherwise these lingering threads can intermittently
-     * trigger the thread leak detector
-     */
-    @ClassRule
-    public static final ExternalResource STOP_NETTY_RESOURCE = new ExternalResource() {
-        @Override
-        protected void after() {
-            try {
-                GlobalEventExecutor.INSTANCE.awaitInactivity(5, TimeUnit.SECONDS);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            } catch (IllegalStateException e) {
-                if (e.getMessage().equals("thread was not started") == false) {
-                    throw e;
-                }
-                // ignore since the thread was never started
-            }
-
-            try {
-                ThreadDeathWatcher.awaitInactivity(5, TimeUnit.SECONDS);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
+                customSecuritySettingsSource = new CustomSecuritySettingsSource(
+                    transportSSLEnabled(),
+                    createTempDir(),
+                    ESIntegTestCase.Scope.SUITE
+                );
             }
         }
     };
 
     @Before
-    //before methods from the superclass are run before this, which means that the current cluster is ready to go
+    // before methods from the superclass are run before this, which means that the current cluster is ready to go
     public void assertXPackIsInstalled() {
         doAssertXPackIsInstalled();
     }
@@ -156,11 +116,16 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
         for (NodeInfo nodeInfo : nodeInfos.getNodes()) {
             // TODO: disable this assertion for now, due to random runs with mock plugins. perhaps run without mock plugins?
             // assertThat(nodeInfo.getInfo(PluginsAndModules.class).getInfos(), hasSize(2));
-            Collection<String> pluginNames = nodeInfo.getInfo(PluginsAndModules.class).getPluginInfos().stream()
-                .map(PluginInfo::getClassname)
+            Collection<String> pluginNames = nodeInfo.getInfo(PluginsAndModules.class)
+                .getPluginInfos()
+                .stream()
+                .map(p -> p.descriptor().getClassname())
                 .collect(Collectors.toList());
-            assertThat("plugin [" + LocalStateSecurity.class.getName() + "] not found in [" + pluginNames + "]", pluginNames,
-                    hasItem(LocalStateSecurity.class.getName()));
+            assertThat(
+                "plugin [" + LocalStateSecurity.class.getName() + "] not found in [" + pluginNames + "]",
+                pluginNames,
+                hasItem(LocalStateSecurity.class.getName())
+            );
         }
     }
 
@@ -171,17 +136,26 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
         builder.put(customSettings, false); // handle secure settings separately
         builder.put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
         builder.put("transport.type", "security4");
-        builder.put("path.home", customSecuritySettingsSource.nodePath(0));
+        builder.put("path.home", customSecuritySettingsSource.homePath(0));
         Settings.Builder customBuilder = Settings.builder().put(customSettings);
         if (customBuilder.getSecureSettings() != null) {
-            SecuritySettingsSource.addSecureSettings(builder, secureSettings ->
-                    secureSettings.merge((MockSecureSettings) customBuilder.getSecureSettings()));
+            SecuritySettingsSource.addSecureSettings(
+                builder,
+                secureSettings -> secureSettings.merge((MockSecureSettings) customBuilder.getSecureSettings())
+            );
         }
         if (builder.getSecureSettings() == null) {
             builder.setSecureSettings(new MockSecureSettings());
         }
-        ((MockSecureSettings) builder.getSecureSettings()).setString("bootstrap.password", BOOTSTRAP_PASSWORD.toString());
+        SecureString boostrapPassword = getBootstrapPassword();
+        if (boostrapPassword != null) {
+            ((MockSecureSettings) builder.getSecureSettings()).setString("bootstrap.password", boostrapPassword.toString());
+        }
         return builder.build();
+    }
+
+    protected SecureString getBootstrapPassword() {
+        return TEST_PASSWORD_SECURE_STRING;
     }
 
     @Override
@@ -283,8 +257,10 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
 
     @Override
     public Client wrapClient(final Client client) {
-        Map<String, String> headers = Collections.singletonMap("Authorization",
-            basicAuthHeaderValue(nodeClientUsername(), nodeClientPassword()));
+        Map<String, String> headers = Collections.singletonMap(
+            "Authorization",
+            basicAuthHeaderValue(nodeClientUsername(), nodeClientPassword())
+        );
         // we need to wrap node clients because we do not specify a user for nodes and all requests will use the system
         // user. This is ok for internal n2n stuff but the test framework does other things like wiping indices, repositories, etc
         // that the system user cannot do. so we wrap the node client with a user that can do these things since the client() calls
@@ -311,8 +287,20 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
     }
 
     protected static Hasher getFastStoredHashAlgoForTests() {
-        return inFipsJvm() ? Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000", "pbkdf2_stretch_1000", "pbkdf2_stretch"))
+        return inFipsJvm()
+            ? Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000", "pbkdf2_stretch_1000", "pbkdf2_stretch"))
             : Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000", "pbkdf2_stretch_1000", "pbkdf2_stretch", "bcrypt", "bcrypt9"));
+    }
+
+    protected TestSecurityClient getSecurityClient() {
+        if (securityClient == null) {
+            securityClient = getSecurityClient(SecuritySettingsSource.SECURITY_REQUEST_OPTIONS);
+        }
+        return securityClient;
+    }
+
+    protected TestSecurityClient getSecurityClient(RequestOptions requestOptions) {
+        return new TestSecurityClient(getRestClient(), requestOptions);
     }
 
     private static synchronized RestClient getRestClient(Client client) {
@@ -322,8 +310,11 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
         return restClient;
     }
 
-    private static RestClient createRestClient(Client client, RestClientBuilder.HttpClientConfigCallback httpClientConfigCallback,
-                                               String protocol) {
+    private static RestClient createRestClient(
+        Client client,
+        RestClientBuilder.HttpClientConfigCallback httpClientConfigCallback,
+        String protocol
+    ) {
         NodesInfoResponse nodesInfoResponse = client.admin().cluster().prepareNodesInfo().get();
         assertFalse(nodesInfoResponse.hasFailures());
         assertEquals(nodesInfoResponse.getNodes().size(), 1);

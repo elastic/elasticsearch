@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.core.transform.transforms.pivot;
 
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 

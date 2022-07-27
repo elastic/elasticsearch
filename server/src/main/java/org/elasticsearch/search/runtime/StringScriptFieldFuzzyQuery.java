@@ -11,8 +11,8 @@ package org.elasticsearch.search.runtime;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
-import org.elasticsearch.script.StringFieldScript;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.StringFieldScript;
 
 import java.util.Objects;
 

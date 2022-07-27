@@ -9,13 +9,13 @@ package org.elasticsearch.cluster.service;
 
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -55,8 +55,13 @@ public class TaskExecutorTests extends ESTestCase {
 
     @Before
     public void setUpExecutor() {
-        threadExecutor = EsExecutors.newSinglePrioritizing(getClass().getName() + "/" + getTestName(),
-            daemonThreadFactory(Settings.EMPTY, "test_thread"), threadPool.getThreadContext(), threadPool.scheduler());
+        threadExecutor = EsExecutors.newSinglePrioritizing(
+            getClass().getName() + "/" + getTestName(),
+            daemonThreadFactory(Settings.EMPTY, "test_thread"),
+            threadPool.getThreadContext(),
+            threadPool.scheduler(),
+            PrioritizedEsThreadPoolExecutor.StarvationWatcher.NOOP_STARVATION_WATCHER
+        );
     }
 
     @After
@@ -65,9 +70,9 @@ public class TaskExecutorTests extends ESTestCase {
     }
 
     protected interface TestListener {
-        void onFailure(String source, Exception e);
+        void onFailure(Exception e);
 
-        default void processed(String source) {
+        default void processed() {
             // do nothing by default
         }
     }
@@ -76,7 +81,7 @@ public class TaskExecutorTests extends ESTestCase {
         void execute(List<T> tasks);
 
         default String describeTasks(List<T> tasks) {
-            return tasks.stream().map(T::toString).reduce((s1,s2) -> {
+            return tasks.stream().map(T::toString).reduce((s1, s2) -> {
                 if (s1.isEmpty()) {
                     return s2;
                 } else if (s2.isEmpty()) {
@@ -124,7 +129,7 @@ public class TaskExecutorTests extends ESTestCase {
         public void run() {
             logger.trace("will process {}", source);
             testTask.execute(Collections.singletonList(testTask));
-            testTask.processed(source);
+            testTask.processed();
         }
     }
 
@@ -135,13 +140,12 @@ public class TaskExecutorTests extends ESTestCase {
         if (timeout != null) {
             threadExecutor.execute(task, timeout, () -> threadPool.generic().execute(() -> {
                 logger.debug("task [{}] timed out after [{}]", task, timeout);
-                testTask.onFailure(source, new ProcessClusterEventTimeoutException(timeout, source));
+                testTask.onFailure(new ProcessClusterEventTimeoutException(timeout, source));
             }));
         } else {
             threadExecutor.execute(task);
         }
     }
-
 
     public void testTimedOutTaskCleanedUp() throws Exception {
         final CountDownLatch block = new CountDownLatch(1);
@@ -159,7 +163,7 @@ public class TaskExecutorTests extends ESTestCase {
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 throw new RuntimeException(e);
             }
         };
@@ -174,7 +178,7 @@ public class TaskExecutorTests extends ESTestCase {
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 block2.countDown();
             }
 
@@ -203,7 +207,7 @@ public class TaskExecutorTests extends ESTestCase {
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 throw new RuntimeException(e);
             }
         };
@@ -224,7 +228,7 @@ public class TaskExecutorTests extends ESTestCase {
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 timedOut.countDown();
             }
         };
@@ -241,7 +245,7 @@ public class TaskExecutorTests extends ESTestCase {
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 throw new RuntimeException(e);
             }
         };
@@ -308,8 +312,7 @@ public class TaskExecutorTests extends ESTestCase {
         }
 
         @Override
-        public void onFailure(String source, Exception e) {
-        }
+        public void onFailure(Exception e) {}
 
         @Override
         public Priority priority() {
@@ -346,7 +349,7 @@ public class TaskExecutorTests extends ESTestCase {
         }
 
         @Override
-        public void onFailure(String source, Exception e) {
+        public void onFailure(Exception e) {
             latch.countDown();
         }
     }

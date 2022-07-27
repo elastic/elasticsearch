@@ -17,26 +17,33 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.dataformat.yaml.YAMLParser;
-import org.elasticsearch.gradle.internal.test.GradleUnitTestCase;
+
 import org.elasticsearch.gradle.internal.test.rest.transform.headers.InjectHeaders;
 import org.hamcrest.CoreMatchers;
+import org.hamcrest.Matchers;
 import org.hamcrest.core.IsCollectionContaining;
 import org.junit.Before;
 
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.stream.Collectors;
 
-public abstract class TransformTests extends GradleUnitTestCase {
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+
+public abstract class TransformTests {
 
     private static final YAMLFactory YAML_FACTORY = new YAMLFactory();
     private static final ObjectMapper MAPPER = new ObjectMapper(YAML_FACTORY);
@@ -125,8 +132,8 @@ public abstract class TransformTests extends GradleUnitTestCase {
 
     protected List<RestTestTransform<?>> getTransformations() {
         List<RestTestTransform<?>> transformations = new ArrayList<>();
-        transformations.add(new InjectHeaders(headers1));
-        transformations.add(new InjectHeaders(headers2));
+        transformations.add(new InjectHeaders(headers1, Collections.emptySet()));
+        transformations.add(new InjectHeaders(headers2, Collections.emptySet()));
         return transformations;
     }
 
@@ -180,11 +187,16 @@ public abstract class TransformTests extends GradleUnitTestCase {
         return null;
     }
 
-    protected void validateBodyHasWarnings(String featureName, List<ObjectNode> tests, Set<String> expectedWarnings) {
+    protected void validateBodyHasWarnings(String featureName, List<ObjectNode> tests, Collection<String> expectedWarnings) {
         validateBodyHasWarnings(featureName, null, tests, expectedWarnings);
     }
 
-    protected void validateBodyHasWarnings(String featureName, String testName, List<ObjectNode> tests, Set<String> expectedWarnings) {
+    protected void validateBodyHasWarnings(
+        String featureName,
+        String testName,
+        List<ObjectNode> tests,
+        Collection<String> expectedWarnings
+    ) {
         AtomicBoolean actuallyDidSomething = new AtomicBoolean(false);
         tests.forEach(test -> {
             Iterator<Map.Entry<String, JsonNode>> testsIterator = test.fields();
@@ -200,13 +212,10 @@ public abstract class TransformTests extends GradleUnitTestCase {
                             ObjectNode doSection = (ObjectNode) testSection.get("do");
                             assertThat(doSection.get(featureName), CoreMatchers.notNullValue());
                             ArrayNode warningsNode = (ArrayNode) doSection.get(featureName);
-                            LongAdder assertions = new LongAdder();
-                            warningsNode.forEach(warning -> {
-                                if (expectedWarnings.contains(warning.asText())) {
-                                    assertions.increment();
-                                }
-                            });
-                            assertThat(assertions.intValue(), CoreMatchers.equalTo(expectedWarnings.size()));
+                            List<String> actual = new ArrayList<>();
+                            warningsNode.forEach(node -> actual.add(node.asText()));
+                            String[] expected = expectedWarnings.toArray(new String[] {});
+                            assertThat(actual, Matchers.containsInAnyOrder(expected));
                             actuallyDidSomething.set(true);
                         }
                     });

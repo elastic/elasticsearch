@@ -165,6 +165,7 @@ setup:
   - match: { transforms.0.pivot.group_by.airline.terms.field: "airline" }
   - match: { transforms.0.pivot.aggregations.avg_response.avg.field: "responsetime" }
   - match: { transforms.0.description: "yaml test transform on airline-data" }
+  - is_true: transforms.0.authorization.roles
 
   - do:
       transform.get_transform:
@@ -186,6 +187,8 @@ setup:
   - match: { count: 2 }
   - match: { transforms.0.id: "airline-transform" }
   - match: { transforms.1.id: "airline-transform-dos" }
+  - is_true: transforms.0.authorization.roles
+  - is_true: transforms.1.authorization.roles
 
   - do:
       transform.get_transform:
@@ -254,6 +257,7 @@ setup:
   - match: { transforms.0.dest.index: "airline-data-by-airline" }
   - match: { transforms.0.pivot.group_by.airline.terms.field: "airline" }
   - match: { transforms.0.pivot.aggregations.avg_response.avg.field: "responsetime" }
+
 ---
 "Test PUT continuous transform":
   - do:
@@ -288,6 +292,8 @@ setup:
   - match: { transforms.0.pivot.aggregations.avg_response.avg.field: "responsetime" }
   - match: { transforms.0.sync.time.field: "time" }
   - match: { transforms.0.sync.time.delay: "90m" }
+  - is_true: transforms.0.authorization.roles
+
 ---
 "Test PUT continuous transform without delay set":
   - do:
@@ -480,7 +486,7 @@ setup:
 ---
 "Test put config with invalid pivot size":
   - do:
-      catch: /pivot\.max_page_search_size \[5\] must be greater than 10 and less than 10,000/
+      catch: /pivot\.max_page_search_size \[5\] is out of range. The minimum value is 10 and the maximum is 65536/
       transform.put_transform:
         transform_id: "airline-transform"
         body: >
@@ -494,7 +500,8 @@ setup:
             }
           }
   - do:
-      catch: /pivot\.max_page_search_size \[15000\] must be greater than 10 and less than 10,000/
+      catch: /pivot\.max_page_search_size \[75000\] is out of range. The minimum value is 10 and the maximum is 65536/
+
       transform.put_transform:
         transform_id: "airline-transform"
         body: >
@@ -502,11 +509,47 @@ setup:
             "source": { "index": "airline-data" },
             "dest": { "index": "airline-dest-index" },
             "pivot": {
-              "max_page_search_size": 15000,
+              "max_page_search_size": 75000,
               "group_by": { "airline": {"terms": {"field": "airline"}}},
               "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
             }
           }
+
+---
+"Test put config with invalid number of failure retries":
+  - do:
+      catch: /settings\.num_failure_retries \[-2\] is out of range. The minimum value is -1 \(infinity\) and the maximum is 100/
+      transform.put_transform:
+        transform_id: "airline-transform"
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "dest": { "index": "airline-dest-index" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            },
+            "settings": {
+              "num_failure_retries": -2
+            }
+          }
+  - do:
+      catch: /settings\.num_failure_retries \[101\] is out of range. The minimum value is -1 \(infinity\) and the maximum is 100/
+      transform.put_transform:
+        transform_id: "airline-transform"
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "dest": { "index": "airline-dest-index" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            },
+            "settings": {
+              "num_failure_retries": 101
+            }
+          }
+
 ---
 "Test creation failures due to duplicate and conflicting field names":
   - do:

@@ -100,7 +100,6 @@ public class Regex {
         return simpleMatch(pattern, str, false);
     }
 
-
     /**
      * Match a String against the given pattern, supporting the following simple
      * pattern styles: "xxx*", "*xxx", "*xxx*" and "xxx*yyy" matches (with an
@@ -181,19 +180,6 @@ public class Regex {
     public static boolean simpleMatch(final List<String> patterns, final String str) {
         // #simpleMatch(String[], String) is likely to be inlined into this method
         return patterns != null && simpleMatch(patterns.toArray(Strings.EMPTY_ARRAY), str);
-    }
-
-    public static boolean simpleMatch(String[] patterns, String[] types) {
-        if (patterns != null && types != null) {
-            for (String type : types) {
-                for (String pattern : patterns) {
-                    if (simpleMatch(pattern, type)) {
-                        return true;
-                    }
-                }
-            }
-        }
-        return false;
     }
 
     public static Pattern compile(String regex, String flags) {

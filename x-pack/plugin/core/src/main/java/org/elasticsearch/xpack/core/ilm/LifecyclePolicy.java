@@ -6,19 +6,18 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.AbstractDiffable;
-import org.elasticsearch.cluster.Diffable;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.io.IOException;
@@ -40,24 +39,31 @@ import java.util.stream.Collectors;
  * {@link Phase}s and {@link LifecycleAction}s are allowed to be defined and in which order
  * they are executed.
  */
-public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
-        implements ToXContentObject, Diffable<LifecyclePolicy> {
+public class LifecyclePolicy implements SimpleDiffable<LifecyclePolicy>, ToXContentObject {
     private static final int MAX_INDEX_NAME_BYTES = 255;
 
     public static final ParseField PHASES_FIELD = new ParseField("phases");
     private static final ParseField METADATA = new ParseField("_meta");
 
+    private static final StepKey NEW_STEP_KEY = new StepKey("new", PhaseCompleteStep.NAME, PhaseCompleteStep.NAME);
+
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<LifecyclePolicy, String> PARSER = new ConstructingObjectParser<>("lifecycle_policy", false,
-            (a, name) -> {
-                List<Phase> phases = (List<Phase>) a[0];
-                Map<String, Phase> phaseMap = phases.stream().collect(Collectors.toMap(Phase::getName, Function.identity()));
-                return new LifecyclePolicy(TimeseriesLifecycleType.INSTANCE, name, phaseMap, (Map<String, Object>) a[1]);
-            });
+    public static final ConstructingObjectParser<LifecyclePolicy, String> PARSER = new ConstructingObjectParser<>(
+        "lifecycle_policy",
+        false,
+        (a, name) -> {
+            List<Phase> phases = (List<Phase>) a[0];
+            Map<String, Phase> phaseMap = phases.stream().collect(Collectors.toMap(Phase::getName, Function.identity()));
+            return new LifecyclePolicy(TimeseriesLifecycleType.INSTANCE, name, phaseMap, (Map<String, Object>) a[1]);
+        }
+    );
     static {
-        PARSER.declareNamedObjects(ConstructingObjectParser.constructorArg(), (p, c, n) -> Phase.parse(p, n), v -> {
-            throw new IllegalArgumentException("ordered " + PHASES_FIELD.getPreferredName() + " are not supported");
-        }, PHASES_FIELD);
+        PARSER.declareNamedObjects(
+            ConstructingObjectParser.constructorArg(),
+            (p, c, n) -> Phase.parse(p, n),
+            v -> { throw new IllegalArgumentException("ordered " + PHASES_FIELD.getPreferredName() + " are not supported"); },
+            PHASES_FIELD
+        );
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), METADATA);
     }
 
@@ -99,11 +105,7 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
         type = in.readNamedWriteable(LifecycleType.class);
         name = in.readString();
         phases = Collections.unmodifiableMap(in.readMap(StreamInput::readString, Phase::new));
-        if (in.getVersion().onOrAfter(Version.V_7_14_0)) {
-            this.metadata = in.readMap();
-        } else {
-            this.metadata = null;
-        }
+        this.metadata = in.readMap();
     }
 
     /**
@@ -137,9 +139,7 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
         out.writeNamedWriteable(type);
         out.writeString(name);
         out.writeMap(phases, StreamOutput::writeString, (o, val) -> val.writeTo(o));
-        if (out.getVersion().onOrAfter(Version.V_7_14_0)) {
-            out.writeMap(this.metadata);
-        }
+        out.writeGenericMap(this.metadata);
     }
 
     /**
@@ -174,11 +174,11 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-            builder.startObject(PHASES_FIELD.getPreferredName());
-                for (Phase phase : phases.values()) {
-                    builder.field(phase.getName(), phase);
-                }
-            builder.endObject();
+        builder.startObject(PHASES_FIELD.getPreferredName());
+        for (Phase phase : phases.values()) {
+            builder.field(phase.getName(), phase);
+        }
+        builder.endObject();
         if (this.metadata != null) {
             builder.field(METADATA.getPreferredName(), this.metadata);
         }
@@ -209,9 +209,10 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
      *
      * @param client The Elasticsearch Client to use during execution of {@link AsyncActionStep}
      *               and {@link AsyncWaitStep} steps.
+     * @param licenseState The license state to use in actions and steps
      * @return The list of {@link Step} objects in order of their execution.
      */
-    public List<Step> toSteps(Client client) {
+    public List<Step> toSteps(Client client, XPackLicenseState licenseState) {
         List<Step> steps = new ArrayList<>();
         List<Phase> orderedPhases = type.getOrderedPhases(phases);
         ListIterator<Phase> phaseIterator = orderedPhases.listIterator(orderedPhases.size());
@@ -240,7 +241,7 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
             // add steps for each action, in reverse
             while (actionIterator.hasPrevious()) {
                 LifecycleAction action = actionIterator.previous();
-                List<Step> actionSteps = action.toSteps(client, phase.getName(), lastStepKey);
+                List<Step> actionSteps = action.toSteps(client, phase.getName(), lastStepKey, licenseState);
                 ListIterator<Step> actionStepsIterator = actionSteps.listIterator(actionSteps.size());
                 while (actionStepsIterator.hasPrevious()) {
                     Step step = actionStepsIterator.previous();
@@ -251,8 +252,7 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
         }
 
         // The very first after step is in a phase before the hot phase so call this "new"
-        Step.StepKey afterStepKey = new Step.StepKey("new", PhaseCompleteStep.NAME, PhaseCompleteStep.NAME);
-        Step phaseAfterStep = new PhaseCompleteStep(afterStepKey, lastStepKey);
+        Step phaseAfterStep = new PhaseCompleteStep(NEW_STEP_KEY, lastStepKey);
         steps.add(phaseAfterStep);
         lastStepKey = phaseAfterStep.getKey();
 
@@ -274,8 +274,9 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
             if (action != null) {
                 return action.isSafeAction();
             } else {
-                throw new IllegalArgumentException("Action [" + stepKey.getAction() + "] in phase [" + stepKey.getPhase()
-                        + "]  does not exist in policy [" + name + "]");
+                throw new IllegalArgumentException(
+                    "Action [" + stepKey.getAction() + "] in phase [" + stepKey.getPhase() + "]  does not exist in policy [" + name + "]"
+                );
             }
         } else {
             throw new IllegalArgumentException("Phase [" + stepKey.getPhase() + "]  does not exist in policy [" + name + "]");
@@ -289,6 +290,9 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
      * @throws IllegalArgumentException if the name is invalid
      */
     public static void validatePolicyName(String policy) {
+        if (Strings.isNullOrEmpty(policy)) {
+            throw new IllegalArgumentException("invalid policy name [" + policy + "]: must not be null or empty");
+        }
         if (policy.contains(",")) {
             throw new IllegalArgumentException("invalid policy name [" + policy + "]: must not contain ','");
         }
@@ -301,8 +305,9 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
         int byteCount = 0;
         byteCount = policy.getBytes(StandardCharsets.UTF_8).length;
         if (byteCount > MAX_INDEX_NAME_BYTES) {
-            throw new IllegalArgumentException("invalid policy name [" + policy + "]: name is too long, (" + byteCount + " > " +
-                MAX_INDEX_NAME_BYTES + ")");
+            throw new IllegalArgumentException(
+                "invalid policy name [" + policy + "]: name is too long, (" + byteCount + " > " + MAX_INDEX_NAME_BYTES + ")"
+            );
         }
     }
 
@@ -320,9 +325,7 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
             return false;
         }
         LifecyclePolicy other = (LifecyclePolicy) obj;
-        return Objects.equals(name, other.name) &&
-            Objects.equals(phases, other.phases) &&
-            Objects.equals(metadata, other.metadata);
+        return Objects.equals(name, other.name) && Objects.equals(phases, other.phases) && Objects.equals(metadata, other.metadata);
     }
 
     @Override

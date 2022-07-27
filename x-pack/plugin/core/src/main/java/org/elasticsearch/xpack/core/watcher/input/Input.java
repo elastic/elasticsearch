@@ -8,9 +8,9 @@ package org.elasticsearch.xpack.core.watcher.input;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
 
 import java.io.IOException;
@@ -27,13 +27,15 @@ public interface Input extends ToXContentObject {
         private static final ParseField PAYLOAD = new ParseField("payload");
 
         public enum Status {
-            SUCCESS, FAILURE
+            SUCCESS,
+            FAILURE
         }
 
         protected final String type;
         protected final Status status;
         private final Payload payload;
-        @Nullable private final Exception exception;
+        @Nullable
+        private final Exception exception;
 
         protected Result(String type, Payload payload) {
             this.status = Status.SUCCESS;

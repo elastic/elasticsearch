@@ -12,6 +12,7 @@ package org.elasticsearch.xpack.core.ml.inference.preprocessing.customwordembedd
 public class DiscreteFeatureValue extends FeatureValue {
 
     private final int id;
+
     DiscreteFeatureValue(int id) {
         this.id = id;
     }

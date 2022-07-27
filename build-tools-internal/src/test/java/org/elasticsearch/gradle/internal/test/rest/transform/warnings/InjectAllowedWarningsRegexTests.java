@@ -9,6 +9,7 @@
 package org.elasticsearch.gradle.internal.test.rest.transform.warnings;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
+
 import org.elasticsearch.gradle.internal.test.rest.transform.RestTestTransform;
 import org.elasticsearch.gradle.internal.test.rest.transform.feature.InjectFeatureTests;
 import org.junit.Test;
@@ -49,8 +50,7 @@ public class InjectAllowedWarningsRegexTests extends InjectFeatureTests {
         List<ObjectNode> transformedTests = transformTests(tests);
         printTest(testName, transformedTests);
         validateSetupAndTearDown(transformedTests);
-        validateBodyHasWarnings(ALLOWED_WARNINGS_REGEX, tests, Set.of("c", "d"));
-        validateBodyHasWarnings(ALLOWED_WARNINGS_REGEX, tests, addWarnings);
+        validateBodyHasWarnings(ALLOWED_WARNINGS_REGEX, tests, Set.of("c", "d", "added warning"));
     }
 
     @Override

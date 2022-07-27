@@ -16,11 +16,13 @@ import java.util.Map;
 
 public interface StringStatsAggregatorSupplier {
 
-    Aggregator build(String name,
-                     ValuesSource valuesSource,
-                     boolean showDistribution,
-                     DocValueFormat format,
-                     AggregationContext context,
-                     Aggregator parent,
-                     Map<String, Object> metadata) throws IOException;
+    Aggregator build(
+        String name,
+        ValuesSource valuesSource,
+        boolean showDistribution,
+        DocValueFormat format,
+        AggregationContext context,
+        Aggregator parent,
+        Map<String, Object> metadata
+    ) throws IOException;
 }

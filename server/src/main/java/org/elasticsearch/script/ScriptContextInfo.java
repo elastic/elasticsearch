@@ -8,14 +8,15 @@
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
@@ -31,7 +32,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 public class ScriptContextInfo implements ToXContentObject, Writeable {
     public final String name;
@@ -55,25 +56,29 @@ public class ScriptContextInfo implements ToXContentObject, Writeable {
 
         String executeName = "execute";
         String getName = "get";
-        // ignored instead of error, so future implementations can add methods.  Same as ScriptContextInfo(String, Class).
+        // ignored instead of error, so future implementations can add methods. Same as ScriptContextInfo(String, Class).
         String otherName = "other";
-        Map<String, List<ScriptMethodInfo>> methodTypes = methods.stream().collect(Collectors.groupingBy(
-            m -> {
-                if (m.name.equals(executeName)) {
-                    return executeName;
-                } else if (m.name.startsWith(getName) && m.parameters.size() == 0) {
-                    return getName;
-                }
-                return otherName;
+        Map<String, List<ScriptMethodInfo>> methodTypes = methods.stream().collect(Collectors.groupingBy(m -> {
+            if (m.name.equals(executeName)) {
+                return executeName;
+            } else if (m.name.startsWith(getName) && m.parameters.size() == 0) {
+                return getName;
             }
-        ));
+            return otherName;
+        }));
 
         if (methodTypes.containsKey(executeName) == false) {
-            throw new IllegalArgumentException("Could not find required method [" + executeName + "] in [" + name + "], found " +
-                methods.stream().map(m -> m.name).sorted().collect(Collectors.joining(", ", "[", "]")));
+            throw new IllegalArgumentException(
+                "Could not find required method ["
+                    + executeName
+                    + "] in ["
+                    + name
+                    + "], found "
+                    + methods.stream().map(m -> m.name).sorted().collect(Collectors.joining(", ", "[", "]"))
+            );
         } else if ((methodTypes.get(executeName).size() != 1)) {
-            throw new IllegalArgumentException("Cannot have multiple [execute] methods in [" + name + "], found [" +
-                methodTypes.get(executeName).size() + "]"
+            throw new IllegalArgumentException(
+                "Cannot have multiple [execute] methods in [" + name + "], found [" + methodTypes.get(executeName).size() + "]"
             );
         }
         this.execute = methodTypes.get(executeName).get(0);
@@ -86,7 +91,7 @@ public class ScriptContextInfo implements ToXContentObject, Writeable {
     }
 
     // Test constructor
-    public ScriptContextInfo(String name, ScriptMethodInfo execute,  Set<ScriptMethodInfo> getters) {
+    public ScriptContextInfo(String name, ScriptMethodInfo execute, Set<ScriptMethodInfo> getters) {
         this.name = Objects.requireNonNull(name);
         this.execute = Objects.requireNonNull(execute);
         this.getters = Objects.requireNonNull(getters);
@@ -96,7 +101,7 @@ public class ScriptContextInfo implements ToXContentObject, Writeable {
         this.name = in.readString();
         this.execute = new ScriptMethodInfo(in);
         int numGetters = in.readInt();
-        Set<ScriptMethodInfo> getters = new HashSet<>(numGetters);
+        Set<ScriptMethodInfo> getters = Sets.newHashSetWithExpectedSize(numGetters);
         for (int i = 0; i < numGetters; i++) {
             getters.add(new ScriptMethodInfo(in));
         }
@@ -107,7 +112,7 @@ public class ScriptContextInfo implements ToXContentObject, Writeable {
         out.writeString(name);
         execute.writeTo(out);
         out.writeInt(getters.size());
-        for (ScriptMethodInfo getter: getters) {
+        for (ScriptMethodInfo getter : getters) {
             getter.writeTo(out);
         }
     }
@@ -124,16 +129,19 @@ public class ScriptContextInfo implements ToXContentObject, Writeable {
     }
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<ScriptContextInfo,Void> PARSER =
-        new ConstructingObjectParser<>("script_context_info", true,
-            (m, name) -> new ScriptContextInfo((String) m[0], (List<ScriptMethodInfo>) m[1])
-        );
+    public static final ConstructingObjectParser<ScriptContextInfo, Void> PARSER = new ConstructingObjectParser<>(
+        "script_context_info",
+        true,
+        (m, name) -> new ScriptContextInfo((String) m[0], (List<ScriptMethodInfo>) m[1])
+    );
 
     static {
         PARSER.declareString(constructorArg(), new ParseField(NAME_FIELD));
-        PARSER.declareObjectArray(constructorArg(),
+        PARSER.declareObjectArray(
+            constructorArg(),
             (parser, ctx) -> ScriptMethodInfo.PARSER.apply(parser, ctx),
-            new ParseField(METHODS_FIELD));
+            new ParseField(METHODS_FIELD)
+        );
     }
 
     public static ScriptContextInfo fromXContent(XContentParser parser) throws IOException {
@@ -145,9 +153,7 @@ public class ScriptContextInfo implements ToXContentObject, Writeable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ScriptContextInfo that = (ScriptContextInfo) o;
-        return Objects.equals(name, that.name) &&
-            Objects.equals(execute, that.execute) &&
-            Objects.equals(getters, that.getters);
+        return Objects.equals(name, that.name) && Objects.equals(execute, that.execute) && Objects.equals(getters, that.getters);
     }
 
     @Override
@@ -159,7 +165,7 @@ public class ScriptContextInfo implements ToXContentObject, Writeable {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject().field(NAME_FIELD, name).startArray(METHODS_FIELD);
         execute.toXContent(builder, params);
-        for (ScriptMethodInfo method: getters.stream().sorted(Comparator.comparing(g -> g.name)).collect(Collectors.toList())) {
+        for (ScriptMethodInfo method : getters.stream().sorted(Comparator.comparing(g -> g.name)).toList()) {
             method.toXContent(builder, params);
         }
         return builder.endArray().endObject();
@@ -193,23 +199,26 @@ public class ScriptContextInfo implements ToXContentObject, Writeable {
             out.writeString(name);
             out.writeString(returnType);
             out.writeInt(parameters.size());
-            for (ParameterInfo parameter: parameters) {
+            for (ParameterInfo parameter : parameters) {
                 parameter.writeTo(out);
             }
         }
 
         @SuppressWarnings("unchecked")
-        private static final ConstructingObjectParser<ScriptMethodInfo,Void> PARSER =
-            new ConstructingObjectParser<>("method", true,
-                (m, name) -> new ScriptMethodInfo((String) m[0], (String) m[1], (List<ParameterInfo>) m[2])
-            );
+        private static final ConstructingObjectParser<ScriptMethodInfo, Void> PARSER = new ConstructingObjectParser<>(
+            "method",
+            true,
+            (m, name) -> new ScriptMethodInfo((String) m[0], (String) m[1], (List<ParameterInfo>) m[2])
+        );
 
         static {
             PARSER.declareString(constructorArg(), new ParseField(NAME_FIELD));
             PARSER.declareString(constructorArg(), new ParseField(RETURN_TYPE_FIELD));
-            PARSER.declareObjectArray(constructorArg(),
+            PARSER.declareObjectArray(
+                constructorArg(),
                 (parser, ctx) -> ParameterInfo.PARSER.apply(parser, ctx),
-                new ParseField(PARAMETERS_FIELD));
+                new ParseField(PARAMETERS_FIELD)
+            );
         }
 
         public static ScriptMethodInfo fromXContent(XContentParser parser) throws IOException {
@@ -221,9 +230,9 @@ public class ScriptContextInfo implements ToXContentObject, Writeable {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             ScriptMethodInfo that = (ScriptMethodInfo) o;
-            return Objects.equals(name, that.name) &&
-                Objects.equals(returnType, that.returnType) &&
-                Objects.equals(parameters, that.parameters);
+            return Objects.equals(name, that.name)
+                && Objects.equals(returnType, that.returnType)
+                && Objects.equals(parameters, that.parameters);
         }
 
         @Override
@@ -234,7 +243,7 @@ public class ScriptContextInfo implements ToXContentObject, Writeable {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject().field(NAME_FIELD, name).field(RETURN_TYPE_FIELD, returnType).startArray(PARAMETERS_FIELD);
-            for (ParameterInfo parameter: parameters) {
+            for (ParameterInfo parameter : parameters) {
                 parameter.toXContent(builder, params);
             }
             return builder.endArray().endObject();
@@ -260,9 +269,10 @@ public class ScriptContextInfo implements ToXContentObject, Writeable {
                 out.writeString(name);
             }
 
-            private static final ConstructingObjectParser<ParameterInfo, Void> PARSER =
-                new ConstructingObjectParser<>("parameters", true,
-                    (p) -> new ParameterInfo((String)p[0], (String)p[1])
+            private static final ConstructingObjectParser<ParameterInfo, Void> PARSER = new ConstructingObjectParser<>(
+                "parameters",
+                true,
+                (p) -> new ParameterInfo((String) p[0], (String) p[1])
             );
 
             static {
@@ -284,8 +294,7 @@ public class ScriptContextInfo implements ToXContentObject, Writeable {
                 if (this == o) return true;
                 if (o == null || getClass() != o.getClass()) return false;
                 ParameterInfo that = (ParameterInfo) o;
-                return Objects.equals(type, that.type) &&
-                    Objects.equals(name, that.name);
+                return Objects.equals(type, that.type) && Objects.equals(name, that.name);
             }
 
             @Override
@@ -302,8 +311,9 @@ public class ScriptContextInfo implements ToXContentObject, Writeable {
             for (Method method : clazz.getMethods()) {
                 if (method.getName().equals(name)) {
                     if (execute != null) {
-                        throw new IllegalArgumentException("Cannot have multiple [" + name + "] methods on class [" +
-                            clazz.getName() + "]");
+                        throw new IllegalArgumentException(
+                            "Cannot have multiple [" + name + "] methods on class [" + clazz.getName() + "]"
+                        );
                     }
                     execute = method;
                 }
@@ -326,13 +336,30 @@ public class ScriptContextInfo implements ToXContentObject, Writeable {
                 try {
                     parameterNamesField = clazz.getField(parametersFieldName);
                 } catch (NoSuchFieldException e) {
-                    throw new IllegalArgumentException("Could not find field [" + parametersFieldName + "] on instance class [" +
-                        clazz.getName() + "] but method [" + name + "] has [" + parameterTypes.length + "] parameters");
+                    throw new IllegalArgumentException(
+                        "Could not find field ["
+                            + parametersFieldName
+                            + "] on instance class ["
+                            + clazz.getName()
+                            + "] but method ["
+                            + name
+                            + "] has ["
+                            + parameterTypes.length
+                            + "] parameters"
+                    );
                 }
                 if (parameterNamesField.getType().equals(String[].class) == false) {
-                    throw new IllegalArgumentException("Expected a constant [String[] PARAMETERS] on instance class [" +
-                        clazz.getName() + "] for method [" + name + "] with [" + parameterTypes.length + "] parameters, found [" +
-                        parameterNamesField.getType().getTypeName() + "]");
+                    throw new IllegalArgumentException(
+                        "Expected a constant [String[] PARAMETERS] on instance class ["
+                            + clazz.getName()
+                            + "] for method ["
+                            + name
+                            + "] with ["
+                            + parameterTypes.length
+                            + "] parameters, found ["
+                            + parameterNamesField.getType().getTypeName()
+                            + "]"
+                    );
                 }
 
                 String[] argumentNames;
@@ -343,9 +370,17 @@ public class ScriptContextInfo implements ToXContentObject, Writeable {
                 }
 
                 if (argumentNames.length != parameterTypes.length) {
-                    throw new IllegalArgumentException("Expected argument names [" + argumentNames.length +
-                        "] to have the same arity [" + parameterTypes.length + "] for method [" + name +
-                        "] of class [" + clazz.getName() + "]");
+                    throw new IllegalArgumentException(
+                        "Expected argument names ["
+                            + argumentNames.length
+                            + "] to have the same arity ["
+                            + parameterTypes.length
+                            + "] for method ["
+                            + name
+                            + "] of class ["
+                            + clazz.getName()
+                            + "]"
+                    );
                 }
 
                 for (int i = 0; i < argumentNames.length; i++) {
@@ -359,11 +394,11 @@ public class ScriptContextInfo implements ToXContentObject, Writeable {
             // See ScriptClassInfo(PainlessLookup painlessLookup, Class<?> baseClass)
             HashSet<ScriptMethodInfo> getters = new HashSet<>();
             for (java.lang.reflect.Method m : clazz.getMethods()) {
-                if (m.isDefault() == false &&
-                    m.getName().startsWith("get") &&
-                    m.getName().equals("getClass") == false &&
-                    Modifier.isStatic(m.getModifiers()) == false &&
-                    m.getParameters().length == 0) {
+                if (m.isDefault() == false
+                    && m.getName().startsWith("get")
+                    && m.getName().equals("getClass") == false
+                    && Modifier.isStatic(m.getModifiers()) == false
+                    && m.getParameters().length == 0) {
                     getters.add(new ScriptMethodInfo(m.getName(), m.getReturnType().getTypeName(), new ArrayList<>()));
                 }
             }

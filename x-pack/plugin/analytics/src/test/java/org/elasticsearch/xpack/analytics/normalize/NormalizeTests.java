@@ -25,10 +25,13 @@ public class NormalizeTests extends BasePipelineAggregationTestCase<NormalizePip
         return singletonList(new SearchPlugin() {
             @Override
             public List<PipelineAggregationSpec> getPipelineAggregations() {
-                return singletonList(new PipelineAggregationSpec(
-                    NormalizePipelineAggregationBuilder.NAME,
-                    NormalizePipelineAggregationBuilder::new,
-                    NormalizePipelineAggregationBuilder.PARSER));
+                return singletonList(
+                    new PipelineAggregationSpec(
+                        NormalizePipelineAggregationBuilder.NAME,
+                        NormalizePipelineAggregationBuilder::new,
+                        NormalizePipelineAggregationBuilder.PARSER
+                    )
+                );
             }
         });
     }
@@ -36,17 +39,29 @@ public class NormalizeTests extends BasePipelineAggregationTestCase<NormalizePip
     public void testInvalidNormalizer() {
         NormalizePipelineAggregationBuilder builder = createTestAggregatorFactory();
         String invalidNormalizer = randomFrom(NormalizePipelineAggregationBuilder.NAME_MAP.keySet()) + randomAlphaOfLength(10);
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-            () -> new NormalizePipelineAggregationBuilder(builder.getName(), builder.format(), invalidNormalizer,
-                List.of(builder.getBucketsPaths())));
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> new NormalizePipelineAggregationBuilder(
+                builder.getName(),
+                builder.format(),
+                invalidNormalizer,
+                List.of(builder.getBucketsPaths())
+            )
+        );
         assertThat(exception.getMessage(), equalTo("invalid method [" + invalidNormalizer + "]"));
     }
 
     public void testHasParentValidation() {
         NormalizePipelineAggregationBuilder builder = createTestAggregatorFactory();
-        assertThat(validate(emptyList(), builder), CoreMatchers.equalTo(
-            "Validation Failed: 1: normalize aggregation [" + builder.getName() + "] must be declared inside" +
-                " of another aggregation;"));
+        assertThat(
+            validate(emptyList(), builder),
+            CoreMatchers.equalTo(
+                "Validation Failed: 1: normalize aggregation ["
+                    + builder.getName()
+                    + "] must be declared inside"
+                    + " of another aggregation;"
+            )
+        );
     }
 
     @Override

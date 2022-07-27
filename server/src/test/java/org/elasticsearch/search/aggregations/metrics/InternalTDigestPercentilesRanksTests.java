@@ -8,18 +8,29 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class InternalTDigestPercentilesRanksTests extends InternalPercentilesRanksTestCase<InternalTDigestPercentileRanks> {
 
     @Override
-    protected InternalTDigestPercentileRanks createTestInstance(String name, Map<String, Object> metadata,
-                                                                boolean keyed, DocValueFormat format, double[] percents, double[] values) {
+    protected InternalTDigestPercentileRanks createTestInstance(
+        String name,
+        Map<String, Object> metadata,
+        boolean keyed,
+        DocValueFormat format,
+        double[] percents,
+        double[] values
+    ) {
         final TDigestState state = new TDigestState(100);
         Arrays.stream(values).forEach(state::add);
 
@@ -51,6 +62,24 @@ public class InternalTDigestPercentilesRanksTests extends InternalPercentilesRan
     }
 
     @Override
+    protected boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
+    protected void assertSampled(
+        InternalTDigestPercentileRanks sampled,
+        InternalTDigestPercentileRanks reduced,
+        SamplingContext samplingContext
+    ) {
+        Iterator<Percentile> it1 = sampled.iterator();
+        Iterator<Percentile> it2 = reduced.iterator();
+        while (it1.hasNext() && it2.hasNext()) {
+            assertThat(it1.next(), equalTo(it2.next()));
+        }
+    }
+
+    @Override
     protected Class<? extends ParsedPercentiles> implementationClass() {
         return ParsedTDigestPercentileRanks.class;
     }
@@ -64,35 +93,30 @@ public class InternalTDigestPercentilesRanksTests extends InternalPercentilesRan
         DocValueFormat formatter = instance.formatter();
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 4)) {
-        case 0:
-            name += randomAlphaOfLength(5);
-            break;
-        case 1:
-            percents = Arrays.copyOf(percents, percents.length + 1);
-            percents[percents.length - 1] = randomDouble() * 100;
-            Arrays.sort(percents);
-            break;
-        case 2:
-            TDigestState newState = new TDigestState(state.compression());
-            newState.add(state);
-            for (int i = 0; i < between(10, 100); i++) {
-                newState.add(randomDouble());
+            case 0 -> name += randomAlphaOfLength(5);
+            case 1 -> {
+                percents = Arrays.copyOf(percents, percents.length + 1);
+                percents[percents.length - 1] = randomDouble() * 100;
+                Arrays.sort(percents);
             }
-            state = newState;
-            break;
-        case 3:
-            keyed = keyed == false;
-            break;
-        case 4:
-            if (metadata == null) {
-                metadata = new HashMap<>(1);
-            } else {
-                metadata = new HashMap<>(instance.getMetadata());
+            case 2 -> {
+                TDigestState newState = new TDigestState(state.compression());
+                newState.add(state);
+                for (int i = 0; i < between(10, 100); i++) {
+                    newState.add(randomDouble());
+                }
+                state = newState;
             }
-            metadata.put(randomAlphaOfLength(15), randomInt());
-            break;
-        default:
-            throw new AssertionError("Illegal randomisation branch");
+            case 3 -> keyed = keyed == false;
+            case 4 -> {
+                if (metadata == null) {
+                    metadata = Maps.newMapWithExpectedSize(1);
+                } else {
+                    metadata = new HashMap<>(instance.getMetadata());
+                }
+                metadata.put(randomAlphaOfLength(15), randomInt());
+            }
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalTDigestPercentileRanks(name, percents, state, keyed, formatter, metadata);
     }

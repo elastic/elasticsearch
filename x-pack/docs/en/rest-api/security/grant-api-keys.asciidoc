@@ -23,15 +23,20 @@ Creates an API key on behalf of another user.
 This API is similar to <<security-api-create-api-key>>, however it creates the
 API key for a user that is different than the user that runs the API.
 
-The caller must have authentication credentials (either an access token, or a username and password) for the user on whose behalf the API key will be created. It is not possible to use this API to create an API key without that user's credentials.
+The caller must have authentication credentials (either an access token,
+or a username and password) for the user on whose behalf the API key will be
+created. It is not possible to use this API to create an API key without that
+user's credentials.
 
-This API is intended be used by applications that need to create and manage API keys for end users, but cannot guarantee that those users have permission to create API keys on their own behalf (see <<security-api-create-api-key-prereqs>>).
+The user, for whom the authentication credentials is provided,
+can optionally <<run-as-privilege,"run as">> (impersonate) another user.
+In this case, the API key will be created on behalf of the impersonated user.
+
+This API is intended be used by applications that need to create and manage
+API keys for end users, but cannot guarantee that those users have permission
+to create API keys on their own behalf (see <<security-api-create-api-key-prereqs>>).
 The API keys are created by the {es} API key service, which is automatically
-enabled when you configure TLS on the HTTP interface. See <<encrypt-http-communication>>.
-Alternatively, you can explicitly enable the
-`xpack.security.authc.api_key.enabled` setting. When you are running in
-production mode, a bootstrap check prevents you from enabling the API key
-service unless you also enable TLS on the HTTP interface.
+enabled.
 
 A successful grant API key API call returns a JSON structure that contains the
 API key, its unique id, and its name. If applicable, it also returns expiration
@@ -65,7 +70,7 @@ expire.
 (Required, string) Specifies the name for this API key.
 
 `role_descriptors`:::
-(Optional, array-of-role-descriptor) An array of role descriptors for this API
+(Optional, object) The role descriptors for this API
 key. This parameter is optional. When it is not specified or is an empty array,
 the API key has a point in time snapshot of permissions of the specified user or
 access token. If you supply role descriptors, the resultant permissions are an
@@ -102,6 +107,10 @@ required. It is not valid with other grant types.
 (Optional*, string)
 The user name that identifies the user. If you specify the `password` grant type,
 this parameter is required. It is not valid with other grant types.
+
+`run_as`::
+(Optional, string)
+The name of the user to be <<run-as-privilege,impersonated>>.
 
 [[security-api-grant-api-key-example]]
 ==== {api-examples-title}
@@ -147,3 +156,23 @@ POST /_security/api_key/grant
   }
 }
 ------------------------------------------------------------
+
+The user (`test_admin`) whose credentials are provided can "run as" another user (`test_user`).
+The API key will be granted to the impersonated user (`test_user`).
+
+[source,console]
+------------------------------------------------------------
+POST /_security/api_key/grant
+{
+  "grant_type": "password",
+  "username" : "test_admin",  <1>
+  "password" : "x-pack-test-password",  <2>
+  "run_as": "test_user",  <3>
+  "api_key" : {
+    "name": "another-api-key"
+  }
+}
+------------------------------------------------------------
+<1> The user for which the credential is provided and performs "run as".
+<2> Credential for the above user
+<3> The impersonated user for whom the API key will be created for.

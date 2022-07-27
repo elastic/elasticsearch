@@ -10,6 +10,7 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESTestCase;
@@ -17,10 +18,16 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.Map;
 
-public abstract class FieldScriptTestCase<T> extends ESTestCase {
+public abstract class FieldScriptTestCase<T extends ScriptFactory> extends ESTestCase {
     protected abstract ScriptContext<T> context();
 
     protected abstract T dummyScript();
+
+    protected abstract T fromSource();
+
+    public final void testFromSourceIsDeterministic() {
+        assertTrue(fromSource().isResultDeterministic());
+    }
 
     public final void testRateLimitingDisabled() throws IOException {
         try (ScriptService scriptService = TestScriptEngine.scriptService(context(), dummyScript())) {

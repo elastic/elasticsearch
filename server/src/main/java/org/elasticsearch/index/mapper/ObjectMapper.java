@@ -8,17 +8,15 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.collect.CopyOnWriteHashMap;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -35,11 +33,10 @@ public class ObjectMapper extends Mapper implements Cloneable {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ObjectMapper.class);
 
     public static final String CONTENT_TYPE = "object";
-    public static final String NESTED_CONTENT_TYPE = "nested";
 
     public static class Defaults {
         public static final boolean ENABLED = true;
-        public static final Nested NESTED = Nested.NO;
+        public static final Explicit<Boolean> SUBOBJECTS = Explicit.IMPLICIT_TRUE;
     }
 
     public enum Dynamic {
@@ -63,95 +60,19 @@ public class ObjectMapper extends Mapper implements Cloneable {
         };
     }
 
-    public static class Nested {
-
-        public static final Nested NO = new Nested(false, new Explicit<>(false, false), new Explicit<>(false, false));
-
-        public static Nested newNested() {
-            return new Nested(true, new Explicit<>(false, false), new Explicit<>(false, false));
-        }
-
-        public static Nested newNested(Explicit<Boolean> includeInParent, Explicit<Boolean> includeInRoot) {
-            return new Nested(true, includeInParent, includeInRoot);
-        }
-
-        private final boolean nested;
-        private Explicit<Boolean> includeInParent;
-        private Explicit<Boolean> includeInRoot;
-
-        private Nested(boolean nested, Explicit<Boolean> includeInParent, Explicit<Boolean> includeInRoot) {
-            this.nested = nested;
-            this.includeInParent = includeInParent;
-            this.includeInRoot = includeInRoot;
-        }
-
-        public void merge(Nested mergeWith, MergeReason reason) {
-            if (isNested()) {
-                if (mergeWith.isNested() == false) {
-                    throw new IllegalArgumentException("cannot change object mapping from nested to non-nested");
-                }
-            } else {
-                if (mergeWith.isNested()) {
-                    throw new IllegalArgumentException("cannot change object mapping from non-nested to nested");
-                }
-            }
-
-            if (reason == MergeReason.INDEX_TEMPLATE) {
-                if (mergeWith.includeInParent.explicit()) {
-                    includeInParent = mergeWith.includeInParent;
-                }
-                if (mergeWith.includeInRoot.explicit()) {
-                    includeInRoot = mergeWith.includeInRoot;
-                }
-            } else {
-                if (includeInParent.value() != mergeWith.includeInParent.value()) {
-                    throw new MapperException("the [include_in_parent] parameter can't be updated on a nested object mapping");
-                }
-                if (includeInRoot.value() != mergeWith.includeInRoot.value()) {
-                    throw new MapperException("the [include_in_root] parameter can't be updated on a nested object mapping");
-                }
-            }
-        }
-
-        public boolean isNested() {
-            return nested;
-        }
-
-        public boolean isIncludeInParent() {
-            return includeInParent.value();
-        }
-
-        public boolean isIncludeInRoot() {
-            return includeInRoot.value();
-        }
-
-        public void setIncludeInParent(boolean value) {
-            includeInParent = new Explicit<>(value, true);
-        }
-
-        public void setIncludeInRoot(boolean value) {
-            includeInRoot = new Explicit<>(value, true);
-        }
-    }
-
     public static class Builder extends Mapper.Builder {
-
-        protected Explicit<Boolean> enabled = new Explicit<>(true, false);
-
-        protected Nested nested = Defaults.NESTED;
-
+        protected final Explicit<Boolean> subobjects;
+        protected Explicit<Boolean> enabled = Explicit.IMPLICIT_TRUE;
         protected Dynamic dynamic;
-
         protected final List<Mapper.Builder> mappersBuilders = new ArrayList<>();
-        protected final Version indexCreatedVersion;
 
-        public Builder(String name, Version indexCreatedVersion) {
+        public Builder(String name, Explicit<Boolean> subobjects) {
             super(name);
-            this.indexCreatedVersion = indexCreatedVersion;
+            this.subobjects = subobjects;
         }
 
         public Builder enabled(boolean enabled) {
-            this.enabled = new Explicit<>(enabled, true);
+            this.enabled = Explicit.explicitBoolean(enabled);
             return this;
         }
 
@@ -160,46 +81,100 @@ public class ObjectMapper extends Mapper implements Cloneable {
             return this;
         }
 
-        public Builder nested(Nested nested) {
-            this.nested = nested;
-            return this;
-        }
-
         public Builder add(Mapper.Builder builder) {
             mappersBuilders.add(builder);
             return this;
         }
 
-        @Override
-        public ObjectMapper build(ContentPath contentPath) {
-            contentPath.add(name);
+        private void add(String name, Mapper mapper) {
+            add(new Mapper.Builder(name) {
+                @Override
+                public Mapper build(MapperBuilderContext context) {
+                    return mapper;
+                }
+            });
+        }
 
+        Builder addMappers(Map<String, Mapper> mappers) {
+            mappers.forEach(this::add);
+            return this;
+        }
+
+        /**
+         * Adds a dynamically created {@link Mapper} to this builder.
+         *
+         * @param name      the name of the Mapper, including object prefixes
+         * @param prefix    the object prefix of this mapper
+         * @param mapper    the mapper to add
+         * @param context   the DocumentParserContext in which the mapper has been built
+         */
+        public final void addDynamic(String name, String prefix, Mapper mapper, DocumentParserContext context) {
+            // If the mapper to add has no dots, or the current object mapper has subobjects set to false,
+            // we just add it as it is for sure a leaf mapper
+            if (name.contains(".") == false || subobjects.value() == false) {
+                add(name, mapper);
+            }
+            // otherwise we strip off the first object path of the mapper name, load or create
+            // the relevant object mapper, and then recurse down into it, passing the remainder
+            // of the mapper name. So for a mapper 'foo.bar.baz', we locate 'foo' and then
+            // call addDynamic on it with the name 'bar.baz', and next call addDynamic on 'bar' with the name 'baz'.
+            else {
+                int firstDotIndex = name.indexOf(".");
+                String immediateChild = name.substring(0, firstDotIndex);
+                String immediateChildFullName = prefix == null ? immediateChild : prefix + "." + immediateChild;
+                ObjectMapper.Builder parentBuilder = findObjectBuilder(immediateChildFullName, context);
+                parentBuilder.addDynamic(name.substring(firstDotIndex + 1), immediateChildFullName, mapper, context);
+                add(parentBuilder);
+            }
+        }
+
+        private static ObjectMapper.Builder findObjectBuilder(String fullName, DocumentParserContext context) {
+            // does the object mapper already exist? if so, use that
+            ObjectMapper objectMapper = context.mappingLookup().objectMappers().get(fullName);
+            if (objectMapper != null) {
+                return objectMapper.newBuilder(context.indexSettings().getIndexVersionCreated());
+            }
+            // has the object mapper been added as a dynamic update already?
+            objectMapper = context.getDynamicObjectMapper(fullName);
+            if (objectMapper != null) {
+                return objectMapper.newBuilder(context.indexSettings().getIndexVersionCreated());
+            }
+            throw new IllegalStateException("Missing intermediate object " + fullName);
+        }
+
+        protected final Map<String, Mapper> buildMappers(boolean root, MapperBuilderContext context) {
+            MapperBuilderContext mapperBuilderContext = root ? context : context.createChildContext(name);
             Map<String, Mapper> mappers = new HashMap<>();
             for (Mapper.Builder builder : mappersBuilders) {
-                Mapper mapper = builder.build(contentPath);
+                Mapper mapper = builder.build(mapperBuilderContext);
+                assert mapper instanceof ObjectMapper == false || subobjects.value() : "unexpected object while subobjects are disabled";
                 Mapper existing = mappers.get(mapper.simpleName());
                 if (existing != null) {
-                    mapper = existing.merge(mapper);
+                    mapper = existing.merge(mapper, mapperBuilderContext);
                 }
                 mappers.put(mapper.simpleName(), mapper);
             }
-            contentPath.remove();
-
-            return createMapper(name, contentPath.pathAsText(name), enabled, nested, dynamic,
-                mappers, indexCreatedVersion);
+            return mappers;
         }
 
-        protected ObjectMapper createMapper(String name, String fullPath, Explicit<Boolean> enabled, Nested nested, Dynamic dynamic,
-                Map<String, Mapper> mappers, Version indexCreatedVersion) {
-            return new ObjectMapper(name, fullPath, enabled, nested, dynamic, mappers, indexCreatedVersion);
+        @Override
+        public ObjectMapper build(MapperBuilderContext context) {
+            return new ObjectMapper(name, context.buildFullName(name), enabled, subobjects, dynamic, buildMappers(false, context));
         }
     }
 
     public static class TypeParser implements Mapper.TypeParser {
+
         @Override
-        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            ObjectMapper.Builder builder = new Builder(name, parserContext.indexVersionCreated());
-            parseNested(name, node, builder);
+        public boolean supportsVersion(Version indexCreatedVersion) {
+            return true;
+        }
+
+        @Override
+        public Mapper.Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext)
+            throws MapperParsingException {
+            Explicit<Boolean> subobjects = parseSubobjects(node);
+            ObjectMapper.Builder builder = new Builder(name, subobjects);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = entry.getKey();
@@ -211,14 +186,18 @@ public class ObjectMapper extends Mapper implements Cloneable {
             return builder;
         }
 
-        @SuppressWarnings({"unchecked", "rawtypes"})
-        protected static boolean parseObjectOrDocumentTypeProperties(String fieldName, Object fieldNode, ParserContext parserContext,
-                                                                     ObjectMapper.Builder builder) {
+        @SuppressWarnings({ "unchecked", "rawtypes" })
+        protected static boolean parseObjectOrDocumentTypeProperties(
+            String fieldName,
+            Object fieldNode,
+            MappingParserContext parserContext,
+            ObjectMapper.Builder builder
+        ) {
             if (fieldName.equals("dynamic")) {
                 String value = fieldNode.toString();
                 if (value.equalsIgnoreCase("strict")) {
                     builder.dynamic(Dynamic.STRICT);
-                }  else if (value.equalsIgnoreCase("runtime")) {
+                } else if (value.equalsIgnoreCase("runtime")) {
                     builder.dynamic(Dynamic.RUNTIME);
                 } else {
                     boolean dynamic = XContentMapValues.nodeBooleanValue(fieldNode, fieldName + ".dynamic");
@@ -238,47 +217,29 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 }
                 return true;
             } else if (fieldName.equals("include_in_all")) {
-                deprecationLogger.deprecate(DeprecationCategory.MAPPINGS, "include_in_all",
-                    "[include_in_all] is deprecated, the _all field have been removed in this version");
+                deprecationLogger.warn(
+                    DeprecationCategory.MAPPINGS,
+                    "include_in_all",
+                    "[include_in_all] is deprecated, the _all field have been removed in this version"
+                );
                 return true;
             }
             return false;
         }
 
-        protected static void parseNested(String name, Map<String, Object> node, ObjectMapper.Builder builder) {
-            boolean nested = false;
-            Explicit<Boolean> nestedIncludeInParent = new Explicit<>(false, false);
-            Explicit<Boolean> nestedIncludeInRoot = new Explicit<>(false, false);
-            Object fieldNode = node.get("type");
-            if (fieldNode!=null) {
-                String type = fieldNode.toString();
-                if (type.equals(CONTENT_TYPE)) {
-                    builder.nested = Nested.NO;
-                } else if (type.equals(NESTED_CONTENT_TYPE)) {
-                    nested = true;
-                } else {
-                    throw new MapperParsingException("Trying to parse an object but has a different type [" + type
-                        + "] for [" + name + "]");
-                }
+        protected static Explicit<Boolean> parseSubobjects(Map<String, Object> node) {
+            Object subobjectsNode = node.remove("subobjects");
+            if (subobjectsNode != null) {
+                return Explicit.explicitBoolean(XContentMapValues.nodeBooleanValue(subobjectsNode, "subobjects.subobjects"));
             }
-            fieldNode = node.get("include_in_parent");
-            if (fieldNode != null) {
-                boolean includeInParent = XContentMapValues.nodeBooleanValue(fieldNode, name + ".include_in_parent");
-                nestedIncludeInParent = new Explicit<>(includeInParent, true);
-                node.remove("include_in_parent");
-            }
-            fieldNode = node.get("include_in_root");
-            if (fieldNode != null) {
-                boolean includeInRoot = XContentMapValues.nodeBooleanValue(fieldNode, name + ".include_in_root");
-                nestedIncludeInRoot = new Explicit<>(includeInRoot, true);
-                node.remove("include_in_root");
-            }
-            if (nested) {
-                builder.nested = Nested.newNested(nestedIncludeInParent, nestedIncludeInRoot);
-            }
+            return Explicit.IMPLICIT_TRUE;
         }
 
-        protected static void parseProperties(ObjectMapper.Builder objBuilder, Map<String, Object> propsNode, ParserContext parserContext) {
+        protected static void parseProperties(
+            ObjectMapper.Builder objBuilder,
+            Map<String, Object> propsNode,
+            MappingParserContext parserContext
+        ) {
             Iterator<Map.Entry<String, Object>> iterator = propsNode.entrySet().iterator();
             while (iterator.hasNext()) {
                 Map.Entry<String, Object> entry = iterator.next();
@@ -309,18 +270,40 @@ public class ObjectMapper extends Mapper implements Cloneable {
                         }
                     }
 
+                    if (objBuilder.subobjects.value() == false && type.equals(ObjectMapper.CONTENT_TYPE)) {
+                        throw new MapperParsingException(
+                            "Tried to add subobject ["
+                                + fieldName
+                                + "] to object ["
+                                + objBuilder.name()
+                                + "] which does not support subobjects"
+                        );
+                    }
+                    if (objBuilder.subobjects.value() == false && type.equals(NestedObjectMapper.CONTENT_TYPE)) {
+                        throw new MapperParsingException(
+                            "Tried to add nested object ["
+                                + fieldName
+                                + "] to object ["
+                                + objBuilder.name()
+                                + "] which does not support subobjects"
+                        );
+                    }
                     Mapper.TypeParser typeParser = parserContext.typeParser(type);
                     if (typeParser == null) {
                         throw new MapperParsingException("No handler for type [" + type + "] declared on field [" + fieldName + "]");
                     }
-                    String[] fieldNameParts = fieldName.split("\\.");
-                    String realFieldName = fieldNameParts[fieldNameParts.length - 1];
-                    Mapper.Builder fieldBuilder = typeParser.parse(realFieldName, propNode, parserContext);
-                    for (int i = fieldNameParts.length - 2; i >= 0; --i) {
-                        ObjectMapper.Builder intermediate
-                            = new ObjectMapper.Builder(fieldNameParts[i], parserContext.indexVersionCreated());
-                        intermediate.add(fieldBuilder);
-                        fieldBuilder = intermediate;
+                    Mapper.Builder fieldBuilder;
+                    if (objBuilder.subobjects.value() == false) {
+                        fieldBuilder = typeParser.parse(fieldName, propNode, parserContext);
+                    } else {
+                        String[] fieldNameParts = fieldName.split("\\.");
+                        String realFieldName = fieldNameParts[fieldNameParts.length - 1];
+                        fieldBuilder = typeParser.parse(realFieldName, propNode, parserContext);
+                        for (int i = fieldNameParts.length - 2; i >= 0; --i) {
+                            ObjectMapper.Builder intermediate = new ObjectMapper.Builder(fieldNameParts[i], Defaults.SUBOBJECTS);
+                            intermediate.add(fieldBuilder);
+                            fieldBuilder = intermediate;
+                        }
                     }
                     objBuilder.add(fieldBuilder);
                     propNode.remove("type");
@@ -329,8 +312,9 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 } else if (isEmptyList) {
                     iterator.remove();
                 } else {
-                    throw new MapperParsingException("Expected map for property [fields] on field [" + fieldName + "] but got a "
-                            + fieldName.getClass());
+                    throw new MapperParsingException(
+                        "Expected map for property [fields] on field [" + fieldName + "] but got a " + fieldName.getClass()
+                    );
                 }
             }
 
@@ -340,39 +324,33 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
     private final String fullPath;
 
-    private Explicit<Boolean> enabled;
+    protected Explicit<Boolean> enabled;
+    protected Explicit<Boolean> subobjects;
+    protected volatile Dynamic dynamic;
 
-    private final Nested nested;
+    protected Map<String, Mapper> mappers;
 
-    private final String nestedTypePath;
-
-    private final Query nestedTypeFilter;
-
-    private volatile Dynamic dynamic;
-
-    private volatile CopyOnWriteHashMap<String, Mapper> mappers;
-
-    ObjectMapper(String name, String fullPath, Explicit<Boolean> enabled, Nested nested, Dynamic dynamic,
-            Map<String, Mapper> mappers, Version indexCreatedVersion) {
+    ObjectMapper(
+        String name,
+        String fullPath,
+        Explicit<Boolean> enabled,
+        Explicit<Boolean> subobjects,
+        Dynamic dynamic,
+        Map<String, Mapper> mappers
+    ) {
         super(name);
         if (name.isEmpty()) {
             throw new IllegalArgumentException("name cannot be empty string");
         }
-        this.fullPath = fullPath;
+        this.fullPath = internFieldName(fullPath);
         this.enabled = enabled;
-        this.nested = nested;
+        this.subobjects = subobjects;
         this.dynamic = dynamic;
         if (mappers == null) {
-            this.mappers = new CopyOnWriteHashMap<>();
+            this.mappers = Map.of();
         } else {
-            this.mappers = CopyOnWriteHashMap.copyOf(mappers);
+            this.mappers = Map.copyOf(mappers);
         }
-        if (indexCreatedVersion.before(Version.V_8_0_0)) {
-            this.nestedTypePath = "__" + fullPath;
-        } else {
-            this.nestedTypePath = fullPath;
-        }
-        this.nestedTypeFilter = NestedPathFieldMapper.filter(indexCreatedVersion, nestedTypePath);
     }
 
     @Override
@@ -383,23 +361,18 @@ public class ObjectMapper extends Mapper implements Cloneable {
         } catch (CloneNotSupportedException e) {
             throw new RuntimeException(e);
         }
+        clone.mappers = Map.copyOf(clone.mappers);
         return clone;
     }
 
-    ObjectMapper copyAndReset() {
-        ObjectMapper copy = clone();
-        // reset the sub mappers
-        copy.mappers = new CopyOnWriteHashMap<>();
-        return copy;
-    }
-
     /**
-     * Build a mapping update with the provided sub mapping update.
+     * @return a Builder that will produce an empty ObjectMapper with the same configuration as this one
      */
-    final ObjectMapper mappingUpdate(Mapper mapper) {
-        ObjectMapper mappingUpdate = copyAndReset();
-        mappingUpdate.putMapper(mapper);
-        return mappingUpdate;
+    public ObjectMapper.Builder newBuilder(Version indexVersionCreated) {
+        ObjectMapper.Builder builder = new ObjectMapper.Builder(simpleName(), subobjects);
+        builder.enabled = this.enabled;
+        builder.dynamic = this.dynamic;
+        return builder;
     }
 
     @Override
@@ -416,20 +389,12 @@ public class ObjectMapper extends Mapper implements Cloneable {
         return this.enabled.value();
     }
 
+    public boolean isNested() {
+        return false;
+    }
+
     public Mapper getMapper(String field) {
         return mappers.get(field);
-    }
-
-    public Nested nested() {
-        return this.nested;
-    }
-
-    public Query nestedTypeFilter() {
-        return this.nestedTypeFilter;
-    }
-
-    protected void putMapper(Mapper mapper) {
-        mappers = mappers.copyAndPut(mapper.simpleName(), mapper);
     }
 
     @Override
@@ -441,17 +406,17 @@ public class ObjectMapper extends Mapper implements Cloneable {
         return this.fullPath;
     }
 
-    public String nestedTypePath() {
-        return this.nestedTypePath;
-    }
-
     public final Dynamic dynamic() {
         return dynamic;
     }
 
+    public final boolean subobjects() {
+        return subobjects.value();
+    }
+
     @Override
-    public ObjectMapper merge(Mapper mergeWith) {
-        return merge(mergeWith, MergeReason.MAPPING_UPDATE);
+    public ObjectMapper merge(Mapper mergeWith, MapperBuilderContext mapperBuilderContext) {
+        return merge(mergeWith, MergeReason.MAPPING_UPDATE, mapperBuilderContext);
     }
 
     @Override
@@ -461,18 +426,21 @@ public class ObjectMapper extends Mapper implements Cloneable {
         }
     }
 
-    public ObjectMapper merge(Mapper mergeWith, MergeReason reason) {
+    public ObjectMapper merge(Mapper mergeWith, MergeReason reason, MapperBuilderContext mapperBuilderContext) {
         if ((mergeWith instanceof ObjectMapper) == false) {
             throw new IllegalArgumentException("can't merge a non object mapping [" + mergeWith.name() + "] with an object mapping");
         }
+        if (mergeWith instanceof NestedObjectMapper) {
+            // TODO stop NestedObjectMapper extending ObjectMapper?
+            throw new IllegalArgumentException("can't merge a nested mapping [" + mergeWith.name() + "] with a non-nested mapping");
+        }
         ObjectMapper mergeWithObject = (ObjectMapper) mergeWith;
         ObjectMapper merged = clone();
-        merged.doMerge(mergeWithObject, reason);
+        merged.doMerge(mergeWithObject, reason, mapperBuilderContext);
         return merged;
     }
 
-    protected void doMerge(final ObjectMapper mergeWith, MergeReason reason) {
-        nested().merge(mergeWith.nested(), reason);
+    protected void doMerge(final ObjectMapper mergeWith, MergeReason reason, MapperBuilderContext mapperBuilderContext) {
 
         if (mergeWith.dynamic != null) {
             this.dynamic = mergeWith.dynamic;
@@ -481,25 +449,35 @@ public class ObjectMapper extends Mapper implements Cloneable {
         if (mergeWith.enabled.explicit()) {
             if (reason == MergeReason.INDEX_TEMPLATE) {
                 this.enabled = mergeWith.enabled;
-            } else if (isEnabled() != mergeWith.isEnabled()){
+            } else if (isEnabled() != mergeWith.isEnabled()) {
                 throw new MapperException("the [enabled] parameter can't be updated for the object mapping [" + name() + "]");
             }
         }
 
+        if (mergeWith.subobjects.explicit()) {
+            if (reason == MergeReason.INDEX_TEMPLATE) {
+                this.subobjects = mergeWith.subobjects;
+            } else if (subobjects != mergeWith.subobjects) {
+                throw new MapperException("the [subobjects] parameter can't be updated for the object mapping [" + name() + "]");
+            }
+        }
+
+        Map<String, Mapper> mergedMappers = null;
         for (Mapper mergeWithMapper : mergeWith) {
-            Mapper mergeIntoMapper = mappers.get(mergeWithMapper.simpleName());
+            Mapper mergeIntoMapper = (mergedMappers == null ? mappers : mergedMappers).get(mergeWithMapper.simpleName());
 
             Mapper merged;
             if (mergeIntoMapper == null) {
                 merged = mergeWithMapper;
-            } else if (mergeIntoMapper instanceof ObjectMapper) {
-                ObjectMapper objectMapper = (ObjectMapper) mergeIntoMapper;
-                merged = objectMapper.merge(mergeWithMapper, reason);
+            } else if (mergeIntoMapper instanceof ObjectMapper objectMapper) {
+                MapperBuilderContext childContext = mapperBuilderContext.createChildContext(objectMapper.simpleName());
+                merged = objectMapper.merge(mergeWithMapper, reason, childContext);
             } else {
                 assert mergeIntoMapper instanceof FieldMapper || mergeIntoMapper instanceof FieldAliasMapper;
                 if (mergeWithMapper instanceof ObjectMapper) {
-                    throw new IllegalArgumentException("can't merge a non object mapping [" +
-                        mergeWithMapper.name() + "] with an object mapping");
+                    throw new IllegalArgumentException(
+                        "can't merge a non object mapping [" + mergeWithMapper.name() + "] with an object mapping"
+                    );
                 }
 
                 // If we're merging template mappings when creating an index, then a field definition always
@@ -507,10 +485,16 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 if (reason == MergeReason.INDEX_TEMPLATE) {
                     merged = mergeWithMapper;
                 } else {
-                    merged = mergeIntoMapper.merge(mergeWithMapper);
+                    merged = mergeIntoMapper.merge(mergeWithMapper, mapperBuilderContext);
                 }
             }
-            putMapper(merged);
+            if (mergedMappers == null) {
+                mergedMappers = new HashMap<>(mappers);
+            }
+            mergedMappers.put(merged.simpleName(), merged);
+        }
+        if (mergedMappers != null) {
+            mappers = Map.copyOf(mergedMappers);
         }
     }
 
@@ -522,15 +506,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
     void toXContent(XContentBuilder builder, Params params, ToXContent custom) throws IOException {
         builder.startObject(simpleName());
-        if (nested.isNested()) {
-            builder.field("type", NESTED_CONTENT_TYPE);
-            if (nested.isIncludeInParent()) {
-                builder.field("include_in_parent", true);
-            }
-            if (nested.isIncludeInRoot()) {
-                builder.field("include_in_root", true);
-            }
-        } else if (mappers.isEmpty() && custom == null) {
+        if (mappers.isEmpty() && custom == null) {
             // only write the object content type if there are no properties, otherwise, it is automatically detected
             builder.field("type", CONTENT_TYPE);
         }
@@ -540,13 +516,19 @@ public class ObjectMapper extends Mapper implements Cloneable {
         if (isEnabled() != Defaults.ENABLED) {
             builder.field("enabled", enabled.value());
         }
-
+        if (subobjects != Defaults.SUBOBJECTS) {
+            builder.field("subobjects", subobjects.value());
+        }
         if (custom != null) {
             custom.toXContent(builder, params);
         }
 
         doXContent(builder, params);
+        serializeMappers(builder, params);
+        builder.endObject();
+    }
 
+    protected void serializeMappers(XContentBuilder builder, Params params) throws IOException {
         // sort the mappers so we get consistent serialization format
         Mapper[] sortedMappers = mappers.values().toArray(Mapper[]::new);
         Arrays.sort(sortedMappers, Comparator.comparing(Mapper::name));
@@ -563,10 +545,63 @@ public class ObjectMapper extends Mapper implements Cloneable {
         if (count > 0) {
             builder.endObject();
         }
-        builder.endObject();
     }
 
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
 
+    }
+
+    @Override
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        List<SourceLoader.SyntheticFieldLoader> fields = mappers.values()
+            .stream()
+            .sorted(Comparator.comparing(Mapper::name))
+            .map(Mapper::syntheticFieldLoader)
+            .filter(l -> l != null)
+            .toList();
+        return (reader, docIdsInLeaf) -> {
+            List<SourceLoader.SyntheticFieldLoader.Leaf> l = new ArrayList<>();
+            for (SourceLoader.SyntheticFieldLoader field : fields) {
+                SourceLoader.SyntheticFieldLoader.Leaf leaf = field.leaf(reader, docIdsInLeaf);
+                if (false == leaf.empty()) {
+                    l.add(leaf);
+                }
+            }
+            SourceLoader.SyntheticFieldLoader.Leaf[] leaves = l.toArray(SourceLoader.SyntheticFieldLoader.Leaf[]::new);
+            return new SourceLoader.SyntheticFieldLoader.Leaf() {
+                private boolean hasValue;
+
+                @Override
+                public boolean empty() {
+                    return leaves.length == 0;
+                }
+
+                @Override
+                public boolean advanceToDoc(int docId) throws IOException {
+                    hasValue = false;
+                    for (SourceLoader.SyntheticFieldLoader.Leaf leaf : leaves) {
+                        boolean leafHasValue = leaf.advanceToDoc(docId);
+                        hasValue |= leafHasValue;
+                    }
+                    return hasValue;
+                }
+
+                @Override
+                public void write(XContentBuilder b) throws IOException {
+                    if (hasValue == false) {
+                        return;
+                    }
+                    startSyntheticField(b);
+                    for (SourceLoader.SyntheticFieldLoader.Leaf leaf : leaves) {
+                        leaf.write(b);
+                    }
+                    b.endObject();
+                }
+            };
+        };
+    }
+
+    protected void startSyntheticField(XContentBuilder b) throws IOException {
+        b.startObject(simpleName());
     }
 }

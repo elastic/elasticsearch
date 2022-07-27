@@ -10,20 +10,20 @@ package org.elasticsearch.action.admin.indices.validate.query;
 
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * The response of the validate action.
@@ -41,23 +41,20 @@ public class ValidateQueryResponse extends BroadcastResponse {
         true,
         arg -> {
             BroadcastResponse response = (BroadcastResponse) arg[0];
-            return
-                new ValidateQueryResponse(
-                    (boolean)arg[1],
-                    (List<QueryExplanation>)arg[2],
-                    response.getTotalShards(),
-                    response.getSuccessfulShards(),
-                    response.getFailedShards(),
-                    Arrays.asList(response.getShardFailures())
-                );
+            return new ValidateQueryResponse(
+                (boolean) arg[1],
+                (List<QueryExplanation>) arg[2],
+                response.getTotalShards(),
+                response.getSuccessfulShards(),
+                response.getFailedShards(),
+                Arrays.asList(response.getShardFailures())
+            );
         }
     );
     static {
         declareBroadcastFields(PARSER);
         PARSER.declareBoolean(constructorArg(), new ParseField(VALID_FIELD));
-        PARSER.declareObjectArray(
-            optionalConstructorArg(), QueryExplanation.PARSER, new ParseField(EXPLANATIONS_FIELD)
-        );
+        PARSER.declareObjectArray(optionalConstructorArg(), QueryExplanation.PARSER, new ParseField(EXPLANATIONS_FIELD));
     }
 
     private final boolean valid;
@@ -70,8 +67,14 @@ public class ValidateQueryResponse extends BroadcastResponse {
         queryExplanations = in.readList(QueryExplanation::new);
     }
 
-    ValidateQueryResponse(boolean valid, List<QueryExplanation> queryExplanations, int totalShards, int successfulShards, int failedShards,
-                          List<DefaultShardOperationFailedException> shardFailures) {
+    ValidateQueryResponse(
+        boolean valid,
+        List<QueryExplanation> queryExplanations,
+        int totalShards,
+        int successfulShards,
+        int failedShards,
+        List<DefaultShardOperationFailedException> shardFailures
+    ) {
         super(totalShards, successfulShards, failedShards, shardFailures);
         this.valid = valid;
         this.queryExplanations = queryExplanations == null ? Collections.emptyList() : queryExplanations;

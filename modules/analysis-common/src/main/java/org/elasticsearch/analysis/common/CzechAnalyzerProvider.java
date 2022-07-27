@@ -21,7 +21,7 @@ public class CzechAnalyzerProvider extends AbstractIndexAnalyzerProvider<CzechAn
     private final CzechAnalyzer analyzer;
 
     CzechAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-        super(indexSettings, name, settings);
+        super(name, settings);
         analyzer = new CzechAnalyzer(
             Analysis.parseStopWords(env, settings, CzechAnalyzer.getDefaultStopSet()),
             Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)

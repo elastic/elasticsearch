@@ -6,15 +6,14 @@
  */
 package org.elasticsearch.xpack.watcher.input.http;
 
-
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.input.ExecutableInput;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
@@ -30,6 +29,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.watcher.input.http.HttpInput.TYPE;
 
 public class ExecutableHttpInput extends ExecutableInput<HttpInput, HttpInput.Result> {
@@ -51,7 +51,7 @@ public class ExecutableHttpInput extends ExecutableInput<HttpInput, HttpInput.Re
             request = input.getRequest().render(templateEngine, model);
             return doExecute(ctx, request);
         } catch (Exception e) {
-            logger.error("failed to execute [{}] input for watch [{}], reason [{}]", TYPE, ctx.watch().id(), e.getMessage());
+            logger.error(() -> format("failed to execute [%s] input for watch [%s]", TYPE, ctx.watch().id()), e);
             return new HttpInput.Result(request, e);
         }
     }
@@ -72,21 +72,28 @@ public class ExecutableHttpInput extends ExecutableInput<HttpInput, HttpInput.Re
         final XContentType contentType;
         XContentType responseContentType = response.xContentType();
         if (input.getExpectedResponseXContentType() == null) {
-            //Attempt to auto detect content type, if not set in response
+            // Attempt to auto detect content type, if not set in response
             contentType = responseContentType != null ? responseContentType : XContentHelper.xContentType(response.body());
         } else {
             contentType = input.getExpectedResponseXContentType().contentType();
             if (responseContentType != contentType) {
-                logger.warn("[{}] [{}] input expected content type [{}] but read [{}] from headers, using expected one", type(), ctx.id(),
-                        input.getExpectedResponseXContentType(), responseContentType);
+                logger.warn(
+                    "[{}] [{}] input expected content type [{}] but read [{}] from headers, using expected one",
+                    type(),
+                    ctx.id(),
+                    input.getExpectedResponseXContentType(),
+                    responseContentType
+                );
             }
         }
 
         if (contentType != null) {
             // EMPTY is safe here because we never use namedObject
-            try (InputStream stream = response.body().streamInput();
-                 XContentParser parser = contentType.xContent()
-                         .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
+            try (
+                InputStream stream = response.body().streamInput();
+                XContentParser parser = contentType.xContent()
+                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)
+            ) {
                 if (input.getExtractKeys() != null) {
                     payloadMap.putAll(XContentFilterKeysUtils.filterMapOrdered(input.getExtractKeys(), parser));
                 } else {
@@ -99,8 +106,13 @@ public class ExecutableHttpInput extends ExecutableInput<HttpInput, HttpInput.Re
                     }
                 }
             } catch (Exception e) {
-                throw new ElasticsearchParseException("could not parse response body [{}] it does not appear to be [{}]", type(), ctx.id(),
-                        response.body().utf8ToString(), contentType.queryParameter());
+                throw new ElasticsearchParseException(
+                    "could not parse response body [{}] it does not appear to be [{}]",
+                    type(),
+                    ctx.id(),
+                    response.body().utf8ToString(),
+                    contentType.queryParameter()
+                );
             }
         } else {
             payloadMap.put("_value", response.body().utf8ToString());

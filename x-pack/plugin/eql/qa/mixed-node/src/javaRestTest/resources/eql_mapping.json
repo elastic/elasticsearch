@@ -1,0 +1,53 @@
+  "properties": {
+    "@timestamp": {
+      "type": "date"
+    },
+    "event_type": {
+      "type": "keyword"
+    },
+    "sequence": {
+      "type": "long"
+    },
+    "correlation_success1": {
+      "type": "wildcard"
+    },
+    "correlation_failure1": {
+      "type": "wildcard"
+    },
+    "correlation_success2": {
+      "type": "keyword"
+    },
+    "correlation_failure2": {
+      "type": "keyword"
+    },
+    "event": {
+      "properties": {
+        "category": {
+          "type": "alias",
+          "path": "event_type"
+        },
+        "sequence": {
+          "type": "alias",
+          "path": "sequence"
+        }
+      }
+    },
+    "command_line": {
+      "type": "keyword"
+    },
+    "file_name": {
+      "type": "keyword"
+    },
+    "process_name": {
+      "type": "keyword"
+    },
+    "pid" : {
+      "type" : "long"
+    },
+    "ppid" : {
+      "type" : "long"
+    },
+    "source_address" : {
+      "type" : "ip"
+    }
+  }

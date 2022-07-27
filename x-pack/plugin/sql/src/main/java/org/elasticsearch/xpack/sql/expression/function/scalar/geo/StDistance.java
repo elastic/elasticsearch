@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.geo;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
+import org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.ql.expression.predicate.BinaryOperator;
@@ -49,13 +50,15 @@ public class StDistance extends BinaryOperator<Object, Object, Double, StDistanc
 
     @Override
     public ScriptTemplate scriptWithField(FieldAttribute field) {
-        return new ScriptTemplate(processScript("{sql}.geoDocValue(doc,{})"),
+        return new ScriptTemplate(
+            processScript("{sql}.geoDocValue(doc,{})"),
             paramsBuilder().variable(field.exactAttribute().name()).build(),
-            dataType());
+            dataType()
+        );
     }
 
     @Override
-    protected TypeResolution resolveInputType(Expression e, Expressions.ParamOrdinal paramOrdinal) {
+    protected TypeResolution resolveInputType(Expression e, ParamOrdinal paramOrdinal) {
         return isGeo(e, sourceText(), paramOrdinal);
     }
 

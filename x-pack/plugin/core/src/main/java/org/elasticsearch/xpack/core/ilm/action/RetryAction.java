@@ -43,8 +43,7 @@ public class RetryAction extends ActionType<AcknowledgedResponse> {
             this.indicesOptions = IndicesOptions.readIndicesOptions(in);
         }
 
-        public Request() {
-        }
+        public Request() {}
 
         @Override
         public Request indices(String... indices) {
@@ -93,8 +92,7 @@ public class RetryAction extends ActionType<AcknowledgedResponse> {
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.deepEquals(indices, other.indices)
-                && Objects.equals(indicesOptions, other.indicesOptions);
+            return Objects.deepEquals(indices, other.indices) && Objects.equals(indicesOptions, other.indicesOptions);
         }
 
     }

@@ -7,12 +7,12 @@
  */
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.util.DoubleArray;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -37,8 +37,14 @@ class WeightedAvgAggregator extends NumericMetricsAggregator.SingleValue {
     private DoubleArray weightCompensations;
     private DocValueFormat format;
 
-    WeightedAvgAggregator(String name, MultiValuesSource.NumericMultiValuesSource valuesSources, DocValueFormat format,
-                          AggregationContext context, Aggregator parent, Map<String, Object> metadata) throws IOException {
+    WeightedAvgAggregator(
+        String name,
+        MultiValuesSource.NumericMultiValuesSource valuesSources,
+        DocValueFormat format,
+        AggregationContext context,
+        Aggregator parent,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, context, parent, metadata);
         this.valuesSources = valuesSources;
         this.format = format;
@@ -56,13 +62,12 @@ class WeightedAvgAggregator extends NumericMetricsAggregator.SingleValue {
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
-            final LeafBucketCollector sub) throws IOException {
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, final LeafBucketCollector sub) throws IOException {
         if (valuesSources == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-        final SortedNumericDoubleValues docValues = valuesSources.getField(VALUE_FIELD.getPreferredName(), ctx);
-        final SortedNumericDoubleValues docWeights = valuesSources.getField(WEIGHT_FIELD.getPreferredName(), ctx);
+        final SortedNumericDoubleValues docValues = valuesSources.getField(VALUE_FIELD.getPreferredName(), aggCtx.getLeafReaderContext());
+        final SortedNumericDoubleValues docWeights = valuesSources.getField(WEIGHT_FIELD.getPreferredName(), aggCtx.getLeafReaderContext());
         final CompensatedSum compensatedValueSum = new CompensatedSum(0, 0);
         final CompensatedSum compensatedWeightSum = new CompensatedSum(0, 0);
 
@@ -76,8 +81,10 @@ class WeightedAvgAggregator extends NumericMetricsAggregator.SingleValue {
 
                 if (docValues.advanceExact(doc) && docWeights.advanceExact(doc)) {
                     if (docWeights.docValueCount() > 1) {
-                        throw new AggregationExecutionException("Encountered more than one weight for a " +
-                            "single document. Use a script to combine multiple weights-per-doc into a single value.");
+                        throw new AggregationExecutionException(
+                            "Encountered more than one weight for a "
+                                + "single document. Use a script to combine multiple weights-per-doc into a single value."
+                        );
                     }
                     // There should always be one weight if advanceExact lands us here, either
                     // a real weight or a `missing` weight
@@ -108,7 +115,6 @@ class WeightedAvgAggregator extends NumericMetricsAggregator.SingleValue {
             }
         };
     }
-
 
     @Override
     public double metric(long owningBucketOrd) {

@@ -7,12 +7,14 @@
 package org.elasticsearch.xpack.core.ml.inference.results;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_RESULTS_FIELD;
 
 public class RawInferenceResults implements InferenceResults {
 
@@ -41,16 +43,24 @@ public class RawInferenceResults implements InferenceResults {
 
     @Override
     public boolean equals(Object object) {
-        if (object == this) { return true; }
-        if (object == null || getClass() != object.getClass()) { return false; }
+        if (object == this) {
+            return true;
+        }
+        if (object == null || getClass() != object.getClass()) {
+            return false;
+        }
         RawInferenceResults that = (RawInferenceResults) object;
-        return Arrays.equals(value, that.value)
-            && Arrays.deepEquals(featureImportance, that.featureImportance);
+        return Arrays.equals(value, that.value) && Arrays.deepEquals(featureImportance, that.featureImportance);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(Arrays.hashCode(value), featureImportance);
+    }
+
+    @Override
+    public String getResultsField() {
+        return DEFAULT_RESULTS_FIELD;
     }
 
     @Override

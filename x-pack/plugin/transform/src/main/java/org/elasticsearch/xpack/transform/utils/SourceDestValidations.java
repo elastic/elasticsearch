@@ -31,7 +31,10 @@ public final class SourceDestValidations {
         new SourceDestValidator.RemoteSourceEnabledAndRemoteLicenseValidation("transform");
 
     private static final List<SourceDestValidation> PREVIEW_VALIDATIONS = Arrays.asList(
-        SOURCE_MISSING_VALIDATION, REMOTE_SOURCE_VALIDATION, DESTINATION_PIPELINE_MISSING_VALIDATION);
+        SOURCE_MISSING_VALIDATION,
+        REMOTE_SOURCE_VALIDATION,
+        DESTINATION_PIPELINE_MISSING_VALIDATION
+    );
 
     private static final List<SourceDestValidation> ALL_VALIDATIONS = Arrays.asList(
         SOURCE_MISSING_VALIDATION,
@@ -53,9 +56,11 @@ public final class SourceDestValidations {
         return getValidations(false, PREVIEW_VALIDATIONS, additionalValidations);
     }
 
-    private static List<SourceDestValidation> getValidations(boolean isDeferValidation,
-                                                             List<SourceDestValidation> primaryValidations,
-                                                             List<SourceDestValidation> additionalValidations) {
+    private static List<SourceDestValidation> getValidations(
+        boolean isDeferValidation,
+        List<SourceDestValidation> primaryValidations,
+        List<SourceDestValidation> additionalValidations
+    ) {
         if (isDeferValidation) {
             return SourceDestValidations.NON_DEFERABLE_VALIDATIONS;
         }

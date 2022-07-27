@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.ml.integration;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
@@ -30,7 +29,7 @@ public class MlRestTestStateCleaner {
         this.adminClient = adminClient;
     }
 
-    public void clearMlMetadata() throws IOException {
+    public void resetFeatures() throws IOException {
         deleteAllTrainedModelIngestPipelines();
         // This resets all features, not just ML, but they should have been getting reset between tests anyway so it shouldn't matter
         adminClient.performRequest(new Request("POST", "/_features/_reset"));
@@ -51,7 +50,7 @@ public class MlRestTestStateCleaner {
             try {
                 adminClient.performRequest(new Request("DELETE", "/_ingest/pipeline/" + pipelineId));
             } catch (Exception ex) {
-                logger.warn(() -> new ParameterizedMessage("failed to delete pipeline [{}]", pipelineId), ex);
+                logger.warn(() -> "failed to delete pipeline [" + pipelineId + "]", ex);
             }
         }
     }

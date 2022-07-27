@@ -23,8 +23,7 @@ public interface AdjacencyMatrix extends MultiBucketsAggregation {
      * A bucket associated with a specific filter or pair (identified by its
      * key)
      */
-    interface Bucket extends MultiBucketsAggregation.Bucket {
-    }
+    interface Bucket extends MultiBucketsAggregation.Bucket {}
 
     /**
      * The buckets created by this aggregation.

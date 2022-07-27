@@ -74,6 +74,6 @@ public final class GroupShardsIterator<ShardIt extends Comparable<ShardIt> & Cou
     }
 
     public ShardIt get(int index) {
-        return  iterators.get(index);
+        return iterators.get(index);
     }
 }

@@ -16,13 +16,22 @@ public class TriggeredExecutionContext extends WatchExecutionContext {
 
     private final boolean overrideOnConflict;
 
-    public TriggeredExecutionContext(String watchId, ZonedDateTime executionTime, TriggerEvent triggerEvent,
-                                     TimeValue defaultThrottlePeriod) {
+    public TriggeredExecutionContext(
+        String watchId,
+        ZonedDateTime executionTime,
+        TriggerEvent triggerEvent,
+        TimeValue defaultThrottlePeriod
+    ) {
         this(watchId, executionTime, triggerEvent, defaultThrottlePeriod, false);
     }
 
-    TriggeredExecutionContext(String watchId, ZonedDateTime executionTime, TriggerEvent triggerEvent, TimeValue defaultThrottlePeriod,
-                              boolean overrideOnConflict) {
+    TriggeredExecutionContext(
+        String watchId,
+        ZonedDateTime executionTime,
+        TriggerEvent triggerEvent,
+        TimeValue defaultThrottlePeriod,
+        boolean overrideOnConflict
+    ) {
         super(watchId, executionTime, triggerEvent, defaultThrottlePeriod);
         this.overrideOnConflict = overrideOnConflict;
     }

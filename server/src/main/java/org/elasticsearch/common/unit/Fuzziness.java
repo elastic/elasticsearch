@@ -8,14 +8,14 @@
 package org.elasticsearch.common.unit;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -53,13 +53,12 @@ public final class Fuzziness implements ToXContentFragment, Writeable {
      * @throws IllegalArgumentException if the edit distance is not in [0, 1, 2]
      */
     public static Fuzziness fromEdits(int edits) {
-        switch (edits) {
-        case 0: return Fuzziness.ZERO;
-        case 1: return Fuzziness.ONE;
-        case 2: return Fuzziness.TWO;
-        default:
-            throw new IllegalArgumentException("Valid edit distances are [0, 1, 2] but was [" + edits + "]");
-        }
+        return switch (edits) {
+            case 0 -> Fuzziness.ZERO;
+            case 1 -> Fuzziness.ONE;
+            case 2 -> Fuzziness.TWO;
+            default -> throw new IllegalArgumentException("Valid edit distances are [0, 1, 2] but was [" + edits + "]");
+        };
     }
 
     /**
@@ -131,8 +130,10 @@ public final class Fuzziness implements ToXContentFragment, Writeable {
                 int lowerLimit = Integer.parseInt(fuzzinessLimit[0]);
                 int highLimit = Integer.parseInt(fuzzinessLimit[1]);
                 if (lowerLimit < 0 || highLimit < 0 || lowerLimit > highLimit) {
-                    throw new ElasticsearchParseException("fuzziness wrongly configured [{}]. Must be 0 < lower value <= higher value.",
-                            fuzzinessString);
+                    throw new ElasticsearchParseException(
+                        "fuzziness wrongly configured [{}]. Must be 0 < lower value <= higher value.",
+                        fuzzinessString
+                    );
                 }
                 Fuzziness fuzziness = new Fuzziness("AUTO");
                 fuzziness.lowDistance = lowerLimit;
@@ -148,14 +149,11 @@ public final class Fuzziness implements ToXContentFragment, Writeable {
 
     public static Fuzziness parse(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
-        switch (token) {
-            case VALUE_STRING:
-                return fromString(parser.text());
-            case VALUE_NUMBER:
-                return fromEdits(parser.intValue());
-            default:
-                throw new IllegalArgumentException("Can't parse fuzziness on token: [" + token + "]");
-        }
+        return switch (token) {
+            case VALUE_STRING -> fromString(parser.text());
+            case VALUE_NUMBER -> fromEdits(parser.intValue());
+            default -> throw new IllegalArgumentException("Can't parse fuzziness on token: [" + token + "]");
+        };
     }
 
     @Override
@@ -169,7 +167,7 @@ public final class Fuzziness implements ToXContentFragment, Writeable {
     }
 
     public int asDistance(String text) {
-        if (this.equals(AUTO) || isAutoWithCustomValues()) { //AUTO
+        if (this.equals(AUTO) || isAutoWithCustomValues()) { // AUTO
             final int len = termLen(text);
             if (len < lowDistance) {
                 return 0;
@@ -189,7 +187,7 @@ public final class Fuzziness implements ToXContentFragment, Writeable {
         return Float.parseFloat(fuzziness);
     }
 
-    private int termLen(String text) {
+    private static int termLen(String text) {
         return text == null ? 5 : text.codePointCount(0, text.length()); // 5 avg term length in english
     }
 
@@ -201,8 +199,7 @@ public final class Fuzziness implements ToXContentFragment, Writeable {
     }
 
     private boolean isAutoWithCustomValues() {
-        return fuzziness.equals("AUTO") && (lowDistance != DEFAULT_LOW_DISTANCE ||
-            highDistance != DEFAULT_HIGH_DISTANCE);
+        return fuzziness.equals("AUTO") && (lowDistance != DEFAULT_LOW_DISTANCE || highDistance != DEFAULT_HIGH_DISTANCE);
     }
 
     @Override
@@ -214,9 +211,7 @@ public final class Fuzziness implements ToXContentFragment, Writeable {
             return false;
         }
         Fuzziness other = (Fuzziness) obj;
-        return Objects.equals(fuzziness, other.fuzziness) &&
-                lowDistance == other.lowDistance &&
-                highDistance == other.highDistance;
+        return Objects.equals(fuzziness, other.fuzziness) && lowDistance == other.lowDistance && highDistance == other.highDistance;
     }
 
     @Override

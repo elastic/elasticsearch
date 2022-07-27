@@ -12,8 +12,7 @@ import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
 public class Exceptions {
 
-    private Exceptions() {
-    }
+    private Exceptions() {}
 
     public static IllegalArgumentException illegalArgument(String msg, Object... args) {
         return new IllegalArgumentException(format(msg, args));

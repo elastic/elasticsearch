@@ -10,7 +10,7 @@
 
 # Elasticsearch configuration directory
 # Note: this setting will be shared with command-line tools
-ES_PATH_CONF=${path.conf}
+ES_PATH_CONF=@path.conf@
 
 # Elasticsearch PID directory
 #PID_DIR=/var/run/elasticsearch

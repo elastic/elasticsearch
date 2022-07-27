@@ -15,7 +15,6 @@ import org.elasticsearch.core.TimeValue;
 
 import java.net.InetSocketAddress;
 
-
 /**
  * This is a tcp channel representing a single channel connection to another node. It is the base channel
  * abstraction used by the {@link TcpTransport} and {@link TransportService}. All tcp transport

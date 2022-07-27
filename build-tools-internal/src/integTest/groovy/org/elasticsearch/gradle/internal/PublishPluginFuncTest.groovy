@@ -10,13 +10,15 @@ package org.elasticsearch.gradle.internal
 
 import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
 import org.gradle.testkit.runner.TaskOutcome
-import org.junit.Ignore
 import org.xmlunit.builder.DiffBuilder
 import org.xmlunit.builder.Input
-import spock.lang.IgnoreRest
 
 class PublishPluginFuncTest extends AbstractGradleFuncTest {
 
+    def setup() {
+        // required for JarHell to work
+        subProject(":libs:elasticsearch-core") << "apply plugin:'java'"
+    }
     def "artifacts and tweaked pom is published"() {
         given:
         buildFile << """
@@ -248,6 +250,8 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
 
     def "generates artifacts for shadowed elasticsearch plugin"() {
         given:
+        // we use the esplugin plugin in this test that is not configuration cache compatible yet
+        configurationCacheCompatible = false
         file('license.txt') << "License file"
         file('notice.txt') << "Notice file"
         buildFile << """
@@ -273,8 +277,8 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
                     
             // requires elasticsearch artifact available
             tasks.named('bundlePlugin').configure { enabled = false }
-            licenseFile = file('license.txt')
-            noticeFile = file('notice.txt')
+            licenseFile.set(file('license.txt'))
+            noticeFile.set(file('notice.txt'))
             version = "1.0"
             group = 'org.acme'        
         """
@@ -332,6 +336,8 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
 
     def "generates pom for elasticsearch plugin"() {
         given:
+        // we use the esplugin plugin in this test that is not configuration cache compatible yet
+        configurationCacheCompatible = false
         file('license.txt') << "License file"
         file('notice.txt') << "Notice file"
         buildFile << """
@@ -348,8 +354,8 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
            
             // requires elasticsearch artifact available
             tasks.named('bundlePlugin').configure { enabled = false }
-            licenseFile = file('license.txt')
-            noticeFile = file('notice.txt')
+            licenseFile.set(file('license.txt'))
+            noticeFile.set(file('notice.txt'))
             version = "2.0"
             group = 'org.acme'        
         """

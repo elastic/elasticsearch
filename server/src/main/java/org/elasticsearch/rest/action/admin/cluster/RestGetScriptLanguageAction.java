@@ -10,7 +10,7 @@ package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.storedscripts.GetScriptLanguageAction;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetScriptLanguageRequest;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -27,14 +27,18 @@ public class RestGetScriptLanguageAction extends BaseRestHandler {
         return List.of(new Route(GET, "/_script_language"));
     }
 
-    @Override public String getName() {
+    @Override
+    public String getName() {
         return "script_language_action";
     }
 
-    @Override protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        return channel -> client.execute(GetScriptLanguageAction.INSTANCE,
+    @Override
+    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+        return channel -> client.execute(
+            GetScriptLanguageAction.INSTANCE,
             new GetScriptLanguageRequest(),
-            new RestToXContentListener<>(channel));
+            new RestToXContentListener<>(channel)
+        );
     }
 
 }

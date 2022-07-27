@@ -10,8 +10,8 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Releasable;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -48,7 +48,6 @@ public abstract class AbstractHyperLogLogPlusPlus extends AbstractCardinalityAlg
 
     /** Collect a value in the given bucket */
     public abstract void collect(long bucketOrd, long hash);
-
 
     /** Clone the data structure at the given bucket */
     public AbstractHyperLogLogPlusPlus clone(long bucketOrd, BigArrays bigArrays) {
@@ -105,7 +104,7 @@ public abstract class AbstractHyperLogLogPlusPlus extends AbstractCardinalityAlg
         } else {
             out.writeBoolean(HYPERLOGLOG);
             AbstractHyperLogLog.RunLenIterator iterator = getHyperLogLog(bucket);
-            while (iterator.next()){
+            while (iterator.next()) {
                 out.writeByte(iterator.value());
             }
         }
@@ -117,7 +116,7 @@ public abstract class AbstractHyperLogLogPlusPlus extends AbstractCardinalityAlg
         if (algorithm == LINEAR_COUNTING) {
             // we use a sparse structure for linear counting
             final long size = in.readVLong();
-            HyperLogLogPlusPlusSparse counts  = new HyperLogLogPlusPlusSparse(precision, bigArrays, 1);
+            HyperLogLogPlusPlusSparse counts = new HyperLogLogPlusPlusSparse(precision, bigArrays, 1);
             counts.ensureCapacity(0, size);
             for (long i = 0; i < size; ++i) {
                 counts.addEncoded(0, in.readInt());

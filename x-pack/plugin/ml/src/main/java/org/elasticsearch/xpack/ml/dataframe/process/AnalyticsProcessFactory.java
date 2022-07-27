@@ -23,7 +23,11 @@ public interface AnalyticsProcessFactory<ProcessResult> {
      * @param onProcessCrash         Callback to execute if the process stops unexpectedly
      * @return The process
      */
-    AnalyticsProcess<ProcessResult> createAnalyticsProcess(DataFrameAnalyticsConfig config, AnalyticsProcessConfig analyticsProcessConfig,
-                                                           boolean hasState, ExecutorService executorService,
-                                                           Consumer<String> onProcessCrash);
+    AnalyticsProcess<ProcessResult> createAnalyticsProcess(
+        DataFrameAnalyticsConfig config,
+        AnalyticsProcessConfig analyticsProcessConfig,
+        boolean hasState,
+        ExecutorService executorService,
+        Consumer<String> onProcessCrash
+    );
 }

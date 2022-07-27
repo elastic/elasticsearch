@@ -8,9 +8,9 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
@@ -38,8 +38,11 @@ public class ParsedWeightedAvg extends ParsedSingleValueNumericMetricsAggregatio
         return builder;
     }
 
-    private static final ObjectParser<ParsedWeightedAvg, Void> PARSER
-        = new ObjectParser<>(ParsedWeightedAvg.class.getSimpleName(), true, ParsedWeightedAvg::new);
+    private static final ObjectParser<ParsedWeightedAvg, Void> PARSER = new ObjectParser<>(
+        ParsedWeightedAvg.class.getSimpleName(),
+        true,
+        ParsedWeightedAvg::new
+    );
 
     static {
         declareSingleValueFields(PARSER, Double.POSITIVE_INFINITY);

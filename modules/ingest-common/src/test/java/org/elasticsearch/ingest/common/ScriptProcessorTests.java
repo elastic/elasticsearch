@@ -32,31 +32,28 @@ public class ScriptProcessorTests extends ESTestCase {
 
     private ScriptService scriptService;
     private Script script;
-    private IngestScript ingestScript;
+    private IngestScript.Factory ingestScriptFactory;
 
     @Before
     public void setupScripting() {
         String scriptName = "script";
-        scriptService = new ScriptService(Settings.builder().build(),
+        scriptService = new ScriptService(
+            Settings.builder().build(),
             Collections.singletonMap(
-                Script.DEFAULT_SCRIPT_LANG, new MockScriptEngine(
-                    Script.DEFAULT_SCRIPT_LANG,
-                    Collections.singletonMap(
-                        scriptName, ctx -> {
-                            Integer bytesIn = (Integer) ctx.get("bytes_in");
-                            Integer bytesOut = (Integer) ctx.get("bytes_out");
-                            ctx.put("bytes_total", bytesIn + bytesOut);
-                            ctx.put("_dynamic_templates", Map.of("foo", "bar"));
-                            return null;
-                        }
-                    ),
-                    Collections.emptyMap()
-                )
+                Script.DEFAULT_SCRIPT_LANG,
+                new MockScriptEngine(Script.DEFAULT_SCRIPT_LANG, Collections.singletonMap(scriptName, ctx -> {
+                    Integer bytesIn = (Integer) ctx.get("bytes_in");
+                    Integer bytesOut = (Integer) ctx.get("bytes_out");
+                    ctx.put("bytes_total", bytesIn + bytesOut);
+                    ctx.put("_dynamic_templates", Map.of("foo", "bar"));
+                    return null;
+                }), Collections.emptyMap())
             ),
-            new HashMap<>(ScriptModule.CORE_CONTEXTS)
+            new HashMap<>(ScriptModule.CORE_CONTEXTS),
+            () -> 1L
         );
         script = new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, scriptName, Collections.emptyMap());
-        ingestScript = scriptService.compile(script, IngestScript.CONTEXT).newInstance(script.getParams());
+        ingestScriptFactory = scriptService.compile(script, IngestScript.CONTEXT);
     }
 
     public void testScriptingWithoutPrecompiledScriptFactory() throws Exception {
@@ -67,7 +64,7 @@ public class ScriptProcessorTests extends ESTestCase {
     }
 
     public void testScriptingWithPrecompiledIngestScript() {
-        ScriptProcessor processor = new ScriptProcessor(randomAlphaOfLength(10), null, script, ingestScript, scriptService);
+        ScriptProcessor processor = new ScriptProcessor(randomAlphaOfLength(10), null, script, ingestScriptFactory, scriptService);
         IngestDocument ingestDocument = randomDocument();
         processor.execute(ingestDocument);
         assertIngestDocument(ingestDocument);

@@ -10,7 +10,7 @@ package org.elasticsearch.index.translog;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.common.io.Channels;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 
 import java.io.Closeable;
@@ -32,6 +32,7 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
     private final int totalOperations;
     private final Checkpoint checkpoint;
     protected final AtomicBoolean closed = new AtomicBoolean(false);
+    private long lastModifiedTime = -1;
 
     /**
      * Create a translog writer against the specified translog file channel.
@@ -58,8 +59,8 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
      * @return a new TranslogReader
      * @throws IOException if any of the file operations resulted in an I/O exception
      */
-    public static TranslogReader open(
-            final FileChannel channel, final Path path, final Checkpoint checkpoint, final String translogUUID) throws IOException {
+    public static TranslogReader open(final FileChannel channel, final Path path, final Checkpoint checkpoint, final String translogUUID)
+        throws IOException {
         final TranslogHeader header = TranslogHeader.read(translogUUID, path, channel);
         return new TranslogReader(checkpoint, channel, path, header);
     }
@@ -75,9 +76,16 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
                 if (aboveSeqNo < checkpoint.trimmedAboveSeqNo
                     || aboveSeqNo < checkpoint.maxSeqNo && checkpoint.trimmedAboveSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO) {
                     final Path checkpointFile = path.getParent().resolve(getCommitCheckpointFileName(checkpoint.generation));
-                    final Checkpoint newCheckpoint = new Checkpoint(checkpoint.offset, checkpoint.numOps,
-                        checkpoint.generation, checkpoint.minSeqNo, checkpoint.maxSeqNo,
-                        checkpoint.globalCheckpoint, checkpoint.minTranslogGeneration, aboveSeqNo);
+                    final Checkpoint newCheckpoint = new Checkpoint(
+                        checkpoint.offset,
+                        checkpoint.numOps,
+                        checkpoint.generation,
+                        checkpoint.minSeqNo,
+                        checkpoint.maxSeqNo,
+                        checkpoint.globalCheckpoint,
+                        checkpoint.minTranslogGeneration,
+                        aboveSeqNo
+                    );
                     Checkpoint.write(channelFactory, checkpointFile, newCheckpoint, StandardOpenOption.WRITE);
                     IOUtils.fsync(checkpointFile.getParent(), true);
 
@@ -116,8 +124,9 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
             throw new EOFException("read requested past EOF. pos [" + position + "] end: [" + length + "]");
         }
         if (position < getFirstOperationOffset()) {
-            throw new IOException("read requested before position of first ops. pos [" + position + "] first op on: [" +
-                getFirstOperationOffset() + "]");
+            throw new IOException(
+                "read requested before position of first ops. pos [" + position + "] first op on: [" + getFirstOperationOffset() + "]"
+            );
         }
         Channels.readFromFileChannelWithEofException(channel, position, buffer);
     }
@@ -137,5 +146,16 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
         if (isClosed()) {
             throw new AlreadyClosedException(toString() + " is already closed");
         }
+    }
+
+    @Override
+    public long getLastModifiedTime() throws IOException {
+        long modified = this.lastModifiedTime;
+        if (modified == -1) {
+            // cache the lastModifiedTime and return it forever, translogs are immutable
+            modified = super.getLastModifiedTime();
+            this.lastModifiedTime = modified;
+        }
+        return modified;
     }
 }

@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsAction;
@@ -30,26 +31,44 @@ public class TransportGetDatafeedsAction extends TransportMasterNodeReadAction<G
     private final DatafeedManager datafeedManager;
 
     @Inject
-    public TransportGetDatafeedsAction(TransportService transportService,
-                                       ClusterService clusterService, ThreadPool threadPool,
-                                       ActionFilters actionFilters,
-                                       DatafeedManager datafeedManager,
-                                       IndexNameExpressionResolver indexNameExpressionResolver) {
-            super(GetDatafeedsAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                    GetDatafeedsAction.Request::new, indexNameExpressionResolver, GetDatafeedsAction.Response::new, ThreadPool.Names.SAME);
+    public TransportGetDatafeedsAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        DatafeedManager datafeedManager,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            GetDatafeedsAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            GetDatafeedsAction.Request::new,
+            indexNameExpressionResolver,
+            GetDatafeedsAction.Response::new,
+            ThreadPool.Names.SAME
+        );
 
         this.datafeedManager = datafeedManager;
     }
 
     @Override
-    protected void masterOperation(Task task, GetDatafeedsAction.Request request, ClusterState state,
-                                   ActionListener<GetDatafeedsAction.Response> listener) {
+    protected void masterOperation(
+        Task task,
+        GetDatafeedsAction.Request request,
+        ClusterState state,
+        ActionListener<GetDatafeedsAction.Response> listener
+    ) {
+        TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
         logger.debug("Get datafeed '{}'", request.getDatafeedId());
 
-        datafeedManager.getDatafeeds(request, state, ActionListener.wrap(
-            datafeeds -> listener.onResponse(new GetDatafeedsAction.Response(datafeeds)),
-            listener::onFailure
-        ));
+        datafeedManager.getDatafeeds(
+            request,
+            parentTaskId,
+            ActionListener.wrap(datafeeds -> listener.onResponse(new GetDatafeedsAction.Response(datafeeds)), listener::onFailure)
+        );
     }
 
     @Override

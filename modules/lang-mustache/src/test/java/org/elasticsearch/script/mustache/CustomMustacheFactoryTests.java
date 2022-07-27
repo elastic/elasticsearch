@@ -27,8 +27,10 @@ public class CustomMustacheFactoryTests extends ESTestCase {
 
     public void testCreateEncoder() {
         {
-            final IllegalArgumentException e =
-                    expectThrows(IllegalArgumentException.class, () -> CustomMustacheFactory.createEncoder("non-existent"));
+            final IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> CustomMustacheFactory.createEncoder("non-existent")
+            );
             assertThat(e.getMessage(), equalTo("No encoder found for media type [non-existent]"));
         }
 
@@ -38,19 +40,29 @@ public class CustomMustacheFactoryTests extends ESTestCase {
         }
 
         {
-            final IllegalArgumentException e =
-                    expectThrows(IllegalArgumentException.class, () -> CustomMustacheFactory.createEncoder("test"));
+            final IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> CustomMustacheFactory.createEncoder("test")
+            );
             assertThat(e.getMessage(), equalTo("No encoder found for media type [test]"));
         }
 
-        assertThat(CustomMustacheFactory.createEncoder(CustomMustacheFactory.JSON_MEDIA_TYPE_WITH_CHARSET),
-            instanceOf(CustomMustacheFactory.JsonEscapeEncoder.class));
-        assertThat(CustomMustacheFactory.createEncoder(CustomMustacheFactory.JSON_MEDIA_TYPE),
-                instanceOf(CustomMustacheFactory.JsonEscapeEncoder.class));
-        assertThat(CustomMustacheFactory.createEncoder(CustomMustacheFactory.PLAIN_TEXT_MEDIA_TYPE),
-                instanceOf(CustomMustacheFactory.DefaultEncoder.class));
-        assertThat(CustomMustacheFactory.createEncoder(CustomMustacheFactory.X_WWW_FORM_URLENCODED_MEDIA_TYPE),
-                instanceOf(CustomMustacheFactory.UrlEncoder.class));
+        assertThat(
+            CustomMustacheFactory.createEncoder(CustomMustacheFactory.JSON_MEDIA_TYPE_WITH_CHARSET),
+            instanceOf(CustomMustacheFactory.JsonEscapeEncoder.class)
+        );
+        assertThat(
+            CustomMustacheFactory.createEncoder(CustomMustacheFactory.JSON_MEDIA_TYPE),
+            instanceOf(CustomMustacheFactory.JsonEscapeEncoder.class)
+        );
+        assertThat(
+            CustomMustacheFactory.createEncoder(CustomMustacheFactory.PLAIN_TEXT_MEDIA_TYPE),
+            instanceOf(CustomMustacheFactory.DefaultEncoder.class)
+        );
+        assertThat(
+            CustomMustacheFactory.createEncoder(CustomMustacheFactory.X_WWW_FORM_URLENCODED_MEDIA_TYPE),
+            instanceOf(CustomMustacheFactory.UrlEncoder.class)
+        );
     }
 
     public void testJsonEscapeEncoder() {

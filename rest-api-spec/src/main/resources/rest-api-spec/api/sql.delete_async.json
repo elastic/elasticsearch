@@ -1,0 +1,31 @@
+{
+  "sql.delete_async": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/delete-async-sql-search-api.html",
+      "description": "Deletes an async SQL search or a stored synchronous SQL search. If the search is still running, the API cancels it."
+    },
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_sql/async/delete/{id}",
+          "methods": [
+            "DELETE"
+          ],
+          "parts": {
+            "id": {
+              "type": "string",
+              "description": "The async search ID"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

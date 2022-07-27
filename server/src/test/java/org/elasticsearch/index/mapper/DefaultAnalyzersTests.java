@@ -29,19 +29,19 @@ public class DefaultAnalyzersTests extends MapperServiceTestCase {
         Map<String, NamedAnalyzer> analyzers = new HashMap<>();
         analyzers.put(AnalysisRegistry.DEFAULT_ANALYZER_NAME, new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer()));
         if (setDefaultSearchAnalyzer) {
-            analyzers.put(AnalysisRegistry.DEFAULT_SEARCH_ANALYZER_NAME,
-                new NamedAnalyzer("default_search", AnalyzerScope.INDEX, new StandardAnalyzer()));
+            analyzers.put(
+                AnalysisRegistry.DEFAULT_SEARCH_ANALYZER_NAME,
+                new NamedAnalyzer("default_search", AnalyzerScope.INDEX, new StandardAnalyzer())
+            );
         }
         if (setDefaultSearchQuoteAnalyzer) {
-            analyzers.put(AnalysisRegistry.DEFAULT_SEARCH_QUOTED_ANALYZER_NAME,
-                new NamedAnalyzer("default_search_quote", AnalyzerScope.INDEX, new StandardAnalyzer()));
+            analyzers.put(
+                AnalysisRegistry.DEFAULT_SEARCH_QUOTED_ANALYZER_NAME,
+                new NamedAnalyzer("default_search_quote", AnalyzerScope.INDEX, new StandardAnalyzer())
+            );
         }
         analyzers.put("configured", new NamedAnalyzer("configured", AnalyzerScope.INDEX, new StandardAnalyzer()));
-        return new IndexAnalyzers(
-            analyzers,
-            Map.of(),
-            Map.of()
-        );
+        return new IndexAnalyzers(analyzers, Map.of(), Map.of());
     }
 
     public void testDefaultSearchAnalyzer() throws IOException {
@@ -49,31 +49,31 @@ public class DefaultAnalyzersTests extends MapperServiceTestCase {
             setDefaultSearchAnalyzer = false;
             MapperService ms = createMapperService(fieldMapping(b -> b.field("type", "text")));
             MappedFieldType ft = ms.fieldType("field");
-            assertEquals("default", ft.getTextSearchInfo().getSearchAnalyzer().name());
+            assertEquals("default", ft.getTextSearchInfo().searchAnalyzer().name());
         }
         {
             setDefaultSearchAnalyzer = false;
             MapperService ms = createMapperService(fieldMapping(b -> b.field("type", "text").field("search_analyzer", "configured")));
             MappedFieldType ft = ms.fieldType("field");
-            assertEquals("configured", ft.getTextSearchInfo().getSearchAnalyzer().name());
+            assertEquals("configured", ft.getTextSearchInfo().searchAnalyzer().name());
         }
         {
             setDefaultSearchAnalyzer = true;
             MapperService ms = createMapperService(fieldMapping(b -> b.field("type", "text")));
             MappedFieldType ft = ms.fieldType("field");
-            assertEquals("default_search", ft.getTextSearchInfo().getSearchAnalyzer().name());
+            assertEquals("default_search", ft.getTextSearchInfo().searchAnalyzer().name());
         }
         {
             setDefaultSearchAnalyzer = true;
             MapperService ms = createMapperService(fieldMapping(b -> b.field("type", "text").field("search_analyzer", "configured")));
             MappedFieldType ft = ms.fieldType("field");
-            assertEquals("configured", ft.getTextSearchInfo().getSearchAnalyzer().name());
+            assertEquals("configured", ft.getTextSearchInfo().searchAnalyzer().name());
         }
         {
             setDefaultSearchAnalyzer = true;
             MapperService ms = createMapperService(fieldMapping(b -> b.field("type", "text").field("analyzer", "configured")));
             MappedFieldType ft = ms.fieldType("field");
-            assertEquals("configured", ft.getTextSearchInfo().getSearchAnalyzer().name());
+            assertEquals("configured", ft.getTextSearchInfo().searchAnalyzer().name());
         }
 
     }
@@ -84,74 +84,70 @@ public class DefaultAnalyzersTests extends MapperServiceTestCase {
             setDefaultSearchAnalyzer = false;
             MapperService ms = createMapperService(fieldMapping(b -> b.field("type", "text")));
             MappedFieldType ft = ms.fieldType("field");
-            assertEquals("default", ft.getTextSearchInfo().getSearchQuoteAnalyzer().name());
+            assertEquals("default", ft.getTextSearchInfo().searchQuoteAnalyzer().name());
         }
         {
             setDefaultSearchQuoteAnalyzer = false;
             setDefaultSearchAnalyzer = false;
-            MapperService ms
-                = createMapperService(fieldMapping(b -> b.field("type", "text").field("search_quote_analyzer", "configured")));
+            MapperService ms = createMapperService(fieldMapping(b -> b.field("type", "text").field("search_quote_analyzer", "configured")));
             MappedFieldType ft = ms.fieldType("field");
-            assertEquals("configured", ft.getTextSearchInfo().getSearchQuoteAnalyzer().name());
+            assertEquals("configured", ft.getTextSearchInfo().searchQuoteAnalyzer().name());
         }
         {
             setDefaultSearchQuoteAnalyzer = true;
             setDefaultSearchAnalyzer = false;
             MapperService ms = createMapperService(fieldMapping(b -> b.field("type", "text")));
             MappedFieldType ft = ms.fieldType("field");
-            assertEquals("default_search_quote", ft.getTextSearchInfo().getSearchQuoteAnalyzer().name());
+            assertEquals("default_search_quote", ft.getTextSearchInfo().searchQuoteAnalyzer().name());
         }
         {
             setDefaultSearchQuoteAnalyzer = true;
             setDefaultSearchAnalyzer = false;
-            MapperService ms
-                = createMapperService(fieldMapping(b -> b.field("type", "text").field("search_quote_analyzer", "configured")));
+            MapperService ms = createMapperService(fieldMapping(b -> b.field("type", "text").field("search_quote_analyzer", "configured")));
             MappedFieldType ft = ms.fieldType("field");
-            assertEquals("configured", ft.getTextSearchInfo().getSearchQuoteAnalyzer().name());
+            assertEquals("configured", ft.getTextSearchInfo().searchQuoteAnalyzer().name());
         }
         {
             setDefaultSearchQuoteAnalyzer = false;
             setDefaultSearchAnalyzer = true;
             MapperService ms = createMapperService(fieldMapping(b -> b.field("type", "text")));
             MappedFieldType ft = ms.fieldType("field");
-            assertEquals("default_search", ft.getTextSearchInfo().getSearchQuoteAnalyzer().name());
+            assertEquals("default_search", ft.getTextSearchInfo().searchQuoteAnalyzer().name());
         }
         {
             setDefaultSearchQuoteAnalyzer = false;
             setDefaultSearchAnalyzer = true;
-            MapperService ms
-                = createMapperService(fieldMapping(b -> b.field("type", "text").field("search_quote_analyzer", "configured")));
+            MapperService ms = createMapperService(fieldMapping(b -> b.field("type", "text").field("search_quote_analyzer", "configured")));
             MappedFieldType ft = ms.fieldType("field");
-            assertEquals("configured", ft.getTextSearchInfo().getSearchQuoteAnalyzer().name());
+            assertEquals("configured", ft.getTextSearchInfo().searchQuoteAnalyzer().name());
         }
         {
             setDefaultSearchQuoteAnalyzer = true;
             setDefaultSearchAnalyzer = true;
             MapperService ms = createMapperService(fieldMapping(b -> b.field("type", "text")));
             MappedFieldType ft = ms.fieldType("field");
-            assertEquals("default_search_quote", ft.getTextSearchInfo().getSearchQuoteAnalyzer().name());
+            assertEquals("default_search_quote", ft.getTextSearchInfo().searchQuoteAnalyzer().name());
         }
         {
             setDefaultSearchQuoteAnalyzer = true;
             setDefaultSearchAnalyzer = true;
-            MapperService ms
-                = createMapperService(fieldMapping(b -> b.field("type", "text").field("search_quote_analyzer", "configured")));
+            MapperService ms = createMapperService(fieldMapping(b -> b.field("type", "text").field("search_quote_analyzer", "configured")));
             MappedFieldType ft = ms.fieldType("field");
-            assertEquals("configured", ft.getTextSearchInfo().getSearchQuoteAnalyzer().name());
+            assertEquals("configured", ft.getTextSearchInfo().searchQuoteAnalyzer().name());
         }
         {
             setDefaultSearchQuoteAnalyzer = true;
             setDefaultSearchAnalyzer = false;
             MapperService ms = createMapperService(fieldMapping(b -> b.field("type", "text").field("analyzer", "configured")));
             MappedFieldType ft = ms.fieldType("field");
-            assertEquals("configured", ft.getTextSearchInfo().getSearchQuoteAnalyzer().name());
+            assertEquals("configured", ft.getTextSearchInfo().searchQuoteAnalyzer().name());
         }
         {
             setDefaultSearchQuoteAnalyzer = true;
             setDefaultSearchAnalyzer = false;
             MapperService ms = createMapperService(fieldMapping(b -> b.field("type", "text").field("search_analyzer", "configured")));
             MappedFieldType ft = ms.fieldType("field");
-            assertEquals("configured", ft.getTextSearchInfo().getSearchQuoteAnalyzer().name());
+            assertEquals("configured", ft.getTextSearchInfo().searchQuoteAnalyzer().name());
         }
     }
 

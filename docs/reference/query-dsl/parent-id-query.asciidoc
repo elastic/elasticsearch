@@ -61,7 +61,7 @@ PUT /my-index-000001/_doc/1?refresh
 PUT /my-index-000001/_doc/2?routing=1&refresh
 {
   "text": "This is a child document.",
-  "my_join_field": {
+  "my-join-field": {
     "name": "my-child",
     "parent": "1"
   }

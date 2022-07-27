@@ -9,7 +9,7 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -30,9 +30,7 @@ public class RestOpenPointInTimeAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(POST, "/{index}/_pit"),
-            new Route(POST, "/_pit"));
+        return List.of(new Route(POST, "/{index}/_pit"), new Route(POST, "/_pit"));
     }
 
     @Override

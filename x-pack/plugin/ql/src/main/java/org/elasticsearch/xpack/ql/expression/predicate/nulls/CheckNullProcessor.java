@@ -12,19 +12,19 @@ import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.function.Function;
+import java.util.function.Predicate;
 
 public class CheckNullProcessor implements Processor {
 
-    public enum CheckNullOperation implements Function<Object, Boolean> {
+    public enum CheckNullOperation implements Predicate<Object> {
 
         IS_NULL(Objects::isNull, "IS NULL"),
         IS_NOT_NULL(Objects::nonNull, "IS NOT NULL");
 
-        private final Function<Object, Boolean> process;
+        private final Predicate<Object> process;
         private final String symbol;
 
-        CheckNullOperation(Function<Object, Boolean> process, String symbol) {
+        CheckNullOperation(Predicate<Object> process, String symbol) {
             this.process = process;
             this.symbol = symbol;
         }
@@ -39,8 +39,8 @@ public class CheckNullProcessor implements Processor {
         }
 
         @Override
-        public Boolean apply(Object o) {
-            return process.apply(o);
+        public boolean test(Object o) {
+            return process.test(o);
         }
     }
 
@@ -68,7 +68,7 @@ public class CheckNullProcessor implements Processor {
 
     @Override
     public Object process(Object input) {
-        return operation.apply(input);
+        return operation.test(input);
     }
 
     @Override

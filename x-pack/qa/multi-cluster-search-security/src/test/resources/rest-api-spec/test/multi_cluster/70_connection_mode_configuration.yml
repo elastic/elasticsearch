@@ -1,5 +1,5 @@
 ---
-"Add transient remote cluster in proxy mode with invalid sniff settings":
+"Add persistent remote cluster in proxy mode with invalid sniff settings":
   - do:
       cluster.get_settings:
         include_defaults: true
@@ -11,7 +11,7 @@
       cluster.put_settings:
         flat_settings: true
         body:
-          transient:
+          persistent:
             cluster.remote.test_remote_cluster.mode: "proxy"
             cluster.remote.test_remote_cluster.node_connections: "5"
             cluster.remote.test_remote_cluster.proxy_address: $remote_ip
@@ -26,7 +26,7 @@
       cluster.put_settings:
         flat_settings: true
         body:
-          transient:
+          persistent:
             cluster.remote.test_remote_cluster.mode: "proxy"
             cluster.remote.test_remote_cluster.seeds: $remote_ip
             cluster.remote.test_remote_cluster.proxy_address: $remote_ip
@@ -37,7 +37,7 @@
    used with the configured \"cluster.remote.test_remote_cluster.mode\" [required=SNIFF, configured=PROXY]" }
 
 ---
-"Add transient remote cluster in sniff mode with invalid proxy settings":
+"Add persistent remote cluster in sniff mode with invalid proxy settings":
   - do:
       cluster.get_settings:
         include_defaults: true
@@ -49,7 +49,7 @@
       cluster.put_settings:
         flat_settings: true
         body:
-          transient:
+          persistent:
             cluster.remote.test_remote_cluster.proxy_socket_connections: "20"
             cluster.remote.test_remote_cluster.seeds: $remote_ip
 
@@ -63,7 +63,7 @@
       cluster.put_settings:
         flat_settings: true
         body:
-          transient:
+          persistent:
             cluster.remote.test_remote_cluster.proxy_address: $remote_ip
             cluster.remote.test_remote_cluster.seeds: $remote_ip
 
@@ -73,7 +73,7 @@
    used with the configured \"cluster.remote.test_remote_cluster.mode\" [required=PROXY, configured=SNIFF]" }
 
 ---
-"Add transient remote cluster using proxy connection mode using valid settings":
+"Add persistent remote cluster using proxy connection mode using valid settings":
   - do:
       cluster.get_settings:
         include_defaults: true
@@ -84,14 +84,14 @@
       cluster.put_settings:
         flat_settings: true
         body:
-          transient:
+          persistent:
             cluster.remote.test_remote_cluster.mode: "proxy"
             cluster.remote.test_remote_cluster.proxy_socket_connections: "3"
             cluster.remote.test_remote_cluster.proxy_address: $remote_ip
 
-  - match: {transient.cluster\.remote\.test_remote_cluster\.mode: "proxy"}
-  - match: {transient.cluster\.remote\.test_remote_cluster\.proxy_socket_connections: "3"}
-  - match: {transient.cluster\.remote\.test_remote_cluster\.proxy_address: $remote_ip}
+  - match: {persistent.cluster\.remote\.test_remote_cluster\.mode: "proxy"}
+  - match: {persistent.cluster\.remote\.test_remote_cluster\.proxy_socket_connections: "3"}
+  - match: {persistent.cluster\.remote\.test_remote_cluster\.proxy_address: $remote_ip}
 
   - do:
       search:
@@ -107,7 +107,7 @@
   - match: { hits.hits.0._index: "test_remote_cluster:test_index" }
 
 ---
-"Add transient remote cluster using sniff connection mode using valid settings":
+"Add persistent remote cluster using sniff connection mode using valid settings":
   - do:
       cluster.get_settings:
         include_defaults: true
@@ -118,14 +118,14 @@
       cluster.put_settings:
         flat_settings: true
         body:
-          transient:
+          persistent:
             cluster.remote.test_remote_cluster.mode: "sniff"
             cluster.remote.test_remote_cluster.node_connections: "3"
             cluster.remote.test_remote_cluster.seeds: $remote_ip
 
-  - match: {transient.cluster\.remote\.test_remote_cluster\.mode: "sniff"}
-  - match: {transient.cluster\.remote\.test_remote_cluster\.node_connections: "3"}
-  - match: {transient.cluster\.remote\.test_remote_cluster\.seeds: $remote_ip}
+  - match: {persistent.cluster\.remote\.test_remote_cluster\.mode: "sniff"}
+  - match: {persistent.cluster\.remote\.test_remote_cluster\.node_connections: "3"}
+  - match: {persistent.cluster\.remote\.test_remote_cluster\.seeds: $remote_ip}
 
   - do:
       search:
@@ -152,12 +152,12 @@
       cluster.put_settings:
         flat_settings: true
         body:
-          transient:
+          persistent:
             cluster.remote.test_remote_cluster.mode: "sniff"
             cluster.remote.test_remote_cluster.seeds: $remote_ip
 
-  - match: {transient.cluster\.remote\.test_remote_cluster\.mode: "sniff"}
-  - match: {transient.cluster\.remote\.test_remote_cluster\.seeds: $remote_ip}
+  - match: {persistent.cluster\.remote\.test_remote_cluster\.mode: "sniff"}
+  - match: {persistent.cluster\.remote\.test_remote_cluster\.seeds: $remote_ip}
 
   - do:
       search:
@@ -177,7 +177,7 @@
       cluster.put_settings:
         flat_settings: true
         body:
-          transient:
+          persistent:
             cluster.remote.test_remote_cluster.mode: "proxy"
             cluster.remote.test_remote_cluster.proxy_address: $remote_ip
 
@@ -190,13 +190,13 @@
       cluster.put_settings:
         flat_settings: true
         body:
-          transient:
+          persistent:
             cluster.remote.test_remote_cluster.mode: "proxy"
             cluster.remote.test_remote_cluster.seeds: null
             cluster.remote.test_remote_cluster.proxy_address: $remote_ip
 
-  - match: {transient.cluster\.remote\.test_remote_cluster\.mode: "proxy"}
-  - match: {transient.cluster\.remote\.test_remote_cluster\.proxy_address: $remote_ip}
+  - match: {persistent.cluster\.remote\.test_remote_cluster\.mode: "proxy"}
+  - match: {persistent.cluster\.remote\.test_remote_cluster\.proxy_address: $remote_ip}
 
   - do:
       search:

@@ -19,7 +19,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.search.SearchHit;
@@ -204,7 +204,7 @@ public class CoordinatorTests extends ESTestCase {
         Coordinator coordinator = new Coordinator(lookupFunction, 1, 1, 1);
 
         // Pre-load the queue to be at capacity and spoof the coordinator state to seem like max requests in flight.
-        coordinator.queue.add(new Coordinator.Slot(new SearchRequest(), ActionListener.wrap(() -> {})));
+        coordinator.queue.add(new Coordinator.Slot(new SearchRequest(), ActionListener.noop()));
         assertTrue(coordinator.remoteRequestPermits.tryAcquire());
 
         // Try to schedule an item into the coordinator, should emit an exception
@@ -378,7 +378,7 @@ public class CoordinatorTests extends ESTestCase {
                 });
             }
 
-            assertTrue(completionCountdown.await(10L, TimeUnit.SECONDS));
+            assertTrue(completionCountdown.await(20L, TimeUnit.SECONDS));
             assertThat(coordinator.queue, empty());
 
             assertBusy(() -> assertThat(coordinator.getRemoteRequestsCurrent(), equalTo(0)));

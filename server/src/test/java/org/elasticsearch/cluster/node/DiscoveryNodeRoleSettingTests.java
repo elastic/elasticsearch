@@ -50,7 +50,10 @@ public class DiscoveryNodeRoleSettingTests extends ESTestCase {
     public void testIsDedicatedFrozenNode() {
         runRoleTest(DiscoveryNode::isDedicatedFrozenNode, DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE);
         assertTrue(DiscoveryNode.isDedicatedFrozenNode(addRoles(nonDataNode(), Set.of(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE))));
-        assertFalse(DiscoveryNode.isDedicatedFrozenNode(
-            addRoles(Set.of(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE, DiscoveryNodeRole.DATA_HOT_NODE_ROLE))));
+        assertFalse(
+            DiscoveryNode.isDedicatedFrozenNode(
+                addRoles(Set.of(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE, DiscoveryNodeRole.DATA_HOT_NODE_ROLE))
+            )
+        );
     }
 }

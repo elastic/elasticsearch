@@ -6,21 +6,21 @@
  - do:
       index:
           index:  test_1
-          id:     1
+          id:     "1"
           body:   { foo: bar }
  - match:   { _version: 1}
 
  - do:
       index:
           index:  test_1
-          id:     1
+          id:     "1"
           body:   { foo: bar }
  - match:   { _version: 2}
 
  - do:
       get:
           index:  test_1
-          id:     1
+          id:     "1"
           version: 2
  - match:   { _id: "1" }
 
@@ -28,13 +28,13 @@
       catch:      conflict
       get:
           index:  test_1
-          id:     1
+          id:     "1"
           version: 1
 
  - do:
       get:
           index:  test_1
-          id:     1
+          id:     "1"
           version: 2
           version_type: external
  - match:   { _id: "1" }
@@ -43,7 +43,7 @@
       catch:      conflict
       get:
           index:  test_1
-          id:     1
+          id:     "1"
           version: 10
           version_type: external
 
@@ -51,14 +51,14 @@
       catch:      conflict
       get:
           index:  test_1
-          id:     1
+          id:     "1"
           version: 1
           version_type: external
 
  - do:
       get:
           index:  test_1
-          id:     1
+          id:     "1"
           version: 2
           version_type: external_gte
  - match:   { _id: "1" }
@@ -67,7 +67,7 @@
       catch:      conflict
       get:
           index:  test_1
-          id:     1
+          id:     "1"
           version: 10
           version_type: external_gte
 
@@ -75,7 +75,7 @@
       catch:      conflict
       get:
           index:  test_1
-          id:     1
+          id:     "1"
           version: 1
           version_type: external_gte
 

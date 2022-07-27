@@ -1,18 +1,19 @@
 [[query-dsl-geo-shape-query]]
-=== Geo-shape query
+=== Geoshape query
 ++++
-<titleabbrev>Geo-shape</titleabbrev>
+<titleabbrev>Geoshape</titleabbrev>
 ++++
 
 Filter documents indexed using the `geo_shape` or `geo_point` type.
 
-Requires the <<geo-shape,`geo_shape` Mapping>> or the
-<<geo-point,`geo_point` Mapping>>.
+Requires the <<geo-shape,`geo_shape` mapping>> or the
+<<geo-point,`geo_point` mapping>>.
 
 The `geo_shape` query uses the same grid square representation as the
-`geo_shape` mapping to find documents that have a shape that intersects
-with the query shape. It will also use the same Prefix Tree configuration
-as defined for the field mapping.
+`geo_shape` mapping to find documents that have a shape that is related
+to the query shape, using a specified spatial relationship: either intersects,
+contained, within or disjoint.
+It will also use the same Prefix Tree configuration as defined for the field mapping.
 
 The query supports two ways of defining the query shape, either by
 providing a whole shape definition, or by referencing the name of a shape
@@ -20,9 +21,9 @@ pre-indexed in another index. Both formats are defined below with
 examples.
 
 
-==== Inline Shape Definition
+==== Inline shape definition
 
-Similar to the `geo_shape` type, the `geo_shape` query uses
+Similar to the `geo_point` type, the `geo_shape` query uses
 http://geojson.org[GeoJSON] to represent shapes.
 
 Given the following index with locations as `geo_shape` fields:
@@ -168,7 +169,7 @@ GET /example_points/_search
 // TESTRESPONSE[s/"took" : 17/"took" : $body.took/]
 
 
-==== Pre-Indexed Shape
+==== Pre-indexed shape
 
 The query also supports using a shape which has already been indexed in another
 index. This is particularly useful for when you have a pre-defined list of
@@ -228,10 +229,7 @@ GET /example/_search
 --------------------------------------------------
 
 
-==== Spatial Relations
-
-The <<spatial-strategy, geo_shape strategy>> mapping parameter determines which
-spatial relation operators may be used at search time.
+==== Spatial relations
 
 The following is a complete list of spatial relation operators available when
 searching a geo field:
@@ -246,7 +244,7 @@ geometry. Line geometries are not supported.
 geometry.
 
 [discrete]
-==== Ignore Unmapped
+==== Ignore unmapped
 
 When set to `true` the `ignore_unmapped` option will ignore an unmapped field
 and will not match any documents for this query. This can be useful when
@@ -256,12 +254,6 @@ is not mapped.
 
 [[geo-shape-query-notes]]
 ==== Notes
-
-* Geo-shape queries on geo-shapes implemented with
-  <<prefix-trees, `PrefixTrees`>> will not be executed if
-  <<query-dsl-allow-expensive-queries, `search.allow_expensive_queries`>> is set
-  to false.
-
 
 * When data is indexed in a `geo_shape` field as an array of shapes, the arrays
   are treated as one shape. For this reason, the following requests are
@@ -296,3 +288,6 @@ PUT /test/_doc/1
     }
 }
 --------------------------------------------------
+
+* The `geo_shape` query assumes `geo_shape` fields use a default `orientation`
+of `RIGHT` (counterclockwise). See <<polygon-orientation>>.

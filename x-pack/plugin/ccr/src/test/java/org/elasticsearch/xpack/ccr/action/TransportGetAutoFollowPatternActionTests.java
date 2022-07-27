@@ -80,18 +80,20 @@ public class TransportGetAutoFollowPatternActionTests extends ESTestCase {
         assertThat(result, hasEntry("name1", patterns.get("name1")));
         assertThat(result, hasEntry("name2", patterns.get("name2")));
 
-        expectThrows(ResourceNotFoundException.class,
-            () -> TransportGetAutoFollowPatternAction.getAutoFollowPattern(metadata, "another_alias"));
+        expectThrows(
+            ResourceNotFoundException.class,
+            () -> TransportGetAutoFollowPatternAction.getAutoFollowPattern(metadata, "another_alias")
+        );
     }
 
     public void testGetAutoFollowPatternNoAutoFollowPatterns() {
-        AutoFollowMetadata autoFollowMetadata =
-            new AutoFollowMetadata(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
-        Metadata metadata = Metadata.builder()
-            .putCustom(AutoFollowMetadata.TYPE, autoFollowMetadata)
-            .build();
-        expectThrows(ResourceNotFoundException.class,
-            () -> TransportGetAutoFollowPatternAction.getAutoFollowPattern(metadata, "name1"));
+        AutoFollowMetadata autoFollowMetadata = new AutoFollowMetadata(
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            Collections.emptyMap()
+        );
+        Metadata metadata = Metadata.builder().putCustom(AutoFollowMetadata.TYPE, autoFollowMetadata).build();
+        expectThrows(ResourceNotFoundException.class, () -> TransportGetAutoFollowPatternAction.getAutoFollowPattern(metadata, "name1"));
 
         Map<String, AutoFollowPattern> result = TransportGetAutoFollowPatternAction.getAutoFollowPattern(metadata, null);
         assertThat(result.size(), equalTo(0));
@@ -99,8 +101,7 @@ public class TransportGetAutoFollowPatternActionTests extends ESTestCase {
 
     public void testGetAutoFollowPatternNoAutoFollowMetadata() {
         Metadata metadata = Metadata.builder().build();
-        expectThrows(ResourceNotFoundException.class,
-            () -> TransportGetAutoFollowPatternAction.getAutoFollowPattern(metadata, "name1"));
+        expectThrows(ResourceNotFoundException.class, () -> TransportGetAutoFollowPatternAction.getAutoFollowPattern(metadata, "name1"));
 
         Map<String, AutoFollowPattern> result = TransportGetAutoFollowPatternAction.getAutoFollowPattern(metadata, null);
         assertThat(result.size(), equalTo(0));

@@ -8,185 +8,55 @@
 
 package org.elasticsearch.gradle.internal;
 
-import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar;
 import nebula.plugin.info.InfoBrokerPlugin;
+
+import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar;
+
 import org.elasticsearch.gradle.VersionProperties;
-import org.elasticsearch.gradle.internal.info.BuildParams;
-import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
-import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitTaskPlugin;
-import org.elasticsearch.gradle.util.GradleUtils;
 import org.elasticsearch.gradle.internal.conventions.util.Util;
+import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.gradle.api.Action;
-import org.gradle.api.JavaVersion;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
-import org.gradle.api.artifacts.ModuleDependency;
-import org.gradle.api.artifacts.ProjectDependency;
-import org.gradle.api.artifacts.ResolutionStrategy;
 import org.gradle.api.plugins.BasePlugin;
 import org.gradle.api.plugins.JavaLibraryPlugin;
 import org.gradle.api.plugins.JavaPlugin;
-import org.gradle.api.plugins.JavaPluginExtension;
-import org.gradle.api.provider.Provider;
-import org.gradle.api.tasks.SourceSet;
-import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.bundling.Jar;
-import org.gradle.api.tasks.compile.AbstractCompile;
-import org.gradle.api.tasks.compile.CompileOptions;
-import org.gradle.api.tasks.compile.GroovyCompile;
-import org.gradle.api.tasks.compile.JavaCompile;
 import org.gradle.api.tasks.javadoc.Javadoc;
 import org.gradle.external.javadoc.CoreJavadocOptions;
 import org.gradle.language.base.plugins.LifecycleBasePlugin;
 
 import java.io.File;
-import java.util.List;
 import java.util.Map;
-import java.util.Objects;
-import java.util.function.Consumer;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.gradle.internal.conventions.util.Util.toStringable;
 
 /**
- * A wrapper around Gradle's Java plugin that applies our common configuration.
+ * A wrapper around Gradle's Java plugin that applies our
+ * common configuration for production code.
  */
 public class ElasticsearchJavaPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
-        // make sure the global build info plugin is applied to the root project
-        project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
-        // common repositories setup
-        project.getPluginManager().apply(RepositoriesSetupPlugin.class);
+        project.getPluginManager().apply(ElasticsearchJavaBasePlugin.class);
         project.getPluginManager().apply(JavaLibraryPlugin.class);
-        project.getPluginManager().apply(ElasticsearchTestBasePlugin.class);
-        project.getPluginManager().apply(PrecommitTaskPlugin.class);
+        project.getPluginManager().apply(ElasticsearchJavaModulePathPlugin.class);
 
-        configureConfigurations(project);
-        configureCompile(project);
-        configureInputNormalization(project);
+        // configureConfigurations(project);
         configureJars(project);
         configureJarManifest(project);
         configureJavadoc(project);
-
-        // convenience access to common versions used in dependencies
-        project.getExtensions().getExtraProperties().set("versions", VersionProperties.getVersions());
+        testCompileOnlyDeps(project);
     }
 
-    /**
-     * Makes dependencies non-transitive.
-     * <p>
-     * Gradle allows setting all dependencies as non-transitive very easily.
-     * Sadly this mechanism does not translate into maven pom generation. In order
-     * to effectively make the pom act as if it has no transitive dependencies,
-     * we must exclude each transitive dependency of each direct dependency.
-     * <p>
-     * Determining the transitive deps of a dependency which has been resolved as
-     * non-transitive is difficult because the process of resolving removes the
-     * transitive deps. To sidestep this issue, we create a configuration per
-     * direct dependency version. This specially named and unique configuration
-     * will contain all of the transitive dependencies of this particular
-     * dependency. We can then use this configuration during pom generation
-     * to iterate the transitive dependencies and add excludes.
-     */
-    public static void configureConfigurations(Project project) {
+    private static void testCompileOnlyDeps(Project project) {
         // we want to test compileOnly deps!
         Configuration compileOnlyConfig = project.getConfigurations().getByName(JavaPlugin.COMPILE_ONLY_CONFIGURATION_NAME);
         Configuration testImplementationConfig = project.getConfigurations().getByName(JavaPlugin.TEST_IMPLEMENTATION_CONFIGURATION_NAME);
         testImplementationConfig.extendsFrom(compileOnlyConfig);
-
-        // we are not shipping these jars, we act like dumb consumers of these things
-        if (project.getPath().startsWith(":test:fixtures") || project.getPath().equals(":build-tools")) {
-            return;
-        }
-        // fail on any conflicting dependency versions
-        project.getConfigurations().all(configuration -> {
-            if (configuration.getName().endsWith("Fixture")) {
-                // just a self contained test-fixture configuration, likely transitive and hellacious
-                return;
-            }
-            configuration.resolutionStrategy(ResolutionStrategy::failOnVersionConflict);
-        });
-
-        // force all dependencies added directly to compile/testImplementation to be non-transitive, except for ES itself
-        Consumer<String> disableTransitiveDeps = configName -> {
-            Configuration config = project.getConfigurations().getByName(configName);
-            config.getDependencies().all(dep -> {
-                if (dep instanceof ModuleDependency
-                    && dep instanceof ProjectDependency == false
-                    && dep.getGroup().startsWith("org.elasticsearch") == false) {
-                    ((ModuleDependency) dep).setTransitive(false);
-                }
-            });
-        };
-
-        // disable transitive dependency management
-        SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
-        sourceSets.all(sourceSet -> disableTransitiveDependenciesForSourceSet(project, sourceSet));
-    }
-
-    /**
-     * Adds compiler settings to the project
-     */
-    public static void configureCompile(Project project) {
-        project.getExtensions().getExtraProperties().set("compactProfile", "full");
-
-        JavaPluginExtension java = project.getExtensions().getByType(JavaPluginExtension.class);
-        java.setSourceCompatibility(BuildParams.getMinimumRuntimeVersion());
-        java.setTargetCompatibility(BuildParams.getMinimumRuntimeVersion());
-
-        project.afterEvaluate(p -> {
-            project.getTasks().withType(JavaCompile.class).configureEach(compileTask -> {
-                CompileOptions compileOptions = compileTask.getOptions();
-                /*
-                 * -path because gradle will send in paths that don't always exist.
-                 * -missing because we have tons of missing @returns and @param.
-                 * -serial because we don't use java serialization.
-                 */
-                // don't even think about passing args with -J-xxx, oracle will ask you to submit a bug report :)
-                // fail on all javac warnings.
-                // TODO Discuss moving compileOptions.getCompilerArgs() to use provider api with Gradle team.
-                List<String> compilerArgs = compileOptions.getCompilerArgs();
-                compilerArgs.add("-Werror");
-                compilerArgs.add("-Xlint:all,-path,-serial,-options,-deprecation,-try");
-                compilerArgs.add("-Xdoclint:all");
-                compilerArgs.add("-Xdoclint:-missing");
-                // either disable annotation processor completely (default) or allow to enable them if an annotation processor is explicitly
-                // defined
-                if (compilerArgs.contains("-processor") == false) {
-                    compilerArgs.add("-proc:none");
-                }
-
-                compileOptions.setEncoding("UTF-8");
-                compileOptions.setIncremental(true);
-                // workaround for https://github.com/gradle/gradle/issues/14141
-                compileTask.getConventionMapping().map("sourceCompatibility", () -> java.getSourceCompatibility().toString());
-                compileTask.getConventionMapping().map("targetCompatibility", () -> java.getTargetCompatibility().toString());
-                compileOptions.getRelease().set(releaseVersionProviderFromCompileTask(project, compileTask));
-            });
-            // also apply release flag to groovy, which is used in build-tools
-            project.getTasks().withType(GroovyCompile.class).configureEach(compileTask -> {
-                // TODO: this probably shouldn't apply to groovy at all?
-                compileTask.getOptions().getRelease().set(releaseVersionProviderFromCompileTask(project, compileTask));
-            });
-        });
-    }
-
-    private static Provider<Integer> releaseVersionProviderFromCompileTask(Project project, AbstractCompile compileTask) {
-        return project.provider(() -> {
-            JavaVersion javaVersion = JavaVersion.toVersion(compileTask.getTargetCompatibility());
-            return Integer.parseInt(javaVersion.getMajorVersion());
-        });
-    }
-
-    /**
-     * Apply runtime classpath input normalization so that changes in JAR manifests don't break build cacheability
-     */
-    public static void configureInputNormalization(Project project) {
-        project.getNormalization().getRuntimeClasspath().ignore("META-INF/MANIFEST.MF");
     }
 
     /**
@@ -267,17 +137,5 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
 
         // ensure javadoc task is run with 'check'
         project.getTasks().named(LifecycleBasePlugin.CHECK_TASK_NAME).configure(t -> t.dependsOn(javadoc));
-    }
-
-    private static void disableTransitiveDependenciesForSourceSet(Project project, SourceSet sourceSet) {
-        Stream.of(
-            sourceSet.getApiConfigurationName(),
-            sourceSet.getImplementationConfigurationName(),
-            sourceSet.getCompileOnlyConfigurationName(),
-            sourceSet.getRuntimeOnlyConfigurationName()
-        )
-            .map(name -> project.getConfigurations().findByName(name))
-            .filter(Objects::nonNull)
-            .forEach(GradleUtils::disableTransitiveDependencies);
     }
 }

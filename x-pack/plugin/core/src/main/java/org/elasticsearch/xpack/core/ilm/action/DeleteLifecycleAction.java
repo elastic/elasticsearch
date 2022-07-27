@@ -11,12 +11,14 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xcontent.ParseField;
 
 import java.io.IOException;
 import java.util.Objects;
+
+import static org.elasticsearch.core.Strings.format;
 
 public class DeleteLifecycleAction extends ActionType<AcknowledgedResponse> {
     public static final DeleteLifecycleAction INSTANCE = new DeleteLifecycleAction();
@@ -41,8 +43,7 @@ public class DeleteLifecycleAction extends ActionType<AcknowledgedResponse> {
             policyName = in.readString();
         }
 
-        public Request() {
-        }
+        public Request() {}
 
         public String getPolicyName() {
             return policyName;
@@ -74,6 +75,11 @@ public class DeleteLifecycleAction extends ActionType<AcknowledgedResponse> {
             }
             Request other = (Request) obj;
             return Objects.equals(policyName, other.policyName);
+        }
+
+        @Override
+        public String toString() {
+            return format("delete lifecycle policy [%s]", policyName);
         }
 
     }

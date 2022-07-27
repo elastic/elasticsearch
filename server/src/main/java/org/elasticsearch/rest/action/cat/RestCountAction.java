@@ -12,7 +12,7 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -31,9 +31,7 @@ public class RestCountAction extends AbstractCatAction {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(GET, "/_cat/count"),
-            new Route(GET, "/_cat/count/{index}"));
+        return List.of(new Route(GET, "/_cat/count"), new Route(GET, "/_cat/count/{index}"));
     }
 
     @Override

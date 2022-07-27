@@ -12,7 +12,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 
@@ -48,8 +48,9 @@ public class ValidateJobConfigAction extends ActionType<AcknowledgedResponse> {
             // Some fields cannot be set at create time
             List<String> invalidJobCreationSettings = jobBuilder.invalidCreateTimeSettings();
             if (invalidJobCreationSettings.isEmpty() == false) {
-                throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_INVALID_CREATE_SETTINGS,
-                        String.join(",", invalidJobCreationSettings)));
+                throw new IllegalArgumentException(
+                    Messages.getMessage(Messages.JOB_CONFIG_INVALID_CREATE_SETTINGS, String.join(",", invalidJobCreationSettings))
+                );
             }
 
             return new Request(jobBuilder.build(new Date()));

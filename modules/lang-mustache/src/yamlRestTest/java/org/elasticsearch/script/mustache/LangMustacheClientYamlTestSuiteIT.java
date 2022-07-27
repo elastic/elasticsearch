@@ -25,4 +25,3 @@ public class LangMustacheClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase
         return ESClientYamlSuiteTestCase.createParameters();
     }
 }
-

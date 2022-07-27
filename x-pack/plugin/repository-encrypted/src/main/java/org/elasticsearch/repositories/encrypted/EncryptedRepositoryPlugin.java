@@ -9,7 +9,6 @@ package org.elasticsearch.repositories.encrypted;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Build;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -18,15 +17,17 @@ import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.security.GeneralSecurityException;
@@ -38,7 +39,15 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.core.Strings.format;
+
 public class EncryptedRepositoryPlugin extends Plugin implements RepositoryPlugin {
+
+    static final LicensedFeature.Momentary ENCRYPTED_SNAPSHOT_FEATURE = LicensedFeature.momentary(
+        null,
+        "encrypted-snapshot",
+        License.OperationMode.PLATINUM
+    );
 
     private static final Boolean ENCRYPTED_REPOSITORY_FEATURE_FLAG_REGISTERED;
     static {
@@ -154,11 +163,11 @@ public class EncryptedRepositoryPlugin extends Plugin implements RepositoryPlugi
                 if (false == (delegatedRepository instanceof BlobStoreRepository) || delegatedRepository instanceof EncryptedRepository) {
                     throw new IllegalArgumentException("Unsupported delegate repository type [" + DELEGATE_TYPE_SETTING.getKey() + "]");
                 }
-                if (false == getLicenseState().checkFeature(XPackLicenseState.Feature.ENCRYPTED_SNAPSHOT)) {
+                if (false == ENCRYPTED_SNAPSHOT_FEATURE.check(getLicenseState())) {
                     logger.warn(
-                        new ParameterizedMessage(
-                            "Encrypted snapshots are not allowed for the currently installed license [{}]."
-                                + " Snapshots to the [{}] encrypted repository are not permitted."
+                        () -> format(
+                            "Encrypted snapshots are not allowed for the currently installed license [%s]."
+                                + " Snapshots to the [%s] encrypted repository are not permitted."
                                 + " All the other operations, including restore, work without restrictions.",
                             getLicenseState().getOperationMode().description(),
                             metadata.name()

@@ -1,12 +1,9 @@
 [role="xpack"]
-[testenv="basic"]
 [[search-aggregations-bucket-count-ks-test-aggregation]]
 === Bucket count K-S test correlation aggregation
 ++++
-<titleabbrev>Bucket count K-S test aggregation</titleabbrev>
+<titleabbrev>Bucket count K-S test</titleabbrev>
 ++++
-
-experimental::[]
 
 A sibling pipeline aggregation which executes a two sample Kolmogorov–Smirnov test
 (referred to as a "K-S test" from now on) against a provided distribution, and the

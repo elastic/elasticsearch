@@ -37,46 +37,47 @@ import java.util.concurrent.TimeUnit;
 @State(Scope.Benchmark)
 public class AvailableIndexFoldersBenchmark {
 
-    private NodeEnvironment.NodePath nodePath;
+    private NodeEnvironment.DataPath dataPath;
     private NodeEnvironment nodeEnv;
     private Set<String> excludedDirs;
 
     @Setup
     public void setup() throws IOException {
         Path path = Files.createTempDirectory("test");
-        nodePath = new NodeEnvironment.NodePath(path);
+        String[] paths = new String[] { path.toString() };
+        dataPath = new NodeEnvironment.DataPath(path);
 
         LogConfigurator.setNodeName("test");
         Settings settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), path)
-            .put(Environment.PATH_DATA_SETTING.getKey(), path.resolve("data"))
+            .putList(Environment.PATH_DATA_SETTING.getKey(), paths)
             .build();
         nodeEnv = new NodeEnvironment(settings, new Environment(settings, null));
 
-        Files.createDirectories(nodePath.indicesPath);
+        Files.createDirectories(dataPath.indicesPath);
         excludedDirs = new HashSet<>();
         int numIndices = 5000;
         for (int i = 0; i < numIndices; i++) {
             String dirName = "dir" + i;
-            Files.createDirectory(nodePath.indicesPath.resolve(dirName));
+            Files.createDirectory(dataPath.indicesPath.resolve(dirName));
             excludedDirs.add(dirName);
         }
-        if (nodeEnv.availableIndexFoldersForPath(nodePath).size() != numIndices) {
+        if (nodeEnv.availableIndexFoldersForPath(dataPath).size() != numIndices) {
             throw new IllegalStateException("bad size");
         }
-        if (nodeEnv.availableIndexFoldersForPath(nodePath, excludedDirs::contains).size() != 0) {
+        if (nodeEnv.availableIndexFoldersForPath(dataPath, excludedDirs::contains).size() != 0) {
             throw new IllegalStateException("bad size");
         }
     }
 
     @Benchmark
     public Set<String> availableIndexFolderNaive() throws IOException {
-        return nodeEnv.availableIndexFoldersForPath(nodePath);
+        return nodeEnv.availableIndexFoldersForPath(dataPath);
     }
 
     @Benchmark
     public Set<String> availableIndexFolderOptimized() throws IOException {
-        return nodeEnv.availableIndexFoldersForPath(nodePath, excludedDirs::contains);
+        return nodeEnv.availableIndexFoldersForPath(dataPath, excludedDirs::contains);
     }
 
 }

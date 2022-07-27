@@ -25,5 +25,4 @@ import org.elasticsearch.common.inject.Binding;
  * @author jessewilson@google.com (Jesse Wilson)
  * @since 2.0
  */
-public interface UntargettedBinding<T> extends Binding<T> {
-}
+public interface UntargettedBinding<T> extends Binding<T> {}

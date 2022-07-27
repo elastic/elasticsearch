@@ -64,8 +64,7 @@ public abstract class GroupingFunction extends Function {
             return false;
         }
         GroupingFunction other = (GroupingFunction) obj;
-        return Objects.equals(other.field(), field())
-            && Objects.equals(other.parameters(), parameters());
+        return Objects.equals(other.field(), field()) && Objects.equals(other.parameters(), parameters());
     }
 
     @Override

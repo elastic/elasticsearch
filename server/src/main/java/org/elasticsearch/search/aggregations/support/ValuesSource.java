@@ -38,12 +38,13 @@ import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileCellIdSource;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
 import org.elasticsearch.search.aggregations.support.values.ScriptBytesValues;
 import org.elasticsearch.search.aggregations.support.values.ScriptDoubleValues;
 import org.elasticsearch.search.aggregations.support.values.ScriptLongValues;
-import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileCellIdSource;
+
 import java.io.IOException;
 import java.util.function.Function;
 import java.util.function.LongUnaryOperator;
@@ -151,6 +152,10 @@ public abstract class ValuesSource {
                     return LongUnaryOperator.identity();
                 }
 
+                @Override
+                public boolean supportsGlobalOrdinalsMapping() {
+                    return true;
+                }
             };
 
             @Override
@@ -221,9 +226,7 @@ public abstract class ValuesSource {
              * by returning the underlying {@link OrdinalMap}. If this method returns false, then calling
              * {@link #globalOrdinalsMapping} will result in an {@link UnsupportedOperationException}.
              */
-            public boolean supportsGlobalOrdinalsMapping() {
-                return true;
-            }
+            public abstract boolean supportsGlobalOrdinalsMapping();
 
             @Override
             public boolean hasOrdinals() {
@@ -279,7 +282,7 @@ public abstract class ValuesSource {
 
                 @Override
                 public SortedSetDocValues globalOrdinalsValues(LeafReaderContext context) {
-                    final IndexOrdinalsFieldData global = indexFieldData.loadGlobal((DirectoryReader)context.parent.reader());
+                    final IndexOrdinalsFieldData global = indexFieldData.loadGlobal((DirectoryReader) context.parent.reader());
                     final LeafOrdinalsFieldData atomicFieldData = global.load(context);
                     return atomicFieldData.getOrdinalsValues();
                 }
@@ -291,7 +294,7 @@ public abstract class ValuesSource {
 
                 @Override
                 public LongUnaryOperator globalOrdinalsMapping(LeafReaderContext context) throws IOException {
-                    final IndexOrdinalsFieldData global = indexFieldData.loadGlobal((DirectoryReader)context.parent.reader());
+                    final IndexOrdinalsFieldData global = indexFieldData.loadGlobal((DirectoryReader) context.parent.reader());
                     final OrdinalMap map = global.getOrdinalMap();
                     if (map == null) {
                         // segments and global ordinals are the same
@@ -689,7 +692,9 @@ public abstract class ValuesSource {
             return Rounding::prepareForUnknown;
         }
 
-        public RangeType rangeType() { return rangeType; }
+        public RangeType rangeType() {
+            return rangeType;
+        }
     }
 
     /**
@@ -701,8 +706,8 @@ public abstract class ValuesSource {
         public static final GeoPoint EMPTY = new GeoPoint() {
 
             @Override
-            public MultiGeoPointValues geoPointValues(LeafReaderContext context) {
-                return org.elasticsearch.index.fielddata.FieldData.emptyMultiGeoPoints();
+            public SortedNumericDocValues geoSortedNumericDocValues(LeafReaderContext context) {
+                return DocValues.emptySortedNumeric();
             }
 
             @Override
@@ -723,7 +728,19 @@ public abstract class ValuesSource {
             throw new AggregationExecutionException("can't round a [GEO_POINT]");
         }
 
-        public abstract MultiGeoPointValues geoPointValues(LeafReaderContext context);
+        /**
+         * Return geo-point values.
+         */
+        public final MultiGeoPointValues geoPointValues(LeafReaderContext context) {
+            return new MultiGeoPointValues(geoSortedNumericDocValues(context));
+        }
+
+        /**
+         * Return the internal representation of geo_point doc values as a {@link SortedNumericDocValues}.
+         * A point is encoded as a long that can be decoded by using
+         * {@link org.elasticsearch.common.geo.GeoPoint#resetFromEncoded(long)}
+         */
+        public abstract SortedNumericDocValues geoSortedNumericDocValues(LeafReaderContext context);
 
         public static class Fielddata extends GeoPoint {
 
@@ -738,8 +755,9 @@ public abstract class ValuesSource {
                 return indexFieldData.load(context).getBytesValues();
             }
 
-            public org.elasticsearch.index.fielddata.MultiGeoPointValues geoPointValues(LeafReaderContext context) {
-                return indexFieldData.load(context).getGeoPointValues();
+            @Override
+            public SortedNumericDocValues geoSortedNumericDocValues(LeafReaderContext context) {
+                return indexFieldData.load(context).getSortedNumericDocValues();
             }
         }
     }

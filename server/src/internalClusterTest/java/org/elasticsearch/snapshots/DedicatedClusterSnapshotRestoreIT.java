@@ -8,9 +8,9 @@
 
 package org.elasticsearch.snapshots;
 
-import com.carrotsearch.hppc.IntHashSet;
-import com.carrotsearch.hppc.IntSet;
-
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
@@ -25,13 +25,14 @@ import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
@@ -41,11 +42,11 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.seqno.RetentionLeaseActions;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.rest.AbstractRestChannel;
 import org.elasticsearch.rest.RestRequest;
@@ -56,6 +57,7 @@ import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.disruption.BusyMasterServiceDisruption;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -74,8 +76,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -88,6 +92,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFutureThrows;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -190,7 +195,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         logger.info("--> making sure that snapshot no longer exists");
         expectThrows(
             SnapshotMissingException.class,
-            () -> clusterAdmin().prepareGetSnapshots("test-repo").setSnapshots("test-snap").execute().actionGet().getSnapshots("test-repo")
+            () -> client().admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap").execute().actionGet()
         );
 
         logger.info("--> Go through a loop of creating and deleting a snapshot to trigger repository cleanup");
@@ -434,7 +439,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
         ensureGreen("test-idx");
 
-        IntSet reusedShards = new IntHashSet();
+        Set<Integer> reusedShards = new HashSet<>();
         List<RecoveryState> recoveryStates = client().admin()
             .indices()
             .prepareRecoveries("test-idx")
@@ -678,7 +683,6 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
     public void testSnapshotWithDateMath() {
         final String repo = "repo";
 
-        final IndexNameExpressionResolver nameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
         final String snapshotName = "<snapshot-{now/d}>";
 
         logger.info("-->  creating repository");
@@ -688,11 +692,11 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
                 .setSettings(Settings.builder().put("location", randomRepoPath()).put("compress", randomBoolean()))
         );
 
-        final String expression1 = nameExpressionResolver.resolveDateMathExpression(snapshotName);
+        final String expression1 = IndexNameExpressionResolver.resolveDateMathExpression(snapshotName);
         logger.info("-->  creating date math snapshot");
         createFullSnapshot(repo, snapshotName);
         // snapshot could be taken before or after a day rollover
-        final String expression2 = nameExpressionResolver.resolveDateMathExpression(snapshotName);
+        final String expression2 = IndexNameExpressionResolver.resolveDateMathExpression(snapshotName);
 
         SnapshotsStatusResponse response = clusterAdmin().prepareSnapshotStatus(repo)
             .setSnapshots(Sets.newHashSet(expression1, expression2).toArray(Strings.EMPTY_ARRAY))
@@ -863,7 +867,13 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             .get();
         disruption.startDisrupting();
         logger.info("-->  restarting data node, which should cause primary shards to be failed");
-        internalCluster().restartNode(dataNode, InternalTestCluster.EMPTY_CALLBACK);
+        internalCluster().restartNode(dataNode, new InternalTestCluster.RestartCallback() {
+            @Override
+            public boolean validateClusterForming() {
+                // skip this step since BusyMasterServiceDisruption prevents the master queue from ever emptying
+                return false;
+            }
+        });
 
         logger.info("-->  wait for shard snapshots to show as failed");
         assertBusy(
@@ -889,8 +899,8 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
                 .setSnapshots("test-snap")
                 .setIgnoreUnavailable(true)
                 .get();
-            assertEquals(1, snapshotsStatusResponse.getSnapshots("test-repo").size());
-            SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots("test-repo").get(0);
+            assertEquals(1, snapshotsStatusResponse.getSnapshots().size());
+            SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
             assertTrue(snapshotInfo.state().toString(), snapshotInfo.state().completed());
         }, 60L, TimeUnit.SECONDS);
     }
@@ -943,8 +953,8 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
                 .setSnapshots("test-snap")
                 .setIgnoreUnavailable(true)
                 .get();
-            assertEquals(1, snapshotsStatusResponse.getSnapshots("test-repo").size());
-            SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots("test-repo").get(0);
+            assertEquals(1, snapshotsStatusResponse.getSnapshots().size());
+            SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
             assertTrue(snapshotInfo.state().toString(), snapshotInfo.state().completed());
             assertThat(snapshotInfo.totalShards(), is(2));
             assertThat(snapshotInfo.shardFailures(), hasSize(2));
@@ -1059,7 +1069,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             logger,
             otherDataNode,
             state -> state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY)
-                .entries()
+                .forRepo(repoName)
                 .stream()
                 .anyMatch(entry -> entry.state() == SnapshotsInProgress.State.ABORTED)
         );
@@ -1182,7 +1192,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         assertAcked(admin().indices().prepareDelete(indexName));
 
         for (Future<Void> future : futures) {
-            future.get();
+            future.get(30, TimeUnit.SECONDS);
         }
 
         logger.info("--> restore snapshot 1");
@@ -1219,6 +1229,77 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         internalCluster().startMasterOnlyNode();
         List<RepositoryMetadata> repositoryMetadata = client().admin().cluster().prepareGetRepositories("*").get().repositories();
         assertThat(repositoryMetadata, empty());
+    }
+
+    public void testConcurrentSnapshotAndRepoDelete() throws Exception {
+        internalCluster().startMasterOnlyNodes(1);
+        internalCluster().startDataOnlyNode();
+        final String repoName = "test-repo";
+        createRepository(repoName, "fs");
+
+        // create a few snapshots so deletes will run for a while
+        final int snapshotCount = randomIntBetween(10, 25);
+        final List<String> snapshotNames = createNSnapshots(repoName, snapshotCount);
+
+        // concurrently trigger repository and snapshot deletes
+        final List<ActionFuture<AcknowledgedResponse>> deleteFutures = new ArrayList<>(snapshotCount);
+        final ActionFuture<AcknowledgedResponse> deleteRepoFuture = clusterAdmin().prepareDeleteRepository(repoName).execute();
+        for (String snapshotName : snapshotNames) {
+            deleteFutures.add(clusterAdmin().prepareDeleteSnapshot(repoName, snapshotName).execute());
+        }
+
+        try {
+            assertAcked(deleteRepoFuture.actionGet());
+        } catch (Exception e) {
+            assertThat(
+                e.getMessage(),
+                containsString(
+                    "[test-repo] trying to modify or unregister repository that is currently used (snapshot deletion is in progress)"
+                )
+            );
+        }
+        for (ActionFuture<AcknowledgedResponse> deleteFuture : deleteFutures) {
+            try {
+                assertAcked(deleteFuture.actionGet());
+            } catch (RepositoryException e) {
+                assertThat(
+                    e.getMessage(),
+                    either(containsString("[test-repo] repository is not in started state")).or(containsString("[test-repo] missing"))
+                );
+            }
+        }
+    }
+
+    public void testDeleteSnapshotsOfDifferentIndexSets() throws IllegalAccessException {
+        internalCluster().startMasterOnlyNodes(1);
+        internalCluster().startDataOnlyNode();
+        final String repoName = "test-repo";
+        createRepository(repoName, "fs");
+
+        final MockLogAppender mockAppender = new MockLogAppender();
+        mockAppender.addExpectation(
+            new MockLogAppender.UnseenEventExpectation("no warnings", BlobStoreRepository.class.getCanonicalName(), Level.WARN, "*")
+        );
+        mockAppender.start();
+        final Logger logger = LogManager.getLogger(BlobStoreRepository.class);
+        Loggers.addAppender(logger, mockAppender);
+        try {
+            final String index1 = "index-1";
+            final String index2 = "index-2";
+            createIndexWithContent("index-1");
+            createIndexWithContent("index-2");
+            createFullSnapshot(repoName, "full-snapshot");
+            final String snapshot1 = "index-1-snapshot";
+            final String snapshot2 = "index-2-snapshot";
+            createSnapshot(repoName, snapshot1, List.of(index1));
+            createSnapshot(repoName, snapshot2, List.of(index2));
+
+            clusterAdmin().prepareDeleteSnapshot(repoName, snapshot1, snapshot2).get();
+            mockAppender.assertAllExpectationsMatched();
+        } finally {
+            Loggers.removeAppender(logger, mockAppender);
+            mockAppender.stop();
+        }
     }
 
     private long calculateTotalFilesSize(List<Path> files) {

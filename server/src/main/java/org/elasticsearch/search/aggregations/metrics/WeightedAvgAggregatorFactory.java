@@ -25,10 +25,15 @@ import static org.elasticsearch.search.aggregations.metrics.WeightedAvgAggregati
 
 class WeightedAvgAggregatorFactory extends MultiValuesSourceAggregatorFactory {
 
-    WeightedAvgAggregatorFactory(String name, Map<String, ValuesSourceConfig> configs,
-                                 DocValueFormat format, AggregationContext context, AggregatorFactory parent,
-                                 AggregatorFactories.Builder subFactoriesBuilder,
-                                 Map<String, Object> metadata) throws IOException {
+    WeightedAvgAggregatorFactory(
+        String name,
+        Map<String, ValuesSourceConfig> configs,
+        DocValueFormat format,
+        AggregationContext context,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, configs, format, context, parent, subFactoriesBuilder, metadata);
     }
 

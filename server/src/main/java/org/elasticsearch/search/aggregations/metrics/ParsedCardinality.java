@@ -8,10 +8,10 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
@@ -40,7 +40,10 @@ public class ParsedCardinality extends ParsedAggregation implements Cardinality 
     }
 
     private static final ObjectParser<ParsedCardinality, Void> PARSER = new ObjectParser<>(
-            ParsedCardinality.class.getSimpleName(), true, ParsedCardinality::new);
+        ParsedCardinality.class.getSimpleName(),
+        true,
+        ParsedCardinality::new
+    );
 
     static {
         declareAggregationFields(PARSER);
@@ -54,8 +57,7 @@ public class ParsedCardinality extends ParsedAggregation implements Cardinality 
     }
 
     @Override
-    protected XContentBuilder doXContentBody(XContentBuilder builder, Params params)
-            throws IOException {
+    protected XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.field(CommonFields.VALUE.getPreferredName(), cardinalityValue);
         return builder;
     }

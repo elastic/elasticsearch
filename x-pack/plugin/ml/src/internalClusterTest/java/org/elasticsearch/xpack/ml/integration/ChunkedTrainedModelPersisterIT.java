@@ -70,9 +70,8 @@ public class ChunkedTrainedModelPersisterIT extends MlSingleNodeTestCase {
 
     public void testStoreModelViaChunkedPersister() throws IOException {
         String modelId = "stored-chunked-model";
-        DataFrameAnalyticsConfig analyticsConfig = new DataFrameAnalyticsConfig.Builder()
-            .setId(modelId)
-            .setSource(new DataFrameAnalyticsSource(new String[] {"my_source"}, null, null, null))
+        DataFrameAnalyticsConfig analyticsConfig = new DataFrameAnalyticsConfig.Builder().setId(modelId)
+            .setSource(new DataFrameAnalyticsSource(new String[] { "my_source" }, null, null, null))
             .setDest(new DataFrameAnalyticsDest("my_dest", null))
             .setAnalysis(new Regression("foo"))
             .build();
@@ -81,27 +80,27 @@ public class ChunkedTrainedModelPersisterIT extends MlSingleNodeTestCase {
         BytesReference compressedDefinition = configBuilder.build().getCompressedDefinition();
         List<String> base64Chunks = chunkBinaryDefinition(compressedDefinition, compressedDefinition.length() / 3);
 
-        ChunkedTrainedModelPersister persister = new ChunkedTrainedModelPersister(trainedModelProvider,
+        ChunkedTrainedModelPersister persister = new ChunkedTrainedModelPersister(
+            trainedModelProvider,
             analyticsConfig,
             new DataFrameAnalyticsAuditor(client(), getInstanceFromNode(ClusterService.class)),
             (ex) -> { throw new ElasticsearchException(ex); },
             new ExtractedFields(extractedFieldList, Collections.emptyList(), Collections.emptyMap())
         );
 
-        //Accuracy for size is not tested here
+        // Accuracy for size is not tested here
         ModelSizeInfo modelSizeInfo = ModelSizeInfoTests.createRandom();
         persister.createAndIndexInferenceModelConfig(modelSizeInfo, configBuilder.getModelType());
         for (int i = 0; i < base64Chunks.size(); i++) {
             persister.createAndIndexInferenceModelDoc(
-                new TrainedModelDefinitionChunk(base64Chunks.get(i), i, i == (base64Chunks.size() - 1)));
+                new TrainedModelDefinitionChunk(base64Chunks.get(i), i, i == (base64Chunks.size() - 1))
+            );
         }
-        ModelMetadata modelMetadata = new ModelMetadata(Stream.generate(TotalFeatureImportanceTests::randomInstance)
-            .limit(randomIntBetween(1, 10))
-            .collect(Collectors.toList()),
+        ModelMetadata modelMetadata = new ModelMetadata(
+            Stream.generate(TotalFeatureImportanceTests::randomInstance).limit(randomIntBetween(1, 10)).collect(Collectors.toList()),
             FeatureImportanceBaselineTests.randomInstance(),
-            Stream.generate(HyperparametersTests::randomInstance)
-            .limit(randomIntBetween(1, 10))
-            .collect(Collectors.toList()));
+            Stream.generate(HyperparametersTests::randomInstance).limit(randomIntBetween(1, 10)).collect(Collectors.toList())
+        );
         persister.createAndIndexInferenceModelMetadata(modelMetadata);
 
         PlainActionFuture<Tuple<Long, Map<String, Set<String>>>> getIdsFuture = new PlainActionFuture<>();
@@ -111,6 +110,7 @@ public class ChunkedTrainedModelPersisterIT extends MlSingleNodeTestCase {
             PageParams.defaultParams(),
             Collections.emptySet(),
             ModelAliasMetadata.EMPTY,
+            null,
             getIdsFuture
         );
         Tuple<Long, Map<String, Set<String>>> ids = getIdsFuture.actionGet();
@@ -118,18 +118,18 @@ public class ChunkedTrainedModelPersisterIT extends MlSingleNodeTestCase {
         String inferenceModelId = ids.v2().keySet().iterator().next();
 
         PlainActionFuture<TrainedModelConfig> getTrainedModelFuture = new PlainActionFuture<>();
-        trainedModelProvider.getTrainedModel(inferenceModelId, GetTrainedModelsAction.Includes.all(), getTrainedModelFuture);
+        trainedModelProvider.getTrainedModel(inferenceModelId, GetTrainedModelsAction.Includes.all(), null, getTrainedModelFuture);
 
         TrainedModelConfig storedConfig = getTrainedModelFuture.actionGet();
         assertThat(storedConfig.getCompressedDefinition(), equalTo(compressedDefinition));
-        assertThat(storedConfig.getEstimatedOperations(), equalTo((long)modelSizeInfo.numOperations()));
-        assertThat(storedConfig.getEstimatedHeapMemory(), equalTo(modelSizeInfo.ramBytesUsed()));
+        assertThat(storedConfig.getEstimatedOperations(), equalTo((long) modelSizeInfo.numOperations()));
+        assertThat(storedConfig.getModelSize(), equalTo(modelSizeInfo.ramBytesUsed()));
         assertThat(storedConfig.getMetadata(), hasKey("total_feature_importance"));
         assertThat(storedConfig.getMetadata(), hasKey("feature_importance_baseline"));
         assertThat(storedConfig.getMetadata(), hasKey("hyperparameters"));
 
         PlainActionFuture<Map<String, TrainedModelMetadata>> getTrainedMetadataFuture = new PlainActionFuture<>();
-        trainedModelProvider.getTrainedModelMetadata(Collections.singletonList(inferenceModelId), getTrainedMetadataFuture);
+        trainedModelProvider.getTrainedModelMetadata(Collections.singletonList(inferenceModelId), null, getTrainedMetadataFuture);
 
         TrainedModelMetadata storedMetadata = getTrainedMetadataFuture.actionGet().get(inferenceModelId);
         assertThat(storedMetadata.getModelId(), startsWith(modelId));
@@ -148,7 +148,7 @@ public class ChunkedTrainedModelPersisterIT extends MlSingleNodeTestCase {
             .setModelType(TrainedModelType.TREE_ENSEMBLE)
             .setVersion(Version.CURRENT)
             .setLicenseLevel(License.OperationMode.PLATINUM.description())
-            .setEstimatedHeapMemory(bytesUsed)
+            .setModelSize(bytesUsed)
             .setEstimatedOperations(operations)
             .setInput(TrainedModelInputTests.createRandomInput());
     }
@@ -157,8 +157,8 @@ public class ChunkedTrainedModelPersisterIT extends MlSingleNodeTestCase {
         List<String> subStrings = new ArrayList<>((bytes.length() + chunkSize - 1) / chunkSize);
         for (int i = 0; i < bytes.length(); i += chunkSize) {
             subStrings.add(
-                Base64.getEncoder().encodeToString(
-                    Arrays.copyOfRange(bytes.array(), i, Math.min(i + chunkSize, bytes.length()))));
+                Base64.getEncoder().encodeToString(Arrays.copyOfRange(bytes.array(), i, Math.min(i + chunkSize, bytes.length())))
+            );
         }
         return subStrings;
     }

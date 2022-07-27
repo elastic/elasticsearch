@@ -8,13 +8,12 @@
 
 package org.elasticsearch.action.admin.indices.settings.get;
 
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.RandomCreateIndexGenerator;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -33,7 +32,7 @@ public class GetSettingsResponseTests extends AbstractSerializingTestCase<GetSet
 
         Set<String> indexNames = new HashSet<String>();
         int numIndices = randomIntBetween(1, 5);
-        for (int x=0;x<numIndices;x++) {
+        for (int x = 0; x < numIndices; x++) {
             String indexName = randomAlphaOfLength(5);
             indexNames.add(indexName);
         }
@@ -48,9 +47,6 @@ public class GetSettingsResponseTests extends AbstractSerializingTestCase<GetSet
             builder.put("index.refresh_interval", "1s");
             indexToSettings.put(indexName, builder.build());
         }
-        ImmutableOpenMap<String, Settings> immutableIndexToSettings =
-            ImmutableOpenMap.<String, Settings>builder().putAll(indexToSettings).build();
-
 
         if (randomBoolean()) {
             for (String indexName : indexToSettings.keySet()) {
@@ -59,10 +55,7 @@ public class GetSettingsResponseTests extends AbstractSerializingTestCase<GetSet
             }
         }
 
-        ImmutableOpenMap<String, Settings> immutableIndexToDefaultSettings =
-            ImmutableOpenMap.<String, Settings>builder().putAll(indexToDefaultSettings).build();
-
-        return new GetSettingsResponse(immutableIndexToSettings, immutableIndexToDefaultSettings);
+        return new GetSettingsResponse(indexToSettings, indexToDefaultSettings);
     }
 
     @Override
@@ -77,7 +70,7 @@ public class GetSettingsResponseTests extends AbstractSerializingTestCase<GetSet
 
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
-        //we do not want to add new fields at the root (index-level), or inside settings blocks
+        // we do not want to add new fields at the root (index-level), or inside settings blocks
         return f -> f.equals("") || f.contains(".settings") || f.contains(".defaults");
     }
 

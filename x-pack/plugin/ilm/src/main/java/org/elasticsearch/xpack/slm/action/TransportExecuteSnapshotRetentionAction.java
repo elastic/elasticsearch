@@ -26,26 +26,41 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.slm.action.ExecuteSnapshotRetentionAction;
 import org.elasticsearch.xpack.slm.SnapshotRetentionService;
 
-public class TransportExecuteSnapshotRetentionAction
-    extends AcknowledgedTransportMasterNodeAction<ExecuteSnapshotRetentionAction.Request> {
+public class TransportExecuteSnapshotRetentionAction extends AcknowledgedTransportMasterNodeAction<ExecuteSnapshotRetentionAction.Request> {
 
     private static final Logger logger = LogManager.getLogger(TransportExecuteSnapshotRetentionAction.class);
 
     private final SnapshotRetentionService retentionService;
 
     @Inject
-    public TransportExecuteSnapshotRetentionAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                                   ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                                   SnapshotRetentionService retentionService) {
-        super(ExecuteSnapshotRetentionAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            ExecuteSnapshotRetentionAction.Request::new, indexNameExpressionResolver, ThreadPool.Names.GENERIC);
+    public TransportExecuteSnapshotRetentionAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        SnapshotRetentionService retentionService
+    ) {
+        super(
+            ExecuteSnapshotRetentionAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            ExecuteSnapshotRetentionAction.Request::new,
+            indexNameExpressionResolver,
+            ThreadPool.Names.GENERIC
+        );
         this.retentionService = retentionService;
     }
 
     @Override
-    protected void masterOperation(final Task task, final ExecuteSnapshotRetentionAction.Request request,
-                                   final ClusterState state,
-                                   final ActionListener<AcknowledgedResponse> listener) {
+    protected void masterOperation(
+        final Task task,
+        final ExecuteSnapshotRetentionAction.Request request,
+        final ClusterState state,
+        final ActionListener<AcknowledgedResponse> listener
+    ) {
         try {
             logger.info("manually triggering SLM snapshot retention");
             this.retentionService.triggerRetention();

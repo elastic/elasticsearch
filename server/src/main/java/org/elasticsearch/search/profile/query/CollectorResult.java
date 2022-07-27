@@ -8,19 +8,21 @@
 
 package org.elasticsearch.search.profile.query;
 
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
@@ -60,14 +62,14 @@ public class CollectorResult implements ToXContentObject, Writeable {
     /**
      * The total elapsed time for this Collector
      */
-    private final Long time;
+    private final long time;
 
     /**
      * A list of children collectors "embedded" inside this collector
      */
     private List<CollectorResult> children;
 
-    public CollectorResult(String collectorName, String reason, Long time, List<CollectorResult> children) {
+    public CollectorResult(String collectorName, String reason, long time, List<CollectorResult> children) {
         this.collectorName = collectorName;
         this.reason = reason;
         this.time = time;
@@ -129,6 +131,28 @@ public class CollectorResult implements ToXContentObject, Writeable {
     }
 
     @Override
+    public boolean equals(Object obj) {
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        CollectorResult other = (CollectorResult) obj;
+        return collectorName.equals(other.collectorName)
+            && reason.equals(other.reason)
+            && time == other.time
+            && children.equals(other.children);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(collectorName, reason, time, children);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
+    }
+
+    @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder = builder.startObject();
         builder.field(NAME.getPreferredName(), getName());
@@ -156,7 +180,7 @@ public class CollectorResult implements ToXContentObject, Writeable {
         String name = null, reason = null;
         long time = -1;
         List<CollectorResult> children = new ArrayList<>();
-        while((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {

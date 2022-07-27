@@ -23,24 +23,28 @@ public class Sequence extends Join {
 
     private final TimeValue maxSpan;
 
-    public Sequence(Source source,
-                    List<KeyedFilter> queries,
-                    KeyedFilter until,
-                    TimeValue maxSpan,
-                    Attribute timestamp,
-                    Attribute tiebreaker,
-                    OrderDirection direction) {
+    public Sequence(
+        Source source,
+        List<KeyedFilter> queries,
+        KeyedFilter until,
+        TimeValue maxSpan,
+        Attribute timestamp,
+        Attribute tiebreaker,
+        OrderDirection direction
+    ) {
         super(source, queries, until, timestamp, tiebreaker, direction);
         this.maxSpan = maxSpan;
     }
 
-    private Sequence(Source source,
-                     List<LogicalPlan> queries,
-                     LogicalPlan until,
-                     TimeValue maxSpan,
-                     Attribute timestamp,
-                     Attribute tiebreaker,
-                     OrderDirection direction) {
+    private Sequence(
+        Source source,
+        List<LogicalPlan> queries,
+        LogicalPlan until,
+        TimeValue maxSpan,
+        Attribute timestamp,
+        Attribute tiebreaker,
+        OrderDirection direction
+    ) {
         super(source, asKeyed(queries), asKeyed(until), timestamp, tiebreaker, direction);
         this.maxSpan = maxSpan;
     }
@@ -53,8 +57,15 @@ public class Sequence extends Join {
     @Override
     public Join replaceChildren(List<LogicalPlan> newChildren) {
         int lastIndex = newChildren.size() - 1;
-        return new Sequence(source(), newChildren.subList(0, lastIndex), newChildren.get(lastIndex), maxSpan, timestamp(), tiebreaker(),
-                direction());
+        return new Sequence(
+            source(),
+            newChildren.subList(0, lastIndex),
+            newChildren.get(lastIndex),
+            maxSpan,
+            timestamp(),
+            tiebreaker(),
+            direction()
+        );
     }
 
     public TimeValue maxSpan() {

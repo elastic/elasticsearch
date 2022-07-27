@@ -7,10 +7,12 @@
  */
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
-import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
@@ -31,16 +33,24 @@ import java.util.Map;
 /**
  * Aggregates data expressed as longs (for efficiency's sake) but formats results as aggregation-specific strings.
  */
-public abstract class GeoGridAggregator<T extends InternalGeoGrid> extends BucketsAggregator {
+public abstract class GeoGridAggregator<T extends InternalGeoGrid<?>> extends BucketsAggregator {
 
     protected final int requiredSize;
     protected final int shardSize;
     protected final ValuesSource.Numeric valuesSource;
     protected final LongKeyedBucketOrds bucketOrds;
 
-    GeoGridAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource,
-                      int requiredSize, int shardSize, AggregationContext aggregationContext,
-                      Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata) throws IOException {
+    protected GeoGridAggregator(
+        String name,
+        AggregatorFactories factories,
+        ValuesSource.Numeric valuesSource,
+        int requiredSize,
+        int shardSize,
+        AggregationContext aggregationContext,
+        Aggregator parent,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, factories, aggregationContext, parent, CardinalityUpperBound.MANY, metadata);
         this.valuesSource = valuesSource;
         this.requiredSize = requiredSize;
@@ -57,9 +67,32 @@ public abstract class GeoGridAggregator<T extends InternalGeoGrid> extends Bucke
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
-            final LeafBucketCollector sub) throws IOException {
-        SortedNumericDocValues values = valuesSource.longValues(ctx);
+    public LeafBucketCollector getLeafCollector(final AggregationExecutionContext aggCtx, final LeafBucketCollector sub)
+        throws IOException {
+        final SortedNumericDocValues values = valuesSource.longValues(aggCtx.getLeafReaderContext());
+        final NumericDocValues singleton = DocValues.unwrapSingleton(values);
+        return singleton != null ? getLeafCollector(singleton, sub) : getLeafCollector(values, sub);
+    }
+
+    private LeafBucketCollector getLeafCollector(final NumericDocValues values, final LeafBucketCollector sub) {
+        return new LeafBucketCollectorBase(sub, null) {
+            @Override
+            public void collect(int doc, long owningBucketOrd) throws IOException {
+                if (values.advanceExact(doc)) {
+                    final long val = values.longValue();
+                    long bucketOrdinal = bucketOrds.add(owningBucketOrd, val);
+                    if (bucketOrdinal < 0) { // already seen
+                        bucketOrdinal = -1 - bucketOrdinal;
+                        collectExistingBucket(sub, doc, bucketOrdinal);
+                    } else {
+                        collectBucket(sub, doc, bucketOrdinal);
+                    }
+                }
+            }
+        };
+    }
+
+    private LeafBucketCollector getLeafCollector(final SortedNumericDocValues values, final LeafBucketCollector sub) {
         return new LeafBucketCollectorBase(sub, null) {
             @Override
             public void collect(int doc, long owningBucketOrd) throws IOException {
@@ -85,14 +118,14 @@ public abstract class GeoGridAggregator<T extends InternalGeoGrid> extends Bucke
         };
     }
 
-    abstract T buildAggregation(String name, int requiredSize, List<InternalGeoGridBucket> buckets, Map<String, Object> metadata);
+    protected abstract T buildAggregation(String name, int requiredSize, List<InternalGeoGridBucket> buckets, Map<String, Object> metadata);
 
     /**
      * This method is used to return a re-usable instance of the bucket when building
      * the aggregation.
      * @return a new {@link InternalGeoGridBucket} implementation with empty parameters
      */
-    abstract InternalGeoGridBucket newEmptyBucket();
+    protected abstract InternalGeoGridBucket newEmptyBucket();
 
     @Override
     public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
@@ -130,7 +163,7 @@ public abstract class GeoGridAggregator<T extends InternalGeoGrid> extends Bucke
     }
 
     @Override
-    public InternalGeoGrid buildEmptyAggregation() {
+    public InternalAggregation buildEmptyAggregation() {
         return buildAggregation(name, requiredSize, Collections.emptyList(), metadata());
     }
 

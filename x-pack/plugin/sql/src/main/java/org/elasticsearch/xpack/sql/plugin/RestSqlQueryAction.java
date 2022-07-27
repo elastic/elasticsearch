@@ -7,16 +7,15 @@
 
 package org.elasticsearch.xpack.sql.plugin;
 
-import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.xcontent.MediaType;
-import org.elasticsearch.common.xcontent.MediaTypeRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.sql.action.Protocol;
 import org.elasticsearch.xpack.sql.action.SqlQueryAction;
 import org.elasticsearch.xpack.sql.action.SqlQueryRequest;
-import org.elasticsearch.xpack.sql.proto.Protocol;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -25,24 +24,24 @@ import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.xpack.sql.proto.Protocol.URL_PARAM_DELIMITER;
+import static org.elasticsearch.xpack.sql.proto.CoreProtocol.URL_PARAM_DELIMITER;
 
 public class RestSqlQueryAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(GET, Protocol.SQL_QUERY_REST_ENDPOINT),
-            new Route(POST, Protocol.SQL_QUERY_REST_ENDPOINT));
-    }
-
-    public MediaTypeRegistry<? extends MediaType> validAcceptMediaTypes() {
-        return SqlMediaTypeParser.MEDIA_TYPE_REGISTRY;
+            Route.builder(GET, Protocol.SQL_QUERY_REST_ENDPOINT)
+                .replaces(GET, Protocol.SQL_QUERY_DEPRECATED_REST_ENDPOINT, RestApiVersion.V_7)
+                .build(),
+            Route.builder(POST, Protocol.SQL_QUERY_REST_ENDPOINT)
+                .replaces(POST, Protocol.SQL_QUERY_DEPRECATED_REST_ENDPOINT, RestApiVersion.V_7)
+                .build()
+        );
     }
 
     @Override
-    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client)
-            throws IOException {
+    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         SqlQueryRequest sqlRequest;
         try (XContentParser parser = request.contentOrSourceParamParser()) {
             sqlRequest = SqlQueryRequest.fromXContent(parser);

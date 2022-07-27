@@ -4,20 +4,20 @@
 [[queries]]
 name = "filterOnDateNanosWithMillis"
 query = '''
-    process where @timestamp == "1970-01-02T12:31:25.510Z"
+    process where @timestamp == "1974-03-02T19:53:16.510Z"
 '''
 expected_event_ids  = [2, 3, 4, 5, 6, 7]
 
 [[queries]]
 name = "filterOnDateNanosWithNanos"
 query = '''
-    process where @timestamp == "1970-01-02T12:31:49.29436514Z"
+    process where @timestamp == "1974-03-03T02:22:54.294365140Z"
 '''
 expected_event_ids  = [54]
 
 [[queries]]
 name = "filterOnDateNanosWithNanosRange"
 query = '''
-    process where @timestamp > "1970-01-02T12:31:49.29420914Z" and @timestamp < "1970-01-02T12:31:49.35036949Z"
+    process where @timestamp > "1974-03-03T02:22:54.294209140Z" and @timestamp < "1974-03-03T02:22:54.350369490Z"
 '''
 expected_event_ids  = [54, 56, 58, 62]

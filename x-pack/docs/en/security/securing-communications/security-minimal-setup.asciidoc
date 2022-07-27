@@ -4,46 +4,42 @@
 <titleabbrev>Set up minimal security</titleabbrev>
 ++++
 
-You enable the Elasticsearch security features and then create
-passwords for built-in users. You can add more users later, but using the
-built-in users simplifies the process of enabling security for your
-cluster.
+IMPORTANT: You only need to complete the following steps if you're running an 
+existing, unsecured cluster and want to enable the {es} {security-features}.
 
-include::../configuring-stack-security.asciidoc[tag=minimal-security-note]
+In {es} 8.0 and later, security is
+<<configuring-stack-security,enabled automatically>> when you start {es} for the 
+first time. 
 
-==== Prerequisites
+If you're running an existing {es} cluster where security is disabled, you can 
+manually enable the {es} {security-features} and then create passwords for 
+built-in users. You can add more users later, but using the built-in users 
+simplifies the process of enabling security for your cluster.
 
-. Install and configure {es} and {kib}. See https://www.elastic.co/guide/en/elastic-stack-get-started/current/get-started-elastic-stack.html[Getting started with the Elastic Stack].
-
-. Verify that you are using a license that includes the specific security
-features you want.
-+
-The basic license includes minimal security settings for the Elastic Stack, so
-you can just download the distribution and get to work. You can also enable a
-free trial license to access all features of the Elastic Stack. See https://www.elastic.co/subscriptions[subscriptions] and https://www.elastic.co/guide/en/kibana/current/managing-licenses.html[license management].
+include::../security-manual-configuration.asciidoc[tag=minimal-security-note]
 
 ==== Enable {es} security features
 
-When you use the basic license, the {es} security features are disabled by
-default. Enabling the {es} security features enables basic authentication so
+Enabling the {es} security features provides basic authentication so
 that you can run a local cluster with username and password authentication.
 
-. Stop both {kib} and {es} if they are running.
+. On *every* node in your cluster, stop both {kib} and {es} if they are running.
 
-. Add the `xpack.security.enabled` setting to the `ES_PATH_CONF/elasticsearch.yml` file and set the value to `true`:
+. On *every* node in your cluster, add the `xpack.security.enabled` setting to
+the `$ES_PATH_CONF/elasticsearch.yml` file and set the value to `true`:
 +
 [source,yaml]
 ----
 xpack.security.enabled: true
 ----
 +
-NOTE: The `ES_PATH_CONF` variable is the path for the {es}
+NOTE: The `$ES_PATH_CONF` variable is the path for the {es}
 configuration files. If you installed {es} using archive distributions
-(`zip` or `tar.gz`), the variable defaults to `ES_HOME/config`. If you used
+(`zip` or `tar.gz`), the variable defaults to `$ES_HOME/config`. If you used
 package distributions (Debian or RPM), the variable defaults to `/etc/elasticsearch`.
 
 . If your cluster has a single node, add the `discovery.type` setting in the
-`ES_PATH_CONF/elasticsearch.yml` file and set the value to `single-node`. This
+`$ES_PATH_CONF/elasticsearch.yml` file and set the value to `single-node`. This
 setting ensures that your node does not inadvertently connect to other clusters
 that might be running on your network.
 +
@@ -53,17 +49,18 @@ discovery.type: single-node
 ----
 
 [[security-create-builtin-users]]
-==== Create passwords for built-in users
+==== Set passwords for built-in users
 
 To communicate with the cluster, you must configure a username for the built-in
 users. Unless you enable anonymous access, all requests that don’t include a
-user name and password are rejected.
+username and password are rejected.
 
 NOTE: You only need to set passwords for the `elastic` and `kibana_system` users
 when enabling minimal or basic security.
 
-. Start {es}. For example, if you installed Elasticsearch with a
-`.tar.gz` package, run the following command from the Elasticsearch directory:
+. On *every* node in your cluster, start {es}. For example, if you installed 
+{es} with a `.tar.gz` package, run the following command from the `ES_HOME`
+directory:
 +
 [source,shell]
 ----
@@ -71,9 +68,9 @@ when enabling minimal or basic security.
 ----
 
 . In another terminal window, set the passwords for the built-in users by
-running the <<setup-passwords,`elasticsearch-setup-passwords`>> utility.
+running the <<reset-password,`elasticsearch-reset-password`>> utility.
 +
-IMPORTANT: You can run the `elasticsearch-setup-passwords` utility
+IMPORTANT: You can run the `elasticsearch-reset-password` utility
 against any node in your cluster. However, you should only run this utility *one
 time* for the entire cluster.
 +
@@ -83,7 +80,7 @@ if necessary:
 +
 [source,shell]
 ----
-./bin/elasticsearch-setup-passwords auto
+./bin/elasticsearch-reset-password auto
 ----
 +
 If you want to use your own passwords, run the command with the
@@ -92,14 +89,11 @@ steps you through password configuration for all of the built-in users.
 +
 [source,shell]
 ----
-./bin/elasticsearch-setup-passwords interactive
+./bin/elasticsearch-reset-password interactive
 ----
 
 . Save the generated passwords. You'll need them to add the built-in user to
 {kib}.
-
-WARNING: After you set a password for the `elastic` user, you cannot run the
-`elasticsearch-setup-passwords` command a second time.
 
 *Next*: <<add-built-in-users,Configure {kib} to connect to {es} with a password>>
 
@@ -169,5 +163,5 @@ If your cluster has multiple nodes, then you must configure Transport Layer
 Security (TLS) between nodes. <<dev-vs-prod-mode,Production mode>> clusters
 will not start if you do not enable TLS.
 
-<<security-basic-setup,Set up basic security for the Elastic Stack>> to
+<<security-basic-setup,Set up basic security for the {stack}>> to
 secure all internal communication between nodes in your cluster.

@@ -14,7 +14,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-
 public class InferenceHelpersTests extends ESTestCase {
 
     public void testToDoubleFromNumbers() {

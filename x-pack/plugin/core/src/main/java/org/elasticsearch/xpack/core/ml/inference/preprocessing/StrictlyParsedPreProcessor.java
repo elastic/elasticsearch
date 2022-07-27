@@ -9,5 +9,4 @@ package org.elasticsearch.xpack.core.ml.inference.preprocessing;
 /**
  * To be used in conjunction with a strict parser.
  */
-public interface StrictlyParsedPreProcessor extends PreProcessor {
-}
+public interface StrictlyParsedPreProcessor extends PreProcessor {}

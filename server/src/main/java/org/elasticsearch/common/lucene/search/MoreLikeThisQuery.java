@@ -19,11 +19,11 @@ import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.similarities.ClassicSimilarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.search.similarities.TFIDFSimilarity;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 
 import java.io.IOException;
@@ -31,7 +31,6 @@ import java.io.Reader;
 import java.io.StringReader;
 import java.util.Arrays;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
@@ -59,13 +58,12 @@ public class MoreLikeThisQuery extends Query {
     private boolean boostTerms = XMoreLikeThis.DEFAULT_BOOST;
     private float boostTermsFactor = 1;
 
-
     public MoreLikeThisQuery() {
 
     }
 
     public MoreLikeThisQuery(String likeText, String[] moreLikeFields, NamedAnalyzer analyzer) {
-        this.likeText = new String[]{likeText};
+        this.likeText = new String[] { likeText };
         this.moreLikeFields = moreLikeFields;
         this.analyzer = analyzer;
         this.analyzerName = analyzer.name();
@@ -73,9 +71,21 @@ public class MoreLikeThisQuery extends Query {
 
     @Override
     public int hashCode() {
-        return Objects.hash(classHash(), boostTerms, boostTermsFactor, Arrays.hashCode(likeText),
-                maxDocFreq, maxQueryTerms, maxWordLen, minDocFreq, minTermFrequency, minWordLen,
-                Arrays.hashCode(moreLikeFields), minimumShouldMatch, stopWords);
+        return Objects.hash(
+            classHash(),
+            boostTerms,
+            boostTermsFactor,
+            Arrays.hashCode(likeText),
+            maxDocFreq,
+            maxQueryTerms,
+            maxWordLen,
+            minDocFreq,
+            minTermFrequency,
+            minWordLen,
+            Arrays.hashCode(moreLikeFields),
+            minimumShouldMatch,
+            stopWords
+        );
     }
 
     @Override
@@ -84,40 +94,24 @@ public class MoreLikeThisQuery extends Query {
             return false;
         }
         MoreLikeThisQuery other = (MoreLikeThisQuery) obj;
-        if (Objects.equals(analyzerName, other.analyzerName) == false)
-            return false;
-        if (boostTerms != other.boostTerms)
-            return false;
-        if (boostTermsFactor != other.boostTermsFactor)
-            return false;
-        if ((Arrays.equals(likeText, other.likeText)) == false)
-            return false;
-        if (maxDocFreq != other.maxDocFreq)
-            return false;
-        if (maxQueryTerms != other.maxQueryTerms)
-            return false;
-        if (maxWordLen != other.maxWordLen)
-            return false;
-        if (minDocFreq != other.minDocFreq)
-            return false;
-        if (minTermFrequency != other.minTermFrequency)
-            return false;
-        if (minWordLen != other.minWordLen)
-            return false;
-        if (Arrays.equals(moreLikeFields, other.moreLikeFields) == false)
-            return false;
-        if (minimumShouldMatch.equals(other.minimumShouldMatch) == false)
-            return false;
+        if (Objects.equals(analyzerName, other.analyzerName) == false) return false;
+        if (boostTerms != other.boostTerms) return false;
+        if (boostTermsFactor != other.boostTermsFactor) return false;
+        if ((Arrays.equals(likeText, other.likeText)) == false) return false;
+        if (maxDocFreq != other.maxDocFreq) return false;
+        if (maxQueryTerms != other.maxQueryTerms) return false;
+        if (maxWordLen != other.maxWordLen) return false;
+        if (minDocFreq != other.minDocFreq) return false;
+        if (minTermFrequency != other.minTermFrequency) return false;
+        if (minWordLen != other.minWordLen) return false;
+        if (Arrays.equals(moreLikeFields, other.moreLikeFields) == false) return false;
+        if (minimumShouldMatch.equals(other.minimumShouldMatch) == false) return false;
         if (similarity == null) {
-            if (other.similarity != null)
-                return false;
-        } else if (similarity.equals(other.similarity) == false)
-            return false;
+            if (other.similarity != null) return false;
+        } else if (similarity.equals(other.similarity) == false) return false;
         if (stopWords == null) {
-            if (other.stopWords != null)
-                return false;
-        } else if (stopWords.equals(other.stopWords) == false)
-            return false;
+            if (other.stopWords != null) return false;
+        } else if (stopWords.equals(other.stopWords) == false) return false;
         return true;
     }
 
@@ -148,6 +142,11 @@ public class MoreLikeThisQuery extends Query {
         return createQuery(mlt);
     }
 
+    @Override
+    public void visit(QueryVisitor visitor) {
+        visitor.visitLeaf(this);
+    }
+
     private Query createQuery(XMoreLikeThis mlt) throws IOException {
         BooleanQuery.Builder bqBuilder = new BooleanQuery.Builder();
         if (this.likeFields != null) {
@@ -160,7 +159,7 @@ public class MoreLikeThisQuery extends Query {
             for (int i = 0; i < readers.length; i++) {
                 readers[i] = new StringReader(likeText[i]);
             }
-            //LUCENE 4 UPGRADE this mapps the 3.6 behavior (only use the first field)
+            // LUCENE 4 UPGRADE this mapps the 3.6 behavior (only use the first field)
             Query mltQuery = mlt.like(moreLikeFields[0], readers);
             mltQuery = Queries.applyMinimumShouldMatch((BooleanQuery) mltQuery, minimumShouldMatch);
             bqBuilder.add(mltQuery, BooleanClause.Occur.SHOULD);
@@ -212,10 +211,6 @@ public class MoreLikeThisQuery extends Query {
         return (likeText == null ? null : likeText[0]);
     }
 
-    public String[] getLikeTexts() {
-        return likeText;
-    }
-
     public void setLikeText(String... likeText) {
         this.likeText = likeText;
     }
@@ -226,10 +221,6 @@ public class MoreLikeThisQuery extends Query {
 
     public void setLikeFields(Fields... likeFields) {
         this.likeFields = likeFields;
-    }
-
-    public void setLikeText(List<String> likeText) {
-        setLikeText(likeText.toArray(Strings.EMPTY_ARRAY));
     }
 
     public void setUnlikeFields(Fields... unlikeFields) {
@@ -248,13 +239,9 @@ public class MoreLikeThisQuery extends Query {
         this.moreLikeFields = moreLikeFields;
     }
 
-    public Similarity getSimilarity() {
-        return similarity;
-    }
-
     public void setSimilarity(Similarity similarity) {
         if (similarity == null || similarity instanceof TFIDFSimilarity) {
-            //LUCENE 4 UPGRADE we need TFIDF similarity here so I only set it if it is an instance of it
+            // LUCENE 4 UPGRADE we need TFIDF similarity here so I only set it if it is an instance of it
             this.similarity = (TFIDFSimilarity) similarity;
         }
     }
@@ -266,16 +253,6 @@ public class MoreLikeThisQuery extends Query {
     public void setAnalyzer(String analyzerName, Analyzer analyzer) {
         this.analyzer = analyzer;
         this.analyzerName = analyzerName;
-    }
-
-    /**
-     * Number of terms that must match the generated query expressed in the
-     * common syntax for minimum should match.
-     *
-     * @see    org.elasticsearch.common.lucene.search.Queries#calculateMinShouldMatch(int, String)
-     */
-    public String getMinimumShouldMatch() {
-        return minimumShouldMatch;
     }
 
     /**
@@ -307,56 +284,28 @@ public class MoreLikeThisQuery extends Query {
         this.maxQueryTerms = maxQueryTerms;
     }
 
-    public Set<?> getStopWords() {
-        return stopWords;
-    }
-
     public void setStopWords(Set<?> stopWords) {
         this.stopWords = stopWords;
-    }
-
-    public int getMinDocFreq() {
-        return minDocFreq;
     }
 
     public void setMinDocFreq(int minDocFreq) {
         this.minDocFreq = minDocFreq;
     }
 
-    public int getMaxDocFreq() {
-        return maxDocFreq;
-    }
-
     public void setMaxDocFreq(int maxDocFreq) {
         this.maxDocFreq = maxDocFreq;
-    }
-
-    public int getMinWordLen() {
-        return minWordLen;
     }
 
     public void setMinWordLen(int minWordLen) {
         this.minWordLen = minWordLen;
     }
 
-    public int getMaxWordLen() {
-        return maxWordLen;
-    }
-
     public void setMaxWordLen(int maxWordLen) {
         this.maxWordLen = maxWordLen;
     }
 
-    public boolean isBoostTerms() {
-        return boostTerms;
-    }
-
     public void setBoostTerms(boolean boostTerms) {
         this.boostTerms = boostTerms;
-    }
-
-    public float getBoostTermsFactor() {
-        return boostTermsFactor;
     }
 
     public void setBoostTermsFactor(float boostTermsFactor) {

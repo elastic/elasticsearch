@@ -6,15 +6,16 @@
  */
 package org.elasticsearch.xpack.analytics.stringstats;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -49,8 +50,15 @@ public class StringStatsAggregator extends MetricsAggregator {
     /** Map that stores the number of occurrences for each character. */
     Map<Character, LongArray> charOccurrences;
 
-    StringStatsAggregator(String name, ValuesSource valuesSource, boolean showDistribution, DocValueFormat format,
-                          AggregationContext context, Aggregator parent, Map<String, Object> metadata) throws IOException {
+    StringStatsAggregator(
+        String name,
+        ValuesSource valuesSource,
+        boolean showDistribution,
+        DocValueFormat format,
+        AggregationContext context,
+        Aggregator parent,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, context, parent, metadata);
         this.showDistribution = showDistribution;
         this.valuesSource = (ValuesSource.Bytes) valuesSource;
@@ -72,12 +80,11 @@ public class StringStatsAggregator extends MetricsAggregator {
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
-                                                final LeafBucketCollector sub) throws IOException {
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, final LeafBucketCollector sub) throws IOException {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-        final SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
+        final SortedBinaryDocValues values = valuesSource.bytesValues(aggCtx.getLeafReaderContext());
 
         return new LeafBucketCollectorBase(sub, values) {
             @Override
@@ -138,7 +145,7 @@ public class StringStatsAggregator extends MetricsAggregator {
 
         // Convert Map entries: Character -> String and LongArray -> Long
         // Include only characters that have at least one occurrence
-        Map<String, Long> occurrences = new HashMap<>(charOccurrences.size());
+        Map<String, Long> occurrences = Maps.newMapWithExpectedSize(charOccurrences.size());
         for (Map.Entry<Character, LongArray> e : charOccurrences.entrySet()) {
             if (e.getValue().size() > bucket) {
                 long occ = e.getValue().get(bucket);
@@ -148,16 +155,32 @@ public class StringStatsAggregator extends MetricsAggregator {
             }
         }
 
-        return new InternalStringStats(name, count.get(bucket), totalLength.get(bucket),
-            minLength.get(bucket), maxLength.get(bucket), occurrences, showDistribution,
-            format, metadata());
+        return new InternalStringStats(
+            name,
+            count.get(bucket),
+            totalLength.get(bucket),
+            minLength.get(bucket),
+            maxLength.get(bucket),
+            occurrences,
+            showDistribution,
+            format,
+            metadata()
+        );
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalStringStats(name,
-            0, 0, Integer.MAX_VALUE, Integer.MIN_VALUE,
-            Collections.emptyMap(), showDistribution, format, metadata());
+        return new InternalStringStats(
+            name,
+            0,
+            0,
+            Integer.MAX_VALUE,
+            Integer.MIN_VALUE,
+            Collections.emptyMap(),
+            showDistribution,
+            format,
+            metadata()
+        );
     }
 
     @Override

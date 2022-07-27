@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.utils;
 
-import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.ToXContentObject;
 
 /**
  * Simple interface for XContent Objects that are named.

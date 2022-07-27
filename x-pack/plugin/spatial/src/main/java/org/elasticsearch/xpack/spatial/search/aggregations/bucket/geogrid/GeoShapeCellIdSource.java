@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValue
 
 import java.util.function.LongConsumer;
 
-public class GeoShapeCellIdSource  extends ValuesSource.Numeric {
+public class GeoShapeCellIdSource extends ValuesSource.Numeric {
     private final GeoShapeValuesSource valuesSource;
     private final GeoGridTiler encoder;
     private LongConsumer circuitBreakerConsumer;

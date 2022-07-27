@@ -6,16 +6,15 @@
  */
 package org.elasticsearch.xpack.security.rest.action.privilege;
 
-import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
@@ -43,10 +42,8 @@ public class RestPutPrivilegesAction extends SecurityBaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.builder(PUT, "/_security/privilege/")
-                .replaces(PUT, "/_xpack/security/privilege/", RestApiVersion.V_7).build(),
-            Route.builder(POST, "/_security/privilege/")
-                .replaces(POST, "/_xpack/security/privilege/", RestApiVersion.V_7).build()
+            Route.builder(PUT, "/_security/privilege/").replaces(PUT, "/_xpack/security/privilege/", RestApiVersion.V_7).build(),
+            Route.builder(POST, "/_security/privilege/").replaces(POST, "/_xpack/security/privilege/", RestApiVersion.V_7).build()
         );
     }
 
@@ -57,9 +54,10 @@ public class RestPutPrivilegesAction extends SecurityBaseRestHandler {
 
     @Override
     public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
-        PutPrivilegesRequestBuilder requestBuilder = new PutPrivilegesRequestBuilder(client)
-            .source(request.requiredContent(), request.getXContentType())
-            .setRefreshPolicy(request.param("refresh"));
+        PutPrivilegesRequestBuilder requestBuilder = new PutPrivilegesRequestBuilder(client).source(
+            request.requiredContent(),
+            request.getXContentType()
+        ).setRefreshPolicy(request.param("refresh"));
 
         return execute(requestBuilder);
     }
@@ -80,7 +78,7 @@ public class RestPutPrivilegesAction extends SecurityBaseRestHandler {
                     result.get(privilege.getApplication()).put(name, Collections.singletonMap("created", created));
                 });
                 builder.map(result);
-                return new BytesRestResponse(RestStatus.OK, builder);
+                return new RestResponse(RestStatus.OK, builder);
             }
         });
     }

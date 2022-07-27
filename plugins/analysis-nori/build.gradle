@@ -5,7 +5,7 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 esplugin {
@@ -14,7 +14,7 @@ esplugin {
 }
 
 dependencies {
-  api "org.apache.lucene:lucene-analyzers-nori:${versions.lucene}"
+  api "org.apache.lucene:lucene-analysis-nori:${versions.lucene}"
 }
 
 restResources {
@@ -25,13 +25,4 @@ restResources {
 
 tasks.named("dependencyLicenses").configure {
   mapping from: /lucene-.*/, to: 'lucene'
-}
-
-tasks.named('splitPackagesAudit').configure {
-    // Lucene packages should be owned by Lucene!
-  ignoreClasses 'org.elasticsearch.index.analysis.NoriAnalyzerProvider',
-    'org.elasticsearch.index.analysis.NoriNumberFilterFactory',
-    'org.elasticsearch.index.analysis.NoriPartOfSpeechStopFilterFactory',
-    'org.elasticsearch.index.analysis.NoriReadingFormFilterFactory',
-    'org.elasticsearch.index.analysis.NoriTokenizerFactory'
 }

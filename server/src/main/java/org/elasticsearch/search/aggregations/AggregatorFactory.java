@@ -9,9 +9,11 @@
 package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.elasticsearch.search.aggregations.support.AggregationUsageService.OTHER_SUBTYPE;
 
@@ -31,8 +33,13 @@ public abstract class AggregatorFactory {
      * @throws IOException
      *             if an error occurs creating the factory
      */
-    public AggregatorFactory(String name, AggregationContext context, AggregatorFactory parent,
-                             AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metadata) throws IOException {
+    public AggregatorFactory(
+        String name,
+        AggregationContext context,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder,
+        Map<String, Object> metadata
+    ) throws IOException {
         this.name = name;
         this.context = context;
         this.parent = parent;
@@ -40,12 +47,23 @@ public abstract class AggregatorFactory {
         this.metadata = metadata;
     }
 
+    /**
+     * Climbs up the aggregation factory tree to find the sampling context if one exists.
+     * @return Optional SamplingContext
+     */
+    public Optional<SamplingContext> getSamplingContext() {
+        if (parent != null) {
+            return parent.getSamplingContext();
+        } else {
+            return Optional.empty();
+        }
+    }
+
     public String name() {
         return name;
     }
 
-    public void doValidate() {
-    }
+    public void doValidate() {}
 
     protected abstract Aggregator createInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
         throws IOException;

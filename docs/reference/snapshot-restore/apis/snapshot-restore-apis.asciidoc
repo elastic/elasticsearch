@@ -9,7 +9,7 @@ For more information, see <<snapshot-restore>>.
 [discrete]
 [[snapshot-restore-repo-apis]]
 === Snapshot repository management APIs
-* <<put-snapshot-repo-api,Create or snapshot repository>>
+* <<put-snapshot-repo-api,Create or update snapshot repository>>
 * <<verify-snapshot-repo-api,Verify snapshot repository>>
 * <<get-snapshot-repo-api,Get snapshot repository>>
 * <<delete-snapshot-repo-api,Delete snapshot repository>>

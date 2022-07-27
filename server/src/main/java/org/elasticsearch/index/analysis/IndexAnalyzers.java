@@ -7,13 +7,12 @@
  */
 package org.elasticsearch.index.analysis;
 
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.unmodifiableMap;
@@ -33,12 +32,16 @@ public final class IndexAnalyzers implements Closeable {
     private final Map<String, NamedAnalyzer> normalizers;
     private final Map<String, NamedAnalyzer> whitespaceNormalizers;
 
-    public IndexAnalyzers(Map<String, NamedAnalyzer> analyzers, Map<String, NamedAnalyzer> normalizers,
-            Map<String, NamedAnalyzer> whitespaceNormalizers) {
+    public IndexAnalyzers(
+        Map<String, NamedAnalyzer> analyzers,
+        Map<String, NamedAnalyzer> normalizers,
+        Map<String, NamedAnalyzer> whitespaceNormalizers
+    ) {
         Objects.requireNonNull(analyzers.get(DEFAULT_ANALYZER_NAME), "the default analyzer must be set");
         if (analyzers.get(DEFAULT_ANALYZER_NAME).name().equals(DEFAULT_ANALYZER_NAME) == false) {
             throw new IllegalStateException(
-                    "default analyzer must have the name [default] but was: [" + analyzers.get(DEFAULT_ANALYZER_NAME).name() + "]");
+                "default analyzer must have the name [default] but was: [" + analyzers.get(DEFAULT_ANALYZER_NAME).name() + "]"
+            );
         }
         this.analyzers = unmodifiableMap(analyzers);
         this.normalizers = unmodifiableMap(normalizers);
@@ -96,9 +99,11 @@ public final class IndexAnalyzers implements Closeable {
 
     @Override
     public void close() throws IOException {
-        IOUtils.close(Stream.of(analyzers.values().stream(), normalizers.values().stream(), whitespaceNormalizers.values().stream())
-            .flatMap(s -> s)
-            .filter(a -> a.scope() == AnalyzerScope.INDEX)
-            .collect(Collectors.toList()));
+        IOUtils.close(
+            Stream.of(analyzers.values().stream(), normalizers.values().stream(), whitespaceNormalizers.values().stream())
+                .flatMap(s -> s)
+                .filter(a -> a.scope() == AnalyzerScope.INDEX)
+                .toList()
+        );
     }
 }

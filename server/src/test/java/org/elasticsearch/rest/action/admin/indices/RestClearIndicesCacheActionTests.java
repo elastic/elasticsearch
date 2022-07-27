@@ -22,8 +22,7 @@ public class RestClearIndicesCacheActionTests extends ESTestCase {
     public void testRequestCacheSet() throws Exception {
         final HashMap<String, String> params = new HashMap<>();
         params.put("request", "true");
-        final RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry())
-                                                           .withParams(params).build();
+        final RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withParams(params).build();
         ClearIndicesCacheRequest cacheRequest = new ClearIndicesCacheRequest();
         cacheRequest = RestClearIndicesCacheAction.fromRequest(restRequest, cacheRequest);
         assertThat(cacheRequest.requestCache(), equalTo(true));

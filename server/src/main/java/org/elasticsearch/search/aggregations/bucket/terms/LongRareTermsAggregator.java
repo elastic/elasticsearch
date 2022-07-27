@@ -9,10 +9,11 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.common.util.SetBackedScalingCuckooFilter;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
@@ -53,28 +54,19 @@ public class LongRareTermsAggregator extends AbstractRareTermsAggregator {
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        super(
-            name,
-            factories,
-            aggregationContext,
-            parent,
-            metadata,
-            maxDocCount,
-            precision,
-            format
-        );
+        super(name, factories, aggregationContext, parent, metadata, maxDocCount, precision, format);
         this.valuesSource = valuesSource;
         this.filter = filter;
         this.bucketOrds = LongKeyedBucketOrds.build(bigArrays(), cardinality);
     }
 
-    protected SortedNumericDocValues getValues(ValuesSource.Numeric valuesSource, LeafReaderContext ctx) throws IOException {
+    protected static SortedNumericDocValues getValues(ValuesSource.Numeric valuesSource, LeafReaderContext ctx) throws IOException {
         return valuesSource.longValues(ctx);
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
-        SortedNumericDocValues values = getValues(valuesSource, ctx);
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
+        SortedNumericDocValues values = getValues(valuesSource, aggCtx.getLeafReaderContext());
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int docId, long owningBucketOrd) throws IOException {

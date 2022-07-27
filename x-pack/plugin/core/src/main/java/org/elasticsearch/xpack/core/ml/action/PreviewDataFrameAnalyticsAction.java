@@ -10,14 +10,17 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
@@ -26,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.core.Strings.format;
 
 public class PreviewDataFrameAnalyticsAction extends ActionType<PreviewDataFrameAnalyticsAction.Response> {
 
@@ -42,10 +46,7 @@ public class PreviewDataFrameAnalyticsAction extends ActionType<PreviewDataFrame
 
         private final DataFrameAnalyticsConfig config;
 
-        static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>(
-            "preview_data_frame_analytics_response",
-            Request.Builder::new
-        );
+        static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("preview_data_frame_analytics_response", Request.Builder::new);
         static {
             PARSER.declareObject(Request.Builder::setConfig, DataFrameAnalyticsConfig.STRICT_PARSER::apply, CONFIG);
         }
@@ -78,7 +79,6 @@ public class PreviewDataFrameAnalyticsAction extends ActionType<PreviewDataFrame
             config.writeTo(out);
         }
 
-
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
@@ -90,6 +90,11 @@ public class PreviewDataFrameAnalyticsAction extends ActionType<PreviewDataFrame
         @Override
         public int hashCode() {
             return Objects.hash(config);
+        }
+
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, format("preview_data_frame_analytics[%s]", config.getId()), parentTaskId, headers);
         }
 
         public static class Builder {
@@ -121,10 +126,10 @@ public class PreviewDataFrameAnalyticsAction extends ActionType<PreviewDataFrame
         public static final ParseField FEATURE_VALUES = new ParseField("feature_values");
 
         @SuppressWarnings("unchecked")
-        static final ConstructingObjectParser<Response, Void> PARSER =
-            new ConstructingObjectParser<>(
-                TYPE.getPreferredName(),
-                args -> new Response((List<Map<String, Object>>) args[0]));
+        static final ConstructingObjectParser<Response, Void> PARSER = new ConstructingObjectParser<>(
+            TYPE.getPreferredName(),
+            args -> new Response((List<Map<String, Object>>) args[0])
+        );
 
         static {
             PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> p.map(), FEATURE_VALUES);
@@ -147,7 +152,7 @@ public class PreviewDataFrameAnalyticsAction extends ActionType<PreviewDataFrame
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeCollection(featureValues, StreamOutput::writeMap);
+            out.writeCollection(featureValues, StreamOutput::writeGenericMap);
         }
 
         @Override

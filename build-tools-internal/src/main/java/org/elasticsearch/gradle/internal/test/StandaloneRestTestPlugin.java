@@ -8,24 +8,20 @@
 
 package org.elasticsearch.gradle.internal.test;
 
-import org.elasticsearch.gradle.internal.ElasticsearchJavaPlugin;
 import org.elasticsearch.gradle.internal.ExportElasticsearchBuildResourcesTask;
-import org.elasticsearch.gradle.internal.RepositoriesSetupPlugin;
-import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.internal.precommit.InternalPrecommitTasks;
-import org.elasticsearch.gradle.testclusters.TestClustersPlugin;
+import org.elasticsearch.gradle.internal.test.rest.InternalJavaRestTestPlugin;
+import org.elasticsearch.gradle.internal.test.rest.InternalYamlRestTestPlugin;
+import org.elasticsearch.gradle.internal.test.rest.RestTestUtil;
 import org.gradle.api.InvalidUserDataException;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
-import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.plugins.JavaPlugin;
-import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.testing.Test;
 import org.gradle.plugins.ide.eclipse.model.EclipseModel;
-
 import org.gradle.plugins.ide.idea.model.IdeaModel;
 
 import java.util.Arrays;
@@ -35,7 +31,11 @@ import java.util.Map;
  * Configures the build to compile tests against Elasticsearch's test framework
  * and run REST tests. Use BuildPlugin if you want to build main code as well
  * as tests.
+ *
+ * @deprecated use {@link InternalClusterTestPlugin}, {@link InternalJavaRestTestPlugin} or
+ * {@link InternalYamlRestTestPlugin} instead.
  */
+@Deprecated
 public class StandaloneRestTestPlugin implements Plugin<Project> {
     @Override
     public void apply(final Project project) {
@@ -46,17 +46,9 @@ public class StandaloneRestTestPlugin implements Plugin<Project> {
         }
 
         project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
-        project.getPluginManager().apply(JavaBasePlugin.class);
-        project.getPluginManager().apply(TestClustersPlugin.class);
-        project.getPluginManager().apply(RepositoriesSetupPlugin.class);
         project.getPluginManager().apply(RestTestBasePlugin.class);
 
         project.getTasks().register("buildResources", ExportElasticsearchBuildResourcesTask.class);
-        ElasticsearchJavaPlugin.configureInputNormalization(project);
-        ElasticsearchJavaPlugin.configureCompile(project);
-
-        project.getExtensions().getByType(JavaPluginExtension.class).setSourceCompatibility(BuildParams.getMinimumRuntimeVersion());
-        project.getExtensions().getByType(JavaPluginExtension.class).setTargetCompatibility(BuildParams.getMinimumRuntimeVersion());
 
         // only setup tests to build
         SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
@@ -69,7 +61,7 @@ public class StandaloneRestTestPlugin implements Plugin<Project> {
 
         // create a compileOnly configuration as others might expect it
         project.getConfigurations().create("compileOnly");
-        project.getDependencies().add("testImplementation", project.project(":test:framework"));
+        RestTestUtil.setupJavaRestTestDependenciesDefaults(project, testSourceSet);
 
         EclipseModel eclipse = project.getExtensions().getByType(EclipseModel.class);
         eclipse.getClasspath().setSourceSets(Arrays.asList(testSourceSet));
@@ -86,6 +78,6 @@ public class StandaloneRestTestPlugin implements Plugin<Project> {
                 "TEST",
                 Map.of("plus", Arrays.asList(project.getConfigurations().getByName(JavaPlugin.TEST_RUNTIME_CLASSPATH_CONFIGURATION_NAME)))
             );
-        BuildParams.withInternalBuild(() -> InternalPrecommitTasks.create(project, false));
+        InternalPrecommitTasks.create(project, false);
     }
 }

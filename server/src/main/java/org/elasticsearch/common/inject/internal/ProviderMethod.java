@@ -21,14 +21,12 @@ import org.elasticsearch.common.inject.Exposed;
 import org.elasticsearch.common.inject.Key;
 import org.elasticsearch.common.inject.PrivateBinder;
 import org.elasticsearch.common.inject.Provider;
-import org.elasticsearch.common.inject.spi.Dependency;
 import org.elasticsearch.common.inject.spi.ProviderWithDependencies;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.List;
-import java.util.Set;
 
 /**
  * A provider that invokes a method and returns its result.
@@ -40,36 +38,25 @@ public class ProviderMethod<T> implements ProviderWithDependencies<T> {
     private final Class<? extends Annotation> scopeAnnotation;
     private final Object instance;
     private final Method method;
-    private final Set<Dependency<?>> dependencies;
     private final List<Provider<?>> parameterProviders;
     private final boolean exposed;
 
     /**
      * @param method the method to invoke. Its return type must be the same type as {@code key}.
      */
-    ProviderMethod(Key<T> key, Method method, Object instance,
-                   Set<Dependency<?>> dependencies, List<Provider<?>> parameterProviders,
-                   Class<? extends Annotation> scopeAnnotation) {
+    ProviderMethod(
+        Key<T> key,
+        Method method,
+        Object instance,
+        List<Provider<?>> parameterProviders,
+        Class<? extends Annotation> scopeAnnotation
+    ) {
         this.key = key;
         this.scopeAnnotation = scopeAnnotation;
         this.instance = instance;
-        this.dependencies = dependencies;
         this.method = method;
         this.parameterProviders = parameterProviders;
         this.exposed = method.getAnnotation(Exposed.class) != null;
-    }
-
-    public Key<T> getKey() {
-        return key;
-    }
-
-    public Method getMethod() {
-        return method;
-    }
-
-    // exposed for GIN
-    public Object getInstance() {
-        return instance;
     }
 
     public void configure(Binder binder) {
@@ -97,7 +84,7 @@ public class ProviderMethod<T> implements ProviderWithDependencies<T> {
 
         try {
             // We know this cast is safe because T is the method's return type.
-            @SuppressWarnings({"unchecked"})
+            @SuppressWarnings({ "unchecked" })
             T result = (T) method.invoke(instance, parameters);
             return result;
         } catch (IllegalAccessException e) {
@@ -107,8 +94,4 @@ public class ProviderMethod<T> implements ProviderWithDependencies<T> {
         }
     }
 
-    @Override
-    public Set<Dependency<?>> getDependencies() {
-        return dependencies;
-    }
 }

@@ -40,8 +40,15 @@ public class Sub extends DateTimeArithmeticOperation implements BinaryComparison
             return resolution;
         }
         if ((SqlDataTypes.isDateOrTimeBased(right().dataType())) && SqlDataTypes.isInterval(left().dataType())) {
-            return new TypeResolution(format(null, "Cannot subtract a {}[{}] from an interval[{}]; do you mean the reverse?",
-                right().dataType().typeName(), right().source().text(), left().source().text()));
+            return new TypeResolution(
+                format(
+                    null,
+                    "Cannot subtract a {}[{}] from an interval[{}]; do you mean the reverse?",
+                    right().dataType().typeName(),
+                    right().source().text(),
+                    left().source().text()
+                )
+            );
         }
         return TypeResolution.TYPE_RESOLVED;
     }

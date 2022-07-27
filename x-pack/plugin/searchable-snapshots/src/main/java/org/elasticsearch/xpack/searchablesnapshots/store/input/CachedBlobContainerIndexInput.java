@@ -27,7 +27,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.IntStream;
 
-import static org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsUtils.toIntBytes;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUtils.toIntBytes;
 
 public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
 
@@ -102,8 +102,8 @@ public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
 
     @Override
     protected long getDefaultRangeSize() {
-        return (context != CACHE_WARMING_CONTEXT)
-            ? (directory.isRecoveryFinalized() ? defaultRangeSize : recoveryRangeSize)
+        return (context != CACHE_WARMING_CONTEXT) ? (directory.isRecoveryFinalized() ? defaultRangeSize : recoveryRangeSize)
+            : fileInfo.numberOfParts() == 1 ? Long.MAX_VALUE
             : fileInfo.partSize().getBytes();
     }
 

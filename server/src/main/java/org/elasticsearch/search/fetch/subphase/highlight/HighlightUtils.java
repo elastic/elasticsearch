@@ -17,6 +17,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -25,7 +26,7 @@ import static java.util.Collections.singleton;
 
 public final class HighlightUtils {
 
-    //U+2029 PARAGRAPH SEPARATOR (PS): each value holds a discrete passage for highlighting (unified highlighter)
+    // U+2029 PARAGRAPH SEPARATOR (PS): each value holds a discrete passage for highlighting (unified highlighter)
     public static final char PARAGRAPH_SEPARATOR = 8233;
     public static final char NULL_SEPARATOR = '\u0000';
 
@@ -36,10 +37,12 @@ public final class HighlightUtils {
     /**
      * Load field values for highlighting.
      */
-    public static List<Object> loadFieldValues(MappedFieldType fieldType,
-                                               SearchExecutionContext searchContext,
-                                               FetchSubPhase.HitContext hitContext,
-                                               boolean forceSource) throws IOException {
+    public static List<Object> loadFieldValues(
+        MappedFieldType fieldType,
+        SearchExecutionContext searchContext,
+        FetchSubPhase.HitContext hitContext,
+        boolean forceSource
+    ) throws IOException {
         if (forceSource == false && fieldType.isStored()) {
             CustomFieldsVisitor fieldVisitor = new CustomFieldsVisitor(singleton(fieldType.name()), false);
             hitContext.reader().document(hitContext.docId(), fieldVisitor);
@@ -48,7 +51,7 @@ public final class HighlightUtils {
         }
         ValueFetcher fetcher = fieldType.valueFetcher(searchContext, null);
         fetcher.setNextReader(hitContext.readerContext());
-        return fetcher.fetchValues(hitContext.sourceLookup());
+        return fetcher.fetchValues(hitContext.sourceLookup(), new ArrayList<Object>());
     }
 
     public static class Encoders {

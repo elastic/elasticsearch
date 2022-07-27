@@ -12,19 +12,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.stream.Collectors;
-
 import static org.hamcrest.Matchers.contains;
 
 public class KibanaPluginTests extends ESTestCase {
 
     public void testKibanaIndexNames() {
         assertThat(
-            new KibanaPlugin().getSystemIndexDescriptors(Settings.EMPTY)
-                .stream()
-                .map(SystemIndexDescriptor::getIndexPattern)
-                .collect(Collectors.toUnmodifiableList()),
-            contains(".kibana_*", ".reporting-*", ".apm-agent-configuration", ".apm-custom-link")
+            new KibanaPlugin().getSystemIndexDescriptors(Settings.EMPTY).stream().map(SystemIndexDescriptor::getIndexPattern).toList(),
+            contains(".kibana_*", ".reporting-*", ".apm-agent-configuration*", ".apm-custom-link*")
         );
     }
 }

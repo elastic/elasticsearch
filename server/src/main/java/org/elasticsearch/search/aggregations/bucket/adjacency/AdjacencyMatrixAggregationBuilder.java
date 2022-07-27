@@ -8,29 +8,29 @@
 
 package org.elasticsearch.search.aggregations.bucket.adjacency;
 
-import org.apache.lucene.search.BooleanQuery;
-import org.elasticsearch.common.xcontent.ParseField;
+import org.apache.lucene.search.IndexSearcher;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
-import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.adjacency.AdjacencyMatrixAggregator.KeyedFilter;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -46,8 +46,10 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
     private List<KeyedFilter> filters;
     private String separator = DEFAULT_SEPARATOR;
 
-    private static final ObjectParser<AdjacencyMatrixAggregationBuilder, String> PARSER =
-            ObjectParser.fromBuilder(NAME, AdjacencyMatrixAggregationBuilder::new);
+    private static final ObjectParser<AdjacencyMatrixAggregationBuilder, String> PARSER = ObjectParser.fromBuilder(
+        NAME,
+        AdjacencyMatrixAggregationBuilder::new
+    );
     static {
         PARSER.declareString(AdjacencyMatrixAggregationBuilder::separator, SEPARATOR_FIELD);
         PARSER.declareNamedObjects(AdjacencyMatrixAggregationBuilder::setFiltersAsList, KeyedFilter.PARSER, FILTERS_FIELD);
@@ -67,7 +69,6 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
         super(name);
     }
 
-
     /**
      * @param name
      *            the name of this aggregation
@@ -78,8 +79,11 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
         this(name, DEFAULT_SEPARATOR, filters);
     }
 
-    protected AdjacencyMatrixAggregationBuilder(AdjacencyMatrixAggregationBuilder clone,
-                                                Builder factoriesBuilder, Map<String, Object> metadata) {
+    protected AdjacencyMatrixAggregationBuilder(
+        AdjacencyMatrixAggregationBuilder clone,
+        Builder factoriesBuilder,
+        Map<String, Object> metadata
+    ) {
         super(clone, factoriesBuilder, metadata);
         this.filters = new ArrayList<>(clone.filters);
         this.separator = clone.separator;
@@ -88,6 +92,11 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
     @Override
     protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
         return new AdjacencyMatrixAggregationBuilder(this, factoriesBuilder, metadata);
+    }
+
+    @Override
+    public boolean supportsSampling() {
+        return true;
     }
 
     /**
@@ -130,7 +139,7 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
 
     private void checkConsistency() {
         if ((filters == null) || (filters.size() == 0)) {
-            throw new IllegalStateException("[" + name  + "] is missing : " + FILTERS_FIELD.getPreferredName() + " parameter");
+            throw new IllegalStateException("[" + name + "] is missing : " + FILTERS_FIELD.getPreferredName() + " parameter");
         }
     }
 
@@ -152,8 +161,6 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
         Collections.sort(this.filters, Comparator.comparing(KeyedFilter::key));
         return this;
     }
-
-
 
     /**
      * Set the separator used to join pairs of bucket keys
@@ -177,7 +184,7 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
      * Get the filters. This will be an unmodifiable map
      */
     public Map<String, QueryBuilder> filters() {
-        Map<String, QueryBuilder>result = new HashMap<>(this.filters.size());
+        Map<String, QueryBuilder> result = Maps.newMapWithExpectedSize(this.filters.size());
         for (KeyedFilter keyedFilter : this.filters) {
             result.put(keyedFilter.key(), keyedFilter.filter());
         }
@@ -201,14 +208,17 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
 
     @Override
     protected AggregatorFactory doBuild(AggregationContext context, AggregatorFactory parent, Builder subFactoriesBuilder)
-            throws IOException {
-        int maxFilters = BooleanQuery.getMaxClauseCount();
-        if (filters.size() > maxFilters){
+        throws IOException {
+        int maxFilters = IndexSearcher.getMaxClauseCount();
+        if (filters.size() > maxFilters) {
             throw new IllegalArgumentException(
-                    "Number of filters is too large, must be less than or equal to: [" + maxFilters + "] but was ["
-                            + filters.size() + "]."
-                            + "This limit can be set by changing the [" + SearchModule.INDICES_MAX_CLAUSE_COUNT_SETTING.getKey()
-                            + "] setting.");
+                "Number of filters is too large, must be less than or equal to: ["
+                    + maxFilters
+                    + "] but was ["
+                    + filters.size()
+                    + "].  "
+                    + "You can increase this limit by scaling up your java heap"
+            );
         }
         return new AdjacencyMatrixAggregatorFactory(name, filters, separator, context, parent, subFactoriesBuilder, metadata);
     }
@@ -248,5 +258,10 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
     @Override
     public String getType() {
         return NAME;
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
     }
 }

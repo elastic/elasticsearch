@@ -9,6 +9,7 @@
 package org.elasticsearch.gradle.internal.test.rest.transform;
 
 import com.fasterxml.jackson.databind.JsonNode;
+
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.Optional;
 
@@ -53,7 +54,7 @@ public abstract class ReplaceByKey implements RestTestTransformByParentObject {
 
     @Override
     public boolean shouldApply(RestTestContext testContext) {
-        return testName == null || testContext.getTestName().equals(testName);
+        return testName == null || testContext.testName().equals(testName);
     }
 
     @Input

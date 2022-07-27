@@ -37,7 +37,7 @@ public class DateTimeProcessor extends BaseDateTimeProcessor {
         DateTimeExtractor(TemporalField field) {
             this.field = field;
         }
-        
+
         public int extract(Temporal time) {
             return time.get(field);
         }
@@ -95,8 +95,7 @@ public class DateTimeProcessor extends BaseDateTimeProcessor {
             return false;
         }
         DateTimeProcessor other = (DateTimeProcessor) obj;
-        return Objects.equals(extractor, other.extractor)
-                && Objects.equals(zoneId(), other.zoneId());
+        return Objects.equals(extractor, other.extractor) && Objects.equals(zoneId(), other.zoneId());
     }
 
     @Override

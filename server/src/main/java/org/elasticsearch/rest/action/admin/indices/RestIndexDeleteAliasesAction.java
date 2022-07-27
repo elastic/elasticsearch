@@ -9,7 +9,7 @@ package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -24,9 +24,7 @@ public class RestIndexDeleteAliasesAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(DELETE, "/{index}/_alias/{name}"),
-            new Route(DELETE, "/{index}/_aliases/{name}"));
+        return List.of(new Route(DELETE, "/{index}/_alias/{name}"), new Route(DELETE, "/{index}/_aliases/{name}"));
     }
 
     @Override

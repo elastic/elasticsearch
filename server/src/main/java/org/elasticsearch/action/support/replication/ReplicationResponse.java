@@ -13,15 +13,15 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -135,10 +135,7 @@ public class ReplicationResponse extends ActionResponse {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVInt(total);
             out.writeVInt(successful);
-            out.writeVInt(failures.length);
-            for (Failure failure : failures) {
-                failure.writeTo(out);
-            }
+            out.writeArray(failures);
         }
 
         @Override
@@ -198,11 +195,7 @@ public class ReplicationResponse extends ActionResponse {
 
         @Override
         public String toString() {
-            return "ShardInfo{" +
-                "total=" + total +
-                ", successful=" + successful +
-                ", failures=" + Arrays.toString(failures) +
-                '}';
+            return "ShardInfo{" + "total=" + total + ", successful=" + successful + ", failures=" + Arrays.toString(failures) + '}';
         }
 
         public static class Failure extends ShardOperationFailedException implements ToXContentObject {
@@ -228,7 +221,7 @@ public class ReplicationResponse extends ActionResponse {
                 primary = in.readBoolean();
             }
 
-            public Failure(ShardId  shardId, @Nullable String nodeId, Exception cause, RestStatus status, boolean primary) {
+            public Failure(ShardId shardId, @Nullable String nodeId, Exception cause, RestStatus status, boolean primary) {
                 super(shardId.getIndexName(), shardId.getId(), ExceptionsHelper.stackTrace(cause), status, cause);
                 this.shardId = shardId;
                 this.nodeId = nodeId;

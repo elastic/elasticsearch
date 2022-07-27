@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[search-aggregations-pipeline-moving-percentiles-aggregation]]
 === Moving percentiles aggregation
 ++++

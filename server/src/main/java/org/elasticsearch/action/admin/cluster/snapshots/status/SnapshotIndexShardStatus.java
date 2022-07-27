@@ -13,22 +13,22 @@ import org.elasticsearch.action.support.broadcast.BroadcastShardResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class SnapshotIndexShardStatus extends BroadcastShardResponse implements ToXContentFragment {
 
@@ -60,25 +60,14 @@ public class SnapshotIndexShardStatus extends BroadcastShardResponse implements 
 
     SnapshotIndexShardStatus(ShardId shardId, IndexShardSnapshotStatus.Copy indexShardStatus, String nodeId) {
         super(shardId);
-        switch (indexShardStatus.getStage()) {
-            case INIT:
-                stage = SnapshotIndexShardStage.INIT;
-                break;
-            case STARTED:
-                stage = SnapshotIndexShardStage.STARTED;
-                break;
-            case FINALIZE:
-                stage = SnapshotIndexShardStage.FINALIZE;
-                break;
-            case DONE:
-                stage = SnapshotIndexShardStage.DONE;
-                break;
-            case FAILURE:
-                stage = SnapshotIndexShardStage.FAILURE;
-                break;
-            default:
-                throw new IllegalArgumentException("Unknown stage type " + indexShardStatus.getStage());
-        }
+        stage = switch (indexShardStatus.getStage()) {
+            case INIT -> SnapshotIndexShardStage.INIT;
+            case STARTED -> SnapshotIndexShardStage.STARTED;
+            case FINALIZE -> SnapshotIndexShardStage.FINALIZE;
+            case DONE -> SnapshotIndexShardStage.DONE;
+            case FAILURE -> SnapshotIndexShardStage.FAILURE;
+            default -> throw new IllegalArgumentException("Unknown stage type " + indexShardStatus.getStage());
+        };
         this.stats = new SnapshotStats(
             indexShardStatus.getStartTime(),
             indexShardStatus.getTotalTime(),

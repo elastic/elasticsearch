@@ -19,6 +19,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isBoolean;
 import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
 
@@ -48,18 +49,23 @@ public class Iif extends Case implements OptionalArgument {
             return TypeResolution.TYPE_RESOLVED;
         }
 
-        TypeResolution conditionTypeResolution = isBoolean(conditions().get(0).condition(), sourceText(), Expressions.ParamOrdinal.FIRST);
+        TypeResolution conditionTypeResolution = isBoolean(conditions().get(0).condition(), sourceText(), FIRST);
         if (conditionTypeResolution.unresolved()) {
             return conditionTypeResolution;
         }
 
         DataType resultDataType = conditions().get(0).dataType();
         if (SqlDataTypes.areCompatible(resultDataType, elseResult().dataType()) == false) {
-            return new TypeResolution(format(null, "third argument of [{}] must be [{}], found value [{}] type [{}]",
-                sourceText(),
-                resultDataType.typeName(),
-                Expressions.name(elseResult()),
-                elseResult().dataType().typeName()));
+            return new TypeResolution(
+                format(
+                    null,
+                    "third argument of [{}] must be [{}], found value [{}] type [{}]",
+                    sourceText(),
+                    resultDataType.typeName(),
+                    Expressions.name(elseResult()),
+                    elseResult().dataType().typeName()
+                )
+            );
         }
         return TypeResolution.TYPE_RESOLVED;
     }

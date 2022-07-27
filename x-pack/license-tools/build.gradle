@@ -3,6 +3,7 @@ apply plugin: 'elasticsearch.build'
 dependencies {
   api project(':x-pack:plugin:core')
   api project(':server')
+  api project(':distribution:tools:cli-launcher')
   testImplementation project(':test:framework')
 }
 
@@ -14,7 +15,7 @@ tasks.named("dependencyLicenses").configure { enabled = false }
 
 tasks.register("buildZip", Zip) {
   dependsOn "jar"
-  String parentDir = "license-tools-${archiveVersion}"
+  String parentDir = "license-tools-${project.version}"
   into(parentDir + '/lib') {
     from jar
     from configurations.runtimeClasspath

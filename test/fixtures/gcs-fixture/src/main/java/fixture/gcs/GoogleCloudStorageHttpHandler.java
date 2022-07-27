@@ -12,7 +12,6 @@ import com.sun.net.httpserver.HttpHandler;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -20,11 +19,8 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestUtils;
 
@@ -33,7 +29,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URLDecoder;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -48,10 +43,11 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.function.BiFunction;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 import java.util.zip.GZIPInputStream;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
+import static java.util.stream.Collectors.joining;
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * Minimal HTTP handler that acts as a Google Cloud Storage compliant server
@@ -118,11 +114,9 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                     }
                 }
 
-                byte[] response = ("{\"kind\":\"storage#objects\",\"items\":["
-                    + String.join(",", listOfBlobs)
-                    + "],\"prefixes\":["
-                    + String.join(",", prefixes)
-                    + "]}").getBytes(UTF_8);
+                byte[] response = ("""
+                    {"kind":"storage#objects","items":[%s],"prefixes":[%s]}\
+                    """.formatted(String.join(",", listOfBlobs), String.join(",", prefixes))).getBytes(UTF_8);
 
                 exchange.getResponseHeaders().add("Content-Type", "application/json; charset=utf-8");
                 exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
@@ -189,7 +183,9 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 if (content.isPresent()) {
                     blobs.put(content.get().v1(), content.get().v2());
 
-                    byte[] response = ("{\"bucket\":\"" + bucket + "\",\"name\":\"" + content.get().v1() + "\"}").getBytes(UTF_8);
+                    byte[] response = """
+                        {"bucket":"%s","name":"%s"}
+                        """.formatted(bucket, content.get().v1()).getBytes(UTF_8);
                     exchange.getResponseHeaders().add("Content-Type", "application/json");
                     exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
                     exchange.getResponseBody().write(response);
@@ -211,11 +207,6 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 blobs.put(blobName, BytesArray.EMPTY);
 
                 byte[] response = requestBody.utf8ToString().getBytes(UTF_8);
-                if (Paths.get(blobName).getFileName().toString().startsWith(BlobStoreRepository.UPLOADED_DATA_BLOB_PREFIX) == false) {
-                    final Map<String, Object> parsedBody = XContentHelper.convertToMap(requestBody, false, XContentType.JSON).v2();
-                    assert parsedBody.get("md5Hash") != null
-                        : "file [" + blobName + "] is not a data blob but did not come with a md5 checksum";
-                }
                 exchange.getResponseHeaders().add("Content-Type", "application/json");
                 exchange.getResponseHeaders()
                     .add(
@@ -246,14 +237,16 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 BytesReference blob = blobs.get(blobName);
                 final String range = exchange.getRequestHeaders().getFirst("Content-Range");
                 final Integer limit = getContentRangeLimit(range);
-                final int start = getContentRangeStart(range);
-                final int end = getContentRangeEnd(range);
 
                 blob = CompositeBytesReference.of(blob, requestBody);
                 blobs.put(blobName, blob);
 
                 if (limit == null) {
-                    exchange.getResponseHeaders().add("Range", String.format(Locale.ROOT, "bytes=%d/%d", start, end));
+                    if ("bytes */*".equals(range) == false) {
+                        final int start = getContentRangeStart(range);
+                        final int end = getContentRangeEnd(range);
+                        exchange.getResponseHeaders().add("Range", String.format(Locale.ROOT, "bytes=%d-%d", start, end));
+                    }
                     exchange.getResponseHeaders().add("Content-Length", "0");
                     exchange.sendResponseHeaders(308 /* Resume Incomplete */, -1);
                 } else {
@@ -273,20 +266,9 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
     }
 
     private String buildBlobInfoJson(String blobName, int size) {
-        return "{\"kind\":\"storage#object\","
-            + "\"bucket\":\""
-            + bucket
-            + "\","
-            + "\"name\":\""
-            + blobName
-            + "\","
-            + "\"id\":\""
-            + blobName
-            + "\","
-            + "\"size\":\""
-            + size
-            + "\""
-            + "}";
+        return """
+            {"kind":"storage#object","bucket":"%s","name":"%s","id":"%s","size":"%s"}
+            """.formatted(bucket, blobName, blobName, size);
     }
 
     public Map<String, BytesReference> blobs() {
@@ -351,9 +333,9 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
         if (content == null) {
             final InputStream stream = fullRequestBody.streamInput();
             logger.warn(
-                () -> new ParameterizedMessage(
-                    "Failed to find multi-part upload in [{}]",
-                    new BufferedReader(new InputStreamReader(stream)).lines().collect(Collectors.joining("\n"))
+                () -> format(
+                    "Failed to find multi-part upload in [%s]",
+                    new BufferedReader(new InputStreamReader(stream)).lines().collect(joining("\n"))
                 )
             );
         }

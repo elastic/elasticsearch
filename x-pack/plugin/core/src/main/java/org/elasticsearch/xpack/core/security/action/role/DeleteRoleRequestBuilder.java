@@ -8,13 +8,14 @@ package org.elasticsearch.xpack.core.security.action.role;
 
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.WriteRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 
 /**
  * A builder for requests to delete a role from the security index
  */
 public class DeleteRoleRequestBuilder extends ActionRequestBuilder<DeleteRoleRequest, DeleteRoleResponse>
-        implements WriteRequestBuilder<DeleteRoleRequestBuilder> {
+    implements
+        WriteRequestBuilder<DeleteRoleRequestBuilder> {
 
     public DeleteRoleRequestBuilder(ElasticsearchClient client) {
         this(client, DeleteRoleAction.INSTANCE);

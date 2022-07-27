@@ -17,7 +17,6 @@ import java.util.Date;
 import java.util.Locale;
 import java.util.function.Predicate;
 
-
 /**
  * Status reporter for tracking counts of the good/bad records written to the API.
  * Call one of the reportXXX() methods to update the records counts.
@@ -228,7 +227,6 @@ public class DataCountsReporter {
         return analyzedFieldsPerRecord;
     }
 
-
     /**
      * Report the counts now regardless of whether or not we are at a reporting boundary.
      */
@@ -251,9 +249,15 @@ public class DataCountsReporter {
             return false;
         }
 
-        String status = String.format(Locale.ROOT,
-                "[%s] %d records written to autodetect; missingFieldCount=%d, invalidDateCount=%d, outOfOrderCount=%d", job.getId(),
-                getProcessedRecordCount(), getMissingFieldErrorCount(), getDateParseErrorsCount(), getOutOfOrderRecordCount());
+        String status = String.format(
+            Locale.ROOT,
+            "[%s] %d records written to autodetect; missingFieldCount=%d, invalidDateCount=%d, outOfOrderCount=%d",
+            job.getId(),
+            getProcessedRecordCount(),
+            getMissingFieldErrorCount(),
+            getDateParseErrorsCount(),
+            getOutOfOrderRecordCount()
+        );
 
         logger.info(status);
 

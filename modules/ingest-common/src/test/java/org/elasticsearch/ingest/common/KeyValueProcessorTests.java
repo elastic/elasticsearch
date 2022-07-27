@@ -12,6 +12,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.RandomDocumentPicks;
+import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -27,7 +28,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class KeyValueProcessorTests extends ESTestCase {
 
-    private static final KeyValueProcessor.Factory FACTORY = new KeyValueProcessor.Factory();
+    private static final KeyValueProcessor.Factory FACTORY = new KeyValueProcessor.Factory(TestTemplateService.instance());
 
     public void test() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
@@ -41,7 +42,7 @@ public class KeyValueProcessorTests extends ESTestCase {
     public void testRootTarget() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.emptyMap());
         ingestDocument.setFieldValue("myField", "first=hello&second=world&second=universe");
-        Processor processor = createKvProcessor("myField", "&", "=", null, null,null, false);
+        Processor processor = createKvProcessor("myField", "&", "=", null, null, null, false);
         processor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue("first", String.class), equalTo("hello"));
         assertThat(ingestDocument.getFieldValue("second", List.class), equalTo(Arrays.asList("world", "universe")));
@@ -50,7 +51,7 @@ public class KeyValueProcessorTests extends ESTestCase {
     public void testKeySameAsSourceField() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.emptyMap());
         ingestDocument.setFieldValue("first", "first=hello");
-        Processor processor = createKvProcessor("first", "&", "=", null, null,null, false);
+        Processor processor = createKvProcessor("first", "&", "=", null, null, null, false);
         processor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue("first", List.class), equalTo(Arrays.asList("first=hello", "hello")));
     }
@@ -58,8 +59,7 @@ public class KeyValueProcessorTests extends ESTestCase {
     public void testIncludeKeys() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, "first=hello&second=world&second=universe");
-        Processor processor = createKvProcessor(fieldName, "&", "=",
-            Sets.newHashSet("first"), null, "target", false);
+        Processor processor = createKvProcessor(fieldName, "&", "=", Sets.newHashSet("first"), null, "target", false);
         processor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue("target.first", String.class), equalTo("hello"));
         assertFalse(ingestDocument.hasField("target.second"));
@@ -68,8 +68,7 @@ public class KeyValueProcessorTests extends ESTestCase {
     public void testExcludeKeys() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, "first=hello&second=world&second=universe");
-        Processor processor = createKvProcessor(fieldName, "&", "=",
-            null, Sets.newHashSet("second"), "target", false);
+        Processor processor = createKvProcessor(fieldName, "&", "=", null, Sets.newHashSet("second"), "target", false);
         processor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue("target.first", String.class), equalTo("hello"));
         assertFalse(ingestDocument.hasField("target.second"));
@@ -77,10 +76,20 @@ public class KeyValueProcessorTests extends ESTestCase {
 
     public void testIncludeAndExcludeKeys() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
-        String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument,
-            "first=hello&second=world&second=universe&third=bar");
-        Processor processor = createKvProcessor(fieldName, "&", "=",
-            Sets.newHashSet("first", "second"), Sets.newHashSet("first", "second"), "target", false);
+        String fieldName = RandomDocumentPicks.addRandomField(
+            random(),
+            ingestDocument,
+            "first=hello&second=world&second=universe&third=bar"
+        );
+        Processor processor = createKvProcessor(
+            fieldName,
+            "&",
+            "=",
+            Sets.newHashSet("first", "second"),
+            Sets.newHashSet("first", "second"),
+            "target",
+            false
+        );
         processor.execute(ingestDocument);
         assertFalse(ingestDocument.hasField("target.first"));
         assertFalse(ingestDocument.hasField("target.second"));
@@ -89,16 +98,17 @@ public class KeyValueProcessorTests extends ESTestCase {
 
     public void testMissingField() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.emptyMap());
-        Processor processor = createKvProcessor("unknown", "&",
-            "=", null, null, "target", false);
+        Processor processor = createKvProcessor("unknown", "&", "=", null, null, "target", false);
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
-        assertThat(exception.getMessage(), equalTo("field [unknown] not present as part of path [unknown]"));
+        assertThat(exception.getMessage(), equalTo("field [unknown] doesn't exist"));
     }
 
     public void testNullValueWithIgnoreMissing() throws Exception {
         String fieldName = RandomDocumentPicks.randomFieldName(random());
-        IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(random(),
-            Collections.singletonMap(fieldName, null));
+        IngestDocument originalIngestDocument = RandomDocumentPicks.randomIngestDocument(
+            random(),
+            Collections.singletonMap(fieldName, null)
+        );
         IngestDocument ingestDocument = new IngestDocument(originalIngestDocument);
         Processor processor = createKvProcessor(fieldName, "", "", null, null, "target", true);
         processor.execute(ingestDocument);
@@ -140,9 +150,11 @@ public class KeyValueProcessorTests extends ESTestCase {
 
     public void testTrimMultiCharSequence() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
-        String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument,
-            "to=<foo@example.com>, orig_to=<bar@example.com>, %+relay=mail.example.com[private/dovecot-lmtp]," +
-                " delay=2.2, delays=1.9/0.01/0.01/0.21, dsn=2.0.0, status=sent "
+        String fieldName = RandomDocumentPicks.addRandomField(
+            random(),
+            ingestDocument,
+            "to=<foo@example.com>, orig_to=<bar@example.com>, %+relay=mail.example.com[private/dovecot-lmtp],"
+                + " delay=2.2, delays=1.9/0.01/0.01/0.21, dsn=2.0.0, status=sent "
         );
         Processor processor = createKvProcessor(fieldName, " ", "=", null, null, "target", false, "%+", "<>,", false, null);
         processor.execute(ingestDocument);
@@ -158,7 +170,9 @@ public class KeyValueProcessorTests extends ESTestCase {
     public void testStripBrackets() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         String fieldName = RandomDocumentPicks.addRandomField(
-            random(), ingestDocument, "first=<hello>&second=\"world\"&second=(universe)&third=<foo>&fourth=[bar]&fifth='last'"
+            random(),
+            ingestDocument,
+            "first=<hello>&second=\"world\"&second=(universe)&third=<foo>&fourth=[bar]&fifth='last'"
         );
         Processor processor = createKvProcessor(fieldName, "&", "=", null, null, "target", false, null, null, true, null);
         processor.execute(ingestDocument);
@@ -178,18 +192,43 @@ public class KeyValueProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getFieldValue("target.arg_second", List.class), equalTo(Arrays.asList("world", "universe")));
     }
 
-    private static KeyValueProcessor createKvProcessor(String field, String fieldSplit, String valueSplit, Set<String> includeKeys,
-                                                       Set<String> excludeKeys, String targetField,
-                                                       boolean ignoreMissing) throws Exception {
+    private static KeyValueProcessor createKvProcessor(
+        String field,
+        String fieldSplit,
+        String valueSplit,
+        Set<String> includeKeys,
+        Set<String> excludeKeys,
+        String targetField,
+        boolean ignoreMissing
+    ) throws Exception {
         return createKvProcessor(
-            field, fieldSplit, valueSplit, includeKeys, excludeKeys, targetField, ignoreMissing, null, null, false, null
+            field,
+            fieldSplit,
+            valueSplit,
+            includeKeys,
+            excludeKeys,
+            targetField,
+            ignoreMissing,
+            null,
+            null,
+            false,
+            null
         );
     }
 
-    private static KeyValueProcessor createKvProcessor(String field, String fieldSplit, String valueSplit, Set<String> includeKeys,
-                                                       Set<String> excludeKeys, String targetField, boolean ignoreMissing,
-                                                       String trimKey, String trimValue, boolean stripBrackets,
-                                                       String prefix) throws Exception {
+    private static KeyValueProcessor createKvProcessor(
+        String field,
+        String fieldSplit,
+        String valueSplit,
+        Set<String> includeKeys,
+        Set<String> excludeKeys,
+        String targetField,
+        boolean ignoreMissing,
+        String trimKey,
+        String trimValue,
+        boolean stripBrackets,
+        String prefix
+    ) throws Exception {
         Map<String, Object> config = new HashMap<>();
         config.put("field", field);
         config.put("field_split", fieldSplit);

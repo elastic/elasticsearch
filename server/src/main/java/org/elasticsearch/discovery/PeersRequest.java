@@ -50,10 +50,7 @@ public class PeersRequest extends TransportRequest {
 
     @Override
     public String toString() {
-        return "PeersRequest{" +
-            "sourceNode=" + sourceNode +
-            ", knownPeers=" + knownPeers +
-            '}';
+        return "PeersRequest{" + "sourceNode=" + sourceNode + ", knownPeers=" + knownPeers + '}';
     }
 
     @Override
@@ -61,8 +58,7 @@ public class PeersRequest extends TransportRequest {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         PeersRequest that = (PeersRequest) o;
-        return Objects.equals(sourceNode, that.sourceNode) &&
-            Objects.equals(knownPeers, that.knownPeers);
+        return Objects.equals(sourceNode, that.sourceNode) && Objects.equals(knownPeers, that.knownPeers);
     }
 
     @Override

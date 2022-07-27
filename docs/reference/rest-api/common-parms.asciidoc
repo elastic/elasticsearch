@@ -22,7 +22,7 @@ tag::allow-no-indices[]
 `allow_no_indices`::
 (Optional, Boolean)
 If `false`, the request returns an error if any wildcard expression,
-<<alias,index alias>>, or `_all` value targets only missing or closed indices.
+<<aliases,index alias>>, or `_all` value targets only missing or closed indices.
 This behavior applies even if the request targets other open indices. For
 example, a request targeting `foo*,bar*` returns an error if an index starts
 with `foo` but no index starts with `bar`.
@@ -67,12 +67,18 @@ end::allow-no-match-transforms2[]
 tag::analyzer[]
 `analyzer`::
 (Optional, string) Analyzer to use for the query string.
++
+This parameter can only be used when the `q` query string parameter is
+specified.
 end::analyzer[]
 
 tag::analyze_wildcard[]
 `analyze_wildcard`::
-(Optional, Boolean) If `true`, wildcard and prefix queries are
-analyzed. Defaults to `false`.
+(Optional, Boolean) If `true`, wildcard and prefix queries are analyzed.
+Defaults to `false`.
++
+This parameter can only be used when the `q` query string parameter is
+specified.
 end::analyze_wildcard[]
 
 tag::bytes[]
@@ -132,6 +138,9 @@ tag::default_operator[]
 `default_operator`::
 (Optional, string) The default operator for query string query: AND or OR.
 Defaults to `OR`.
++
+This parameter can only be used when the `q` query string parameter is
+specified.
 end::default_operator[]
 
 tag::dest[]
@@ -160,8 +169,11 @@ end::detailed[]
 
 tag::df[]
 `df`::
-(Optional, string) Field to use as default where no field prefix is
-given in the query string.
+(Optional, string) Field to use as default where no field prefix is given in the
+query string.
++
+This parameter can only be used when the `q` query string parameter is
+specified.
 end::df[]
 
 tag::docs-count[]
@@ -386,8 +398,8 @@ end::ignore_throttled[]
 
 tag::index-ignore-unavailable[]
 `ignore_unavailable`::
-(Optional, Boolean) If `true`, missing or closed indices are not included in the
-response. Defaults to `false`.
+(Optional, Boolean) If `false`, the request returns an error if it targets a
+missing or closed index. Defaults to `false`.
 end::index-ignore-unavailable[]
 
 tag::include-defaults[]
@@ -432,15 +444,22 @@ The amount of time spent indexing, in milliseconds.
 end::index-time-ms[]
 
 tag::index-total[]
-The number of indices created.
+The number of index operations.
 end::index-total[]
 
 tag::bulk-index[]
 `_index`::
 (Optional, string)
-Name of the data stream, index, or index alias to perform the action on. This
+Name of the index or index alias to perform the action on. This
 parameter is required if a `<target>` is not specified in the request path.
 end::bulk-index[]
+
+tag::bulk-index-ds[]
+`_index`::
+(Optional, string)
+Name of the data stream, index, or index alias to perform the action on. This
+parameter is required if a `<target>` is not specified in the request path.
+end::bulk-index-ds[]
 
 tag::index-metric[]
 `<index-metric>`::
@@ -503,9 +522,6 @@ of each Lucene index file.
 `store`::
 Size of the index in <<byte-units, byte units>>.
 
-`suggest`::
-<<search-suggesters,Suggester>> statistics.
-
 `translog`::
 <<index-modules-translog,Translog>> statistics.
 
@@ -530,8 +546,12 @@ end::component-template[]
 
 tag::lenient[]
 `lenient`::
-(Optional, Boolean) If `true`, format-based query failures (such as
-providing text to a numeric field) will be ignored. Defaults to `false`.
+(Optional, Boolean) If `true`, format-based query failures (such as providing
+text to a numeric field) in the query string will be ignored. Defaults to
+`false`.
++
+This parameter can only be used when the `q` query string parameter is
+specified.
 end::lenient[]
 
 tag::level[]
@@ -575,7 +595,8 @@ end::mappings[]
 tag::max_docs[]
 `max_docs`::
 (Optional, integer) Maximum number of documents to process. Defaults to all
-documents.
+documents. When set to a value less then or equal to `scroll_size` then a
+scroll will not be used to retrieve the results for the operation.
 end::max_docs[]
 
 tag::memory[]
@@ -588,22 +609,22 @@ end::memory[]
 tag::bulk-require-alias[]
 `require_alias`::
 (Optional, Boolean)
-If `true`, the action must target an <<alias,index alias>>. Defaults to
+If `true`, the action must target an <<aliases,index alias>>. Defaults to
 `false`.
 end::bulk-require-alias[]
 
 tag::require-alias[]
 `require_alias`::
-(Optional, Boolean) If `true`, the destination must be an <<alias,index alias>>.
+(Optional, Boolean) If `true`, the destination must be an <<aliases,index alias>>.
 Defaults to `false`.
 end::require-alias[]
 
 tag::bulk-dynamic-templates[]
 `dynamic_templates`::
 (Optional, map)
-A map from the full name of fields to the name of <<dynamic-templates, dynamic templates>.
-Defaults to an empty map. If a name matches a dynamic template, then that template will be 
-applied regardless of other match predicates defined in the template. And if a field is 
+A map from the full name of fields to the name of <<dynamic-templates,dynamic templates>>.
+Defaults to an empty map. If a name matches a dynamic template, then that template will be
+applied regardless of other match predicates defined in the template. And if a field is
 already defined in the mapping, then this parameter won't be used.
 end::bulk-dynamic-templates[]
 
@@ -686,6 +707,7 @@ currently supported:
 * <<search-aggregations-metrics-min-aggregation,Min>>
 * <<search-aggregations-bucket-missing-aggregation,Missing>>
 * <<search-aggregations-metrics-percentile-aggregation,Percentiles>>
+* <<search-aggregations-bucket-range-aggregation,Range>>
 * <<search-aggregations-bucket-rare-terms-aggregation, Rare Terms>>
 * <<search-aggregations-metrics-scripted-metric-aggregation,Scripted metric>>
 * <<search-aggregations-metrics-stats-aggregation,Stats>>
@@ -896,12 +918,14 @@ end::source-transforms[]
 tag::source-index-transforms[]
 The _source indices_ for the {transform}. It can be a single index, an index
 pattern (for example, `"my-index-*"`), an array of indices (for example,
-`["my-index-000001", "my-index-000002"]`), or an array of index patterns (for 
-example, `["my-index-*", "my-other-index-*"]`. For remote indices use the syntax 
+`["my-index-000001", "my-index-000002"]`), or an array of index patterns (for
+example, `["my-index-*", "my-other-index-*"]`. For remote indices use the syntax
 `"remote_name:index_name"`.
-
-NOTE: If any indices are in remote clusters then the master node and at least 
++
+--
+NOTE: If any indices are in remote clusters then the master node and at least
 one transform node must have the `remote_cluster_client` node role.
+--
 end::source-index-transforms[]
 
 tag::source-query-transforms[]
@@ -910,8 +934,8 @@ A query clause that retrieves a subset of data from the source index. See
 end::source-query-transforms[]
 
 tag::source-runtime-mappings-transforms[]
-Definitions of search-time runtime fields that can be used by the transform. For 
-search runtime fields all data nodes, including remote nodes, must be 7.12 or 
+Definitions of search-time runtime fields that can be used by the transform. For
+search runtime fields all data nodes, including remote nodes, must be 7.12 or
 later.
 end::source-runtime-mappings-transforms[]
 
@@ -970,8 +994,12 @@ The `latest` method transforms the data by finding the latest document for each
 unique key.
 end::transform-latest[]
 
+tag::transform-metadata[]
+Defines optional {transform} metadata.
+end::transform-metadata[]
+
 tag::transform-retention[]
-Defines a retention policy for the {transform}. Data that meets the defined 
+Defines a retention policy for the {transform}. Data that meets the defined
 criteria is deleted from the destination index.
 end::transform-retention[]
 
@@ -984,7 +1012,7 @@ The date field that is used to calculate the age of the document.
 end::transform-retention-time-field[]
 
 tag::transform-retention-time-max-age[]
-Specifies the maximum age of a document in the destination index. Documents that 
+Specifies the maximum age of a document in the destination index. Documents that
 are older than the configured value are removed from the destination index.
 end::transform-retention-time-max-age[]
 
@@ -1005,12 +1033,32 @@ throttles the {transform} by adding a wait time between search requests. The
 default value is `null`, which disables throttling.
 end::transform-settings-docs-per-second[]
 
+tag::transform-settings-align-checkpoints[]
+Specifies whether the transform checkpoint ranges should be optimized for performance.
+Such optimization can align checkpoint ranges with date histogram interval when date histogram
+is specified as a group source in the transform config. As an effect, less document updates in the
+destination index will be performed thus improving overall performance.
+The default value is `true`, which means the checkpoint ranges will be optimized if possible.
+end::transform-settings-align-checkpoints[]
+
+tag::transform-settings-deduce-mappings[]
+Specifies whether the transform should deduce the destination index mappings from the transform config.
+The default value is `true`, which means the destination index mappings will be deduced if possible.
+end::transform-settings-deduce-mappings[]
+
 tag::transform-settings-max-page-search-size[]
 Defines the initial page size to use for the composite aggregation for each
 checkpoint. If circuit breaker exceptions occur, the page size is dynamically
-adjusted to a lower value. The minimum value is `10` and the maximum is `10,000`.
+adjusted to a lower value. The minimum value is `10` and the maximum is `65,536`.
 The default value is `500`.
 end::transform-settings-max-page-search-size[]
+
+tag::transform-settings-num-failure-retries[]
+Defines the number of retries on a recoverable failure before the {transform} task is marked as `failed`.
+The minimum value is `0` and the maximum is `100`.
+`-1` can be used to denote infinity. In this case, the {transform} never gives up on retrying a recoverable failure.
+The default value is the cluster-level setting `num_transform_failure_retries`.
+end::transform-settings-num-failure-retries[]
 
 tag::transform-sort[]
 Specifies the date field that is used to identify the latest documents.
@@ -1079,9 +1127,7 @@ end::timeout[]
 end::timeoutparms[]
 
 tag::transform-id[]
-Identifier for the {transform}. This identifier can contain lowercase
-alphanumeric characters (a-z and 0-9), hyphens, and underscores. It must start
-and end with alphanumeric characters.
+Identifier for the {transform}.
 end::transform-id[]
 
 tag::transform-id-wildcard[]

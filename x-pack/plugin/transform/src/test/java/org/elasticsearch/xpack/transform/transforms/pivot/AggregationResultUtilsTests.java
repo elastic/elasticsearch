@@ -7,26 +7,23 @@
 
 package org.elasticsearch.xpack.transform.transforms.pivot;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ContextParser;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.PipelineAggregatorBuilders;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.ParsedComposite;
+import org.elasticsearch.search.aggregations.bucket.range.InternalRange;
+import org.elasticsearch.search.aggregations.bucket.range.Range;
 import org.elasticsearch.search.aggregations.bucket.terms.DoubleTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.ParsedDoubleTerms;
@@ -64,13 +61,21 @@ import org.elasticsearch.search.aggregations.pipeline.ParsedSimpleValue;
 import org.elasticsearch.search.aggregations.pipeline.ParsedStatsBucket;
 import org.elasticsearch.search.aggregations.pipeline.StatsBucketPipelineAggregationBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ContextParser;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
+import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfig;
 import org.elasticsearch.xpack.transform.transforms.pivot.AggregationResultUtils.BucketKeyExtractor;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -146,7 +151,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
         }
 
         @Override
-        public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+        public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
             throw new UnsupportedOperationException();
         }
 
@@ -176,7 +181,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
         private final Map<String, Double> values;
 
         TestNumericMultiValueAggregation(String name, Map<String, Double> values) {
-            super(name, emptyMap());
+            super(name, null, emptyMap());
             this.values = values;
         }
 
@@ -196,7 +201,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
         }
 
         @Override
-        public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+        public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
             throw new UnsupportedOperationException();
         }
 
@@ -219,9 +224,9 @@ public class AggregationResultUtilsTests extends ESTestCase {
     public void testExtractCompositeAggregationResults() throws IOException {
         String targetField = randomAlphaOfLengthBetween(5, 10);
 
-        GroupConfig groupBy = parseGroupConfig(
-            "{ \"" + targetField + "\" : {" + "\"terms\" : {" + "   \"field\" : \"doesn't_matter_for_this_test\"" + "} } }"
-        );
+        GroupConfig groupBy = parseGroupConfig("""
+            { "%s" : {"terms" : {   "field" : "doesn't_matter_for_this_test"} } }
+            """.formatted(targetField));
 
         String aggName = randomAlphaOfLengthBetween(5, 10);
         String aggTypedName = "avg#" + aggName;
@@ -249,22 +254,19 @@ public class AggregationResultUtilsTests extends ESTestCase {
         String targetField = randomAlphaOfLengthBetween(5, 10);
         String targetField2 = randomAlphaOfLengthBetween(5, 10) + "_2";
 
-        GroupConfig groupBy = parseGroupConfig(
-            "{"
-                + "\""
-                + targetField
-                + "\" : {"
-                + "  \"terms\" : {"
-                + "     \"field\" : \"doesn't_matter_for_this_test\""
-                + "  } },"
-                + "\""
-                + targetField2
-                + "\" : {"
-                + "  \"terms\" : {"
-                + "     \"field\" : \"doesn't_matter_for_this_test\""
-                + "  } }"
-                + "}"
-        );
+        GroupConfig groupBy = parseGroupConfig("""
+            {
+              "%s": {
+                "terms": {
+                  "field": "doesn't_matter_for_this_test"
+                }
+              },
+              "%s": {
+                "terms": {
+                  "field": "doesn't_matter_for_this_test"
+                }
+              }
+            }""".formatted(targetField, targetField2));
 
         String aggName = randomAlphaOfLengthBetween(5, 10);
         String aggTypedName = "avg#" + aggName;
@@ -293,9 +295,14 @@ public class AggregationResultUtilsTests extends ESTestCase {
     public void testExtractCompositeAggregationResultsMultiAggregations() throws IOException {
         String targetField = randomAlphaOfLengthBetween(5, 10);
 
-        GroupConfig groupBy = parseGroupConfig(
-            "{\"" + targetField + "\" : {" + "\"terms\" : {" + "   \"field\" : \"doesn't_matter_for_this_test\"" + "} } }"
-        );
+        GroupConfig groupBy = parseGroupConfig("""
+            {
+              "%s": {
+                "terms": {
+                  "field": "doesn't_matter_for_this_test"
+                }
+              }
+            }""".formatted(targetField));
 
         String aggName = randomAlphaOfLengthBetween(5, 10);
         String aggTypedName = "avg#" + aggName;
@@ -354,22 +361,19 @@ public class AggregationResultUtilsTests extends ESTestCase {
         String targetField = randomAlphaOfLengthBetween(5, 10);
         String targetField2 = randomAlphaOfLengthBetween(5, 10) + "_2";
 
-        GroupConfig groupBy = parseGroupConfig(
-            "{"
-                + "\""
-                + targetField
-                + "\" : {"
-                + "  \"terms\" : {"
-                + "     \"field\" : \"doesn't_matter_for_this_test\""
-                + "  } },"
-                + "\""
-                + targetField2
-                + "\" : {"
-                + "  \"terms\" : {"
-                + "     \"field\" : \"doesn't_matter_for_this_test\""
-                + "  } }"
-                + "}"
-        );
+        GroupConfig groupBy = parseGroupConfig("""
+            {
+              "%s": {
+                "terms": {
+                  "field": "doesn't_matter_for_this_test"
+                }
+              },
+              "%s": {
+                "terms": {
+                  "field": "doesn't_matter_for_this_test"
+                }
+              }
+            }""".formatted(targetField, targetField2));
 
         String aggName = randomAlphaOfLengthBetween(5, 10);
         String aggTypedName = "avg#" + aggName;
@@ -448,22 +452,19 @@ public class AggregationResultUtilsTests extends ESTestCase {
         String targetField = randomAlphaOfLengthBetween(5, 10);
         String targetField2 = randomAlphaOfLengthBetween(5, 10) + "_2";
 
-        GroupConfig groupBy = parseGroupConfig(
-            "{"
-                + "\""
-                + targetField
-                + "\" : {"
-                + "  \"terms\" : {"
-                + "     \"field\" : \"doesn't_matter_for_this_test\""
-                + "  } },"
-                + "\""
-                + targetField2
-                + "\" : {"
-                + "  \"terms\" : {"
-                + "     \"field\" : \"doesn't_matter_for_this_test\""
-                + "  } }"
-                + "}"
-        );
+        GroupConfig groupBy = parseGroupConfig("""
+            {
+              "%s": {
+                "terms": {
+                  "field": "doesn't_matter_for_this_test"
+                }
+              },
+              "%s": {
+                "terms": {
+                  "field": "doesn't_matter_for_this_test"
+                }
+              }
+            }""".formatted(targetField, targetField2));
 
         String aggName = randomAlphaOfLengthBetween(5, 10);
         String aggTypedName = "scripted_metric#" + aggName;
@@ -515,22 +516,19 @@ public class AggregationResultUtilsTests extends ESTestCase {
         String targetField = randomAlphaOfLengthBetween(5, 10);
         String targetField2 = randomAlphaOfLengthBetween(5, 10) + "_2";
 
-        GroupConfig groupBy = parseGroupConfig(
-            "{"
-                + "\""
-                + targetField
-                + "\" : {"
-                + "  \"terms\" : {"
-                + "     \"field\" : \"doesn't_matter_for_this_test\""
-                + "  } },"
-                + "\""
-                + targetField2
-                + "\" : {"
-                + "  \"terms\" : {"
-                + "     \"field\" : \"doesn't_matter_for_this_test\""
-                + "  } }"
-                + "}"
-        );
+        GroupConfig groupBy = parseGroupConfig("""
+            {
+              "%s": {
+                "terms": {
+                  "field": "doesn't_matter_for_this_test"
+                }
+              },
+              "%s": {
+                "terms": {
+                  "field": "doesn't_matter_for_this_test"
+                }
+              }
+            }""".formatted(targetField, targetField2));
 
         String aggName = randomAlphaOfLengthBetween(5, 10);
         String aggTypedName = "avg#" + aggName;
@@ -606,22 +604,19 @@ public class AggregationResultUtilsTests extends ESTestCase {
         String targetField = randomAlphaOfLengthBetween(5, 10);
         String targetField2 = randomAlphaOfLengthBetween(5, 10) + "_2";
 
-        GroupConfig groupBy = parseGroupConfig(
-            "{"
-                + "\""
-                + targetField
-                + "\" : {"
-                + "  \"terms\" : {"
-                + "     \"field\" : \"doesn't_matter_for_this_test\""
-                + "  } },"
-                + "\""
-                + targetField2
-                + "\" : {"
-                + "  \"terms\" : {"
-                + "     \"field\" : \"doesn't_matter_for_this_test\""
-                + "  } }"
-                + "}"
-        );
+        GroupConfig groupBy = parseGroupConfig("""
+            {
+              "%s": {
+                "terms": {
+                  "field": "doesn't_matter_for_this_test"
+                }
+              },
+              "%s": {
+                "terms": {
+                  "field": "doesn't_matter_for_this_test"
+                }
+              }
+            }""".formatted(targetField, targetField2));
 
         String aggName = randomAlphaOfLengthBetween(5, 10);
         String aggTypedName = "avg#" + aggName;
@@ -647,6 +642,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
             )
         );
         TransformIndexerStats stats = new TransformIndexerStats();
+        TransformProgress progress = new TransformProgress();
 
         Map<String, String> fieldTypeMap = asStringMap(aggName, "double", targetField, "keyword", targetField2, "keyword");
 
@@ -656,7 +652,8 @@ public class AggregationResultUtilsTests extends ESTestCase {
             Collections.emptyList(),
             inputFirstRun,
             fieldTypeMap,
-            stats
+            stats,
+            progress
         );
         List<Map<String, Object>> resultSecondRun = runExtraction(
             groupBy,
@@ -664,7 +661,8 @@ public class AggregationResultUtilsTests extends ESTestCase {
             Collections.emptyList(),
             inputSecondRun,
             fieldTypeMap,
-            stats
+            stats,
+            progress
         );
 
         assertNotEquals(resultFirstRun, resultSecondRun);
@@ -878,7 +876,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
             expectedObject.put("type", type);
             double lat = randomDoubleBetween(-90.0, 90.0, false);
             double lon = randomDoubleBetween(-180.0, 180.0, false);
-            expectedObject.put("coordinates", Arrays.asList(lon, lat));
+            expectedObject.put("coordinates", asList(lon, lat));
             agg = createGeoBounds(new GeoPoint(lat, lon), new GeoPoint(lat, lon));
             assertThat(AggregationResultUtils.getExtractor(agg).value(agg, Collections.emptyMap(), ""), equalTo(expectedObject));
         }
@@ -925,12 +923,12 @@ public class AggregationResultUtilsTests extends ESTestCase {
             List<List<Double[]>> coordinates = (List<List<Double[]>>) geoJson.get("coordinates");
             assertThat(coordinates.size(), equalTo(1));
             assertThat(coordinates.get(0).size(), equalTo(5));
-            List<List<Double>> expected = Arrays.asList(
-                Arrays.asList(lon, lat),
-                Arrays.asList(lon2, lat),
-                Arrays.asList(lon2, lat2),
-                Arrays.asList(lon, lat2),
-                Arrays.asList(lon, lat)
+            List<List<Double>> expected = asList(
+                asList(lon, lat),
+                asList(lon2, lat),
+                asList(lon2, lat2),
+                asList(lon, lat2),
+                asList(lon, lat)
             );
             for (int j = 0; j < 5; j++) {
                 Double[] coordinate = coordinates.get(0).get(j);
@@ -952,7 +950,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
     public void testPercentilesAggExtractor() {
         Aggregation agg = createPercentilesAgg(
             "p_agg",
-            Arrays.asList(new Percentile(1, 0), new Percentile(50, 22.2), new Percentile(99, 43.3), new Percentile(99.5, 100.3))
+            asList(new Percentile(1, 0), new Percentile(50, 22.2), new Percentile(99, 43.3), new Percentile(99.5, 100.3))
         );
         assertThat(
             AggregationResultUtils.getExtractor(agg).value(agg, Collections.emptyMap(), ""),
@@ -961,8 +959,55 @@ public class AggregationResultUtilsTests extends ESTestCase {
     }
 
     public void testPercentilesAggExtractorNaN() {
-        Aggregation agg = createPercentilesAgg("p_agg", Arrays.asList(new Percentile(1, Double.NaN), new Percentile(50, Double.NaN)));
+        Aggregation agg = createPercentilesAgg("p_agg", asList(new Percentile(1, Double.NaN), new Percentile(50, Double.NaN)));
         assertThat(AggregationResultUtils.getExtractor(agg).value(agg, Collections.emptyMap(), ""), equalTo(asMap("1", null, "50", null)));
+    }
+
+    @SuppressWarnings("unchecked")
+    public static Range createRangeAgg(String name, List<InternalRange.Bucket> buckets) {
+        Range agg = mock(Range.class);
+        when(agg.getName()).thenReturn(name);
+        when(agg.getBuckets()).thenReturn((List) buckets);
+        return agg;
+    }
+
+    public void testRangeAggExtractor() {
+        Aggregation agg = createRangeAgg(
+            "p_agg",
+            asList(
+                new InternalRange.Bucket(null, Double.NEGATIVE_INFINITY, 10.5, 10, InternalAggregations.EMPTY, false, DocValueFormat.RAW),
+                new InternalRange.Bucket(null, 10.5, 19.5, 30, InternalAggregations.EMPTY, false, DocValueFormat.RAW),
+                new InternalRange.Bucket(null, 19.5, 200, 30, InternalAggregations.EMPTY, false, DocValueFormat.RAW),
+                new InternalRange.Bucket(null, 20, Double.POSITIVE_INFINITY, 0, InternalAggregations.EMPTY, false, DocValueFormat.RAW),
+                new InternalRange.Bucket(null, -10, -5, 0, InternalAggregations.EMPTY, false, DocValueFormat.RAW),
+                new InternalRange.Bucket(null, -11.0, -6.0, 0, InternalAggregations.EMPTY, false, DocValueFormat.RAW),
+                new InternalRange.Bucket(null, -11.0, 0, 0, InternalAggregations.EMPTY, false, DocValueFormat.RAW),
+                new InternalRange.Bucket("custom-0", 0, 10, 777, InternalAggregations.EMPTY, false, DocValueFormat.RAW)
+            )
+        );
+        assertThat(
+            AggregationResultUtils.getExtractor(agg).value(agg, Collections.emptyMap(), ""),
+            equalTo(
+                asMap(
+                    "*-10_5",
+                    10L,
+                    "10_5-19_5",
+                    30L,
+                    "19_5-200",
+                    30L,
+                    "20-*",
+                    0L,
+                    "-10--5",
+                    0L,
+                    "-11--6",
+                    0L,
+                    "-11-0",
+                    0L,
+                    "custom-0",
+                    777L
+                )
+            )
+        );
     }
 
     public static SingleBucketAggregation createSingleBucketAgg(String name, long docCount, Aggregation... subAggregations) {
@@ -971,7 +1016,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
         when(agg.getName()).thenReturn(name);
         if (subAggregations != null) {
             org.elasticsearch.search.aggregations.Aggregations subAggs = new org.elasticsearch.search.aggregations.Aggregations(
-                Arrays.asList(subAggregations)
+                asList(subAggregations)
             );
             when(agg.getAggregations()).thenReturn(subAggs);
         } else {
@@ -1057,6 +1102,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
         long expectedDocCounts
     ) throws IOException {
         TransformIndexerStats stats = new TransformIndexerStats();
+        TransformProgress progress = new TransformProgress();
         XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
         builder.map(input);
 
@@ -1066,7 +1112,8 @@ public class AggregationResultUtilsTests extends ESTestCase {
             pipelineAggregationBuilders,
             input,
             fieldTypeMap,
-            stats
+            stats,
+            progress
         );
 
         // remove the document ids and test uniqueness
@@ -1085,7 +1132,8 @@ public class AggregationResultUtilsTests extends ESTestCase {
         Collection<PipelineAggregationBuilder> pipelineAggregationBuilders,
         Map<String, Object> input,
         Map<String, String> fieldTypeMap,
-        TransformIndexerStats stats
+        TransformIndexerStats stats,
+        TransformProgress progress
     ) throws IOException {
 
         XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
@@ -1100,6 +1148,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
                 pipelineAggregationBuilders,
                 fieldTypeMap,
                 stats,
+                progress,
                 true
             ).collect(Collectors.toList());
         }
@@ -1107,7 +1156,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
 
     private GroupConfig parseGroupConfig(String json) throws IOException {
         final XContentParser parser = XContentType.JSON.xContent()
-            .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json);
+            .createParser(XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry()), json);
         return GroupConfig.fromXContent(parser, false);
     }
 

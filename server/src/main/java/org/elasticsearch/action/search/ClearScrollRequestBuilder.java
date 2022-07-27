@@ -9,7 +9,7 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 
 import java.util.List;
 

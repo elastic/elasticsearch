@@ -10,6 +10,7 @@ package org.elasticsearch.ingest;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.script.ScriptService;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -17,8 +18,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.LongSupplier;
-
-import org.elasticsearch.script.ScriptService;
 
 /**
  * A pipeline is a list of {@link Processor} instances grouped under a unique id.
@@ -29,51 +28,81 @@ public final class Pipeline {
     public static final String PROCESSORS_KEY = "processors";
     public static final String VERSION_KEY = "version";
     public static final String ON_FAILURE_KEY = "on_failure";
+    public static final String META_KEY = "_meta";
 
     private final String id;
     @Nullable
     private final String description;
     @Nullable
     private final Integer version;
+    @Nullable
+    private final Map<String, Object> metadata;
     private final CompoundProcessor compoundProcessor;
     private final IngestMetric metrics;
     private final LongSupplier relativeTimeProvider;
 
-    public Pipeline(String id, @Nullable String description, @Nullable Integer version, CompoundProcessor compoundProcessor) {
-        this(id, description, version, compoundProcessor, System::nanoTime);
+    public Pipeline(
+        String id,
+        @Nullable String description,
+        @Nullable Integer version,
+        @Nullable Map<String, Object> metadata,
+        CompoundProcessor compoundProcessor
+    ) {
+        this(id, description, version, metadata, compoundProcessor, System::nanoTime);
     }
 
-    //package private for testing
-    Pipeline(String id, @Nullable String description, @Nullable Integer version, CompoundProcessor compoundProcessor,
-             LongSupplier relativeTimeProvider) {
+    // package private for testing
+    Pipeline(
+        String id,
+        @Nullable String description,
+        @Nullable Integer version,
+        @Nullable Map<String, Object> metadata,
+        CompoundProcessor compoundProcessor,
+        LongSupplier relativeTimeProvider
+    ) {
         this.id = id;
         this.description = description;
+        this.metadata = metadata;
         this.compoundProcessor = compoundProcessor;
         this.version = version;
         this.metrics = new IngestMetric();
         this.relativeTimeProvider = relativeTimeProvider;
     }
 
-    public static Pipeline create(String id, Map<String, Object> config,
-        Map<String, Processor.Factory> processorFactories, ScriptService scriptService) throws Exception {
+    public static Pipeline create(
+        String id,
+        Map<String, Object> config,
+        Map<String, Processor.Factory> processorFactories,
+        ScriptService scriptService
+    ) throws Exception {
         String description = ConfigurationUtils.readOptionalStringProperty(null, null, config, DESCRIPTION_KEY);
         Integer version = ConfigurationUtils.readIntProperty(null, null, config, VERSION_KEY, null);
+        Map<String, Object> metadata = ConfigurationUtils.readOptionalMap(null, null, config, META_KEY);
         List<Map<String, Object>> processorConfigs = ConfigurationUtils.readList(null, null, config, PROCESSORS_KEY);
         List<Processor> processors = ConfigurationUtils.readProcessorConfigs(processorConfigs, scriptService, processorFactories);
-        List<Map<String, Object>> onFailureProcessorConfigs =
-                ConfigurationUtils.readOptionalList(null, null, config, ON_FAILURE_KEY);
-        List<Processor> onFailureProcessors =
-            ConfigurationUtils.readProcessorConfigs(onFailureProcessorConfigs, scriptService, processorFactories);
+        List<Map<String, Object>> onFailureProcessorConfigs = ConfigurationUtils.readOptionalList(null, null, config, ON_FAILURE_KEY);
+        List<Processor> onFailureProcessors = ConfigurationUtils.readProcessorConfigs(
+            onFailureProcessorConfigs,
+            scriptService,
+            processorFactories
+        );
         if (config.isEmpty() == false) {
-            throw new ElasticsearchParseException("pipeline [" + id +
-                    "] doesn't support one or more provided configuration parameters " + Arrays.toString(config.keySet().toArray()));
+            throw new ElasticsearchParseException(
+                "pipeline ["
+                    + id
+                    + "] doesn't support one or more provided configuration parameters "
+                    + Arrays.toString(config.keySet().toArray())
+            );
         }
         if (onFailureProcessorConfigs != null && onFailureProcessors.isEmpty()) {
             throw new ElasticsearchParseException("pipeline [" + id + "] cannot have an empty on_failure option defined");
         }
-        CompoundProcessor compoundProcessor = new CompoundProcessor(false, Collections.unmodifiableList(processors),
-                Collections.unmodifiableList(onFailureProcessors));
-        return new Pipeline(id, description, version, compoundProcessor);
+        CompoundProcessor compoundProcessor = new CompoundProcessor(
+            false,
+            Collections.unmodifiableList(processors),
+            Collections.unmodifiableList(onFailureProcessors)
+        );
+        return new Pipeline(id, description, version, metadata, compoundProcessor);
     }
 
     /**
@@ -118,6 +147,11 @@ public final class Pipeline {
     @Nullable
     public Integer getVersion() {
         return version;
+    }
+
+    @Nullable
+    public Map<String, Object> getMetadata() {
+        return metadata;
     }
 
     /**

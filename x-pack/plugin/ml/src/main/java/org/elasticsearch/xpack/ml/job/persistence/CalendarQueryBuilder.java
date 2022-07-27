@@ -93,9 +93,7 @@ public class CalendarQueryBuilder {
             jobIdAndGroups.add(Metadata.ALL);
             qb.filter(new TermsQueryBuilder(Calendar.JOB_IDS.getPreferredName(), jobIdAndGroups));
         }
-        QueryBuilderHelper
-            .buildTokenFilterQuery(Calendar.ID.getPreferredName(), idTokens)
-            .ifPresent(qb::filter);
+        QueryBuilderHelper.buildTokenFilterQuery(Calendar.ID.getPreferredName(), idTokens).ifPresent(qb::filter);
 
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(qb);
 

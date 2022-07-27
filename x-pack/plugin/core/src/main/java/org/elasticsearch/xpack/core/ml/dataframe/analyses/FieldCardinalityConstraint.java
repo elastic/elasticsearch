@@ -44,13 +44,19 @@ public class FieldCardinalityConstraint {
     public void check(long fieldCardinality) {
         if (fieldCardinality < lowerBound) {
             throw ExceptionsHelper.badRequestException(
-                                    "Field [{}] must have at least [{}] distinct values but there were [{}]",
-                                    field, lowerBound, fieldCardinality);
+                "Field [{}] must have at least [{}] distinct values but there were [{}]",
+                field,
+                lowerBound,
+                fieldCardinality
+            );
         }
         if (fieldCardinality > upperBound) {
             throw ExceptionsHelper.badRequestException(
                 "Field [{}] must have at most [{}] distinct values but there were at least [{}]",
-                field, upperBound, fieldCardinality);
+                field,
+                upperBound,
+                fieldCardinality
+            );
         }
     }
 }

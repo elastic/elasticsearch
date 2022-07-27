@@ -20,7 +20,10 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class FrozenStorageDeciderIT extends AbstractFrozenAutoscalingIntegTestCase {
 
-    public void testScale() {
+    public void testScale() throws Exception {
+        setupRepoAndPolicy();
+        createAndMountIndex();
+
         IndicesStatsResponse statsResponse = client().admin()
             .indices()
             .stats(new IndicesStatsRequest().indices(restoredIndexName))

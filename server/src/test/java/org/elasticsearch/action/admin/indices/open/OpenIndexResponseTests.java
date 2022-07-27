@@ -9,13 +9,13 @@
 package org.elasticsearch.action.admin.indices.open;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 public class OpenIndexResponseTests extends AbstractSerializingTestCase<OpenIndexResponse> {
 
     @Override
-    protected OpenIndexResponse doParseInstance(XContentParser parser){
+    protected OpenIndexResponse doParseInstance(XContentParser parser) {
         return OpenIndexResponse.fromXContent(parser);
     }
 

@@ -149,7 +149,6 @@ public abstract class ReaperService implements BuildService<ReaperService.Params
                 OutputStream out = Files.newOutputStream(jarPath);
                 InputStream jarInput = this.getClass().getResourceAsStream("/META-INF/reaper.jar");
             ) {
-                System.out.println("jarInput = " + jarInput);
                 logger.info("Copying reaper.jar...");
                 jarInput.transferTo(out);
             } catch (IOException e) {

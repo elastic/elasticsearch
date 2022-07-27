@@ -43,7 +43,7 @@ public class KeyedFilter extends UnaryPlan {
     }
 
     @Override
-    protected KeyedFilter replaceChild(LogicalPlan newChild) {
+    public KeyedFilter replaceChild(LogicalPlan newChild) {
         return new KeyedFilter(source(), newChild, keys, timestamp, tiebreaker);
     }
 
@@ -93,8 +93,8 @@ public class KeyedFilter extends UnaryPlan {
         KeyedFilter other = (KeyedFilter) obj;
 
         return Objects.equals(keys, other.keys)
-                && Objects.equals(timestamp, other.timestamp)
-                && Objects.equals(tiebreaker, other.tiebreaker)
-                && Objects.equals(child(), other.child());
+            && Objects.equals(timestamp, other.timestamp)
+            && Objects.equals(tiebreaker, other.tiebreaker)
+            && Objects.equals(child(), other.child());
     }
 }

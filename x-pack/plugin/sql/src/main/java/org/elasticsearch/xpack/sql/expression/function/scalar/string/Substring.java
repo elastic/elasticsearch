@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
@@ -23,6 +22,9 @@ import java.util.List;
 import java.util.Locale;
 
 import static java.lang.String.format;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.THIRD;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isInteger;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndExact;
 import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.paramsBuilder;
@@ -49,17 +51,17 @@ public class Substring extends ScalarFunction {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution sourceResolution = isStringAndExact(input, sourceText(), ParamOrdinal.FIRST);
+        TypeResolution sourceResolution = isStringAndExact(input, sourceText(), FIRST);
         if (sourceResolution.unresolved()) {
             return sourceResolution;
         }
 
-        TypeResolution startResolution = isInteger(start, sourceText(), ParamOrdinal.SECOND);
+        TypeResolution startResolution = isInteger(start, sourceText(), SECOND);
         if (startResolution.unresolved()) {
             return startResolution;
         }
 
-        return isInteger(length, sourceText(), ParamOrdinal.THIRD);
+        return isInteger(length, sourceText(), THIRD);
     }
 
     @Override
@@ -91,25 +93,29 @@ public class Substring extends ScalarFunction {
         return asScriptFrom(inputScript, startScript, lengthScript);
     }
 
-    protected ScriptTemplate asScriptFrom(ScriptTemplate inputScript, ScriptTemplate startScript,
-            ScriptTemplate lengthScript) {
+    protected ScriptTemplate asScriptFrom(ScriptTemplate inputScript, ScriptTemplate startScript, ScriptTemplate lengthScript) {
         // basically, transform the script to InternalSqlScriptUtils.[function_name](function_or_field1, function_or_field2,...)
-        return new ScriptTemplate(format(Locale.ROOT, formatTemplate("{sql}.%s(%s,%s,%s)"),
+        return new ScriptTemplate(
+            format(
+                Locale.ROOT,
+                formatTemplate("{sql}.%s(%s,%s,%s)"),
                 "substring",
                 inputScript.template(),
                 startScript.template(),
-                lengthScript.template()),
-                paramsBuilder()
-                    .script(inputScript.params()).script(startScript.params())
-                    .script(lengthScript.params())
-                    .build(), dataType());
+                lengthScript.template()
+            ),
+            paramsBuilder().script(inputScript.params()).script(startScript.params()).script(lengthScript.params()).build(),
+            dataType()
+        );
     }
 
     @Override
     public ScriptTemplate scriptWithField(FieldAttribute field) {
-        return new ScriptTemplate(processScript("doc[{}].value"),
-                paramsBuilder().variable(field.exactAttribute().name()).build(),
-                dataType());
+        return new ScriptTemplate(
+            processScript("doc[{}].value"),
+            paramsBuilder().variable(field.exactAttribute().name()).build(),
+            dataType()
+        );
     }
 
     @Override

@@ -19,6 +19,7 @@ class ChunkedDataExtractorContext {
 
     interface TimeAligner {
         long alignToFloor(long value);
+
         long alignToCeil(long value);
     }
 
@@ -37,10 +38,22 @@ class ChunkedDataExtractorContext {
     final IndicesOptions indicesOptions;
     final Map<String, Object> runtimeMappings;
 
-    ChunkedDataExtractorContext(String jobId, String timeField, List<String> indices, QueryBuilder query, int scrollSize, long start,
-                                long end, @Nullable TimeValue chunkSpan, TimeAligner timeAligner, Map<String, String> headers,
-                                boolean hasAggregations, @Nullable Long histogramInterval, IndicesOptions indicesOptions,
-                                Map<String, Object> runtimeMappings) {
+    ChunkedDataExtractorContext(
+        String jobId,
+        String timeField,
+        List<String> indices,
+        QueryBuilder query,
+        int scrollSize,
+        long start,
+        long end,
+        @Nullable TimeValue chunkSpan,
+        TimeAligner timeAligner,
+        Map<String, String> headers,
+        boolean hasAggregations,
+        @Nullable Long histogramInterval,
+        IndicesOptions indicesOptions,
+        Map<String, Object> runtimeMappings
+    ) {
         this.jobId = Objects.requireNonNull(jobId);
         this.timeField = Objects.requireNonNull(timeField);
         this.indices = indices.toArray(new String[indices.size()]);

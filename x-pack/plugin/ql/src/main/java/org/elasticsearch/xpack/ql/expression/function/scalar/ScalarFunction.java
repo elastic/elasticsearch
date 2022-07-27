@@ -6,16 +6,13 @@
  */
 package org.elasticsearch.xpack.ql.expression.function.scalar;
 
-import java.time.OffsetTime;
-import java.time.ZonedDateTime;
-import java.util.List;
-
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.function.Function;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.expression.function.grouping.GroupingFunction;
+import org.elasticsearch.xpack.ql.expression.gen.script.Params;
 import org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.ql.expression.gen.script.Scripts;
@@ -23,11 +20,17 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.util.DateUtils;
 
+import java.time.OffsetTime;
+import java.time.ZonedDateTime;
+import java.util.List;
+
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.paramsBuilder;
 import static org.elasticsearch.xpack.ql.expression.gen.script.Scripts.PARAM;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
+import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 
 /**
  * A {@code ScalarFunction} is a {@code Function} that takes values from some
@@ -80,20 +83,23 @@ public abstract class ScalarFunction extends Function {
         //
 
         // wrap intervals with dedicated methods for serialization
-        if (fold instanceof ZonedDateTime) {
-            ZonedDateTime zdt = (ZonedDateTime) fold;
-            return new ScriptTemplate(processScript("{sql}.asDateTime({})"), paramsBuilder().variable(DateUtils.toString(zdt)).build(),
-                    dataType());
+        if (fold instanceof ZonedDateTime zdt) {
+            return new ScriptTemplate(
+                processScript("{sql}.asDateTime({})"),
+                paramsBuilder().variable(DateUtils.toString(zdt)).build(),
+                dataType()
+            );
         }
 
-        if (fold instanceof IntervalScripting) {
-            IntervalScripting is = (IntervalScripting) fold;
-            return new ScriptTemplate(processScript(is.script()), paramsBuilder().variable(is.value()).variable(is.typeName()).build(),
-                    dataType());
+        if (fold instanceof IntervalScripting is) {
+            return new ScriptTemplate(
+                processScript(is.script()),
+                paramsBuilder().variable(is.value()).variable(is.typeName()).build(),
+                dataType()
+            );
         }
 
-        if (fold instanceof OffsetTime) {
-            OffsetTime ot = (OffsetTime) fold;
+        if (fold instanceof OffsetTime ot) {
             return new ScriptTemplate(processScript("{sql}.asTime({})"), paramsBuilder().variable(ot.toString()).build(), dataType());
         }
 
@@ -101,16 +107,12 @@ public abstract class ScalarFunction extends Function {
             return new ScriptTemplate(processScript("{sql}.stWktToSql({})"), paramsBuilder().variable(fold.toString()).build(), dataType());
         }
 
-        return new ScriptTemplate(processScript("{}"),
-                paramsBuilder().variable(fold).build(),
-                dataType());
+        return new ScriptTemplate(processScript("{}"), paramsBuilder().variable(fold).build(), dataType());
     }
 
     protected ScriptTemplate scriptWithScalar(ScalarFunction scalar) {
         ScriptTemplate nested = scalar.asScript();
-        return new ScriptTemplate(processScript(nested.template()),
-                paramsBuilder().script(nested.params()).build(),
-                dataType());
+        return new ScriptTemplate(processScript(nested.template()), paramsBuilder().script(nested.params()).build(), dataType());
     }
 
     protected ScriptTemplate scriptWithAggregate(AggregateFunction aggregate) {
@@ -120,7 +122,7 @@ public abstract class ScalarFunction extends Function {
         DataType nullSafeCastDataType = null;
         DataType dataType = aggregate.dataType();
         if (dataType.name().equals("DATE") || dataType == DATETIME ||
-            // Aggregations on date_nanos are returned as string
+        // Aggregations on date_nanos are returned as string
             aggregate.field().dataType() == DATETIME) {
 
             template = "{sql}.asDateTime({})";
@@ -147,15 +149,19 @@ public abstract class ScalarFunction extends Function {
     // that currently results in a script being generated
     protected ScriptTemplate scriptWithGrouping(GroupingFunction grouping) {
         String template = PARAM;
-        return new ScriptTemplate(processScript(template),
-            paramsBuilder().grouping(grouping).build(),
-            dataType());
+        return new ScriptTemplate(processScript(template), paramsBuilder().grouping(grouping).build(), dataType());
     }
 
     protected ScriptTemplate scriptWithField(FieldAttribute field) {
-        return new ScriptTemplate(processScript(Scripts.DOC_VALUE),
-                paramsBuilder().variable(field.name()).build(),
-                dataType());
+        Params params = paramsBuilder().variable(field.exactAttribute().name()).build();
+        // unsigned_long fields get returned in scripts as plain longs, so a conversion is required
+        return field.dataType() != UNSIGNED_LONG
+            ? new ScriptTemplate(processScript(Scripts.DOC_VALUE), params, dataType())
+            : new ScriptTemplate(
+                processScript(format("{ql}.", "nullSafeCastToUnsignedLong({})", Scripts.DOC_VALUE)),
+                params,
+                UNSIGNED_LONG
+            );
     }
 
     protected String processScript(String script) {

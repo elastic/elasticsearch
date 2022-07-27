@@ -10,13 +10,14 @@ import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.reindex.ReindexPlugin;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.PutEnrichPolicyAction;
@@ -36,6 +37,15 @@ public class EnrichPolicyUpdateTests extends ESSingleNodeTestCase {
         return List.of(LocalStateEnrich.class, ReindexPlugin.class, IngestCommonPlugin.class);
     }
 
+    @Override
+    protected Settings nodeSettings() {
+        return Settings.builder()
+            // TODO Fix the test so that it runs with security enabled
+            // https://github.com/elastic/elasticsearch/issues/75940
+            .put(XPackSettings.SECURITY_ENABLED.getKey(), false)
+            .build();
+    }
+
     public void testUpdatePolicyOnly() {
         IngestService ingestService = getInstanceFromNode(IngestService.class);
         createIndex("index", Settings.EMPTY, "_doc", "key1", "type=keyword", "field1", "type=keyword");
@@ -53,8 +63,8 @@ public class EnrichPolicyUpdateTests extends ESSingleNodeTestCase {
             equalTo(true)
         );
 
-        String pipelineConfig =
-            "{\"processors\":[{\"enrich\": {\"policy_name\": \"my_policy\", \"field\": \"key\", \"target_field\": \"target\"}}]}";
+        String pipelineConfig = """
+            {"processors":[{"enrich": {"policy_name": "my_policy", "field": "key", "target_field": "target"}}]}""";
         PutPipelineRequest putPipelineRequest = new PutPipelineRequest("1", new BytesArray(pipelineConfig), XContentType.JSON);
         assertAcked(client().admin().cluster().putPipeline(putPipelineRequest).actionGet());
         Pipeline pipelineInstance1 = ingestService.getPipeline("1");

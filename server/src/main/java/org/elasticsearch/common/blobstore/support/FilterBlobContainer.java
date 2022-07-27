@@ -9,13 +9,14 @@
 package org.elasticsearch.common.blobstore.support;
 
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.core.CheckedConsumer;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
@@ -62,6 +63,12 @@ public abstract class FilterBlobContainer implements BlobContainer {
     }
 
     @Override
+    public void writeBlob(String blobName, boolean failIfAlreadyExists, boolean atomic, CheckedConsumer<OutputStream, IOException> writer)
+        throws IOException {
+        delegate.writeBlob(blobName, failIfAlreadyExists, atomic, writer);
+    }
+
+    @Override
     public void writeBlobAtomic(String blobName, BytesReference bytes, boolean failIfAlreadyExists) throws IOException {
         delegate.writeBlobAtomic(blobName, bytes, failIfAlreadyExists);
     }
@@ -85,7 +92,6 @@ public abstract class FilterBlobContainer implements BlobContainer {
     public Map<String, BlobContainer> children() throws IOException {
         return delegate.children().entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> wrapChild(e.getValue())));
     }
-
 
     @Override
     public Map<String, BlobMetadata> listBlobsByPrefix(String blobNamePrefix) throws IOException {

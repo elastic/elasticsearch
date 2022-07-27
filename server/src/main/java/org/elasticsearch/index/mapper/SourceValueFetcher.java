@@ -14,6 +14,7 @@ import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Queue;
 import java.util.Set;
@@ -34,16 +35,24 @@ public abstract class SourceValueFetcher implements ValueFetcher {
     }
 
     /**
-     * @param context The query shard context
-     * @param nullValue A optional substitute value if the _source value is 'null'.
+     * @param context   The query shard context
+     * @param nullValue An optional substitute value if the _source value is 'null'.
      */
     public SourceValueFetcher(String fieldName, SearchExecutionContext context, Object nullValue) {
-        this.sourcePaths = context.sourcePath(fieldName);
+        this(context.isSourceEnabled() ? context.sourcePath(fieldName) : Collections.emptySet(), nullValue);
+    }
+
+    /**
+     * @param sourcePaths   The paths to pull source values from
+     * @param nullValue     An optional substitute value if the _source value is `null`
+     */
+    private SourceValueFetcher(Set<String> sourcePaths, Object nullValue) {
+        this.sourcePaths = sourcePaths;
         this.nullValue = nullValue;
     }
 
     @Override
-    public List<Object> fetchValues(SourceLookup lookup) {
+    public List<Object> fetchValues(SourceLookup lookup, List<Object> ignoredValues) {
         List<Object> values = new ArrayList<>();
         for (String path : sourcePaths) {
             Object sourceValue = lookup.extractValue(path, nullValue);
@@ -68,8 +77,11 @@ public abstract class SourceValueFetcher implements ValueFetcher {
                         Object parsedValue = parseSourceValue(value);
                         if (parsedValue != null) {
                             values.add(parsedValue);
+                        } else {
+                            ignoredValues.add(value);
                         }
                     } catch (Exception e) {
+                        ignoredValues.add(value);
                         // if we get a parsing exception here, that means that the
                         // value in _source would have also caused a parsing
                         // exception at index time and the value ignored.
@@ -111,6 +123,19 @@ public abstract class SourceValueFetcher implements ValueFetcher {
             throw new IllegalArgumentException("Field [" + fieldName + "] doesn't support formats.");
         }
         return new SourceValueFetcher(fieldName, context) {
+            @Override
+            protected Object parseSourceValue(Object value) {
+                return value.toString();
+            }
+        };
+    }
+
+    /**
+     * Creates a {@link SourceValueFetcher} that converts source values to Strings
+     * @param sourcePaths   the paths to fetch values from in the source
+     */
+    public static SourceValueFetcher toString(Set<String> sourcePaths) {
+        return new SourceValueFetcher(sourcePaths, null) {
             @Override
             protected Object parseSourceValue(Object value) {
                 return value.toString();

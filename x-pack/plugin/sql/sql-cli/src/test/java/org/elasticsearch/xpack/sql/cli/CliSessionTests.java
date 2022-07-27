@@ -29,8 +29,14 @@ public class CliSessionTests extends SqlCliTestCase {
 
     public void testProperConnection() throws Exception {
         HttpClient httpClient = mock(HttpClient.class);
-        when(httpClient.serverInfo()).thenReturn(new MainResponse(randomAlphaOfLength(5), ClientVersion.CURRENT.toString(),
-                ClusterName.DEFAULT.value(), UUIDs.randomBase64UUID()));
+        when(httpClient.serverInfo()).thenReturn(
+            new MainResponse(
+                randomAlphaOfLength(5),
+                ClientVersion.CURRENT.toString(),
+                ClusterName.DEFAULT.value(),
+                UUIDs.randomBase64UUID()
+            )
+        );
         CliSession cliSession = new CliSession(httpClient);
         cliSession.checkConnection();
         verify(httpClient, times(1)).serverInfo();
@@ -51,13 +57,18 @@ public class CliSessionTests extends SqlCliTestCase {
         HttpClient httpClient = mock(HttpClient.class);
         Version v = VersionUtils.randomVersionBetween(random(), null, VersionUtils.getPreviousVersion(Version.V_7_7_0));
         SqlVersion version = new SqlVersion(v.major, v.minor, v.revision);
-        when(httpClient.serverInfo()).thenReturn(new MainResponse(randomAlphaOfLength(5), version.toString(),
-                ClusterName.DEFAULT.value(), UUIDs.randomBase64UUID()));
+        when(httpClient.serverInfo()).thenReturn(
+            new MainResponse(randomAlphaOfLength(5), version.toString(), ClusterName.DEFAULT.value(), UUIDs.randomBase64UUID())
+        );
         CliSession cliSession = new CliSession(httpClient);
         Throwable throwable = expectThrows(ClientException.class, cliSession::checkConnection);
-        assertEquals("This version of the CLI is only compatible with Elasticsearch version " +
-            ClientVersion.CURRENT.majorMinorToString() + " or newer; attempting to connect to a server version " + version.toString(),
-            throwable.getMessage());
+        assertEquals(
+            "This version of the CLI is only compatible with Elasticsearch version "
+                + ClientVersion.CURRENT.majorMinorToString()
+                + " or newer; attempting to connect to a server version "
+                + version.toString(),
+            throwable.getMessage()
+        );
         verify(httpClient, times(1)).serverInfo();
         verifyNoMoreInteractions(httpClient);
     }
@@ -66,8 +77,9 @@ public class CliSessionTests extends SqlCliTestCase {
         HttpClient httpClient = mock(HttpClient.class);
         Version v = VersionUtils.randomVersionBetween(random(), Version.V_7_7_0, null);
         SqlVersion version = new SqlVersion(v.major, v.minor, v.revision);
-        when(httpClient.serverInfo()).thenReturn(new MainResponse(randomAlphaOfLength(5), version.toString(),
-            ClusterName.DEFAULT.value(), UUIDs.randomBase64UUID()));
+        when(httpClient.serverInfo()).thenReturn(
+            new MainResponse(randomAlphaOfLength(5), version.toString(), ClusterName.DEFAULT.value(), UUIDs.randomBase64UUID())
+        );
         CliSession cliSession = new CliSession(httpClient);
         cliSession.checkConnection();
         verify(httpClient, times(1)).serverInfo();

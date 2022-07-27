@@ -9,13 +9,13 @@
 package org.elasticsearch.threadpool;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsAbortPolicy;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.TimeValue;
 
 import java.util.concurrent.Delayed;
 import java.util.concurrent.Future;
@@ -42,8 +42,11 @@ public interface Scheduler {
      * @return executor
      */
     static ScheduledThreadPoolExecutor initScheduler(Settings settings, String schedulerName) {
-        final ScheduledThreadPoolExecutor scheduler = new SafeScheduledThreadPoolExecutor(1,
-                EsExecutors.daemonThreadFactory(settings, schedulerName), new EsAbortPolicy());
+        final ScheduledThreadPoolExecutor scheduler = new SafeScheduledThreadPoolExecutor(
+            1,
+            EsExecutors.daemonThreadFactory(settings, schedulerName),
+            new EsAbortPolicy()
+        );
         scheduler.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
         scheduler.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
         scheduler.setRemoveOnCancelPolicy(true);
@@ -60,8 +63,11 @@ public interface Scheduler {
         return awaitTermination(scheduledThreadPoolExecutor, timeout, timeUnit);
     }
 
-    static boolean awaitTermination(final ScheduledThreadPoolExecutor scheduledThreadPoolExecutor,
-            final long timeout, final TimeUnit timeUnit) {
+    static boolean awaitTermination(
+        final ScheduledThreadPoolExecutor scheduledThreadPoolExecutor,
+        final long timeout,
+        final TimeUnit timeUnit
+    ) {
         try {
             if (scheduledThreadPoolExecutor.awaitTermination(timeout, timeUnit)) {
                 return true;
@@ -121,7 +127,6 @@ public interface Scheduler {
         return new ScheduledCancellableAdapter(scheduledFuture);
     }
 
-
     /**
      * This interface represents an object whose execution may be cancelled during runtime.
      */
@@ -142,7 +147,7 @@ public interface Scheduler {
     /**
      * A scheduled cancellable allow cancelling and reading the remaining delay of a scheduled task.
      */
-    interface ScheduledCancellable extends Delayed, Cancellable { }
+    interface ScheduledCancellable extends Delayed, Cancellable {}
 
     /**
      * This class encapsulates the scheduling of a {@link Runnable} that needs to be repeated on a interval. For example, checking a value
@@ -173,8 +178,14 @@ public interface Scheduler {
          * @param executor the executor where this runnable should be scheduled to run
          * @param scheduler the {@link Scheduler} instance to use for scheduling
          */
-        ReschedulingRunnable(Runnable runnable, TimeValue interval, String executor, Scheduler scheduler,
-                             Consumer<Exception> rejectionConsumer, Consumer<Exception> failureConsumer) {
+        ReschedulingRunnable(
+            Runnable runnable,
+            TimeValue interval,
+            String executor,
+            Scheduler scheduler,
+            Consumer<Exception> rejectionConsumer,
+            Consumer<Exception> failureConsumer
+        ) {
             this.runnable = runnable;
             this.interval = interval;
             this.executor = executor;
@@ -229,10 +240,7 @@ public interface Scheduler {
 
         @Override
         public String toString() {
-            return "ReschedulingRunnable{" +
-                "runnable=" + runnable +
-                ", interval=" + interval +
-                '}';
+            return "ReschedulingRunnable{" + "runnable=" + runnable + ", interval=" + interval + '}';
         }
     }
 

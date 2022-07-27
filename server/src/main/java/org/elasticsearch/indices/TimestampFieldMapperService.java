@@ -8,10 +8,8 @@
 
 package org.elasticsearch.indices;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -19,13 +17,13 @@ import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -41,6 +39,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * Tracks the mapping of the {@code @timestamp} field of immutable indices that expose their timestamp range in their index metadata.
@@ -64,13 +63,20 @@ public class TimestampFieldMapperService extends AbstractLifecycleComponent impl
 
         final String nodeName = Objects.requireNonNull(Node.NODE_NAME_SETTING.get(settings));
         final String threadName = "TimestampFieldMapperService#updateTask";
-        executor = EsExecutors.newScaling(nodeName + "/" + threadName, 0, 1, 0, TimeUnit.MILLISECONDS,
-                daemonThreadFactory(nodeName, threadName), threadPool.getThreadContext());
+        executor = EsExecutors.newScaling(
+            nodeName + "/" + threadName,
+            0,
+            1,
+            0,
+            TimeUnit.MILLISECONDS,
+            true,
+            daemonThreadFactory(nodeName, threadName),
+            threadPool.getThreadContext()
+        );
     }
 
     @Override
-    protected void doStart() {
-    }
+    protected void doStart() {}
 
     @Override
     protected void doStop() {
@@ -78,19 +84,21 @@ public class TimestampFieldMapperService extends AbstractLifecycleComponent impl
     }
 
     @Override
-    protected void doClose() {
-    }
+    protected void doClose() {}
 
     @Override
     public void applyClusterState(ClusterChangedEvent event) {
         final Metadata metadata = event.state().metadata();
+        final Map<String, IndexMetadata> indices = metadata.indices();
+        if (indices == event.previousState().metadata().indices()) {
+            return;
+        }
 
         // clear out mappers for indices that no longer exist or whose timestamp range is no longer known
         fieldTypesByIndex.keySet().removeIf(index -> hasUsefulTimestampField(metadata.index(index)) == false);
 
         // capture mappers for indices that do exist
-        for (ObjectCursor<IndexMetadata> cursor : metadata.indices().values()) {
-            final IndexMetadata indexMetadata = cursor.value;
+        for (IndexMetadata indexMetadata : indices.values()) {
             final Index index = indexMetadata.getIndex();
 
             if (hasUsefulTimestampField(indexMetadata) && fieldTypesByIndex.containsKey(index) == false) {
@@ -104,13 +112,13 @@ public class TimestampFieldMapperService extends AbstractLifecycleComponent impl
                     executor.execute(new AbstractRunnable() {
                         @Override
                         public void onFailure(Exception e) {
-                            logger.debug(new ParameterizedMessage("failed to compute mapping for {}", index), e);
+                            logger.debug(() -> format("failed to compute mapping for %s", index), e);
                             future.onResponse(null); // no need to propagate a failure to create the mapper service to searches
                         }
 
                         @Override
                         protected void doRun() throws Exception {
-                            try (MapperService mapperService = indicesService.createIndexMapperService(indexMetadata)) {
+                            try (MapperService mapperService = indicesService.createIndexMapperServiceForValidation(indexMetadata)) {
                                 mapperService.merge(indexMetadata, MapperService.MergeReason.MAPPING_RECOVERY);
                                 logger.trace("computed timestamp field mapping for {}", index);
                                 future.onResponse(fromMapperService(mapperService));
@@ -134,6 +142,12 @@ public class TimestampFieldMapperService extends AbstractLifecycleComponent impl
         if (indexMetadata == null) {
             return false;
         }
+
+        if (indexMetadata.getTimeSeriesTimestampRange() != null) {
+            // Tsdb indices have @timestamp field and index.time_series.start_time / index.time_series.end_time range
+            return true;
+        }
+
         final IndexLongFieldRange timestampRange = indexMetadata.getTimestampRange();
         return timestampRange.isComplete() && timestampRange != IndexLongFieldRange.UNKNOWN;
     }

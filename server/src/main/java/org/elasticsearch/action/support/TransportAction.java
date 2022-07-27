@@ -7,6 +7,7 @@
  */
 
 package org.elasticsearch.action.support;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
@@ -39,12 +40,19 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
      * Use this method when the transport action should continue to run in the context of the current task
      */
     public final void execute(Task task, Request request, ActionListener<Response> listener) {
-        ActionRequestValidationException validationException = request.validate();
+        final ActionRequestValidationException validationException;
+        try {
+            validationException = request.validate();
+        } catch (Exception e) {
+            assert false : new AssertionError("validating of request [" + request + "] threw exception", e);
+            logger.warn("validating of request [" + request + "] threw exception", e);
+            listener.onFailure(e);
+            return;
+        }
         if (validationException != null) {
             listener.onFailure(validationException);
             return;
         }
-
         if (task != null && request.getShouldStoreResult()) {
             listener = new TaskResultStoringActionListener<>(taskManager, task, listener);
         }
@@ -56,7 +64,8 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
     protected abstract void doExecute(Task task, Request request, ActionListener<Response> listener);
 
     private static class RequestFilterChain<Request extends ActionRequest, Response extends ActionResponse>
-            implements ActionFilterChain<Request, Response> {
+        implements
+            ActionFilterChain<Request, Response> {
 
         private final TransportAction<Request, Response> action;
         private final AtomicInteger index = new AtomicInteger();
@@ -78,7 +87,7 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
                 } else {
                     listener.onFailure(new IllegalStateException("proceed was called too many times"));
                 }
-            } catch(Exception e) {
+            } catch (Exception e) {
                 logger.trace("Error during transport action execution.", e);
                 listener.onFailure(e);
             }

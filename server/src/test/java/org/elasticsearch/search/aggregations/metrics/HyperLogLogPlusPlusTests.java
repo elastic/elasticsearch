@@ -8,9 +8,7 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import com.carrotsearch.hppc.BitMixer;
-import com.carrotsearch.hppc.IntHashSet;
-
+import org.apache.lucene.util.hppc.BitMixer;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
@@ -21,6 +19,8 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.search.aggregations.metrics.AbstractCardinalityAlgorithm.MAX_PRECISION;
@@ -58,9 +58,9 @@ public class HyperLogLogPlusPlusTests extends ESTestCase {
     public void testAccuracy() {
         final long bucket = randomInt(20);
         final int numValues = randomIntBetween(1, 100000);
-        final int maxValue = randomIntBetween(1, randomBoolean() ? 1000: 100000);
+        final int maxValue = randomIntBetween(1, randomBoolean() ? 1000 : 100000);
         final int p = randomIntBetween(14, MAX_PRECISION);
-        IntHashSet set = new IntHashSet();
+        Set<Integer> set = new HashSet<>();
         HyperLogLogPlusPlus e = new HyperLogLogPlusPlus(p, BigArrays.NON_RECYCLING_INSTANCE, 1);
         for (int i = 0; i < numValues; ++i) {
             final int n = randomInt(maxValue);
@@ -68,7 +68,7 @@ public class HyperLogLogPlusPlusTests extends ESTestCase {
             final long hash = BitMixer.mix64(n);
             e.collect(bucket, hash);
             if (randomInt(100) == 0) {
-                //System.out.println(e.cardinality(bucket) + " <> " + set.size());
+                // System.out.println(e.cardinality(bucket) + " <> " + set.size());
                 assertThat((double) e.cardinality(bucket), closeTo(set.size(), 0.1 * set.size()));
             }
         }
@@ -85,7 +85,7 @@ public class HyperLogLogPlusPlusTests extends ESTestCase {
             multi[i] = new HyperLogLogPlusPlus(p, BigArrays.NON_RECYCLING_INSTANCE, 5);
         }
         final int numValues = randomIntBetween(1, 100000);
-        final int maxValue = randomIntBetween(1, randomBoolean() ? 1000: 1000000);
+        final int maxValue = randomIntBetween(1, randomBoolean() ? 1000 : 1000000);
         for (int i = 0; i < numValues; ++i) {
             final int n = randomInt(maxValue);
             final long hash = BitMixer.mix64(n);
@@ -135,6 +135,7 @@ public class HyperLogLogPlusPlusTests extends ESTestCase {
         CircuitBreakerService breakerService = mock(CircuitBreakerService.class);
         when(breakerService.getBreaker(CircuitBreaker.REQUEST)).thenReturn(new NoopCircuitBreaker(CircuitBreaker.REQUEST) {
             private int countDown = whenToBreak;
+
             @Override
             public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
                 if (countDown-- == 0) {

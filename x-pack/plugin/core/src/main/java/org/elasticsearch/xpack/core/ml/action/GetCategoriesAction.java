@@ -9,13 +9,16 @@ package org.elasticsearch.xpack.core.ml.action;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.action.AbstractGetResourcesResponse;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
@@ -24,9 +27,11 @@ import org.elasticsearch.xpack.core.ml.job.results.CategoryDefinition;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.core.Strings.format;
 
 public class GetCategoriesAction extends ActionType<GetCategoriesAction.Response> {
 
@@ -70,8 +75,7 @@ public class GetCategoriesAction extends ActionType<GetCategoriesAction.Response
             this.jobId = ExceptionsHelper.requireNonNull(jobId, Job.ID.getPreferredName());
         }
 
-        public Request() {
-        }
+        public Request() {}
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -81,24 +85,44 @@ public class GetCategoriesAction extends ActionType<GetCategoriesAction.Response
             partitionFieldValue = in.readOptionalString();
         }
 
-        public String getJobId() { return jobId; }
+        public String getJobId() {
+            return jobId;
+        }
 
-        public PageParams getPageParams() { return pageParams; }
+        public PageParams getPageParams() {
+            return pageParams;
+        }
 
-        public Long getCategoryId() { return categoryId; }
+        public Long getCategoryId() {
+            return categoryId;
+        }
 
         public void setCategoryId(Long categoryId) {
             if (pageParams != null) {
-                throw new IllegalArgumentException("Param [" + CATEGORY_ID.getPreferredName() + "] is incompatible with ["
-                        + PageParams.FROM.getPreferredName() + ", " + PageParams.SIZE.getPreferredName() + "].");
+                throw new IllegalArgumentException(
+                    "Param ["
+                        + CATEGORY_ID.getPreferredName()
+                        + "] is incompatible with ["
+                        + PageParams.FROM.getPreferredName()
+                        + ", "
+                        + PageParams.SIZE.getPreferredName()
+                        + "]."
+                );
             }
             this.categoryId = ExceptionsHelper.requireNonNull(categoryId, CATEGORY_ID.getPreferredName());
         }
 
         public void setPageParams(PageParams pageParams) {
             if (categoryId != null) {
-                throw new IllegalArgumentException("Param [" + PageParams.FROM.getPreferredName() + ", "
-                        + PageParams.SIZE.getPreferredName() + "] is incompatible with [" + CATEGORY_ID.getPreferredName() + "].");
+                throw new IllegalArgumentException(
+                    "Param ["
+                        + PageParams.FROM.getPreferredName()
+                        + ", "
+                        + PageParams.SIZE.getPreferredName()
+                        + "] is incompatible with ["
+                        + CATEGORY_ID.getPreferredName()
+                        + "]."
+                );
             }
             this.pageParams = pageParams;
         }
@@ -115,9 +139,17 @@ public class GetCategoriesAction extends ActionType<GetCategoriesAction.Response
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
             if (pageParams == null && categoryId == null) {
-                validationException = addValidationError("Both [" + CATEGORY_ID.getPreferredName() + "] and ["
-                        + PageParams.FROM.getPreferredName() + ", " + PageParams.SIZE.getPreferredName() + "] "
-                        + "cannot be null" , validationException);
+                validationException = addValidationError(
+                    "Both ["
+                        + CATEGORY_ID.getPreferredName()
+                        + "] and ["
+                        + PageParams.FROM.getPreferredName()
+                        + ", "
+                        + PageParams.SIZE.getPreferredName()
+                        + "] "
+                        + "cannot be null",
+                    validationException
+                );
             }
             return validationException;
         }
@@ -150,20 +182,23 @@ public class GetCategoriesAction extends ActionType<GetCategoriesAction.Response
 
         @Override
         public boolean equals(Object o) {
-            if (this == o)
-                return true;
-            if (o == null || getClass() != o.getClass())
-                return false;
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
             return Objects.equals(jobId, request.jobId)
-                    && Objects.equals(categoryId, request.categoryId)
-                    && Objects.equals(pageParams, request.pageParams)
-                    && Objects.equals(partitionFieldValue, request.partitionFieldValue);
+                && Objects.equals(categoryId, request.categoryId)
+                && Objects.equals(pageParams, request.pageParams)
+                && Objects.equals(partitionFieldValue, request.partitionFieldValue);
         }
 
         @Override
         public int hashCode() {
             return Objects.hash(jobId, categoryId, pageParams, partitionFieldValue);
+        }
+
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, format("get_categories[%s:%s]", jobId, categoryId), parentTaskId, headers);
         }
     }
 

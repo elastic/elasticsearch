@@ -13,9 +13,6 @@ public final class HealthAndStatsPrivilege extends Privilege {
     public static final String NAME = "health_and_stats";
 
     private HealthAndStatsPrivilege() {
-        super(NAME, "cluster:monitor/health*",
-                    "cluster:monitor/stats*",
-                    "indices:monitor/stats*",
-                    "cluster:monitor/nodes/stats*");
+        super(NAME, "cluster:monitor/health*", "cluster:monitor/stats*", "indices:monitor/stats*", "cluster:monitor/nodes/stats*");
     }
 }

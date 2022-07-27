@@ -12,8 +12,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.async.StoredAsyncResponse;
 import org.elasticsearch.xpack.core.search.action.SearchStatusResponse;
 
@@ -41,12 +41,14 @@ public class QlStatusResponse extends ActionResponse implements SearchStatusResp
         boolean isPartial();
     }
 
-    public QlStatusResponse(String id,
-                            boolean isRunning,
-                            boolean isPartial,
-                            Long startTimeMillis,
-                            long expirationTimeMillis,
-                            RestStatus completionStatus) {
+    public QlStatusResponse(
+        String id,
+        boolean isRunning,
+        boolean isPartial,
+        Long startTimeMillis,
+        long expirationTimeMillis,
+        RestStatus completionStatus
+    ) {
         this.id = id;
         this.isRunning = isRunning;
         this.isPartial = isPartial;
@@ -62,8 +64,11 @@ public class QlStatusResponse extends ActionResponse implements SearchStatusResp
      * @param id – encoded async search id
      * @return a status response
      */
-    public static <S extends Writeable & AsyncStatus> QlStatusResponse getStatusFromStoredSearch(StoredAsyncResponse<S> storedResponse,
-                                                                                                 long expirationTimeMillis, String id) {
+    public static <S extends Writeable & AsyncStatus> QlStatusResponse getStatusFromStoredSearch(
+        StoredAsyncResponse<S> storedResponse,
+        long expirationTimeMillis,
+        String id
+    ) {
         S searchResponse = storedResponse.getResponse();
         if (searchResponse != null) {
             assert searchResponse.isRunning() == false : "Stored Ql search response must have a completed status!";

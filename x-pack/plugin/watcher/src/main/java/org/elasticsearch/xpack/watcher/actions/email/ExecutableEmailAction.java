@@ -7,8 +7,6 @@
 package org.elasticsearch.xpack.watcher.actions.email;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.xpack.core.watcher.actions.Action;
 import org.elasticsearch.xpack.core.watcher.actions.ExecutableAction;
@@ -21,12 +19,15 @@ import org.elasticsearch.xpack.watcher.notification.email.Email;
 import org.elasticsearch.xpack.watcher.notification.email.EmailService;
 import org.elasticsearch.xpack.watcher.notification.email.HtmlSanitizer;
 import org.elasticsearch.xpack.watcher.notification.email.attachment.EmailAttachmentParser;
+import org.elasticsearch.xpack.watcher.notification.email.attachment.EmailAttachmentParser.EmailAttachment;
 import org.elasticsearch.xpack.watcher.support.Variables;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
+
+import static org.elasticsearch.core.Strings.format;
 
 public class ExecutableEmailAction extends ExecutableAction<EmailAction> {
 
@@ -35,10 +36,16 @@ public class ExecutableEmailAction extends ExecutableAction<EmailAction> {
     private final EmailService emailService;
     private final TextTemplateEngine templateEngine;
     private final HtmlSanitizer htmlSanitizer;
-    private final Map<String, EmailAttachmentParser> emailAttachmentParsers;
+    private final Map<String, EmailAttachmentParser<? extends EmailAttachment>> emailAttachmentParsers;
 
-    public ExecutableEmailAction(EmailAction action, Logger logger, EmailService emailService, TextTemplateEngine templateEngine,
-                                 HtmlSanitizer htmlSanitizer, Map<String, EmailAttachmentParser> emailAttachmentParsers) {
+    public ExecutableEmailAction(
+        EmailAction action,
+        Logger logger,
+        EmailService emailService,
+        TextTemplateEngine templateEngine,
+        HtmlSanitizer htmlSanitizer,
+        Map<String, EmailAttachmentParser<? extends EmailAttachment>> emailAttachmentParsers
+    ) {
         super(action, logger);
         this.emailService = emailService;
         this.templateEngine = templateEngine;
@@ -57,14 +64,16 @@ public class ExecutableEmailAction extends ExecutableAction<EmailAction> {
         }
 
         if (action.getAttachments() != null && action.getAttachments().getAttachments().size() > 0) {
-            for (EmailAttachmentParser.EmailAttachment emailAttachment : action.getAttachments().getAttachments()) {
-                EmailAttachmentParser parser = emailAttachmentParsers.get(emailAttachment.type());
+            for (EmailAttachment emailAttachment : action.getAttachments().getAttachments()) {
+                @SuppressWarnings("unchecked")
+                EmailAttachmentParser<EmailAttachment> parser = (EmailAttachmentParser<EmailAttachment>) emailAttachmentParsers.get(
+                    emailAttachment.type()
+                );
                 try {
                     Attachment attachment = parser.toAttachment(ctx, payload, emailAttachment);
                     attachments.put(attachment.id(), attachment);
                 } catch (ElasticsearchException | IOException e) {
-                    logger().error(
-                        (Supplier<?>) () -> new ParameterizedMessage("failed to execute action [{}/{}]", ctx.watch().id(), actionId), e);
+                    logger().error(() -> format("failed to execute action [%s/%s]", ctx.watch().id(), actionId), e);
                     return new EmailAction.Result.FailureWithException(action.type(), e);
                 }
             }

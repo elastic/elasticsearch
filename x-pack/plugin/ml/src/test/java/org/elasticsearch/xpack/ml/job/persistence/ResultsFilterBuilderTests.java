@@ -28,74 +28,51 @@ public class ResultsFilterBuilderTests extends ESTestCase {
     }
 
     public void testBuild_GivenOnlyStartTime() {
-        QueryBuilder expected = QueryBuilders
-                .rangeQuery(Result.TIMESTAMP.getPreferredName())
-                .gte(1000);
+        QueryBuilder expected = QueryBuilders.rangeQuery(Result.TIMESTAMP.getPreferredName()).gte(1000);
 
-        QueryBuilder fb = new ResultsFilterBuilder()
-                .timeRange(Result.TIMESTAMP.getPreferredName(), 1000, null)
-                .build();
+        QueryBuilder fb = new ResultsFilterBuilder().timeRange(Result.TIMESTAMP.getPreferredName(), 1000, null).build();
 
         assertEquals(expected.toString(), fb.toString());
     }
 
     public void testBuild_GivenOnlyEndTime() {
-        QueryBuilder expected = QueryBuilders
-                .rangeQuery(TIMESTAMP)
-                .lt(2000);
+        QueryBuilder expected = QueryBuilders.rangeQuery(TIMESTAMP).lt(2000);
 
-        QueryBuilder fb = new ResultsFilterBuilder()
-                .timeRange(TIMESTAMP, null, 2000)
-                .build();
+        QueryBuilder fb = new ResultsFilterBuilder().timeRange(TIMESTAMP, null, 2000).build();
 
         assertEquals(expected.toString(), fb.toString());
     }
 
     public void testBuild_GivenStartAndEndTime() {
-        QueryBuilder expected = QueryBuilders
-                .rangeQuery(TIMESTAMP)
-                .gte(40)
-                .lt(50);
+        QueryBuilder expected = QueryBuilders.rangeQuery(TIMESTAMP).gte(40).lt(50);
 
-        QueryBuilder fb = new ResultsFilterBuilder()
-                .timeRange(TIMESTAMP, 40, 50)
-                .build();
+        QueryBuilder fb = new ResultsFilterBuilder().timeRange(TIMESTAMP, 40, 50).build();
 
         assertEquals(expected.toString(), fb.toString());
     }
 
     public void testBuild_GivenZeroScore() {
-        QueryBuilder fb = new ResultsFilterBuilder()
-                .score("someField", 0.0)
-                .build();
+        QueryBuilder fb = new ResultsFilterBuilder().score("someField", 0.0).build();
 
         assertEquals(QueryBuilders.matchAllQuery().toString(), fb.toString());
     }
 
     public void testBuild_GivenNegativeScore() {
-        QueryBuilder fb = new ResultsFilterBuilder()
-                .score("someField", -10.0)
-                .build();
+        QueryBuilder fb = new ResultsFilterBuilder().score("someField", -10.0).build();
 
         assertEquals(QueryBuilders.matchAllQuery().toString(), fb.toString());
     }
 
     public void testBuild_GivenPositiveScore() {
-        QueryBuilder expected = QueryBuilders
-                .rangeQuery("someField")
-                .gte(40.3);
+        QueryBuilder expected = QueryBuilders.rangeQuery("someField").gte(40.3);
 
-        QueryBuilder fb = new ResultsFilterBuilder()
-                .score("someField", 40.3)
-                .build();
+        QueryBuilder fb = new ResultsFilterBuilder().score("someField", 40.3).build();
 
         assertEquals(expected.toString(), fb.toString());
     }
 
     public void testBuild_GivenInterimTrue() {
-        QueryBuilder fb = new ResultsFilterBuilder()
-                .interim(true)
-                .build();
+        QueryBuilder fb = new ResultsFilterBuilder().interim(true).build();
 
         assertEquals(QueryBuilders.matchAllQuery().toString(), fb.toString());
     }
@@ -103,9 +80,7 @@ public class ResultsFilterBuilderTests extends ESTestCase {
     public void testBuild_GivenInterimFalse() {
         QueryBuilder expected = QueryBuilders.boolQuery().mustNot(QueryBuilders.termQuery("is_interim", true));
 
-        QueryBuilder fb = new ResultsFilterBuilder()
-                .interim(false)
-                .build();
+        QueryBuilder fb = new ResultsFilterBuilder().interim(false).build();
 
         assertEquals(expected.toString(), fb.toString());
     }
@@ -113,42 +88,32 @@ public class ResultsFilterBuilderTests extends ESTestCase {
     public void testBuild_TermQuery() {
         QueryBuilder expected = QueryBuilders.termQuery("fruit", "banana");
 
-        QueryBuilder fb = new ResultsFilterBuilder()
-                .term("fruit", "banana")
-                .build();
+        QueryBuilder fb = new ResultsFilterBuilder().term("fruit", "banana").build();
 
         assertEquals(expected.toString(), fb.toString());
     }
 
     public void testBuild_GivenCombination() {
         QueryBuilder originalFilter = QueryBuilders.existsQuery("someField");
-        QueryBuilder timeFilter = QueryBuilders
-                .rangeQuery(Result.TIMESTAMP.getPreferredName())
-                .gte(1000)
-                .lt(2000);
-        QueryBuilder score1Filter = new ResultsFilterBuilder()
-                .score("score1", 50.0)
-                .build();
-        QueryBuilder score2Filter = new ResultsFilterBuilder()
-                .score("score2", 80.0)
-                .build();
+        QueryBuilder timeFilter = QueryBuilders.rangeQuery(Result.TIMESTAMP.getPreferredName()).gte(1000).lt(2000);
+        QueryBuilder score1Filter = new ResultsFilterBuilder().score("score1", 50.0).build();
+        QueryBuilder score2Filter = new ResultsFilterBuilder().score("score2", 80.0).build();
         QueryBuilder interimFilter = QueryBuilders.boolQuery().mustNot(QueryBuilders.termQuery("is_interim", true));
         QueryBuilder termFilter = QueryBuilders.termQuery("airline", "AAL");
         QueryBuilder expected = QueryBuilders.boolQuery()
-                .filter(originalFilter)
-                .filter(timeFilter)
-                .filter(score1Filter)
-                .filter(score2Filter)
-                .filter(interimFilter)
-                .filter(termFilter);
+            .filter(originalFilter)
+            .filter(timeFilter)
+            .filter(score1Filter)
+            .filter(score2Filter)
+            .filter(interimFilter)
+            .filter(termFilter);
 
-        QueryBuilder fb = new ResultsFilterBuilder(originalFilter)
-                .timeRange(Result.TIMESTAMP.getPreferredName(), 1000, 2000)
-                .score("score1", 50.0)
-                .score("score2", 80.0)
-                .interim(false)
-                .term("airline", "AAL")
-                .build();
+        QueryBuilder fb = new ResultsFilterBuilder(originalFilter).timeRange(Result.TIMESTAMP.getPreferredName(), 1000, 2000)
+            .score("score1", 50.0)
+            .score("score2", 80.0)
+            .interim(false)
+            .term("airline", "AAL")
+            .build();
 
         assertEquals(expected.toString(), fb.toString());
     }

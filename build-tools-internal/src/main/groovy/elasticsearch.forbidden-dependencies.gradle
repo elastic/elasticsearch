@@ -8,16 +8,15 @@
 
 // we do not want any of these dependencies on the compilation classpath
 // because they could then be used within Elasticsearch
-List<String> FORBIDDEN_DEPENDENCIES = [
-  'guava'
+List<String> FORBIDDEN_DEPENDENCY_GROUPS = [
+  'com.google.guava'
 ]
 
 Closure checkDeps = { Configuration configuration ->
   configuration.resolutionStrategy.eachDependency {
-    String artifactName = it.target.name
-    if (FORBIDDEN_DEPENDENCIES.contains(artifactName)) {
-      throw new GradleException("Dependency '${artifactName}' on configuration '${configuration.name}' is not allowed. " +
-        "If it is needed as a transitive depenency, try adding it to the runtime classpath")
+    if (FORBIDDEN_DEPENDENCY_GROUPS.contains(it.target.group)) {
+      throw new GradleException("Dependency '${it.target.group}:${it.target.name}' on configuration '${configuration.name}' is not allowed. " +
+        "If it is needed as a transitive dependency, try adding it to the runtime classpath")
     }
   }
 }

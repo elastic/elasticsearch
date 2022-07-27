@@ -26,13 +26,16 @@ public final class TestProfiles {
         builder.setConnectTimeout(source.getConnectTimeout());
         builder.setHandshakeTimeout(source.getHandshakeTimeout());
         builder.setCompressionEnabled(source.getCompressionEnabled());
+        builder.setCompressionScheme(source.getCompressionScheme());
         builder.setPingInterval(source.getPingInterval());
-        builder.addConnections(1,
+        builder.addConnections(
+            1,
             TransportRequestOptions.Type.BULK,
             TransportRequestOptions.Type.PING,
             TransportRequestOptions.Type.RECOVERY,
             TransportRequestOptions.Type.REG,
-            TransportRequestOptions.Type.STATE);
+            TransportRequestOptions.Type.STATE
+        );
         LIGHT_PROFILE = builder.build();
     }
 }

@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.indices.state;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -22,8 +21,8 @@ import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDeci
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.StartRecoveryRequest;
@@ -45,6 +44,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.indices.state.CloseIndexIT.assertException;
 import static org.elasticsearch.indices.state.CloseIndexIT.assertIndexIsClosed;
 import static org.elasticsearch.indices.state.CloseIndexIT.assertIndexIsOpened;
@@ -85,33 +85,41 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
             final String indexName = "index-" + i;
             int nbDocs = 0;
             switch (i) {
-                case 0:
+                case 0 -> {
                     logger.debug("creating empty index {}", indexName);
                     createIndex(indexName);
-                    break;
-                case 1:
+                }
+                case 1 -> {
                     nbDocs = scaledRandomIntBetween(1, 100);
                     logger.debug("creating index {} with {} documents", indexName, nbDocs);
                     createIndex(indexName);
-                    indexRandom(randomBoolean(), IntStream.range(0, nbDocs)
-                        .mapToObj(n -> client().prepareIndex(indexName).setSource("num", n))
-                        .collect(Collectors.toList()));
-                    break;
-                default:
+                    indexRandom(
+                        randomBoolean(),
+                        IntStream.range(0, nbDocs).mapToObj(n -> client().prepareIndex(indexName).setSource("num", n)).toList()
+                    );
+                }
+                default -> {
                     logger.debug("creating index {} with background indexing", indexName);
-                    final BackgroundIndexer indexer = new BackgroundIndexer(indexName, "_doc", client(), -1, 1);
+                    final BackgroundIndexer indexer = new BackgroundIndexer(indexName, client(), -1, 1);
                     indexers.put(indexName, indexer);
                     indexer.setFailureAssertion(t -> assertException(t, indexName));
                     waitForDocs(1, indexer);
+                }
             }
             docsPerIndex.put(indexName, (long) nbDocs);
             indices[i] = indexName;
         }
 
-        ensureGreen(TimeValue.timeValueSeconds(60L),indices);
-        assertAcked(client().admin().cluster().prepareUpdateSettings()
-            .setTransientSettings(Settings.builder()
-                .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), Rebalance.NONE.toString())));
+        ensureGreen(TimeValue.timeValueSeconds(60L), indices);
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(
+                    Settings.builder()
+                        .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), Rebalance.NONE.toString())
+                )
+        );
 
         final String targetNode = internalCluster().startDataOnlyNode();
         ensureClusterSizeConsistency(); // wait for the master to finish processing join.
@@ -144,7 +152,8 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
             }
 
             // Build the list of shards for which recoveries will be blocked
-            final Set<ShardId> blockedShards = commands.commands().stream()
+            final Set<ShardId> blockedShards = commands.commands()
+                .stream()
                 .map(c -> (MoveAllocationCommand) c)
                 .map(c -> new ShardId(clusterService.state().metadata().index(c.index()).getIndex(), c.shardId()))
                 .collect(Collectors.toSet());
@@ -164,8 +173,7 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
                             release.await();
                             logger.debug("releasing recovery of shard {}", startRecoveryRequest.shardId());
                         } catch (final InterruptedException e) {
-                            logger.warn(() -> new ParameterizedMessage("exception when releasing recovery of shard {}",
-                                startRecoveryRequest.shardId()), e);
+                            logger.warn(() -> format("exception when releasing recovery of shard %s", startRecoveryRequest.shardId()), e);
                             interruptedRecoveries.add(startRecoveryRequest.shardId().getIndexName());
                             Thread.currentThread().interrupt();
                             return;
@@ -175,8 +183,10 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
                 connection.sendRequest(requestId, action, request, options);
             };
 
-            final MockTransportService targetTransportService =
-                (MockTransportService) internalCluster().getInstance(TransportService.class, targetNode);
+            final MockTransportService targetTransportService = (MockTransportService) internalCluster().getInstance(
+                TransportService.class,
+                targetNode
+            );
 
             for (DiscoveryNode node : state.getNodes()) {
                 if (node.canContainData() && node.getName().equals(targetNode) == false) {
@@ -245,13 +255,29 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
 
             for (String index : acknowledgedCloses) {
                 long docsCount = client().prepareSearch(index).setSize(0).setTrackTotalHits(true).get().getHits().getTotalHits().value;
-                assertEquals("Expected " + docsPerIndex.get(index) + " docs in index " + index + " but got " + docsCount
-                    + " (close acknowledged=" + acknowledgedCloses.contains(index) + ")", (long) docsPerIndex.get(index), docsCount);
+                assertEquals(
+                    "Expected "
+                        + docsPerIndex.get(index)
+                        + " docs in index "
+                        + index
+                        + " but got "
+                        + docsCount
+                        + " (close acknowledged="
+                        + acknowledgedCloses.contains(index)
+                        + ")",
+                    (long) docsPerIndex.get(index),
+                    docsCount
+                );
             }
         } finally {
-            assertAcked(client().admin().cluster().prepareUpdateSettings()
-                .setTransientSettings(Settings.builder()
-                    .putNull(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey())));
+            assertAcked(
+                client().admin()
+                    .cluster()
+                    .prepareUpdateSettings()
+                    .setPersistentSettings(
+                        Settings.builder().putNull(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey())
+                    )
+            );
         }
     }
 }

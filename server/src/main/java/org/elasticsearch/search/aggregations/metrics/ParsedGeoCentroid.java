@@ -9,11 +9,11 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalGeoCentroid.Fields;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
@@ -53,11 +53,17 @@ public class ParsedGeoCentroid extends ParsedAggregation implements GeoCentroid 
         return builder;
     }
 
-    private static final ObjectParser<ParsedGeoCentroid, Void> PARSER = new ObjectParser<>(ParsedGeoCentroid.class.getSimpleName(), true,
-            ParsedGeoCentroid::new);
+    private static final ObjectParser<ParsedGeoCentroid, Void> PARSER = new ObjectParser<>(
+        ParsedGeoCentroid.class.getSimpleName(),
+        true,
+        ParsedGeoCentroid::new
+    );
 
     private static final ObjectParser<GeoPoint, Void> GEO_POINT_PARSER = new ObjectParser<>(
-            ParsedGeoCentroid.class.getSimpleName() + "_POINT", true, GeoPoint::new);
+        ParsedGeoCentroid.class.getSimpleName() + "_POINT",
+        true,
+        GeoPoint::new
+    );
 
     static {
         declareAggregationFields(PARSER);

@@ -13,5 +13,4 @@ import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 /**
  * An single bucket aggregation that translates parent documents to their children documents.
  */
-public interface Children extends SingleBucketAggregation {
-}
+public interface Children extends SingleBucketAggregation {}

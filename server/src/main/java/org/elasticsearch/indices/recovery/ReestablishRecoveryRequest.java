@@ -30,6 +30,7 @@ public class ReestablishRecoveryRequest extends TransportRequest {
         shardId = new ShardId(in);
         targetAllocationId = in.readString();
     }
+
     public ReestablishRecoveryRequest(final long recoveryId, final ShardId shardId, final String targetAllocationId) {
         this.recoveryId = recoveryId;
         this.shardId = shardId;

@@ -8,37 +8,49 @@ package org.elasticsearch.xpack.security.transport.netty4;
 
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandler;
+
 import org.elasticsearch.Version;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.SharedGroupFactory;
+import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.elasticsearch.xpack.core.security.transport.netty4.SecurityNetty4Transport;
-import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 
 public class SecurityNetty4ServerTransport extends SecurityNetty4Transport {
 
-    @Nullable private final IPFilter authenticator;
+    @Nullable
+    private final IPFilter authenticator;
 
     public SecurityNetty4ServerTransport(
-            final Settings settings,
-            final Version version,
-            final ThreadPool threadPool,
-            final NetworkService networkService,
-            final PageCacheRecycler pageCacheRecycler,
-            final NamedWriteableRegistry namedWriteableRegistry,
-            final CircuitBreakerService circuitBreakerService,
-            @Nullable final IPFilter authenticator,
-            final SSLService sslService,
-            final SharedGroupFactory sharedGroupFactory) {
-        super(settings, version, threadPool, networkService, pageCacheRecycler, namedWriteableRegistry, circuitBreakerService, sslService,
-            sharedGroupFactory);
+        final Settings settings,
+        final Version version,
+        final ThreadPool threadPool,
+        final NetworkService networkService,
+        final PageCacheRecycler pageCacheRecycler,
+        final NamedWriteableRegistry namedWriteableRegistry,
+        final CircuitBreakerService circuitBreakerService,
+        @Nullable final IPFilter authenticator,
+        final SSLService sslService,
+        final SharedGroupFactory sharedGroupFactory
+    ) {
+        super(
+            settings,
+            version,
+            threadPool,
+            networkService,
+            pageCacheRecycler,
+            namedWriteableRegistry,
+            circuitBreakerService,
+            sslService,
+            sharedGroupFactory
+        );
         this.authenticator = authenticator;
     }
 
@@ -56,7 +68,7 @@ public class SecurityNetty4ServerTransport extends SecurityNetty4Transport {
     }
 
     @Override
-    protected ServerChannelInitializer getSslChannelInitializer(final String name, final SSLConfiguration configuration) {
+    protected ServerChannelInitializer getSslChannelInitializer(final String name, final SslConfiguration configuration) {
         return new SecurityServerChannelInitializer(name, configuration);
     }
 
@@ -75,7 +87,7 @@ public class SecurityNetty4ServerTransport extends SecurityNetty4Transport {
 
     public class SecurityServerChannelInitializer extends SslChannelInitializer {
 
-        SecurityServerChannelInitializer(final String name, final SSLConfiguration configuration) {
+        SecurityServerChannelInitializer(final String name, final SslConfiguration configuration) {
             super(name, configuration);
         }
 

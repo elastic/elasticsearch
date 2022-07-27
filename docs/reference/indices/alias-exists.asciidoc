@@ -4,7 +4,7 @@
 <titleabbrev>Alias exists</titleabbrev>
 ++++
 
-Checks if an <<alias,alias>> exists.
+Checks if an <<aliases,alias>> exists.
 
 [source,console]
 ----

@@ -21,7 +21,7 @@ public class IndexCreationException extends ElasticsearchException implements El
         setIndex(index);
     }
 
-    public IndexCreationException(StreamInput in) throws IOException{
+    public IndexCreationException(StreamInput in) throws IOException {
         super(in);
     }
 }

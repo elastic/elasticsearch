@@ -18,7 +18,8 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
@@ -26,7 +27,7 @@ import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.internal.InternalSearchResponse;
-import org.elasticsearch.search.profile.SearchProfileShardResults;
+import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -42,15 +43,19 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPositio
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
+import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
 import org.elasticsearch.xpack.transform.checkpoint.MockTimebasedCheckpointProvider;
+import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
 import org.elasticsearch.xpack.transform.notifications.MockTransformAuditor;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.InMemoryTransformConfigManager;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
+import org.elasticsearch.xpack.transform.transforms.scheduling.TransformScheduler;
 import org.junit.After;
 import org.junit.Before;
 
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -60,6 +65,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.transform.transforms.DestConfigTests.randomDestConfig;
 import static org.elasticsearch.xpack.core.transform.transforms.SourceConfigTests.randomSourceConfig;
@@ -77,7 +83,7 @@ public class TransformIndexerStateTests extends ESTestCase {
             // Simulate completely null aggs
             null,
             new Suggest(Collections.emptyList()),
-            new SearchProfileShardResults(Collections.emptyMap()),
+            new SearchProfileResults(Collections.emptyMap()),
             false,
             false,
             1
@@ -108,11 +114,9 @@ public class TransformIndexerStateTests extends ESTestCase {
 
         MockedTransformIndexer(
             ThreadPool threadPool,
-            TransformConfigManager transformsConfigManager,
+            TransformServices transformServices,
             CheckpointProvider checkpointProvider,
-            TransformAuditor auditor,
             TransformConfig transformConfig,
-            Map<String, String> fieldMappings,
             AtomicReference<IndexerState> initialState,
             TransformIndexerPosition initialPosition,
             TransformIndexerStats jobStats,
@@ -120,11 +124,9 @@ public class TransformIndexerStateTests extends ESTestCase {
         ) {
             super(
                 threadPool,
-                transformsConfigManager,
+                transformServices,
                 checkpointProvider,
-                auditor,
                 transformConfig,
-                fieldMappings,
                 initialState,
                 initialPosition,
                 jobStats,
@@ -191,7 +193,7 @@ public class TransformIndexerStateTests extends ESTestCase {
                     throw new IllegalStateException(e);
                 }
             }
-            threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> nextPhase.onResponse(ONE_HIT_SEARCH_RESPONSE));
+            threadPool.generic().execute(() -> nextPhase.onResponse(ONE_HIT_SEARCH_RESPONSE));
         }
 
         @Override
@@ -199,41 +201,23 @@ public class TransformIndexerStateTests extends ESTestCase {
             if (doProcessLatch != null) {
                 doProcessLatch.countDown();
             }
-            threadPool.executor(ThreadPool.Names.GENERIC)
-                .execute(() -> nextPhase.onResponse(new BulkResponse(new BulkItemResponse[0], 100)));
+            threadPool.generic().execute(() -> nextPhase.onResponse(new BulkResponse(new BulkItemResponse[0], 100)));
         }
 
         @Override
         protected void doSaveState(IndexerState state, TransformIndexerPosition position, Runnable next) {
-            persistedState = new TransformState(
-                context.getTaskState(),
-                state,
-                position,
-                context.getCheckpoint(),
-                context.getStateReason(),
-                getProgress(),
-                null,
-                context.shouldStopAtCheckpoint()
-            );
-
-            Collection<ActionListener<Void>> saveStateListenersAtTheMomentOfCalling = saveStateListeners.getAndSet(null);
-            try {
-                if (saveStateListenersAtTheMomentOfCalling != null) {
-                    saveStateListenerCallCount += saveStateListenersAtTheMomentOfCalling.size();
-                    ActionListener.onResponse(saveStateListenersAtTheMomentOfCalling, null);
-                }
-            } catch (Exception onResponseException) {
-                fail("failed to call save state listeners");
-            } finally {
-                next.run();
-            }
+            Collection<ActionListener<Void>> saveStateListenersAtTheMomentOfCalling = saveStateListeners.get();
+            saveStateListenerCallCount += (saveStateListenersAtTheMomentOfCalling != null)
+                ? saveStateListenersAtTheMomentOfCalling.size()
+                : 0;
+            super.doSaveState(state, position, next);
         }
 
         @Override
         protected IterationResult<TransformIndexerPosition> doProcess(SearchResponse searchResponse) {
             // pretend that we processed 10k documents for each call
             getStats().incrementNumDocuments(10_000);
-            return new IterationResult<>(Collections.singletonList(new IndexRequest()), new TransformIndexerPosition(null, null), false);
+            return new IterationResult<>(Stream.of(new IndexRequest()), new TransformIndexerPosition(null, null), false);
         }
 
         public boolean waitingForNextSearch() {
@@ -244,8 +228,24 @@ public class TransformIndexerStateTests extends ESTestCase {
             return saveStateListenerCallCount;
         }
 
+        public int getSaveStateListenerCount() {
+            Collection<ActionListener<Void>> saveStateListenersAtTheMomentOfCalling = saveStateListeners.get();
+            return (saveStateListenersAtTheMomentOfCalling != null) ? saveStateListenersAtTheMomentOfCalling.size() : 0;
+        }
+
         public TransformState getPersistedState() {
             return persistedState;
+        }
+
+        @Override
+        void doGetFieldMappings(ActionListener<Map<String, String>> fieldMappingsListener) {
+            fieldMappingsListener.onResponse(Collections.emptyMap());
+        }
+
+        @Override
+        void persistState(TransformState state, ActionListener<Void> listener) {
+            persistedState = state;
+            listener.onResponse(null);
         }
     }
 
@@ -277,6 +277,7 @@ public class TransformIndexerStateTests extends ESTestCase {
             null,
             null,
             null,
+            null,
             null
         );
 
@@ -293,6 +294,7 @@ public class TransformIndexerStateTests extends ESTestCase {
                 null,
                 threadPool,
                 auditor,
+                new TransformIndexerPosition(Collections.singletonMap("afterkey", "value"), Collections.emptyMap()),
                 new TransformIndexerStats(),
                 context
             );
@@ -308,6 +310,27 @@ public class TransformIndexerStateTests extends ESTestCase {
             }
         }
 
+        // test the case that the indexer is at a checkpoint already
+        {
+            AtomicReference<IndexerState> stateRef = new AtomicReference<>(IndexerState.STARTED);
+            TransformContext context = new TransformContext(TransformTaskState.STARTED, "", 0, mock(TransformContext.Listener.class));
+            final MockedTransformIndexer indexer = createMockIndexer(
+                config,
+                stateRef,
+                null,
+                threadPool,
+                auditor,
+                null,
+                new TransformIndexerStats(),
+                context
+            );
+            assertResponse(listener -> setStopAtCheckpoint(indexer, true, listener));
+            assertEquals(0, indexer.getSaveStateListenerCallCount());
+            // shouldStopAtCheckpoint should not be set, the indexer was started, however at a checkpoint
+            assertFalse(context.shouldStopAtCheckpoint());
+            assertFalse(indexer.getPersistedState().shouldStopAtNextCheckpoint());
+        }
+
         // lets test a running indexer
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STARTED);
         {
@@ -318,6 +341,7 @@ public class TransformIndexerStateTests extends ESTestCase {
                 null,
                 threadPool,
                 auditor,
+                null,
                 new TransformIndexerStats(),
                 context
             );
@@ -347,6 +371,7 @@ public class TransformIndexerStateTests extends ESTestCase {
                 null,
                 threadPool,
                 auditor,
+                null,
                 new TransformIndexerStats(),
                 context
             );
@@ -377,6 +402,7 @@ public class TransformIndexerStateTests extends ESTestCase {
                 null,
                 threadPool,
                 auditor,
+                null,
                 new TransformIndexerStats(),
                 context
             );
@@ -420,6 +446,7 @@ public class TransformIndexerStateTests extends ESTestCase {
                 null,
                 threadPool,
                 auditor,
+                null,
                 new TransformIndexerStats(),
                 context
             );
@@ -431,14 +458,12 @@ public class TransformIndexerStateTests extends ESTestCase {
             CountDownLatch searchLatch = indexer.createAwaitForSearchLatch(1);
 
             List<CountDownLatch> responseLatches = new ArrayList<>();
-            int timesStopAtCheckpointChanged = 0;
             // default stopAtCheckpoint is false
             boolean previousStopAtCheckpoint = false;
 
             for (int i = 0; i < 3; ++i) {
                 CountDownLatch latch = new CountDownLatch(1);
                 boolean stopAtCheckpoint = randomBoolean();
-                timesStopAtCheckpointChanged += (stopAtCheckpoint == previousStopAtCheckpoint ? 0 : 1);
                 previousStopAtCheckpoint = stopAtCheckpoint;
                 countResponse(listener -> setStopAtCheckpoint(indexer, stopAtCheckpoint, listener), latch);
                 responseLatches.add(latch);
@@ -450,7 +475,6 @@ public class TransformIndexerStateTests extends ESTestCase {
             // call it 3 times again
             for (int i = 0; i < 3; ++i) {
                 boolean stopAtCheckpoint = randomBoolean();
-                timesStopAtCheckpointChanged += (stopAtCheckpoint == previousStopAtCheckpoint ? 0 : 1);
                 previousStopAtCheckpoint = stopAtCheckpoint;
                 assertResponse(listener -> setStopAtCheckpoint(indexer, stopAtCheckpoint, listener));
             }
@@ -463,9 +487,11 @@ public class TransformIndexerStateTests extends ESTestCase {
                 assertTrue("timed out after 5s", l.await(5, TimeUnit.SECONDS));
             }
 
+            // there should be no listeners waiting
+            assertEquals(0, indexer.getSaveStateListenerCount());
+
             // listener must have been called by the indexing thread between timesStopAtCheckpointChanged and 6 times
             // this is not exact, because we do not know _when_ the other thread persisted the flag
-            assertThat(indexer.getSaveStateListenerCallCount(), greaterThanOrEqualTo(timesStopAtCheckpointChanged));
             assertThat(indexer.getSaveStateListenerCallCount(), lessThanOrEqualTo(6));
         }
     }
@@ -481,7 +507,8 @@ public class TransformIndexerStateTests extends ESTestCase {
             randomPivotConfig(),
             null,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
-            new SettingsConfig(null, Float.valueOf(1.0f), (Boolean) null),
+            new SettingsConfig(null, Float.valueOf(1.0f), (Boolean) null, (Boolean) null, null, null, null),
+            null,
             null,
             null,
             null
@@ -495,6 +522,7 @@ public class TransformIndexerStateTests extends ESTestCase {
             null,
             threadPool,
             auditor,
+            null,
             new TransformIndexerStats(),
             context
         );
@@ -554,7 +582,7 @@ public class TransformIndexerStateTests extends ESTestCase {
     ) {
         // we need to simulate that this is called from the task, which offloads it to the generic threadpool
         CountDownLatch latch = new CountDownLatch(1);
-        threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
+        threadPool.generic().execute(() -> {
             indexer.setStopAtCheckpoint(shouldStopAtCheckpoint, shouldStopAtCheckpointListener);
             latch.countDown();
         });
@@ -587,22 +615,27 @@ public class TransformIndexerStateTests extends ESTestCase {
         AtomicReference<IndexerState> state,
         Consumer<String> failureConsumer,
         ThreadPool threadPool,
-        TransformAuditor auditor,
+        TransformAuditor transformAuditor,
+        TransformIndexerPosition initialPosition,
         TransformIndexerStats jobStats,
         TransformContext context
     ) {
         CheckpointProvider checkpointProvider = new MockTimebasedCheckpointProvider(config);
-        transformConfigManager.putTransformConfiguration(config, ActionListener.wrap(r -> {}, e -> {}));
+        transformConfigManager.putTransformConfiguration(config, ActionListener.noop());
+        TransformServices transformServices = new TransformServices(
+            transformConfigManager,
+            mock(TransformCheckpointService.class),
+            transformAuditor,
+            new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY)
+        );
 
         MockedTransformIndexer indexer = new MockedTransformIndexer(
             threadPool,
-            transformConfigManager,
+            transformServices,
             checkpointProvider,
-            auditor,
             config,
-            Collections.emptyMap(),
             state,
-            null,
+            initialPosition,
             jobStats,
             context
         );

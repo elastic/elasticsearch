@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="platinum"]
 [[ccr-apis]]
 == {ccr-cap} APIs
 

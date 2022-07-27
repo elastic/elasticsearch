@@ -53,7 +53,7 @@ public class LogstashUsageTransportAction extends XPackUsageFeatureTransportActi
         ClusterState state,
         ActionListener<XPackUsageFeatureResponse> listener
     ) {
-        boolean available = licenseState.isAllowed(XPackLicenseState.Feature.LOGSTASH);
+        boolean available = Logstash.LOGSTASH_FEATURE.checkWithoutTracking(licenseState);
         LogstashFeatureSetUsage usage = new LogstashFeatureSetUsage(available);
         listener.onResponse(new XPackUsageFeatureResponse(usage));
     }

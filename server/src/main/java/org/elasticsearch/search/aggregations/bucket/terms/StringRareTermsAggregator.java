@@ -7,14 +7,14 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.SetBackedScalingCuckooFilter;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
@@ -55,25 +55,15 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator {
         double precision,
         CardinalityUpperBound cardinality
     ) throws IOException {
-        super(
-            name,
-            factories,
-            context,
-            parent,
-            metadata,
-            maxDocCount,
-            precision,
-            format
-        );
+        super(name, factories, context, parent, metadata, maxDocCount, precision, format);
         this.valuesSource = valuesSource;
         this.filter = filter;
         this.bucketOrds = BytesKeyedBucketOrds.build(bigArrays(), cardinality);
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
-                                                final LeafBucketCollector sub) throws IOException {
-        final SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, final LeafBucketCollector sub) throws IOException {
+        final SortedBinaryDocValues values = valuesSource.bytesValues(aggCtx.getLeafReaderContext());
         return new LeafBucketCollectorBase(sub, values) {
             final BytesRefBuilder previous = new BytesRefBuilder();
 
@@ -187,4 +177,3 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator {
         Releasables.close(bucketOrds);
     }
 }
-

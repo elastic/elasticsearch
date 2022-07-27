@@ -44,7 +44,6 @@ public class JobBuilderTests extends AbstractWireSerializingTestCase<Job.Builder
         }
         if (randomBoolean()) {
             DataDescription.Builder dataDescription = new DataDescription.Builder();
-            dataDescription.setFormat(randomFrom(DataDescription.DataFormat.values()));
             builder.setDataDescription(dataDescription);
         }
         if (randomBoolean()) {
@@ -66,8 +65,7 @@ public class JobBuilderTests extends AbstractWireSerializingTestCase<Job.Builder
             builder.setResultsRetentionDays(randomNonNegativeLong());
         }
         if (randomBoolean()) {
-            builder.setCustomSettings(Collections.singletonMap(randomAlphaOfLength(10),
-                    randomAlphaOfLength(10)));
+            builder.setCustomSettings(Collections.singletonMap(randomAlphaOfLength(10), randomAlphaOfLength(10)));
         }
         if (randomBoolean()) {
             builder.setModelSnapshotId(randomAlphaOfLength(10));

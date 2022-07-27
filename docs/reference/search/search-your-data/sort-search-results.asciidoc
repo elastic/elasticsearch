@@ -491,9 +491,9 @@ GET /_search
 --------------------------------------------------
 
 [discrete]
-==== Lat Lon as String
+==== Lat Lon as WKT String
 
-Format in `lat,lon`.
+Format in https://docs.opengeospatial.org/is/12-063r5/12-063r5.html[Well-Known Text].
 
 [source,console]
 --------------------------------------------------
@@ -502,7 +502,7 @@ GET /_search
   "sort": [
     {
       "_geo_distance": {
-        "pin.location": "40,-70",
+        "pin.location": "POINT (-70 40)",
         "order": "asc",
         "unit": "km"
       }
@@ -591,6 +591,7 @@ The final distance for a document will then be `min`/`max`/`avg` (defined via `m
 
 
 [discrete]
+[[script-based-sorting]]
 === Script Based Sorting
 
 Allow to sort based on custom scripts, here is an example:

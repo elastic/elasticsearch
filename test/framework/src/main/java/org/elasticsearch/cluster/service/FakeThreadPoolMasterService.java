@@ -10,25 +10,26 @@ package org.elasticsearch.cluster.service;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStatePublicationEvent;
 import org.elasticsearch.cluster.coordination.ClusterStatePublisher.AckListener;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
-import static org.apache.lucene.util.LuceneTestCase.random;
+import static org.apache.lucene.tests.util.LuceneTestCase.random;
 import static org.elasticsearch.test.ESTestCase.randomInt;
 
 public class FakeThreadPoolMasterService extends MasterService {
@@ -41,18 +42,46 @@ public class FakeThreadPoolMasterService extends MasterService {
     private boolean taskInProgress = false;
     private boolean waitForPublish = false;
 
-    public FakeThreadPoolMasterService(String nodeName, String serviceName, ThreadPool threadPool,
-                                       Consumer<Runnable> onTaskAvailableToRun) {
-        super(Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), nodeName).build(),
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), threadPool);
+    public FakeThreadPoolMasterService(
+        String nodeName,
+        String serviceName,
+        ThreadPool threadPool,
+        Consumer<Runnable> onTaskAvailableToRun
+    ) {
+        this(
+            Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), nodeName).build(),
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            threadPool,
+            serviceName,
+            onTaskAvailableToRun
+        );
+    }
+
+    private FakeThreadPoolMasterService(
+        Settings settings,
+        ClusterSettings clusterSettings,
+        ThreadPool threadPool,
+        String serviceName,
+        Consumer<Runnable> onTaskAvailableToRun
+    ) {
+        super(settings, clusterSettings, threadPool, new TaskManager(settings, threadPool, Set.of()));
         this.name = serviceName;
         this.onTaskAvailableToRun = onTaskAvailableToRun;
     }
 
     @Override
     protected PrioritizedEsThreadPoolExecutor createThreadPoolExecutor() {
-        return new PrioritizedEsThreadPoolExecutor(name, 1, 1, 1, TimeUnit.SECONDS, EsExecutors.daemonThreadFactory(name),
-            null, null) {
+        return new PrioritizedEsThreadPoolExecutor(
+            name,
+            1,
+            1,
+            1,
+            TimeUnit.SECONDS,
+            r -> { throw new AssertionError("should not create new threads"); },
+            null,
+            null,
+            PrioritizedEsThreadPoolExecutor.StarvationWatcher.NOOP_STARVATION_WATCHER
+        ) {
 
             @Override
             public void execute(Runnable command, final TimeValue timeout, final Runnable timeoutCallback) {
@@ -111,10 +140,13 @@ public class FakeThreadPoolMasterService extends MasterService {
     }
 
     @Override
-    protected void publish(ClusterChangedEvent clusterChangedEvent, TaskOutputs taskOutputs, long startTimeMillis) {
+    protected void publish(
+        ClusterStatePublicationEvent clusterStatePublicationEvent,
+        AckListener ackListener,
+        ActionListener<Void> publicationListener
+    ) {
         assert waitForPublish == false;
         waitForPublish = true;
-        final AckListener ackListener = taskOutputs.createAckListener(threadPool, clusterChangedEvent.state());
         final ActionListener<Void> publishListener = new ActionListener<>() {
 
             private boolean listenerCalled = false;
@@ -126,7 +158,7 @@ public class FakeThreadPoolMasterService extends MasterService {
                 assert waitForPublish;
                 waitForPublish = false;
                 try {
-                    onPublicationSuccess(clusterChangedEvent, taskOutputs);
+                    publicationListener.onResponse(null);
                 } finally {
                     taskInProgress = false;
                     scheduleNextTaskIfNecessary();
@@ -140,7 +172,7 @@ public class FakeThreadPoolMasterService extends MasterService {
                 assert waitForPublish;
                 waitForPublish = false;
                 try {
-                    onPublicationFailed(clusterChangedEvent, taskOutputs, startTimeMillis, e);
+                    publicationListener.onFailure(e);
                 } finally {
                     taskInProgress = false;
                     scheduleNextTaskIfNecessary();
@@ -150,14 +182,20 @@ public class FakeThreadPoolMasterService extends MasterService {
         threadPool.generic().execute(threadPool.getThreadContext().preserveContext(new Runnable() {
             @Override
             public void run() {
-                clusterStatePublisher.publish(clusterChangedEvent, publishListener, wrapAckListener(ackListener));
+                clusterStatePublisher.publish(clusterStatePublicationEvent, publishListener, wrapAckListener(ackListener));
             }
 
             @Override
             public String toString() {
-                return "publish change of cluster state from version [" + clusterChangedEvent.previousState().version() + "] in term [" +
-                        clusterChangedEvent.previousState().term() + "] to version [" + clusterChangedEvent.state().version()
-                        + "] in term [" + clusterChangedEvent.state().term() + "]";
+                return "publish change of cluster state from version ["
+                    + clusterStatePublicationEvent.getOldState().version()
+                    + "] in term ["
+                    + clusterStatePublicationEvent.getOldState().term()
+                    + "] to version ["
+                    + clusterStatePublicationEvent.getNewState().version()
+                    + "] in term ["
+                    + clusterStatePublicationEvent.getNewState().term()
+                    + "]";
             }
         }));
     }

@@ -32,7 +32,6 @@ public class ScoreSort extends Sort {
         }
 
         ScriptSort other = (ScriptSort) obj;
-        return Objects.equals(direction(), other.direction())
-                && Objects.equals(missing(), other.missing());
+        return Objects.equals(direction(), other.direction()) && Objects.equals(missing(), other.missing());
     }
 }

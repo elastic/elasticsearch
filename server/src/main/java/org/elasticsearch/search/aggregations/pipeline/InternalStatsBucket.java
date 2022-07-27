@@ -10,6 +10,7 @@ package org.elasticsearch.search.aggregations.pipeline;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalStats;
 
@@ -18,8 +19,15 @@ import java.util.List;
 import java.util.Map;
 
 public class InternalStatsBucket extends InternalStats implements StatsBucket {
-    public InternalStatsBucket(String name, long count, double sum, double min, double max, DocValueFormat formatter,
-                               Map<String, Object> metadata) {
+    public InternalStatsBucket(
+        String name,
+        long count,
+        double sum,
+        double min,
+        double max,
+        DocValueFormat formatter,
+        Map<String, Object> metadata
+    ) {
         super(name, count, sum, min, max, formatter, metadata);
     }
 
@@ -36,7 +44,7 @@ public class InternalStatsBucket extends InternalStats implements StatsBucket {
     }
 
     @Override
-    public InternalStats reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalStats reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
         throw new UnsupportedOperationException("Not supported");
     }
 }

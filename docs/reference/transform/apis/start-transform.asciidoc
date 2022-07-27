@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[start-transform]]
 = Start {transform} API
 
@@ -8,7 +7,7 @@
 <titleabbrev>Start {transform}</titleabbrev>
 ++++
 
-Starts one or more {transforms}.
+Starts a {transform}.
 
 [[start-transform-request]]
 == {api-request-title}
@@ -20,14 +19,13 @@ Starts one or more {transforms}.
 
 Requires the following privileges:
 
-* cluster: `manage_transform` (the `transform_admin` built-in role grants this 
+* cluster: `manage_transform` (the `transform_admin` built-in role grants this
   privilege)
-* source indices: `read`, `view_index_metadata`.
 
 [[start-transform-desc]]
 == {api-description-title}
 
-When you start a {transform}, it creates the destination index if it does not 
+When you start a {transform}, it creates the destination index if it does not
 already exist. The `number_of_shards` is set to `1` and the
 `auto_expand_replicas` is set to `0-1`.
 
@@ -40,8 +38,9 @@ fields in the destination index are derived from scripts (as in the case of
 If it is a latest {transform}, it does not deduce mapping definitions; it uses
 dynamic mappings.
 
-TIP: To use explicit mappings, create the destination index before you start the {transform}. Alternatively, you can create an index template, though it does not affect the
-deduced mappings in a pivot {transform}.
+TIP: To use explicit mappings, create the destination index before you start the
+{transform}. Alternatively, you can create an index template, though it does not
+affect the deduced mappings in a pivot {transform}.
 
 When the {transform} starts, a series of validations occur to ensure
 its success. If you deferred validation when you created the
@@ -57,7 +56,16 @@ required privileges on the source and destination indices, the
 
 `<transform_id>`::
 (Required, string)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-id]
+Identifier for the {transform}.
+
+[[start-transform-query-parms]]
+== {api-query-parms-title}
+
+`timeout`::
+(Optional, time)
+Period to wait for a response. If no response is received before the timeout
+expires, the request fails and returns an error. Defaults to `30s`.
+
 
 [[start-transform-example]]
 == {api-examples-title}

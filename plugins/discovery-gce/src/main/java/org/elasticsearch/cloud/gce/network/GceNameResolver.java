@@ -87,8 +87,12 @@ public class GceNameResolver implements CustomNameResolver {
             // We replace network placeholder with network interface value
             gceMetadataPath = Strings.replace(GceAddressResolverType.PRIVATE_IP.gceName, "{{network}}", network);
         } else {
-            throw new IllegalArgumentException("[" + value + "] is not one of the supported GCE network.host setting. " +
-                    "Expecting _gce_, _gce:privateIp:X_, _gce:hostname_");
+            throw new IllegalArgumentException(
+                "["
+                    + value
+                    + "] is not one of the supported GCE network.host setting. "
+                    + "Expecting _gce_, _gce:privateIp:X_, _gce:hostname_"
+            );
         }
 
         try {

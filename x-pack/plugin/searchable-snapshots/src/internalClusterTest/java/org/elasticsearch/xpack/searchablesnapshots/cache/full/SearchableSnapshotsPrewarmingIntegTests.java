@@ -7,9 +7,8 @@
 
 package org.elasticsearch.xpack.searchablesnapshots.cache.full;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.IndexFileNames;
-import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
@@ -27,7 +26,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
@@ -47,9 +45,9 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
-import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants;
 import org.elasticsearch.xpack.searchablesnapshots.LocalStateSearchableSnapshots;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 import org.junit.After;
@@ -96,10 +94,10 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
         return Settings.builder()
             .put(super.nodeSettings())
             .put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial")
-            .put(SearchableSnapshotsConstants.CACHE_FETCH_ASYNC_THREAD_POOL_SETTING + ".max", randomIntBetween(1, 32))
-            .put(SearchableSnapshotsConstants.CACHE_FETCH_ASYNC_THREAD_POOL_SETTING + ".keep_alive", "1s")
-            .put(SearchableSnapshotsConstants.CACHE_PREWARMING_THREAD_POOL_SETTING + ".max", randomIntBetween(1, 32))
-            .put(SearchableSnapshotsConstants.CACHE_PREWARMING_THREAD_POOL_SETTING + ".keep_alive", "1s")
+            .put(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_SETTING + ".max", randomIntBetween(1, 32))
+            .put(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_SETTING + ".keep_alive", "1s")
+            .put(SearchableSnapshots.CACHE_PREWARMING_THREAD_POOL_SETTING + ".max", randomIntBetween(1, 32))
+            .put(SearchableSnapshots.CACHE_PREWARMING_THREAD_POOL_SETTING + ".keep_alive", "1s")
             .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING.getKey(), MAX_NUMBER_OF_INDICES)
             .build();
     }
@@ -238,7 +236,7 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
                     assertThat(getSettingsResponse.getSetting(indexName, SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.getKey()), equalTo("true"));
 
                 } catch (Throwable t) {
-                    logger.error(() -> new ParameterizedMessage("Fail to mount snapshot for index [{}]", indexName), t);
+                    logger.error(() -> "Fail to mount snapshot for index [" + indexName + "]", t);
                     throwables.setOnce(threadId, t);
                 }
             });
@@ -256,8 +254,8 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
         logger.debug("--> waiting for background cache prewarming to");
         assertBusy(() -> {
             final ThreadPool threadPool = getInstanceFromNode(ThreadPool.class);
-            assertThat(threadPool.info(SearchableSnapshotsConstants.CACHE_FETCH_ASYNC_THREAD_POOL_NAME).getQueueSize(), nullValue());
-            assertThat(threadPool.info(SearchableSnapshotsConstants.CACHE_PREWARMING_THREAD_POOL_NAME).getQueueSize(), nullValue());
+            assertThat(threadPool.info(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME).getQueueSize(), nullValue());
+            assertThat(threadPool.info(SearchableSnapshots.CACHE_PREWARMING_THREAD_POOL_NAME).getQueueSize(), nullValue());
         });
 
         logger.debug("--> loading snapshot metadata");

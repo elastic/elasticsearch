@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[histogram]]
 === Histogram field type
 ++++
@@ -24,6 +23,24 @@ per document. Nested arrays are not supported.
 * `histogram` fields do not support sorting.
 ========
 
+[role="child_attributes"]
+[[histogram-params]]
+==== Parameters
+
+ifeval::["{release-state}"=="unreleased"]
+`time_series_metric`::
+preview:[] (Optional, string)
+include::numeric.asciidoc[tag=time_series_metric]
++
+.Valid `time_series_metric` values for `histogram` fields
+[%collapsible%open]
+====
+include::{es-repo-dir}/data-streams/tsds.asciidoc[tag=time-series-metric-histogram]
+
+include::{es-repo-dir}/data-streams/tsds.asciidoc[tag=time-series-metric-null]
+====
+endif::[]
+
 [[histogram-uses]]
 ==== Uses
 
@@ -44,6 +61,7 @@ following aggregations and queries:
 * <<search-aggregations-metrics-percentile-rank-aggregation,percentile ranks>> aggregation
 * <<search-aggregations-metrics-boxplot-aggregation,boxplot>> aggregation
 * <<search-aggregations-bucket-histogram-aggregation-histogram-fields,histogram>> aggregation
+* <<search-aggregations-bucket-range-aggregation-histogram-fields,range>> aggregation
 * <<query-dsl-exists-query,exists>> query
 
 [[mapping-types-histogram-building-histogram]]

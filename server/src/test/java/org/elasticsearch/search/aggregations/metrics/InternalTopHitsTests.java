@@ -18,19 +18,22 @@ import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.NotEqualMessageBuilder;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -52,19 +55,27 @@ import static java.lang.Math.max;
 import static java.lang.Math.min;
 import static java.util.Comparator.comparing;
 import static java.util.stream.Collectors.toList;
+import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.mock;
 
 public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTopHits> {
     @Override
     protected InternalTopHits createTestInstance(String name, Map<String, Object> metadata) {
         if (randomBoolean()) {
-            return createTestInstanceSortedByFields(name, between(1, 40), metadata, ESTestCase::randomFloat,
-                randomSortFields(), InternalTopHitsTests::randomOfType);
+            return createTestInstanceSortedByFields(
+                name,
+                between(1, 40),
+                metadata,
+                ESTestCase::randomFloat,
+                randomSortFields(),
+                InternalTopHitsTests::randomOfType
+            );
         }
         return createTestInstanceSortedScore(name, between(1, 40), metadata, ESTestCase::randomFloat);
     }
 
     @Override
-    protected List<InternalTopHits> randomResultsToReduce(String name, int size) {
+    protected BuilderAndToReduce<InternalTopHits> randomResultsToReduce(String name, int size) {
         /*
          * Make sure all scores are unique so we can get
          * deterministic test results.
@@ -89,22 +100,25 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         } else {
             supplier = () -> createTestInstanceSortedScore(name, requestedSize, null, scoreSupplier);
         }
-        return Stream.generate(supplier).limit(size).collect(toList());
+        return new BuilderAndToReduce<>(mock(AggregationBuilder.class), Stream.generate(supplier).limit(size).collect(toList()));
     }
 
-    private InternalTopHits createTestInstanceSortedByFields(String name, int requestedSize, Map<String, Object> metadata,
-            Supplier<Float> scoreSupplier, SortField[] sortFields, Function<SortField.Type, Object> sortFieldValueSupplier) {
-        return createTestInstance(name, metadata, scoreSupplier, requestedSize,
-            (docId, score) -> {
-                Object[] fields = new Object[sortFields.length];
-                for (int f = 0; f < sortFields.length; f++) {
-                    final int ff = f;
-                    fields[f] = sortFieldValueSupplier.apply(sortFields[ff].getType());
-                }
-                return new FieldDoc(docId, score, fields);
-            },
-            (totalHits, scoreDocs) -> new TopFieldDocs(totalHits, scoreDocs, sortFields),
-            sortFieldsComparator(sortFields));
+    private InternalTopHits createTestInstanceSortedByFields(
+        String name,
+        int requestedSize,
+        Map<String, Object> metadata,
+        Supplier<Float> scoreSupplier,
+        SortField[] sortFields,
+        Function<SortField.Type, Object> sortFieldValueSupplier
+    ) {
+        return createTestInstance(name, metadata, scoreSupplier, requestedSize, (docId, score) -> {
+            Object[] fields = new Object[sortFields.length];
+            for (int f = 0; f < sortFields.length; f++) {
+                final int ff = f;
+                fields[f] = sortFieldValueSupplier.apply(sortFields[ff].getType());
+            }
+            return new FieldDoc(docId, score, fields);
+        }, (totalHits, scoreDocs) -> new TopFieldDocs(totalHits, scoreDocs, sortFields), sortFieldsComparator(sortFields));
     }
 
     private InternalTopHits createTestInstanceSortedScore(
@@ -116,10 +130,15 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         return createTestInstance(name, metadata, scoreSupplier, requestedSize, ScoreDoc::new, TopDocs::new, scoreComparator());
     }
 
-    private InternalTopHits createTestInstance(String name, Map<String, Object> metadata, Supplier<Float> scoreSupplier,
-            int requestedSize,
-            BiFunction<Integer, Float, ScoreDoc> docBuilder,
-            BiFunction<TotalHits, ScoreDoc[], TopDocs> topDocsBuilder, Comparator<ScoreDoc> comparator) {
+    private InternalTopHits createTestInstance(
+        String name,
+        Map<String, Object> metadata,
+        Supplier<Float> scoreSupplier,
+        int requestedSize,
+        BiFunction<Integer, Float, ScoreDoc> docBuilder,
+        BiFunction<TotalHits, ScoreDoc[], TopDocs> topDocsBuilder,
+        Comparator<ScoreDoc> comparator
+    ) {
         int from = 0;
         int actualSize = between(0, requestedSize);
 
@@ -194,30 +213,18 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
     }
 
     private static Object randomOfType(SortField.Type type) {
-        switch (type) {
-        case CUSTOM:
-            throw new UnsupportedOperationException();
-        case DOC:
-            return between(0, IndexWriter.MAX_DOCS);
-        case DOUBLE:
-            return randomDouble();
-        case FLOAT:
-            return randomFloat();
-        case INT:
-            return randomInt();
-        case LONG:
-            return randomLong();
-        case REWRITEABLE:
-            throw new UnsupportedOperationException();
-        case SCORE:
-            return randomFloat();
-        case STRING:
-            return new BytesRef(randomAlphaOfLength(5));
-        case STRING_VAL:
-            return new BytesRef(randomAlphaOfLength(5));
-        default:
-            throw new UnsupportedOperationException("Unknown SortField.Type: " + type);
-        }
+        return switch (type) {
+            case CUSTOM -> throw new UnsupportedOperationException();
+            case DOC -> between(0, IndexWriter.MAX_DOCS);
+            case DOUBLE -> randomDouble();
+            case FLOAT -> randomFloat();
+            case INT -> randomInt();
+            case LONG -> randomLong();
+            case REWRITEABLE -> throw new UnsupportedOperationException();
+            case SCORE -> randomFloat();
+            case STRING -> new BytesRef(randomAlphaOfLength(5));
+            case STRING_VAL -> new BytesRef(randomAlphaOfLength(5));
+        };
     }
 
     @Override
@@ -258,10 +265,22 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
             expectedHitsHits[i] = allHits.get(i).v2();
         }
         // Lucene's TopDocs initializes the maxScore to Float.NaN, if there is no maxScore
-        SearchHits expectedHits = new SearchHits(expectedHitsHits, new TotalHits(totalHits, relation), maxScore == Float.NEGATIVE_INFINITY ?
-            Float.NaN :
-            maxScore);
+        SearchHits expectedHits = new SearchHits(
+            expectedHitsHits,
+            new TotalHits(totalHits, relation),
+            maxScore == Float.NEGATIVE_INFINITY ? Float.NaN : maxScore
+        );
         assertEqualsWithErrorMessageFromXContent(expectedHits, actualHits);
+    }
+
+    @Override
+    protected boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
+    protected void assertSampled(InternalTopHits sampled, InternalTopHits reduced, SamplingContext samplingContext) {
+        assertThat(sampled.getHits(), equalTo(reduced.getHits()));
     }
 
     /**
@@ -278,8 +297,7 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         if (actual == null) {
             throw new AssertionError("Didn't expect null but actual was [null]");
         }
-        try (XContentBuilder actualJson = JsonXContent.contentBuilder();
-             XContentBuilder expectedJson = JsonXContent.contentBuilder()) {
+        try (XContentBuilder actualJson = JsonXContent.contentBuilder(); XContentBuilder expectedJson = JsonXContent.contentBuilder()) {
             actualJson.startObject();
             actual.toXContent(actualJson, ToXContent.EMPTY_PARAMS);
             actualJson.endObject();
@@ -289,7 +307,8 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
             NotEqualMessageBuilder message = new NotEqualMessageBuilder();
             message.compareMaps(
                 XContentHelper.convertToMap(BytesReference.bytes(actualJson), false).v2(),
-                XContentHelper.convertToMap(BytesReference.bytes(expectedJson), false).v2());
+                XContentHelper.convertToMap(BytesReference.bytes(expectedJson), false).v2()
+            );
             throw new AssertionError("Didn't match expected value:\n" + message);
         } catch (IOException e) {
             throw new AssertionError("IOException while building failure message", e);
@@ -302,8 +321,10 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         for (int i = 0; i < sortFields.length; i++) {
             String sortField = randomValueOtherThanMany(usedSortFields::contains, () -> randomAlphaOfLength(5));
             usedSortFields.add(sortField);
-            SortField.Type type = randomValueOtherThanMany(t -> t == SortField.Type.CUSTOM || t == SortField.Type.REWRITEABLE,
-                    () -> randomFrom(SortField.Type.values()));
+            SortField.Type type = randomValueOtherThanMany(
+                t -> t == SortField.Type.CUSTOM || t == SortField.Type.REWRITEABLE,
+                () -> randomFrom(SortField.Type.values())
+            );
             sortFields[i] = new SortField(sortField, type);
         }
         return sortFields;
@@ -314,7 +335,7 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         FieldComparator[] comparators = new FieldComparator[sortFields.length];
         for (int i = 0; i < sortFields.length; i++) {
             // Values passed to getComparator shouldn't matter
-            comparators[i] = sortFields[i].getComparator(0, 0);
+            comparators[i] = sortFields[i].getComparator(0, false);
         }
         return (lhs, rhs) -> {
             FieldDoc l = (FieldDoc) lhs;
@@ -346,33 +367,32 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         SearchHits searchHits = instance.getHits();
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 5)) {
-        case 0:
-            name += randomAlphaOfLength(5);
-            break;
-        case 1:
-            from += between(1, 100);
-            break;
-        case 2:
-            size += between(1, 100);
-            break;
-        case 3:
-            topDocs = new TopDocsAndMaxScore(new TopDocs(new TotalHits(topDocs.topDocs.totalHits.value + between(1, 100),
-                    topDocs.topDocs.totalHits.relation), topDocs.topDocs.scoreDocs), topDocs.maxScore + randomFloat());
-            break;
-        case 4:
-            TotalHits totalHits = new TotalHits(searchHits.getTotalHits().value + between(1, 100), randomFrom(TotalHits.Relation.values()));
-            searchHits = new SearchHits(searchHits.getHits(), totalHits, searchHits.getMaxScore() + randomFloat());
-            break;
-        case 5:
-            if (metadata == null) {
-                metadata = new HashMap<>(1);
-            } else {
-                metadata = new HashMap<>(instance.getMetadata());
+            case 0 -> name += randomAlphaOfLength(5);
+            case 1 -> from += between(1, 100);
+            case 2 -> size += between(1, 100);
+            case 3 -> topDocs = new TopDocsAndMaxScore(
+                new TopDocs(
+                    new TotalHits(topDocs.topDocs.totalHits.value + between(1, 100), topDocs.topDocs.totalHits.relation),
+                    topDocs.topDocs.scoreDocs
+                ),
+                topDocs.maxScore + randomFloat()
+            );
+            case 4 -> {
+                TotalHits totalHits = new TotalHits(
+                    searchHits.getTotalHits().value + between(1, 100),
+                    randomFrom(TotalHits.Relation.values())
+                );
+                searchHits = new SearchHits(searchHits.getHits(), totalHits, searchHits.getMaxScore() + randomFloat());
             }
-            metadata.put(randomAlphaOfLength(15), randomInt());
-            break;
-        default:
-            throw new AssertionError("Illegal randomisation branch");
+            case 5 -> {
+                if (metadata == null) {
+                    metadata = Maps.newMapWithExpectedSize(1);
+                } else {
+                    metadata = new HashMap<>(instance.getMetadata());
+                }
+                metadata.put(randomAlphaOfLength(15), randomInt());
+            }
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalTopHits(name, from, size, topDocs, searchHits, metadata);
     }

@@ -16,8 +16,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.test.BackgroundIndexer;
-import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants;
 import org.elasticsearch.xpack.searchablesnapshots.BaseFrozenSearchableSnapshotsIntegTestCase;
+import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 import org.elasticsearch.xpack.searchablesnapshots.action.ClearSearchableSnapshotsCacheAction;
 import org.elasticsearch.xpack.searchablesnapshots.action.ClearSearchableSnapshotsCacheRequest;
 import org.elasticsearch.xpack.searchablesnapshots.action.ClearSearchableSnapshotsCacheResponse;
@@ -49,7 +49,7 @@ public class NodesCachesStatsIntegTests extends BaseFrozenSearchableSnapshotsInt
         createIndex(index, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build());
 
         final int nbDocs = randomIntBetween(1_000, 10_000);
-        try (BackgroundIndexer indexer = new BackgroundIndexer(index, "_doc", client(), nbDocs)) {
+        try (BackgroundIndexer indexer = new BackgroundIndexer(index, client(), nbDocs)) {
             waitForDocs(nbDocs, indexer);
         }
         refresh(index);
@@ -66,7 +66,7 @@ public class NodesCachesStatsIntegTests extends BaseFrozenSearchableSnapshotsInt
         mountSnapshot(repository, snapshot, index, mountedIndex, Settings.EMPTY, Storage.SHARED_CACHE);
         ensureYellowAndNoInitializingShards(mountedIndex);
 
-        assertExecutorIsIdle(SearchableSnapshotsConstants.CACHE_FETCH_ASYNC_THREAD_POOL_NAME);
+        assertExecutorIsIdle(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME);
 
         final NodesCachesStatsResponse cachesStatsResponse = client().execute(
             TransportSearchableSnapshotsNodeCachesStatsAction.TYPE,
@@ -96,7 +96,7 @@ public class NodesCachesStatsIntegTests extends BaseFrozenSearchableSnapshotsInt
             final long cacheSize = FrozenCacheService.calculateCacheSize(clusterService.getSettings(), totalFsSize);
             assertThat(nodeCachesStats.getSize(), equalTo(cacheSize));
 
-            final long regionSize = FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.get(clusterService.getSettings()).getBytes();
+            final long regionSize = FrozenCacheService.SHARED_CACHE_REGION_SIZE_SETTING.get(clusterService.getSettings()).getBytes();
             assertThat(nodeCachesStats.getRegionSize(), equalTo(regionSize));
 
             assertThat(nodeCachesStats.getNumRegions(), equalTo(Math.toIntExact(cacheSize / regionSize)));
@@ -118,7 +118,7 @@ public class NodesCachesStatsIntegTests extends BaseFrozenSearchableSnapshotsInt
                 .get();
         }
 
-        assertExecutorIsIdle(SearchableSnapshotsConstants.CACHE_FETCH_ASYNC_THREAD_POOL_NAME);
+        assertExecutorIsIdle(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME);
 
         final ClearSearchableSnapshotsCacheResponse clearCacheResponse = client().execute(
             ClearSearchableSnapshotsCacheAction.INSTANCE,

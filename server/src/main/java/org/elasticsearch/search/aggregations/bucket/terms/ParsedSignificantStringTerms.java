@@ -9,9 +9,9 @@
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.nio.CharBuffer;
@@ -23,8 +23,11 @@ public class ParsedSignificantStringTerms extends ParsedSignificantTerms {
         return SignificantStringTerms.NAME;
     }
 
-    private static final ObjectParser<ParsedSignificantStringTerms, Void> PARSER =
-            new ObjectParser<>(ParsedSignificantStringTerms.class.getSimpleName(), true, ParsedSignificantStringTerms::new);
+    private static final ObjectParser<ParsedSignificantStringTerms, Void> PARSER = new ObjectParser<>(
+        ParsedSignificantStringTerms.class.getSimpleName(),
+        true,
+        ParsedSignificantStringTerms::new
+    );
     static {
         declareParsedSignificantTermsFields(PARSER, ParsedBucket::fromXContent);
     }

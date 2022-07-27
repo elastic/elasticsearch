@@ -10,8 +10,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.mapper.ParseContext.Document;
+import org.elasticsearch.xcontent.XContentType;
 
 import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
@@ -23,11 +22,10 @@ public class PathMatchDynamicTemplateTests extends MapperServiceTestCase {
         MapperService mapperService = createMapperService(mapping);
 
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/dynamictemplate/pathmatch/test-data.json");
-        ParsedDocument parsedDoc = mapperService.documentMapper().parse(
-            new SourceToParse("test", "1", new BytesArray(json), XContentType.JSON));
+        ParsedDocument parsedDoc = mapperService.documentMapper().parse(new SourceToParse("1", new BytesArray(json), XContentType.JSON));
 
         merge(mapperService, dynamicMapping(parsedDoc.dynamicMappingsUpdate()));
-        Document doc = parsedDoc.rootDoc();
+        LuceneDocument doc = parsedDoc.rootDoc();
 
         IndexableField f = doc.getField("name");
         assertThat(f.name(), equalTo("name"));

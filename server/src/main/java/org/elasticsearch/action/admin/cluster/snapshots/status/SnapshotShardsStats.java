@@ -8,17 +8,17 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collection;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * Status of a snapshot shards
@@ -36,23 +36,12 @@ public class SnapshotShardsStats implements ToXContentObject {
         for (SnapshotIndexShardStatus shard : shards) {
             totalShards++;
             switch (shard.getStage()) {
-                case INIT:
-                    initializingShards++;
-                    break;
-                case STARTED:
-                    startedShards++;
-                    break;
-                case FINALIZE:
-                    finalizingShards++;
-                    break;
-                case DONE:
-                    doneShards++;
-                    break;
-                case FAILURE:
-                    failedShards++;
-                    break;
-                default:
-                    throw new IllegalArgumentException("Unknown stage type " + shard.getStage());
+                case INIT -> initializingShards++;
+                case STARTED -> startedShards++;
+                case FINALIZE -> finalizingShards++;
+                case DONE -> doneShards++;
+                case FAILURE -> failedShards++;
+                default -> throw new IllegalArgumentException("Unknown stage type " + shard.getStage());
             }
         }
     }

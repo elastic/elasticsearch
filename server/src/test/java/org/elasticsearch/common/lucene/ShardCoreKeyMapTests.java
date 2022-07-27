@@ -13,9 +13,9 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
@@ -29,8 +29,7 @@ import java.util.Set;
 public class ShardCoreKeyMapTests extends ESTestCase {
 
     public void testMissingShard() throws IOException {
-        try (Directory dir = newDirectory();
-                RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
+        try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
             w.addDocument(new Document());
             try (IndexReader reader = w.getReader()) {
                 ShardCoreKeyMap map = new ShardCoreKeyMap();
@@ -48,8 +47,7 @@ public class ShardCoreKeyMapTests extends ESTestCase {
 
     public void testAddingAClosedReader() throws Exception {
         LeafReader reader;
-        try (Directory dir = newDirectory();
-                RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+        try (Directory dir = newDirectory(); RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
             writer.addDocument(new Document());
             try (DirectoryReader dirReader = ElasticsearchDirectoryReader.wrap(writer.getReader(), new ShardId("index1", "_na_", 1))) {
                 reader = dirReader.leaves().get(0).reader();

@@ -15,7 +15,7 @@ import java.util.Date;
 
 public class MlDataRemoverTests extends ESTestCase {
     public void testStringOrNull() {
-        MlDataRemover remover = (requestsPerSecond, listener, isTimedOutSupplier) -> { };
+        MlDataRemover remover = (requestsPerSecond, listener, isTimedOutSupplier) -> {};
 
         SearchHitBuilder hitBuilder = new SearchHitBuilder(0);
         assertNull(remover.stringFieldValueOrNull(hitBuilder.build(), "missing"));

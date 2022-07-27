@@ -23,8 +23,10 @@ public class ElisionFilterFactoryTests extends ESTokenStreamTestCase {
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .build();
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisPlugin()));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisPlugin())
+        );
 
         assertEquals("elision filter requires [articles] or [articles_path] setting", e.getMessage());
     }

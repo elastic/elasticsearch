@@ -8,15 +8,16 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.queries.spans.SpanFirstQuery;
+import org.apache.lucene.queries.spans.SpanQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.spans.SpanFirstQuery;
-import org.apache.lucene.search.spans.SpanQuery;
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -86,7 +87,7 @@ public class SpanFirstQueryBuilder extends AbstractQueryBuilder<SpanFirstQueryBu
         builder.field(MATCH_FIELD.getPreferredName());
         matchBuilder.toXContent(builder, params);
         builder.field(END_FIELD.getPreferredName(), end);
-        printBoostAndQueryName(builder);
+        boostAndQueryNameToXContent(builder);
         builder.endObject();
     }
 
@@ -150,12 +151,16 @@ public class SpanFirstQueryBuilder extends AbstractQueryBuilder<SpanFirstQueryBu
 
     @Override
     protected boolean doEquals(SpanFirstQueryBuilder other) {
-        return Objects.equals(matchBuilder, other.matchBuilder) &&
-               Objects.equals(end, other.end);
+        return Objects.equals(matchBuilder, other.matchBuilder) && Objects.equals(end, other.end);
     }
 
     @Override
     public String getWriteableName() {
         return NAME;
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
     }
 }

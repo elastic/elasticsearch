@@ -120,6 +120,46 @@ setup:
   - is_false: aggregations.good.buckets.2.bucket_ks.two_sided
 
 ---
+"Test bucket count ks test bucket agg simple with fractions":
+
+  - do:
+      search:
+        index: store
+        body: >
+          {
+            "size": 0,
+            "aggs": {
+              "good": {
+                "terms": {
+                  "field": "product",
+                  "size": 10
+                },
+                "aggs": {
+                  "ranged_cost": {
+                    "range": {
+                      "field": "cost",
+                      "ranges": [
+                        {"from": 200},
+                        {"from": 200, "to": 250},
+                        {"from": 250, "to": 300},
+                        {"from": 300}
+                      ]
+                    }
+                  },
+                  "bucket_ks": {
+                    "bucket_count_ks_test": {
+                      "buckets_path": "ranged_cost>_count",
+                      "fractions": [0.25, 0.25, 0.25, 0.25]
+                    }
+                  }
+                }
+              }
+            }
+          }
+  - is_true: aggregations.good.buckets.0.bucket_ks.less
+  - is_true: aggregations.good.buckets.1.bucket_ks.greater
+  - is_true: aggregations.good.buckets.2.bucket_ks.two_sided
+---
 "Test bucket count ks test with missing buckets_path":
 
   - do:

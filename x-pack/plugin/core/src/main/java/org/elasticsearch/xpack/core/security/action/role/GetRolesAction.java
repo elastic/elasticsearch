@@ -16,7 +16,6 @@ public class GetRolesAction extends ActionType<GetRolesResponse> {
     public static final GetRolesAction INSTANCE = new GetRolesAction();
     public static final String NAME = "cluster:admin/xpack/security/role/get";
 
-
     protected GetRolesAction() {
         super(NAME, GetRolesResponse::new);
     }

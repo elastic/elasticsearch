@@ -13,12 +13,14 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
+
 import org.elasticsearch.gradle.internal.test.rest.transform.RestTestTransformGlobalSetup;
 import org.elasticsearch.gradle.internal.test.rest.transform.RestTestTransformGlobalTeardown;
 import org.gradle.api.tasks.Internal;
 
-import javax.annotation.Nullable;
 import java.util.Iterator;
+
+import javax.annotation.Nullable;
 
 /**
  * A parent class for transformations that are backed by a feature. This will inject the necessary "feature" into the

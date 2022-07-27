@@ -15,8 +15,6 @@ include::intro.asciidoc[]
 
 include::release-notes/highlights.asciidoc[]
 
-include::getting-started.asciidoc[]
-
 include::setup.asciidoc[]
 
 include::upgrade.asciidoc[]
@@ -49,8 +47,6 @@ include::scripting.asciidoc[]
 
 include::data-management.asciidoc[]
 
-include::ilm/index.asciidoc[]
-
 include::autoscaling/index.asciidoc[]
 
 include::monitoring/index.asciidoc[]
@@ -69,7 +65,7 @@ include::commands/index.asciidoc[]
 
 include::how-to.asciidoc[]
 
-include::glossary.asciidoc[]
+include::troubleshooting.asciidoc[]
 
 include::rest-api/index.asciidoc[]
 

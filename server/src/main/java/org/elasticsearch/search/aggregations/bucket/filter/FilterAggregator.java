@@ -7,10 +7,10 @@
  */
 package org.elasticsearch.search.aggregations.bucket.filter;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
@@ -32,22 +32,26 @@ public class FilterAggregator extends BucketsAggregator implements SingleBucketA
 
     private final Supplier<Weight> filter;
 
-    public FilterAggregator(String name,
-                            Supplier<Weight> filter,
-                            AggregatorFactories factories,
-                            AggregationContext context,
-                            Aggregator parent,
-                            CardinalityUpperBound cardinality,
-                            Map<String, Object> metadata) throws IOException {
+    public FilterAggregator(
+        String name,
+        Supplier<Weight> filter,
+        AggregatorFactories factories,
+        AggregationContext context,
+        Aggregator parent,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, factories, context, parent, cardinality, metadata);
         this.filter = filter;
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
-            final LeafBucketCollector sub) throws IOException {
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, final LeafBucketCollector sub) throws IOException {
         // no need to provide deleted docs to the filter
-        final Bits bits = Lucene.asSequentialAccessBits(ctx.reader().maxDoc(), filter.get().scorerSupplier(ctx));
+        final Bits bits = Lucene.asSequentialAccessBits(
+            aggCtx.getLeafReaderContext().reader().maxDoc(),
+            filter.get().scorerSupplier(aggCtx.getLeafReaderContext())
+        );
         return new LeafBucketCollectorBase(sub, null) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
@@ -60,8 +64,15 @@ public class FilterAggregator extends BucketsAggregator implements SingleBucketA
 
     @Override
     public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
-        return buildAggregationsForSingleBucket(owningBucketOrds, (owningBucketOrd, subAggregationResults) ->
-            new InternalFilter(name, bucketDocCount(owningBucketOrd), subAggregationResults, metadata()));
+        return buildAggregationsForSingleBucket(
+            owningBucketOrds,
+            (owningBucketOrd, subAggregationResults) -> new InternalFilter(
+                name,
+                bucketDocCount(owningBucketOrd),
+                subAggregationResults,
+                metadata()
+            )
+        );
     }
 
     @Override
@@ -69,5 +80,3 @@ public class FilterAggregator extends BucketsAggregator implements SingleBucketA
         return new InternalFilter(name, 0, buildEmptySubAggregations(), metadata());
     }
 }
-
-

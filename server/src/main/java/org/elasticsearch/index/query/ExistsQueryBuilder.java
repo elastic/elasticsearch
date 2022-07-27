@@ -13,20 +13,20 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * Constructs a query that only match on documents that the field has a value in them.
@@ -102,12 +102,16 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
                 } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     boost = parser.floatValue();
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(), "[" + ExistsQueryBuilder.NAME +
-                            "] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "[" + ExistsQueryBuilder.NAME + "] query does not support [" + currentFieldName + "]"
+                    );
                 }
             } else {
-                throw new ParsingException(parser.getTokenLocation(), "[" + ExistsQueryBuilder.NAME +
-                        "] unknown token [" + token + "] after [" + currentFieldName + "]");
+                throw new ParsingException(
+                    parser.getTokenLocation(),
+                    "[" + ExistsQueryBuilder.NAME + "] unknown token [" + token + "] after [" + currentFieldName + "]"
+                );
             }
         }
 
@@ -127,8 +131,7 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
     }
 
     public static Query newFilter(SearchExecutionContext context, String fieldPattern, boolean checkRewrite) {
-       Collection<MappedFieldType> fields = getMappedFields(context, fieldPattern)
-           .stream().map(context::getFieldType).collect(Collectors.toList());
+        Collection<MappedFieldType> fields = getMappedFields(context, fieldPattern).stream().map(context::getFieldType).toList();
 
         if (fields.isEmpty()) {
             if (checkRewrite) {
@@ -172,5 +175,10 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
     @Override
     public String getWriteableName() {
         return NAME;
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
     }
 }

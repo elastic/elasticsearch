@@ -41,7 +41,7 @@ public interface Terms extends MultiBucketsAggregation {
     /**
      * Get an upper bound of the error on document counts in this aggregation.
      */
-    long getDocCountError();
+    Long getDocCountError();
 
     /**
      * Return the sum of the document counts of all buckets that did not make

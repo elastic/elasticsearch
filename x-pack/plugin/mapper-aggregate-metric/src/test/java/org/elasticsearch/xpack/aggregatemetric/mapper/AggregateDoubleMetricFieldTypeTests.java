@@ -9,20 +9,21 @@ package org.elasticsearch.xpack.aggregatemetric.mapper;
 import org.apache.lucene.document.DoublePoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.script.DocReader;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -38,14 +39,14 @@ import static java.util.Arrays.asList;
 import static org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.subfieldName;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.mockito.Matchers.anyString;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class AggregateDoubleMetricFieldTypeTests extends FieldTypeTestCase {
 
     protected AggregateDoubleMetricFieldType createDefaultFieldType(String name, Map<String, String> meta, Metric defaultMetric) {
-        AggregateDoubleMetricFieldType fieldType = new AggregateDoubleMetricFieldType(name, meta);
+        AggregateDoubleMetricFieldType fieldType = new AggregateDoubleMetricFieldType(name, meta, null);
         for (AggregateDoubleMetricFieldMapper.Metric m : List.of(
             AggregateDoubleMetricFieldMapper.Metric.min,
             AggregateDoubleMetricFieldMapper.Metric.max
@@ -63,19 +64,19 @@ public class AggregateDoubleMetricFieldTypeTests extends FieldTypeTestCase {
 
     public void testTermQuery() {
         final MappedFieldType fieldType = createDefaultFieldType("foo", Collections.emptyMap(), Metric.max);
-        Query query = fieldType.termQuery(55.2, null);
+        Query query = fieldType.termQuery(55.2, MOCK_CONTEXT);
         assertThat(query, equalTo(DoublePoint.newRangeQuery("foo.max", 55.2, 55.2)));
     }
 
     public void testTermsQuery() {
         final MappedFieldType fieldType = createDefaultFieldType("foo", Collections.emptyMap(), Metric.max);
-        Query query = fieldType.termsQuery(asList(55.2, 500.3), null);
+        Query query = fieldType.termsQuery(asList(55.2, 500.3), MOCK_CONTEXT);
         assertThat(query, equalTo(DoublePoint.newSetQuery("foo.max", 55.2, 500.3)));
     }
 
     public void testRangeQuery() {
         final MappedFieldType fieldType = createDefaultFieldType("foo", Collections.emptyMap(), Metric.max);
-        Query query = fieldType.rangeQuery(10.1, 100.1, true, true, null, null, null, null);
+        Query query = fieldType.rangeQuery(10.1, 100.1, true, true, null, null, null, MOCK_CONTEXT);
         assertThat(query, instanceOf(IndexOrDocValuesQuery.class));
     }
 
@@ -121,7 +122,7 @@ public class AggregateDoubleMetricFieldTypeTests extends FieldTypeTestCase {
                 when(searchExecutionContext.allowExpensiveQueries()).thenReturn(true);
                 SearchLookup lookup = new SearchLookup(
                     searchExecutionContext::getFieldType,
-                    (mft, lookupSupplier) -> mft.fielddataBuilder("test", lookupSupplier).build(null, null)
+                    (mft, lookupSupplier) -> mft.fielddataBuilder(new FieldDataContext("test", lookupSupplier)).build(null, null)
                 );
                 when(searchExecutionContext.lookup()).thenReturn(lookup);
                 IndexSearcher searcher = newSearcher(reader);
@@ -132,8 +133,8 @@ public class AggregateDoubleMetricFieldTypeTests extends FieldTypeTestCase {
                     }
 
                     @Override
-                    public ScoreScript newInstance(LeafReaderContext ctx) {
-                        return new ScoreScript(Map.of(), searchExecutionContext.lookup(), ctx) {
+                    public ScoreScript newInstance(DocReader docReader) {
+                        return new ScoreScript(Map.of(), searchExecutionContext.lookup(), docReader) {
                             @Override
                             public double execute(ExplanationHolder explanation) {
                                 Map<String, ScriptDocValues<?>> doc = getDoc();
@@ -142,7 +143,7 @@ public class AggregateDoubleMetricFieldTypeTests extends FieldTypeTestCase {
                             }
                         };
                     }
-                }, 7f, "test", 0, Version.CURRENT)), equalTo(2));
+                }, searchExecutionContext.lookup(), 7f, "test", 0, Version.CURRENT)), equalTo(2));
             }
         }
     }

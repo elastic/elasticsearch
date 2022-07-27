@@ -23,21 +23,20 @@ import java.util.function.Consumer;
 public class VersionSensitiveWarningsHandlerTests extends ESTestCase {
 
     public void testSameVersionCluster() throws IOException {
-        Set<Version> nodeVersions= new HashSet<>();
+        Set<Version> nodeVersions = new HashSet<>();
         nodeVersions.add(Version.CURRENT);
-        WarningsHandler handler = expectVersionSpecificWarnings(nodeVersions, (v)->{
-            v.current("expectedCurrent1");
-        });
+        WarningsHandler handler = expectVersionSpecificWarnings(nodeVersions, (v) -> { v.current("expectedCurrent1"); });
         assertFalse(handler.warningsShouldFailRequest(Arrays.asList("expectedCurrent1")));
         assertTrue(handler.warningsShouldFailRequest(Arrays.asList("expectedCurrent1", "unexpected")));
         assertTrue(handler.warningsShouldFailRequest(Collections.emptyList()));
 
     }
+
     public void testMixedVersionCluster() throws IOException {
-        Set<Version> nodeVersions= new HashSet<>();
+        Set<Version> nodeVersions = new HashSet<>();
         nodeVersions.add(Version.CURRENT);
         nodeVersions.add(Version.CURRENT.minimumIndexCompatibilityVersion());
-        WarningsHandler handler = expectVersionSpecificWarnings(nodeVersions, (v)->{
+        WarningsHandler handler = expectVersionSpecificWarnings(nodeVersions, (v) -> {
             v.current("expectedCurrent1");
             v.compatible("Expected legacy warning");
         });
@@ -49,9 +48,11 @@ public class VersionSensitiveWarningsHandlerTests extends ESTestCase {
         assertFalse(handler.warningsShouldFailRequest(Collections.emptyList()));
     }
 
-    private static WarningsHandler expectVersionSpecificWarnings(Set<Version> nodeVersions,
-            Consumer<VersionSensitiveWarningsHandler> expectationsSetter) {
-        //Based on EsRestTestCase.expectVersionSpecificWarnings helper method but without ESRestTestCase dependency
+    private static WarningsHandler expectVersionSpecificWarnings(
+        Set<Version> nodeVersions,
+        Consumer<VersionSensitiveWarningsHandler> expectationsSetter
+    ) {
+        // Based on EsRestTestCase.expectVersionSpecificWarnings helper method but without ESRestTestCase dependency
         VersionSensitiveWarningsHandler warningsHandler = new VersionSensitiveWarningsHandler(nodeVersions);
         expectationsSetter.accept(warningsHandler);
         return warningsHandler;

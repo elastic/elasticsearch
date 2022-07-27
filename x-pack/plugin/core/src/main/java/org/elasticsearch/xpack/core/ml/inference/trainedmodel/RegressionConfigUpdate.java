@@ -6,12 +6,13 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.NamedXContentObject;
 
@@ -31,8 +32,8 @@ public class RegressionConfigUpdate implements InferenceConfigUpdate, NamedXCont
 
     public static RegressionConfigUpdate fromMap(Map<String, Object> map) {
         Map<String, Object> options = new HashMap<>(map);
-        String resultsField = (String)options.remove(RESULTS_FIELD.getPreferredName());
-        Integer featureImportance = (Integer)options.remove(NUM_TOP_FEATURE_IMPORTANCE_VALUES.getPreferredName());
+        String resultsField = (String) options.remove(RESULTS_FIELD.getPreferredName());
+        Integer featureImportance = (Integer) options.remove(NUM_TOP_FEATURE_IMPORTANCE_VALUES.getPreferredName());
         if (options.isEmpty() == false) {
             throw ExceptionsHelper.badRequestException("Unrecognized fields {}.", map.keySet());
         }
@@ -49,7 +50,8 @@ public class RegressionConfigUpdate implements InferenceConfigUpdate, NamedXCont
         ObjectParser<RegressionConfigUpdate.Builder, Void> parser = new ObjectParser<>(
             NAME.getPreferredName(),
             lenient,
-            RegressionConfigUpdate.Builder::new);
+            RegressionConfigUpdate.Builder::new
+        );
         parser.declareString(RegressionConfigUpdate.Builder::setResultsField, RESULTS_FIELD);
         parser.declareInt(RegressionConfigUpdate.Builder::setNumTopFeatureImportanceValues, NUM_TOP_FEATURE_IMPORTANCE_VALUES);
         return parser;
@@ -65,8 +67,9 @@ public class RegressionConfigUpdate implements InferenceConfigUpdate, NamedXCont
     public RegressionConfigUpdate(String resultsField, Integer numTopFeatureImportanceValues) {
         this.resultsField = resultsField;
         if (numTopFeatureImportanceValues != null && numTopFeatureImportanceValues < 0) {
-            throw new IllegalArgumentException("[" + NUM_TOP_FEATURE_IMPORTANCE_VALUES.getPreferredName() +
-                "] must be greater than or equal to 0");
+            throw new IllegalArgumentException(
+                "[" + NUM_TOP_FEATURE_IMPORTANCE_VALUES.getPreferredName() + "] must be greater than or equal to 0"
+            );
         }
         this.numTopFeatureImportanceValues = numTopFeatureImportanceValues;
 
@@ -82,15 +85,14 @@ public class RegressionConfigUpdate implements InferenceConfigUpdate, NamedXCont
         return numTopFeatureImportanceValues;
     }
 
+    @Override
     public String getResultsField() {
         return resultsField;
     }
 
     @Override
     public InferenceConfigUpdate.Builder<? extends InferenceConfigUpdate.Builder<?, ?>, ? extends InferenceConfigUpdate> newBuilder() {
-        return new Builder()
-            .setNumTopFeatureImportanceValues(numTopFeatureImportanceValues)
-            .setResultsField(resultsField);
+        return new Builder().setNumTopFeatureImportanceValues(numTopFeatureImportanceValues).setResultsField(resultsField);
     }
 
     @Override
@@ -110,6 +112,11 @@ public class RegressionConfigUpdate implements InferenceConfigUpdate, NamedXCont
     }
 
     @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_7_8_0;
+    }
+
+    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         if (resultsField != null) {
@@ -126,7 +133,7 @@ public class RegressionConfigUpdate implements InferenceConfigUpdate, NamedXCont
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        RegressionConfigUpdate that = (RegressionConfigUpdate)o;
+        RegressionConfigUpdate that = (RegressionConfigUpdate) o;
         return Objects.equals(this.resultsField, that.resultsField)
             && Objects.equals(this.numTopFeatureImportanceValues, that.numTopFeatureImportanceValues);
     }
@@ -142,10 +149,11 @@ public class RegressionConfigUpdate implements InferenceConfigUpdate, NamedXCont
             throw ExceptionsHelper.badRequestException(
                 "Inference config of type [{}] can not be updated with a inference request of type [{}]",
                 originalConfig.getName(),
-                getName());
+                getName()
+            );
         }
 
-        RegressionConfig regressionConfig = (RegressionConfig)originalConfig;
+        RegressionConfig regressionConfig = (RegressionConfig) originalConfig;
         if (isNoop(regressionConfig)) {
             return originalConfig;
         }
@@ -157,11 +165,6 @@ public class RegressionConfigUpdate implements InferenceConfigUpdate, NamedXCont
             builder.setNumTopFeatureImportanceValues(numTopFeatureImportanceValues);
         }
         return builder.build();
-    }
-
-    @Override
-    public InferenceConfig toConfig() {
-        return apply(RegressionConfig.EMPTY_PARAMS);
     }
 
     @Override
@@ -190,6 +193,7 @@ public class RegressionConfigUpdate implements InferenceConfigUpdate, NamedXCont
             return this;
         }
 
+        @Override
         public RegressionConfigUpdate build() {
             return new RegressionConfigUpdate(resultsField, numTopFeatureImportanceValues);
         }

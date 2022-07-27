@@ -7,14 +7,14 @@
  */
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -35,8 +35,13 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue {
     DoubleArray compensations;
     DocValueFormat format;
 
-    AvgAggregator(String name, ValuesSourceConfig valuesSourceConfig, AggregationContext context,
-                  Aggregator parent, Map<String, Object> metadata) throws IOException {
+    AvgAggregator(
+        String name,
+        ValuesSourceConfig valuesSourceConfig,
+        AggregationContext context,
+        Aggregator parent,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, context, parent, metadata);
         // TODO Stop expecting nulls here
         this.valuesSource = valuesSourceConfig.hasValues() ? (ValuesSource.Numeric) valuesSourceConfig.getValuesSource() : null;
@@ -55,12 +60,11 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue {
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
-            final LeafBucketCollector sub) throws IOException {
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, final LeafBucketCollector sub) throws IOException {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-        final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);
+        final SortedNumericDoubleValues values = valuesSource.doubleValues(aggCtx.getLeafReaderContext());
         final CompensatedSum kahanSummation = new CompensatedSum(0, 0);
 
         return new LeafBucketCollectorBase(sub, values) {

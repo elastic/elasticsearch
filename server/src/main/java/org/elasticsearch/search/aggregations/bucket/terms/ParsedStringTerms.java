@@ -9,9 +9,9 @@
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.nio.CharBuffer;
@@ -23,8 +23,11 @@ public class ParsedStringTerms extends ParsedTerms {
         return StringTerms.NAME;
     }
 
-    private static final ObjectParser<ParsedStringTerms, Void> PARSER =
-            new ObjectParser<>(ParsedStringTerms.class.getSimpleName(), true, ParsedStringTerms::new);
+    private static final ObjectParser<ParsedStringTerms, Void> PARSER = new ObjectParser<>(
+        ParsedStringTerms.class.getSimpleName(),
+        true,
+        ParsedStringTerms::new
+    );
     static {
         declareParsedTermsFields(PARSER, ParsedBucket::fromXContent);
     }
@@ -70,13 +73,13 @@ public class ParsedStringTerms extends ParsedTerms {
 
         static ParsedBucket fromXContent(XContentParser parser) throws IOException {
             return parseTermsBucketXContent(parser, ParsedBucket::new, (p, bucket) -> {
-                    CharBuffer cb = p.charBufferOrNull();
-                    if (cb == null) {
-                        bucket.key = null;
-                    } else {
-                        bucket.key = new BytesRef(cb);
-                    }
-                });
+                CharBuffer cb = p.charBufferOrNull();
+                if (cb == null) {
+                    bucket.key = null;
+                } else {
+                    bucket.key = new BytesRef(cb);
+                }
+            });
         }
     }
 }

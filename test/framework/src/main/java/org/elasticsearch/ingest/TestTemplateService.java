@@ -32,11 +32,12 @@ public class TestTemplateService extends ScriptService {
     }
 
     private TestTemplateService(boolean compilationException) {
-        super(Settings.EMPTY, Collections.singletonMap(DEFAULT_TEMPLATE_LANG, new MockScriptEngine()), Collections.emptyMap());
+        super(Settings.EMPTY, Collections.singletonMap(DEFAULT_TEMPLATE_LANG, new MockScriptEngine()), Collections.emptyMap(), () -> 1L);
         this.compilationException = compilationException;
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public <FactoryType> FactoryType compile(Script script, ScriptContext<FactoryType> context) {
         if (this.compilationException) {
             throw new RuntimeException("could not compile script");
@@ -44,7 +45,6 @@ public class TestTemplateService extends ScriptService {
             return (FactoryType) new MockTemplateScript.Factory(script.getIdOrCode());
         }
     }
-
 
     public static class MockTemplateScript extends TemplateScript {
         private final String expected;

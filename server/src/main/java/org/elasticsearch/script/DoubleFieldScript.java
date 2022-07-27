@@ -14,23 +14,47 @@ import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.Map;
 import java.util.function.DoubleConsumer;
+import java.util.function.Function;
 
 public abstract class DoubleFieldScript extends AbstractFieldScript {
     public static final ScriptContext<Factory> CONTEXT = newContext("double_field", Factory.class);
 
-    public static final DoubleFieldScript.Factory PARSE_FROM_SOURCE
-        = (field, params, lookup) -> (DoubleFieldScript.LeafFactory) ctx -> new DoubleFieldScript
-        (
-            field,
-            params,
-            lookup,
-            ctx
-        ) {
+    public static final Factory PARSE_FROM_SOURCE = new Factory() {
         @Override
-        public void execute() {
-            emitFromSource();
+        public LeafFactory newFactory(String field, Map<String, Object> params, SearchLookup lookup) {
+            return ctx -> new DoubleFieldScript(field, params, lookup, ctx) {
+                @Override
+                public void execute() {
+                    emitFromSource();
+                }
+            };
+        }
+
+        @Override
+        public boolean isResultDeterministic() {
+            return true;
         }
     };
+
+    public static Factory leafAdapter(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentFactory) {
+        return (leafFieldName, params, searchLookup) -> {
+            CompositeFieldScript.LeafFactory parentLeafFactory = parentFactory.apply(searchLookup);
+            return (LeafFactory) ctx -> {
+                CompositeFieldScript compositeFieldScript = parentLeafFactory.newInstance(ctx);
+                return new DoubleFieldScript(leafFieldName, params, searchLookup, ctx) {
+                    @Override
+                    public void setDocument(int docId) {
+                        compositeFieldScript.setDocument(docId);
+                    }
+
+                    @Override
+                    public void execute() {
+                        emitFromCompositeScript(compositeFieldScript);
+                    }
+                };
+            };
+        };
+    }
 
     @SuppressWarnings("unused")
     public static final String[] PARAMETERS = {};
@@ -100,7 +124,6 @@ public abstract class DoubleFieldScript extends AbstractFieldScript {
     }
 
     public final void emit(double v) {
-        checkMaxSize(count);
         if (values.length < count + 1) {
             values = ArrayUtil.grow(values, count + 1);
         }
@@ -115,6 +138,7 @@ public abstract class DoubleFieldScript extends AbstractFieldScript {
         }
 
         public void emit(double v) {
+            script.checkMaxSize(script.count());
             script.emit(v);
         }
     }

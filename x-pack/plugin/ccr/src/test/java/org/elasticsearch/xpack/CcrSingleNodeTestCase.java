@@ -119,8 +119,10 @@ public abstract class CcrSingleNodeTestCase extends ESSingleNodeTestCase {
 
     protected void ensureEmptyWriteBuffers() throws Exception {
         assertBusy(() -> {
-            FollowStatsAction.StatsResponses statsResponses =
-                client().execute(FollowStatsAction.INSTANCE, new FollowStatsAction.StatsRequest()).actionGet();
+            FollowStatsAction.StatsResponses statsResponses = client().execute(
+                FollowStatsAction.INSTANCE,
+                new FollowStatsAction.StatsRequest()
+            ).actionGet();
             for (FollowStatsAction.StatsResponse statsResponse : statsResponses.getStatsResponses()) {
                 ShardFollowNodeTaskStatus status = statsResponse.status();
                 assertThat(status.writeBufferOperationCount(), equalTo(0));

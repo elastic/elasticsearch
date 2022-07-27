@@ -13,21 +13,18 @@ import com.sun.net.httpserver.HttpServer;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.RequestInfo;
 import org.elasticsearch.xpack.sql.proto.SqlQueryRequest;
+import org.elasticsearch.xpack.sql.proto.core.TimeValue;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -42,21 +39,21 @@ import java.nio.charset.StandardCharsets;
 import java.sql.SQLException;
 import java.time.ZoneId;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Queue;
 import java.util.concurrent.ExecutorService;
 
-import static org.elasticsearch.xpack.sql.proto.Protocol.BINARY_FORMAT_NAME;
-import static org.elasticsearch.xpack.sql.proto.Protocol.COLUMNAR_NAME;
-import static org.elasticsearch.xpack.sql.proto.Protocol.FETCH_SIZE_NAME;
-import static org.elasticsearch.xpack.sql.proto.Protocol.MODE_NAME;
-import static org.elasticsearch.xpack.sql.proto.Protocol.PAGE_TIMEOUT_NAME;
-import static org.elasticsearch.xpack.sql.proto.Protocol.QUERY_NAME;
-import static org.elasticsearch.xpack.sql.proto.Protocol.REQUEST_TIMEOUT_NAME;
-import static org.elasticsearch.xpack.sql.proto.Protocol.TIME_ZONE_NAME;
+import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.sql.proto.CoreProtocol.BINARY_FORMAT_NAME;
+import static org.elasticsearch.xpack.sql.proto.CoreProtocol.COLUMNAR_NAME;
+import static org.elasticsearch.xpack.sql.proto.CoreProtocol.FETCH_SIZE_NAME;
+import static org.elasticsearch.xpack.sql.proto.CoreProtocol.MODE_NAME;
+import static org.elasticsearch.xpack.sql.proto.CoreProtocol.PAGE_TIMEOUT_NAME;
+import static org.elasticsearch.xpack.sql.proto.CoreProtocol.QUERY_NAME;
+import static org.elasticsearch.xpack.sql.proto.CoreProtocol.REQUEST_TIMEOUT_NAME;
+import static org.elasticsearch.xpack.sql.proto.CoreProtocol.TIME_ZONE_NAME;
 
 public class HttpClientRequestTests extends ESTestCase {
 
@@ -78,22 +75,24 @@ public class HttpClientRequestTests extends ESTestCase {
     }
 
     public void testBinaryRequestForCLIEnabled() throws URISyntaxException {
-        assertBinaryRequestForCLI(true, XContentType.CBOR);
+        assertBinaryRequestForCLI(XContentType.CBOR);
     }
 
     public void testBinaryRequestForCLIDisabled() throws URISyntaxException {
-        assertBinaryRequestForCLI(false, XContentType.JSON);
+        assertBinaryRequestForCLI(XContentType.JSON);
     }
 
     public void testBinaryRequestForDriversEnabled() throws URISyntaxException {
-        assertBinaryRequestForDrivers(true, XContentType.CBOR);
+        assertBinaryRequestForDrivers(XContentType.CBOR);
     }
 
     public void testBinaryRequestForDriversDisabled() throws URISyntaxException {
-        assertBinaryRequestForDrivers(false, XContentType.JSON);
+        assertBinaryRequestForDrivers(XContentType.JSON);
     }
 
-    private void assertBinaryRequestForCLI(boolean isBinary, XContentType xContentType) throws URISyntaxException {
+    private void assertBinaryRequestForCLI(XContentType xContentType) throws URISyntaxException {
+        boolean isBinary = XContentType.CBOR == xContentType;
+
         String url = "http://" + webServer.getHostName() + ":" + webServer.getPort();
         String query = randomAlphaOfLength(256);
         int fetchSize = randomIntBetween(1, 100);
@@ -106,7 +105,7 @@ public class HttpClientRequestTests extends ESTestCase {
 
         prepareMockResponse();
         try {
-            httpClient.basicQuery(query, fetchSize);
+            httpClient.basicQuery(query, fetchSize, randomBoolean(), randomBoolean());
         } catch (SQLException e) {
             logger.info("Ignored SQLException", e);
         }
@@ -149,7 +148,9 @@ public class HttpClientRequestTests extends ESTestCase {
         assertEquals("45000ms", reqContent.get(PAGE_TIMEOUT_NAME));
     }
 
-    private void assertBinaryRequestForDrivers(boolean isBinary, XContentType xContentType) throws URISyntaxException {
+    private void assertBinaryRequestForDrivers(XContentType xContentType) throws URISyntaxException {
+        boolean isBinary = XContentType.CBOR == xContentType;
+
         String url = "http://" + webServer.getHostName() + ":" + webServer.getPort();
         String query = randomAlphaOfLength(256);
         Properties props = new Properties();
@@ -160,20 +161,22 @@ public class HttpClientRequestTests extends ESTestCase {
         HttpClient httpClient = new HttpClient(conCfg);
 
         Mode mode = randomFrom(Mode.JDBC, Mode.ODBC);
-        SqlQueryRequest request = new SqlQueryRequest(query,
-                null,
-                ZoneId.of("Z"),
-                randomIntBetween(1, 100),
-                TimeValue.timeValueMillis(randomNonNegativeLong()),
-                TimeValue.timeValueMillis(randomNonNegativeLong()),
-                null,
-                randomBoolean(),
-                randomAlphaOfLength(128),
-                new RequestInfo(mode, ClientVersion.CURRENT),
-                randomBoolean(),
-                randomBoolean(),
-                isBinary,
-                Collections.emptyMap());
+        SqlQueryRequest request = new SqlQueryRequest(
+            query,
+            null,
+            ZoneId.of("Z"),
+            randomAlphaOfLength(10),
+            randomIntBetween(1, 100),
+            TimeValue.timeValueMillis(randomNonNegativeLong()),
+            TimeValue.timeValueMillis(randomNonNegativeLong()),
+            randomBoolean(),
+            randomAlphaOfLength(128),
+            new RequestInfo(mode, ClientVersion.CURRENT),
+            randomBoolean(),
+            randomBoolean(),
+            isBinary,
+            randomBoolean()
+        );
 
         prepareMockResponse();
         try {
@@ -207,8 +210,7 @@ public class HttpClientRequestTests extends ESTestCase {
         private String hostname;
         private int port;
 
-        RawRequestMockWebServer() {
-        }
+        RawRequestMockWebServer() {}
 
         void start() throws IOException {
             InetSocketAddress address = new InetSocketAddress(InetAddress.getLoopbackAddress().getHostAddress(), 0);
@@ -237,8 +239,7 @@ public class HttpClientRequestTests extends ESTestCase {
                         }
                     }
                 } catch (Exception e) {
-                    logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to respond to request [{} {}]",
-                            s.getRequestMethod(), s.getRequestURI()), e);
+                    logger.error(() -> format("failed to respond to request [%s %s]", s.getRequestMethod(), s.getRequestURI()), e);
                 } finally {
                     s.close();
                 }
@@ -283,7 +284,6 @@ public class HttpClientRequestTests extends ESTestCase {
             server.stop(0);
         }
     }
-
 
     private static class RawRequest {
 

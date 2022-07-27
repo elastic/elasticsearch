@@ -10,10 +10,6 @@ package org.elasticsearch.plugin.analysis.smartcn;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.index.analysis.AnalyzerProvider;
-import org.elasticsearch.index.analysis.SmartChineseAnalyzerProvider;
-import org.elasticsearch.index.analysis.SmartChineseNoOpTokenFilterFactory;
-import org.elasticsearch.index.analysis.SmartChineseStopTokenFilterFactory;
-import org.elasticsearch.index.analysis.SmartChineseTokenizerTokenizerFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;

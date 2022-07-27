@@ -35,8 +35,7 @@ public class IndicesShardStoresRequest extends MasterNodeReadRequest<IndicesShar
         this.indices = indices;
     }
 
-    public IndicesShardStoresRequest() {
-    }
+    public IndicesShardStoresRequest() {}
 
     public IndicesShardStoresRequest(StreamInput in) throws IOException {
         super(in);
@@ -53,10 +52,7 @@ public class IndicesShardStoresRequest extends MasterNodeReadRequest<IndicesShar
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeStringArrayNullable(indices);
-        out.writeVInt(statuses.size());
-        for (ClusterHealthStatus status : statuses) {
-            out.writeByte(status.value());
-        }
+        out.writeCollection(statuses, (o, v) -> o.writeByte(v.value()));
         indicesOptions.writeIndicesOptions(out);
     }
 

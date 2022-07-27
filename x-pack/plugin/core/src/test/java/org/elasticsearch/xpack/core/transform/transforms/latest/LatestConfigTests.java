@@ -8,11 +8,11 @@
 package org.elasticsearch.xpack.core.transform.transforms.latest;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.transform.AbstractSerializingTransformTestCase;
 
 import java.io.IOException;
@@ -49,12 +49,8 @@ public class LatestConfigTests extends AbstractSerializingTransformTestCase<Late
     }
 
     public void testValidate_ValidConfig() throws IOException {
-        // tag::NO_CODE_FORMAT
-        String json = "{"
-            + " \"unique_key\": [ \"event1\", \"event2\", \"event3\" ],"
-            + " \"sort\": \"timestamp\""
-            + "}";
-        // end::NO_CODE_FORMAT
+        String json = """
+            { "unique_key": [ "event1", "event2", "event3" ], "sort": "timestamp"}""";
 
         LatestConfig config = createLatestConfigFromString(json);
         assertThat(config.validate(null), is(nullValue()));
@@ -64,24 +60,16 @@ public class LatestConfigTests extends AbstractSerializingTransformTestCase<Late
     }
 
     public void testValidate_EmptyUniqueKey() throws IOException {
-        // tag::NO_CODE_FORMAT
-        String json = "{"
-            + " \"unique_key\": [],"
-            + " \"sort\": \"timestamp\""
-            + "}";
-        // end::NO_CODE_FORMAT
+        String json = """
+            { "unique_key": [], "sort": "timestamp"}""";
 
         LatestConfig config = createLatestConfigFromString(json);
         assertThat(config.validate(null).validationErrors(), contains("latest.unique_key must be non-empty"));
     }
 
     public void testValidate_EmptyUniqueKeyElement() throws IOException {
-        // tag::NO_CODE_FORMAT
-        String json = "{"
-            + " \"unique_key\": [ \"event1\", \"\", \"event2\", \"\", \"event3\" ],"
-            + " \"sort\": \"timestamp\""
-            + "}";
-        // end::NO_CODE_FORMAT
+        String json = """
+            { "unique_key": [ "event1", "", "event2", "", "event3" ], "sort": "timestamp"}""";
 
         LatestConfig config = createLatestConfigFromString(json);
         assertThat(
@@ -91,12 +79,8 @@ public class LatestConfigTests extends AbstractSerializingTransformTestCase<Late
     }
 
     public void testValidate_DuplicateUniqueKeyElement() throws IOException {
-        // tag::NO_CODE_FORMAT
-        String json = "{"
-            + " \"unique_key\": [ \"event1\", \"event2\", \"event1\" ],"
-            + " \"sort\": \"timestamp\""
-            + "}";
-        // end::NO_CODE_FORMAT
+        String json = """
+            { "unique_key": [ "event1", "event2", "event1" ], "sort": "timestamp"}""";
 
         LatestConfig config = createLatestConfigFromString(json);
         assertThat(
@@ -106,24 +90,16 @@ public class LatestConfigTests extends AbstractSerializingTransformTestCase<Late
     }
 
     public void testValidate_EmptySort() throws IOException {
-        // tag::NO_CODE_FORMAT
-        String json = "{"
-            + " \"unique_key\": [ \"event1\", \"event2\", \"event3\" ],"
-            + " \"sort\": \"\""
-            + "}";
-        // end::NO_CODE_FORMAT
+        String json = """
+            { "unique_key": [ "event1", "event2", "event3" ], "sort": ""}""";
 
         LatestConfig config = createLatestConfigFromString(json);
         assertThat(config.validate(null).validationErrors(), contains("latest.sort must be non-empty"));
     }
 
     public void testValidate_EmptyUniqueKeyAndSort() throws IOException {
-        // tag::NO_CODE_FORMAT
-        String json = "{"
-            + " \"unique_key\": [],"
-            + " \"sort\": \"\""
-            + "}";
-        // end::NO_CODE_FORMAT
+        String json = """
+            { "unique_key": [], "sort": ""}""";
 
         LatestConfig config = createLatestConfigFromString(json);
         assertThat(
@@ -134,7 +110,7 @@ public class LatestConfigTests extends AbstractSerializingTransformTestCase<Late
 
     private LatestConfig createLatestConfigFromString(String json) throws IOException {
         final XContentParser parser = XContentType.JSON.xContent()
-            .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json);
+            .createParser(XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry()), json);
         return LatestConfig.fromXContent(parser, false);
     }
 }

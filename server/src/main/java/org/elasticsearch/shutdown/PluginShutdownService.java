@@ -6,18 +6,10 @@
  * Side Public License, v 1.
  */
 
-/*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
- */
-
 package org.elasticsearch.shutdown;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -26,6 +18,7 @@ import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.plugins.ShutdownAwarePlugin;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -56,14 +49,18 @@ public class PluginShutdownService implements ClusterStateListener {
     }
 
     /**
-     * Return all nodes shutting down with the given shutdown type from the given cluster state
+     * Return all nodes shutting down with the given shutdown types from the given cluster state
      */
-    public static Set<String> shutdownTypeNodes(final ClusterState clusterState, final SingleNodeShutdownMetadata.Type shutdownType) {
+    public static Set<String> shutdownTypeNodes(final ClusterState clusterState, final SingleNodeShutdownMetadata.Type... shutdownTypes) {
+        Set<SingleNodeShutdownMetadata.Type> types = Arrays.stream(shutdownTypes).collect(Collectors.toSet());
         return NodesShutdownMetadata.getShutdowns(clusterState)
             .map(NodesShutdownMetadata::getAllNodeMetadataMap)
-            .map(m -> m.entrySet().stream()
-                .filter(e -> e.getValue().getType() == shutdownType)
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)))
+            .map(
+                m -> m.entrySet()
+                    .stream()
+                    .filter(e -> types.contains(e.getValue().getType()))
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
+            )
             .map(Map::keySet)
             .orElse(Collections.emptySet());
     }
@@ -96,7 +93,7 @@ public class PluginShutdownService implements ClusterStateListener {
             try {
                 plugin.signalShutdown(shutdownNodes);
             } catch (Exception e) {
-                logger.warn(new ParameterizedMessage("uncaught exception when notifying plugins of nodes {} shutdown", shutdownNodes), e);
+                logger.warn(() -> "uncaught exception when notifying plugins of nodes " + shutdownNodes + " shutdown", e);
             }
         }
     }

@@ -42,7 +42,7 @@ public class MockLookupRealm extends Realm {
     }
 
     @Override
-    public void authenticate(AuthenticationToken token, ActionListener<AuthenticationResult> listener) {
+    public void authenticate(AuthenticationToken token, ActionListener<AuthenticationResult<User>> listener) {
         listener.onResponse(AuthenticationResult.notHandled());
     }
 

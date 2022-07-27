@@ -14,7 +14,6 @@ import org.elasticsearch.common.util.ByteUtils;
 import java.math.BigInteger;
 import java.util.Objects;
 
-
 /**
  * MurmurHash3 hashing functions.
  */
@@ -39,8 +38,7 @@ public enum MurmurHash3 {
                 return false;
             }
             Hash128 that = (Hash128) other;
-            return Objects.equals(this.h1, that.h1)
-                && Objects.equals(this.h2, that.h2);
+            return Objects.equals(this.h1, that.h1) && Objects.equals(this.h2, that.h2);
         }
 
         @Override
@@ -72,12 +70,6 @@ public enum MurmurHash3 {
 
     private static long C1 = 0x87c37b91114253d5L;
     private static long C2 = 0x4cf5ad432745937fL;
-
-    protected static long getblock(byte[] key, int offset, int index) {
-        int i_8 = index << 3;
-        int blockOffset = offset + i_8;
-        return ByteUtils.readLongLE(key, blockOffset);
-    }
 
     protected static long fmix(long k) {
         k ^= k >>> 33;

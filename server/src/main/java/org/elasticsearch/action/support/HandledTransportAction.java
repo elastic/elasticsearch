@@ -19,31 +19,49 @@ import org.elasticsearch.transport.TransportService;
 /**
  * A TransportAction that self registers a handler into the transport service
  */
-public abstract class HandledTransportAction<Request extends ActionRequest, Response extends ActionResponse>
-        extends TransportAction<Request, Response> {
+public abstract class HandledTransportAction<Request extends ActionRequest, Response extends ActionResponse> extends TransportAction<
+    Request,
+    Response> {
 
-    protected HandledTransportAction(String actionName, TransportService transportService,
-                                     ActionFilters actionFilters, Writeable.Reader<Request> requestReader) {
+    protected HandledTransportAction(
+        String actionName,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        Writeable.Reader<Request> requestReader
+    ) {
         this(actionName, true, transportService, actionFilters, requestReader);
     }
 
-    protected HandledTransportAction(String actionName, TransportService transportService,
-                                     ActionFilters actionFilters, Writeable.Reader<Request> requestReader, String executor) {
+    protected HandledTransportAction(
+        String actionName,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        Writeable.Reader<Request> requestReader,
+        String executor
+    ) {
         this(actionName, true, transportService, actionFilters, requestReader, executor);
     }
 
-    protected HandledTransportAction(String actionName, boolean canTripCircuitBreaker,
-                                     TransportService transportService, ActionFilters actionFilters,
-                                     Writeable.Reader<Request> requestReader) {
+    protected HandledTransportAction(
+        String actionName,
+        boolean canTripCircuitBreaker,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        Writeable.Reader<Request> requestReader
+    ) {
         this(actionName, canTripCircuitBreaker, transportService, actionFilters, requestReader, ThreadPool.Names.SAME);
     }
 
-    protected HandledTransportAction(String actionName, boolean canTripCircuitBreaker,
-                                     TransportService transportService, ActionFilters actionFilters,
-                                     Writeable.Reader<Request> requestReader, String executor) {
+    protected HandledTransportAction(
+        String actionName,
+        boolean canTripCircuitBreaker,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        Writeable.Reader<Request> requestReader,
+        String executor
+    ) {
         super(actionName, actionFilters, transportService.getTaskManager());
-        transportService.registerRequestHandler(actionName, executor, false, canTripCircuitBreaker, requestReader,
-            new TransportHandler());
+        transportService.registerRequestHandler(actionName, executor, false, canTripCircuitBreaker, requestReader, new TransportHandler());
     }
 
     class TransportHandler implements TransportRequestHandler<Request> {

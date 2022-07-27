@@ -9,6 +9,7 @@
 package org.elasticsearch.gradle.internal.test.rest.transform.warnings;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
+
 import org.elasticsearch.gradle.internal.test.rest.transform.RestTestTransform;
 import org.elasticsearch.gradle.internal.test.rest.transform.feature.InjectFeatureTests;
 import org.junit.Test;
@@ -17,6 +18,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThrows;
 
 public class InjectWarningsRegexTests extends InjectFeatureTests {
 
@@ -33,7 +37,7 @@ public class InjectWarningsRegexTests extends InjectFeatureTests {
         validateSetupDoesNotExist(tests);
         assertEquals(
             "inject warnings is only supported for named tests",
-            expectThrows(
+            assertThrows(
                 NullPointerException.class,
                 () -> transformTests(tests, Collections.singletonList(new InjectWarnings(new ArrayList<>(addWarnings), null)))
             ).getMessage()
@@ -67,8 +71,8 @@ public class InjectWarningsRegexTests extends InjectFeatureTests {
         List<ObjectNode> transformedTests = transformTests(tests);
         printTest(testName, transformedTests);
         validateSetupAndTearDown(transformedTests);
-        validateBodyHasWarnings(WARNINGS_REGEX, tests, Set.of("c", "d"));
-        validateBodyHasWarnings(WARNINGS_REGEX, "Test warnings", tests, addWarnings);
+        validateBodyHasWarnings(WARNINGS_REGEX, "Not the test to change", tests, Set.of("c", "d"));
+        validateBodyHasWarnings(WARNINGS_REGEX, "Test warnings", tests, Set.of("c", "d", "added warning"));
     }
 
     @Override

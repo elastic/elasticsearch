@@ -32,16 +32,19 @@ public class MultiTermsAggregationFactory extends AggregatorFactory {
     private final Aggregator.SubAggCollectionMode collectMode;
     private final TermsAggregator.BucketCountThresholds bucketCountThresholds;
 
-    public MultiTermsAggregationFactory(String name, List<ValuesSourceConfig> configs,
-                                        List<DocValueFormat> formats,
-                                        boolean showTermDocCountError,
-                                        BucketOrder order,
-                                        Aggregator.SubAggCollectionMode collectMode,
-                                        TermsAggregator.BucketCountThresholds bucketCountThresholds,
-                                        AggregationContext context,
-                                        AggregatorFactory parent,
-                                        AggregatorFactories.Builder subFactoriesBuilder,
-                                        Map<String, Object> metadata) throws IOException {
+    public MultiTermsAggregationFactory(
+        String name,
+        List<ValuesSourceConfig> configs,
+        List<DocValueFormat> formats,
+        boolean showTermDocCountError,
+        BucketOrder order,
+        Aggregator.SubAggCollectionMode collectMode,
+        TermsAggregator.BucketCountThresholds bucketCountThresholds,
+        AggregationContext context,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, context, parent, subFactoriesBuilder, metadata);
         this.configs = configs;
         this.formats = formats;
@@ -52,19 +55,30 @@ public class MultiTermsAggregationFactory extends AggregatorFactory {
     }
 
     @Override
-    protected Aggregator createInternal(Aggregator parent,
-                                        CardinalityUpperBound cardinality,
-                                        Map<String, Object> metadata) throws IOException {
-        TermsAggregator.BucketCountThresholds bucketCountThresholds = new TermsAggregator.BucketCountThresholds(this.bucketCountThresholds);
+    protected Aggregator createInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
+        throws IOException {
+        TermsAggregator.BucketCountThresholds thresholds = new TermsAggregator.BucketCountThresholds(this.bucketCountThresholds);
         if (InternalOrder.isKeyOrder(order) == false
-            && bucketCountThresholds.getShardSize() == MultiTermsAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS.getShardSize()) {
+            && thresholds.getShardSize() == MultiTermsAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS.getShardSize()) {
             // The user has not made a shardSize selection. Use default
             // heuristic to avoid any wrong-ranking caused by distributed
             // counting
-            bucketCountThresholds.setShardSize(BucketUtils.suggestShardSideQueueSize(bucketCountThresholds.getRequiredSize()));
+            thresholds.setShardSize(BucketUtils.suggestShardSideQueueSize(thresholds.getRequiredSize()));
         }
-        bucketCountThresholds.ensureValidity();
-        return new MultiTermsAggregator(name, factories, context, parent, configs, formats, showTermDocCountError, order,
-            collectMode, bucketCountThresholds, cardinality, metadata);
+        thresholds.ensureValidity();
+        return new MultiTermsAggregator(
+            name,
+            factories,
+            context,
+            parent,
+            configs,
+            formats,
+            showTermDocCountError,
+            order,
+            collectMode,
+            thresholds,
+            cardinality,
+            metadata
+        );
     }
 }

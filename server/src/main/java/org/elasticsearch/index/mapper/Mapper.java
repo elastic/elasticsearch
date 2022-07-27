@@ -9,185 +9,58 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.IndexAnalyzers;
-import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.index.similarity.SimilarityProvider;
-import org.elasticsearch.script.ScriptCompiler;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.StringLiteralDeduplicator;
+import org.elasticsearch.xcontent.ToXContentFragment;
 
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.BooleanSupplier;
-import java.util.function.Function;
-import java.util.function.Supplier;
 
 public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
-
     public abstract static class Builder {
 
         protected final String name;
 
         protected Builder(String name) {
-            this.name = name;
+            this.name = internFieldName(name);
         }
 
+        // TODO rename this to leafName?
         public String name() {
             return this.name;
         }
 
         /** Returns a newly built mapper. */
-        public abstract Mapper build(ContentPath contentPath);
+        public abstract Mapper build(MapperBuilderContext context);
     }
 
     public interface TypeParser {
+        Mapper.Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext) throws MapperParsingException;
 
-        class ParserContext {
-
-            private final Function<String, SimilarityProvider> similarityLookupService;
-            private final Function<String, TypeParser> typeParsers;
-            private final Function<String, RuntimeField.Parser> runtimeFieldParsers;
-            private final Version indexVersionCreated;
-            private final Supplier<SearchExecutionContext> searchExecutionContextSupplier;
-            private final DateFormatter dateFormatter;
-            private final ScriptCompiler scriptCompiler;
-            private final IndexAnalyzers indexAnalyzers;
-            private final IndexSettings indexSettings;
-            private final BooleanSupplier idFieldDataEnabled;
-
-            public ParserContext(Function<String, SimilarityProvider> similarityLookupService,
-                                 Function<String, TypeParser> typeParsers,
-                                 Function<String, RuntimeField.Parser> runtimeFieldParsers,
-                                 Version indexVersionCreated,
-                                 Supplier<SearchExecutionContext> searchExecutionContextSupplier,
-                                 DateFormatter dateFormatter,
-                                 ScriptCompiler scriptCompiler,
-                                 IndexAnalyzers indexAnalyzers,
-                                 IndexSettings indexSettings,
-                                 BooleanSupplier idFieldDataEnabled) {
-                this.similarityLookupService = similarityLookupService;
-                this.typeParsers = typeParsers;
-                this.runtimeFieldParsers = runtimeFieldParsers;
-                this.indexVersionCreated = indexVersionCreated;
-                this.searchExecutionContextSupplier = searchExecutionContextSupplier;
-                this.dateFormatter = dateFormatter;
-                this.scriptCompiler = scriptCompiler;
-                this.indexAnalyzers = indexAnalyzers;
-                this.indexSettings = indexSettings;
-                this.idFieldDataEnabled = idFieldDataEnabled;
-            }
-
-            public IndexAnalyzers getIndexAnalyzers() {
-                return indexAnalyzers;
-            }
-
-            public IndexSettings getIndexSettings() {
-                return indexSettings;
-            }
-
-            public BooleanSupplier isIdFieldDataEnabled() {
-                return idFieldDataEnabled;
-            }
-
-            public Settings getSettings() {
-                return indexSettings.getSettings();
-            }
-
-            public SimilarityProvider getSimilarity(String name) {
-                return similarityLookupService.apply(name);
-            }
-
-            public TypeParser typeParser(String type) {
-                return typeParsers.apply(type);
-            }
-
-            public RuntimeField.Parser runtimeFieldParser(String type) {
-                return runtimeFieldParsers.apply(type);
-            }
-
-            public Version indexVersionCreated() {
-                return indexVersionCreated;
-            }
-
-            public Supplier<SearchExecutionContext> searchExecutionContext() {
-                return searchExecutionContextSupplier;
-            }
-
-            /**
-             * Gets an optional default date format for date fields that do not have an explicit format set
-             *
-             * If {@code null}, then date fields will default to {@link DateFieldMapper#DEFAULT_DATE_TIME_FORMATTER}.
-             */
-            public DateFormatter getDateFormatter() {
-                return dateFormatter;
-            }
-
-            public boolean isWithinMultiField() { return false; }
-
-            /**
-             * true if this pars context is coming from parsing dynamic template mappings
-             */
-            public boolean isFromDynamicTemplate() { return false; }
-
-            protected Function<String, SimilarityProvider> similarityLookupService() { return similarityLookupService; }
-
-            /**
-             * The {@linkplain ScriptCompiler} to compile scripts needed by the {@linkplain Mapper}.
-             */
-            public ScriptCompiler scriptCompiler() {
-                return scriptCompiler;
-            }
-
-            ParserContext createMultiFieldContext(ParserContext in) {
-                return new MultiFieldParserContext(in);
-            }
-
-            ParserContext createDynamicTemplateFieldContext(ParserContext in) {
-                return new DynamicTemplateParserContext(in);
-            }
-
-            private static class MultiFieldParserContext extends ParserContext {
-                MultiFieldParserContext(ParserContext in) {
-                    super(in.similarityLookupService, in.typeParsers, in.runtimeFieldParsers, in.indexVersionCreated,
-                        in.searchExecutionContextSupplier, in.dateFormatter, in.scriptCompiler, in.indexAnalyzers, in.indexSettings,
-                        in.idFieldDataEnabled);
-                }
-
-                @Override
-                public boolean isWithinMultiField() { return true; }
-            }
-
-            private static class DynamicTemplateParserContext extends ParserContext {
-                DynamicTemplateParserContext(ParserContext in) {
-                    super(in.similarityLookupService, in.typeParsers, in.runtimeFieldParsers, in.indexVersionCreated,
-                        in.searchExecutionContextSupplier, in.dateFormatter, in.scriptCompiler, in.indexAnalyzers, in.indexSettings,
-                        in.idFieldDataEnabled);
-                }
-
-                @Override
-                public boolean isFromDynamicTemplate() { return true; }
-            }
+        /**
+         * Whether we can parse this type on indices with the given index created version.
+         */
+        default boolean supportsVersion(Version indexCreatedVersion) {
+            return indexCreatedVersion.onOrAfter(Version.CURRENT.minimumIndexCompatibilityVersion());
         }
-
-        Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException;
     }
 
     private final String simpleName;
 
     public Mapper(String simpleName) {
         Objects.requireNonNull(simpleName);
-        this.simpleName = simpleName;
+        this.simpleName = internFieldName(simpleName);
     }
 
     /** Returns the simple name, which identifies this mapper against other mappers at the same level in the mappers hierarchy
      * TODO: make this protected once Mapper and FieldMapper are merged together */
+    // TODO rename this to leafName?
     public final String simpleName() {
         return simpleName;
     }
 
     /** Returns the canonical name which uniquely identifies the mapper against other mappers in a type. */
+    // TODO rename this to fullPath???
     public abstract String name();
 
     /**
@@ -197,7 +70,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
     /** Return the merge of {@code mergeWith} into this.
      *  Both {@code this} and {@code mergeWith} will be left unmodified. */
-    public abstract Mapper merge(Mapper mergeWith);
+    public abstract Mapper merge(Mapper mergeWith, MapperBuilderContext mapperBuilderContext);
 
     /**
      * Validate any cross-field references made by this mapper
@@ -205,4 +78,31 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
      */
     public abstract void validate(MappingLookup mappers);
 
+    /**
+     * Create a {@link SourceLoader.SyntheticFieldLoader} to populate synthetic source.
+     *
+     * @throws IllegalArgumentException if the field is configured in a way that doesn't
+     *         support synthetic source. This translates nicely into a 400 error when
+     *         users configure synthetic source in the mapping without configuring all
+     *         fields properly.
+     */
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        throw new IllegalArgumentException("field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source");
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
+    }
+
+    private static final StringLiteralDeduplicator fieldNameStringDeduplicator = new StringLiteralDeduplicator();
+
+    /**
+     * Interns the given field name string through a {@link StringLiteralDeduplicator}.
+     * @param fieldName field name to intern
+     * @return interned field name string
+     */
+    public static String internFieldName(String fieldName) {
+        return fieldNameStringDeduplicator.deduplicate(fieldName);
+    }
 }

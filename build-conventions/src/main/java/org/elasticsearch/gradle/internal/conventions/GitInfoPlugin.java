@@ -15,7 +15,6 @@ import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
-import org.gradle.initialization.layout.BuildLayout;
 
 import javax.inject.Inject;
 import java.io.File;
@@ -29,7 +28,7 @@ class GitInfoPlugin implements Plugin<Project> {
     private Property<GitInfo> gitInfo;
 
     @Inject
-    public GitInfoPlugin(ProviderFactory factory, ObjectFactory objectFactory) {
+    GitInfoPlugin(ProviderFactory factory, ObjectFactory objectFactory) {
         this.factory = factory;
         this.objectFactory = objectFactory;
     }

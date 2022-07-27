@@ -7,16 +7,20 @@
 
 package org.elasticsearch.xpack.security.authc.service;
 
+import joptsimple.OptionSet;
+
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
+
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.CommandTestCase;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.core.PathUtilsForTesting;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.PathUtilsForTesting;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.support.Validation;
@@ -32,9 +36,9 @@ import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.test.SecurityIntegTestCase.getFastStoredHashAlgoForTests;
+import static org.hamcrest.Matchers.containsInRelativeOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.is;
@@ -72,11 +76,14 @@ public class FileTokensToolTests extends CommandTestCase {
         Files.createDirectories(confDir);
         hasher = getFastStoredHashAlgoForTests();
 
-        Files.write(confDir.resolve("service_tokens"), List.of(
-            "elastic/fleet-server/server_1:" + new String(hasher.hash(token1)),
-            "elastic/fleet-server/server_2:" + new String(hasher.hash(token2)),
-            "elastic/fleet-server/server_3:" + new String(hasher.hash(token3))
-        ));
+        Files.write(
+            confDir.resolve("service_tokens"),
+            List.of(
+                "elastic/fleet-server/server_1:" + new String(hasher.hash(token1)),
+                "elastic/fleet-server/server_2:" + new String(hasher.hash(token2)),
+                "elastic/fleet-server/server_3:" + new String(hasher.hash(token3))
+            )
+        );
         settings = Settings.builder()
             .put("path.home", homeDir)
             .put("xpack.security.authc.service_token_hashing.algorithm", hasher.name())
@@ -99,7 +106,7 @@ public class FileTokensToolTests extends CommandTestCase {
             protected CreateFileTokenCommand newCreateFileTokenCommand() {
                 return new CreateFileTokenCommand() {
                     @Override
-                    protected Environment createEnv(Map<String, String> settings) throws UserException {
+                    protected Environment createEnv(OptionSet options, ProcessInfo processInfo) throws UserException {
                         return new Environment(FileTokensToolTests.this.settings, confDir);
                     }
                 };
@@ -109,7 +116,7 @@ public class FileTokensToolTests extends CommandTestCase {
             protected DeleteFileTokenCommand newDeleteFileTokenCommand() {
                 return new DeleteFileTokenCommand() {
                     @Override
-                    protected Environment createEnv(Map<String, String> settings) throws UserException {
+                    protected Environment createEnv(OptionSet options, ProcessInfo processInfo) throws UserException {
                         return new Environment(FileTokensToolTests.this.settings, confDir);
                     }
                 };
@@ -119,7 +126,7 @@ public class FileTokensToolTests extends CommandTestCase {
             protected ListFileTokenCommand newListFileTokenCommand() {
                 return new ListFileTokenCommand() {
                     @Override
-                    protected Environment createEnv(Map<String, String> settings) throws UserException {
+                    protected Environment createEnv(OptionSet options, ProcessInfo processInfo) throws UserException {
                         return new Environment(FileTokensToolTests.this.settings, confDir);
                     }
                 };
@@ -130,33 +137,43 @@ public class FileTokensToolTests extends CommandTestCase {
     public void testParsePrincipalAndTokenName() throws UserException {
         final String tokenName1 = randomAlphaOfLengthBetween(3, 8);
 
-        final ServiceAccountTokenId accountTokenId =
-            FileTokensTool.parsePrincipalAndTokenName(List.of("elastic/fleet-server", tokenName1), Settings.EMPTY);
+        final ServiceAccountTokenId accountTokenId = FileTokensTool.parsePrincipalAndTokenName(
+            List.of("elastic/fleet-server", tokenName1),
+            Settings.EMPTY
+        );
         assertEquals("elastic/fleet-server", accountTokenId.getAccountId().asPrincipal());
         assertEquals(tokenName1, accountTokenId.getTokenName());
 
-        final UserException e2 = expectThrows(UserException.class,
-            () -> FileTokensTool.parsePrincipalAndTokenName(List.of(randomAlphaOfLengthBetween(6, 16)), Settings.EMPTY));
+        final UserException e2 = expectThrows(
+            UserException.class,
+            () -> FileTokensTool.parsePrincipalAndTokenName(List.of(randomAlphaOfLengthBetween(6, 16)), Settings.EMPTY)
+        );
         assertThat(e2.getMessage(), containsString("Missing token-name argument"));
 
-        final UserException e3 = expectThrows(UserException.class,
-            () -> FileTokensTool.parsePrincipalAndTokenName(List.of(), Settings.EMPTY));
+        final UserException e3 = expectThrows(
+            UserException.class,
+            () -> FileTokensTool.parsePrincipalAndTokenName(List.of(), Settings.EMPTY)
+        );
         assertThat(e3.getMessage(), containsString("Missing service-account-principal and token-name arguments"));
 
-        final UserException e4 = expectThrows(UserException.class,
+        final UserException e4 = expectThrows(
+            UserException.class,
             () -> FileTokensTool.parsePrincipalAndTokenName(
                 List.of(randomAlphaOfLengthBetween(6, 16), randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8)),
-                Settings.EMPTY));
-        assertThat(e4.getMessage(), containsString(
-            "Expected two arguments, service-account-principal and token-name, found extra:"));
+                Settings.EMPTY
+            )
+        );
+        assertThat(e4.getMessage(), containsString("Expected two arguments, service-account-principal and token-name, found extra:"));
     }
 
     public void testCreateToken() throws Exception {
         final String tokenName1 = randomValueOtherThanMany(n -> n.startsWith("-"), ValidationTests::randomTokenName);
         execute("create", pathHomeParameter, "elastic/fleet-server", tokenName1);
         assertServiceTokenExists("elastic/fleet-server/" + tokenName1);
-        final String tokenName2 = randomValueOtherThanMany(n -> n.startsWith("-") || n.equals(tokenName1),
-            ValidationTests::randomTokenName);
+        final String tokenName2 = randomValueOtherThanMany(
+            n -> n.startsWith("-") || n.equals(tokenName1),
+            ValidationTests::randomTokenName
+        );
         execute("create", pathHomeParameter, "elastic/fleet-server", tokenName2);
         assertServiceTokenExists("elastic/fleet-server/" + tokenName2);
         // token name with a leading hyphen requires an option terminator
@@ -171,9 +188,9 @@ public class FileTokensToolTests extends CommandTestCase {
 
     public void testCreateTokenWithInvalidTokenName() throws Exception {
         final String tokenName = ValidationTests.randomInvalidTokenName();
-        final String[] args = tokenName.startsWith("-") ?
-            new String[] { "create", pathHomeParameter, "elastic/fleet-server", "--", tokenName } :
-            new String[] { "create", pathHomeParameter, "elastic/fleet-server", tokenName };
+        final String[] args = tokenName.startsWith("-")
+            ? new String[] { "create", pathHomeParameter, "elastic/fleet-server", "--", tokenName }
+            : new String[] { "create", pathHomeParameter, "elastic/fleet-server", tokenName };
         final UserException e = expectThrows(UserException.class, () -> execute(args));
         assertServiceTokenNotExists("elastic/fleet-server/" + tokenName);
         assertThat(e.getMessage(), containsString(Validation.INVALID_SERVICE_ACCOUNT_TOKEN_NAME_MESSAGE));
@@ -181,10 +198,15 @@ public class FileTokensToolTests extends CommandTestCase {
     }
 
     public void testCreateTokenWithInvalidServiceAccount() throws Exception {
-        final UserException e = expectThrows(UserException.class,
-            () -> execute("create", pathHomeParameter,
+        final UserException e = expectThrows(
+            UserException.class,
+            () -> execute(
+                "create",
+                pathHomeParameter,
                 randomFrom("elastic/foo", "foo/fleet-server", randomAlphaOfLengthBetween(6, 16)),
-                randomAlphaOfLengthBetween(3, 8)));
+                randomAlphaOfLengthBetween(3, 8)
+            )
+        );
         assertThat(e.getMessage(), containsString("Unknown service account principal: "));
         assertThat(e.getMessage(), containsString("Must be one of "));
     }
@@ -200,18 +222,23 @@ public class FileTokensToolTests extends CommandTestCase {
 
     public void testDeleteTokenIncorrect() throws IOException {
         // Invalid principal
-        final UserException e1 = expectThrows(UserException.class,
-            () -> execute("delete", pathHomeParameter,
+        final UserException e1 = expectThrows(
+            UserException.class,
+            () -> execute(
+                "delete",
+                pathHomeParameter,
                 randomFrom("elastic/foo", "foo/fleet-server", randomAlphaOfLengthBetween(6, 16)),
-                randomAlphaOfLengthBetween(3, 8)));
+                randomAlphaOfLengthBetween(3, 8)
+            )
+        );
         assertThat(e1.getMessage(), containsString("Unknown service account principal: "));
         assertThat(e1.getMessage(), containsString("Must be one of "));
 
         // Invalid token name
         final String tokenName2 = ValidationTests.randomInvalidTokenName();
-        final String[] args = tokenName2.startsWith("-") ?
-            new String[] { "delete", pathHomeParameter, "elastic/fleet-server", "--", tokenName2 } :
-            new String[] { "delete", pathHomeParameter, "elastic/fleet-server", tokenName2 };
+        final String[] args = tokenName2.startsWith("-")
+            ? new String[] { "delete", pathHomeParameter, "elastic/fleet-server", "--", tokenName2 }
+            : new String[] { "delete", pathHomeParameter, "elastic/fleet-server", tokenName2 };
         final UserException e2 = expectThrows(UserException.class, () -> execute(args));
         assertThat(e2.getMessage(), containsString(Validation.INVALID_SERVICE_ACCOUNT_TOKEN_NAME_MESSAGE));
         assertThat(e2.getMessage(), containsString("invalid service token name [" + tokenName2 + "]"));
@@ -223,8 +250,10 @@ public class FileTokensToolTests extends CommandTestCase {
             Files.delete(serviceTokensFile);
         }
         final String tokenName3 = randomAlphaOfLengthBetween(3, 8);
-        final UserException e3 = expectThrows(UserException.class,
-            () -> execute("delete", pathHomeParameter, "elastic/fleet-server", tokenName3));
+        final UserException e3 = expectThrows(
+            UserException.class,
+            () -> execute("delete", pathHomeParameter, "elastic/fleet-server", tokenName3)
+        );
         assertThat(e3.getMessage(), containsString("Service token [elastic/fleet-server/" + tokenName3 + "] does not exist"));
         if (fileDeleted) {
             // The file should not be created if not exists in the first place
@@ -234,25 +263,28 @@ public class FileTokensToolTests extends CommandTestCase {
 
     public void testListTokens() throws Exception {
         execute("list", pathHomeParameter);
-        final String output = terminal.getOutput();
-        assertThat(output, containsString("elastic/fleet-server/server_1\n" +
-            "elastic/fleet-server/server_2\n" +
-            "elastic/fleet-server/server_3"));
+        final List<String> output = terminal.getOutput().lines().toList();
+        assertThat(
+            output,
+            containsInRelativeOrder("elastic/fleet-server/server_1", "elastic/fleet-server/server_2", "elastic/fleet-server/server_3")
+        );
     }
 
     public void testListTokensByPrincipal() throws Exception {
         execute("list", pathHomeParameter, "elastic/fleet-server");
-        final String output = terminal.getOutput();
-        assertThat(output, containsString("elastic/fleet-server/server_1\n" +
-            "elastic/fleet-server/server_2\n" +
-            "elastic/fleet-server/server_3"));
+        final List<String> output = terminal.getOutput().lines().toList();
+        assertThat(
+            output,
+            containsInRelativeOrder("elastic/fleet-server/server_1", "elastic/fleet-server/server_2", "elastic/fleet-server/server_3")
+        );
     }
 
     public void testListTokensNonExist() throws Exception {
         // Invalid principal
-        final UserException e1 = expectThrows(UserException.class,
-            () -> execute("list", pathHomeParameter,
-                randomFrom("elastic/foo", "foo/fleet-server", randomAlphaOfLengthBetween(6, 16))));
+        final UserException e1 = expectThrows(
+            UserException.class,
+            () -> execute("list", pathHomeParameter, randomFrom("elastic/foo", "foo/fleet-server", randomAlphaOfLengthBetween(6, 16)))
+        );
         assertThat(e1.getMessage(), containsString("Unknown service account principal: "));
         assertThat(e1.getMessage(), containsString("Must be one of "));
 

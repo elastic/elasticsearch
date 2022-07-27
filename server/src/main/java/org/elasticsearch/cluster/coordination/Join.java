@@ -85,13 +85,18 @@ public class Join implements Writeable {
 
     @Override
     public String toString() {
-        return "Join{" +
-            "term=" + term +
-            ", lastAcceptedTerm=" + lastAcceptedTerm +
-            ", lastAcceptedVersion=" + lastAcceptedVersion +
-            ", sourceNode=" + sourceNode +
-            ", targetNode=" + targetNode +
-            '}';
+        return "Join{"
+            + "term="
+            + term
+            + ", lastAcceptedTerm="
+            + lastAcceptedTerm
+            + ", lastAcceptedVersion="
+            + lastAcceptedVersion
+            + ", sourceNode="
+            + sourceNode
+            + ", targetNode="
+            + targetNode
+            + '}';
     }
 
     @Override

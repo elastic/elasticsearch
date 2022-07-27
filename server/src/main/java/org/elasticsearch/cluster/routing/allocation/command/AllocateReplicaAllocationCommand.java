@@ -15,12 +15,12 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RerouteExplanation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardNotFoundException;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -106,9 +106,11 @@ public class AllocateReplicaAllocationCommand extends AbstractAllocateAllocation
             }
         }
         if (primaryShardRouting == null) {
-            return explainOrThrowRejectedCommand(explain, allocation,
-                "trying to allocate a replica shard [" + index + "][" + shardId +
-                    "], while corresponding primary shard is still unassigned");
+            return explainOrThrowRejectedCommand(
+                explain,
+                allocation,
+                "trying to allocate a replica shard [" + index + "][" + shardId + "], while corresponding primary shard is still unassigned"
+            );
         }
 
         List<ShardRouting> replicaShardRoutings = new ArrayList<>();
@@ -120,8 +122,11 @@ public class AllocateReplicaAllocationCommand extends AbstractAllocateAllocation
 
         ShardRouting shardRouting;
         if (replicaShardRoutings.isEmpty()) {
-            return explainOrThrowRejectedCommand(explain, allocation,
-                "all copies of [" + index + "][" + shardId + "] are already assigned. Use the move allocation command instead");
+            return explainOrThrowRejectedCommand(
+                explain,
+                allocation,
+                "all copies of [" + index + "][" + shardId + "] are already assigned. Use the move allocation command instead"
+            );
         } else {
             shardRouting = replicaShardRoutings.get(0);
         }
@@ -132,8 +137,18 @@ public class AllocateReplicaAllocationCommand extends AbstractAllocateAllocation
             if (explain) {
                 return new RerouteExplanation(this, decision);
             }
-            throw new IllegalArgumentException("[" + name() + "] allocation of [" + index + "][" + shardId + "] on node " + discoNode +
-                " is not allowed, reason: " + decision);
+            throw new IllegalArgumentException(
+                "["
+                    + name()
+                    + "] allocation of ["
+                    + index
+                    + "]["
+                    + shardId
+                    + "] on node "
+                    + discoNode
+                    + " is not allowed, reason: "
+                    + decision
+            );
         }
 
         initializeUnassignedShard(allocation, routingNodes, routingNode, shardRouting);

@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.dataframe.process;
 
-import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.process.NativeController;
 import org.elasticsearch.xpack.ml.process.ProcessPipes;
@@ -54,12 +54,11 @@ public class AnalyticsBuilderTests extends ESTestCase {
 
         List<String> command = commandCaptor.getValue();
         assertThat(command, not(hasItem("--memoryUsageEstimationOnly")));
+        assertThat(command, hasItem("--validElasticLicenseKeyConfirmed=true"));
     }
 
     public void testBuild_MemoryUsageEstimation() throws Exception {
-        analyticsBuilder
-            .performMemoryUsageEstimationOnly()
-            .build();
+        analyticsBuilder.performMemoryUsageEstimationOnly().build();
         assertThat(filesToDelete, hasSize(1));
 
         verify(nativeController).startProcess(commandCaptor.capture());
@@ -67,5 +66,6 @@ public class AnalyticsBuilderTests extends ESTestCase {
 
         List<String> command = commandCaptor.getValue();
         assertThat(command, hasItem("--memoryUsageEstimationOnly"));
+        assertThat(command, hasItem("--validElasticLicenseKeyConfirmed=true"));
     }
 }

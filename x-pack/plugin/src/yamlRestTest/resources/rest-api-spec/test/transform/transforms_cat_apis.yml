@@ -57,7 +57,7 @@ setup:
   - do:
       index:
         index: airline-data
-        id: 1
+        id: "1"
         body: >
           {
             "time": "2017-02-18T00:00:00Z",
@@ -69,7 +69,7 @@ setup:
   - do:
       index:
         index: airline-data
-        id: 2
+        id: "2"
         body: >
           {
             "time": "2017-02-18T00:30:00Z",
@@ -81,7 +81,7 @@ setup:
   - do:
       index:
         index: airline-data
-        id: 3
+        id: "3"
         body: >
           {
             "time": "2017-02-18T01:00:00Z",
@@ -93,7 +93,7 @@ setup:
   - do:
       index:
         index: airline-data
-        id: 4
+        id: "4"
         body: >
           {
             "time": "2017-02-18T01:01:00Z",

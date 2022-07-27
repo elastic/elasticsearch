@@ -119,7 +119,6 @@ public class OpenIdConnectAuthenticateRequest extends ActionRequest {
     }
 
     public String toString() {
-        return "{redirectUri=" + redirectUri + ", state=" + state + ", nonce=" + nonce + ", realm=" +realm+"}";
+        return "{redirectUri=" + redirectUri + ", state=" + state + ", nonce=" + nonce + ", realm=" + realm + "}";
     }
 }
-

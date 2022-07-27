@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ml.utils;
 
-
 /**
  * Parameters used by machine learning for controlling X Content serialisation.
  */
@@ -33,6 +32,5 @@ public final class ToXContentParams {
      */
     public static final String INCLUDE_CALCULATED_FIELDS = "include_calculated_fields";
 
-    private ToXContentParams() {
-    }
+    private ToXContentParams() {}
 }

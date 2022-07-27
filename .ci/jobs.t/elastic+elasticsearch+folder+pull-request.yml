@@ -1,4 +1,0 @@
-- job:
-    name: elastic+elasticsearch+%BRANCH%+pull-request
-    display-name: Pull Requests
-    project-type: folder

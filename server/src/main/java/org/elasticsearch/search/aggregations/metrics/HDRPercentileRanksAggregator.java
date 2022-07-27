@@ -19,9 +19,17 @@ import java.util.Map;
 
 class HDRPercentileRanksAggregator extends AbstractHDRPercentilesAggregator {
 
-    HDRPercentileRanksAggregator(String name, ValuesSource valuesSource, AggregationContext context, Aggregator parent,
-            double[] percents, int numberOfSignificantValueDigits, boolean keyed, DocValueFormat format,
-            Map<String, Object> metadata) throws IOException {
+    HDRPercentileRanksAggregator(
+        String name,
+        ValuesSource valuesSource,
+        AggregationContext context,
+        Aggregator parent,
+        double[] percents,
+        int numberOfSignificantValueDigits,
+        boolean keyed,
+        DocValueFormat format,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, valuesSource, context, parent, percents, numberOfSignificantValueDigits, keyed, format, metadata);
     }
 

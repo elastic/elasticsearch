@@ -11,13 +11,17 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.set.Sets;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Descriptive stats gathered per shard. Coordinating node computes final correlation and covariance stats
@@ -69,25 +73,25 @@ public class RunningStats implements Writeable, Cloneable {
     public RunningStats(StreamInput in) throws IOException {
         this();
         // read doc count
-        docCount = (Long)in.readGenericValue();
+        docCount = (Long) in.readGenericValue();
         // read fieldSum
-        fieldSum = convertIfNeeded((Map<String, Double>)in.readGenericValue());
+        fieldSum = convertIfNeeded((Map<String, Double>) in.readGenericValue());
         // counts
-        counts = convertIfNeeded((Map<String, Long>)in.readGenericValue());
+        counts = convertIfNeeded((Map<String, Long>) in.readGenericValue());
         // means
-        means = convertIfNeeded((Map<String, Double>)in.readGenericValue());
+        means = convertIfNeeded((Map<String, Double>) in.readGenericValue());
         // variances
-        variances = convertIfNeeded((Map<String, Double>)in.readGenericValue());
+        variances = convertIfNeeded((Map<String, Double>) in.readGenericValue());
         // skewness
-        skewness = convertIfNeeded((Map<String, Double>)in.readGenericValue());
+        skewness = convertIfNeeded((Map<String, Double>) in.readGenericValue());
         // kurtosis
-        kurtosis = convertIfNeeded((Map<String, Double>)in.readGenericValue());
+        kurtosis = convertIfNeeded((Map<String, Double>) in.readGenericValue());
         // read covariances
-        covariances = convertIfNeeded((Map<String, HashMap<String, Double>>)in.readGenericValue());
+        covariances = convertIfNeeded((Map<String, HashMap<String, Double>>) in.readGenericValue());
     }
 
     // Convert Map to HashMap if it isn't
-    private static <K, V> HashMap<K, V> convertIfNeeded(Map<K,V> map) {
+    private static <K, V> HashMap<K, V> convertIfNeeded(Map<K, V> map) {
         if (map instanceof HashMap) {
             return (HashMap<K, V>) map;
         } else {
@@ -197,6 +201,26 @@ public class RunningStats implements Writeable, Cloneable {
     }
 
     /**
+     * Get the set of fields required by the aggregation which are missing in at least one document.
+     *
+     * @param other the other {@link RunningStats} to check
+     * @return a set of field names
+     */
+    public Set<String> missingFieldNames(final RunningStats other) {
+        if (other == null || this.docCount == 0 || other.docCount == 0) {
+            return Collections.emptySet();
+        }
+        return symmetricDifference(this.getAllFieldNames(), other.getAllFieldNames());
+    }
+
+    private static <T> Set<T> symmetricDifference(final Set<T> a, final Set<T> b) {
+        final HashSet<T> result = new HashSet<>();
+        result.addAll(Sets.difference(a, b));
+        result.addAll(Sets.difference(b, a));
+        return result;
+    }
+
+    /**
      * Merges the descriptive statistics of a second data set (e.g., per shard)
      *
      * running computations taken from: http://prod.sandia.gov/techlib/access-control.cgi/2008/086212.pdf
@@ -211,7 +235,7 @@ public class RunningStats implements Writeable, Cloneable {
                 this.counts.put(fieldName, other.counts.get(fieldName).longValue());
                 this.fieldSum.put(fieldName, other.fieldSum.get(fieldName).doubleValue());
                 this.variances.put(fieldName, other.variances.get(fieldName).doubleValue());
-                this.skewness.put(fieldName , other.skewness.get(fieldName).doubleValue());
+                this.skewness.put(fieldName, other.skewness.get(fieldName).doubleValue());
                 this.kurtosis.put(fieldName, other.kurtosis.get(fieldName).doubleValue());
                 if (other.covariances.containsKey(fieldName)) {
                     this.covariances.put(fieldName, other.covariances.get(fieldName));
@@ -309,19 +333,34 @@ public class RunningStats implements Writeable, Cloneable {
         }
     }
 
+    public Set<String> getAllFieldNames() {
+        final Set<String> allFieldNames = Collections.unmodifiableSet(this.counts.keySet());
+        assert allFieldNames.containsAll(this.variances.keySet())
+            && this.variances.keySet().containsAll(allFieldNames)
+            && allFieldNames.containsAll(this.fieldSum.keySet())
+            && this.fieldSum.keySet().containsAll(allFieldNames)
+            && allFieldNames.containsAll(this.means.keySet())
+            && this.means.keySet().containsAll(allFieldNames)
+            && allFieldNames.containsAll(this.kurtosis.keySet())
+            && this.kurtosis.keySet().containsAll(allFieldNames)
+            && allFieldNames.containsAll(this.skewness.keySet())
+            && this.skewness.keySet().containsAll(allFieldNames);
+        return allFieldNames;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         RunningStats that = (RunningStats) o;
-        return docCount == that.docCount &&
-            Objects.equals(fieldSum, that.fieldSum) &&
-            Objects.equals(counts, that.counts) &&
-            Objects.equals(means, that.means) &&
-            Objects.equals(variances, that.variances) &&
-            Objects.equals(skewness, that.skewness) &&
-            Objects.equals(kurtosis, that.kurtosis) &&
-            Objects.equals(covariances, that.covariances);
+        return docCount == that.docCount
+            && Objects.equals(fieldSum, that.fieldSum)
+            && Objects.equals(counts, that.counts)
+            && Objects.equals(means, that.means)
+            && Objects.equals(variances, that.variances)
+            && Objects.equals(skewness, that.skewness)
+            && Objects.equals(kurtosis, that.kurtosis)
+            && Objects.equals(covariances, that.covariances);
     }
 
     @Override

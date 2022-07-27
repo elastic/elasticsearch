@@ -1,0 +1,79 @@
+[role="xpack"]
+[[put-trained-model-vocabulary]]
+= Create trained model vocabulary API
+[subs="attributes"]
+++++
+<titleabbrev>Create trained model vocabulary</titleabbrev>
+++++
+
+Creates a trained model vocabulary.
+This is supported only for natural language processing (NLP) models.
+
+preview::[]
+
+[[ml-put-trained-model-vocabulary-request]]
+== {api-request-title}
+
+`PUT _ml/trained_models/<model_id>/vocabulary/`
+
+
+[[ml-put-trained-model-vocabulary-prereq]]
+== {api-prereq-title}
+
+Requires the `manage_ml` cluster privilege. This privilege is included in the
+`machine_learning_admin` built-in role.
+
+
+[[ml-put-trained-model-vocabulary-desc]]
+== {api-description-title}
+
+The vocabulary is stored in the index as described in
+`inference_config.*.vocabulary` of the trained model definition.
+
+
+[[ml-put-trained-model-vocabulary-path-params]]
+== {api-path-parms-title}
+
+`<model_id>`::
+(Required, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
+
+[[ml-put-trained-model-vocabulary-request-body]]
+== {api-request-body-title}
+
+`vocabulary`::
+(array)
+The model vocabulary. Must not be empty.
+
+`merges`::
+(Optional, array)
+The model merges used in byte-pair encoding. The merges must be sub-token pairs, space delimited, and in order of
+preference. Example: ["f o", "fo o"]. Must be provided for RoBERTa and BART style models.
+
+[[ml-put-trained-model-vocabulary-example]]
+== {api-examples-title}
+
+The following example shows how to create a model vocabulary for a
+previously stored trained model configuration.
+
+[source,js]
+--------------------------------------------------
+PUT _ml/trained_models/elastic__distilbert-base-uncased-finetuned-conll03-english/vocabulary
+{
+  "vocabulary": [
+    "[PAD]",
+    "[unused0]",
+    ...
+  ]
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+The API returns the following results:
+
+[source,console-result]
+----
+{
+    "acknowledged": true
+}
+----

@@ -1,8 +1,3 @@
-setup:
-  - skip:
-      version: " - 7.9.99"
-      reason: "the 'fields' parameter was added in 7.10"
-
 ---
 "Test basic field retrieval":
   - do:
@@ -19,7 +14,7 @@ setup:
   - do:
       index:
         index:  test
-        id:     1
+        id:     "1"
         body:
           keyword: [ "a", "b" ]
           integer_range:
@@ -63,7 +58,7 @@ setup:
   - do:
       index:
         index:  test
-        id:     1
+        id:     "1"
         body:
           keyword: "value"
           date: "1990-12-29T22:30:00.000Z"
@@ -95,6 +90,10 @@ setup:
 
 ---
 "Test disable source":
+  - skip:
+      version: " - 8.3.99"
+      reason: "behaviour of fields when source is disabled changed in 8.4.0"
+
   - do:
       indices.create:
         index:  test
@@ -107,27 +106,29 @@ setup:
             properties:
               keyword:
                 type: keyword
+              location:
+                type: geo_point
 
   - do:
       index:
         index:  test
-        id:     1
+        id:     "1"
         body:
           keyword: [ "a" ]
+          location: [12, 12]
 
   - do:
       indices.refresh:
         index: [ test ]
 
   - do:
-      catch: bad_request
       search:
         index: test
         body:
-          fields: [keyword]
-  - match: { error.root_cause.0.type: "illegal_argument_exception" }
-  - match: { error.root_cause.0.reason: "Unable to retrieve the requested [fields] since _source is disabled
-        in the mappings for index [test]" }
+          fields: [_id,keyword,location]
+
+  - length: { hits.hits.0.fields: 1 }
+  - match: { hits.hits.0.fields._id.0: "1" }
 
 ---
 "Test ignore malformed":
@@ -148,7 +149,7 @@ setup:
   - do:
       index:
         index:  test
-        id:     1
+        id:     "1"
         body:
           keyword: "a"
           integer: 42
@@ -156,7 +157,7 @@ setup:
   - do:
       index:
         index:  test
-        id:     2
+        id:     "2"
         body:
           keyword: "b"
           integer: "not an integer"
@@ -194,7 +195,7 @@ setup:
   - do:
       index:
         index:  test
-        id:     1
+        id:     "1"
         refresh: true
         body:
           keyword: "a"
@@ -236,7 +237,7 @@ setup:
   - do:
       index:
         index:  test
-        id:     1
+        id:     "1"
         body:
           date: "1990-12-29T22:30:00.000Z"
 
@@ -282,7 +283,7 @@ setup:
   - do:
       index:
         index:  test
-        id:     1
+        id:     "1"
         refresh: true
         body:
           count: "some text"
@@ -317,7 +318,7 @@ Test unmapped field:
   -  do:
         index:
            index: test
-           id: 1
+           id: "1"
            refresh: true
            body:
               f1: some text
@@ -378,7 +379,7 @@ Test unmapped fields inside disabled objects:
   -  do:
         index:
            index: test
-           id: 1
+           id: "1"
            refresh: true
            body:
               f1:
@@ -426,7 +427,7 @@ Test nested fields:
   -  do:
         index:
            index: test
-           id: 1
+           id: "1"
            refresh: true
            body:
               products:
@@ -505,7 +506,7 @@ Test nested field inside object structure:
   -  do:
         index:
            index: test
-           id: 1
+           id: "1"
            refresh: true
            body:
               obj:
@@ -516,7 +517,7 @@ Test nested field inside object structure:
   -  do:
         index:
            index: test
-           id: 2
+           id: "2"
            refresh: true
            body:
               obj:
@@ -619,7 +620,7 @@ Test doubly nested fields:
   -  do:
         index:
            index: test
-           id: 1
+           id: "1"
            refresh: true
            body:
               id: abcd1234
@@ -691,7 +692,7 @@ Test nested fields with unmapped subfields:
   -  do:
         index:
            index: test
-           id: 1
+           id: "1"
            refresh: true
            body:
               id: abcd1234
@@ -752,7 +753,7 @@ Test nested fields with ignored subfields:
   -  do:
         index:
            index: test
-           id: 1
+           id: "1"
            refresh: true
            body:
               malformed_outside : "bad_value_1"
@@ -796,7 +797,7 @@ Test nested field with sibling field resolving to DocValueFetcher:
   -  do:
         index:
            index: test
-           id: 1
+           id: "1"
            refresh: true
            body:
               owner: "Anna Ott"
@@ -838,7 +839,7 @@ Test nested field with sibling field resolving to DocValueFetcher:
   - do:
       index:
         index: test
-        id: 1
+        id: "1"
         refresh: true
         body:
           number: [ 1, 2, "3", "four", 5, 6 ]
@@ -855,11 +856,12 @@ Test nested field with sibling field resolving to DocValueFetcher:
   - match: { hits.hits.0.fields.number.2 : 3 }
   - match: { hits.hits.0.fields.number.3 : 5 }
   - match: { hits.hits.0.fields.number.4 : 6 }
+
 ---
 Test token_count inside nested field doesn't fail:
   - skip:
-      version: ' - 7.99.99'
-      reason:  'Added in 8.0 - change on backport'
+      version: ' - 7.11.99'
+      reason:  'fix introduced in 7.12.0'
   -  do:
         indices.create:
            index: test
@@ -879,7 +881,7 @@ Test token_count inside nested field doesn't fail:
   -  do:
         index:
            index: test
-           id: 1
+           id: "1"
            refresh: true
            body:
               user:
@@ -892,3 +894,174 @@ Test token_count inside nested field doesn't fail:
            body:
               _source: false
               fields: [ "*" ]
+
+---
+error includes field name:
+  - skip:
+      version: ' - 7.15.99'
+      reason:  'error changed in 7.16.0'
+
+  - do:
+      indices.create:
+        index:  test
+        body:
+          settings:
+            index.number_of_shards: 1
+          mappings:
+            properties:
+              keyword:
+                type: keyword
+              date:
+                type: date
+
+  - do:
+      index:
+        index:   test
+        id:      "1"
+        refresh: true
+        body:
+          keyword: "value"
+          date: "1990-12-29T22:30:00.000Z"
+
+  - do:
+      catch: '/error fetching \[keyword\]: Field \[keyword\] of type \[keyword\] doesn''t support formats./'
+      search:
+        index: test
+        body:
+          fields:
+            - field: keyword
+              format: "yyyy/MM/dd"
+
+---
+error includes glob pattern:
+  - skip:
+      version: ' - 7.15.99'
+      reason:  'error changed in 7.16.0'
+
+  - do:
+      indices.create:
+        index:  test
+        body:
+          settings:
+            index.number_of_shards: 1
+          mappings:
+            properties:
+              dkeyword:
+                type: keyword
+              date:
+                type: date
+
+  - do:
+      index:
+        index:   test
+        id:      "1"
+        refresh: true
+        body:
+          dkeyword: "value"
+          date: "1990-12-29T22:30:00.000Z"
+
+  - do:
+      catch: '/error fetching \[dkeyword\] which matched \[d\*\]: Field \[dkeyword\] of type \[keyword\] doesn''t support formats./'
+      search:
+        index: test
+        body:
+          fields:
+            - field: d*
+              format: "yyyy/MM/dd"
+
+
+---
+error for flattened includes whole path:
+  - skip:
+      version: ' - 7.15.99'
+      reason:  'error changed in 7.16.0'
+
+  - do:
+      indices.create:
+        index:  test
+        body:
+          settings:
+            index.number_of_shards: 1
+          mappings:
+            properties:
+              flattened:
+                type: flattened
+
+              date:
+                type: date
+
+  - do:
+      index:
+        index:   test
+        id:      "1"
+        refresh: true
+        body:
+          flattened:
+            foo: bar
+          date: "1990-12-29T22:30:00.000Z"
+
+  - do:
+      catch: '/error fetching \[flattened.bar\]: Field \[flattened.bar\] of type \[flattened\] doesn''t support formats./'
+      search:
+        index: test
+        body:
+          fields:
+            - field: flattened.bar
+              format: "yyyy/MM/dd"
+
+---
+test fetching metadata fields:
+  - skip:
+      version: ' - 7.99.99'
+      reason:  'fetching metadata via fields introduced in 8.0'
+
+  - do:
+      indices.create:
+        index:  test
+        body:
+          settings:
+            index.number_of_shards: 1
+          mappings:
+            properties:
+              field:
+                type: keyword
+              idAlias:
+                type: alias
+                path: _id
+
+  - do:
+      index:
+        index:   test
+        id:      "1"
+        refresh: true
+        body:
+          field: foo
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "*" ]
+
+  - length: { hits.hits.0.fields : 2 }
+  - match: { hits.hits.0.fields.field.0: "foo" }
+  - match: { hits.hits.0.fields.idAlias.0: "1" }
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "_*" ]
+
+  - is_false: hits.hits.0.fields
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "_id", "_index", "_version" ]
+
+  - length: { hits.hits.0.fields : 3 }
+  - match: { hits.hits.0.fields._id.0: "1" }
+  - match: { hits.hits.0.fields._index.0: "test" }
+  - match: { hits.hits.0.fields._version.0: 1 }

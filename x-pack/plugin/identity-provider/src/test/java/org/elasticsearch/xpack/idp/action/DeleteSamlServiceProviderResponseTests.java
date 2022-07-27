@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.idp.action;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.idp.saml.test.IdpSamlTestCase;
 
 import java.util.Map;

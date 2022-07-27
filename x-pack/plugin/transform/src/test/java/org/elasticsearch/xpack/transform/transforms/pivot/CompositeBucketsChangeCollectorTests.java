@@ -20,6 +20,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInter
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation.SingleValue;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.DateHistogramGroupSource;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.GeoTileGroupSourceTests;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfig;
@@ -122,7 +123,10 @@ public class CompositeBucketsChangeCollectorTests extends ESTestCase {
 
         collector.processSearchResponse(response);
 
-        QueryBuilder queryBuilder = collector.buildFilterQuery(0, 0);
+        QueryBuilder queryBuilder = collector.buildFilterQuery(
+            new TransformCheckpoint("t_id", 42L, 42L, Collections.emptyMap(), 0L),
+            new TransformCheckpoint("t_id", 42L, 42L, Collections.emptyMap(), 0L)
+        );
         assertNotNull(queryBuilder);
         assertThat(queryBuilder, instanceOf(TermsQueryBuilder.class));
         assertThat(((TermsQueryBuilder) queryBuilder).values(), containsInAnyOrder("id1", "id2", "id3"));
@@ -142,7 +146,11 @@ public class CompositeBucketsChangeCollectorTests extends ESTestCase {
 
         ChangeCollector collector = CompositeBucketsChangeCollector.buildChangeCollector(groups, "timestamp");
 
-        QueryBuilder queryBuilder = collector.buildFilterQuery(66_666, 200_222);
+        QueryBuilder queryBuilder = collector.buildFilterQuery(
+            new TransformCheckpoint("t_id", 42L, 42L, Collections.emptyMap(), 66_666L),
+            new TransformCheckpoint("t_id", 42L, 42L, Collections.emptyMap(), 200_222L)
+        );
+
         assertNotNull(queryBuilder);
         assertThat(queryBuilder, instanceOf(RangeQueryBuilder.class));
         // rounded down
@@ -168,7 +176,11 @@ public class CompositeBucketsChangeCollectorTests extends ESTestCase {
         collector.processSearchResponse(response);
 
         // provide checkpoints, although they don't matter in this case
-        queryBuilder = collector.buildFilterQuery(66_666, 200_222);
+        queryBuilder = collector.buildFilterQuery(
+            new TransformCheckpoint("t_id", 42L, 42L, Collections.emptyMap(), 66_666L),
+            new TransformCheckpoint("t_id", 42L, 42L, Collections.emptyMap(), 200_222L)
+        );
+
         assertNotNull(queryBuilder);
         assertThat(queryBuilder, instanceOf(RangeQueryBuilder.class));
         // rounded down
@@ -190,7 +202,11 @@ public class CompositeBucketsChangeCollectorTests extends ESTestCase {
 
         // simulate the agg response, that should inject
         collector.processSearchResponse(response);
-        queryBuilder = collector.buildFilterQuery(66_666, 200_222);
+        queryBuilder = collector.buildFilterQuery(
+            new TransformCheckpoint("t_id", 42L, 42L, Collections.emptyMap(), 66_666L),
+            new TransformCheckpoint("t_id", 42L, 42L, Collections.emptyMap(), 200_222L)
+        );
+
         assertNotNull(queryBuilder);
 
         assertThat(queryBuilder, instanceOf(RangeQueryBuilder.class));
@@ -214,12 +230,18 @@ public class CompositeBucketsChangeCollectorTests extends ESTestCase {
 
         collector = CompositeBucketsChangeCollector.buildChangeCollector(groups, "timestamp");
 
-        queryBuilder = collector.buildFilterQuery(66_666, 200_222);
+        queryBuilder = collector.buildFilterQuery(
+            new TransformCheckpoint("t_id", 42L, 42L, Collections.emptyMap(), 66_666L),
+            new TransformCheckpoint("t_id", 42L, 42L, Collections.emptyMap(), 200_222L)
+        );
         assertNull(queryBuilder);
 
         collector = CompositeBucketsChangeCollector.buildChangeCollector(groups, "sync_timestamp");
 
-        queryBuilder = collector.buildFilterQuery(66_666, 200_222);
+        queryBuilder = collector.buildFilterQuery(
+            new TransformCheckpoint("t_id", 42L, 42L, Collections.emptyMap(), 66_666L),
+            new TransformCheckpoint("t_id", 42L, 42L, Collections.emptyMap(), 200_222L)
+        );
         assertNull(queryBuilder);
     }
 

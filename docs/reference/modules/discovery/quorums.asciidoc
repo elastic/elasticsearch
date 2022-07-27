@@ -56,11 +56,11 @@ election settings>>.
 ==== Cluster maintenance, rolling restarts and migrations
 
 Many cluster maintenance tasks involve temporarily shutting down one or more
-nodes and then starting them back up again. By default Elasticsearch can remain
+nodes and then starting them back up again. By default {es} can remain
 available if one of its master-eligible nodes is taken offline, such as during a
-<<rolling-upgrades,rolling restart>>. Furthermore, if multiple nodes are stopped
+rolling upgrade. Furthermore, if multiple nodes are stopped
 and then started again then it will automatically recover, such as during a
-<<restart-upgrade,full cluster restart>>. There is no need to take any further
+full cluster restart. There is no need to take any further
 action with the APIs described here in these cases, because the set of master
 nodes is not changing permanently.
 

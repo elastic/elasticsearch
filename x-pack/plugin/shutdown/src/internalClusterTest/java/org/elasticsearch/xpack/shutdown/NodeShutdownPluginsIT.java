@@ -13,7 +13,6 @@ import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ShutdownAwarePlugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -36,13 +35,12 @@ public class NodeShutdownPluginsIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(ShutdownEnabledPlugin.class, TestShutdownAwarePlugin.class);
+        return Arrays.asList(ShutdownPlugin.class, TestShutdownAwarePlugin.class);
     }
 
     public void testShutdownAwarePlugin() throws Exception {
-        // Start two nodes, one will be marked as shutting down
-        final String node1 = internalCluster().startNode(Settings.EMPTY);
-        final String node2 = internalCluster().startNode(Settings.EMPTY);
+        final String node1 = internalCluster().startNode();
+        final String node2 = internalCluster().startNode();
 
         final String shutdownNode;
         final String remainNode;
@@ -77,7 +75,7 @@ public class NodeShutdownPluginsIT extends ESIntegTestCase {
         // Mark the node as shutting down
         client().execute(
             PutShutdownNodeAction.INSTANCE,
-            new PutShutdownNodeAction.Request(shutdownNode, SingleNodeShutdownMetadata.Type.REMOVE, "removal for testing")
+            new PutShutdownNodeAction.Request(shutdownNode, SingleNodeShutdownMetadata.Type.REMOVE, "removal for testing", null, null)
         ).get();
 
         GetShutdownStatusAction.Response getResp = client().execute(
@@ -108,13 +106,6 @@ public class NodeShutdownPluginsIT extends ESIntegTestCase {
 
         // The shutdown node should now not in the triggered list
         assertThat(triggeredNodes.get(), empty());
-    }
-
-    public static class ShutdownEnabledPlugin extends ShutdownPlugin {
-        @Override
-        public boolean isEnabled() {
-            return true;
-        }
     }
 
     public static class TestShutdownAwarePlugin extends Plugin implements ShutdownAwarePlugin {

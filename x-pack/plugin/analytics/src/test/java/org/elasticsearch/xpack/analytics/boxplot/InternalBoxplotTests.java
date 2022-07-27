@@ -7,18 +7,19 @@
 
 package org.elasticsearch.xpack.analytics.boxplot;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.test.InternalAggregationTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 
 import java.io.IOException;
@@ -80,34 +81,30 @@ public class InternalBoxplotTests extends InternalAggregationTestCase<InternalBo
         DocValueFormat formatter = instance.format();
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 2)) {
-            case 0:
-                name += randomAlphaOfLength(5);
-                break;
-            case 1:
-                state.add(randomDouble());
-                break;
-            case 2:
+            case 0 -> name += randomAlphaOfLength(5);
+            case 1 -> state.add(randomDouble());
+            case 2 -> {
                 if (metadata == null) {
-                    metadata = new HashMap<>(1);
+                    metadata = Maps.newMapWithExpectedSize(1);
                 } else {
                     metadata = new HashMap<>(instance.getMetadata());
                 }
                 metadata.put(randomAlphaOfLength(15), randomInt());
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            }
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalBoxplot(name, state, formatter, metadata);
     }
 
     @Override
     protected List<NamedXContentRegistry.Entry> getNamedXContents() {
-        return CollectionUtils.appendToCopy(super.getNamedXContents(), new NamedXContentRegistry.Entry(Aggregation.class,
-                new ParseField(BoxplotAggregationBuilder.NAME),
-                (p, c) -> {
-                    assumeTrue("There is no ParsedBoxlot yet", false);
-                    return null;
-                }));
+        return CollectionUtils.appendToCopy(
+            super.getNamedXContents(),
+            new NamedXContentRegistry.Entry(Aggregation.class, new ParseField(BoxplotAggregationBuilder.NAME), (p, c) -> {
+                assumeTrue("There is no ParsedBoxlot yet", false);
+                return null;
+            })
+        );
     }
 
     public void testIQR() {

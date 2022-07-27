@@ -53,23 +53,23 @@ public class URIPattern {
     }
 
     private boolean matchNormalized(URI uri) {
-        if(uriPattern.isOpaque()) {
+        if (uriPattern.isOpaque()) {
             // This url only has scheme, scheme-specific part and fragment
-            return uri.isOpaque() &&
-                    match(uriPattern.getScheme(), uri.getScheme()) &&
-                    match(uriPattern.getSchemeSpecificPart(), uri.getSchemeSpecificPart()) &&
-                    match(uriPattern.getFragment(), uri.getFragment());
+            return uri.isOpaque()
+                && match(uriPattern.getScheme(), uri.getScheme())
+                && match(uriPattern.getSchemeSpecificPart(), uri.getSchemeSpecificPart())
+                && match(uriPattern.getFragment(), uri.getFragment());
 
         } else {
-            return match(uriPattern.getScheme(), uri.getScheme()) &&
-                    match(uriPattern.getAuthority(), uri.getAuthority()) &&
-                    match(uriPattern.getQuery(), uri.getQuery()) &&
-                    match(uriPattern.getPath(), uri.getPath()) &&
-                    match(uriPattern.getFragment(), uri.getFragment());
+            return match(uriPattern.getScheme(), uri.getScheme())
+                && match(uriPattern.getAuthority(), uri.getAuthority())
+                && match(uriPattern.getQuery(), uri.getQuery())
+                && match(uriPattern.getPath(), uri.getPath())
+                && match(uriPattern.getFragment(), uri.getFragment());
         }
     }
 
-    private boolean match(String pattern, String value) {
+    private static boolean match(String pattern, String value) {
         if (value == null) {
             // If the pattern is empty or matches anything - it's a match
             if (pattern == null || Regex.isMatchAllPattern(pattern)) {

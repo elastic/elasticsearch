@@ -2,7 +2,7 @@ import org.elasticsearch.gradle.testclusters.TestClustersPlugin
 
 subprojects { Project subproj ->
   plugins.withType(TestClustersPlugin).whenPluginAdded {
-    testClusters.all {
+    testClusters.configureEach {
       testDistribution = 'DEFAULT'
     }
   }

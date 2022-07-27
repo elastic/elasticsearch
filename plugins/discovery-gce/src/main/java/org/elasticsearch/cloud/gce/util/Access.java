@@ -41,8 +41,7 @@ public final class Access {
         });
     }
 
-    public static <T> T doPrivilegedIOException(final PrivilegedExceptionAction<T> operation)
-            throws IOException {
+    public static <T> T doPrivilegedIOException(final PrivilegedExceptionAction<T> operation) throws IOException {
         SpecialPermission.check();
         try {
             return AccessController.doPrivileged(operation);

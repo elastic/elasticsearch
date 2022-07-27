@@ -15,8 +15,8 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -71,10 +71,12 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
             // Management tp is expected when executing enrich processor from ingest simulate api
             // Search tp is allowed for now - After enriching, the remaining parts of the pipeline are processed on the
             // search thread, which could end up here again if there is more than one enrich processor in a pipeline.
-            assert Thread.currentThread().getName().contains(ThreadPool.Names.WRITE)
-                || Thread.currentThread().getName().contains(ThreadPool.Names.SYSTEM_WRITE)
-                || Thread.currentThread().getName().contains(ThreadPool.Names.SEARCH)
-                || Thread.currentThread().getName().contains(ThreadPool.Names.MANAGEMENT);
+            assert ThreadPool.assertCurrentThreadPool(
+                ThreadPool.Names.WRITE,
+                ThreadPool.Names.SYSTEM_WRITE,
+                ThreadPool.Names.SEARCH,
+                ThreadPool.Names.MANAGEMENT
+            );
             coordinator.schedule(request, listener);
         }
     }

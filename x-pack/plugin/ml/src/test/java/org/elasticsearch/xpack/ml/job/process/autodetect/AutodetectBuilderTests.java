@@ -50,7 +50,7 @@ public class AutodetectBuilderTests extends ESTestCase {
     public void setUpTests() {
         logger = mock(Logger.class);
         filesToDelete = new ArrayList<>();
-        commandCaptor = ArgumentCaptor.forClass((Class)List.class);
+        commandCaptor = ArgumentCaptor.forClass((Class) List.class);
         settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
         env = TestEnvironment.newEnvironment(settings);
         nativeController = mock(NativeController.class);
@@ -76,13 +76,12 @@ public class AutodetectBuilderTests extends ESTestCase {
             acBuilder.setCategorizationFieldName("bar");
         }
         acBuilder.setPerPartitionCategorizationConfig(
-            new PerPartitionCategorizationConfig(isPerPartitionCategorization, isPerPartitionCategorization));
+            new PerPartitionCategorizationConfig(isPerPartitionCategorization, isPerPartitionCategorization)
+        );
 
         job.setAnalysisConfig(acBuilder);
 
         DataDescription.Builder dd = new DataDescription.Builder();
-        dd.setFormat(DataDescription.DataFormat.DELIMITED);
-        dd.setFieldDelimiter('|');
         dd.setTimeField("tf");
         job.setDataDescription(dd);
 
@@ -91,8 +90,9 @@ public class AutodetectBuilderTests extends ESTestCase {
 
         assertTrue(command.contains(AutodetectBuilder.LENGTH_ENCODED_INPUT_ARG));
         assertTrue(command.contains(AutodetectBuilder.maxAnomalyRecordsArg(settings)));
+        assertTrue(command.contains(AutodetectBuilder.LICENSE_KEY_VALIDATED_ARG + true));
 
-        assertEquals(3, command.size());
+        assertEquals(4, command.size());
     }
 
     private AutodetectBuilder autodetectBuilder(Job job) {

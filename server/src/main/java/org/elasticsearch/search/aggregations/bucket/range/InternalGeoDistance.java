@@ -49,8 +49,13 @@ public class InternalGeoDistance extends InternalRange<InternalGeoDistance.Bucke
         }
 
         @Override
-        public InternalGeoDistance create(String name, List<Bucket> ranges, DocValueFormat format, boolean keyed,
-                Map<String, Object> metadata) {
+        public InternalGeoDistance create(
+            String name,
+            List<Bucket> ranges,
+            DocValueFormat format,
+            boolean keyed,
+            Map<String, Object> metadata
+        ) {
             return new InternalGeoDistance(name, ranges, keyed, metadata);
         }
 
@@ -60,15 +65,28 @@ public class InternalGeoDistance extends InternalRange<InternalGeoDistance.Bucke
         }
 
         @Override
-        public Bucket createBucket(String key, double from, double to, long docCount, InternalAggregations aggregations, boolean keyed,
-                DocValueFormat format) {
+        public Bucket createBucket(
+            String key,
+            double from,
+            double to,
+            long docCount,
+            InternalAggregations aggregations,
+            boolean keyed,
+            DocValueFormat format
+        ) {
             return new Bucket(key, from, to, docCount, aggregations, keyed);
         }
 
         @Override
         public Bucket createBucket(InternalAggregations aggregations, Bucket prototype) {
-            return new Bucket(prototype.getKey(), ((Number) prototype.getFrom()).doubleValue(), ((Number) prototype.getTo()).doubleValue(),
-                    prototype.getDocCount(), aggregations, prototype.getKeyed());
+            return new Bucket(
+                prototype.getKey(),
+                ((Number) prototype.getFrom()).doubleValue(),
+                ((Number) prototype.getTo()).doubleValue(),
+                prototype.getDocCount(),
+                aggregations,
+                prototype.getKeyed()
+            );
         }
     }
 

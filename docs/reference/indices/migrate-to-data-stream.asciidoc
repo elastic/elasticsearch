@@ -5,7 +5,7 @@
 <titleabbrev>Migrate to data stream</titleabbrev>
 ++++
 
-Converts an <<alias,index alias>> to a <<data-streams,data stream>>.
+Converts an <<aliases,index alias>> to a <<data-streams,data stream>>.
 
 ////
 [source,console]

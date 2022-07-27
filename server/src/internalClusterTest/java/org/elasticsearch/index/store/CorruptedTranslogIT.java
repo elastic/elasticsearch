@@ -49,12 +49,16 @@ public class CorruptedTranslogIT extends ESIntegTestCase {
     public void testCorruptTranslogFiles() throws Exception {
         internalCluster().startNode(Settings.EMPTY);
 
-        assertAcked(prepareCreate("test").setSettings(Settings.builder()
-            .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 0)
-            .put("index.refresh_interval", "-1")
-            .put(MockEngineSupport.DISABLE_FLUSH_ON_CLOSE.getKey(), true) // never flush - always recover from translog
-            .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.PB))));
+        assertAcked(
+            prepareCreate("test").setSettings(
+                Settings.builder()
+                    .put("index.number_of_shards", 1)
+                    .put("index.number_of_replicas", 0)
+                    .put("index.refresh_interval", "-1")
+                    .put(MockEngineSupport.DISABLE_FLUSH_ON_CLOSE.getKey(), true) // never flush - always recover from translog
+                    .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.PB))
+            )
+        );
 
         IndexRequestBuilder[] builders = new IndexRequestBuilder[scaledRandomIntBetween(100, 1000)];
         for (int i = 0; i < builders.length; i++) {
@@ -64,9 +68,12 @@ public class CorruptedTranslogIT extends ESIntegTestCase {
         indexRandom(false, false, false, Arrays.asList(builders));
 
         final Path translogPath = internalCluster().getInstance(IndicesService.class)
-            .indexService(resolveIndex("test")).getShard(0).shardPath().resolveTranslog();
+            .indexService(resolveIndex("test"))
+            .getShard(0)
+            .shardPath()
+            .resolveTranslog();
 
-        internalCluster().fullRestart(new InternalTestCluster.RestartCallback(){
+        internalCluster().fullRestart(new InternalTestCluster.RestartCallback() {
             @Override
             public void onAllNodesStopped() throws Exception {
                 TestTranslog.corruptRandomTranslogFile(logger, random(), translogPath);
@@ -75,8 +82,13 @@ public class CorruptedTranslogIT extends ESIntegTestCase {
 
         assertBusy(() -> {
             // assertBusy since the shard starts out unassigned with reason CLUSTER_RECOVERED, then it's assigned, and then it fails.
-            final ClusterAllocationExplainResponse allocationExplainResponse
-                = client().admin().cluster().prepareAllocationExplain().setIndex("test").setShard(0).setPrimary(true).get();
+            final ClusterAllocationExplainResponse allocationExplainResponse = client().admin()
+                .cluster()
+                .prepareAllocationExplain()
+                .setIndex("test")
+                .setShard(0)
+                .setPrimary(true)
+                .get();
             final String description = Strings.toString(allocationExplainResponse.getExplanation());
             final UnassignedInfo unassignedInfo = allocationExplainResponse.getExplanation().getUnassignedInfo();
             assertThat(description, unassignedInfo, not(nullValue()));
@@ -86,8 +98,11 @@ public class CorruptedTranslogIT extends ESIntegTestCase {
             assertThat(description, cause.getMessage(), containsString(translogPath.toString()));
         });
 
-        assertThat(expectThrows(SearchPhaseExecutionException.class, () -> client().prepareSearch("test").setQuery(matchAllQuery()).get())
-            .getMessage(), containsString("all shards failed"));
+        assertThat(
+            expectThrows(SearchPhaseExecutionException.class, () -> client().prepareSearch("test").setQuery(matchAllQuery()).get())
+                .getMessage(),
+            containsString("all shards failed")
+        );
 
     }
 

@@ -54,6 +54,7 @@ public final class Joiner {
         Optional<JoinFieldType> joinType = fieldTypes.filter(ft -> ft instanceof JoinFieldType).map(ft -> (JoinFieldType) ft).findFirst();
         return joinType.map(JoinFieldType::getJoiner).orElse(null);
     }
+
     private final Map<String, Set<String>> parentsToChildren = new HashMap<>();
     private final Map<String, String> childrenToParents = new HashMap<>();
 
@@ -65,12 +66,12 @@ public final class Joiner {
     Joiner(String joinField, List<Relations> relations) {
         this.joinField = joinField;
         for (Relations r : relations) {
-            for (String child : r.children) {
-                parentsToChildren.put(r.parent, r.children);
+            for (String child : r.children()) {
+                parentsToChildren.put(r.parent(), r.children());
                 if (childrenToParents.containsKey(child)) {
                     throw new IllegalArgumentException("[" + child + "] cannot have multiple parents");
                 }
-                childrenToParents.put(child, r.parent);
+                childrenToParents.put(child, r.parent());
             }
         }
     }

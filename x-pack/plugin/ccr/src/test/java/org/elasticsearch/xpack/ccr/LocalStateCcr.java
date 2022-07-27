@@ -29,4 +29,3 @@ public class LocalStateCcr extends LocalStateCompositeXPackPlugin {
     }
 
 }
-

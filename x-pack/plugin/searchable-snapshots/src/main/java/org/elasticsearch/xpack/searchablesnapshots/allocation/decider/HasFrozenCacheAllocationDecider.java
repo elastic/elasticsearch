@@ -14,12 +14,9 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants;
 import org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheInfoService;
 
-import static org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING;
-import static org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING;
+import static org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheService.SHARED_CACHE_SIZE_SETTING;
 
 public class HasFrozenCacheAllocationDecider extends AllocationDecider {
 
@@ -28,7 +25,7 @@ public class HasFrozenCacheAllocationDecider extends AllocationDecider {
     private static final Decision STILL_FETCHING = Decision.single(
         Decision.Type.THROTTLE,
         NAME,
-        "value of [" + SNAPSHOT_CACHE_SIZE_SETTING.getKey() + "] on this node is not known yet"
+        "value of [" + SHARED_CACHE_SIZE_SETTING.getKey() + "] on this node is not known yet"
     );
 
     private static final Decision HAS_FROZEN_CACHE = Decision.single(
@@ -41,7 +38,7 @@ public class HasFrozenCacheAllocationDecider extends AllocationDecider {
         Decision.Type.NO,
         NAME,
         "node setting ["
-            + SNAPSHOT_CACHE_SIZE_SETTING.getKey()
+            + SHARED_CACHE_SIZE_SETTING.getKey()
             + "] is set to zero, so frozen searchable snapshot shards cannot be allocated to this node"
     );
 
@@ -63,8 +60,8 @@ public class HasFrozenCacheAllocationDecider extends AllocationDecider {
     }
 
     @Override
-    public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        return canAllocateToNode(allocation.metadata().getIndexSafe(shardRouting.index()), node.node());
+    public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+        return canAllocateToNode(indexMetadata, node.node());
     }
 
     @Override
@@ -78,23 +75,16 @@ public class HasFrozenCacheAllocationDecider extends AllocationDecider {
     }
 
     private Decision canAllocateToNode(IndexMetadata indexMetadata, DiscoveryNode discoveryNode) {
-        final Settings indexSettings = indexMetadata.getSettings();
-
-        if (SearchableSnapshotsConstants.isSearchableSnapshotStore(indexSettings) == false
-            || SNAPSHOT_PARTIAL_SETTING.get(indexSettings) == false) {
+        if (indexMetadata.isPartialSearchableSnapshot() == false) {
             return Decision.ALWAYS;
         }
 
-        switch (frozenCacheService.getNodeState(discoveryNode)) {
-            case HAS_CACHE:
-                return HAS_FROZEN_CACHE;
-            case NO_CACHE:
-                return NO_FROZEN_CACHE;
-            case FAILED:
-                return UNKNOWN_FROZEN_CACHE;
-            default:
-                return STILL_FETCHING;
-        }
+        return switch (frozenCacheService.getNodeState(discoveryNode)) {
+            case HAS_CACHE -> HAS_FROZEN_CACHE;
+            case NO_CACHE -> NO_FROZEN_CACHE;
+            case FAILED -> UNKNOWN_FROZEN_CACHE;
+            default -> STILL_FETCHING;
+        };
     }
 
 }

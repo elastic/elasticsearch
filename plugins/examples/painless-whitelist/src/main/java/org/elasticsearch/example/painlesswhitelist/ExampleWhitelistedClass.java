@@ -31,8 +31,8 @@ public class ExampleWhitelistedClass {
         return this.privateMember;
     }
 
-    public void setPrivateMemberAccessor(int privateMember) {
-        this.privateMember = privateMember;
+    public void setPrivateMemberAccessor(int value) {
+        this.privateMember = value;
     }
 
     public static void staticMethod() {

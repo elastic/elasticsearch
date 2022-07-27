@@ -28,16 +28,25 @@ public abstract class InternalRareTermsTestCase extends InternalMultiBucketAggre
     }
 
     @Override
-    protected final InternalRareTerms<?, ?> createTestInstance(String name,
-                                                               Map<String, Object> metadata,
-                                                               InternalAggregations aggregations) {
+    protected final InternalRareTerms<?, ?> createTestInstance(
+        String name,
+        Map<String, Object> metadata,
+        InternalAggregations aggregations
+    ) {
         return createTestInstance(name, metadata, aggregations, maxDocCount);
     }
 
-    protected abstract InternalRareTerms<?, ?> createTestInstance(String name,
-                                                                  Map<String, Object> metadata,
-                                                                  InternalAggregations aggregations,
-                                                                  long maxDocCount);
+    @Override
+    protected boolean supportsSampling() {
+        return true;
+    }
+
+    protected abstract InternalRareTerms<?, ?> createTestInstance(
+        String name,
+        Map<String, Object> metadata,
+        InternalAggregations aggregations,
+        long maxDocCount
+    );
 
     @Override
     protected InternalRareTerms<?, ?> createUnmappedInstance(String name, Map<String, Object> metadata) {
@@ -55,9 +64,6 @@ public abstract class InternalRareTermsTestCase extends InternalMultiBucketAggre
     }
 
     private static Map<Object, Long> toCounts(Stream<? extends RareTerms.Bucket> buckets) {
-        return buckets.collect(Collectors.toMap(
-            RareTerms.Bucket::getKey,
-            RareTerms.Bucket::getDocCount,
-            Long::sum));
+        return buckets.collect(Collectors.toMap(RareTerms.Bucket::getKey, RareTerms.Bucket::getDocCount, Long::sum));
     }
 }

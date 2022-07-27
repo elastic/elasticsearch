@@ -13,11 +13,11 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.AbstractSortedSetDocValues;
-import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.FieldData;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-import org.elasticsearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
+import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
+import org.elasticsearch.script.field.ToScriptFieldFactory;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -36,11 +36,12 @@ public class KeyedFlattenedLeafFieldData implements LeafOrdinalsFieldData {
 
     private final String key;
     private final LeafOrdinalsFieldData delegate;
+    private final ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory;
 
-    KeyedFlattenedLeafFieldData(String key,
-                                LeafOrdinalsFieldData delegate) {
+    KeyedFlattenedLeafFieldData(String key, LeafOrdinalsFieldData delegate, ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory) {
         this.key = key;
         this.delegate = delegate;
+        this.toScriptFieldFactory = toScriptFieldFactory;
     }
 
     @Override
@@ -79,9 +80,8 @@ public class KeyedFlattenedLeafFieldData implements LeafOrdinalsFieldData {
     }
 
     @Override
-    public ScriptDocValues<?> getScriptValues() {
-        return AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION
-            .apply(getOrdinalsValues());
+    public DocValuesScriptFieldFactory getScriptFieldFactory(String name) {
+        return toScriptFieldFactory.getScriptFieldFactory(getOrdinalsValues(), name);
     }
 
     @Override
@@ -163,10 +163,7 @@ public class KeyedFlattenedLeafFieldData implements LeafOrdinalsFieldData {
          */
         private long cachedNextOrd;
 
-        private KeyedFlattenedDocValues(BytesRef key,
-                                        SortedSetDocValues delegate,
-                                        long minOrd,
-                                        long maxOrd) {
+        private KeyedFlattenedDocValues(BytesRef key, SortedSetDocValues delegate, long minOrd, long maxOrd) {
             assert minOrd >= 0 && maxOrd >= 0;
             this.key = key;
             this.delegate = delegate;
@@ -210,6 +207,11 @@ public class KeyedFlattenedLeafFieldData implements LeafOrdinalsFieldData {
             } else {
                 return NO_MORE_ORDS;
             }
+        }
+
+        @Override
+        public int docValueCount() {
+            return delegate.docValueCount();
         }
 
         @Override

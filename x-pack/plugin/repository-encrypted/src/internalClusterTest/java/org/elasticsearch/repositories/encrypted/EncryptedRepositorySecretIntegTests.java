@@ -20,7 +20,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
-import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.RepositoryData;
@@ -51,15 +51,15 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.mockito.Matchers.anyObject;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -118,7 +118,7 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
 
         if (randomBoolean()) {
             // stop the node with the missing password
-            internalCluster().stopRandomNode(InternalTestCluster.nameFilter(masterNodeName));
+            internalCluster().stopNode(masterNodeName);
             ensureStableCluster(2);
         } else {
             // restart the node with the missing password
@@ -183,7 +183,7 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
         expectThrows(RepositoryVerificationException.class, () -> client().admin().cluster().prepareVerifyRepository(repositoryName).get());
         if (randomBoolean()) {
             // stop the node with the missing password
-            internalCluster().stopRandomNode(InternalTestCluster.nameFilter(otherNodeName));
+            internalCluster().stopNode(otherNodeName);
             ensureStableCluster(1);
             // repository verification now succeeds
             VerifyRepositoryResponse verifyRepositoryResponse = client().admin().cluster().prepareVerifyRepository(repositoryName).get();
@@ -316,8 +316,8 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
             RepositoriesService.class
         ).repository(repositoryName);
         encryptedRepository.licenseStateSupplier = () -> {
-            XPackLicenseState mockLicenseState = mock(XPackLicenseState.class);
-            when(mockLicenseState.isAllowed(anyObject())).thenReturn(false);
+            MockLicenseState mockLicenseState = mock(MockLicenseState.class);
+            when(mockLicenseState.isAllowed(any())).thenReturn(false);
             return mockLicenseState;
         };
 
@@ -420,7 +420,10 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
             incompleteSnapshotResponse.getSnapshotInfo()
                 .shardFailures()
                 .stream()
-                .allMatch(shardFailure -> shardFailure.reason().contains("[" + repositoryName + "] missing"))
+                .allMatch(
+                    shardFailure -> shardFailure.reason()
+                        .contains("Secure setting [repository.encrypted." + repositoryName + ".password] must be set")
+                )
         );
         assertThat(
             incompleteSnapshotResponse.getSnapshotInfo().userMetadata(),
@@ -594,13 +597,8 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
             () -> client().admin().cluster().prepareCreateSnapshot(repositoryName, snapshotName + "2").setWaitForCompletion(true).get()
         );
         assertThat(e.getCause().getMessage(), containsString("repository password is incorrect"));
-        GetSnapshotsResponse getSnapshotResponse = client().admin().cluster().prepareGetSnapshots(repositoryName).get();
-        assertThat(getSnapshotResponse.getSuccessfulResponses().keySet(), empty());
-        assertThat(getSnapshotResponse.getFailedResponses().keySet(), contains(repositoryName));
-        assertThat(
-            getSnapshotResponse.getFailedResponses().get(repositoryName).getCause().getMessage(),
-            containsString("repository password is incorrect")
-        );
+        e = expectThrows(RepositoryException.class, () -> client().admin().cluster().prepareGetSnapshots(repositoryName).get());
+        assertThat(e.getCause().getMessage(), containsString("repository password is incorrect"));
         e = expectThrows(
             RepositoryException.class,
             () -> client().admin().cluster().prepareRestoreSnapshot(repositoryName, snapshotName).setWaitForCompletion(true).get()
@@ -619,9 +617,8 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
         internalCluster().fullRestart();
         ensureGreen();
         // ensure get snapshot works
-        getSnapshotResponse = client().admin().cluster().prepareGetSnapshots(repositoryName).get();
-        assertThat(getSnapshotResponse.getFailedResponses().keySet(), empty());
-        assertThat(getSnapshotResponse.getSuccessfulResponses().keySet(), contains(repositoryName));
+        GetSnapshotsResponse getSnapshotResponse = client().admin().cluster().prepareGetSnapshots(repositoryName).get();
+        assertThat(getSnapshotResponse.getSnapshots(), hasSize(1));
     }
 
     public void testSnapshotFailsForMasterFailoverWithWrongPassword() throws Exception {
@@ -689,7 +686,7 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
         client().admin().cluster().prepareCreateSnapshot(repoName, snapshotName).setIndices(indexName).setWaitForCompletion(false).get();
 
         // stop master
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(masterNode));
+        internalCluster().stopNode(masterNode);
         ensureStableCluster(3);
 
         otherNodeEncryptedRepo.unblockSnapshotShard();
@@ -769,7 +766,7 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
                 .prepareGetSnapshots(repository)
                 .setSnapshots(snapshotName)
                 .get()
-                .getSnapshots(repository);
+                .getSnapshots();
             assertThat(snapshotInfos.size(), equalTo(1));
             if (snapshotInfos.get(0).state().completed()) {
                 // Make sure that snapshot clean up operations are finished
@@ -779,9 +776,9 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
                     return snapshotInfos.get(0);
                 } else {
                     boolean found = false;
-                    for (SnapshotsInProgress.Entry entry : snapshotsInProgress.entries()) {
+                    for (SnapshotsInProgress.Entry entry : snapshotsInProgress.forRepo(repository)) {
                         final Snapshot curr = entry.snapshot();
-                        if (curr.getRepository().equals(repository) && curr.getSnapshotId().getName().equals(snapshotName)) {
+                        if (curr.getSnapshotId().getName().equals(snapshotName)) {
                             found = true;
                             break;
                         }

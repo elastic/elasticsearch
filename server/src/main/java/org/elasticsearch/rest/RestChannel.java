@@ -8,10 +8,10 @@
 
 package org.elasticsearch.rest;
 
+import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 
@@ -26,10 +26,10 @@ public interface RestChannel {
 
     XContentBuilder newBuilder(@Nullable XContentType xContentType, boolean useFiltering) throws IOException;
 
-    XContentBuilder newBuilder(@Nullable XContentType xContentType, @Nullable XContentType responseContentType,
-            boolean useFiltering) throws IOException;
+    XContentBuilder newBuilder(@Nullable XContentType xContentType, @Nullable XContentType responseContentType, boolean useFiltering)
+        throws IOException;
 
-    BytesStreamOutput bytesOutput();
+    BytesStream bytesOutput();
 
     RestRequest request();
 

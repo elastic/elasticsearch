@@ -20,10 +20,9 @@ public class GeoShapeFieldTests extends ESTestCase {
     public void testObjectFormat() {
         double lat = 38.897676;
         double lon = -77.03653;
-        String[] expected = new String[] {lat + "," + lon};
+        String[] expected = new String[] { lat + "," + lon };
 
-        SearchHit hit = new SearchHitBuilder(42)
-            .setSource("{\"geo\":{\"type\":\"point\", \"coordinates\": [" + lon + ", " + lat + "]}}")
+        SearchHit hit = new SearchHitBuilder(42).setSource("{\"geo\":{\"type\":\"point\", \"coordinates\": [" + lon + ", " + lat + "]}}")
             .build();
 
         ExtractedField geo = new GeoShapeField("geo");
@@ -43,9 +42,9 @@ public class GeoShapeFieldTests extends ESTestCase {
     public void testWKTFormat() {
         double lat = 38.897676;
         double lon = -77.03653;
-        String[] expected = new String[] {lat + "," + lon};
+        String[] expected = new String[] { lat + "," + lon };
 
-        SearchHit hit = new SearchHitBuilder(42).setSource("{\"geo\":\"POINT ("+ lon + " " + lat + ")\"}").build();
+        SearchHit hit = new SearchHitBuilder(42).setSource("{\"geo\":\"POINT (" + lon + " " + lat + ")\"}").build();
 
         ExtractedField geo = new GeoShapeField("geo");
 

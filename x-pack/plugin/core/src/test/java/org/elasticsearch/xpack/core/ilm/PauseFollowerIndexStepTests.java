@@ -36,7 +36,7 @@ public class PauseFollowerIndexStepTests extends AbstractUnfollowIndexStepTestCa
         return new PauseFollowerIndexStep(key, nextKey, client);
     }
 
-    public void testPauseFollowingIndex() {
+    public void testPauseFollowingIndex() throws Exception {
         IndexMetadata indexMetadata = IndexMetadata.builder("follower-index")
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
             .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
@@ -55,7 +55,7 @@ public class PauseFollowerIndexStepTests extends AbstractUnfollowIndexStepTestCa
         }).when(client).execute(Mockito.same(PauseFollowAction.INSTANCE), Mockito.any(), Mockito.any());
 
         PauseFollowerIndexStep step = new PauseFollowerIndexStep(randomStepKey(), randomStepKey(), client);
-        assertTrue(PlainActionFuture.get(f -> step.performAction(indexMetadata, clusterState, null, f)));
+        PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f));
     }
 
     public void testRequestNotAcknowledged() {
@@ -75,8 +75,10 @@ public class PauseFollowerIndexStepTests extends AbstractUnfollowIndexStepTestCa
         }).when(client).execute(Mockito.same(PauseFollowAction.INSTANCE), Mockito.any(), Mockito.any());
 
         PauseFollowerIndexStep step = new PauseFollowerIndexStep(randomStepKey(), randomStepKey(), client);
-        Exception e = expectThrows(Exception.class,
-            () -> PlainActionFuture.<Boolean, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f)));
+        Exception e = expectThrows(
+            Exception.class,
+            () -> PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f))
+        );
         assertThat(e.getMessage(), is("pause follow request failed to be acknowledged"));
     }
 
@@ -100,14 +102,19 @@ public class PauseFollowerIndexStepTests extends AbstractUnfollowIndexStepTestCa
         }).when(client).execute(Mockito.same(PauseFollowAction.INSTANCE), Mockito.any(), Mockito.any());
 
         PauseFollowerIndexStep step = new PauseFollowerIndexStep(randomStepKey(), randomStepKey(), client);
-        assertSame(error, expectThrows(Exception.class,
-            () -> PlainActionFuture.<Boolean, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f))));
+        assertSame(
+            error,
+            expectThrows(
+                Exception.class,
+                () -> PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f))
+            )
+        );
 
         Mockito.verify(client).execute(Mockito.same(PauseFollowAction.INSTANCE), Mockito.any(), Mockito.any());
         Mockito.verifyNoMoreInteractions(client);
     }
 
-    public final void testNoShardFollowPersistentTasks() {
+    public final void testNoShardFollowPersistentTasks() throws Exception {
         IndexMetadata indexMetadata = IndexMetadata.builder("managed-index")
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
             .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
@@ -117,20 +124,22 @@ public class PauseFollowerIndexStepTests extends AbstractUnfollowIndexStepTestCa
 
         PersistentTasksCustomMetadata.Builder emptyPersistentTasks = PersistentTasksCustomMetadata.builder();
         ClusterState clusterState = ClusterState.builder(new ClusterName("_cluster"))
-            .metadata(Metadata.builder()
-                .putCustom(PersistentTasksCustomMetadata.TYPE, emptyPersistentTasks.build())
-                .put(indexMetadata, false)
-                .build())
+            .metadata(
+                Metadata.builder()
+                    .putCustom(PersistentTasksCustomMetadata.TYPE, emptyPersistentTasks.build())
+                    .put(indexMetadata, false)
+                    .build()
+            )
             .build();
 
         PauseFollowerIndexStep step = newInstance(randomStepKey(), randomStepKey());
 
-        assertTrue(PlainActionFuture.get(f -> step.performAction(indexMetadata, clusterState, null, f)));
+        PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f));
 
-        Mockito.verifyZeroInteractions(client);
+        Mockito.verifyNoMoreInteractions(client);
     }
 
-    public final void testNoShardFollowTasksForManagedIndex() {
+    public final void testNoShardFollowTasksForManagedIndex() throws Exception {
         IndexMetadata managedIndex = IndexMetadata.builder("managed-index")
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
             .numberOfShards(1)
@@ -143,39 +152,44 @@ public class PauseFollowerIndexStepTests extends AbstractUnfollowIndexStepTestCa
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
-        final ClusterState clusterState = ClusterState.builder(
-            setupClusterStateWithFollowingIndex(followerIndex)).metadata(Metadata.builder().put(managedIndex, false).build()).build();
+        final ClusterState clusterState = ClusterState.builder(setupClusterStateWithFollowingIndex(followerIndex))
+            .metadata(Metadata.builder().put(managedIndex, false).build())
+            .build();
         PauseFollowerIndexStep step = newInstance(randomStepKey(), randomStepKey());
 
-        assertTrue(PlainActionFuture.get(f -> step.performAction(managedIndex, clusterState, null, f)));
+        PlainActionFuture.<Void, Exception>get(f -> step.performAction(managedIndex, clusterState, null, f));
 
-        Mockito.verifyZeroInteractions(client);
+        Mockito.verifyNoMoreInteractions(client);
     }
 
     private static ClusterState setupClusterStateWithFollowingIndex(IndexMetadata followerIndex) {
         PersistentTasksCustomMetadata.Builder persistentTasks = PersistentTasksCustomMetadata.builder()
-            .addTask("1", ShardFollowTask.NAME, new ShardFollowTask(
-                null,
-                new ShardId(followerIndex.getIndex(), 0),
-                new ShardId("leader_index", "", 0),
-                1024,
-                1024,
-                1,
-                1,
-                new ByteSizeValue(32, ByteSizeUnit.MB),
-                new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),
-                10240,
-                new ByteSizeValue(512, ByteSizeUnit.MB),
-                TimeValue.timeValueMillis(10),
-                TimeValue.timeValueMillis(10),
-                Collections.emptyMap()
-            ), null);
+            .addTask(
+                "1",
+                ShardFollowTask.NAME,
+                new ShardFollowTask(
+                    null,
+                    new ShardId(followerIndex.getIndex(), 0),
+                    new ShardId("leader_index", "", 0),
+                    1024,
+                    1024,
+                    1,
+                    1,
+                    new ByteSizeValue(32, ByteSizeUnit.MB),
+                    new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),
+                    10240,
+                    new ByteSizeValue(512, ByteSizeUnit.MB),
+                    TimeValue.timeValueMillis(10),
+                    TimeValue.timeValueMillis(10),
+                    Collections.emptyMap()
+                ),
+                null
+            );
 
         return ClusterState.builder(new ClusterName("_cluster"))
-            .metadata(Metadata.builder()
-                .putCustom(PersistentTasksCustomMetadata.TYPE, persistentTasks.build())
-                .put(followerIndex, false)
-                .build())
+            .metadata(
+                Metadata.builder().putCustom(PersistentTasksCustomMetadata.TYPE, persistentTasks.build()).put(followerIndex, false).build()
+            )
             .build();
     }
 

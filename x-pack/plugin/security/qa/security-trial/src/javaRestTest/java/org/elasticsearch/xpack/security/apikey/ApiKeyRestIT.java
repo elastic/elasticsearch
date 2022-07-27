@@ -263,12 +263,6 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         doTestAuthenticationWithApiKey(apiKeyExpectingNoop.name, apiKeyExpectingNoop.id, apiKeyExpectingNoop.encoded);
     }
 
-    private void expectErrorFields(final String type, final String reason, final Map<String, Object> rawError) {
-        assertNotNull(rawError);
-        assertEquals(type, rawError.get("type"));
-        assertEquals(reason, rawError.get("reason"));
-    }
-
     public void testGrantTargetCanUpdateApiKey() throws IOException {
         final var request = new Request("POST", "_security/api_key/grant");
         request.setOptions(
@@ -292,8 +286,16 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         assertThat(apiKeyEncoded, not(emptyString()));
 
         doTestUpdateApiKey(apiKeyName, apiKeyId, apiKeyEncoded, null);
+        // bulk update also allowed
+        final var bulkUpdateApiKeyRequest = new Request("POST", "_security/api_key/_bulk_update");
+        final Map<String, Object> updateApiKeyRequestBody = Map.of("ids", List.of(apiKeyId));
+        bulkUpdateApiKeyRequest.setJsonEntity(
+            XContentTestUtils.convertToXContent(updateApiKeyRequestBody, XContentType.JSON).utf8ToString()
+        );
+        assertOK(performRequestUsingRandomAuthMethod(bulkUpdateApiKeyRequest));
     }
 
+    @SuppressWarnings({ "unchecked" })
     public void testGrantorCannotUpdateApiKeyOfGrantTarget() throws IOException {
         final var request = new Request("POST", "_security/api_key/grant");
         final var apiKeyName = "test_api_key_password";
@@ -314,10 +316,22 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
 
         final var updateApiKeyRequest = new Request("PUT", "_security/api_key/" + apiKeyId);
         updateApiKeyRequest.setJsonEntity(XContentTestUtils.convertToXContent(Map.of(), XContentType.JSON).utf8ToString());
+
         final ResponseException e = expectThrows(ResponseException.class, () -> adminClient().performRequest(updateApiKeyRequest));
 
         assertEquals(404, e.getResponse().getStatusLine().getStatusCode());
         assertThat(e.getMessage(), containsString("no API key owned by requesting user found for ID [" + apiKeyId + "]"));
+
+        // Bulk update also not allowed
+        final var bulkUpdateApiKeyRequest = new Request("POST", "_security/api_key/_bulk_update");
+        bulkUpdateApiKeyRequest.setJsonEntity(
+            XContentTestUtils.convertToXContent(Map.of("ids", List.of(apiKeyId)), XContentType.JSON).utf8ToString()
+        );
+        final Response r2 = adminClient().performRequest(bulkUpdateApiKeyRequest);
+        assertOK(response);
+        final Map<String, Object> responseMap = responseAsMap(r2);
+        final Map<String, Object> errors = (Map<String, Object>) responseMap.get("errors");
+        assertEquals(1, errors.get("count"));
     }
 
     private void doTestAuthenticationWithApiKey(final String apiKeyName, final String apiKeyId, final String apiKeyEncoded)
@@ -415,6 +429,12 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
             assertThat(apiKeyResponse.getApiKeyInfos().length, equalTo(1));
             assertThat(apiKeyResponse.getApiKeyInfos()[0].getMetadata(), equalTo(expectedMetadata));
         }
+    }
+
+    private void expectErrorFields(final String type, final String reason, final Map<String, Object> rawError) {
+        assertNotNull(rawError);
+        assertEquals(type, rawError.get("type"));
+        assertEquals(reason, rawError.get("reason"));
     }
 
     private record EncodedApiKey(String id, String encoded, String name) {}

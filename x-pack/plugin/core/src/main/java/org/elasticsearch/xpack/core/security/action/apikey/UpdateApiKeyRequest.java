@@ -49,7 +49,6 @@ public final class UpdateApiKeyRequest extends BaseUpdateApiKeyRequest {
         return id;
     }
 
-    // TODO
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

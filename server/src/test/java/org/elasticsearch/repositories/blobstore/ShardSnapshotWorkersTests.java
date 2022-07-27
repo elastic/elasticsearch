@@ -83,15 +83,15 @@ public class ShardSnapshotWorkersTests extends ESTestCase {
             int filesToUpload = randomIntBetween(0, 10);
             if (filesToUpload == 0) {
                 finishedShardSnapshots.incrementAndGet();
-                return;
-            }
-            expectedFileSnapshotTasks.addAndGet(filesToUpload);
-            ActionListener<Void> uploadListener = new GroupedActionListener<>(
-                ActionListener.wrap(finishedShardSnapshots::incrementAndGet),
-                filesToUpload
-            );
-            for (int i = 0; i < filesToUpload; i++) {
-                workers.enqueueFileUpload(context, createDummyFileInfo(), uploadListener);
+            } else {
+                expectedFileSnapshotTasks.addAndGet(filesToUpload);
+                ActionListener<Void> uploadListener = new GroupedActionListener<>(
+                    ActionListener.wrap(finishedShardSnapshots::incrementAndGet),
+                    filesToUpload
+                );
+                for (int i = 0; i < filesToUpload; i++) {
+                    workers.enqueueFileUpload(context, createDummyFileInfo(), uploadListener);
+                }
             }
             finishedShardSnapshotTasks.incrementAndGet();
         }

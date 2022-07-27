@@ -30,9 +30,8 @@ support `run_as` delegation.
 
 `run_as` user::
 --
-{es} supports `run_as` for any user that can be retrieved via
-<<user-lookup,user lookup from a realm>>.
-Not all realms support user lookup - please check the list of supported realms
+{es} supports `run_as` for any realm that supports user lookup.
+Not all realms support user lookup. Refer to the list of <<user-lookup,supported realms>>
 and ensure that the realm you wish to use is configured in a manner that
 supports user lookup.
 

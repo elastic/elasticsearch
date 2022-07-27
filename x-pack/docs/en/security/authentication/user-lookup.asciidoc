@@ -4,14 +4,14 @@
 
 {es} <<realms,realms>> exist primarily to support
 <<setting-up-authentication,user authentication>>. 
-Some realms authenticate users via a password (for example the
-<<native-realm,`native`>> and <<ldap-realm,`ldap`>> realms) and other realms use
-more complex authentication protocols (for example the <<saml-realm,`saml`>> and
+Some realms authenticate users with a password (such as the
+<<native-realm,`native`>> and <<ldap-realm,`ldap`>> realms), and other realms use
+more complex authentication protocols (such as the <<saml-realm,`saml`>> and
 <<oidc-realm,`oidc`>> realms).
 In each case, the _primary_ purpose of the realm is to establish the identity of
 the user who has made a request to the {es} API.
 
-However, some {es} features need to _lookup_ a user without using their credentials.
+However, some {es} features need to _look up_ a user without using their credentials.
 
 - The <<run-as-privilege,`run_as`>> feature executes requests on behalf of
   another user. An authenticated user with `run_as` privileges can perform
@@ -25,24 +25,21 @@ In each of the above cases the second user must be resolved without directly
 authenticating. The ability for a realm to lookup a user by username is an
 optional operation that is not supported by all realms.
 
-The reserved, <<native-realm,`native`>> and <<file-realm,`file`>> realms always
+* The reserved, <<native-realm,`native`>> and <<file-realm,`file`>> realms always 
 support user lookup.
-
-The <<ldap-realm,`ldap`>> realm supports user lookup when the realm is configured
+* The <<ldap-realm,`ldap`>> realm supports user lookup when the realm is configured
 in <<ldap-realm-configuration,_user search_ mode>>. User lookup is not support
 when the realm is configured with `user_dn_templates`.
-
-User lookup support in the <<active-directory-realm,`active_directory`>> realm
+* User lookup support in the <<active-directory-realm,`active_directory`>> realm
 requires that the realm be configured with a <<ref-ad-settings,`bind_dn`>> and a
 bind password.
 
 The `pki`, `saml`, `oidc`, `kerberos` and `jwt` realms do not support user
 lookup.
 
-NOTE: If you want to use a realm for _user lookup_ only, and prevent users from 
-      authenticating against that realm, you can
-      <<ref-realm-settings,configure the realm>> and set
-      `authentication.enabled` to `false`
+NOTE: If you want to use a realm only for user lookup and prevent users from 
+authenticating against that realm, you can <<ref-realm-settings,configure the realm>>
+and set `authentication.enabled` to `false`
 
 The user lookup feature is an internal capability that is used to implement the
 `run-as` and delegated authorization features - there are no APIs for user lookup.

@@ -56,11 +56,6 @@ class IngestCtxMap extends CtxMap {
         super(source, metadata);
     }
 
-    @Override
-    protected boolean directSourceAccess() {
-        return true;
-    }
-
     /**
      * Fetch the timestamp from the ingestMetadata, if it exists
      * @return the timestamp for the document or null
@@ -76,5 +71,16 @@ class IngestCtxMap extends CtxMap {
             return ZonedDateTime.parse(str);
         }
         return null;
+    }
+
+    @Override
+    public Map<String, Object> getSource() {
+        return source;
+    }
+
+    @Override
+    protected Map<String, Object> wrapSource(Map<String, Object> source) {
+        // Not wrapped in Ingest
+        return source;
     }
 }

@@ -8,12 +8,14 @@
 
 package org.elasticsearch.script;
 
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 
 import java.util.AbstractCollection;
 import java.util.AbstractMap;
 import java.util.AbstractSet;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
@@ -28,7 +30,7 @@ import java.util.stream.Collectors;
  */
 public class CtxMap extends AbstractMap<String, Object> {
     protected static final String SOURCE = "_source";
-    protected Map<String, Object> source;
+    protected final Map<String, Object> source;
     protected final Metadata metadata;
 
     /**
@@ -38,7 +40,7 @@ public class CtxMap extends AbstractMap<String, Object> {
      * @param metadata the metadata map
      */
     protected CtxMap(Map<String, Object> source, Metadata metadata) {
-        this.source = source;
+        this.source = wrapSource(source != null ? source : new HashMap<>());
         this.metadata = metadata;
         Set<String> badKeys = Sets.intersection(this.metadata.keySet(), this.source.keySet());
         if (badKeys.size() > 0) {
@@ -50,15 +52,20 @@ public class CtxMap extends AbstractMap<String, Object> {
         }
     }
 
-    protected boolean directSourceAccess() {
-        return false;
+    protected Map<String, Object> wrapSource(Map<String, Object> source) {
+        Map<String, Object> wrapper = Maps.newHashMapWithExpectedSize(1);
+        wrapper.put(SOURCE, source);
+        return wrapper;
     }
 
     /**
      * get the source map, if externally modified then the guarantees of this class are not enforced
      */
-    public final Map<String, Object> getSource() {
-        return source;
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> getSource() {
+        Object rawSource = source.get(SOURCE);
+        assert rawSource instanceof Map<?, ?> : " wrapped source of unexpected type";
+        return (Map<String, Object>) rawSource;
     }
 
     /**
@@ -74,8 +81,7 @@ public class CtxMap extends AbstractMap<String, Object> {
     @Override
     public Set<Map.Entry<String, Object>> entrySet() {
         // Make a copy of the Metadata.keySet() to avoid a ConcurrentModificationException when removing a value from the iterator
-        Set<Map.Entry<String, Object>> sourceEntries = directSourceAccess() ? source.entrySet() : Set.of(new IndirectSourceEntry());
-        return new EntrySet(sourceEntries, new HashSet<>(metadata.keySet()));
+        return new EntrySet(source.entrySet(), new HashSet<>(metadata.keySet()));
     }
 
     /**
@@ -87,33 +93,7 @@ public class CtxMap extends AbstractMap<String, Object> {
         if (metadata.isAvailable(key)) {
             return metadata.put(key, value);
         }
-        if (directSourceAccess()) {
-            return source.put(key, value);
-        } else if (SOURCE.equals(key)) {
-            return replaceSource(value);
-        }
-        throw new IllegalArgumentException("Cannot put key [" + key + "] with value [" + value + "] into ctx");
-    }
-
-    private Object replaceSource(Object value) {
-        if (value instanceof Map == false) {
-            throw new IllegalArgumentException(
-                "Expected ["
-                    + SOURCE
-                    + "] to be a Map, not ["
-                    + value
-                    + "]"
-                    + (value != null ? " with type [" + value.getClass().getName() + "]" : "")
-            );
-        }
-        var oldSource = source;
-        source = castSourceMap(value);
-        return oldSource;
-    }
-
-    @SuppressWarnings({ "unchecked", "raw" })
-    private static Map<String, Object> castSourceMap(Object value) {
-        return (Map<String, Object>) value;
+        return source.put(key, value);
     }
 
     /**
@@ -128,11 +108,7 @@ public class CtxMap extends AbstractMap<String, Object> {
                 return metadata.remove(str);
             }
         }
-        if (directSourceAccess()) {
-            return source.remove(key);
-        } else {
-            throw new UnsupportedOperationException("Cannot remove key " + key + " from ctx");
-        }
+        return source.remove(key);
     }
 
     /**
@@ -151,26 +127,22 @@ public class CtxMap extends AbstractMap<String, Object> {
     @Override
     public int size() {
         // uses map directly to avoid creating an EntrySet via AbstractMaps implementation, which returns entrySet().size()
-        final int sourceSize = directSourceAccess() ? source.size() : 1;
-        return sourceSize + metadata.size();
+        return source.size() + metadata.size();
     }
 
     @Override
     public boolean containsValue(Object value) {
         // uses map directly to avoid AbstractMaps linear time implementation using entrySet()
-        return metadata.containsValue(value) || (directSourceAccess() ? source.containsValue(value) : source.equals(value));
+        return metadata.containsValue(value) || source.containsValue(value);
     }
 
     @Override
     public boolean containsKey(Object key) {
         // uses map directly to avoid AbstractMaps linear time implementation using entrySet()
         if (key instanceof String str) {
-            if (metadata.isAvailable(str)) {
-                return metadata.containsKey(str);
-            }
-            return directSourceAccess() ? source.containsKey(key) : SOURCE.equals(key);
+            return metadata.containsKey(str) || source.containsKey(key);
         }
-        return false;
+        return source.containsKey(key);
     }
 
     @Override
@@ -181,7 +153,7 @@ public class CtxMap extends AbstractMap<String, Object> {
                 return metadata.get(str);
             }
         }
-        return directSourceAccess() ? source.get(key) : (SOURCE.equals(key) ? source : null);
+        return source.get(key);
     }
 
     /**
@@ -267,33 +239,10 @@ public class CtxMap extends AbstractMap<String, Object> {
                 throw new IllegalStateException();
             }
             if (sourceCur) {
-                try {
-                    sourceIter.remove();
-                } catch (UnsupportedOperationException e) {
-                    // UnsupportedOperationException's message is "remove", rethrowing with more helpful message
-                    throw new UnsupportedOperationException("Cannot remove key [" + cur.getKey() + "] from ctx");
-                }
+                sourceIter.remove();
             } else {
                 metadata.remove(cur.getKey());
             }
-        }
-    }
-
-    private class IndirectSourceEntry implements Map.Entry<String, Object> {
-
-        @Override
-        public String getKey() {
-            return SOURCE;
-        }
-
-        @Override
-        public Object getValue() {
-            return source;
-        }
-
-        @Override
-        public Object setValue(Object value) {
-            return replaceSource(value);
         }
     }
 

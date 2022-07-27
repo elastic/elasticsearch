@@ -18,7 +18,11 @@ import java.util.Properties;
 public class PluginTestUtil {
 
     public static void writePluginProperties(Path pluginDir, String... stringProps) throws IOException {
-        writeProperties(pluginDir.resolve(PluginDescriptor.ES_PLUGIN_PROPERTIES), stringProps);
+        writeProperties(pluginDir.resolve(PluginDescriptor.INTERNAL_DESCRIPTOR_FILENAME), stringProps);
+    }
+
+    public static void writeStablePluginProperties(Path pluginDir, String... stringProps) throws IOException {
+        writeProperties(pluginDir.resolve(PluginDescriptor.STABLE_DESCRIPTOR_FILENAME), stringProps);
     }
 
     /** convenience method to write a plugin properties file */

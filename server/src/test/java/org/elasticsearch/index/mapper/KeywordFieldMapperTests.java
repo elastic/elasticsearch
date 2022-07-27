@@ -582,7 +582,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Object generateRandomInputValue(MappedFieldType ft) {
-        switch (between(0, 3)) {
+        switch (between(0, 4)) {
             case 0:
                 return randomAlphaOfLengthBetween(1, 100);
             case 1:

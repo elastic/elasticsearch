@@ -460,7 +460,7 @@ public class SearchResponseMergerTests extends ESTestCase {
      */
     public void testMergeEmptyFormat() throws InterruptedException {
         DateFormatter dateFormatter = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
-        Max max1 = Max.EmptyMax("field1", DocValueFormat.RAW, Collections.emptyMap());
+        Max max1 = Max.createEmptyMax("field1", DocValueFormat.RAW, Collections.emptyMap());
         Max max2 = new Max(
             "field1",
             dateFormatter.parseMillis("2021-05-01T00:00:00.000Z"),

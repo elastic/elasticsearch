@@ -465,7 +465,7 @@ public class ApiKeyService {
                 SECURITY_ORIGIN,
                 bulkRequestBuilder.setRefreshPolicy(RefreshPolicy.WAIT_UNTIL).request(),
                 ActionListener.<BulkResponse>wrap(
-                    bulkResponse -> translateResponseAndClearCache(bulkResponse, responseBuilder, listener),
+                    bulkResponse -> buildResponseAndClearCache(bulkResponse, responseBuilder, listener),
                     ex -> listener.onFailure(traceLog("execute bulk request for update", ex))
                 ),
                 client::bulk
@@ -1483,19 +1483,22 @@ public class ApiKeyService {
         }
     }
 
-    private void translateResponseAndClearCache(
+    private void buildResponseAndClearCache(
         final BulkResponse bulkResponse,
         final BulkUpdateApiKeyResponse.Builder responseBuilder,
         final ActionListener<BulkUpdateApiKeyResponse> listener
     ) {
         for (BulkItemResponse bulkItemResponse : bulkResponse.getItems()) {
-            final String id = bulkItemResponse.getId();
+            final String apiKeyId = bulkItemResponse.getId();
             if (bulkItemResponse.isFailed()) {
-                responseBuilder.error(id, new ElasticsearchException("Bulk request execution", bulkItemResponse.getFailure().getCause()));
+                responseBuilder.error(
+                    apiKeyId,
+                    new ElasticsearchException("Bulk request execution failure", bulkItemResponse.getFailure().getCause())
+                );
             } else {
                 // Since we made an index request against an existing document, we can't get a NOOP or CREATED here
                 assert bulkItemResponse.getResponse().getResult() == DocWriteResponse.Result.UPDATED;
-                responseBuilder.update(id);
+                responseBuilder.update(apiKeyId);
             }
         }
         clearApiKeyDocCache(responseBuilder.build(), listener);

@@ -116,6 +116,7 @@ public final class BulkUpdateApiKeyResponse extends ActionResponse implements To
         }
 
         public Builder error(final String id, final Exception ex) {
+            assert errorDetails.containsKey(id) == false;
             errorDetails.put(id, ex);
             return this;
         }

@@ -13,9 +13,9 @@ import org.elasticsearch.script.Metadata;
 import java.util.HashMap;
 import java.util.Map;
 
-public class TestIngestCtxMetadata extends IngestDocMetadata {
+public class TestIngestCtxMetadata extends Metadata {
     public TestIngestCtxMetadata(Map<String, Object> map, Map<String, FieldProperty<?>> properties) {
-        super(map, properties, null);
+        super(map, properties);
     }
 
     public static TestIngestCtxMetadata withNullableVersion(Map<String, Object> map) {

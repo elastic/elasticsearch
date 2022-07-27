@@ -10,6 +10,7 @@ package org.elasticsearch.ingest;
 
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.script.CtxMap;
+import org.elasticsearch.script.Metadata;
 
 import java.time.ZonedDateTime;
 import java.util.HashMap;
@@ -28,7 +29,7 @@ import java.util.Map;
  *
  * The map is expected to be used by processors, server code should the typed getter and setters where possible.
  */
-class IngestCtxMap extends CtxMap<IngestDocMetadata> {
+class IngestCtxMap extends CtxMap {
 
     /**
      * Create an IngestCtxMap with the given metadata, source and default validators
@@ -51,7 +52,7 @@ class IngestCtxMap extends CtxMap<IngestDocMetadata> {
      * @param source the source document map
      * @param metadata the metadata map
      */
-    IngestCtxMap(Map<String, Object> source, IngestDocMetadata metadata) {
+    IngestCtxMap(Map<String, Object> source, Metadata metadata) {
         super(source, metadata);
     }
 

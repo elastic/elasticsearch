@@ -630,9 +630,9 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
         cancelPollingClusterFormationInfo();
         ConcurrentMap<DiscoveryNode, ClusterFormationStateOrException> responses = new ConcurrentHashMap<>();
         List<Scheduler.Cancellable> cancellables = new CopyOnWriteArrayList<>();
-        beginPollingClusterFormationInfo(getMasterEligibleNodes(), responses::put, cancellables);
-        clusterFormationResponses = responses;
         clusterFormationInfoTasks = cancellables;
+        clusterFormationResponses = responses;
+        beginPollingClusterFormationInfo(getMasterEligibleNodes(), responses::put, cancellables);
     }
 
     /**
@@ -684,6 +684,8 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                 } else {
                    cancellables.forEach(Scheduler.Cancellable::cancel);
                 }
+            } else {
+                cancellables.forEach(Scheduler.Cancellable::cancel);
             }
         };
     }

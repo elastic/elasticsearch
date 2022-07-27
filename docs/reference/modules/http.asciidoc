@@ -51,7 +51,7 @@ Maximum size of an HTTP URL. Defaults to `4kb`.
 
 `http.max_header_size`::
 (<<static-cluster-setting,Static>>)
-Maximum size of allowed headers. Defaults to `8kb`.
+Maximum size of allowed headers. Defaults to `16kb`.
 
 [[http-compression]]
 // tag::http-compression-tag[]

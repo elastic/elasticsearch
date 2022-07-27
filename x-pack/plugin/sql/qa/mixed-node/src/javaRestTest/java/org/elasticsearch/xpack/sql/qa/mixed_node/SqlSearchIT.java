@@ -77,6 +77,7 @@ public class SqlSearchIT extends ESRestTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/88866")
     public void testAllTypesWithRequestToOldNodes() throws Exception {
         Map<String, Object> expectedResponse = prepareTestData(columns -> {
             columns.add(columnInfo("geo_point_field", "geo_point"));
@@ -108,6 +109,7 @@ public class SqlSearchIT extends ESRestTestCase {
         assertAllTypesWithNodes(expectedResponse, bwcNodes);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/88866")
     public void testAllTypesWithRequestToUpgradedNodes() throws Exception {
         Map<String, Object> expectedResponse = prepareTestData(columns -> {
             columns.add(columnInfo("geo_point_field", "geo_point"));

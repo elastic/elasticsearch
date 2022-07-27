@@ -9,6 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.script.CompositeFieldScript;
 import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.script.Script;
@@ -333,7 +334,7 @@ public class CompositeRuntimeFieldTests extends MapperServiceTestCase {
         withLuceneIndex(mapperService, iw -> iw.addDocuments(Arrays.asList(doc1.rootDoc(), doc2.rootDoc())), reader -> {
             SearchLookup searchLookup = new SearchLookup(
                 mapperService::fieldType,
-                (mft, lookupSupplier) -> mft.fielddataBuilder("test", lookupSupplier).build(null, null)
+                (mft, lookupSupplier) -> mft.fielddataBuilder(new FieldDataContext("test", lookupSupplier)).build(null, null)
             );
 
             LeafSearchLookup leafSearchLookup = searchLookup.getLeafSearchLookup(reader.leaves().get(0));

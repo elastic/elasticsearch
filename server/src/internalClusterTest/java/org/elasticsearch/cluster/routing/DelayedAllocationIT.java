@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalTestCluster;
 
 import java.util.Collections;
 import java.util.List;
@@ -39,7 +38,7 @@ public class DelayedAllocationIT extends ESIntegTestCase {
         ).get();
         ensureGreen("test");
         indexRandomData();
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(findNodeWithShard()));
+        internalCluster().stopNode(findNodeWithShard());
         assertThat(client().admin().cluster().prepareHealth().get().getDelayedUnassignedShards(), equalTo(0));
         ensureGreen("test");
     }
@@ -62,7 +61,7 @@ public class DelayedAllocationIT extends ESIntegTestCase {
         indexRandomData();
         String nodeWithShard = findNodeWithShard();
         Settings nodeWithShardDataPathSettings = internalCluster().dataPathSettings(nodeWithShard);
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeWithShard));
+        internalCluster().stopNode(nodeWithShard);
         assertBusy(
             () -> assertThat(
                 client().admin().cluster().prepareState().all().get().getState().getRoutingNodes().unassigned().size() > 0,
@@ -88,7 +87,7 @@ public class DelayedAllocationIT extends ESIntegTestCase {
         ).get();
         ensureGreen("test");
         indexRandomData();
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(findNodeWithShard()));
+        internalCluster().stopNode(findNodeWithShard());
         ensureGreen("test");
         internalCluster().startNode();
         // do a second round with longer delay to make sure it happens
@@ -101,7 +100,7 @@ public class DelayedAllocationIT extends ESIntegTestCase {
                 )
                 .get()
         );
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(findNodeWithShard()));
+        internalCluster().stopNode(findNodeWithShard());
         ensureGreen("test");
     }
 
@@ -120,7 +119,7 @@ public class DelayedAllocationIT extends ESIntegTestCase {
         ).get();
         ensureGreen("test");
         indexRandomData();
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(findNodeWithShard()));
+        internalCluster().stopNode(findNodeWithShard());
         assertBusy(
             () -> assertThat(
                 client().admin().cluster().prepareState().all().get().getState().getRoutingNodes().unassigned().size() > 0,
@@ -156,7 +155,7 @@ public class DelayedAllocationIT extends ESIntegTestCase {
         ).get();
         ensureGreen("test");
         indexRandomData();
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(findNodeWithShard()));
+        internalCluster().stopNode(findNodeWithShard());
         assertBusy(
             () -> assertThat(
                 client().admin().cluster().prepareState().all().get().getState().getRoutingNodes().unassigned().size() > 0,

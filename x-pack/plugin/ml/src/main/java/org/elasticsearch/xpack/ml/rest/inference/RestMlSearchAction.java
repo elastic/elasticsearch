@@ -27,6 +27,8 @@ import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.InferTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
@@ -66,18 +68,43 @@ public class RestMlSearchAction extends BaseRestHandler {
         RestCancellableNodeClient cancellableNodeClient = new RestCancellableNodeClient(client, restRequest.getHttpChannel());
         MlSearchRequestBuilder request = MlSearchRequestBuilder.parseRestRequest(restRequest);
         return channel -> {
-            RestToXContentListener<SearchResponse> listener = new RestToXContentListener<>(channel);
+            RestToXContentListener<SearchResponseWithInferenceTime> listener = new RestToXContentListener<>(channel);
             cancellableNodeClient.execute(
                 InferTrainedModelDeploymentAction.INSTANCE,
                 request.inferenceRequest(),
                 ActionListener.wrap(inferenceResponse -> {
                     SearchRequestBuilder searchRequestBuilder = cancellableNodeClient.prepareSearch();
                     request.build(searchRequestBuilder, inferenceResponse.getResults());
-                    searchRequestBuilder.execute(listener);
+                    searchRequestBuilder.execute(ActionListener.wrap(
+                        r -> new SearchResponseWithInferenceTime(r.getTook(), TimeValue.timeValueMillis(inferenceResponse.getTookMillis()),r),
+                        listener::onFailure)
+                    );
                 }, listener::onFailure)
 
             );
         };
+    }
+
+    private static class SearchResponseWithInferenceTime implements ToXContentObject {
+        private final TimeValue searchTook;
+        private final TimeValue inferenceTook;
+        private final SearchResponse response;
+
+        public SearchResponseWithInferenceTime(TimeValue searchTook, TimeValue inferenceTook, SearchResponse response) {
+            this.searchTook = searchTook;
+            this.inferenceTook = inferenceTook;
+            this.response = response;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field("search_took", searchTook.millis());
+            builder.field("inference_took", inferenceTook.millis());
+            builder.field("search_response", response);
+            builder.endObject();
+            return builder;
+        }
     }
 
     public static class MlSearchRequestBuilder {

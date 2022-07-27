@@ -122,22 +122,19 @@ public final class ThreadContext implements Writeable {
 
         boolean hasTransientHeadersToCopy = context.transientHeaders.containsKey(Task.APM_TRACE_CONTEXT);
 
-        if (hasHeadersToCopy || hasTransientHeadersToCopy) {
-            ThreadContextStruct threadContextStruct = DEFAULT_CONTEXT;
-            if (hasHeadersToCopy) {
-                Map<String, String> copiedHeaders = getHeadersToCopy(context);
-                threadContextStruct = DEFAULT_CONTEXT.putHeaders(copiedHeaders);
-            }
-            if (hasTransientHeadersToCopy) {
-                threadContextStruct = threadContextStruct.putTransient(
-                    Task.APM_TRACE_CONTEXT,
-                    context.transientHeaders.get(Task.APM_TRACE_CONTEXT)
-                );
-            }
-            threadLocal.set(threadContextStruct);
-        } else {
-            threadLocal.set(DEFAULT_CONTEXT);
+        ThreadContextStruct threadContextStruct = DEFAULT_CONTEXT;
+        if (hasHeadersToCopy) {
+            Map<String, String> copiedHeaders = getHeadersToCopy(context);
+            threadContextStruct = DEFAULT_CONTEXT.putHeaders(copiedHeaders);
         }
+        if (hasTransientHeadersToCopy) {
+            threadContextStruct = threadContextStruct.putTransient(
+                Task.APM_TRACE_CONTEXT,
+                context.transientHeaders.get(Task.APM_TRACE_CONTEXT)
+            );
+        }
+        threadLocal.set(threadContextStruct);
+
         return () -> {
             // If the node and thus the threadLocal get closed while this task
             // is still executing, we don't want this runnable to fail with an

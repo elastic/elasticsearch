@@ -185,9 +185,9 @@ public final class ThreadContext implements Writeable {
 
     public boolean hasTraceContext() {
         final ThreadContextStruct context = threadLocal.get();
-        return context.requestHeaders.containsKey(Task.TRACE_PARENT_HTTP_HEADER) ||
-            context.requestHeaders.containsKey(Task.TRACE_STATE) ||
-            context.transientHeaders.containsKey(Task.APM_TRACE_CONTEXT);
+        return context.requestHeaders.containsKey(Task.TRACE_PARENT_HTTP_HEADER)
+            || context.requestHeaders.containsKey(Task.TRACE_STATE)
+            || context.transientHeaders.containsKey(Task.APM_TRACE_CONTEXT);
     }
 
     /**

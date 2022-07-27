@@ -36,7 +36,6 @@ import org.elasticsearch.tasks.Task;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;

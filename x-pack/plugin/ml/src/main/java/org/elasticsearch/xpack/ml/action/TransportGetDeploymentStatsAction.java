@@ -303,6 +303,7 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
                     presentValue.timingStats().getAverage(),
                     presentValue.pendingCount(),
                     presentValue.errorCount(),
+                    presentValue.cacheHitCount(),
                     presentValue.rejectedExecutionCount(),
                     presentValue.timeoutCount(),
                     presentValue.lastUsed(),
@@ -311,7 +312,8 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
                     presentValue.numberOfAllocations(),
                     presentValue.peakThroughput(),
                     presentValue.throughputLastPeriod(),
-                    presentValue.avgInferenceTimeLastPeriod()
+                    presentValue.avgInferenceTimeLastPeriod(),
+                    presentValue.cacheHitCountLastPeriod()
                 )
             );
         } else {

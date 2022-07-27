@@ -37,6 +37,7 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NameOrDefinition;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -450,7 +451,8 @@ public abstract class MapperServiceTestCase extends ESTestCase {
 
             @Override
             protected IndexFieldData<?> buildFieldData(MappedFieldType ft) {
-                return ft.fielddataBuilder("test", null).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
+                return ft.fielddataBuilder(FieldDataContext.noRuntimeFields("test"))
+                    .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
             }
 
             @Override
@@ -624,8 +626,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
 
             }
         }),
-            (ft, idxName, lookup) -> ft.fielddataBuilder(idxName, lookup)
-                .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService()),
+            (ft, fdc) -> ft.fielddataBuilder(fdc).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService()),
             mapperService,
             mapperService.mappingLookup(),
             similarityService,
@@ -644,7 +645,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
     }
 
     protected BiFunction<MappedFieldType, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataLookup() {
-        return (mft, lookupSource) -> mft.fielddataBuilder("test", lookupSource)
+        return (mft, lookupSource) -> mft.fielddataBuilder(new FieldDataContext("test", lookupSource))
             .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
     }
 

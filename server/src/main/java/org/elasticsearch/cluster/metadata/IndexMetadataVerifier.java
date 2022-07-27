@@ -191,7 +191,7 @@ public class IndexMetadataVerifier {
                     similarityService,
                     mapperRegistry,
                     () -> null,
-                    indexSettings.getMode().buildNoFieldDataIdFieldMapper(),
+                    indexSettings.getMode().idFieldMapperWithoutFieldData(),
                     scriptService
                 );
                 mapperService.merge(indexMetadata, MapperService.MergeReason.MAPPING_RECOVERY);

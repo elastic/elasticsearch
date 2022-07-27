@@ -12,7 +12,6 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Random;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -20,10 +19,10 @@ public class RollupActionConfigTests extends AbstractSerializingTestCase<RollupA
 
     @Override
     protected RollupActionConfig createTestInstance() {
-        return randomConfig(random());
+        return randomConfig();
     }
 
-    public static RollupActionConfig randomConfig(Random random) {
+    public static RollupActionConfig randomConfig() {
         return new RollupActionConfig(ConfigTestHelpers.randomInterval());
     }
 

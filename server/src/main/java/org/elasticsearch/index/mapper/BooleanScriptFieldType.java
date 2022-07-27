@@ -16,6 +16,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.index.fielddata.BooleanScriptFieldData;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.BooleanFieldScript;
 import org.elasticsearch.script.CompositeFieldScript;
@@ -30,7 +31,6 @@ import java.time.ZoneId;
 import java.util.Collection;
 import java.util.Map;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 public final class BooleanScriptFieldType extends AbstractScriptFieldType<BooleanFieldScript.LeafFactory> {
 
@@ -102,8 +102,8 @@ public final class BooleanScriptFieldType extends AbstractScriptFieldType<Boolea
     }
 
     @Override
-    public BooleanScriptFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-        return new BooleanScriptFieldData.Builder(name(), leafFactory(searchLookup.get()), BooleanDocValuesField::new);
+    public BooleanScriptFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
+        return new BooleanScriptFieldData.Builder(name(), leafFactory(fieldDataContext.lookupSupplier().get()), BooleanDocValuesField::new);
     }
 
     @Override

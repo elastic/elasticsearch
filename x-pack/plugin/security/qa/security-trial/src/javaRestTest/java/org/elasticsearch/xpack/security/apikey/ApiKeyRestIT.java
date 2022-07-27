@@ -222,8 +222,13 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
     public void testBulkUpdateApiKey() throws IOException {
         final EncodedApiKey apiKeyExpectingUpdate = createApiKey("my-api-key-name-1", Map.of("not", "returned"));
         final EncodedApiKey apiKeyExpectingNoop = createApiKey("my-api-key-name-2", Map.of("not", "returned (changed)", "foo", "bar"));
+        final Map<String, Object> metadataForInvalidatedKey = Map.of("will not be updated", true);
+        final EncodedApiKey invalidatedApiKey = createApiKey("my-api-key-name-3", metadataForInvalidatedKey);
+        getSecurityClient().invalidateApiKey(invalidatedApiKey.id);
         final var notFoundApiKeyId = "not-found-api-key-id";
-        final List<String> idsToUpdate = shuffledList(List.of(apiKeyExpectingUpdate.id, apiKeyExpectingNoop.id, notFoundApiKeyId));
+        final List<String> idsToUpdate = shuffledList(
+            List.of(apiKeyExpectingUpdate.id, apiKeyExpectingNoop.id, notFoundApiKeyId, invalidatedApiKey.id)
+        );
         final var bulkUpdateApiKeyRequest = new Request("POST", "_security/api_key/_bulk_update");
         final Map<String, Object> expectedApiKeyMetadata = Map.of("not", "returned (changed)", "foo", "bar");
         final Map<String, Object> updateApiKeyRequestBody = Map.of("ids", idsToUpdate, "metadata", expectedApiKeyMetadata);
@@ -237,17 +242,25 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         final BulkUpdateApiKeyResponse response = BulkUpdateApiKeyResponse.fromXContent(responseAsParser(bulkUpdateApiKeyResponse));
         assertEquals(List.of(apiKeyExpectingUpdate.id()), response.getUpdated());
         assertEquals(List.of(apiKeyExpectingNoop.id()), response.getNoops());
-        assertEquals(1, response.getErrorDetails().size());
-        final Exception notFoundError = response.getErrorDetails().get(notFoundApiKeyId);
+        assertEquals(2, response.getErrorDetails().size());
+        expectNotFoundError(notFoundApiKeyId, response.getErrorDetails());
+        final Exception validationError = response.getErrorDetails().get(invalidatedApiKey.id);
+        assertNotNull(validationError);
+        assertThat(validationError.getMessage(), containsString("cannot update invalidated API key [" + invalidatedApiKey.id + "]"));
+        expectMetadata(apiKeyExpectingUpdate.id, expectedApiKeyMetadata);
+        expectMetadata(apiKeyExpectingNoop.id, expectedApiKeyMetadata);
+        expectMetadata(invalidatedApiKey.id, metadataForInvalidatedKey);
+        doTestAuthenticationWithApiKey(apiKeyExpectingUpdate.name, apiKeyExpectingUpdate.id, apiKeyExpectingUpdate.encoded);
+        doTestAuthenticationWithApiKey(apiKeyExpectingNoop.name, apiKeyExpectingNoop.id, apiKeyExpectingNoop.encoded);
+    }
+
+    private void expectNotFoundError(final String notFoundApiKeyId, final Map<String, Exception> errorDetails) {
+        final Exception notFoundError = errorDetails.get(notFoundApiKeyId);
         assertNotNull(notFoundError);
         assertThat(
             notFoundError.getMessage(),
             containsString("no API key owned by requesting user found for ID [" + notFoundApiKeyId + "]")
         );
-        expectMetadata(apiKeyExpectingUpdate.id, expectedApiKeyMetadata);
-        expectMetadata(apiKeyExpectingNoop.id, expectedApiKeyMetadata);
-        doTestAuthenticationWithApiKey(apiKeyExpectingUpdate.name, apiKeyExpectingUpdate.id, apiKeyExpectingUpdate.encoded);
-        doTestAuthenticationWithApiKey(apiKeyExpectingNoop.name, apiKeyExpectingNoop.id, apiKeyExpectingNoop.encoded);
     }
 
     public void testGrantTargetCanUpdateApiKey() throws IOException {

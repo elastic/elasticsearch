@@ -10,16 +10,21 @@ package org.elasticsearch.xpack.sql.action;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.BaseFuture;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.sql.action.compute.data.LongBlock;
 import org.elasticsearch.xpack.sql.action.compute.data.Page;
-import org.elasticsearch.xpack.sql.action.compute.lucene.LuceneCollector;
+import org.elasticsearch.xpack.sql.action.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.xpack.sql.action.compute.lucene.NumericDocValuesExtractor;
 import org.elasticsearch.xpack.sql.action.compute.operator.Driver;
 import org.elasticsearch.xpack.sql.action.compute.operator.LongAvgGroupingOperator;
@@ -36,14 +41,32 @@ import org.elasticsearch.xpack.sql.action.compute.operator.exchange.ExchangeSour
 import org.elasticsearch.xpack.sql.action.compute.operator.exchange.PassthroughExchanger;
 import org.elasticsearch.xpack.sql.action.compute.operator.exchange.RandomExchanger;
 import org.elasticsearch.xpack.sql.action.compute.operator.exchange.RandomUnionSourceOperator;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class OperatorTests extends ESTestCase {
+
+    private ThreadPool threadPool;
+
+    @Before
+    public void setUp() throws Exception {
+        super.setUp();
+        threadPool = new TestThreadPool("OperatorTests");
+    }
+
+    @After
+    public void tearDown() throws Exception {
+        ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
+        super.tearDown();
+    }
 
     class RandomLongBlockSourceOperator implements Operator {
 
@@ -102,7 +125,7 @@ public class OperatorTests extends ESTestCase {
         driver.run();
     }
 
-    public void testOperatorsWithLucene() throws IOException, InterruptedException {
+    public void testOperatorsWithLucene() throws IOException {
         int numDocs = 100000;
         try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
             Document doc = new Document();
@@ -116,22 +139,6 @@ public class OperatorTests extends ESTestCase {
             w.commit();
 
             try (IndexReader reader = w.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(reader);
-                ExchangeSource exchangeSource = new ExchangeSource();
-
-                LuceneCollector pageCollector = new LuceneCollector(
-                    new ExchangeSink(new PassthroughExchanger(exchangeSource, 1), sink -> exchangeSource.finish())
-                );
-                Thread t = new Thread(() -> {
-                    logger.info("Start processing");
-                    try {
-                        searcher.search(new MatchAllDocsQuery(), pageCollector);
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
-                    }
-                    pageCollector.finish();
-                });
-                t.start();
                 AtomicInteger pageCount = new AtomicInteger();
                 AtomicInteger rowCount = new AtomicInteger();
                 AtomicReference<Page> lastPage = new AtomicReference<>();
@@ -139,8 +146,8 @@ public class OperatorTests extends ESTestCase {
                 // implements cardinality on value field
                 Driver driver = new Driver(
                     List.of(
-                        new ExchangeSourceOperator(exchangeSource),
-                        new NumericDocValuesExtractor(searcher.getIndexReader(), 0, 1, "value"),
+                        new LuceneSourceOperator(reader, new MatchAllDocsQuery()),
+                        new NumericDocValuesExtractor(reader, 0, 1, "value"),
                         new LongGroupingOperator(2, BigArrays.NON_RECYCLING_INSTANCE),
                         new LongMaxOperator(3), // returns highest group number
                         new LongTransformerOperator(0, i -> i + 1), // adds +1 to group number (which start with 0) to get group count
@@ -154,7 +161,6 @@ public class OperatorTests extends ESTestCase {
                     () -> {}
                 );
                 driver.run();
-                t.join();
                 assertEquals(1, pageCount.get());
                 assertEquals(1, rowCount.get());
                 assertEquals(numDocs, lastPage.get().getBlock(1).getLong(0));
@@ -185,15 +191,14 @@ public class OperatorTests extends ESTestCase {
             () -> {}
         );
 
-        Thread t1 = new Thread(driver1::run);
-        Thread t2 = new Thread(driver2::run);
-        t1.start();
-        t2.start();
-        t1.join();
-        t2.join();
+        runToCompletion(randomExecutor(), List.of(driver1, driver2));
     }
 
-    public void testOperatorsWithRandomExchange() throws InterruptedException {
+    private Executor randomExecutor() {
+        return threadPool.executor(randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC, ThreadPool.Names.SEARCH));
+    }
+
+    public void testOperatorsWithRandomExchange() {
         ExchangeSource exchangeSource1 = new ExchangeSource();
         ExchangeSource exchangeSource2 = new ExchangeSource();
 
@@ -247,18 +252,7 @@ public class OperatorTests extends ESTestCase {
             () -> {}
         );
 
-        Thread t1 = new Thread(driver1::run);
-        Thread t2 = new Thread(driver2::run);
-        Thread t3 = new Thread(driver3::run);
-        Thread t4 = new Thread(driver4::run);
-        t1.start();
-        t2.start();
-        t3.start();
-        t4.start();
-        t1.join();
-        t2.join();
-        t3.join();
-        t4.join();
+        runToCompletion(randomExecutor(), List.of(driver1, driver2, driver3, driver4)).actionGet();
     }
 
     public void testOperatorsAsync() {
@@ -338,6 +332,59 @@ public class OperatorTests extends ESTestCase {
         assertEquals(9, lastPage.get().getBlock(0).getLong(1));
         assertEquals(1, lastPage.get().getBlock(1).getLong(0));
         assertEquals(3, lastPage.get().getBlock(1).getLong(1));
+    }
+
+    private ListenableActionFuture<Void> runToCompletion(Executor executor, List<Driver> drivers) {
+        TimeValue maxTime = TimeValue.timeValueMillis(200);
+        int maxIterations = 10000;
+        List<ListenableActionFuture<Void>> futures = new ArrayList<>();
+        for (Driver driver : drivers) {
+            futures.add(schedule(maxTime, maxIterations, executor, driver));
+        }
+        return allOf(futures);
+    }
+
+    private static ListenableActionFuture<Void> allOf(List<ListenableActionFuture<Void>> futures) {
+        if (futures.isEmpty()) {
+            return Operator.NOT_BLOCKED;
+        }
+        if (futures.size() == 1) {
+            return futures.get(0);
+        }
+        ListenableActionFuture<Void> allOf = new ListenableActionFuture<>();
+        for (ListenableActionFuture<Void> fut : futures) {
+            fut.addListener(ActionListener.wrap(ignored -> {
+                if (futures.stream().allMatch(BaseFuture::isDone)) {
+                    allOf.onResponse(null);
+                }
+            }, e -> allOf.onFailure(e)));
+        }
+        return allOf;
+    }
+
+    private ListenableActionFuture<Void> schedule(TimeValue maxTime, int maxIterations, Executor executor, Driver driver) {
+        ListenableActionFuture<Void> future = new ListenableActionFuture<>();
+        executor.execute(new ActionRunnable<>(future) {
+            @Override
+            protected void doRun() {
+                if (driver.isFinished()) {
+                    future.onResponse(null);
+                    return;
+                }
+                ListenableActionFuture<Void> fut = driver.run(maxTime, maxIterations);
+                if (fut.isDone()) {
+                    schedule(maxTime, maxIterations, executor, driver).addListener(future);
+                } else {
+                    fut.addListener(
+                        ActionListener.wrap(
+                            ignored -> schedule(maxTime, maxIterations, executor, driver).addListener(future),
+                            e -> future.onFailure(e)
+                        )
+                    );
+                }
+            }
+        });
+        return future;
     }
 
     /**

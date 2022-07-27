@@ -106,7 +106,15 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
         assignment.selectRandomStartedNodeWeighedOnAllocations().ifPresentOrElse(node -> {
             logger.trace(() -> format("[%s] selected node [%s]", assignment.getModelId(), node));
             request.setNodes(node);
-            super.doExecute(task, request, listener);
+            long start = System.currentTimeMillis();
+            super.doExecute(
+                task,
+                request,
+                ActionListener.wrap(r -> {
+                    r.setTookMillis(System.currentTimeMillis() - start);
+                    listener.onResponse(r);
+                }, listener::onFailure)
+            );
         }, () -> {
             logger.trace(() -> format("[%s] model not allocated to any node [%s]", assignment.getModelId()));
             listener.onFailure(
@@ -152,7 +160,7 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
             request.getInferenceTimeout(),
             actionTask,
             ActionListener.wrap(
-                pyTorchResult -> listener.onResponse(new InferTrainedModelDeploymentAction.Response(pyTorchResult)),
+                pyTorchResult -> listener.onResponse(new InferTrainedModelDeploymentAction.Response(pyTorchResult, 0)),
                 listener::onFailure
             )
         );

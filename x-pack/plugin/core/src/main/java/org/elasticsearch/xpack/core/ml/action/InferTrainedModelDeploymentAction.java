@@ -242,21 +242,25 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
     public static class Response extends BaseTasksResponse implements Writeable, ToXContentObject {
 
         private final InferenceResults results;
+        private long tookMillis;
 
-        public Response(InferenceResults result) {
+        public Response(InferenceResults result, long tookMillis) {
             super(Collections.emptyList(), Collections.emptyList());
             this.results = Objects.requireNonNull(result);
+            this.tookMillis = tookMillis;
         }
 
         public Response(StreamInput in) throws IOException {
             super(in);
             results = in.readNamedWriteable(InferenceResults.class);
+            tookMillis = in.readVLong();
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             results.toXContent(builder, params);
+            builder.field("inference_took", tookMillis);
             builder.endObject();
             return builder;
         }
@@ -265,10 +269,19 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeNamedWriteable(results);
+            out.writeVLong(tookMillis);
         }
 
         public InferenceResults getResults() {
             return results;
+        }
+
+        public long getTookMillis() {
+            return tookMillis;
+        }
+
+        public void setTookMillis(long tookMillis) {
+            this.tookMillis = tookMillis;
         }
     }
 }

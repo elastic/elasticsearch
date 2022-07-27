@@ -1041,11 +1041,6 @@ public final class KeywordFieldMapper extends FieldMapper {
         if (hasScript()) {
             return SourceLoader.SyntheticFieldLoader.NOTHING;
         }
-        if (hasDocValues == false) {
-            throw new IllegalArgumentException(
-                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it doesn't have doc values"
-            );
-        }
         if (fieldType().ignoreAbove() != Defaults.IGNORE_ABOVE) {
             throw new IllegalArgumentException(
                 "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares ignore_above"
@@ -1059,6 +1054,23 @@ public final class KeywordFieldMapper extends FieldMapper {
         if (hasNormalizer()) {
             throw new IllegalArgumentException(
                 "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares a normalizer"
+            );
+        }
+        if (fieldType.stored()) {
+            return new KeywordFieldMapper.StoredFieldFieldLoader(name(), simpleName()) {
+                @Override protected void writeValue(XContentBuilder b, Object v) throws IOException {
+                    BytesRef ref = (BytesRef) v;
+                    b.utf8Value(ref.bytes, ref.offset, ref.length);
+                }
+            };
+        }
+        if (hasDocValues == false) {
+            throw new IllegalArgumentException(
+                "field ["
+                    + name()
+                    + "] of type ["
+                    + typeName()
+                    + "] doesn't support synthetic source because it doesn't have doc values and isn't stored"
             );
         }
         return new SortedSetDocValuesFieldLoader(name(), simpleName) {
@@ -1251,7 +1263,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         protected abstract BytesRef preserve(BytesRef value);
     }
 
-    public static class StoredFieldFieldLoader implements SourceLoader.SyntheticFieldLoader {
+    public abstract static class StoredFieldFieldLoader implements SourceLoader.SyntheticFieldLoader {
         private final String name;
         private final String simpleName;
 
@@ -1260,14 +1272,18 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.simpleName = simpleName;
         }
 
+        protected abstract void writeValue(XContentBuilder b, Object v) throws IOException;
+
         @Override
-        public Stream<String> requiredStoredFields() {
+        public final Stream<String> requiredStoredFields() {
             return Stream.of(name);
         }
 
         @Override
-        public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException {
+        public final Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException {
             return new SourceLoader.SyntheticFieldLoader.Leaf() {
+                List<Object> values = null;
+
                 @Override
                 public boolean empty() {
                     return false; // TODO this could be quite inefficient if there are many of these
@@ -1275,20 +1291,23 @@ public final class KeywordFieldMapper extends FieldMapper {
 
                 @Override
                 public boolean advanceToDoc(FieldsVisitor fieldsVisitor, int docId) throws IOException {
-                    return fieldsVisitor.fields().containsKey(name);
+                    values = fieldsVisitor.fields().get(name);
+                    return values != null && false == values.isEmpty();
                 }
 
                 @Override
                 public void write(FieldsVisitor fieldsVisitor, XContentBuilder b) throws IOException {
-                    List<Object> values = fieldsVisitor.fields().get(name);
-                    assert values.isEmpty() == false;
+                    if (values == null || values.isEmpty()) {
+                        return;
+                    }
                     if (values.size() == 1) {
-                        b.field(simpleName, (String) values.get(0));
+                        b.field(simpleName);
+                        writeValue(b, values.get(0));
                         return;
                     }
                     b.startArray(simpleName);
                     for (Object value : values) {
-                        b.value((String) value);
+                        writeValue(b, value);
                     }
                     b.endArray();
                 }

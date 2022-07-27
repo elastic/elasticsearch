@@ -8,6 +8,8 @@
 
 package org.elasticsearch.index.mapper;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.LowerCaseFilter;
@@ -57,6 +59,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
+@Repeat(iterations=100)
 public class KeywordFieldMapperTests extends MapperTestCase {
     /**
      * Creates a copy of the lowercase token filter which we use for testing merge errors.
@@ -623,7 +626,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
-        return new KeywordSyntheticSourceSupport(false, usually() ? null : randomAlphaOfLength(2));
+        return new KeywordSyntheticSourceSupport(randomBoolean(), usually() ? null : randomAlphaOfLength(2));
     }
 
     static class KeywordSyntheticSourceSupport implements SyntheticSourceSupport {
@@ -672,7 +675,9 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
             return List.of(
                 new SyntheticSourceInvalidExample(
-                    equalTo("field [field] of type [keyword] doesn't support synthetic source because it doesn't have doc values"),
+                    equalTo(
+                        "field [field] of type [keyword] doesn't support synthetic source because it doesn't have doc values and isn't stored"
+                    ),
                     b -> b.field("type", "keyword").field("doc_values", false)
                 ),
                 new SyntheticSourceInvalidExample(

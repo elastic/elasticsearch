@@ -34,6 +34,8 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
+import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.script.Script;
@@ -63,6 +65,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static java.util.stream.Collectors.toList;
+import static java.util.stream.Collectors.toSet;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -829,11 +832,17 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
                 int i = 0;
                 SourceLoader loader = mapper.sourceMapper().newSourceLoader(mapper.mapping());
+                Set<String> fields = loader.requiredStoredFields().collect(toSet());
+                FieldsVisitor visitor = fields.isEmpty() ? null : new CustomFieldsVisitor(fields, false);
                 for (LeafReaderContext leaf : reader.leaves()) {
                     int[] docIds = IntStream.range(0, leaf.reader().maxDoc()).toArray();
                     SourceLoader.Leaf sourceLoaderLeaf = loader.leaf(leaf.reader(), docIds);
                     for (int docId : docIds) {
-                        assertThat("doc " + docId, sourceLoaderLeaf.source(null, docId).utf8ToString(), equalTo(expected[i++]));
+                        if (visitor != null) {
+                            visitor.reset();
+                            leaf.reader().document(docId, visitor);
+                        }
+                        assertThat("doc " + docId, sourceLoaderLeaf.source(visitor, docId).utf8ToString(), equalTo(expected[i++]));
                     }
                 }
             }

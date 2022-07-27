@@ -30,6 +30,7 @@ import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
@@ -305,6 +306,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
     }
 
     private static FieldsVisitor buildFieldsVisitors(String[] fields, FetchSourceContext fetchSourceContext, SourceLoader loader) {
+        LogManager.getLogger(ShardGetService.class).error("ASDFDAFAF loading {}", loader.requiredStoredFields().toList());
         if (fields != null && fields.length > 0) {
             Set<String> fieldsToLoad = new HashSet<>();
             Collections.addAll(fieldsToLoad, fields);

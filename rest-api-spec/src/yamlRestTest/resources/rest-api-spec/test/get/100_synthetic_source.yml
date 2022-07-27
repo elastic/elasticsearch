@@ -180,7 +180,7 @@ stored text:
         body:
           mappings:
             _source:
-              synthetic: true
+              mode: synthetic
             properties:
               text:
                 type: text

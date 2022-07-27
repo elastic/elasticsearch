@@ -132,27 +132,7 @@ public class CircuitBreakerTests extends ESTestCase {
 
     public void testCircuitBreakerTumblingWindow() {
         QueryClient client = new TestQueryClient();
-        List<Criterion<BoxedQueryRequest>> criteria = new ArrayList<>(stages);
-
-        for (int i = 0; i < stages; i++) {
-            final int j = i;
-            criteria.add(
-                new Criterion<>(
-                    i,
-                    new BoxedQueryRequest(
-                        () -> SearchSourceBuilder.searchSource().size(10).query(matchAllQuery()).terminateAfter(j),
-                        "@timestamp",
-                        emptyList(),
-                        emptySet()
-                    ),
-                    keyExtractors,
-                    tsExtractor,
-                    null,
-                    implicitTbExtractor,
-                    false
-                )
-            );
-        }
+        List<Criterion<BoxedQueryRequest>> criteria = buildCriteria(stages);
 
         SequenceMatcher matcher = new SequenceMatcher(stages, false, TimeValue.MINUS_ONE, null, CIRCUIT_BREAKER);
         TumblingWindow window = new TumblingWindow(client, criteria, null, matcher);
@@ -231,73 +211,8 @@ public class CircuitBreakerTests extends ESTestCase {
             ESMockClient esClient = esClientSupplier.apply(service.getBreaker(CIRCUIT_BREAKER_NAME), SEARCH_REQUESTS_EXPECTED_COUNT);
         ) {
             CircuitBreaker eqlCircuitBreaker = service.getBreaker(CIRCUIT_BREAKER_NAME);
-            EqlConfiguration eqlConfiguration = new EqlConfiguration(
-                new String[] { "test" },
-                org.elasticsearch.xpack.ql.util.DateUtils.UTC,
-                "nobody",
-                "cluster",
-                null,
-                emptyMap(),
-                null,
-                TimeValue.timeValueSeconds(30),
-                null,
-                123,
-                "",
-                new TaskId("test", 123),
-                new EqlSearchTask(
-                    randomLong(),
-                    "transport",
-                    EqlSearchAction.NAME,
-                    "",
-                    null,
-                    emptyMap(),
-                    emptyMap(),
-                    new AsyncExecutionId("", new TaskId(randomAlphaOfLength(10), 1)),
-                    TimeValue.timeValueDays(5)
-                ),
-                x -> Collections.emptySet()
-            );
-            IndexResolver indexResolver = new IndexResolver(
-                esClient,
-                "cluster",
-                DefaultDataTypeRegistry.INSTANCE,
-                () -> { return emptySet(); }
-            );
-            EqlSession eqlSession = new EqlSession(
-                esClient,
-                eqlConfiguration,
-                indexResolver,
-                new PreAnalyzer(),
-                new PostAnalyzer(),
-                new EqlFunctionRegistry(),
-                new Verifier(new Metrics()),
-                new Optimizer(),
-                new Planner(),
-                eqlCircuitBreaker
-            );
-            QueryClient eqlClient = new PITAwareQueryClient(eqlSession);
-            List<Criterion<BoxedQueryRequest>> criteria = new ArrayList<>(sequenceFiltersCount);
-
-            for (int i = 0; i < sequenceFiltersCount; i++) {
-                final int j = i;
-                criteria.add(
-                    new Criterion<>(
-                        i,
-                        new BoxedQueryRequest(
-                            () -> SearchSourceBuilder.searchSource().size(10).query(matchAllQuery()).terminateAfter(j),
-                            "@timestamp",
-                            emptyList(),
-                            emptySet()
-                        ),
-                        keyExtractors,
-                        tsExtractor,
-                        null,
-                        implicitTbExtractor,
-                        false
-                    )
-                );
-            }
-
+            QueryClient eqlClient = buildQueryClient(esClient, eqlCircuitBreaker);
+            List<Criterion<BoxedQueryRequest>> criteria = buildCriteria(sequenceFiltersCount);
             SequenceMatcher matcher = new SequenceMatcher(sequenceFiltersCount, false, TimeValue.MINUS_ONE, null, eqlCircuitBreaker);
             TumblingWindow window = new TumblingWindow(eqlClient, criteria, null, matcher);
             window.execute(wrap(p -> {}, ex -> {}));
@@ -306,6 +221,107 @@ public class CircuitBreakerTests extends ESTestCase {
             assertEquals(0, eqlCircuitBreaker.getTrippedCount()); // the circuit breaker shouldn't trip
             assertEquals(0, eqlCircuitBreaker.getUsed()); // the circuit breaker memory should be clear
         }
+    }
+
+    public void testParentCircuitBreakerOnClean() {
+        int sequenceFiltersCount = 2;
+        final int SEARCH_REQUESTS_EXPECTED_COUNT = 2;
+        List<BreakerSettings> eqlBreakerSettings = Collections.singletonList(
+            new BreakerSettings(
+                CIRCUIT_BREAKER_NAME,
+                CIRCUIT_BREAKER_LIMIT,
+                CIRCUIT_BREAKER_OVERHEAD,
+                CircuitBreaker.Type.MEMORY,
+                CircuitBreaker.Durability.TRANSIENT
+            )
+        );
+
+        // let the parent circuit breaker fail, setting its limit to zero
+        Settings settings = Settings.builder().put(HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), 0).build();
+
+        try (
+            CircuitBreakerService service = new HierarchyCircuitBreakerService(
+                settings,
+                eqlBreakerSettings,
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+            );
+            ESMockClient esClient = new SuccessfulESMockClient(service.getBreaker(CIRCUIT_BREAKER_NAME), SEARCH_REQUESTS_EXPECTED_COUNT);
+        ) {
+            CircuitBreaker eqlCircuitBreaker = service.getBreaker(CIRCUIT_BREAKER_NAME);
+            QueryClient eqlClient = buildQueryClient(esClient, eqlCircuitBreaker);
+            List<Criterion<BoxedQueryRequest>> criteria = buildCriteria(sequenceFiltersCount);
+
+            SequenceMatcher matcher = new SequenceMatcher(sequenceFiltersCount, false, TimeValue.MINUS_ONE, null, eqlCircuitBreaker);
+            TumblingWindow window = new TumblingWindow(eqlClient, criteria, null, matcher);
+            window.execute(wrap(p -> fail(), ex -> assertTrue(ex instanceof CircuitBreakingException)));
+        }
+    }
+
+    private List<Criterion<BoxedQueryRequest>> buildCriteria(int sequenceFiltersCount) {
+        List<Criterion<BoxedQueryRequest>> criteria = new ArrayList<>(sequenceFiltersCount);
+        for (int i = 0; i < sequenceFiltersCount; i++) {
+            final int j = i;
+            criteria.add(
+                new Criterion<>(
+                    i,
+                    new BoxedQueryRequest(
+                        () -> SearchSourceBuilder.searchSource().size(10).query(matchAllQuery()).terminateAfter(j),
+                        "@timestamp",
+                        emptyList(),
+                        emptySet()
+                    ),
+                    keyExtractors,
+                    tsExtractor,
+                    null,
+                    implicitTbExtractor,
+                    false
+                )
+            );
+        }
+        return criteria;
+    }
+
+    private QueryClient buildQueryClient(ESMockClient esClient, CircuitBreaker eqlCircuitBreaker) {
+        EqlConfiguration eqlConfiguration = new EqlConfiguration(
+            new String[] { "test" },
+            org.elasticsearch.xpack.ql.util.DateUtils.UTC,
+            "nobody",
+            "cluster",
+            null,
+            emptyMap(),
+            null,
+            TimeValue.timeValueSeconds(30),
+            null,
+            123,
+            "",
+            new TaskId("test", 123),
+            new EqlSearchTask(
+                randomLong(),
+                "transport",
+                EqlSearchAction.NAME,
+                "",
+                null,
+                emptyMap(),
+                emptyMap(),
+                new AsyncExecutionId("", new TaskId(randomAlphaOfLength(10), 1)),
+                TimeValue.timeValueDays(5)
+            ),
+            x -> Collections.emptySet()
+        );
+        IndexResolver indexResolver = new IndexResolver(esClient, "cluster", DefaultDataTypeRegistry.INSTANCE, Collections::emptySet);
+        EqlSession eqlSession = new EqlSession(
+            esClient,
+            eqlConfiguration,
+            indexResolver,
+            new PreAnalyzer(),
+            new PostAnalyzer(),
+            new EqlFunctionRegistry(),
+            new Verifier(new Metrics()),
+            new Optimizer(),
+            new Planner(),
+            eqlCircuitBreaker
+        );
+        return new PITAwareQueryClient(eqlSession);
     }
 
     /**

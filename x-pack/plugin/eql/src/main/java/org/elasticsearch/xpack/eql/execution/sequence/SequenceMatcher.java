@@ -83,9 +83,7 @@ public class SequenceMatcher {
 
     private boolean headLimit = false;
 
-    // ---------- CIRCUIT BREAKER -----------
-
-    private long totalRamBytesUsed = 0;
+    // circuit breaker accounting
     private long prevRamBytesUsedInFlight = 0;
     private long prevRamBytesUsedCompleted = 0;
 
@@ -317,14 +315,17 @@ public class SequenceMatcher {
 
     private void addMemory(long bytes, String label) {
         circuitBreaker.addEstimateBytesAndMaybeBreak(bytes, label);
-        totalRamBytesUsed += bytes;
+        if (CB_COMPLETED_LABEL.equals(label)) {
+            prevRamBytesUsedCompleted += bytes;
+        } else {
+            prevRamBytesUsedInFlight += bytes;
+        }
     }
 
     private void clearCircuitBreaker() {
-        circuitBreaker.addWithoutBreaking(-totalRamBytesUsed);
+        circuitBreaker.addWithoutBreaking(-prevRamBytesUsedInFlight - prevRamBytesUsedCompleted);
         prevRamBytesUsedInFlight = 0;
         prevRamBytesUsedCompleted = 0;
-        totalRamBytesUsed = 0;
     }
 
     // The method is called at the end of match() which is called for every sub query in the sequence query
@@ -333,12 +334,13 @@ public class SequenceMatcher {
     // structure occupy for the in-flight tracking of sequences, as well as for the list of completed
     // sequences.
     private void trackMemory() {
-        long bytesDiff = ramBytesUsedInFlight() - prevRamBytesUsedInFlight;
-        addMemory(bytesDiff, CB_INFLIGHT_LABEL);
-        prevRamBytesUsedInFlight += bytesDiff;
-        bytesDiff = ramBytesUsedCompleted() - prevRamBytesUsedCompleted;
-        addMemory(bytesDiff, CB_COMPLETED_LABEL);
-        prevRamBytesUsedCompleted += bytesDiff;
+        long newRamBytesUsedInFlight = ramBytesUsedInFlight();
+        addMemory(newRamBytesUsedInFlight - prevRamBytesUsedInFlight, CB_INFLIGHT_LABEL);
+        prevRamBytesUsedInFlight = newRamBytesUsedInFlight;
+
+        long newRamBytesUsedCompleted = ramBytesUsedCompleted();
+        addMemory(newRamBytesUsedCompleted - prevRamBytesUsedCompleted, CB_COMPLETED_LABEL);
+        prevRamBytesUsedCompleted = newRamBytesUsedCompleted;
     }
 
     @Override

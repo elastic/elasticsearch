@@ -383,7 +383,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                         explain,
                         localMasterHistory,
                         remoteException,
-                        Map.of(coordinator.getLocalNode().getName(), coordinator.getClusterFormationState().getDescription())
+                        Map.of(coordinator.getLocalNode().getId(), coordinator.getClusterFormationState().getDescription())
                     )
                 );
             }
@@ -394,7 +394,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                 .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().clusterFormationState()));
         Map<String, String> nodeIdToClusterFormationDescription = nodeClusterFormationStateMap.entrySet()
             .stream()
-            .collect(Collectors.toMap(entry -> entry.getKey().getName(), entry -> entry.getValue().getDescription()));
+            .collect(Collectors.toMap(entry -> entry.getKey().getId(), entry -> entry.getValue().getDescription()));
         if (anyNodeInClusterReportsDiscoveryProblems(masterEligibleNodes, nodeClusterFormationStateMap)) {
             result = new CoordinationDiagnosticsResult(
                 CoordinationDiagnosticsStatus.RED,
@@ -525,7 +525,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
             explain,
             localMasterHistory,
             null,
-            Map.of(coordinator.getLocalNode().getName(), coordinator.getClusterFormationState().getDescription())
+            Map.of(coordinator.getLocalNode().getId(), coordinator.getClusterFormationState().getDescription())
         );
         return new CoordinationDiagnosticsResult(CoordinationDiagnosticsStatus.RED, summary, details);
     }
@@ -555,7 +555,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
             explain,
             localMasterHistory,
             null,
-            Map.of(coordinator.getLocalNode().getName(), coordinator.getClusterFormationState().getDescription())
+            Map.of(coordinator.getLocalNode().getId(), coordinator.getClusterFormationState().getDescription())
         );
         return new CoordinationDiagnosticsResult(CoordinationDiagnosticsStatus.RED, summary, details);
     }

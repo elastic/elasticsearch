@@ -46,6 +46,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -69,8 +70,13 @@ import static org.hamcrest.Matchers.equalTo;
  * Tests relating to the loss of the master, but which work with the default fault detection settings which are rather lenient and will
  * not detect a master failure too quickly.
  */
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, autoManageMasterNodes = false)
 public class StableMasterDisruptionIT extends ESIntegTestCase {
+
+    @Before
+    private void setBootstrapMasterNodeIndex() {
+        internalCluster().setBootstrapMasterNodeIndex(0);
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -133,7 +139,7 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
             assertThat(debugInformation, healthResponse.getStatus(), equalTo(expectedStatus));
             assertThat(
                 debugInformation,
-                healthResponse.findComponent("cluster_coordination").findIndicator("master_is_stable").summary(),
+                healthResponse.findIndicator("master_is_stable").symptom(),
                 containsString(expectedSummarySubstring)
             );
         });
@@ -317,11 +323,11 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
     /**
      * This helper method creates a 3-node cluster where all nodes are master-eligible, and then simulates a long GC on the master node 5
      * times (forcing another node to be elected master 5 times). It then asserts that the master stability health indicator status is
-     * YELLOW, and that expectedMasterStabilitySummarySubstring is contained in the summary.
-     * @param expectedMasterStabilitySummarySubstring A string to expect in the master stability health indictor summary
+     * YELLOW, and that expectedMasterStabilitySymptomSubstring is contained in the symptom.
+     * @param expectedMasterStabilitySymptomSubstring A string to expect in the master stability health indicator symptom
      * @throws Exception
      */
-    public void testRepeatedMasterChanges(String expectedMasterStabilitySummarySubstring) throws Exception {
+    public void testRepeatedMasterChanges(String expectedMasterStabilitySymptomSubstring) throws Exception {
         final List<String> nodes = internalCluster().startNodes(
             3,
             Settings.builder()
@@ -407,7 +413,7 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
          * other node(s) were master, it only saw itself as master. So we want to check with another node.
          */
         Client client = internalCluster().client(randomFrom(nodeNamesExceptFirstMaster));
-        assertMasterStability(client, HealthStatus.YELLOW, expectedMasterStabilitySummarySubstring);
+        assertMasterStability(client, HealthStatus.YELLOW, expectedMasterStabilitySymptomSubstring);
     }
 
     public void testRepeatedNullMasterRecognizedAsGreenIfMasterDoesNotKnowItIsUnstable() throws Exception {
@@ -559,5 +565,52 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
             HealthStatus.RED,
             "has been elected master, but the node being queried"
         );
+    }
+
+    public void testNoQuorum() throws Exception {
+        /*
+         * In this test we have three master-eligible nodes. We make it so that the two non-active ones cannot communicate, and then we
+         * stop the active master node. Now there is no quorum so a new master cannot be elected. We set the master lookup threshold very
+         * low on the data nodes, so when we run the master stability check on each of the master nodes, it will see that there has been no
+         * master recently and because there is no quorum, so it returns a RED status.
+         */
+        final List<String> masterNodes = internalCluster().startMasterOnlyNodes(
+            3,
+            Settings.builder()
+                .put(LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING.getKey(), "1s")
+                .put(Coordinator.PUBLISH_TIMEOUT_SETTING.getKey(), "1s")
+                .put(CoordinationDiagnosticsService.NO_MASTER_TRANSITIONS_THRESHOLD_SETTING.getKey(), 1)
+                .put(ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.getKey(), TimeValue.ZERO)
+                .put(CoordinationDiagnosticsService.NODE_HAS_MASTER_LOOKUP_TIMEFRAME_SETTING.getKey(), new TimeValue(1, TimeUnit.SECONDS))
+                .build()
+        );
+        final List<String> dataNodes = internalCluster().startDataOnlyNodes(
+            2,
+            Settings.builder()
+                .put(LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING.getKey(), "1s")
+                .put(Coordinator.PUBLISH_TIMEOUT_SETTING.getKey(), "1s")
+                .put(CoordinationDiagnosticsService.NO_MASTER_TRANSITIONS_THRESHOLD_SETTING.getKey(), 1)
+                .put(ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.getKey(), TimeValue.ZERO)
+                .put(CoordinationDiagnosticsService.NODE_HAS_MASTER_LOOKUP_TIMEFRAME_SETTING.getKey(), new TimeValue(1, TimeUnit.SECONDS))
+                .build()
+        );
+        ensureStableCluster(5);
+        String firstMasterNode = internalCluster().getMasterName();
+        List<String> nonActiveMasterNodes = masterNodes.stream().filter(nodeName -> firstMasterNode.equals(nodeName) == false).toList();
+        NetworkDisruption networkDisconnect = new NetworkDisruption(
+            new NetworkDisruption.TwoPartitions(
+                Set.of(nonActiveMasterNodes.get(0), dataNodes.get(0)),
+                Set.of(nonActiveMasterNodes.get(1), dataNodes.get(1))
+            ),
+            NetworkDisruption.UNRESPONSIVE
+        );
+
+        internalCluster().clearDisruptionScheme();
+        setDisruptionScheme(networkDisconnect);
+        networkDisconnect.startDisrupting();
+        internalCluster().stopNode(firstMasterNode);
+        for (String nonActiveMasterNode : nonActiveMasterNodes) {
+            assertMasterStability(internalCluster().client(nonActiveMasterNode), HealthStatus.RED, "unable to form a quorum");
+        }
     }
 }

@@ -76,7 +76,7 @@ public class TransportGetJobModelSnapshotsUpgradeStatsAction extends TransportMa
         logger.debug(() -> format("[%s] get stats for model snapshot [%s] upgrades", request.getJobId(), request.getSnapshotId()));
         final PersistentTasksCustomMetadata tasksInProgress = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         final Collection<PersistentTasksCustomMetadata.PersistentTask<?>> snapshotUpgrades = MlTasks.snapshotUpgradeTasks(tasksInProgress);
-        final TaskId parentTaskId = new TaskId(clusterService.getNodeName(), task.getId());
+        final TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
 
         // 2. Now that we have the job IDs, find the relevant model snapshot upgrades
         ActionListener<List<Job.Builder>> expandIdsListener = ActionListener.wrap(jobs -> {

@@ -37,7 +37,7 @@ public class CtxMap extends AbstractMap<String, Object> {
      * @param source the source document map
      * @param metadata the metadata map
      */
-    public CtxMap(Map<String, Object> source, Metadata metadata) {
+    protected CtxMap(Map<String, Object> source, Metadata metadata) {
         this.source = source;
         this.metadata = metadata;
         Set<String> badKeys = Sets.intersection(this.metadata.keySet(), this.source.keySet());

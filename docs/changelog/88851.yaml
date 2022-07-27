@@ -2,4 +2,5 @@ pr: 88851
 summary: Discard intermediate node results when a request is cancelled
 area: Stats
 type: bug
-issues: []
+issues: 
+  - 82337

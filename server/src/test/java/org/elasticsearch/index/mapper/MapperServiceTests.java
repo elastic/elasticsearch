@@ -402,7 +402,16 @@ public class MapperServiceTests extends MapperServiceTestCase {
 
         IndexMetadata indexMetadata = indexMetadataWithMapping("""
             {"_doc" :
-                {"properties":{"field":{"type":"date","format":"strictDateOptionalTime","store":"true"}}}
+                {
+                    "properties":{
+                        "field":{"type":"date","format":"strictDateOptionalTime","store":"true"},
+                        "other_field":{"type":"keyword"}
+                    },
+                    "runtime" : {
+                        "object1.subfield1" : { "type" : "keyword" },
+                        "object2.subfield2" : { "type" : "keyword" }
+                    }
+                }
             }""");
 
         assertThat(indexMetadata.mapping().source().string(), containsString("\"format\":\"strictDateOptionalTime\""));
@@ -433,6 +442,38 @@ public class MapperServiceTests extends MapperServiceTestCase {
 
         remapped = mapperServiceOldIndex.mergeAndUpgrade(indexMetadataNoFormat, MergeReason.MAPPING_RECOVERY);
         assertTrue(remapped == indexMetadataNoFormat);
+
+        var nestedMappingSource = new CompressedXContent(BytesReference.bytes(mapping(b -> {
+            b.startObject("nested");
+            {
+                b.field("type", "nested");
+                b.startObject("properties");
+                {
+                    b.startObject("field3");
+                    {
+                        b.field("type", "date");
+                        b.field("format", "strictDateOptionalTime");
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }))).string();
+
+        IndexMetadata indexMetadataNestedMapping = indexMetadataWithMapping(nestedMappingSource);
+        remapped = mapperServiceOldIndex.mergeAndUpgrade(indexMetadataNestedMapping, MergeReason.MAPPING_RECOVERY);
+
+        assertTrue(remapped != indexMetadataNoFormat);
+        assertThat(remapped.mapping().source().string(), containsString("\"format\":\"strict_date_optional_time\""));
+
+        IndexMetadata indexMetadataRuntime = indexMetadataWithMapping("""
+            {"_doc":{"dynamic":"runtime","runtime":{"field2":{"type":"date","format":"strictDateOptionalTime"}}}}""");
+
+        remapped = mapperServiceOldIndex.mergeAndUpgrade(indexMetadataRuntime, MergeReason.MAPPING_RECOVERY);
+
+        assertTrue(remapped != indexMetadataRuntime);
+        assertThat(remapped.mapping().source().string(), containsString("\"format\":\"strict_date_optional_time\""));
     }
 
 }

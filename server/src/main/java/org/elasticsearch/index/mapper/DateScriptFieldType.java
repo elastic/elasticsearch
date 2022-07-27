@@ -12,8 +12,10 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
+import org.elasticsearch.common.time.LegacyFormatNames;
 import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.fielddata.DateScriptFieldData;
@@ -51,6 +53,7 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
         private final FieldMapper.Parameter<String> format = FieldMapper.Parameter.stringParam(
             "format",
             true,
+            (n, c, o) -> LegacyFormatNames.camelCaseToSnakeCase(XContentMapValues.nodeStringValue(o)),
             RuntimeField.initializerNotSupported(),
             null,
             (b, n, v) -> {

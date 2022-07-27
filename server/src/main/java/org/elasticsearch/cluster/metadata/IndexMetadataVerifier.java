@@ -90,7 +90,7 @@ public class IndexMetadataVerifier {
         // Next we have to run this otherwise if we try to create IndexSettings
         // with broken settings it would fail in checkMappingsCompatibility
         newMetadata = archiveBrokenIndexSettings(newMetadata);
-        newMetadata = checkMappingsCompatibility(newMetadata);
+        newMetadata = checkAndUpdateMappingsCompatibility(newMetadata);
         return newMetadata;
     }
 
@@ -118,7 +118,7 @@ public class IndexMetadataVerifier {
     }
 
     /**
-     * Check that we can parse the mappings.
+     * Check that we can parse the mappings and update mapping metadata if needed.
      *
      * This is not strictly necessary, since we parse the mappings later when loading the index and will
      * catch issues then. But it lets us fail very quickly and clearly: if there is a mapping incompatibility,
@@ -128,7 +128,7 @@ public class IndexMetadataVerifier {
      * policy guarantees we can read mappings from previous compatible index versions. A failure here would
      * indicate a compatibility bug (which are unfortunately not that uncommon).
      */
-    private IndexMetadata checkMappingsCompatibility(IndexMetadata indexMetadata) {
+    private IndexMetadata checkAndUpdateMappingsCompatibility(IndexMetadata indexMetadata) {
         try {
 
             // We cannot instantiate real analysis server or similarity service at this point because the node

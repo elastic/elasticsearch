@@ -272,7 +272,7 @@ public final class DateFieldMapper extends FieldMapper {
                 ? DEFAULT_DATE_TIME_FORMATTER
                 : DEFAULT_DATE_TIME_NANOS_FORMATTER;
 
-            if (indexCreatedVersion.major <= Version.CURRENT.previousMajor().major) {
+            if (indexCreatedVersion.major <= Version.V_8_0_0.previousMajor().major) {
                 this.format = Parameter.stringParam(
                     "format",
                     indexCreatedVersion.isLegacyIndexVersion(),

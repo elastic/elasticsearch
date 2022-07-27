@@ -20,25 +20,47 @@ import java.util.Map;
  */
 public class MapperServiceUpgraders {
     @SuppressWarnings("unchecked")
-    // package private for testing
-    static Map<String, Object> getMappingProperties(Map<String, Object> mappingMap, String type) {
+    private static Map<String, Object> getMappingsForType(Map<String, Object> mappingMap, String type) {
         // Check for MappingMap without type and ignore it
         if (mappingMap.size() != 1) {
             return null;
         }
         // Fetch the mappings for the encoded type
-        Map<String, Object> mappingType = (Map<String, Object>) mappingMap.get(type);
-        if (mappingType == null) {
-            return null;
+        return (Map<String, Object>) mappingMap.get(type);
+    }
+
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    private static boolean upgradeDateFormatProperties(Map<String, Object> properties, Map<String, Object> parsedProperties) {
+        boolean anyChanges = false;
+
+        if (properties != null && parsedProperties != null) {
+            for (var property : properties.entrySet()) {
+                if (property.getValue()instanceof Map map) {
+                    var parsedProperty = parsedProperties.get(property.getKey());
+                    if (parsedProperty instanceof Map parsedMap) {
+                        Object format = map.get("format");
+                        if (format != null) {
+                            Object parsedFormat = parsedMap.get("format");
+                            if (parsedFormat != null && parsedFormat.equals(format) == false) {
+                                map.put("format", parsedFormat);
+                                anyChanges = true;
+                            }
+                        } else {
+                            var anyNestedChanges = upgradeDateFormatProperties(map, parsedMap);
+                            anyChanges = anyChanges || anyNestedChanges;
+                        }
+                    }
+                }
+            }
         }
 
-        return (Map<String, Object>) mappingType.get("properties");
+        return anyChanges;
     }
 
     /**
-     * Upgrades the format field of mapping properties
+     * Upgrades the date format field of mapping properties
      * <p>
-     * This method checks is the new mapping source has a different format than the original mapping, and if it
+     * This method checks if the new mapping source has a different format than the original mapping, and if it
      * does, then it returns the original mapping source with updated format field. We cannot simply replace the
      * MappingMetadata mappingSource with the new parsedSource, because the parsed source contains additional
      * properties which cannot be serialized and reread.
@@ -47,27 +69,29 @@ public class MapperServiceUpgraders {
      * @param parsedSource the mapping source as it was parsed
      */
     @SuppressWarnings({ "unchecked", "rawtypes" })
-    public static CompressedXContent upgradeFormatsIfNeeded(MappingMetadata mappingMetadata, CompressedXContent parsedSource) {
+    public static CompressedXContent upgradeDateFormatsIfNeeded(MappingMetadata mappingMetadata, CompressedXContent parsedSource) {
         Map<String, Object> sourceMap = mappingMetadata.rawSourceAsMap();
         Map<String, Object> newMap = XContentHelper.convertToMap(parsedSource.compressedReference(), true).v2();
 
-        Map<String, Object> properties = getMappingProperties(sourceMap, mappingMetadata.type());
-        Map<String, Object> parsedProperties = getMappingProperties(newMap, mappingMetadata.type());
-        if (properties != null && parsedProperties != null) {
-            for (var property : properties.entrySet()) {
-                if (property.getValue()instanceof Map map) {
-                    Object format = map.get("format");
-                    if (format != null) {
-                        var newProperty = parsedProperties.get(property.getKey());
-                        if (newProperty instanceof Map parsedMap) {
-                            Object parsedFormat = parsedMap.get("format");
-                            if (parsedFormat != null && parsedFormat.equals(format) == false) {
-                                map.put("format", parsedFormat);
-                            }
-                        }
-                    }
-                }
-            }
+        Map<String, Object> mappings = getMappingsForType(sourceMap, mappingMetadata.type());
+        Map<String, Object> parsedMappings = getMappingsForType(newMap, mappingMetadata.type());
+
+        if (mappings == null || parsedMappings == null) {
+            return mappingMetadata.source();
+        }
+
+        boolean anyPropertiesChanges = upgradeDateFormatProperties(
+            (Map<String, Object>) mappings.get("properties"),
+            (Map<String, Object>) parsedMappings.get("properties")
+        );
+
+        boolean anyRuntimeChanges = upgradeDateFormatProperties(
+            (Map<String, Object>) mappings.get("runtime"),
+            (Map<String, Object>) parsedMappings.get("runtime")
+        );
+
+        if (anyRuntimeChanges == false && anyPropertiesChanges == false) {
+            return mappingMetadata.source();
         }
 
         try {

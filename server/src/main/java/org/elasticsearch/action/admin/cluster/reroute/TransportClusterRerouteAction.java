@@ -17,9 +17,10 @@ import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresAction;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresRequest;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
-import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateAckListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -27,7 +28,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
-import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener;
 import org.elasticsearch.cluster.routing.allocation.command.AbstractAllocateAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommand;
@@ -36,6 +36,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -44,6 +45,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
 public class TransportClusterRerouteAction extends TransportMasterNodeAction<ClusterRerouteRequest, ClusterRerouteResponse> {
 
@@ -176,14 +179,12 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
         clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
-    static class ClusterRerouteResponseAckedClusterStateUpdateTask extends AckedClusterStateUpdateTask {
+    static class ClusterRerouteResponseAckedClusterStateUpdateTask extends ClusterStateUpdateTask implements ClusterStateAckListener {
 
         private final ClusterRerouteRequest request;
-        private final AllocationActionListener<ClusterRerouteResponse> listener;
+        private final Listener listener;
         private final Logger logger;
         private final AllocationService allocationService;
-        private volatile ClusterState clusterStateToSend;
-        private volatile RoutingExplanations explanations;
 
         ClusterRerouteResponseAckedClusterStateUpdateTask(
             Logger logger,
@@ -191,31 +192,42 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
             ClusterRerouteRequest request,
             ActionListener<ClusterRerouteResponse> listener
         ) {
-            super(Priority.IMMEDIATE, request, listener);
+            super(Priority.IMMEDIATE);
             this.request = request;
-            this.listener = new AllocationActionListener<>(listener);
+            this.listener = new Listener(listener);
             this.logger = logger;
             this.allocationService = allocationService;
         }
 
         @Override
-        protected ClusterRerouteResponse newResponse(boolean acknowledged) {
-            //TODO make sure explanations are present when this is created
-            if (explanations == null) {
-                explanations = new RoutingExplanations();
-            }
-            return new ClusterRerouteResponse(acknowledged, clusterStateToSend, explanations);
+        public boolean mustAck(DiscoveryNode discoveryNode) {
+            return true;
+        }
+
+        @Override
+        public void onAllNodesAcked() {
+            listener.state().onResponse(AcknowledgedResponse.TRUE);
+        }
+
+        @Override
+        public void onAckFailure(Exception e) {
+            listener.state().onResponse(AcknowledgedResponse.FALSE);
         }
 
         @Override
         public void onAckTimeout() {
-            listener.clusterStateUpdate().onResponse(new ClusterRerouteResponse(false, clusterStateToSend, new RoutingExplanations()));
+            listener.delegate.onResponse(new ClusterRerouteResponse(false, listener.clusterState, new RoutingExplanations()));
         }
 
         @Override
         public void onFailure(Exception e) {
             logger.debug("failed to perform [" + TASK_SOURCE + "]", e);
-            super.onFailure(e);
+            listener.delegate.onFailure(e);
+        }
+
+        @Override
+        public TimeValue ackTimeout() {
+            return request.ackTimeout();
         }
 
         @Override
@@ -225,11 +237,70 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
                 request.getCommands(),
                 request.explain(),
                 request.isRetryFailed(),
-                explanations -> this.explanations = explanations,
+                listener.explanations(),
                 listener.reroute()
             );
-            clusterStateToSend = newClusterState;
+            listener.setClusterState(newClusterState);
             return request.dryRun() ? currentState : newClusterState;
+        }
+    }
+
+    private static final class Listener {
+
+        private final ActionListener<ClusterRerouteResponse> delegate;
+        private final AtomicInteger components = new AtomicInteger(3);
+        private volatile boolean acked;
+        private volatile ClusterState clusterState;
+        private volatile RoutingExplanations explanations;
+
+        private Listener(ActionListener<ClusterRerouteResponse> delegate) {
+            this.delegate = delegate;
+        }
+
+        private void setClusterState(ClusterState clusterState) {
+            this.clusterState = clusterState;
+        }
+
+        private ActionListener<AcknowledgedResponse> state() {
+            return new ActionListener<>() {
+                @Override
+                public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                    Listener.this.acked = acknowledgedResponse.isAcknowledged();
+                    triggerDelegateIfReady();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    delegate.onFailure(e);
+                }
+            };
+        }
+
+        private Consumer<RoutingExplanations> explanations() {
+            return explanations -> {
+                Listener.this.explanations = explanations;
+                triggerDelegateIfReady();
+            };
+        }
+
+        private ActionListener<Void> reroute() {
+            return new ActionListener<>() {
+                @Override
+                public void onResponse(Void unused) {
+                    triggerDelegateIfReady();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    delegate.onFailure(e);
+                }
+            };
+        }
+
+        private void triggerDelegateIfReady() {
+            if (components.decrementAndGet() == 0) {
+                delegate.onResponse(new ClusterRerouteResponse(acked, clusterState, explanations));
+            }
         }
     }
 }

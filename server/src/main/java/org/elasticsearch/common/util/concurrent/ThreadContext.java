@@ -183,6 +183,13 @@ public final class ThreadContext implements Writeable {
         return () -> threadLocal.set(context);
     }
 
+    public boolean hasTraceContext() {
+        final ThreadContextStruct context = threadLocal.get();
+        return context.requestHeaders.containsKey(Task.TRACE_PARENT_HTTP_HEADER) ||
+            context.requestHeaders.containsKey(Task.TRACE_STATE) ||
+            context.transientHeaders.containsKey(Task.APM_TRACE_CONTEXT);
+    }
+
     /**
      * When using a {@link org.elasticsearch.tracing.Tracer}, sometimes you need to start a span completely unrelated
      * to any current span. In order to avoid any parent/child relationship being created, this method creates a new

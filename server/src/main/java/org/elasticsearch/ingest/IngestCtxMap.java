@@ -56,6 +56,9 @@ class IngestCtxMap extends CtxMap {
         super(source, metadata);
     }
 
+    /**
+     * In ingest, all non-metadata keys are source keys, so the {@link #source} map is accessed directly from ctx.
+     */
     @Override
     protected boolean directSourceAccess() {
         return true;

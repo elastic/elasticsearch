@@ -50,6 +50,12 @@ public class CtxMap extends AbstractMap<String, Object> {
         }
     }
 
+    /**
+     * Does this access to the internal {@link #source} map occur directly via ctx? ie {@code ctx['myField']}.
+     * Or does it occur via the {@link #SOURCE} key? ie {@code ctx['_source']['myField']}.
+     *
+     * Defaults to indirect, {@code ctx['_source']}
+     */
     protected boolean directSourceAccess() {
         return false;
     }

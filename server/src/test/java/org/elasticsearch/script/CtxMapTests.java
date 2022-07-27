@@ -53,9 +53,15 @@ public class CtxMapTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> map.put("_source", List.of(1, 2, "buckle my shoe"))
         );
-        assertThat(err.getMessage(), containsString("Expected [_source] to be a Map, not [[1, 2, buckle my shoe]] with type [java.util.ImmutableCollections$ListN]"));
+        assertThat(
+            err.getMessage(),
+            containsString("Expected [_source] to be a Map, not [[1, 2, buckle my shoe]] with type [java.util.ImmutableCollections$ListN]")
+        );
         err = expectThrows(IllegalArgumentException.class, () -> sourceEntry().setValue(List.of(1, 2, "buckle my shoe")));
-        assertThat(err.getMessage(), containsString("Expected [_source] to be a Map, not [[1, 2, buckle my shoe]] with type [java.util.ImmutableCollections$ListN]"));
+        assertThat(
+            err.getMessage(),
+            containsString("Expected [_source] to be a Map, not [[1, 2, buckle my shoe]] with type [java.util.ImmutableCollections$ListN]")
+        );
     }
 
     protected Map.Entry<String, Object> sourceEntry() {

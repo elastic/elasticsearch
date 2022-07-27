@@ -97,7 +97,14 @@ public class CtxMap<T extends Metadata> extends AbstractMap<String, Object> {
 
     private Object replaceSource(Object value) {
         if (value instanceof Map == false) {
-            throw new IllegalArgumentException("Expected [" + SOURCE + "] to be a Map, not [" + value + "]" + (value != null ? " with type [" + value.getClass().getName() +"]" : ""));
+            throw new IllegalArgumentException(
+                "Expected ["
+                    + SOURCE
+                    + "] to be a Map, not ["
+                    + value
+                    + "]"
+                    + (value != null ? " with type [" + value.getClass().getName() + "]" : "")
+            );
         }
         var oldSource = source;
         source = castSourceMap(value);

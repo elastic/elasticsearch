@@ -92,12 +92,20 @@ public class CtxMap extends AbstractMap<String, Object> {
         } else if (SOURCE.equals(key)) {
             return replaceSource(value);
         }
-        throw new IllegalArgumentException("Cannot put key " + key + " into ctx");
+        throw new IllegalArgumentException("Cannot put key [" + key + "] with value [" + value + "] into ctx");
     }
 
     private Object replaceSource(Object value) {
         if (value instanceof Map == false) {
-            throw new IllegalArgumentException("Cannot set _source to non map");
+            throw new IllegalArgumentException(
+                "Expected ["
+                    + SOURCE
+                    + "] to be a Map, not ["
+                    + value
+                    + "]"
+                    + (value != null ? " with type [" + value.getClass().getName() + "]" : "")
+            );
+
         }
         var oldSource = source;
         source = castSourceMap(value);
@@ -261,7 +269,13 @@ public class CtxMap extends AbstractMap<String, Object> {
                 throw new IllegalStateException();
             }
             if (sourceCur) {
-                sourceIter.remove();
+                try {
+                    sourceIter.remove();
+                } catch (UnsupportedOperationException e) {
+                    // UnsupportedOperationException's message is "remove", rethrowing with more helpful message
+                    throw new UnsupportedOperationException("Cannot remove key [" + cur.getKey() + "] from ctx");
+                }
+
             } else {
                 metadata.remove(cur.getKey());
             }

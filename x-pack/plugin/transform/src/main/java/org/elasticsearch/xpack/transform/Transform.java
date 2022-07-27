@@ -48,6 +48,7 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.NamedXContentRegistry.Entry;
@@ -148,12 +149,12 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         Setting.Property.Dynamic
     );
 
-    public static final TimeValue DEFAULT_SCHEDULER_FREQUENCY = TimeValue.timeValueMillis(500);
+    public static final TimeValue DEFAULT_SCHEDULER_FREQUENCY = TimeValue.timeValueSeconds(1);
     // How often does the transform scheduler process the tasks
     public static final Setting<TimeValue> SCHEDULER_FREQUENCY = Setting.timeSetting(
         "xpack.transform.transform_scheduler_frequency",
         DEFAULT_SCHEDULER_FREQUENCY,
-        TimeValue.timeValueMillis(500),
+        TimeValue.timeValueSeconds(1),
         TimeValue.timeValueMinutes(1),
         Setting.Property.NodeScope
     );
@@ -231,7 +232,8 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         NodeEnvironment nodeEnvironment,
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver expressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier
+        Supplier<RepositoriesService> repositoriesServiceSupplier,
+        Tracer tracer
     ) {
         TransformConfigManager configManager = new IndexBasedTransformConfigManager(
             clusterService,

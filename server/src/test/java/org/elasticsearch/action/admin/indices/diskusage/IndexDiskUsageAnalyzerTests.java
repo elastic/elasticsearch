@@ -9,11 +9,14 @@
 package org.elasticsearch.action.admin.indices.diskusage;
 
 import org.apache.lucene.codecs.DocValuesFormat;
+import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90PostingsFormat;
 import org.apache.lucene.codecs.lucene92.Lucene92Codec;
+import org.apache.lucene.codecs.lucene92.Lucene92HnswVectorsFormat;
 import org.apache.lucene.codecs.perfield.PerFieldDocValuesFormat;
+import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.codecs.perfield.PerFieldPostingsFormat;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.BinaryPoint;
@@ -21,6 +24,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.IntPoint;
+import org.apache.lucene.document.KnnVectorField;
 import org.apache.lucene.document.LatLonShape;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
@@ -41,6 +45,7 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentReader;
+import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.ConstantScoreScorer;
 import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.IndexSearcher;
@@ -80,6 +85,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class IndexDiskUsageAnalyzerTests extends ESTestCase {
+    private static final int DEFAULT_VECTOR_DIMENSION = 128;
 
     protected static Directory createNewDirectory() {
         final Directory dir = LuceneTestCase.newDirectory();
@@ -238,6 +244,26 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
                 0.01,
                 512
             );
+        }
+    }
+
+    public void testKnnVectors() throws Exception {
+        try (Directory dir = createNewDirectory()) {
+            final CodecMode codec = randomFrom(CodecMode.values());
+            VectorSimilarityFunction similarity = randomFrom(VectorSimilarityFunction.values());
+            int numDocs = between(100, 1000);
+            int dimension = between(10, 200);
+
+            indexRandomly(dir, codec, numDocs, doc -> {
+                float[] vector = randomVector(dimension);
+                doc.add(new KnnVectorField("vector", vector, similarity));
+            });
+            final IndexDiskUsageStats stats = IndexDiskUsageAnalyzer.analyze(testShardId(), lastCommit(dir), () -> {});
+            logger.info("--> stats {}", stats);
+
+            int dataBytes = numDocs * dimension * Float.BYTES; // size of flat vector data
+            int indexBytesEstimate = numDocs * Integer.BYTES * Lucene92HnswVectorsFormat.DEFAULT_MAX_CONN * 2; // rough size of HNSW graph
+            assertTrue(stats.total().getKnnVectorsBytes() > dataBytes + indexBytesEstimate);
         }
     }
 
@@ -488,6 +514,21 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
         }
     }
 
+    static void addRandomKnnVectors(Document doc) {
+        int numFields = randomFrom(1, 3);
+        for (int f = 0; f < numFields; f++) {
+            doc.add(new KnnVectorField("knnvector-" + f, randomVector(DEFAULT_VECTOR_DIMENSION)));
+        }
+    }
+
+    private static float[] randomVector(int dimension) {
+        float[] vec = new float[dimension];
+        for (int i = 0; i < vec.length; i++) {
+            vec[i] = randomFloat();
+        }
+        return vec;
+    }
+
     static void addRandomFields(Document doc) {
         if (randomBoolean()) {
             addRandomDocValuesField(doc);
@@ -517,11 +558,15 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
         if (randomBoolean()) {
             addRandomTermVectors(doc);
         }
+        if (randomBoolean()) {
+            addRandomKnnVectors(doc);
+        }
     }
 
     static class FieldLookup {
         private final Map<String, FieldInfo> dvSuffixes = new HashMap<>();
         private final Map<String, FieldInfo> postingsSuffixes = new HashMap<>();
+        private final Map<String, FieldInfo> vectorSuffixes = new HashMap<>();
 
         FieldLookup(FieldInfos fieldInfos) {
             for (FieldInfo field : fieldInfos) {
@@ -534,6 +579,10 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
                     String dvSuffix = attributes.get(PerFieldDocValuesFormat.PER_FIELD_SUFFIX_KEY);
                     if (dvSuffix != null) {
                         dvSuffixes.put(dvSuffix, field);
+                    }
+                    String vectorSuffix = attributes.get(PerFieldKnnVectorsFormat.PER_FIELD_SUFFIX_KEY);
+                    if (vectorSuffix != null) {
+                        vectorSuffixes.put(vectorSuffix, field);
                     }
                 }
             }
@@ -574,6 +623,13 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
             assertThat("postingsSuffixes[" + postingsSuffixes + "] fileName[" + fileName + "]", field, notNullValue());
             return field.name;
         }
+
+        String getVectorsField(String fileName) {
+            final String suffix = parseSuffix(fileName);
+            final FieldInfo field = vectorSuffixes.get(suffix);
+            assertThat("vectorSuffixes[" + vectorSuffixes + "] fileName[" + fileName + "]", field, notNullValue());
+            return field.name;
+        }
     }
 
     static void rewriteIndexWithPerFieldCodec(Directory source, CodecMode mode, Directory dst) throws IOException {
@@ -589,6 +645,11 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
                     @Override
                     public DocValuesFormat getDocValuesFormatForField(String field) {
                         return new Lucene90DocValuesFormat();
+                    }
+
+                    @Override
+                    public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
+                        return new Lucene92HnswVectorsFormat();
                     }
 
                     @Override
@@ -645,6 +706,7 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
                         stats.addStoredField("_all_stored_fields", bytes);
                     case TVX, TVD -> stats.addTermVectors("_all_vectors_fields", bytes);
                     case NVD, NVM -> stats.addNorms("_all_norms_fields", bytes);
+                    case VEM, VEC, VEX -> stats.addKnnVectors(fieldLookup.getVectorsField(file), bytes);
                 }
             }
         } finally {
@@ -674,6 +736,8 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
                 0.01,
                 2048
             );
+
+            assertFieldStats(field, "knn vectors", actualField.getKnnVectorsBytes(), expectedField.getKnnVectorsBytes(), 0.01, 1024);
         }
         // We are not able to collect per field stats for stored, vector, points, and norms
         IndexDiskUsageStats.PerFieldDiskUsage actualTotal = actualStats.total();

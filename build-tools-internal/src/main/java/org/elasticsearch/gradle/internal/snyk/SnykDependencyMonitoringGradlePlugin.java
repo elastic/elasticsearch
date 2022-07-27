@@ -37,14 +37,17 @@ public class SnykDependencyMonitoringGradlePlugin implements Plugin<Project> {
             .register("generateSnykDependencyGraph", GenerateSnykDependencyGraph.class, generateSnykDependencyGraph -> {
                 generateSnykDependencyGraph.getProjectPath().set(project.getPath());
                 generateSnykDependencyGraph.getProjectName().set(project.getName());
-                generateSnykDependencyGraph.getVersion().set(project.getVersion().toString());
+                String projectVersion = project.getVersion().toString();
+                generateSnykDependencyGraph.getVersion().set(projectVersion);
                 generateSnykDependencyGraph.getGradleVersion().set(project.getGradle().getGradleVersion());
+                generateSnykDependencyGraph.getTargetReference()
+                    .set(providerFactory.gradleProperty("snykTargetReference").orElse(projectVersion));
                 generateSnykDependencyGraph.getOutputFile().set(projectLayout.getBuildDirectory().file("snyk/dependencies.json"));
             });
 
         project.getTasks().register(UPLOAD_TASK_NAME, UploadSnykDependenciesGraph.class, t -> {
             t.getInputFile().set(generateTaskProvider.get().getOutputFile());
-            t.getToken().set(providerFactory.gradleProperty("snykToken"));
+            t.getToken().set(providerFactory.environmentVariable("SNYK_TOKEN"));
             // the elasticsearch snyk project id
             t.getProjectId().set(providerFactory.gradleProperty("snykProjectId"));
         });

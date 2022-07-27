@@ -1270,7 +1270,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             return new SourceLoader.SyntheticFieldLoader.Leaf() {
                 @Override
                 public boolean empty() {
-                    return false; // NOCOMMIT this could be quite inefficient if there are many of these
+                    return false; // TODO this could be quite inefficient if there are many of these
                 }
 
                 @Override

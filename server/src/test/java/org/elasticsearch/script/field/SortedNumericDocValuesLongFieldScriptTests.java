@@ -16,6 +16,7 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.script.AbstractFieldScript;
+import org.elasticsearch.script.SortedNumericDocValuesLongFieldScript;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
 

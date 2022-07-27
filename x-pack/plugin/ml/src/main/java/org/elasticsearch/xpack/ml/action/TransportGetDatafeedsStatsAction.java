@@ -68,7 +68,7 @@ public class TransportGetDatafeedsStatsAction extends HandledTransportAction<Req
         ClusterState state = clusterService.state();
         final PersistentTasksCustomMetadata tasksInProgress = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         final Response.Builder responseBuilder = new Response.Builder();
-        final TaskId parentTaskId = new TaskId(clusterService.getNodeName(), task.getId());
+        final TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
 
         // 5. Build response
         ActionListener<GetDatafeedRunningStateAction.Response> runtimeStateListener = ActionListener.wrap(runtimeStateResponse -> {

@@ -27,7 +27,6 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.health.HealthIndicatorService;
-import org.elasticsearch.immutablestate.ImmutableClusterStateHandler;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.license.XPackLicenseState;
@@ -35,10 +34,12 @@ import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.HealthPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -84,7 +85,7 @@ import org.elasticsearch.xpack.core.slm.action.GetSnapshotLifecycleStatsAction;
 import org.elasticsearch.xpack.core.slm.action.PutSnapshotLifecycleAction;
 import org.elasticsearch.xpack.core.slm.action.StartSLMAction;
 import org.elasticsearch.xpack.core.slm.action.StopSLMAction;
-import org.elasticsearch.xpack.ilm.action.ImmutableLifecycleAction;
+import org.elasticsearch.xpack.ilm.action.ReservedLifecycleAction;
 import org.elasticsearch.xpack.ilm.action.RestDeleteLifecycleAction;
 import org.elasticsearch.xpack.ilm.action.RestExplainLifecycleAction;
 import org.elasticsearch.xpack.ilm.action.RestGetLifecycleAction;
@@ -160,7 +161,7 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
     private final SetOnce<SnapshotHistoryStore> snapshotHistoryStore = new SetOnce<>();
     private final SetOnce<IlmHealthIndicatorService> ilmHealthIndicatorService = new SetOnce<>();
     private final SetOnce<SlmHealthIndicatorService> slmHealthIndicatorService = new SetOnce<>();
-    private final SetOnce<ImmutableLifecycleAction> immutableLifecycleAction = new SetOnce<>();
+    private final SetOnce<ReservedLifecycleAction> reservedLifecycleAction = new SetOnce<>();
     private final Settings settings;
 
     public IndexLifecycle(Settings settings) {
@@ -187,7 +188,8 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
             LifecycleSettings.SLM_HISTORY_INDEX_ENABLED_SETTING,
             LifecycleSettings.SLM_RETENTION_SCHEDULE_SETTING,
             LifecycleSettings.SLM_RETENTION_DURATION_SETTING,
-            LifecycleSettings.SLM_MINIMUM_INTERVAL_SETTING
+            LifecycleSettings.SLM_MINIMUM_INTERVAL_SETTING,
+            LifecycleSettings.SLM_HEALTH_FAILED_SNAPSHOT_WARN_THRESHOLD_SETTING
         );
     }
 
@@ -207,7 +209,8 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
         NodeEnvironment nodeEnvironment,
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver expressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier
+        Supplier<RepositoriesService> repositoriesServiceSupplier,
+        Tracer tracer
     ) {
         final List<Object> components = new ArrayList<>();
         ILMHistoryTemplateRegistry ilmTemplateRegistry = new ILMHistoryTemplateRegistry(
@@ -270,7 +273,7 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
         components.addAll(Arrays.asList(snapshotLifecycleService.get(), snapshotHistoryStore.get(), snapshotRetentionService.get()));
         ilmHealthIndicatorService.set(new IlmHealthIndicatorService(clusterService));
         slmHealthIndicatorService.set(new SlmHealthIndicatorService(clusterService));
-        immutableLifecycleAction.set(new ImmutableLifecycleAction(xContentRegistry, client, XPackPlugin.getSharedLicenseState()));
+        reservedLifecycleAction.set(new ReservedLifecycleAction(xContentRegistry, client, XPackPlugin.getSharedLicenseState()));
 
         return components;
     }
@@ -422,8 +425,8 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
         return actions;
     }
 
-    List<ImmutableClusterStateHandler<?>> immutableClusterStateHandlers() {
-        return List.of(immutableLifecycleAction.get());
+    List<ReservedClusterStateHandler<?>> reservedClusterStateHandlers() {
+        return List.of(reservedLifecycleAction.get());
     }
 
     @Override

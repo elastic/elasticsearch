@@ -35,7 +35,6 @@ import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionMultiListener;
-import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
@@ -55,6 +54,7 @@ import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_HIDDEN;
+import static org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener.rerouteCompletionIsNotRequired;
 
 /**
  * Api that auto creates an index or data stream that originate from requests that write into an index that doesn't yet exist.
@@ -251,10 +251,12 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                         request.timeout(),
                         false
                     );
+                    assert createRequest.performReroute() == false
+                        : "rerouteCompletionIsNotRequired() assumes reroute is not called by underlying service";
                     ClusterState clusterState = metadataCreateDataStreamService.createDataStream(
                         createRequest,
                         currentState,
-                        DesiredBalanceShardsAllocator.REMOVE_ME
+                        rerouteCompletionIsNotRequired()
                     );
 
                     final var indexName = clusterState.metadata().dataStreams().get(request.index()).getIndices().get(0).getName();
@@ -311,11 +313,13 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                         updateRequest = buildUpdateRequest(indexName);
                     }
 
+                    assert updateRequest.performReroute() == false
+                        : "rerouteCompletionIsNotRequired() assumes reroute is not called by underlying service";
                     final var clusterState = createIndexService.applyCreateIndexRequest(
                         currentState,
                         updateRequest,
                         false,
-                        DesiredBalanceShardsAllocator.REMOVE_ME
+                        rerouteCompletionIsNotRequired()
                     );
                     taskContext.success(getAckListener(indexName, allocationActionMultiListener));
                     successfulRequests.put(request, indexName);

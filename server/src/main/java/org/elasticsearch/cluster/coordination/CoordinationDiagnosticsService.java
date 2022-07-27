@@ -674,7 +674,12 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
     ) {
         return response -> {
             if (clusterFormationInfoTasks != null) {
-                if (clusterFormationInfoTasks.equals(cancellables)) {
+                if (cancellables.equals(clusterFormationInfoTasks)) {
+                    /*
+                     * As mentioned in the comment in cancelPollingClusterFormationInfo(), there is a slim possibility here that we will
+                     * add a task here for a poll that has already been cancelled. But when it completes and runs rescheduleFetchConsumer()
+                     * we will then see that clusterFormationInfoTasks does not equal cancellables, so it will not be run again.
+                     */
                     cancellables.add(
                         fetchClusterFormationInfo(
                             masterEligibleNode,
@@ -682,7 +687,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                         )
                     );
                 } else {
-                   cancellables.forEach(Scheduler.Cancellable::cancel);
+                    cancellables.forEach(Scheduler.Cancellable::cancel);
                 }
             } else {
                 cancellables.forEach(Scheduler.Cancellable::cancel);
@@ -693,6 +698,11 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
     private void cancelPollingClusterFormationInfo() {
         assert ThreadPool.assertCurrentThreadPool(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME);
         if (clusterFormationInfoTasks != null) {
+            /*
+             * There is a risk here that a new Cancellable is added to clusterFormationInfoTasks after we begin iterating in the next
+             * line. We are calling this an acceptable risk because it will result in an un-cancelled un-cancellable task, but it will not
+             * reschedule itself so it will not be around long.
+             */
             clusterFormationInfoTasks.forEach(Scheduler.Cancellable::cancel);
             clusterFormationInfoTasks = null;
             clusterFormationResponses = null;

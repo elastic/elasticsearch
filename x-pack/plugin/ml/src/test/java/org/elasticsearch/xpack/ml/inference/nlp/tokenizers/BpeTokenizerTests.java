@@ -377,6 +377,11 @@ public class BpeTokenizerTests extends BaseTokenStreamTestCase {
         assertAnalyzesToNoCharFilter(analyzer, "Elasticsearch <mask>.", new String[] { "Elast", "icsearch", "<mask>", "." });
         assertAnalyzesToNoCharFilter(
             analyzer,
+            "Elasticsearch<mask><mask>~redElasticsearch",
+            new String[] { "Elast", "icsearch", "<mask>", "<mask>", "~", "red", "Elast", "icsearch" }
+        );
+        assertAnalyzesToNoCharFilter(
+            analyzer,
             "Elasticsearch red~<mask>.",
             new String[] { "Elast", "icsearch", "Ġred", "~", "<mask>", "." }
         );

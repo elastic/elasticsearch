@@ -14,6 +14,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoService;
+import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
@@ -41,6 +42,7 @@ import static org.elasticsearch.index.store.Store.INDEX_STORE_STATS_REFRESH_INTE
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
@@ -315,7 +317,9 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
         assertBusy(() -> {
             refreshClusterInfo();
             final ClusterInfo clusterInfo = getClusterInfo();
-            final long freeBytes = clusterInfo.getNodeMostAvailableDiskUsages().get(dataNode2Id).getFreeBytes();
+            final DiskUsage dataNode2DiskUsage = clusterInfo.getNodeMostAvailableDiskUsages().get(dataNode2Id);
+            assertThat(dataNode2DiskUsage, is(notNullValue()));
+            final long freeBytes = dataNode2DiskUsage.getFreeBytes();
             assertThat(freeBytes, is(equalTo(enoughSpaceForColocation)));
         });
 

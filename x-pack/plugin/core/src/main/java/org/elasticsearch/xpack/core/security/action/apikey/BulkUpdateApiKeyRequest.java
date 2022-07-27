@@ -8,15 +8,18 @@
 package org.elasticsearch.xpack.core.security.action.apikey;
 
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -41,9 +44,21 @@ public final class BulkUpdateApiKeyRequest extends BaseUpdateApiKeyRequest {
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validate();
-        // TODO validate IDs?
         if (ids.isEmpty()) {
-            validationException = addValidationError("Bulk update request must include API key IDs", validationException);
+            validationException = addValidationError("Field [ids] cannot be empty", validationException);
+        } else {
+            final int[] idxOfBlankIds = IntStream.range(0, ids.size()).filter(i -> Strings.hasText(ids.get(i)) == false).toArray();
+            if (idxOfBlankIds.length > 0) {
+                validationException = addValidationError(
+                    "Field [ids] must not contain blank id, but got blank "
+                        + (idxOfBlankIds.length == 1 ? "id" : "ids")
+                        + " at index "
+                        + (idxOfBlankIds.length == 1 ? "position" : "positions")
+                        + ": "
+                        + Arrays.toString(idxOfBlankIds),
+                    validationException
+                );
+            }
         }
         return validationException;
     }

@@ -47,6 +47,7 @@ import org.elasticsearch.http.HttpHandlingSettings;
 import org.elasticsearch.http.HttpReadTimeoutException;
 import org.elasticsearch.http.HttpServerChannel;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.netty4.NetUtils;
 import org.elasticsearch.transport.netty4.Netty4Utils;
 import org.elasticsearch.transport.netty4.Netty4WriteThrottlingHandler;
@@ -145,9 +146,19 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         NamedXContentRegistry xContentRegistry,
         Dispatcher dispatcher,
         ClusterSettings clusterSettings,
-        SharedGroupFactory sharedGroupFactory
+        SharedGroupFactory sharedGroupFactory,
+        Tracer tracer
     ) {
-        super(settings, networkService, Netty4Utils.createRecycler(settings), threadPool, xContentRegistry, dispatcher, clusterSettings);
+        super(
+            settings,
+            networkService,
+            Netty4Utils.createRecycler(settings),
+            threadPool,
+            xContentRegistry,
+            dispatcher,
+            clusterSettings,
+            tracer
+        );
         Netty4Utils.setAvailableProcessors(EsExecutors.NODE_PROCESSORS_SETTING.get(settings));
         NettyAllocator.logAllocatorDescriptionIfNeeded();
         this.sharedGroupFactory = sharedGroupFactory;

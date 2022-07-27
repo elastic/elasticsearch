@@ -314,12 +314,12 @@ tasks.register("bootstrapPerformanceTests", Copy) {
   inputs.property('branchWrapper', gradle.gradleVersion)
   filter(ReplaceTokens, tokens: [
           testGitCommit:GitInfo.gitInfo(root).revision,
-          masterWrapper:"${ -> resolveMasterWrapperVersion()}".toString(),
+          mainWrapper:"${ -> resolveMainWrapperVersion()}".toString(),
           branchWrapper:"${-> gradle.gradleVersion}".toString()])
 }
 
-def resolveMasterWrapperVersion() {
-  new URL("https://raw.githubusercontent.com/elastic/elasticsearch/master/build-tools-internal/src/main/resources/minimumGradleVersion").text.trim()
+def resolveMainWrapperVersion() {
+  new URL("https://raw.githubusercontent.com/elastic/elasticsearch/main/build-tools-internal/src/main/resources/minimumGradleVersion").text.trim()
 }
 
 abstract class JacksonAlignmentRule implements ComponentMetadataRule {

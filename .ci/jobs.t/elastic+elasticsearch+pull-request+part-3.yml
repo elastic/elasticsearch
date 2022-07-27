@@ -1,7 +1,7 @@
 ---
 - job:
-    name: "elastic+elasticsearch+pull-request+par-3"
-    display-name: "elastic / elasticsearch - pull request part 3"
+    name: "elastic+elasticsearch+pull-request+part-3"
+    display-name: "elastic / elasticsearch - pull request part-3"
     description: "Testing of Elasticsearch pull requests - part 3"
     workspace: "/dev/shm/elastic+elasticsearch+pull-request+part-3"
     scm:

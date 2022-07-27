@@ -59,7 +59,7 @@ public class TranslogHandler implements Engine.TranslogRecoveryRunner {
             similarityService,
             mapperRegistry,
             () -> null,
-            indexSettings.getMode().buildNoFieldDataIdFieldMapper(),
+            indexSettings.getMode().idFieldMapperWithoutFieldData(),
             null
         );
     }

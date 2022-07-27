@@ -58,6 +58,7 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
     private final boolean hasNativeController;
     private final boolean isLicensed;
     private final boolean isModular;
+    private final boolean isStable;
 
     /**
      * Construct plugin info.
@@ -85,7 +86,8 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         List<String> extendedPlugins,
         boolean hasNativeController,
         boolean isLicensed,
-        boolean isModular
+        boolean isModular,
+        boolean isStable
     ) {
         this.name = name;
         this.description = description;
@@ -98,6 +100,7 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         this.hasNativeController = hasNativeController;
         this.isLicensed = isLicensed;
         this.isModular = isModular;
+        this.isStable = isStable;
     }
 
     /**
@@ -133,8 +136,10 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
 
         if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
             isModular = in.readBoolean();
+            isStable = in.readBoolean();
         } else {
             isModular = moduleName != null;
+            isStable = false;
         }
     }
 
@@ -161,6 +166,7 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         }
         if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
             out.writeBoolean(isModular);
+            out.writeBoolean(isStable);
         }
     }
 
@@ -236,8 +242,9 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         }
 
         boolean isLicensed = readBoolean(propsMap, name, "licensed");
+        boolean modular = module != null;
 
-        return new PluginDescriptor(name, desc, ver, esVer, javaVer, classname, module, extended, nativeCont, isLicensed, module != null);
+        return new PluginDescriptor(name, desc, ver, esVer, javaVer, classname, module, extended, nativeCont, isLicensed, modular, false);
     }
 
     private static PluginDescriptor readerStableDescriptor(Map<String, String> propsMap, String filename) {
@@ -248,7 +255,7 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
         String javaVer = readJavaVersion(propsMap, name);
         boolean isModular = readBoolean(propsMap, name, "modular");
 
-        return new PluginDescriptor(name, desc, ver, esVer, javaVer, null, null, List.of(), false, false, isModular);
+        return new PluginDescriptor(name, desc, ver, esVer, javaVer, null, null, List.of(), false, false, isModular, true);
     }
 
     private static String readNonEmptyString(Map<String, String> propsMap, String pluginId, String name) {
@@ -387,6 +394,13 @@ public class PluginDescriptor implements Writeable, ToXContentObject {
      */
     public boolean isModular() {
         return isModular;
+    }
+
+    /**
+     * Whether this plugin uses only stable APIs.
+     */
+    public boolean isStable() {
+        return isStable;
     }
 
     @Override

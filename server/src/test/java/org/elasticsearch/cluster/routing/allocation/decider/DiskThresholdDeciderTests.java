@@ -663,20 +663,6 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         assertThat(node1Usage.getFreeBytes(), equalTo(25L));
     }
 
-    public void testFreeDiskPercentageAfterShardAssigned() {
-        DiskThresholdDecider decider = makeDecider(Settings.EMPTY);
-
-        Map<String, DiskUsage> usages = new HashMap<>();
-        usages.put("node2", new DiskUsage("node2", "n2", "/dev/null", 100, 50)); // 50% used
-        usages.put("node3", new DiskUsage("node3", "n3", "/dev/null", 100, 0));  // 100% used
-
-        Double after = DiskThresholdDecider.freeDiskPercentageAfterShardAssigned(
-            new DiskThresholdDecider.DiskUsageWithRelocations(new DiskUsage("node2", "n2", "/dev/null", 100, 30), 0L),
-            11L
-        );
-        assertThat(after, equalTo(19.0));
-    }
-
     public void testShardRelocationsTakenIntoAccount() {
         Settings diskSettings = Settings.builder()
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), true)
@@ -788,9 +774,8 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                 expectThrows(IllegalArgumentException.class, () -> strategy.reroute(clusterStateThatRejectsCommands, cmds, false, false))
                     .getMessage(),
                 containsString(
-                    "the node is above the low watermark cluster setting "
-                        + "[cluster.routing.allocation.disk.watermark.low=0.7], using more disk space than the maximum "
-                        + "allowed [70.0%], actual free: [26.0%]"
+                    "the node is above the low watermark cluster setting [cluster.routing.allocation.disk.watermark.low=70%], "
+                        + "having less than the minimum required [30b] free space, actual free: [26b], actual used: [74%]"
                 )
             );
 
@@ -919,14 +904,19 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             System.nanoTime()
         );
         routingAllocation.debugDecision(true);
-        Decision decision = diskThresholdDecider.canRemain(firstRouting, firstRoutingNode, routingAllocation);
+        Decision decision = diskThresholdDecider.canRemain(
+            routingAllocation.metadata().getIndexSafe(firstRouting.index()),
+            firstRouting,
+            firstRoutingNode,
+            routingAllocation
+        );
         assertThat(decision.type(), equalTo(Decision.Type.NO));
         assertThat(
-            ((Decision.Single) decision).getExplanation(),
+            decision.getExplanation(),
             containsString(
                 "the shard cannot remain on this node because it is above the high watermark cluster setting "
-                    + "[cluster.routing.allocation.disk.watermark.high=70%] and there is less than the required [30.0%] free disk on node, "
-                    + "actual free: [20.0%]"
+                    + "[cluster.routing.allocation.disk.watermark.high=70%] and there is less than the required [30b] free space "
+                    + "on node, actual free: [20b], actual used: [80%]"
             )
         );
 
@@ -951,7 +941,12 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             System.nanoTime()
         );
         routingAllocation.debugDecision(true);
-        decision = diskThresholdDecider.canRemain(firstRouting, firstRoutingNode, routingAllocation);
+        decision = diskThresholdDecider.canRemain(
+            routingAllocation.metadata().getIndexSafe(firstRouting.index()),
+            firstRouting,
+            firstRoutingNode,
+            routingAllocation
+        );
         assertThat(decision.type(), equalTo(Decision.Type.YES));
         assertEquals(
             "there is enough disk on this node for the shard to remain, free: [60b]",
@@ -963,16 +958,16 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             assertThat(
                 ((Decision.Single) decision).getExplanation(),
                 containsString(
-                    "the node is above the high watermark cluster setting [cluster.routing.allocation.disk.watermark.high=70%], using "
-                        + "more disk space than the maximum allowed [70.0%], actual free: [20.0%]"
+                    "the node is above the high watermark cluster setting [cluster.routing.allocation.disk.watermark.high=70%], "
+                        + "having less than the minimum required [30b] free space, actual free: [20b], actual used: [80%]"
                 )
             );
         } else {
             assertThat(
                 ((Decision.Single) decision).getExplanation(),
                 containsString(
-                    "the node is above the low watermark cluster setting [cluster.routing.allocation.disk.watermark.low=60%], using more "
-                        + "disk space than the maximum allowed [60.0%], actual free: [20.0%]"
+                    "the node is above the low watermark cluster setting [cluster.routing.allocation.disk.watermark.low=60%], "
+                        + "having less than the minimum required [40b] free space, actual free: [20b], actual used: [80%]"
                 )
             );
         }
@@ -1001,7 +996,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             EmptySnapshotsInfoService.INSTANCE
         );
         // Ensure that the reroute call doesn't alter the routing table, since the first primary is relocating away
-        // and therefor we will have sufficient disk space on node1.
+        // and therefore we will have sufficient disk space on node1.
         ClusterState result = strategy.reroute(clusterState, "reroute");
         assertThat(result, equalTo(clusterState));
         assertThat(result.routingTable().index("test").shard(0).primaryShard().state(), equalTo(STARTED));
@@ -1109,14 +1104,19 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             System.nanoTime()
         );
         routingAllocation.debugDecision(true);
-        Decision decision = diskThresholdDecider.canRemain(startedShard, clusterState.getRoutingNodes().node("data"), routingAllocation);
+        Decision decision = diskThresholdDecider.canRemain(
+            routingAllocation.metadata().getIndexSafe(startedShard.index()),
+            startedShard,
+            clusterState.getRoutingNodes().node("data"),
+            routingAllocation
+        );
         assertThat(decision.type(), equalTo(Decision.Type.NO));
         assertThat(
             decision.getExplanation(),
             containsString(
                 "the shard cannot remain on this node because it is above the high watermark cluster setting"
-                    + " [cluster.routing.allocation.disk.watermark.high=70%] and there is less than the required [30.0%] free disk on node,"
-                    + " actual free: [20.0%]"
+                    + " [cluster.routing.allocation.disk.watermark.high=70%] and there is less than the required [30b] free space "
+                    + "on node, actual free: [20b], actual used: [80%]"
             )
         );
 
@@ -1197,7 +1197,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         Map<ShardId, RestoreInProgress.ShardRestoreStatus> shards = Map.of(shardId, new RestoreInProgress.ShardRestoreStatus("node1"));
 
         final RestoreInProgress.Builder restores = new RestoreInProgress.Builder().add(
-            new RestoreInProgress.Entry("_restore_uuid", snapshot, RestoreInProgress.State.INIT, List.of("test"), shards)
+            new RestoreInProgress.Entry("_restore_uuid", snapshot, RestoreInProgress.State.INIT, false, List.of("test"), shards)
         );
 
         ClusterState clusterState = ClusterState.builder(new ClusterName(getTestName()))
@@ -1308,7 +1308,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             Map<String, Long> shardSizes,
             Map<NodeAndPath, ReservedSpace> reservedSpace
         ) {
-            super(leastAvailableSpaceUsage, mostAvailableSpaceUsage, shardSizes, null, null, reservedSpace);
+            super(leastAvailableSpaceUsage, mostAvailableSpaceUsage, shardSizes, Map.of(), Map.of(), reservedSpace);
         }
 
         @Override

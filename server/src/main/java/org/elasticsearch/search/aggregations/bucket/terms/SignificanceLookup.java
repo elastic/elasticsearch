@@ -15,6 +15,7 @@ import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
@@ -74,9 +75,22 @@ class SignificanceLookup {
         // If there is no provided background filter, but we are within a sampling context, our background docs need to take the sampling
         // context into account.
         // If there is a filter, that filter needs to take the sampling into account (if we are within a sampling context)
-        this.backgroundFilter = backgroundFilter == null
+        Query backgroundQuery = backgroundFilter == null
             ? samplingContext.buildSamplingQueryIfNecessary(context).orElse(null)
             : samplingContext.buildQueryWithSampler(backgroundFilter, context);
+        // Refilter to account for alias filters, if there are any.
+        if (backgroundQuery == null) {
+            Query matchAllDocsQuery = new MatchAllDocsQuery();
+            Query contextFiltered = context.filterQuery(matchAllDocsQuery);
+            if (contextFiltered != matchAllDocsQuery) {
+                this.backgroundFilter = contextFiltered;
+            } else {
+                this.backgroundFilter = null;
+            }
+        } else {
+            Query contextFiltered = context.filterQuery(backgroundQuery);
+            this.backgroundFilter = contextFiltered;
+        }
         /*
          * We need to use a superset size that includes deleted docs or we
          * could end up blowing up with bad statistics that cause us to blow

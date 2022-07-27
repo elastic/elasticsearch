@@ -15,9 +15,8 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
@@ -33,6 +32,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -123,18 +123,10 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     protected void assertExistsQuery(MappedFieldType fieldType, Query query, LuceneDocument fields) {
-        if (fieldType.hasDocValues()) {
-            assertThat(query, instanceOf(DocValuesFieldExistsQuery.class));
-            DocValuesFieldExistsQuery fieldExistsQuery = (DocValuesFieldExistsQuery) query;
+        if (fieldType.hasDocValues() || fieldType.getTextSearchInfo().hasNorms()) {
+            assertThat(query, instanceOf(FieldExistsQuery.class));
+            FieldExistsQuery fieldExistsQuery = (FieldExistsQuery) query;
             assertEquals("field", fieldExistsQuery.getField());
-            assertDocValuesField(fields, "field");
-            assertNoFieldNamesField(fields);
-        } else if (fieldType.getTextSearchInfo().hasNorms()) {
-            assertThat(query, instanceOf(NormsFieldExistsQuery.class));
-            NormsFieldExistsQuery normsFieldExistsQuery = (NormsFieldExistsQuery) query;
-            assertEquals("field", normsFieldExistsQuery.getField());
-            assertHasNorms(fields, "field");
-            assertNoDocValuesField(fields, "field");
             assertNoFieldNamesField(fields);
         } else {
             assertThat(query, instanceOf(TermQuery.class));
@@ -166,16 +158,6 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             }
         }
         fail("field [" + field + "] should be indexed but it isn't");
-    }
-
-    protected static void assertDocValuesField(LuceneDocument doc, String field) {
-        IndexableField[] fields = doc.getFields(field);
-        for (IndexableField indexableField : fields) {
-            if (indexableField.fieldType().docValuesType().equals(DocValuesType.NONE) == false) {
-                return;
-            }
-        }
-        fail("doc_values not present for field [" + field + "]");
     }
 
     protected static void assertNoDocValuesField(LuceneDocument doc, String field) {
@@ -594,7 +576,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         SourceToParse source = source(b -> b.field(ft.name(), value));
         ValueFetcher docValueFetcher = new DocValueFetcher(
             ft.docValueFormat(format, null),
-            ft.fielddataBuilder("test", () -> null).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService())
+            ft.fielddataBuilder(FieldDataContext.noRuntimeFields("test"))
+                .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService())
         );
         SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
         when(searchExecutionContext.isSourceEnabled()).thenReturn(true);
@@ -672,15 +655,15 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
             LeafReaderContext ctx = ir.leaves().get(0);
 
-            DocValuesScriptFieldFactory docValuesFieldSource = fieldType.fielddataBuilder(
-                "test",
-                () -> { throw new UnsupportedOperationException(); }
-            ).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService()).load(ctx).getScriptFieldFactory("test");
+            DocValuesScriptFieldFactory docValuesFieldSource = fieldType.fielddataBuilder(FieldDataContext.noRuntimeFields("test"))
+                .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService())
+                .load(ctx)
+                .getScriptFieldFactory("test");
 
             docValuesFieldSource.setNextDocId(0);
 
             DocumentLeafReader reader = new DocumentLeafReader(doc.rootDoc(), Collections.emptyMap());
-            DocValuesScriptFieldFactory indexData = fieldType.fielddataBuilder("test", () -> { throw new UnsupportedOperationException(); })
+            DocValuesScriptFieldFactory indexData = fieldType.fielddataBuilder(FieldDataContext.noRuntimeFields("test"))
                 .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService())
                 .load(reader.getContext())
                 .getScriptFieldFactory("test");
@@ -810,6 +793,10 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         assertThat(syntheticSource(mapper, b -> b.field("field", syntheticSourceExample.inputValue)), equalTo(expected));
     }
 
+    protected boolean supportsEmptyInputArray() {
+        return true;
+    }
+
     public final void testSyntheticSourceMany() throws IOException {
         int maxValues = randomBoolean() ? 1 : 5;
         SyntheticSourceSupport support = syntheticSourceSupport();
@@ -829,7 +816,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 )
             ) {
                 for (int i = 0; i < count; i++) {
-                    if (rarely()) {
+                    if (rarely() && supportsEmptyInputArray()) {
                         expected[i] = "{}";
                         iw.addDocument(mapper.parse(source(b -> b.startArray("field").endArray())).rootDoc());
                         continue;
@@ -887,6 +874,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     public final void testSyntheticEmptyList() throws IOException {
+        assumeTrue("Field does not support [] as input", supportsEmptyInputArray());
         SyntheticSourceExample syntheticSourceExample = syntheticSourceSupport().example(5);
         DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
             b.startObject("field");

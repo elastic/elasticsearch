@@ -46,7 +46,7 @@ public class TransportGetCategoriesAction extends HandledTransportAction<GetCate
 
     @Override
     protected void doExecute(Task task, GetCategoriesAction.Request request, ActionListener<GetCategoriesAction.Response> listener) {
-        TaskId parentTaskId = new TaskId(clusterService.getNodeName(), task.getId());
+        TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
         jobManager.jobExists(request.getJobId(), parentTaskId, ActionListener.wrap(jobExists -> {
             Integer from = request.getPageParams() != null ? request.getPageParams().getFrom() : null;
             Integer size = request.getPageParams() != null ? request.getPageParams().getSize() : null;

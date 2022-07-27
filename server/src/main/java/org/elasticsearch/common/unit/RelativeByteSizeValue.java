@@ -71,15 +71,20 @@ public class RelativeByteSizeValue {
     }
 
     public static RelativeByteSizeValue parseRelativeByteSizeValue(String value, String settingName) {
-        try {
-            RatioValue ratio = RatioValue.parseRatioValue(value);
-            if (ratio.getAsPercent() != 0.0d || value.endsWith("%")) {
-                return new RelativeByteSizeValue(ratio);
-            } else {
-                return new RelativeByteSizeValue(ByteSizeValue.ZERO);
+        // If the value ends with a `b`, it implies it is probably a byte size value, so do not try to parse as a ratio/percentage at all.
+        // The main motivation is to make parsing faster. Using exception throwing and catching when trying to parse as a ratio as a
+        // means of identifying that a string is not a ratio can be quite slow.
+        if (value.endsWith("b") == false) {
+            try {
+                RatioValue ratio = RatioValue.parseRatioValue(value);
+                if (ratio.getAsPercent() != 0.0d || value.endsWith("%")) {
+                    return new RelativeByteSizeValue(ratio);
+                } else {
+                    return new RelativeByteSizeValue(ByteSizeValue.ZERO);
+                }
+            } catch (ElasticsearchParseException e) {
+                // ignore, see if it parses as bytes
             }
-        } catch (ElasticsearchParseException e) {
-            // ignore, see if it parses as bytes
         }
         try {
             return new RelativeByteSizeValue(ByteSizeValue.parseBytesSizeValue(value, settingName));
@@ -90,7 +95,7 @@ public class RelativeByteSizeValue {
 
     public String getStringRep() {
         if (ratio != null) {
-            return ratio.toString();
+            return ratio.formatNoTrailingZerosPercent();
         } else {
             return absolute.getStringRep();
         }

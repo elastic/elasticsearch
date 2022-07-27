@@ -353,6 +353,7 @@ teardown:
       get:
         index: test2
         id: "1extra"
+        routing: "myRouting"
   - match: { _source.source_field: "bazqux" }
   - match: { _version: 5 }
   - match: { _routing: "myRouting" }

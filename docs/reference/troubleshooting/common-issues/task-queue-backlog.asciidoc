@@ -1,0 +1,65 @@
+[[task-queue-backlog]]
+=== Task queue backlog
+
+A backlogged task queue can prevent tasks from completing and 
+put the cluster into an unhealthy state. 
+Resource constraints, a large number of tasks being triggered at once,
+and long running tasks can all contribute to a backlogged task queue.
+
+[discrete]
+[[diagnose-task-queue-backlog]]
+==== Diagnose a task queue backlog
+
+**Check the thread pool status**
+
+A <<high-cpu-usage,depleted thread pool>> can result in <<rejected-requests,rejected requests>>. 
+
+You can use the <<cat-thread-pool,cat thread pool API>> to 
+see the number of active threads in each thread pool and
+how many tasks are queued, how many have been rejected, and how many have completed. 
+
+[source,console]
+----
+GET /_cat/thread_pool?v&s=t,n&h=type,name,node_name,active,queue,rejected,completed
+----
+
+**Inspect the hot threads on each node**
+
+If a particular thread pool queue is backed up, 
+you can periodically poll the <<cluster-nodes-hot-threads,Nodes hot threads>> API 
+to determine if the thread has sufficient 
+resources to progress and gauge how quickly it is progressing.
+
+[source,console]
+----
+GET /_nodes/hot_threads
+----
+
+**Look for long running tasks**
+
+Long-running tasks can also cause a backlog. 
+You can use the <<tasks,task management>> API to get information about the tasks that are running. 
+Check the `running_time_in_nanos` to identify tasks that are taking an excessive amount of time to complete. 
+
+[source,console]
+----
+GET /_tasks?filter_path=nodes.*.tasks
+----
+
+[discrete]
+[[resolve-task-queue-backlog]]
+==== Resolve a task queue backlog
+
+**Increase available resources** 
+
+If tasks are progressing slowly and the queue is backing up, 
+you might need to take steps to <<reduce-cpu-usage>>. 
+
+In some cases, increasing the thread pool size might help.
+For example, the `force_merge` thread pool defaults to a single thread.
+Increasing the size to 2 might help reduce a backlog of force merge requests.
+
+**Cancel stuck tasks**
+
+If you find the active task's hot thread isn't progressing and there's a backlog, 
+consider canceling the task. 

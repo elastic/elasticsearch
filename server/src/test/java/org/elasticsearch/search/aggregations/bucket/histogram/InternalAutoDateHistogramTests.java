@@ -276,7 +276,7 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
         BucketInfo bucketInfo = instance.getBucketInfo();
         Map<String, Object> metadata = instance.getMetadata();
         long interval = instance.getBucketInnerInterval();
-        switch (between(0, 3)) {
+        switch (between(0, 4)) {
             case 0 -> name += randomAlphaOfLength(5);
             case 1 -> {
                 buckets = new ArrayList<>(buckets);

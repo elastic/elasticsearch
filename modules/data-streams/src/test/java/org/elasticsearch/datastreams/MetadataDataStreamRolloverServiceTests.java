@@ -39,6 +39,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
+import static org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener.rerouteCompletionIsNotRequired;
 import static org.elasticsearch.datastreams.DataStreamIndexSettingsProvider.FORMATTER;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -110,7 +111,8 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
                 metConditions,
                 now,
                 randomBoolean(),
-                false
+                false,
+                rerouteCompletionIsNotRequired()
             );
             long after = testThreadPool.absoluteTimeInMillis();
 
@@ -204,7 +206,8 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
                 metConditions,
                 now,
                 randomBoolean(),
-                false
+                false,
+                rerouteCompletionIsNotRequired()
             );
 
             String sourceIndexName = DataStream.getDefaultBackingIndexName(dataStream.getName(), dataStream.getGeneration());
@@ -295,7 +298,8 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
                 metConditions,
                 now,
                 randomBoolean(),
-                false
+                false,
+                rerouteCompletionIsNotRequired()
             );
 
             String sourceIndexName = DataStream.getDefaultBackingIndexName(dataStream.getName(), dataStream.getGeneration());

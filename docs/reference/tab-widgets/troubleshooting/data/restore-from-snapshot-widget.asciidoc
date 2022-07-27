@@ -3,36 +3,36 @@
   <div role="tablist" aria-label="Restore from snapshot">
     <button role="tab"
             aria-selected="true"
-            aria-controls="kibana-tab-restore-from-snapshot"
-            id="kibana-restore-from-snapshot">
-      Kibana
+            aria-controls="cloud-tab-restore-from-snapshot"
+            id="cloud-restore-from-snapshot">
+      Elasticsearch Service
     </button>
     <button role="tab"
             aria-selected="false"
-            aria-controls="api-tab-restore-from-snapshot"
-            id="api-restore-from-snapshot"
+            aria-controls="self-managed-tab-restore-from-snapshot"
+            id="self-managed-restore-from-snapshot"
             tabindex="-1">
-      API
+      Self-managed
     </button>
   </div>
   <div tabindex="0"
        role="tabpanel"
-       id="kibana-tab-restore-from-snapshot"
-       aria-labelledby="kibana-restore-from-snapshot">
+       id="cloud-tab-restore-from-snapshot"
+       aria-labelledby="cloud-restore-from-snapshot">
 ++++
 
-include::restore-from-snapshot.asciidoc[tag=kibana]
+include::restore-from-snapshot.asciidoc[tag=cloud]
 
 ++++
   </div>
   <div tabindex="0"
        role="tabpanel"
-       id="api-tab-restore-from-snapshot"
-       aria-labelledby="api-restore-from-snapshot"
+       id="self-managed-tab-restore-from-snapshot"
+       aria-labelledby="self-managed-restore-from-snapshot"
        hidden="">
 ++++
 
-include::restore-from-snapshot.asciidoc[tag=api]
+include::restore-from-snapshot.asciidoc[tag=self-managed]
 
 ++++
   </div>

@@ -445,32 +445,46 @@ and {es} used the `jwt_role1` role:
 
 [[jwt-realm-jwkset-reloading]]
 ===== PKC JWKS reloading
-JWT authentication supports signature verification using PKC (Public Key Cryptography) or HMAC algorithms.
-PKC JSON Web Token Key Sets (JWKS) can contain public RSA and EC keys. HMAC JWKS or an HMAC UTF-8 JWK contain secret keys.
-JWT issuers typically rotate PKC JWKS more frequently (such as daily), because RSA and EC public keys are
-designed to be easier to distribute than secret keys like HMAC.
+JWT authentication supports signature verification using PKC (Public Key Cryptography)
+or HMAC algorithms.
 
-JWT realms load a PKC JWKS, and an HMAC JWKS or HMAC UTF-8 JWK, at startup.
-JWT realms can also reload PKC JWKS contents at runtime; reload is triggered by signature validation failures.
+PKC JSON Web Token Key Sets (JWKS) can contain public RSA and EC keys. HMAC JWKS
+or an HMAC UTF-8 JWK contain secret keys. JWT issuers typically rotate PKC JWKS
+more frequently (such as daily), because RSA and EC public keys are designed to
+be easier to distribute than secret keys like HMAC.
+
+JWT realms load a PKC JWKS and an HMAC JWKS or HMAC UTF-8 JWK at startup. JWT
+realms can also reload PKC JWKS contents at runtime; a reload is triggered by
+signature validation failures.
 
 NOTE: HMAC JWKS or HMAC UTF-8 JWK reloading is not supported at this time.
 
-Load failures, parse errors, and configuration errors prevent a node from starting (and restarting).
-However, runtime PKC reload errors and recoveries are handled gracefully.
+Load failures, parse errors, and configuration errors prevent a node from
+starting (and restarting). However, runtime PKC reload errors and recoveries are
+handled gracefully.
 
-IMPORTANT: All other JWT realm validations are checked before a signature failure can trigger a
-PKC JWKS reload. Client authentication is strongly recommended. Narrow scoping of allowed algorithms,
-allowed issuer, allowed audiences, and clock skew are all strongly recommended too. That way only trusted
-client applications and realm-specific user JWT will be able to trigger PKC reload attempts.
+All other JWT realm validations are checked before a signature failure can
+trigger a PKC JWKS reload. If multiple JWT authentication signature failures
+occur simultaneously with a single {es} node, reloads are combined to reduce
+the reloads that are sent externally.
 
-If multiple JWT authentication signature failures happen at the same time within an {es} node, reloads are
-combined to reduce the reloads sent externally.
+Separate reload requests cannot be combined if JWT signature failures trigger:
 
-IMPORTANT: If JWT signature failures trigger PKC JWKS reloads in different {es} nodes, reload
-requests cannot be combined.
+* PKC JWKS reloads in different {es} nodes
+* PKC JWKS reloads in the same {es} node at different times
 
-IMPORTANT: If JWT signature failures trigger PKC JWKS reloads in the same {es} node, but at different
-times, separate reload requests will not be combined.
+[IMPORTANT]
+====
+Enabling client authentication (`client_authentication.type`) is strongly
+recommended. Only trusted client applications and realm-specific JWT users can
+trigger PKC reload attempts. Additionally, configuring the following
+<<ref-jwt-settings,JWT security settings>> is recommended:
+ 
+* `allowed_audiences`
+* `allowed_clock_skew`
+* `allowed_issuer`
+* `allowed_signature_algorithms`
+====
 
 [[hmac-oidc-example]]
 ==== Authorizing to the JWT realm with an HMAC UTF-8 key

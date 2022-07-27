@@ -1745,8 +1745,10 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             assertThat(expirationDateUpdatedResponse.getResult(), is(DocWriteResponse.Result.UPDATED));
         }
 
-        final var ex = expectThrows(Exception.class, () -> executeUpdateApiKey(TEST_USER_NAME, request));
-        assertThat(ex.getCause(), instanceOf(IllegalArgumentException.class));
+        final var ex = expectThrowsWithUnwrappedExecutionException(
+            IllegalArgumentException.class,
+            () -> executeUpdateApiKey(TEST_USER_NAME, request)
+        );
         if (invalidated) {
             assertThat(ex.getMessage(), containsString("cannot update invalidated API key [" + apiKeyId + "]"));
         } else {
@@ -2058,14 +2060,10 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     }
 
     private void doTestUpdateApiKeyNotFound(final UpdateApiKeyRequest request) {
-        final boolean useBulkRoute = randomBoolean();
-        final var ex = expectThrows(Exception.class, () -> executeUpdateApiKey(TEST_USER_NAME, request, useBulkRoute));
-        if (useBulkRoute) {
-            assertThat(ex, instanceOf(ResourceNotFoundException.class));
-        } else {
-            assertThat(ex, instanceOf(ExecutionException.class));
-            assertThat(ex.getCause(), instanceOf(ResourceNotFoundException.class));
-        }
+        final var ex = expectThrowsWithUnwrappedExecutionException(
+            ResourceNotFoundException.class,
+            () -> executeUpdateApiKey(TEST_USER_NAME, request)
+        );
         assertThat(ex.getMessage(), containsString("no API key owned by requesting user found for ID [" + request.getId() + "]"));
     }
 
@@ -2456,5 +2454,16 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertThat(ese, throwableWithMessage(containsString("action [" + action + "] is unauthorized for user [" + userName + "]")));
         assertThat(ese, throwableWithMessage(containsString(", this action is granted by the cluster privileges [")));
         assertThat(ese, throwableWithMessage(containsString("manage_api_key,manage_security,all]")));
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T extends Throwable> T expectThrowsWithUnwrappedExecutionException(Class<T> expectedType, ThrowingRunnable runnable) {
+        final var ex = expectThrowsAnyOf(List.of(expectedType, ExecutionException.class), runnable);
+        if (ex instanceof ExecutionException) {
+            assertThat(ex.getCause(), instanceOf(expectedType));
+            return (T) ex.getCause();
+        } else {
+            return (T) ex;
+        }
     }
 }

@@ -660,13 +660,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             iw.addDocument(doc);
             iw.close();
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
-                SourceLoader loader = mapper.sourceMapper().newSourceLoader(mapper.mapping());
-<<<<<<< HEAD
-                LeafReader leafReader = getOnlyLeafReader(reader);
-                String syntheticSource = loader.leaf(leafReader).source(storedFieldsVisitor(leafReader, loader), 0).utf8ToString();
-=======
-                String syntheticSource = loader.leaf(getOnlyLeafReader(reader), new int[] { 0 }).source(null, 0).utf8ToString();
->>>>>>> main
+                String syntheticSource = syntheticSource(mapper, reader, 0);
                 roundTripSyntheticSource(mapper, syntheticSource, reader);
                 return syntheticSource;
             }
@@ -691,19 +685,19 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             );
             roundTripIw.close();
             try (DirectoryReader roundTripReader = DirectoryReader.open(roundTripDirectory)) {
-                SourceLoader loader = mapper.sourceMapper().newSourceLoader(mapper.mapping());
-<<<<<<< HEAD
-                LeafReader leafReader = getOnlyLeafReader(reader);
-                String roundTripSyntheticSource = loader.leaf(leafReader).source(storedFieldsVisitor(leafReader, loader), 0).utf8ToString();
-=======
-                String roundTripSyntheticSource = loader.leaf(getOnlyLeafReader(roundTripReader), new int[] { 0 })
-                    .source(null, 0)
-                    .utf8ToString();
->>>>>>> main
+                String roundTripSyntheticSource = syntheticSource(mapper, roundTripReader, 0);
                 assertThat(roundTripSyntheticSource, equalTo(syntheticSource));
                 validateRoundTripReader(syntheticSource, reader, roundTripReader);
             }
         }
+    }
+
+    private String syntheticSource(DocumentMapper mapper, IndexReader reader, int docId) throws IOException {
+        SourceLoader loader = mapper.sourceMapper().newSourceLoader(mapper.mapping());
+        LeafReader leafReader = getOnlyLeafReader(reader);
+        SourceLoader.Leaf leafLoader = loader.leaf(leafReader, new int[] { docId });
+        BytesReference syntheticSourceBytes = leafLoader.source(storedFieldsVisitor(leafReader, loader), docId);
+        return syntheticSourceBytes.utf8ToString();
     }
 
     private FieldsVisitor storedFieldsVisitor(LeafReader leafReader, SourceLoader loader) throws IOException {

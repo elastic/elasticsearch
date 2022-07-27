@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.constantkeyword.mapper;
 
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -27,6 +28,7 @@ import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
+import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -51,6 +53,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Stream;
 
 /**
  * A {@link FieldMapper} that assigns every document the same value.
@@ -309,22 +312,32 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
 
     @Override
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        return (reader, docIdsInLeaf) -> new SourceLoader.SyntheticFieldLoader.Leaf() {
+        return new SourceLoader.SyntheticFieldLoader() {
             @Override
-            public boolean empty() {
-                return fieldType().value == null;
+            public Stream<String> requiredStoredFields() {
+                return Stream.empty();
             }
 
             @Override
-            public boolean advanceToDoc(int docId) throws IOException {
-                return fieldType().value != null;
-            }
+            public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException {
+                return new SourceLoader.SyntheticFieldLoader.Leaf() {
+                    @Override
+                    public boolean empty() {
+                        return fieldType().value == null;
+                    }
 
-            @Override
-            public void write(XContentBuilder b) throws IOException {
-                if (fieldType().value != null) {
-                    b.field(simpleName(), fieldType().value);
-                }
+                    @Override
+                    public boolean advanceToDoc(FieldsVisitor fieldsVisitor, int docId) throws IOException {
+                        return fieldType().value != null;
+                    }
+
+                    @Override
+                    public void write(FieldsVisitor fieldsVisitor, XContentBuilder b) throws IOException {
+                        if (fieldType().value != null) {
+                            b.field(simpleName(), fieldType().value);
+                        }
+                    }
+                };
             }
         };
     }

@@ -44,13 +44,13 @@ import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -63,7 +63,6 @@ import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -78,7 +77,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.function.Supplier;
+import java.util.function.BiFunction;
 
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
@@ -1075,11 +1074,8 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build()
         );
         BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(idxSettings, Mockito.mock(BitsetFilterCache.Listener.class));
-        TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataLookup = (
-            fieldType,
-            fieldIndexName,
-            searchLookup) -> {
-            IndexFieldData.Builder builder = fieldType.fielddataBuilder(fieldIndexName, searchLookup);
+        BiFunction<MappedFieldType, FieldDataContext, IndexFieldData<?>> indexFieldDataLookup = (fieldType, fdc) -> {
+            IndexFieldData.Builder builder = fieldType.fielddataBuilder(fdc);
             return builder.build(new IndexFieldDataCache.None(), null);
         };
         return new SearchExecutionContext(

@@ -157,6 +157,7 @@ public class NodeInfoStreamingTests extends ESTestCase {
                         Collections.emptyList(),
                         randomBoolean(),
                         randomBoolean(),
+                        randomBoolean(),
                         randomBoolean()
                     )
                 );
@@ -174,6 +175,7 @@ public class NodeInfoStreamingTests extends ESTestCase {
                         randomAlphaOfLengthBetween(3, 10),
                         randomBoolean() ? null : randomAlphaOfLengthBetween(3, 10),
                         Collections.emptyList(),
+                        randomBoolean(),
                         randomBoolean(),
                         randomBoolean(),
                         randomBoolean()

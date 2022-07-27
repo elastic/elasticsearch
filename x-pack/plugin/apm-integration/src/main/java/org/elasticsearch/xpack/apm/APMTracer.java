@@ -27,6 +27,7 @@ import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
@@ -172,18 +173,23 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
             final Span span = spanBuilder.startSpan();
             final Context contextForNewSpan = Context.current().with(span);
 
-            // The new span context can be used as the parent context directly within the same Java process...
-            threadContext.putTransient(Task.APM_TRACE_CONTEXT, contextForNewSpan);
-
-            // ...whereas for tasks sent to other ES nodes, we need to put trace HTTP headers into the threadContext so
-            // that they can be propagated.
-            final Map<String, String> spanHeaders = new HashMap<>();
-            services.openTelemetry.getPropagators().getTextMapPropagator().inject(contextForNewSpan, spanHeaders, Map::put);
-            spanHeaders.keySet().removeIf(k -> isSupportedContextKey(k) == false);
-            threadContext.putHeader(spanHeaders);
+            updateThreadContext(threadContext, services, contextForNewSpan);
 
             return contextForNewSpan;
         }));
+    }
+
+    private static void updateThreadContext(ThreadContext threadContext, APMServices services, Context context) {
+        // The new span context can be used as the parent context directly within the same Java process...
+        threadContext.putTransient(Task.APM_TRACE_CONTEXT, context);
+
+        // ...whereas for tasks sent to other ES nodes, we need to put trace HTTP headers into the threadContext so
+        // that they can be propagated.
+        services.openTelemetry.getPropagators().getTextMapPropagator().inject(context, threadContext, (tc, key, value) -> {
+            if (isSupportedContextKey(key)) {
+                tc.putHeader(key, value);
+            }
+        });
     }
 
     private Context getParentContext(ThreadContext threadContext) {
@@ -198,7 +204,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
             final String traceStateHeader = threadContext.getTransient("parent_" + Task.TRACE_STATE);
 
             if (traceParentHeader != null) {
-                final Map<String, String> traceContextMap = new HashMap<>(2);
+                final Map<String, String> traceContextMap = Maps.newMapWithExpectedSize(2);
                 // traceparent and tracestate should match the keys used by W3CTraceContextPropagator
                 traceContextMap.put(Task.TRACE_PARENT_HTTP_HEADER, traceParentHeader);
                 if (traceStateHeader != null) {
@@ -219,14 +225,14 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
      * <pre>{@code
      * Span span = tracer.spanBuilder("parent").startSpan();
      * try (Scope scope = parentSpan.makeCurrent()) {
-     *   // ...do some stuff, possibly creating further spans
+     *     // ...do some stuff, possibly creating further spans
      * } finally {
-     *   span.end();
+     *     span.end();
      * }
      * }</pre>
      * This typically isn't useful in Elasticsearch, because a {@link Scope} can't be used across threads.
      * However, if a scope is active, then the APM agent can capture additional information, so this method
-     * exists to make it possible to use scopes in the few situaton where it makes sense.
+     * exists to make it possible to use scopes in the few situation where it makes sense.
      *
      * @param spanId the ID of a currently-open span for which to open a scope.
      * @return a method to close the scope when you are finished with it.

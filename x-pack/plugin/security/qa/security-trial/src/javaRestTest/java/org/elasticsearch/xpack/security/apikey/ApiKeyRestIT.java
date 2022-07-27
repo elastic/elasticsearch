@@ -218,6 +218,28 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         doTestUpdateApiKey(apiKeyName, apiKeyId, apiKeyEncoded, apiKeyMetadata);
     }
 
+    public void testBulkUpdateApiKey() throws IOException {
+        final EncodedApiKey apiKey1 = createApiKey("my-api-key-name-1", Map.of("not", "returned"));
+        final EncodedApiKey apiKey2 = createApiKey("my-api-key-name-2", Map.of("not", "returned (changed)", "foo", "bar"));
+        final List<String> idsToUpdate = List.of(apiKey1.id, apiKey2.id, "non-existent-api-key-id");
+
+        final var bulkUpdateApiKeyRequest = new Request("POST", "_security/api_key/_bulk_update");
+        final Map<String, Object> expectedApiKeyMetadata = Map.of("not", "returned (changed)", "foo", "bar");
+        final Map<String, Object> updateApiKeyRequestBody = Map.of("ids", idsToUpdate, "metadata", expectedApiKeyMetadata);
+        bulkUpdateApiKeyRequest.setJsonEntity(
+            XContentTestUtils.convertToXContent(updateApiKeyRequestBody, XContentType.JSON).utf8ToString()
+        );
+
+        final Response bulkUpdateApiKeyResponse = performRequestUsingRandomAuthMethod(bulkUpdateApiKeyRequest);
+
+        assertOK(bulkUpdateApiKeyResponse);
+        final Map<String, Object> bulkUpdateApiKeyResponseMap = responseAsMap(bulkUpdateApiKeyResponse);
+        expectMetadata(apiKey1.id, expectedApiKeyMetadata);
+        expectMetadata(apiKey2.id, expectedApiKeyMetadata);
+        doTestAuthenticationWithApiKey(apiKey1.name, apiKey1.id, apiKey1.encoded);
+        doTestAuthenticationWithApiKey(apiKey2.name, apiKey2.id, apiKey2.encoded);
+    }
+
     public void testGrantTargetCanUpdateApiKey() throws IOException {
         final var request = new Request("POST", "_security/api_key/grant");
         request.setOptions(
@@ -297,7 +319,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
             : Map.of("metadata", expectedApiKeyMetadata);
         updateApiKeyRequest.setJsonEntity(XContentTestUtils.convertToXContent(updateApiKeyRequestBody, XContentType.JSON).utf8ToString());
 
-        final Response updateApiKeyResponse = doUpdateUsingRandomAuthMethod(updateApiKeyRequest);
+        final Response updateApiKeyResponse = performRequestUsingRandomAuthMethod(updateApiKeyRequest);
 
         assertOK(updateApiKeyResponse);
         final Map<String, Object> updateApiKeyResponseMap = responseAsMap(updateApiKeyResponse);
@@ -307,18 +329,40 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         doTestAuthenticationWithApiKey(apiKeyName, apiKeyId, apiKeyEncoded);
     }
 
-    private Response doUpdateUsingRandomAuthMethod(Request updateApiKeyRequest) throws IOException {
+    private Response performRequestUsingRandomAuthMethod(final Request request) throws IOException {
         final boolean useRunAs = randomBoolean();
         if (useRunAs) {
-            updateApiKeyRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader(RUN_AS_USER_HEADER, MANAGE_OWN_API_KEY_USER));
-            return adminClient().performRequest(updateApiKeyRequest);
+            request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader(RUN_AS_USER_HEADER, MANAGE_OWN_API_KEY_USER));
+            return adminClient().performRequest(request);
         } else {
-            updateApiKeyRequest.setOptions(
+            request.setOptions(
                 RequestOptions.DEFAULT.toBuilder()
                     .addHeader("Authorization", headerFromRandomAuthMethod(MANAGE_OWN_API_KEY_USER, END_USER_PASSWORD))
             );
-            return client().performRequest(updateApiKeyRequest);
+            return client().performRequest(request);
         }
+    }
+
+    private EncodedApiKey createApiKey(final String apiKeyName, final Map<String, Object> metadata) throws IOException {
+        final Map<String, Object> createApiKeyRequestBody = Map.of("name", apiKeyName, "metadata", metadata);
+
+        final Request createApiKeyRequest = new Request("POST", "_security/api_key");
+        createApiKeyRequest.setJsonEntity(XContentTestUtils.convertToXContent(createApiKeyRequestBody, XContentType.JSON).utf8ToString());
+        createApiKeyRequest.setOptions(
+            RequestOptions.DEFAULT.toBuilder()
+                .addHeader("Authorization", headerFromRandomAuthMethod(MANAGE_OWN_API_KEY_USER, END_USER_PASSWORD))
+        );
+
+        final Response createApiKeyResponse = client().performRequest(createApiKeyRequest);
+        final Map<String, Object> createApiKeyResponseMap = responseAsMap(createApiKeyResponse); // keys: id, name, api_key, encoded
+        final var apiKeyId = (String) createApiKeyResponseMap.get("id");
+        final var apiKeyEncoded = (String) createApiKeyResponseMap.get("encoded"); // Base64(id:api_key)
+        final var actualApiKeyName = (String) createApiKeyResponseMap.get("name"); // Base64(id:api_key)
+        assertThat(apiKeyId, not(emptyString()));
+        assertThat(apiKeyEncoded, not(emptyString()));
+        assertThat(apiKeyName, equalTo(actualApiKeyName));
+
+        return new EncodedApiKey(apiKeyId, apiKeyEncoded, actualApiKeyName);
     }
 
     private String headerFromRandomAuthMethod(final String username, final SecureString password) throws IOException {
@@ -343,4 +387,6 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
             assertThat(apiKeyResponse.getApiKeyInfos()[0].getMetadata(), equalTo(expectedMetadata));
         }
     }
+
+    private record EncodedApiKey(String id, String encoded, String name) {}
 }

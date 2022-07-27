@@ -2340,9 +2340,9 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         return executeUpdateApiKey(username, request, randomBoolean());
     }
 
-    private UpdateApiKeyResponse executeUpdateApiKey(final String username, final UpdateApiKeyRequest request, final boolean useBulkRoute)
+    private UpdateApiKeyResponse executeUpdateApiKey(final String username, final UpdateApiKeyRequest request, final boolean useBulkAction)
         throws Exception {
-        if (useBulkRoute) {
+        if (useBulkAction) {
             final var response = executeBulkUpdateApiKey(
                 username,
                 new BulkUpdateApiKeyRequest(List.of(request.getId()), request.getRoleDescriptors(), request.getMetadata())

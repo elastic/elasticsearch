@@ -30,14 +30,14 @@ public class CtxMapTests extends ESTestCase {
 
     public void testAddingJunkToCtx() {
         IllegalArgumentException err = expectThrows(IllegalArgumentException.class, () -> map.put("junk", "stuff"));
-        assertEquals(err.getMessage(), "invalid field added to source [junk:stuff]");
+        assertEquals("Cannot put key [junk] with value [stuff] into ctx", err.getMessage());
     }
 
     public void testRemovingSource() {
         UnsupportedOperationException err = expectThrows(UnsupportedOperationException.class, () -> map.remove("_source"));
-        assertNull(err.getMessage());
+        assertEquals("Cannot remove key _source from ctx", err.getMessage());
         err = expectThrows(UnsupportedOperationException.class, () -> iteratorAtSource().remove());
-        assertNull(err.getMessage());
+        assertEquals("Cannot remove key [_source] from ctx", err.getMessage());
     }
 
     @SuppressWarnings("unchecked")
@@ -53,9 +53,9 @@ public class CtxMapTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> map.put("_source", List.of(1, 2, "buckle my shoe"))
         );
-        assertThat(err.getMessage(), containsString("[_source] must be a map, not [[1, 2, buckle my shoe]] with type"));
+        assertThat(err.getMessage(), containsString("Expected [_source] to be a Map, not [[1, 2, buckle my shoe]] with type [java.util.ImmutableCollections$ListN]"));
         err = expectThrows(IllegalArgumentException.class, () -> sourceEntry().setValue(List.of(1, 2, "buckle my shoe")));
-        assertThat(err.getMessage(), containsString("[_source] must be a map, not [[1, 2, buckle my shoe]] with type"));
+        assertThat(err.getMessage(), containsString("Expected [_source] to be a Map, not [[1, 2, buckle my shoe]] with type [java.util.ImmutableCollections$ListN]"));
     }
 
     protected Map.Entry<String, Object> sourceEntry() {

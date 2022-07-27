@@ -14,7 +14,7 @@ import java.util.Map;
  * Metadata for insert via upsert in the Update context
  */
 public class UpsertCtxMap extends UpdateCtxMap {
-    public UpsertCtxMap(String index, String id, String op, long timestamp, Map<String, Object> source) {
-        super(source, new UpsertMetadata(index, id, op, timestamp));
+    public UpsertCtxMap(String index, String id, String op, long now, Map<String, Object> source) {
+        super(source, new UpsertMetadata(index, id, op, now));
     }
 }

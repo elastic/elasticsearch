@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.core.security.action.apikey;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
@@ -22,9 +24,39 @@ import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class BulkUpdateApiKeyResponseTests extends ESTestCase {
+
+    public void testSerialization() throws IOException {
+        final boolean includeErrors = randomBoolean();
+        final var response = new BulkUpdateApiKeyResponse(
+            List.of("api-key-id-1"),
+            List.of("api-key-id-2", "api-key-id-3"),
+            includeErrors
+                ? Map.of(
+                    "failed-api-key-id-1",
+                    new IllegalArgumentException("error1"),
+                    "failed-api-key-id-2",
+                    new ElasticsearchException("error2")
+                )
+                : Map.of()
+        );
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            response.writeTo(output);
+            try (StreamInput input = output.bytes().streamInput()) {
+                final var serialized = new BulkUpdateApiKeyResponse(input);
+                assertThat(serialized.getUpdated(), equalTo(response.getUpdated()));
+                assertThat(serialized.getNoops(), equalTo(response.getNoops()));
+                assertThat(serialized.getErrorDetails().size(), equalTo(response.getErrorDetails().size()));
+                if (includeErrors) {
+                    assertThat(serialized.getErrorDetails().get("failed-api-key-id-1").toString(), containsString("error1"));
+                    assertThat(serialized.getErrorDetails().get("failed-api-key-id-2").toString(), containsString("error2"));
+                }
+            }
+        }
+    }
 
     public void testToXContent() throws IOException {
         // Force ordered key set for deterministic comparison with raw JSON string below

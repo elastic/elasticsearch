@@ -1526,6 +1526,44 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         }
     }
 
+    public void testBulkUpdateApiKeyMultipleKeys() throws ExecutionException, InterruptedException, IOException {
+        final Tuple<List<CreateApiKeyResponse>, List<Map<String, Object>>> apiKeys = createApiKeys(
+            TEST_USER_NAME,
+            randomIntBetween(3, 5),
+            null
+        );
+        final List<String> apiKeyIds = apiKeys.v1().stream().map(CreateApiKeyResponse::getId).toList();
+        final List<RoleDescriptor> newRoleDescriptors = randomValueOtherThan(null, this::randomRoleDescriptors);
+        final Map<String, Object> newMetadata = randomValueOtherThan(null, ApiKeyTests::randomMetadata);
+
+        final BulkUpdateApiKeyResponse response = executeBulkUpdateApiKey(
+            TEST_USER_NAME,
+            new BulkUpdateApiKeyRequest(apiKeyIds, newRoleDescriptors, newMetadata)
+        );
+
+        assertNotNull(response);
+        assertThat(response.getErrorDetails(), anEmptyMap());
+        final List<String> allIds = Stream.concat(response.getUpdated().stream(), response.getNoops().stream()).toList();
+        assertEquals(apiKeyIds.size(), allIds.size());
+        assertThat(allIds, containsInAnyOrder(apiKeyIds.toArray()));
+        // Role descriptor corresponding to SecuritySettingsSource.TEST_ROLE_YML
+        final var expectedLimitedByRoleDescriptors = Set.of(
+            new RoleDescriptor(
+                TEST_ROLE,
+                new String[] { "ALL" },
+                new RoleDescriptor.IndicesPrivileges[] {
+                    RoleDescriptor.IndicesPrivileges.builder().indices("*").allowRestrictedIndices(true).privileges("ALL").build() },
+                null
+            )
+        );
+        for (String apiKeyId : apiKeyIds) {
+            final Map<String, Object> doc = getApiKeyDocument(apiKeyId);
+            expectRoleDescriptorsForApiKey("role_descriptors", newRoleDescriptors, doc);
+            expectRoleDescriptorsForApiKey("limited_by_role_descriptors", expectedLimitedByRoleDescriptors, doc);
+            expectMetadataForApiKey(newMetadata, doc);
+        }
+    }
+
     public void testUpdateApiKeyAutoUpdatesUserFields() throws Exception {
         // Create separate native realm user and role for user role change test
         final var nativeRealmUser = randomAlphaOfLengthBetween(5, 10);

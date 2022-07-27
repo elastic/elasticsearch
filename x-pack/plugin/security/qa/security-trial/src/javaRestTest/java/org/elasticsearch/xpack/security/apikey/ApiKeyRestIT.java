@@ -243,7 +243,12 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         assertEquals(List.of(apiKeyExpectingUpdate.id()), response.getUpdated());
         assertEquals(List.of(apiKeyExpectingNoop.id()), response.getNoops());
         assertEquals(2, response.getErrorDetails().size());
-        expectNotFoundError(notFoundApiKeyId, response.getErrorDetails());
+        final Exception notFoundError = response.getErrorDetails().get(notFoundApiKeyId);
+        assertNotNull(notFoundError);
+        assertThat(
+            notFoundError.getMessage(),
+            containsString("no API key owned by requesting user found for ID [" + notFoundApiKeyId + "]")
+        );
         final Exception validationError = response.getErrorDetails().get(invalidatedApiKey.id);
         assertNotNull(validationError);
         assertThat(validationError.getMessage(), containsString("cannot update invalidated API key [" + invalidatedApiKey.id + "]"));
@@ -252,15 +257,6 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         expectMetadata(invalidatedApiKey.id, metadataForInvalidatedKey);
         doTestAuthenticationWithApiKey(apiKeyExpectingUpdate.name, apiKeyExpectingUpdate.id, apiKeyExpectingUpdate.encoded);
         doTestAuthenticationWithApiKey(apiKeyExpectingNoop.name, apiKeyExpectingNoop.id, apiKeyExpectingNoop.encoded);
-    }
-
-    private void expectNotFoundError(final String notFoundApiKeyId, final Map<String, Exception> errorDetails) {
-        final Exception notFoundError = errorDetails.get(notFoundApiKeyId);
-        assertNotNull(notFoundError);
-        assertThat(
-            notFoundError.getMessage(),
-            containsString("no API key owned by requesting user found for ID [" + notFoundApiKeyId + "]")
-        );
     }
 
     public void testGrantTargetCanUpdateApiKey() throws IOException {

@@ -630,6 +630,10 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
         cancelPollingClusterFormationInfo();
         ConcurrentMap<DiscoveryNode, ClusterFormationStateOrException> responses = new ConcurrentHashMap<>();
         List<Scheduler.Cancellable> cancellables = new CopyOnWriteArrayList<>();
+        /*
+         * Assignment of clusterFormationInfoTasks must be done before the call to beginPollingClusterFormationInfo because it is used
+         * asynchronously by rescheduleFetchConsumer, called from beginPollingClusterFormationInfo.
+         */
         clusterFormationInfoTasks = cancellables;
         clusterFormationResponses = responses;
         beginPollingClusterFormationInfo(getMasterEligibleNodes(), responses::put, cancellables);
@@ -699,7 +703,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
         assert ThreadPool.assertCurrentThreadPool(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME);
         if (clusterFormationInfoTasks != null) {
             /*
-             * There is a risk here that a new Cancellable is added to clusterFormationInfoTasks after we begin iterating in the next
+             * There is a slight risk here that a new Cancellable is added to clusterFormationInfoTasks after we begin iterating in the next
              * line. We are calling this an acceptable risk because it will result in an un-cancelled un-cancellable task, but it will not
              * reschedule itself so it will not be around long.
              */

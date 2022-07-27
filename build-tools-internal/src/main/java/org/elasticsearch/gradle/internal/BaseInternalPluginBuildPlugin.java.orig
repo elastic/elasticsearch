@@ -47,11 +47,27 @@ public class BaseInternalPluginBuildPlugin implements Plugin<Project> {
         // We might want to port this into a general pattern later on.
         project.getExtensions()
             .getExtraProperties()
+<<<<<<< HEAD
             .set("addQaCheckDependencies", new Closure<Object>(BaseInternalPluginBuildPlugin.this, BaseInternalPluginBuildPlugin.this) {
                 public void doCall(Object it) {
+                    project.afterEvaluate(project1 -> {
+                        // let check depend on check tasks of qa sub-projects
+                        final var checkTaskProvider = project1.getTasks().named("check");
+                        Optional<Project> qaSubproject = project1.getSubprojects()
+                            .stream()
+                            .filter(p -> p.getPath().equals(project1.getPath() + ":qa"))
+                            .findFirst();
+                        qaSubproject.ifPresent(
+                            qa -> qa.getSubprojects()
+                                .forEach(p -> checkTaskProvider.configure(task -> task.dependsOn(p.getPath() + ":check")))
+                        );
+                    });
+=======
+            .set("addQaCheckDependencies", new Closure<Project>(BaseInternalPluginBuildPlugin.this, BaseInternalPluginBuildPlugin.this) {
+                public void doCall(Project proj) {
                     // This is only a convenience for local developers so make this a noop when running in CI
                     if (BuildParams.isCi() == false) {
-                        project.afterEvaluate(project1 -> {
+                        proj.afterEvaluate(project1 -> {
                             // let check depend on check tasks of qa sub-projects
                             final var checkTaskProvider = project1.getTasks().named("check");
                             Optional<Project> qaSubproject = project1.getSubprojects()
@@ -64,6 +80,7 @@ public class BaseInternalPluginBuildPlugin implements Plugin<Project> {
                             );
                         });
                     }
+>>>>>>> d2c52ef4950 (Split x-pack testing into multiple CI jobs (#88697))
                 }
 
                 public void doCall() {

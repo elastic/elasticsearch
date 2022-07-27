@@ -573,29 +573,24 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
             responseConsumer.accept(new ClusterFormationStateOrException(e));
         });
         try {
-            if (transportService.getThreadPool().scheduler().isShutdown() == false) {
-                return transportService.getThreadPool().schedule(() -> {
-                    Version minSupportedVersion = Version.V_8_4_0;
-                    if (node.getVersion().onOrAfter(minSupportedVersion) == false) { // This was introduced in 8.4.0
-                        logger.trace(
-                            "Cannot get cluster coordination info for {} because it is at version {} and {} is required",
-                            node,
-                            node.getVersion(),
-                            minSupportedVersion
-                        );
-                    } else {
-                        transportService.connectToNode(
-                            // Note: This connection must be explicitly closed in the connectionListener
-                            node,
-                            ConnectionProfile.buildDefaultConnectionProfile(clusterService.getSettings()),
-                            connectionListener
-                        );
-                    }
-                }, new TimeValue(10, TimeUnit.SECONDS), ThreadPool.Names.SAME);
-            } else {
-                logger.info("Not making request for cluster coordination info because this node is being shutdown");
-                return getNoopCancellable();
-            }
+            return transportService.getThreadPool().schedule(() -> {
+                Version minSupportedVersion = Version.V_8_4_0;
+                if (node.getVersion().onOrAfter(minSupportedVersion) == false) { // This was introduced in 8.4.0
+                    logger.trace(
+                        "Cannot get cluster coordination info for {} because it is at version {} and {} is required",
+                        node,
+                        node.getVersion(),
+                        minSupportedVersion
+                    );
+                } else {
+                    transportService.connectToNode(
+                        // Note: This connection must be explicitly closed in the connectionListener
+                        node,
+                        ConnectionProfile.buildDefaultConnectionProfile(clusterService.getSettings()),
+                        connectionListener
+                    );
+                }
+            }, new TimeValue(10, TimeUnit.SECONDS), ThreadPool.Names.SAME);
         } catch (EsRejectedExecutionException e) {
             if (e.isExecutorShutdown()) {
                 logger.info("Cancelling request for cluster coordination info because this node is being shutdown", e);

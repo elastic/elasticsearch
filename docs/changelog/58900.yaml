@@ -1,5 +1,5 @@
 pr: 58900
 summary: Add Bounds aggregation over point field
 area: Geo
-type: "new-aggregation, feature"
+type: "feature, new-aggregation"
 issues: []

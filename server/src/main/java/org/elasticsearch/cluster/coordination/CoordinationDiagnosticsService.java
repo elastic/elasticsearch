@@ -486,12 +486,20 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
     ) {
         masterEligibleNodes.forEach(masterEligibleNode -> {
             Consumer<ClusterFormationStateOrException> responseConsumer = result -> nodeResponseConsumer.accept(masterEligibleNode, result);
-            cancellableConsumer.accept(
-                fetchClusterFormationInfo(
-                    masterEligibleNode,
-                    responseConsumer.andThen(rescheduleFetchConsumer(masterEligibleNode, responseConsumer, cancellableConsumer))
-                )
-            );
+            try {
+                cancellableConsumer.accept(
+                    fetchClusterFormationInfo(
+                        masterEligibleNode,
+                        responseConsumer.andThen(rescheduleFetchConsumer(masterEligibleNode, responseConsumer, cancellableConsumer))
+                    )
+                );
+            } catch (EsRejectedExecutionException e) {
+                if (e.isExecutorShutdown()) {
+                    logger.trace("Not rescheduling request for cluster coordination info because this node is being shutdown", e);
+                } else {
+                    throw e;
+                }
+            }
         });
     }
 
@@ -509,15 +517,19 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
         Consumer<Scheduler.Cancellable> cancellableConsumer
     ) {
         return response -> {
-            if (transportService.getThreadPool().scheduler().isShutdown() == false) {
+            try {
                 cancellableConsumer.accept(
                     fetchClusterFormationInfo(
                         masterEligibleNode,
                         responseConsumer.andThen(rescheduleFetchConsumer(masterEligibleNode, responseConsumer, cancellableConsumer))
                     )
                 );
-            } else {
-                logger.info("Not rescheduling a request for cluster coordination info because this node is being shutdown");
+            } catch (EsRejectedExecutionException e) {
+                if (e.isExecutorShutdown()) {
+                    logger.trace("Not rescheduling request for cluster coordination info because this node is being shutdown", e);
+                } else {
+                    throw e;
+                }
             }
         };
     }
@@ -537,6 +549,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
      * @param node The node to poll for cluster formation information
      * @param responseConsumer The consumer of the cluster formation info for the node, or the exception encountered while contacting it
      * @return A Cancellable for the task that is scheduled to fetch cluster formation information
+     * @throws EsRejectedExecutionException If the task cannot be scheduled, possibly because the node is shutting down.
      */
     private Scheduler.Cancellable fetchClusterFormationInfo(
         DiscoveryNode node,
@@ -572,47 +585,24 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
             logger.warn("Exception in cluster coordination info request to master node", e);
             responseConsumer.accept(new ClusterFormationStateOrException(e));
         });
-        try {
-            return transportService.getThreadPool().schedule(() -> {
-                Version minSupportedVersion = Version.V_8_4_0;
-                if (node.getVersion().onOrAfter(minSupportedVersion) == false) { // This was introduced in 8.4.0
-                    logger.trace(
-                        "Cannot get cluster coordination info for {} because it is at version {} and {} is required",
-                        node,
-                        node.getVersion(),
-                        minSupportedVersion
-                    );
-                } else {
-                    transportService.connectToNode(
-                        // Note: This connection must be explicitly closed in the connectionListener
-                        node,
-                        ConnectionProfile.buildDefaultConnectionProfile(clusterService.getSettings()),
-                        connectionListener
-                    );
-                }
-            }, new TimeValue(10, TimeUnit.SECONDS), ThreadPool.Names.SAME);
-        } catch (EsRejectedExecutionException e) {
-            if (e.isExecutorShutdown()) {
-                logger.info("Cancelling request for cluster coordination info because this node is being shutdown", e);
-                return getNoopCancellable();
+        return transportService.getThreadPool().schedule(() -> {
+            Version minSupportedVersion = Version.V_8_4_0;
+            if (node.getVersion().onOrAfter(minSupportedVersion) == false) { // This was introduced in 8.4.0
+                logger.trace(
+                    "Cannot get cluster coordination info for {} because it is at version {} and {} is required",
+                    node,
+                    node.getVersion(),
+                    minSupportedVersion
+                );
             } else {
-                throw e;
+                transportService.connectToNode(
+                    // Note: This connection must be explicitly closed in the connectionListener
+                    node,
+                    ConnectionProfile.buildDefaultConnectionProfile(clusterService.getSettings()),
+                    connectionListener
+                );
             }
-        }
-    }
-
-    private Scheduler.Cancellable getNoopCancellable() {
-        return new Scheduler.Cancellable() {
-            @Override
-            public boolean cancel() {
-                return false;
-            }
-
-            @Override
-            public boolean isCancelled() {
-                return false;
-            }
-        };
+        }, new TimeValue(10, TimeUnit.SECONDS), ThreadPool.Names.SAME);
     }
 
     // Non-private for testing

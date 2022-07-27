@@ -234,6 +234,7 @@ public class PluginDescriptorTests extends ESTestCase {
             Collections.singletonList("foo"),
             randomBoolean(),
             randomBoolean(),
+            randomBoolean(),
             randomBoolean()
         );
         BytesStreamOutput output = new BytesStreamOutput();
@@ -256,6 +257,7 @@ public class PluginDescriptorTests extends ESTestCase {
             Collections.singletonList("foo"),
             randomBoolean(),
             randomBoolean(),
+            randomBoolean(),
             randomBoolean()
         );
         BytesStreamOutput output = new BytesStreamOutput();
@@ -276,6 +278,7 @@ public class PluginDescriptorTests extends ESTestCase {
             "dummyclass",
             null,
             List.of(),
+            randomBoolean(),
             randomBoolean(),
             randomBoolean(),
             randomBoolean()
@@ -319,6 +322,7 @@ public class PluginDescriptorTests extends ESTestCase {
             Collections.singletonList("foo"),
             randomBoolean(),
             randomBoolean(),
+            randomBoolean(),
             randomBoolean()
         );
         // everything but name is different from descriptor1
@@ -335,7 +339,8 @@ public class PluginDescriptorTests extends ESTestCase {
             ),
             descriptor1.hasNativeController() == false,
             descriptor1.isLicensed() == false,
-            descriptor1.isModular() == false
+            descriptor1.isModular() == false,
+            descriptor1.isStable() == false
         );
         // only name is different from descriptor1
         PluginDescriptor descriptor3 = new PluginDescriptor(
@@ -349,7 +354,8 @@ public class PluginDescriptorTests extends ESTestCase {
             descriptor1.getExtendedPlugins(),
             descriptor1.hasNativeController(),
             descriptor1.isLicensed(),
-            descriptor1.isModular()
+            descriptor1.isModular(),
+            descriptor1.isStable()
         );
 
         assertThat(descriptor1, equalTo(descriptor2));

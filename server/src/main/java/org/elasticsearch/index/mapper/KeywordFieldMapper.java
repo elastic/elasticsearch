@@ -705,17 +705,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 return new SourceValueFetcherSortedBinaryIndexFieldData.Builder(
                     name(),
                     CoreValuesSourceType.KEYWORD,
-                    new SourceValueFetcher(sourcePaths, nullValue) {
-                        @Override
-                        protected String parseSourceValue(Object value) {
-                            String keywordValue = value.toString();
-                            if (keywordValue.length() > ignoreAbove) {
-                                return null;
-                            }
-
-                            return normalizeValue(normalizer(), name(), keywordValue);
-                        }
-                    },
+                    sourceValueFetcher(sourcePaths),
                     searchLookup.source(),
                     KeywordDocValuesField::new
                 );
@@ -732,7 +722,11 @@ public final class KeywordFieldMapper extends FieldMapper {
             if (this.scriptValues != null) {
                 return FieldValues.valueFetcher(this.scriptValues, context);
             }
-            return new SourceValueFetcher(name(), context, nullValue) {
+            return sourceValueFetcher(context.isSourceEnabled() ? context.sourcePath(name()) : Collections.emptySet());
+        }
+
+        private SourceValueFetcher sourceValueFetcher(Set<String> sourcePaths) {
+            return new SourceValueFetcher(sourcePaths, nullValue) {
                 @Override
                 protected String parseSourceValue(Object value) {
                     String keywordValue = value.toString();

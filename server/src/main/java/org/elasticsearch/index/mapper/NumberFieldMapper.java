@@ -1432,26 +1432,14 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             if ((operation == FielddataOperation.SEARCH || operation == FielddataOperation.SCRIPT) && hasDocValues()) {
-                return this.type.getFieldDataBuilder(name());
+                return type.getFieldDataBuilder(name());
             }
 
             if (operation == FielddataOperation.SCRIPT) {
                 SearchLookup searchLookup = fieldDataContext.lookupSupplier().get();
                 Set<String> sourcePaths = fieldDataContext.sourcePathsLookup().apply(name());
 
-                return this.type.getValueFetcherFieldDataBuilder(
-                    name(),
-                    searchLookup.source(),
-                    new SourceValueFetcher(sourcePaths, nullValue) {
-                        @Override
-                        protected Object parseSourceValue(Object value) {
-                            if (value.equals("")) {
-                                return nullValue;
-                            }
-                            return NumberFieldType.this.type.parse(value, coerce);
-                        }
-                    }
-                );
+                return type.getValueFetcherFieldDataBuilder(name(), searchLookup.source(), sourceValueFetcher(sourcePaths));
             }
 
             throw new IllegalStateException("unknown field data type [" + operation.name() + "]");
@@ -1473,7 +1461,11 @@ public class NumberFieldMapper extends FieldMapper {
             if (this.scriptValues != null) {
                 return FieldValues.valueFetcher(this.scriptValues, context);
             }
-            return new SourceValueFetcher(name(), context, nullValue) {
+            return sourceValueFetcher(context.isSourceEnabled() ? context.sourcePath(name()) : Collections.emptySet());
+        }
+
+        private SourceValueFetcher sourceValueFetcher(Set<String> sourcePaths) {
+            return new SourceValueFetcher(sourcePaths, nullValue) {
                 @Override
                 protected Object parseSourceValue(Object value) {
                     if (value.equals("")) {

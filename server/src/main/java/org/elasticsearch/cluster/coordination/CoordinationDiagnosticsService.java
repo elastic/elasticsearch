@@ -585,6 +585,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
             logger.warn("Exception in cluster coordination info request to master node", e);
             responseConsumer.accept(new ClusterFormationStateOrException(e));
         });
+
         return transportService.getThreadPool().schedule(() -> {
             Version minSupportedVersion = Version.V_8_4_0;
             if (node.getVersion().onOrAfter(minSupportedVersion) == false) { // This was introduced in 8.4.0

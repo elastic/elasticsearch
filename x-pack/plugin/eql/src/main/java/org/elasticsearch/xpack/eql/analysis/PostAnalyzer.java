@@ -11,8 +11,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.xpack.eql.plan.logical.KeyedFilter;
 import org.elasticsearch.xpack.eql.plan.logical.LimitWithOffset;
-import org.elasticsearch.xpack.eql.plan.logical.Sample;
-import org.elasticsearch.xpack.eql.plan.logical.Sequence;
 import org.elasticsearch.xpack.eql.session.EqlConfiguration;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
@@ -49,24 +47,21 @@ public class PostAnalyzer {
             Holder<Boolean> hasJoin = new Holder<>(Boolean.FALSE);
 
             Source projectCtx = synthetic("<implicit-project>");
-            if (plan.anyMatch(Sequence.class::isInstance)) {
+            // first per KeyedFilter
+            plan = plan.transformUp(KeyedFilter.class, k -> {
                 hasJoin.set(Boolean.TRUE);
-                // first per KeyedFilter
-                plan = plan.transformUp(KeyedFilter.class, k -> {
-                    Project p = new Project(projectCtx, k.child(), k.extractionAttributes());
+                Project p = new Project(projectCtx, k.child(), k.extractionAttributes());
 
-                    // TODO: this could be incorporated into the query generation
-                    LogicalPlan fetchSize = new LimitWithOffset(
-                        synthetic("<fetch-size>"),
-                        new Literal(synthetic("<fetch-value>"), configuration.fetchSize(), DataTypes.INTEGER),
-                        p
-                    );
+                // TODO: this could be incorporated into the query generation
+                LogicalPlan fetchSize = new LimitWithOffset(
+                    synthetic("<fetch-size>"),
+                    new Literal(synthetic("<fetch-value>"), configuration.fetchSize(), DataTypes.INTEGER),
+                    p
+                );
 
-                    return new KeyedFilter(k.source(), fetchSize, k.keys(), k.timestamp(), k.tiebreaker());
-                });
-            }
+                return new KeyedFilter(k.source(), fetchSize, k.keys(), k.timestamp(), k.tiebreaker());
+            });
 
-            hasJoin.set(hasJoin.get() || plan.anyMatch(Sample.class::isInstance));
             // in case of event queries, filter everything
             if (hasJoin.get() == false) {
                 plan = new Project(projectCtx, plan, emptyList());

@@ -22,10 +22,10 @@ public class UpdateCtxMap extends CtxMap {
         String routing,
         String type,
         String op,
-        long now,
+        long timestamp,
         Map<String, Object> source
     ) {
-        super(source, new UpdateMetadata(index, id, version, routing, type, op, now));
+        super(source, new UpdateMetadata(index, id, version, routing, type, op, timestamp));
     }
 
     protected UpdateCtxMap(Map<String, Object> source, Metadata metadata) {

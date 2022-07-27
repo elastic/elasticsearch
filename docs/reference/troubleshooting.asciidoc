@@ -58,6 +58,8 @@ include::troubleshooting/data/start-ilm.asciidoc[]
 
 include::troubleshooting/data/start-slm.asciidoc[]
 
+include::troubleshooting/data/restore-from-snapshot.asciidoc[]
+
 include::troubleshooting/snapshot/add-repository.asciidoc[]
 
 include::monitoring/troubleshooting.asciidoc[]

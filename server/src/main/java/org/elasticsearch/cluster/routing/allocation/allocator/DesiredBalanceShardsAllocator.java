@@ -99,7 +99,14 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
                     pendingAllocationCommands.clear();
                 }
 
-                setCurrentDesiredBalance(desiredBalanceComputer.compute(currentDesiredBalance, desiredBalanceInput, localPendingAllocationCommands, this::isFresh));
+                setCurrentDesiredBalance(
+                    desiredBalanceComputer.compute(
+                        currentDesiredBalance,
+                        desiredBalanceInput,
+                        localPendingAllocationCommands,
+                        this::isFresh
+                    )
+                );
                 var isFresh = isFresh(desiredBalanceInput);
 
                 if (isFresh) {

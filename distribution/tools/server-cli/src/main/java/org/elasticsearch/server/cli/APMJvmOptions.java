@@ -144,9 +144,9 @@ class APMJvmOptions {
             return List.of();
         }
 
-        final Optional<Path> agentJar = findAgentJar();
+        final Path agentJar = findAgentJar();
 
-        if (agentJar.isEmpty()) {
+        if (agentJar == null) {
             return List.of();
         }
 
@@ -169,7 +169,7 @@ class APMJvmOptions {
         final List<String> options = new ArrayList<>();
         // Use an agent argument to specify the config file instead of e.g. `-Delastic.apm.config_file=...`
         // because then the agent won't try to reload the file, and we can remove it after startup.
-        options.add("-javaagent:" + agentJar.get() + "=c=" + tmpProperties);
+        options.add("-javaagent:" + agentJar + "=c=" + tmpProperties);
 
         dynamicSettings.forEach((key, value) -> options.add("-Delastic.apm." + key + "=" + value));
 
@@ -254,16 +254,27 @@ class APMJvmOptions {
      * @return the agent jar file
      * @throws IOException if a problem occurs reading the filesystem
      */
-    private static Optional<Path> findAgentJar() throws IOException {
+    @Nullable
+    private static Path findAgentJar() throws IOException, UserException {
         final Path apmModule = Path.of("modules/x-pack-apm-integration");
 
         if (Files.isDirectory(apmModule) == false) {
-            return Optional.empty();
+            return null;
         }
 
         try (var apmStream = Files.list(apmModule)) {
-            return apmStream.filter(path -> path.getFileName().toString().matches("elastic-apm-agent-\\d+\\.\\d+\\.\\d+\\.jar"))
-                .findFirst();
+            final List<Path> paths = apmStream.filter(
+                path -> path.getFileName().toString().matches("elastic-apm-agent-\\d+\\.\\d+\\.\\d+\\.jar")
+            ).toList();
+
+            if (paths.size() > 1) {
+                throw new UserException(
+                    ExitCodes.CODE_ERROR,
+                    "Found multiple [elastic-apm-agent] jars under [modules/x-pack-apm-integration]! Installation is corrupt."
+                );
+            }
+
+            return paths.isEmpty() ? null : paths.get(0);
         }
     }
 }

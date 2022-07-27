@@ -1137,6 +1137,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     );
 
     public enum RollupTaskStatus {
+        UNKNOWN,
         STARTED,
         SUCCESS;
 
@@ -1149,7 +1150,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     public static final Setting<RollupTaskStatus> INDEX_ROLLUP_STATUS = Setting.enumSetting(
         RollupTaskStatus.class,
         INDEX_ROLLUP_STATUS_KEY,
-        RollupTaskStatus.SUCCESS,
+        RollupTaskStatus.UNKNOWN,
         Property.IndexScope,
         Property.InternalIndex
     );

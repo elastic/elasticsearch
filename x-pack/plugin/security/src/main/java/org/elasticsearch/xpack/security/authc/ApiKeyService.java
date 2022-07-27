@@ -430,7 +430,7 @@ public class ApiKeyService {
         final Collection<VersionedApiKeyDoc> targetVersionedDocs,
         final ActionListener<BulkUpdateApiKeyResponse> listener
     ) {
-        logger.trace("Found [{}] API keys to update", targetVersionedDocs.size());
+        logger.trace("Found [{}] API keys of [{}] requested for update", targetVersionedDocs.size(), request.getIds().size());
         final BulkUpdateApiKeyResponse.Builder responseBuilder = BulkUpdateApiKeyResponse.builder();
         final BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
         for (VersionedApiKeyDoc versionedDoc : targetVersionedDocs) {

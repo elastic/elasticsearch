@@ -366,7 +366,6 @@ public class ApiKeyService {
     ) {
         ensureEnabled();
 
-        // TODO could call bulkUpdateApiKey with a translation here
         if (authentication == null) {
             listener.onFailure(new IllegalArgumentException("authentication must be provided"));
             return;

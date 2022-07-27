@@ -1467,7 +1467,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         );
         final var request = new UpdateApiKeyRequest(apiKeyId, newRoleDescriptors, ApiKeyTests.randomMetadata());
 
-        final UpdateApiKeyResponse response = executeUpdateApiKey(TEST_USER_NAME, request, randomBoolean());
+        final UpdateApiKeyResponse response = executeUpdateApiKey(TEST_USER_NAME, request);
 
         assertNotNull(response);
         // In this test, non-null roleDescriptors always result in an update since they either update the role name, or associated
@@ -1625,7 +1625,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             newClusterPrivileges.toArray(new String[0])
         );
 
-        UpdateApiKeyResponse response = executeUpdateApiKey(nativeRealmUser, UpdateApiKeyRequest.usingApiKeyId(apiKeyId), randomBoolean());
+        UpdateApiKeyResponse response = executeUpdateApiKey(nativeRealmUser, UpdateApiKeyRequest.usingApiKeyId(apiKeyId));
 
         assertNotNull(response);
         assertTrue(response.isUpdated());
@@ -1644,7 +1644,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         updateUser(updatedUser);
 
         // Update API key
-        response = executeUpdateApiKey(nativeRealmUser, UpdateApiKeyRequest.usingApiKeyId(apiKeyId), randomBoolean());
+        response = executeUpdateApiKey(nativeRealmUser, UpdateApiKeyRequest.usingApiKeyId(apiKeyId));
 
         assertNotNull(response);
         assertTrue(response.isUpdated());
@@ -1667,7 +1667,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final var request = new UpdateApiKeyRequest(apiKeyId, List.of(expectedRoleDescriptor), ApiKeyTests.randomMetadata());
 
         // Validate can update own API key
-        final UpdateApiKeyResponse response = executeUpdateApiKey(TEST_USER_NAME, request, randomBoolean());
+        final UpdateApiKeyResponse response = executeUpdateApiKey(TEST_USER_NAME, request);
         assertNotNull(response);
         assertTrue(response.isUpdated());
 

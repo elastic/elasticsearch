@@ -16,7 +16,9 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
+import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
@@ -25,8 +27,10 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
@@ -60,6 +64,9 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
     private final ContinuousComputation<DesiredBalanceInput> desiredBalanceComputation;
     private final PendingListenersQueue queue;
     private final AtomicLong indexGenerator = new AtomicLong(-1);
+    private volatile DesiredBalance currentDesiredBalance = DesiredBalance.INITIAL;
+    private volatile DesiredBalance appliedDesiredBalance = DesiredBalance.INITIAL;
+    private final List<PendingAllocationCommand> pendingAllocationCommands = new ArrayList<>();
 
     public static DesiredBalanceShardsAllocator create(
         ShardsAllocator delegateAllocator,
@@ -71,9 +78,6 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
         clusterService.addListener(allocator);
         return allocator;
     }
-
-    private volatile DesiredBalance currentDesiredBalance = DesiredBalance.INITIAL;
-    private volatile DesiredBalance appliedDesiredBalance = DesiredBalance.INITIAL;
 
     public DesiredBalanceShardsAllocator(
         ShardsAllocator delegateAllocator,
@@ -89,7 +93,13 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
 
                 logger.trace("Computing balance for [{}]", desiredBalanceInput.index());
 
-                setCurrentDesiredBalance(desiredBalanceComputer.compute(currentDesiredBalance, desiredBalanceInput, this::isFresh));
+                var localPendingAllocationCommands = new ArrayList<PendingAllocationCommand>();
+                synchronized (pendingAllocationCommands) {
+                    localPendingAllocationCommands.addAll(pendingAllocationCommands);
+                    pendingAllocationCommands.clear();
+                }
+
+                setCurrentDesiredBalance(desiredBalanceComputer.compute(currentDesiredBalance, desiredBalanceInput, localPendingAllocationCommands, this::isFresh));
                 var isFresh = isFresh(desiredBalanceInput);
 
                 if (isFresh) {
@@ -112,6 +122,12 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
             }
         };
         this.queue = new PendingListenersQueue(threadPool);
+    }
+
+    public void executeCommands(AllocationCommands commands, boolean explain, Consumer<RoutingExplanations> explanationsListener) {
+        synchronized (pendingAllocationCommands) {
+            pendingAllocationCommands.add(new PendingAllocationCommand(commands, explain, explanationsListener));
+        }
     }
 
     @Override

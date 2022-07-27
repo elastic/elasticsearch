@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
+import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener;
 import org.elasticsearch.cluster.routing.allocation.command.AbstractAllocateAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommand;
@@ -178,7 +179,7 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
     static class ClusterRerouteResponseAckedClusterStateUpdateTask extends AckedClusterStateUpdateTask {
 
         private final ClusterRerouteRequest request;
-        private final ActionListener<ClusterRerouteResponse> listener;
+        private final AllocationActionListener<ClusterRerouteResponse> listener;
         private final Logger logger;
         private final AllocationService allocationService;
         private volatile ClusterState clusterStateToSend;
@@ -192,19 +193,23 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
         ) {
             super(Priority.IMMEDIATE, request, listener);
             this.request = request;
-            this.listener = listener;
+            this.listener = new AllocationActionListener<>(listener);
             this.logger = logger;
             this.allocationService = allocationService;
         }
 
         @Override
         protected ClusterRerouteResponse newResponse(boolean acknowledged) {
+            //TODO make sure explanations are present when this is created
+            if (explanations == null) {
+                explanations = new RoutingExplanations();
+            }
             return new ClusterRerouteResponse(acknowledged, clusterStateToSend, explanations);
         }
 
         @Override
         public void onAckTimeout() {
-            listener.onResponse(new ClusterRerouteResponse(false, clusterStateToSend, new RoutingExplanations()));
+            listener.clusterStateUpdate().onResponse(new ClusterRerouteResponse(false, clusterStateToSend, new RoutingExplanations()));
         }
 
         @Override
@@ -215,18 +220,16 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
 
         @Override
         public ClusterState execute(ClusterState currentState) {
-            AllocationService.CommandsResult commandsResult = allocationService.reroute(
+            var newClusterState = allocationService.reroute(
                 currentState,
                 request.getCommands(),
                 request.explain(),
-                request.isRetryFailed()
+                request.isRetryFailed(),
+                explanations -> this.explanations = explanations,
+                listener.reroute()
             );
-            clusterStateToSend = commandsResult.clusterState();
-            explanations = commandsResult.explanations();
-            if (request.dryRun()) {
-                return currentState;
-            }
-            return commandsResult.clusterState();
+            clusterStateToSend = newClusterState;
+            return request.dryRun() ? currentState : newClusterState;
         }
     }
 }

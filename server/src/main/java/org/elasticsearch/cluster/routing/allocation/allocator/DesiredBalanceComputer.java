@@ -46,6 +46,15 @@ public class DesiredBalanceComputer {
         DesiredBalanceInput desiredBalanceInput,
         Predicate<DesiredBalanceInput> isFresh
     ) {
+        return compute(previousDesiredBalance, desiredBalanceInput, List.of(), isFresh);
+    }
+
+    public DesiredBalance compute(
+        DesiredBalance previousDesiredBalance,
+        DesiredBalanceInput desiredBalanceInput,
+        List<PendingAllocationCommand> pendingAllocationCommands,
+        Predicate<DesiredBalanceInput> isFresh
+    ) {
 
         logger.trace("starting to recompute desired balance for [{}]", desiredBalanceInput.index());
 
@@ -165,6 +174,10 @@ public class DesiredBalanceComputer {
                     routingNodes.startShard(logger, unassignedReplicaIterator.initialize(nodeId, null, 0L, changes), changes);
                 }
             }
+        }
+
+        for (var pendingAllocationCommand : pendingAllocationCommands) {
+            pendingAllocationCommand.execute(routingAllocation);
         }
 
         // TODO must also bypass ResizeAllocationDecider

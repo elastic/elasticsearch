@@ -158,7 +158,7 @@ find an index like this, which belongs to a data stream, you need to check if da
 You can see that by checking the `settings`, if you can find this property: `"index.lifecycle.indexing_complete" : "true"`,
 it means that indexing is completed in this index and you can continue to the next step.
 +
-If it is not there you need to rollover the data stream so you can restore the missing data without blocking
+If `index.lifecycle.indexing_complete` is not there or is configured to `false` you need to rollover the data stream so you can restore the missing data without blocking
 the ingestion of new data. The following command will achieve that.
 +
 [source,console]
@@ -378,7 +378,7 @@ find an index like this, which belongs to a data stream, you need to check if da
 You can see that by checking the `settings`, if you can find this property: `"index.lifecycle.indexing_complete" : "true"`,
 it means that indexing is completed in this index and you can continue to the next step.
 +
-If it is not there you need to rollover the data stream so you can restore the missing data without blocking
+If `index.lifecycle.indexing_complete` is not there or is configured to `false` you need to rollover the data stream so you can restore the missing data without blocking
 the ingestion of new data. The following command will achieve that.
 +
 [source,console]

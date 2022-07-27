@@ -54,7 +54,6 @@ import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderContext;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderResult;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 import org.junit.Before;
-import org.mockito.Mockito;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -79,6 +78,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -430,13 +431,13 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         TestAutoscalingDeciderContext context = createContext(state, Set.of(DiscoveryNodeRole.DATA_HOT_NODE_ROLE), allocationService);
         SortedSet<ShardRouting> assignedShards = decider.allocationState(context).storagePreventsRemainOrMove().shards();
         if (assignedShards.size() > 0) {
-            when(allocationService.explainShardAllocation(assignedShards.first(), Mockito.any(RoutingAllocation.class))).thenReturn(
+            when(allocationService.explainShardAllocation(eq(assignedShards.first()), any(RoutingAllocation.class))).thenReturn(
                 new ShardAllocationDecision(AllocateUnassignedDecision.NOT_TAKEN, MoveDecision.stay(Decision.YES))
             );
         }
         SortedSet<ShardRouting> unassignedShards = decider.allocationState(context).storagePreventsAllocation().shards();
         if (unassignedShards.size() > 0) {
-            when(allocationService.explainShardAllocation(unassignedShards.first(), Mockito.any(RoutingAllocation.class))).thenReturn(
+            when(allocationService.explainShardAllocation(eq(unassignedShards.first()), any(RoutingAllocation.class))).thenReturn(
                 new ShardAllocationDecision(
                     AllocateUnassignedDecision.no(UnassignedInfo.AllocationStatus.DECIDERS_NO, List.of(), false),
                     MoveDecision.NOT_TAKEN
@@ -467,7 +468,10 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
                 resultReason.unassignedShardAllocateDecision(),
                 equalTo(
                     unassignedShards.size() > 0
-                        ? AllocateUnassignedDecision.no(UnassignedInfo.AllocationStatus.DECIDERS_NO, List.of(), false)
+                        ? new ShardAllocationDecision(
+                            AllocateUnassignedDecision.no(UnassignedInfo.AllocationStatus.DECIDERS_NO, List.of(), false),
+                            MoveDecision.NOT_TAKEN
+                        )
                         : null
                 )
             );

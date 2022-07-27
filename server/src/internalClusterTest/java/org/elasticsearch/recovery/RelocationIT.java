@@ -163,7 +163,6 @@ public class RelocationIT extends ESIntegTestCase {
         assertThat(client().prepareSearch("test").setSize(0).execute().actionGet().getHits().getTotalHits().value, equalTo(20L));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86429")
     public void testRelocationWhileIndexingRandom() throws Exception {
         int numberOfRelocations = scaledRandomIntBetween(1, rarely() ? 10 : 4);
         int numberOfReplicas = randomBoolean() ? 0 : 1;
@@ -276,7 +275,6 @@ public class RelocationIT extends ESIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86429")
     public void testRelocationWhileRefreshing() throws Exception {
         int numberOfRelocations = scaledRandomIntBetween(1, rarely() ? 10 : 4);
         int numberOfReplicas = randomBoolean() ? 0 : 1;

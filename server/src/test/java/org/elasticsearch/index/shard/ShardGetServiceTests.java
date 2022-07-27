@@ -112,7 +112,8 @@ public class ShardGetServiceTests extends IndexShardTestCase {
         String expectedFetchedSource = """
             {"bar":42,"foo":7}""";
         String sourceOptions = """
-            "synthetic": true""";
+            "mode": "synthetic"
+            """;
         runGetFromTranslogWithOptions(docToIndex, sourceOptions, expectedFetchedSource, "\"long\"", 7L, true);
     }
 

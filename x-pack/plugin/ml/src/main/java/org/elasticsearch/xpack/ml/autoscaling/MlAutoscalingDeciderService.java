@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction.DatafeedParams;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
@@ -409,6 +410,19 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
             .filter(e -> e.getValue().getAssignmentState().equals(AssignmentState.STARTING) && e.getValue().getNodeRoutingTable().isEmpty())
             .map(Map.Entry::getKey)
             .toList();
+        // TODO for autoscaling by memory, we only care about if the model is allocated to at least one node (see above)
+        // We should do this check in our autoscaling by processor count service, which will be a separate decider for readability's sake
+        final List<String> notFullyAllocatedModels = modelAssignments.entrySet()
+            .stream()
+            .filter(
+                e -> e.getValue()
+                    .calculateAllocationStatus()
+                    .map(AllocationStatus::calculateState)
+                    .orElse(AllocationStatus.State.FULLY_ALLOCATED)
+                    .equals(AllocationStatus.State.FULLY_ALLOCATED) == false
+            )
+            .map(Map.Entry::getKey)
+            .toList();
 
         final int numAnalyticsJobsInQueue = NUM_ANALYTICS_JOBS_IN_QUEUE.get(configuration);
         final int numAnomalyJobsInQueue = NUM_ANOMALY_JOBS_IN_QUEUE.get(configuration);
@@ -543,7 +557,8 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
 
         if (waitingAnalyticsJobs.isEmpty() == false
             || waitingSnapshotUpgrades.isEmpty() == false
-            || waitingAnomalyJobs.isEmpty() == false) {
+            || waitingAnomalyJobs.isEmpty() == false
+            || notFullyAllocatedModels.isEmpty() == false) {
             // We don't want to continue to consider a scale down if there are now waiting jobs
             resetScaleDownCoolDown();
             return new AutoscalingDeciderResult(
@@ -553,11 +568,13 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
                         Locale.ROOT,
                         "Passing currently perceived capacity as there are [%d] model snapshot upgrades, "
                             + "[%d] analytics and [%d] anomaly detection jobs in the queue, "
+                            + "[%d] trained models not fully-allocated, "
                             + "but the number in the queue is less than the configured maximum allowed "
                             + "or the queued jobs will eventually be assignable at the current size.",
                         waitingSnapshotUpgrades.size(),
                         waitingAnalyticsJobs.size(),
-                        waitingAnomalyJobs.size()
+                        waitingAnomalyJobs.size(),
+                        notFullyAllocatedModels.size()
                     )
                 ).build()
             );
@@ -654,6 +671,11 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
                 if (capacity == null) {
                     return null;
                 }
+                // TODO we should remove this when we can auto-scale (down and up) via a new CPU auto-scaling decider
+                if (modelAssignmentsRequireMoreThanHalfCpu(modelAssignments.values(), mlNodes)) {
+                    logger.debug("not down-scaling; model assignments require more than half of the ML tier's allocated processors");
+                    return null;
+                }
                 return new AutoscalingDeciderResult(capacity, result.reason());
             });
         if (maybeScaleDown.isPresent()) {
@@ -742,6 +764,26 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
             );
         }
         return newCapacity;
+    }
+
+    static boolean modelAssignmentsRequireMoreThanHalfCpu(Collection<TrainedModelAssignment> assignments, List<DiscoveryNode> mlNodes) {
+        int totalRequiredProcessors = assignments.stream()
+            .mapToInt(t -> t.getTaskParams().getNumberOfAllocations() * t.getTaskParams().getThreadsPerAllocation())
+            .sum();
+        int totalMlProcessors = mlNodes.stream().mapToInt(node -> {
+            String allocatedProcessorsString = node.getAttributes().get(MachineLearning.ALLOCATED_PROCESSORS_NODE_ATTR);
+            try {
+                return Integer.parseInt(allocatedProcessorsString);
+            } catch (NumberFormatException e) {
+                assert e == null
+                    : MachineLearning.ALLOCATED_PROCESSORS_NODE_ATTR
+                        + " should parse because we set it internally: invalid value was ["
+                        + allocatedProcessorsString
+                        + "]";
+                return 0;
+            }
+        }).sum();
+        return totalRequiredProcessors * 2 > totalMlProcessors;
     }
 
     // This doesn't allow any jobs to wait in the queue, this is because in a "normal" scaling event, we also verify if a job

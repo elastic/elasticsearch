@@ -87,7 +87,7 @@ public class QuestionAnsweringProcessorTests extends ESTestCase {
         assertThat(tokenizationResult.getTokenization(0).seqPairOffset(), equalTo(7));
         double[][][] scores = { { START_TOKEN_SCORES }, { END_TOKEN_SCORES } };
         NlpTask.ResultProcessor resultProcessor = processor.getResultProcessor(config);
-        PyTorchInferenceResult pyTorchResult = new PyTorchInferenceResult("1", scores, 1L, null);
+        PyTorchInferenceResult pyTorchResult = new PyTorchInferenceResult("1", scores, 1L, false);
         QuestionAnsweringInferenceResults result = (QuestionAnsweringInferenceResults) resultProcessor.processResult(
             tokenizationResult,
             pyTorchResult

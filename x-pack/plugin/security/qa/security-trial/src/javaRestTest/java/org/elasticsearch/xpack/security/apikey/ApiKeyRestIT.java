@@ -219,9 +219,9 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
     }
 
     public void testBulkUpdateApiKey() throws IOException {
-        final EncodedApiKey apiKey1 = createApiKey("my-api-key-name-1", Map.of("not", "returned"));
-        final EncodedApiKey apiKey2 = createApiKey("my-api-key-name-2", Map.of("not", "returned (changed)", "foo", "bar"));
-        final List<String> idsToUpdate = List.of(apiKey1.id, apiKey2.id, "non-existent-api-key-id");
+        final EncodedApiKey apiKeyExpectingUpdate = createApiKey("my-api-key-name-1", Map.of("not", "returned"));
+        final EncodedApiKey apiKeyExpectingNoop = createApiKey("my-api-key-name-2", Map.of("not", "returned (changed)", "foo", "bar"));
+        final List<String> idsToUpdate = shuffledList(List.of(apiKeyExpectingUpdate.id, apiKeyExpectingNoop.id, "non-existent-api-key-id"));
 
         final var bulkUpdateApiKeyRequest = new Request("POST", "_security/api_key/_bulk_update");
         final Map<String, Object> expectedApiKeyMetadata = Map.of("not", "returned (changed)", "foo", "bar");
@@ -234,10 +234,11 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
 
         assertOK(bulkUpdateApiKeyResponse);
         final Map<String, Object> bulkUpdateApiKeyResponseMap = responseAsMap(bulkUpdateApiKeyResponse);
-        expectMetadata(apiKey1.id, expectedApiKeyMetadata);
-        expectMetadata(apiKey2.id, expectedApiKeyMetadata);
-        doTestAuthenticationWithApiKey(apiKey1.name, apiKey1.id, apiKey1.encoded);
-        doTestAuthenticationWithApiKey(apiKey2.name, apiKey2.id, apiKey2.encoded);
+
+        expectMetadata(apiKeyExpectingUpdate.id, expectedApiKeyMetadata);
+        expectMetadata(apiKeyExpectingNoop.id, expectedApiKeyMetadata);
+        doTestAuthenticationWithApiKey(apiKeyExpectingUpdate.name, apiKeyExpectingUpdate.id, apiKeyExpectingUpdate.encoded);
+        doTestAuthenticationWithApiKey(apiKeyExpectingNoop.name, apiKeyExpectingNoop.id, apiKeyExpectingNoop.encoded);
     }
 
     public void testGrantTargetCanUpdateApiKey() throws IOException {

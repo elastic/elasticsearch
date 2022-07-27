@@ -449,7 +449,7 @@ public class ApiKeyService {
                 responseBuilder.error(apiKeyId, traceLog("prepare index request for update", ex));
             }
         }
-        addNotFound(responseBuilder, request.getIds(), targetVersionedDocs);
+        addErrorsForNotFoundApiKeys(responseBuilder, targetVersionedDocs, request.getIds());
         if (bulkRequestBuilder.numberOfActions() == 0) {
             logger.trace("No bulk request execution necessary for API key update");
             listener.onResponse(responseBuilder.build());
@@ -472,10 +472,10 @@ public class ApiKeyService {
         );
     }
 
-    private void addNotFound(
+    private void addErrorsForNotFoundApiKeys(
         final BulkUpdateApiKeyResponse.Builder responseBuilder,
-        final List<String> requestedIds,
-        final Collection<VersionedApiKeyDoc> foundDocs
+        final Collection<VersionedApiKeyDoc> foundDocs,
+        final List<String> requestedIds
     ) {
         final Set<String> foundIds = foundDocs.stream().map(VersionedApiKeyDoc::id).collect(Collectors.toUnmodifiableSet());
         for (String id : requestedIds) {

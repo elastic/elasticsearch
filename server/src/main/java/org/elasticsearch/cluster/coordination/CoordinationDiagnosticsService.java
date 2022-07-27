@@ -618,9 +618,9 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
         if (disableAutoPollingForTestMode == false) {
             if (currentMaster == null && clusterService.localNode().isMasterNode()) {
                 /*
-                 * This begins polling all master-eligible nodes for cluster formation information. However there's a 10-second delay before it
-                 * starts, so in the normal situation where during a master transition it flips from master1 -> null -> master2, it the
-                 * polling tasks will be canceled before any requests are actually made.
+                 * This begins polling all master-eligible nodes for cluster formation information. However there's a 10-second delay
+                 * before it starts, so in the normal situation where during a master transition it flips from master1 -> null ->
+                 * master2, it the polling tasks will be canceled before any requests are actually made.
                  */
                 beginPollingClusterFormationInfo();
             } else {

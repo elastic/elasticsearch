@@ -57,6 +57,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Random;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -822,13 +823,13 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
         validNodeIds.add("node3");
 
         SetSingleNodeAllocateStep step = createRandomInstance();
-        Optional<String> nodeSelected = step.selectSingleNode(validNodeIds, nodeShardsStorageBytes);
+        Optional<String> nodeSelected = step.selectSingleNode(randomAlphaOfLength(10), validNodeIds, nodeShardsStorageBytes);
         assertTrue(nodeSelected.isPresent());
         assertEquals("node3", nodeSelected.get());
 
         validNodeIds.add("node1");
         validNodeIds.add("node2");
-        nodeSelected = step.selectSingleNode(validNodeIds, nodeShardsStorageBytes);
+        nodeSelected = step.selectSingleNode(randomAlphaOfLength(10), validNodeIds, nodeShardsStorageBytes);
         assertTrue(nodeSelected.isPresent());
         assertEquals("node2", nodeSelected.get());
     }

@@ -187,7 +187,7 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
                     return;
                 }
 
-                Optional<String> nodeId = selectSingleNode(validNodeIds, nodeShardsStorageBytes);
+                Optional<String> nodeId = selectSingleNode(indexName, validNodeIds, nodeShardsStorageBytes);
 
                 if (nodeId.isPresent()) {
                     Settings settings = Settings.builder()
@@ -225,7 +225,7 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
         }
     }
 
-    Optional<String> selectSingleNode(Set<String> validNodeIds, Map<String, Long> nodeShardsStorageBytes) {
+    Optional<String> selectSingleNode(String indexName, Set<String> validNodeIds, Map<String, Long> nodeShardsStorageBytes) {
         List<Map.Entry<String, Long>> nodeShardsStorageList = new ArrayList<>(nodeShardsStorageBytes.entrySet());
         nodeShardsStorageList.sort((o1, o2) -> o2.getValue().compareTo(o1.getValue()));
         Optional<String> nodeId = Optional.empty();
@@ -240,6 +240,11 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
         // if we cannot find a node which contains any shard of the index,
         // shuffle the valid node list and select randomly
         if (nodeId.isEmpty()) {
+            logger.debug(
+                "could not find any valid nodes which contain any shard of the index [{}],"
+                    + " shuffle the valid node list and select randomly",
+                indexName
+            );
             List<String> list = new ArrayList<>(validNodeIds);
             Randomness.shuffle(list);
             nodeId = list.stream().findFirst();

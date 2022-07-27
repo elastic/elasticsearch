@@ -145,7 +145,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
                 ? null
                 : (lookup, ctx, doc, consumer) -> factory.newFactory(name, script.get().getParams(), lookup)
                     .newInstance(ctx)
-                    .runGeoPointForDoc(doc, consumer);
+                    .runForDoc(doc, consumer);
         }
 
         @Override
@@ -292,7 +292,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
 
     public static class GeoPointFieldType extends AbstractGeometryFieldType<GeoPoint> implements GeoShapeQueryable {
 
-        private static final GeoFormatterFactory<GeoPoint> GEO_FORMATTER_FACTORY = new GeoFormatterFactory<>(
+        public static final GeoFormatterFactory<GeoPoint> GEO_FORMATTER_FACTORY = new GeoFormatterFactory<>(
             List.of(new SimpleVectorTileFormatter())
         );
 

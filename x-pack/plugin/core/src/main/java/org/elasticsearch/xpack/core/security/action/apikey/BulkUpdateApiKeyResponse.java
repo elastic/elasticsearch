@@ -12,8 +12,11 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -21,7 +24,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
+
 public final class BulkUpdateApiKeyResponse extends ActionResponse implements ToXContentObject, Writeable {
+
     private final List<String> updated;
     private final List<String> noops;
     private final Map<String, Exception> errorDetails;
@@ -78,6 +85,11 @@ public final class BulkUpdateApiKeyResponse extends ActionResponse implements To
         out.writeMap(errorDetails, StreamOutput::writeString, StreamOutput::writeException);
     }
 
+    @Override
+    public String toString() {
+        return "BulkUpdateApiKeyResponse{" + "updated=" + updated + ", noops=" + noops + ", errorDetails=" + errorDetails + '}';
+    }
+
     public static Builder builder() {
         return new Builder();
     }
@@ -110,6 +122,42 @@ public final class BulkUpdateApiKeyResponse extends ActionResponse implements To
 
         public BulkUpdateApiKeyResponse build() {
             return new BulkUpdateApiKeyResponse(updated, noops, errorDetails);
+        }
+    }
+
+    public static BulkUpdateApiKeyResponse fromXContent(final XContentParser parser) throws IOException {
+        return PARSER.parse(parser, null);
+    }
+
+    @SuppressWarnings("unchecked")
+    static final ConstructingObjectParser<BulkUpdateApiKeyResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "bulk_update_api_key_response",
+        args -> new BulkUpdateApiKeyResponse((List<String>) args[0], (List<String>) args[1], ((ErrorDetails) args[2]).details())
+    );
+    static {
+        PARSER.declareStringArray(constructorArg(), new ParseField("updated"));
+        PARSER.declareStringArray(constructorArg(), new ParseField("noops"));
+        PARSER.declareObject(constructorArg(), (p, c) -> ErrorDetails.fromXContent(p), new ParseField("errors"));
+    }
+
+    private record ErrorDetails(int count, Map<String, Exception> details) {
+        @SuppressWarnings("unchecked")
+        private static final ConstructingObjectParser<ErrorDetails, Void> PARSER = new ConstructingObjectParser<>(
+            "bulk_update_api_key_response_errors",
+            args -> new ErrorDetails((Integer) args[0], args[1] == null ? Map.of() : (Map<String, Exception>) args[1])
+        );
+        static {
+            PARSER.declareInt(constructorArg(), new ParseField("count"));
+            PARSER.declareObject(
+                optionalConstructorArg(),
+                // TODO validate this is acceptable
+                (p, c) -> p.map(HashMap::new, ElasticsearchException::fromXContent),
+                new ParseField("details")
+            );
+        }
+
+        private static ErrorDetails fromXContent(final XContentParser parser) throws IOException {
+            return PARSER.parse(parser, null);
         }
     }
 }

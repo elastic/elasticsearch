@@ -19,4 +19,10 @@ public class CartesianShapeQueryTests extends CartesianShapeQueryTestCase {
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return Collections.singleton(LocalStateSpatialPlugin.class);
     }
+
+    @Override
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/88682")
+    public void testQueryRandomGeoCollection() throws Exception {
+        super.testQueryRandomGeoCollection();
+    }
 }

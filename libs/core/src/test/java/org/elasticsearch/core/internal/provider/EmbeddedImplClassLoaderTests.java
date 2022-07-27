@@ -590,7 +590,11 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
     @SuppressForbidden(reason = "file urls")
     static String urlToString(URL url) {
         try {
-            return new String(url.openStream().readAllBytes(), UTF_8);
+            var urlc = url.openConnection();
+            urlc.setUseCaches(false);
+            try (var is = urlc.getInputStream()) {
+                return new String(is.readAllBytes(), UTF_8);
+            }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

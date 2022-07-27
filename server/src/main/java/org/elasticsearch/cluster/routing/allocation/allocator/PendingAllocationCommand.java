@@ -8,15 +8,18 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 
-import java.util.function.Consumer;
-
-public record PendingAllocationCommand(AllocationCommands commands, boolean explain, Consumer<RoutingExplanations> listener) {
+public record PendingAllocationCommand(AllocationCommands commands, boolean explain, ActionListener<RoutingExplanations> listener) {
 
     public void execute(RoutingAllocation allocation) {
-        listener.accept(commands.execute(allocation, explain));
+        try {
+            listener.onResponse(commands.execute(allocation, explain));
+        } catch (RuntimeException e) {
+            listener.onFailure(e);
+        }
     }
 }

@@ -44,14 +44,6 @@ public class DesiredBalanceComputer {
     public DesiredBalance compute(
         DesiredBalance previousDesiredBalance,
         DesiredBalanceInput desiredBalanceInput,
-        Predicate<DesiredBalanceInput> isFresh
-    ) {
-        return compute(previousDesiredBalance, desiredBalanceInput, List.of(), isFresh);
-    }
-
-    public DesiredBalance compute(
-        DesiredBalance previousDesiredBalance,
-        DesiredBalanceInput desiredBalanceInput,
         List<PendingAllocationCommand> pendingAllocationCommands,
         Predicate<DesiredBalanceInput> isFresh
     ) {

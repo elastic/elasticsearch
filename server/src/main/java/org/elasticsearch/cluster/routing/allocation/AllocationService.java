@@ -53,7 +53,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -446,7 +445,7 @@ public class AllocationService {
         AllocationCommands commands,
         boolean explain,
         boolean retryFailed,
-        Consumer<RoutingExplanations> explanationsListener,
+        ActionListener<RoutingExplanations> explanationsListener,
         ActionListener<Void> rerouteListener
     ) {
         RoutingNodes routingNodes = getMutableRoutingNodes(clusterState);
@@ -473,7 +472,11 @@ public class AllocationService {
         if (shardsAllocator instanceof DesiredBalanceShardsAllocator desiredBalanceShardsAllocator) {
             desiredBalanceShardsAllocator.executeCommands(commands, explain, explanationsListener);
         } else {
-            explanationsListener.accept(commands.execute(allocation, explain));
+            try {
+                explanationsListener.onResponse(commands.execute(allocation, explain));
+            } catch (RuntimeException e) {
+                explanationsListener.onFailure(e);
+            }
         }
 
         // we revert the ignore disable flag, since when rerouting, we want the original setting to take place
@@ -484,6 +487,7 @@ public class AllocationService {
         return buildResultAndLogHealthChange(clusterState, allocation, "reroute commands");
     }
 
+    // TODO remove
     public CommandsResult reroute(final ClusterState clusterState, AllocationCommands commands, boolean explain, boolean retryFailed) {
         RoutingNodes routingNodes = getMutableRoutingNodes(clusterState);
         // we don't shuffle the unassigned shards here, to try and get as close as possible to

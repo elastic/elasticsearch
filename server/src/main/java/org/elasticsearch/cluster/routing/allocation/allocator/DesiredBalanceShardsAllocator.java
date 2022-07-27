@@ -30,7 +30,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
@@ -131,9 +130,9 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
         this.queue = new PendingListenersQueue(threadPool);
     }
 
-    public void executeCommands(AllocationCommands commands, boolean explain, Consumer<RoutingExplanations> explanationsListener) {
+    public void executeCommands(AllocationCommands commands, boolean explain, ActionListener<RoutingExplanations> listener) {
         synchronized (pendingAllocationCommands) {
-            pendingAllocationCommands.add(new PendingAllocationCommand(commands, explain, explanationsListener));
+            pendingAllocationCommands.add(new PendingAllocationCommand(commands, explain, listener));
         }
     }
 

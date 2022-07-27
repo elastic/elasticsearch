@@ -46,7 +46,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Consumer;
 
 public class TransportClusterRerouteAction extends TransportMasterNodeAction<ClusterRerouteRequest, ClusterRerouteResponse> {
 
@@ -276,10 +275,18 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
             };
         }
 
-        private Consumer<RoutingExplanations> explanations() {
-            return explanations -> {
-                Listener.this.explanations = explanations;
-                triggerDelegateIfReady();
+        private ActionListener<RoutingExplanations> explanations() {
+            return new ActionListener<>() {
+                @Override
+                public void onResponse(RoutingExplanations explanations) {
+                    Listener.this.explanations = explanations;
+                    triggerDelegateIfReady();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    delegate.onFailure(e);
+                }
             };
         }
 

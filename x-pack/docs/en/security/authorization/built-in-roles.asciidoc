@@ -51,7 +51,7 @@ use {transforms}. This role also includes all
 deprecated:[7.5.0,"Replaced by <<built-in-roles-transform-user,`transform_user`>>"].
 
 [[built-in-roles-editor]] `editor` ::
-experimental:[]
+
 Grants full access to all features in {kib} (including Solutions) and read-only access to data indices.
 +
 --
@@ -209,7 +209,7 @@ index templates, mappings, node and basically everything about the cluster.
 However, this role does not grant permission to view the data in all indices.
 
 [[built-in-roles-viewer]] `viewer` ::
-experimental:[]
+
 Grants read-only access to all features in {kib} (including Solutions) and to data indices.
 +
 --

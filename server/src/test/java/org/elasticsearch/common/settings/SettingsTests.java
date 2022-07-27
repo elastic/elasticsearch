@@ -10,6 +10,7 @@ package org.elasticsearch.common.settings;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -439,6 +440,17 @@ public class SettingsTests extends ESTestCase {
         assertNull(settings.get("test.key3.bar"));
         assertTrue(settings.keySet().contains("test.key3.bar"));
         assertEquals(Arrays.asList("1", "2"), settings.getAsList("test.key4.foo"));
+    }
+
+    public void testDiff() throws IOException {
+        final Settings before = Settings.builder().put("foo", "bar").put("setting", "value").build();
+        final Settings after = Settings.builder().put("foo", "bar").putNull("null_setting").build();
+        final Diff<Settings> diff = after.diff(before);
+        BytesStreamOutput out = new BytesStreamOutput();
+        diff.writeTo(out);
+        final Diff<Settings> diffRead = Settings.readSettingsDiffFromStream(out.bytes().streamInput());
+        final Settings afterFromDiff = diffRead.apply(before);
+        assertEquals(after, afterFromDiff);
     }
 
     public void testSecureSettingConflict() {

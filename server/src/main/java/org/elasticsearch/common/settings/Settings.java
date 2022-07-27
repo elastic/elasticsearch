@@ -1560,6 +1560,7 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
         public Settings apply(Settings part) {
             final var updated = mapDiff.apply(part.settings);
             if (updated == part.settings) {
+                // noop map diff, no change to the settings
                 return part;
             }
             return Settings.of(updated, null);

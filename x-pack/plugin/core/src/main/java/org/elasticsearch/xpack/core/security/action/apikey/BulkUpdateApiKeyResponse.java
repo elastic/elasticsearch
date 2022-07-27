@@ -100,11 +100,13 @@ public final class BulkUpdateApiKeyResponse extends ActionResponse implements To
         }
 
         public Builder update(final String id) {
+            assert updated.contains(id) == false;
             updated.add(id);
             return this;
         }
 
         public Builder noop(final String id) {
+            assert noops.contains(id) == false;
             noops.add(id);
             return this;
         }

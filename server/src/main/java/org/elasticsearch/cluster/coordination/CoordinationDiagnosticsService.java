@@ -597,8 +597,12 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                 return getNoopCancellable();
             }
         } catch (EsRejectedExecutionException e) {
-            logger.info("Cancelling request for cluster coordination info because this node is being shutdown", e);
-            return getNoopCancellable();
+            if (e.isExecutorShutdown()) {
+                logger.info("Cancelling request for cluster coordination info because this node is being shutdown", e);
+                return getNoopCancellable();
+            } else {
+                throw e;
+            }
         }
     }
 

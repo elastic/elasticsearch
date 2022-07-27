@@ -16,6 +16,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
+import org.elasticsearch.common.geo.GeometryFormatterFactory;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.DistanceUnit;
@@ -28,12 +29,16 @@ import org.elasticsearch.script.GeoPointFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.field.GeoPointDocValuesField;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.search.runtime.GeoPointScriptFieldDistanceFeatureQuery;
 import org.elasticsearch.search.runtime.GeoPointScriptFieldExistsQuery;
 import org.elasticsearch.search.runtime.GeoPointScriptFieldGeoShapeQuery;
 
+import java.io.IOException;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -173,6 +178,36 @@ public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPo
                     }
                 }
             };
+        };
+    }
+
+    @Override
+    public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+        GeoPointFieldScript.LeafFactory leafFactory = leafFactory(context.lookup());
+        Function<List<GeoPoint>, List<Object>> formatter = GeoPointFieldMapper.GeoPointFieldType.GEO_FORMATTER_FACTORY.getFormatter(
+            format != null ? format : GeometryFormatterFactory.GEOJSON,
+            p -> new org.elasticsearch.geometry.Point(p.getLon(), p.getLat())
+        );
+        return new ValueFetcher() {
+            private GeoPointFieldScript script;
+
+            @Override
+            public void setNextReader(LeafReaderContext context) {
+                script = leafFactory.newInstance(context);
+            }
+
+            @Override
+            public List<Object> fetchValues(SourceLookup lookup, List<Object> ignoredValues) throws IOException {
+                script.runForDoc(lookup.docId());
+                if (script.count() == 0) {
+                    return List.of();
+                }
+                List<GeoPoint> points = new ArrayList<>(script.count());
+                for (int i = 0; i < script.count(); i++) {
+                    points.add(new GeoPoint(script.lats()[i], script.lons()[i]));
+                }
+                return formatter.apply(points);
+            }
         };
     }
 }

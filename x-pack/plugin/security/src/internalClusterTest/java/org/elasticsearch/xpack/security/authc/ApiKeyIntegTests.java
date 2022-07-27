@@ -1562,6 +1562,26 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             expectRoleDescriptorsForApiKey("limited_by_role_descriptors", expectedLimitedByRoleDescriptors, doc);
             expectMetadataForApiKey(newMetadata, doc);
         }
+
+        // Check that bulk update works when there are no actual updates
+        final List<String> newIds = new ArrayList<>(apiKeyIds);
+        // include not found ID to force error
+        final String notFoundId = randomValueOtherThanMany(apiKeyIds::contains, () -> randomAlphaOfLength(10));
+        newIds.add(notFoundId);
+        final BulkUpdateApiKeyRequest request = new BulkUpdateApiKeyRequest(shuffledList(newIds), newRoleDescriptors, newMetadata);
+        final BulkUpdateApiKeyResponse responseWithNoExpectedUpdates = executeBulkUpdateApiKey(TEST_USER_NAME, request);
+        assertNotNull(responseWithNoExpectedUpdates);
+        assertThat(responseWithNoExpectedUpdates.getUpdated(), empty());
+        assertEquals(apiKeyIds.size(), responseWithNoExpectedUpdates.getNoops().size());
+        assertThat(responseWithNoExpectedUpdates.getNoops(), containsInAnyOrder(apiKeyIds.toArray()));
+        assertEquals(1, responseWithNoExpectedUpdates.getErrorDetails().size());
+        assertThat(responseWithNoExpectedUpdates.getErrorDetails(), hasKey(notFoundId));
+        for (String apiKeyId : apiKeyIds) {
+            final Map<String, Object> doc = getApiKeyDocument(apiKeyId);
+            expectRoleDescriptorsForApiKey("role_descriptors", newRoleDescriptors, doc);
+            expectRoleDescriptorsForApiKey("limited_by_role_descriptors", expectedLimitedByRoleDescriptors, doc);
+            expectMetadataForApiKey(newMetadata, doc);
+        }
     }
 
     public void testUpdateApiKeyAutoUpdatesUserFields() throws Exception {

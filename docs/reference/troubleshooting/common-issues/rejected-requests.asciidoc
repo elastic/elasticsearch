@@ -1,0 +1,42 @@
+[[rejected-requests]]
+=== Rejected requests
+
+When {es} rejects a request, it stops the operation and returns an error with a
+`429` response code. Rejected requests are commonly caused by:
+
+* A <<high-cpu-usage,depleted thread pool>>. A depleted `search` or `write`
+thread pool returns a `TOO_MANY_REQUESTS` error message.
+
+* A <<circuit-breaker-errors,circuit breaker error>>.
+
+* High <<index-modules-indexing-pressure,indexing pressure>> that exceeds the
+<<memory-limits,`indexing_pressure.memory.limit`>>.
+
+[discrete]
+[[check-rejected-tasks]]
+==== Check rejected tasks
+
+To check the number of rejected tasks for each thread pool, use the
+<<cat-thread-pool,cat thread pool API>>. A high ratio of `rejected` to
+`completed` tasks, particularly in the `search` and `write` thread pools, means
+{es} regularly rejects requests.
+
+[source,console]
+----
+GET /_cat/thread_pool?v=true&h=id,name,active,rejected,completed
+----
+
+[discrete]
+[[prevent-rejected-requests]]
+==== Prevent rejected requests
+
+**Fix high CPU and memory usage**
+
+If {es} regularly rejects requests and other tasks, your cluster likely has high
+CPU usage or high JVM memory pressure. For tips, see <<high-cpu-usage>> and
+<<high-jvm-memory-pressure>>.
+
+**Prevent circuit breaker errors**
+
+If you regularly trigger circuit breaker errors, see <<circuit-breaker-errors>>
+for tips on diagnosing and preventing them.

@@ -66,7 +66,7 @@ public abstract class FieldTypeTestCase extends ESTestCase {
         when(searchExecutionContext.sourcePath(field)).thenReturn(Set.of(field));
 
         ValueFetcher fetcher = fieldType.valueFetcher(searchExecutionContext, null);
-        SourceLookup lookup =  new SourceLookup(new SourceLookup.MapSourceProvider(Collections.singletonMap(field, List.of(values))));
+        SourceLookup lookup = new SourceLookup(new SourceLookup.MapSourceProvider(Collections.singletonMap(field, List.of(values))));
         return fetcher.fetchValues(lookup, new ArrayList<>());
     }
 }

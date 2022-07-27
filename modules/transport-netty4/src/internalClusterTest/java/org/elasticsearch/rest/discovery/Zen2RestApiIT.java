@@ -151,7 +151,7 @@ public class Zen2RestApiIT extends ESNetty4IntegTestCase {
         final Response response = restClient.performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), is(200));
         assertThat(response.getEntity().getContentLength(), is(0L));
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeToWithdraw));
+        internalCluster().stopNode(nodeToWithdraw);
         Response deleteResponse = restClient.performRequest(new Request("DELETE", "/_cluster/voting_config_exclusions"));
         assertThat(deleteResponse.getStatusLine().getStatusCode(), is(200));
         assertThat(deleteResponse.getEntity().getContentLength(), is(0L));
@@ -167,8 +167,8 @@ public class Zen2RestApiIT extends ESNetty4IntegTestCase {
         final Response response = restClient.performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), is(200));
         assertThat(response.getEntity().getContentLength(), is(0L));
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodes.get(0)));
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodes.get(2)));
+        internalCluster().stopNode(nodes.get(0));
+        internalCluster().stopNode(nodes.get(2));
         ensureStableCluster(1);
     }
 }

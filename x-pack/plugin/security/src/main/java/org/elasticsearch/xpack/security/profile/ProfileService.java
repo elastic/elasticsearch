@@ -81,6 +81,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Function;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction.toSingleItemBulkRequest;
@@ -90,7 +91,6 @@ import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_PROFILE_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.isFileOrNativeRealm;
-import static org.elasticsearch.xpack.core.security.support.Validation.VALID_NAME_CHARS;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_PROFILE_ALIAS;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.VERSION_SECURITY_PROFILE_ORIGIN;
 
@@ -486,10 +486,12 @@ public class ProfileService {
         });
     }
 
+    private static final Pattern VALID_LITERAL_USERNAME = Pattern.compile("^[a-zA-Z0-9][a-zA-Z0-9-]{0,255}$");
+
     private static final String INVALID_USERNAME_MESSAGE = "Security domain [%s] is configured to use literal username. "
         + "As a result, creating new user profile requires the username to be at least 1 and no more than 256 characters. "
-        + "The username can contain alphanumeric characters (a-z, A-Z, 0-9), spaces, punctuation, "
-        + "and printable symbols in the Basic Latin (ASCII) block.";
+        + "The username must begin with an alphanumeric character (a-z, A-Z, 0-9) and followed by any alphanumeric "
+        + "or dash (-) characters.";
 
     private void validateUsername(Subject subject) {
         final RealmDomain realmDomain = subject.getRealm().getDomain();
@@ -500,14 +502,8 @@ public class ProfileService {
         final String username = subject.getUser().principal();
         assert username != null;
 
-        if (username.length() < 1 || username.length() > 256) {
+        if (false == VALID_LITERAL_USERNAME.matcher(username).matches()) {
             throw new ElasticsearchException(String.format(Locale.ROOT, INVALID_USERNAME_MESSAGE, realmDomain.name()));
-        }
-
-        for (char character : username.toCharArray()) {
-            if (VALID_NAME_CHARS.contains(character) == false) {
-                throw new ElasticsearchException(String.format(Locale.ROOT, INVALID_USERNAME_MESSAGE, realmDomain.name()));
-            }
         }
     }
 

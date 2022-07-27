@@ -43,6 +43,6 @@ public class PyTorchInferenceResultTests extends AbstractXContentTestCase<PyTorc
                 }
             }
         }
-        return new PyTorchInferenceResult(id, arr, randomLong(), randomBoolean() ? null : randomBoolean());
+        return new PyTorchInferenceResult(id, arr, randomLong(), randomBoolean());
     }
 }

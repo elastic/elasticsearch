@@ -652,9 +652,7 @@ public class IndexRoutingTests extends ESTestCase {
         for (Map.Entry<String, Object> e : flattened.entrySet()) {
             b.addMatching(e.getKey(), new BytesRef(e.getValue().toString()));
         }
-        String idFromBuilder = b.createId(suffix, () -> {
-            throw new AssertionError();
-        });
+        String idFromBuilder = b.createId(suffix, () -> { throw new AssertionError(); });
         assertThat(idFromBuilder, equalTo(idFromSource));
     }
 

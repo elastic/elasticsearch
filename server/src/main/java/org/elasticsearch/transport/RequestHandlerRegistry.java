@@ -15,14 +15,12 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.tracing.Tracer;
 
 import java.io.IOException;
 
 public class RequestHandlerRegistry<Request extends TransportRequest> {
 
-    private final ThreadPool threadPool;
     private final String action;
     private final TransportRequestHandler<Request> handler;
     private final boolean forceExecution;
@@ -33,7 +31,6 @@ public class RequestHandlerRegistry<Request extends TransportRequest> {
     private final Writeable.Reader<Request> requestReader;
 
     public RequestHandlerRegistry(
-        ThreadPool threadPool,
         String action,
         Writeable.Reader<Request> requestReader,
         TaskManager taskManager,
@@ -43,7 +40,6 @@ public class RequestHandlerRegistry<Request extends TransportRequest> {
         boolean canTripCircuitBreaker,
         Tracer tracer
     ) {
-        this.threadPool = threadPool;
         this.action = action;
         this.requestReader = requestReader;
         this.handler = handler;
@@ -105,7 +101,6 @@ public class RequestHandlerRegistry<Request extends TransportRequest> {
         TransportRequestHandler<R> handler
     ) {
         return new RequestHandlerRegistry<>(
-            registry.threadPool,
             registry.action,
             registry.requestReader,
             registry.taskManager,

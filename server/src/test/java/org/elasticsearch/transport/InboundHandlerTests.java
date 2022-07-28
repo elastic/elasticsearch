@@ -100,7 +100,6 @@ public class InboundHandlerTests extends ESTestCase {
     public void testPing() throws Exception {
         AtomicReference<TransportChannel> channelCaptor = new AtomicReference<>();
         RequestHandlerRegistry<TestRequest> registry = new RequestHandlerRegistry<>(
-            threadPool,
             "test-request",
             TestRequest::new,
             taskManager,
@@ -146,7 +145,6 @@ public class InboundHandlerTests extends ESTestCase {
             }
         }, null, action));
         RequestHandlerRegistry<TestRequest> registry = new RequestHandlerRegistry<>(
-            threadPool,
             action,
             TestRequest::new,
             taskManager,

@@ -18,6 +18,9 @@ import java.util.Map;
 import java.util.Objects;
 
 public final class UpdateApiKeyRequest extends BaseUpdateApiKeyRequest {
+    public static UpdateApiKeyRequest usingApiKeyId(final String id) {
+        return new UpdateApiKeyRequest(id, null, null);
+    }
 
     private final String id;
 
@@ -41,24 +44,7 @@ public final class UpdateApiKeyRequest extends BaseUpdateApiKeyRequest {
         out.writeString(id);
     }
 
-    public static UpdateApiKeyRequest usingApiKeyId(String id) {
-        return new UpdateApiKeyRequest(id, null, null);
-    }
-
     public String getId() {
         return id;
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        UpdateApiKeyRequest that = (UpdateApiKeyRequest) o;
-        return id.equals(that.id) && Objects.equals(metadata, that.metadata) && Objects.equals(roleDescriptors, that.roleDescriptors);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(id, metadata, roleDescriptors);
     }
 }

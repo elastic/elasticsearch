@@ -15,6 +15,7 @@ import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -28,6 +29,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizerUtils.numUtf8Bytes;
 import static org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizerUtils.splitOutNeverSplit;
 
@@ -58,7 +60,9 @@ public final class UnigramTokenizer extends Tokenizer {
         CharArraySet neverSplitSet = new CharArraySet(neverSplit, false);
         CharTrie neverSplitTree = CharTrie.build(neverSplit);
         if (dictionary.size() != scores.size()) {
-            throw new IllegalArgumentException("Yo! These should be equal!!!");
+            throw new IllegalArgumentException(
+                format("provided vocabulary [%s] and scores [%s] must have the same size", dictionary.size(), scores.size())
+            );
         }
         int vocabSize = dictionary.size();
         BytesTrie vocabTrie = new BytesTrie();
@@ -150,9 +154,8 @@ public final class UnigramTokenizer extends Tokenizer {
             return true;
         }
         // First, whitespace tokenize
-        Optional<DelimitedToken> nextToken = whitespaceTokenizer.next();
-        if (nextToken.isPresent()) {
-            DelimitedToken whitespaceToken = nextToken.get();
+        DelimitedToken whitespaceToken = whitespaceTokenizer.next();
+        if (whitespaceToken != null) {
             if (neverSplitHash.contains(whitespaceToken.charSequence())) {
                 Integer maybeTokenized = vocabToId.get(new BytesRef(whitespaceToken.charSequence()));
                 tokenizedValues.add(
@@ -439,7 +442,8 @@ public final class UnigramTokenizer extends Tokenizer {
             ioBuffer.reset();
         }
 
-        Optional<DelimitedToken> next() throws IOException {
+        @Nullable
+        DelimitedToken next() throws IOException {
             int length = 0;
             int start = -1; // this variable is always initialized
             int end = -1;
@@ -454,7 +458,7 @@ public final class UnigramTokenizer extends Tokenizer {
                             break;
                         } else {
                             finalOffset = offset;
-                            return Optional.empty();
+                            return null;
                         }
                     }
                     dataLen = ioBuffer.getLength();
@@ -483,7 +487,7 @@ public final class UnigramTokenizer extends Tokenizer {
 
             termAtt.setLength(length);
             assert start != -1;
-            return Optional.of(new DelimitedToken(termAtt, start, finalOffset = end));
+            return new DelimitedToken(termAtt, start, finalOffset = end);
         }
     }
 }

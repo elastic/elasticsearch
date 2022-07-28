@@ -12,6 +12,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.core.Strings.format;
+
 public class DelimitedToken {
 
     static DelimitedToken mergeTokens(List<DelimitedToken> tokens) {
@@ -78,7 +80,9 @@ public class DelimitedToken {
             List<CharSequence> sequences = new ArrayList<>(tokens.size());
             for (var t : tokens) {
                 if (t.encoding != encoding) {
-                    throw new IllegalArgumentException("all merged tokens must have the same encoding");
+                    throw new IllegalArgumentException(
+                        format("all merged tokens must have the same encoding, expected [%s]; found [%s]", encoding, t.encoding)
+                    );
                 }
                 sequences.add(t.charSequence());
             }

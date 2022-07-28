@@ -9,6 +9,7 @@ package org.elasticsearch.rest;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
@@ -18,6 +19,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.io.OutputStream;
 
 public interface ChunkedRestResponseBody {
 
@@ -26,12 +28,25 @@ public interface ChunkedRestResponseBody {
     ReleasableBytesReference encodeChunk(int sizeHint, Recycler<BytesRef> recycler) throws IOException;
 
     static ChunkedRestResponseBody fromXContent(ChunkedToXContent chunkedToXContent, ToXContent.Params params, RestChannel channel) {
+
         return new ChunkedRestResponseBody() {
 
-            final RedirectOutputStream out = new RedirectOutputStream();
+            private final OutputStream out = new OutputStream() {
+                @Override
+                public void write(int b) throws IOException {
+                    target.write(b);
+                }
+
+                @Override
+                public void write(byte[] b, int off, int len) throws IOException {
+                    target.write(b, off, len);
+                }
+            };
             private ChunkedToXContent.ChunkedXContentSerialization serialization;
 
             private boolean done = false;
+
+            private BytesStream target;
 
             @Override
             public boolean isDone() {
@@ -41,7 +56,8 @@ public interface ChunkedRestResponseBody {
             @Override
             public ReleasableBytesReference encodeChunk(int sizeHint, Recycler<BytesRef> recycler) throws IOException {
                 final RecyclerBytesStreamOutput chunkStream = new RecyclerBytesStreamOutput(recycler);
-                out.newTarget(chunkStream);
+                assert this.target == null;
+                this.target = chunkStream;
                 if (serialization == null) {
                     serialization = chunkedToXContent.toXContentChunked(
                         channel.newBuilder(channel.request().getXContentType(), null, true, Streams.noCloseStream(out)),
@@ -58,7 +74,7 @@ public interface ChunkedRestResponseBody {
                     done = true;
                     b.close();
                 }
-                out.clearTarget();
+                this.target = null;
                 return new ReleasableBytesReference(chunkStream.bytes(), () -> IOUtils.closeWhileHandlingException(chunkStream));
             }
         };

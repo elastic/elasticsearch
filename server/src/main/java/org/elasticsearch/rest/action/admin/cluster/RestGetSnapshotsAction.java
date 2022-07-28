@@ -8,31 +8,21 @@
 
 package org.elasticsearch.rest.action.admin.cluster;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.ReleasableBytesReference;
-import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
-import org.elasticsearch.common.recycler.Recycler;
-import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.core.Streams;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.ChunkedRestResponseBody;
-import org.elasticsearch.rest.RedirectOutputStream;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestActionListener;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.snapshots.SnapshotInfo;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -105,40 +95,7 @@ public class RestGetSnapshotsAction extends BaseRestHandler {
                             RestStatus.OK,
                             (Objects.requireNonNullElse(request.getXContentType(), XContentType.JSON)).mediaType(),
                             null,
-                            new ChunkedRestResponseBody() {
-
-                                final RedirectOutputStream out = new RedirectOutputStream();
-                                private XContentBuilder builder;
-
-                                private final Iterator<SnapshotInfo> snapshotInfoIterator = getSnapshotsResponse.getSnapshots().iterator();
-
-                                @Override
-                                public boolean isDone() {
-                                    return snapshotInfoIterator.hasNext() == false;
-                                }
-
-                                @Override
-                                public ReleasableBytesReference encodeChunk(int sizeHint, Recycler<BytesRef> recycler) throws IOException {
-                                    final RecyclerBytesStreamOutput chunkStream = new RecyclerBytesStreamOutput(recycler);
-                                    out.newTarget(chunkStream);
-                                    if (builder == null) {
-                                        builder = channel.newBuilder(request.getXContentType(), null, true, Streams.noCloseStream(out));
-                                        GetSnapshotsResponse.toXContentStart(builder);
-                                    }
-                                    while (snapshotInfoIterator.hasNext() && chunkStream.size() < sizeHint) {
-                                        snapshotInfoIterator.next().toXContentExternal(builder, request);
-                                    }
-                                    if (snapshotInfoIterator.hasNext() == false) {
-                                        getSnapshotsResponse.toXContentEnd(builder);
-                                        builder.close();
-                                    }
-                                    out.clearTarget();
-                                    return new ReleasableBytesReference(
-                                        chunkStream.bytes(),
-                                        () -> IOUtils.closeWhileHandlingException(chunkStream)
-                                    );
-                                }
-                            }
+                            ChunkedRestResponseBody.fromXContent(getSnapshotsResponse, request, channel)
                         )
                     );
                 }

@@ -13,18 +13,18 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -32,7 +32,7 @@ import java.util.Objects;
 /**
  * Get snapshots response
  */
-public class GetSnapshotsResponse extends ActionResponse implements ToXContentObject {
+public class GetSnapshotsResponse extends ActionResponse implements ChunkedToXContent {
 
     private static final int UNKNOWN_COUNT = -1;
 
@@ -164,44 +164,84 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        toXContentStart(builder);
-        for (SnapshotInfo snapshotInfo : snapshots) {
-            snapshotInfo.toXContentExternal(builder, params);
+    public ChunkedXContentSerialization toXContentChunked(XContentBuilder builder, Params params) {
+        return new Serialization(builder, params, this);
+    }
+
+    private static final class Serialization implements ChunkedXContentSerialization {
+
+        private final Params params;
+
+        @Nullable
+        private final String next;
+
+        private final Map<String, ElasticsearchException> failures;
+
+        private final int total;
+
+        private final int remaining;
+        private final Iterator<SnapshotInfo> snapshotsIter;
+        private XContentBuilder builder;
+
+        private boolean wroteStart = false;
+
+        Serialization(XContentBuilder builder, Params params, GetSnapshotsResponse response) {
+            this.builder = builder;
+            this.params = params;
+            this.snapshotsIter = response.getSnapshots().iterator();
+            this.next = response.next;
+            this.total = response.total;
+            this.remaining = response.remaining;
+            this.failures = response.failures;
         }
-        toXContentEnd(builder);
-        return builder;
-    }
 
-    public static void toXContentStart(XContentBuilder builder) throws IOException {
-        builder.startObject();
-        builder.startArray("snapshots");
-    }
-
-    public void toXContentEnd(XContentBuilder builder) throws IOException {
-        builder.endArray();
-        if (failures.isEmpty() == false) {
-            builder.startObject("failures");
-            for (Map.Entry<String, ElasticsearchException> error : failures.entrySet()) {
-                builder.field(error.getKey(), (b, pa) -> {
-                    b.startObject();
-                    error.getValue().toXContent(b, pa);
-                    b.endObject();
-                    return b;
-                });
+        @Override
+        public XContentBuilder encodeChunk() throws IOException {
+            if (snapshotsIter == null) {
+                throw new IllegalStateException("Already finished serializing");
             }
-            builder.endObject();
+            if (wroteStart == false) {
+                builder.startObject();
+                builder.startArray("snapshots");
+                wroteStart = true;
+            }
+            if (snapshotsIter.hasNext()) {
+                snapshotsIter.next().toXContentExternal(builder, params);
+            } else {
+                builder.endArray();
+                if (failures.isEmpty() == false) {
+                    builder.startObject("failures");
+                    for (Map.Entry<String, ElasticsearchException> error : failures.entrySet()) {
+                        builder.field(error.getKey(), (b, pa) -> {
+                            b.startObject();
+                            error.getValue().toXContent(b, pa);
+                            b.endObject();
+                            return b;
+                        });
+                    }
+                    builder.endObject();
+                }
+                if (next != null) {
+                    builder.field("next", next);
+                }
+                if (total >= 0) {
+                    builder.field("total", total);
+                }
+                if (remaining >= 0) {
+                    builder.field("remaining", remaining);
+                }
+                builder.endObject();
+                final XContentBuilder b = builder;
+                builder = null;
+                return b;
+            }
+            return null;
         }
-        if (next != null) {
-            builder.field("next", next);
-        }
-        if (total >= 0) {
-            builder.field("total", total);
-        }
-        if (remaining >= 0) {
-            builder.field("remaining", remaining);
-        }
-        builder.endObject();
+    }
+
+    @Override
+    public boolean isFragment() {
+        return false;
     }
 
     public static GetSnapshotsResponse fromXContent(XContentParser parser) throws IOException {

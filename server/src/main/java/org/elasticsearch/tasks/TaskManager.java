@@ -124,6 +124,9 @@ public class TaskManager implements ClusterStateApplier {
         long headerSize = 0;
         long maxSize = maxHeaderSize.getBytes();
         ThreadContext threadContext = threadPool.getThreadContext();
+
+        assert threadContext.hasTraceContext() == false : "Expected threadContext to have no traceContext fields";
+
         for (String key : taskHeaders) {
             String httpHeader = threadContext.getHeader(key);
             if (httpHeader != null) {
@@ -175,43 +178,45 @@ public class TaskManager implements ClusterStateApplier {
         } else {
             unregisterChildNode = null;
         }
-        final Task task;
-        try {
-            task = register(type, action.actionName, request);
-        } catch (TaskCancelledException e) {
-            Releasables.close(unregisterChildNode);
-            throw e;
+
+        try (var ignored = threadPool.getThreadContext().newTraceContext()) {
+            final Task task;
+            try {
+                task = register(type, action.actionName, request);
+            } catch (TaskCancelledException e) {
+                Releasables.close(unregisterChildNode);
+                throw e;
+            }
+            action.execute(task, request, new ActionListener<>() {
+                @Override
+                public void onResponse(Response response) {
+                    try {
+                        release();
+                    } finally {
+                        taskListener.onResponse(response);
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    try {
+                        release();
+                    } finally {
+                        taskListener.onFailure(e);
+                    }
+                }
+
+                @Override
+                public String toString() {
+                    return this.getClass().getName() + "{" + taskListener + "}{" + task + "}";
+                }
+
+                private void release() {
+                    Releasables.close(unregisterChildNode, () -> unregister(task));
+                }
+            });
+            return task;
         }
-        // NOTE: ActionListener cannot infer Response, see https://bugs.openjdk.java.net/browse/JDK-8203195
-        action.execute(task, request, new ActionListener<Response>() {
-            @Override
-            public void onResponse(Response response) {
-                try {
-                    release();
-                } finally {
-                    taskListener.onResponse(response);
-                }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                try {
-                    release();
-                } finally {
-                    taskListener.onFailure(e);
-                }
-            }
-
-            @Override
-            public String toString() {
-                return this.getClass().getName() + "{" + taskListener + "}{" + task + "}";
-            }
-
-            private void release() {
-                Releasables.close(unregisterChildNode, () -> unregister(task));
-            }
-        });
-        return task;
     }
 
     private void registerCancellableTask(Task task) {

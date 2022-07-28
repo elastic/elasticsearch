@@ -143,8 +143,9 @@ public final class DocumentParser {
         }
         SearchLookup searchLookup = new SearchLookup(
             context.mappingLookup().indexTimeLookup()::get,
-            (ft, lookup) -> ft.fielddataBuilder(new FieldDataContext(context.indexSettings().getIndex().getName(), lookup))
-                .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService()),
+            (ft, lookup, fto) -> ft.fielddataBuilder(
+                new FieldDataContext(context.indexSettings().getIndex().getName(), lookup, context.mappingLookup()::sourcePaths, fto)
+            ).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService()),
             new SourceLookup(new SourceLookup.ReaderSourceProvider())
         );
         // field scripts can be called both by the loop at the end of this method and via

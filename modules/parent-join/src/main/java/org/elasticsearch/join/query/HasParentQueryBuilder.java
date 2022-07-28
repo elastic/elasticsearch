@@ -181,7 +181,7 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
         Query innerQuery = Queries.filtered(query.toQuery(context), parentFilter);
         Query childFilter = joiner.childrenFilter(parentType);
         MappedFieldType fieldType = context.getFieldType(joiner.childJoinField(parentType));
-        final SortedSetOrdinalsIndexFieldData fieldData = context.getForField(fieldType);
+        final SortedSetOrdinalsIndexFieldData fieldData = context.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
         return new HasChildQueryBuilder.LateParsingQuery(
             childFilter,
             innerQuery,

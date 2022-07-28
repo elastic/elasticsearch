@@ -234,7 +234,10 @@ public class FieldFetcherTests extends MapperServiceTestCase {
                 new FieldAndFormat("_ignored", null)
             );
             FieldFetcher fieldFetcher = FieldFetcher.create(
-                newSearchExecutionContext(mapperService, (ft, fdc) -> fieldDataLookup().apply(ft, fdc.lookupSupplier())),
+                newSearchExecutionContext(
+                    mapperService,
+                    (ft, fdc) -> fieldDataLookup(fdc.sourcePathsLookup()).apply(ft, fdc.lookupSupplier(), fdc.fielddataOperation())
+                ),
                 fieldList
             );
             IndexSearcher searcher = newSearcher(iw);
@@ -1121,7 +1124,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         MapperService mapperService = createMapperService(mapping);
         SearchExecutionContext searchExecutionContext = newSearchExecutionContext(
             mapperService,
-            (ft, fdc) -> fieldDataLookup().apply(ft, fdc.lookupSupplier())
+            (ft, fdc) -> fieldDataLookup(fdc.sourcePathsLookup()).apply(ft, fdc.lookupSupplier(), fdc.fielddataOperation())
         );
         withLuceneIndex(mapperService, iw -> iw.addDocument(new LuceneDocument()), iw -> {
             FieldFetcher fieldFetcher = FieldFetcher.create(searchExecutionContext, fieldAndFormatList("runtime_field", null, false));
@@ -1150,7 +1153,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         MapperService mapperService = createMapperService(mapping);
         SearchExecutionContext searchExecutionContext = newSearchExecutionContext(
             mapperService,
-            (ft, fdc) -> fieldDataLookup().apply(ft, fdc.lookupSupplier())
+            (ft, fdc) -> fieldDataLookup(fdc.sourcePathsLookup()).apply(ft, fdc.lookupSupplier(), fdc.fielddataOperation())
         );
         withLuceneIndex(mapperService, iw -> {
             ParsedDocument parsedDocument = mapperService.documentMapper().parse(source("{}"));

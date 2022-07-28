@@ -13,15 +13,14 @@ esplugin {
   extendedPlugins = ['x-pack-core']
 }
 
-dependencies {
-  implementation "io.opentelemetry:opentelemetry-api:${versions.opentelemetry}"
-  implementation "io.opentelemetry:opentelemetry-context:${versions.opentelemetry}"
-  implementation "io.opentelemetry:opentelemetry-semconv:${versions.opentelemetry}-alpha"
-  runtimeOnly    "co.elastic.apm:elastic-apm-agent:${versions.apm_agent}"
+def apmAgent = '1.33.0'
+def opentelemetry = '1.15.0'
 
-  // OTel context needs these, I think
-  api "org.slf4j:slf4j-api:${versions.slf4j}"
-  api "org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}"
+dependencies {
+  implementation "io.opentelemetry:opentelemetry-api:${opentelemetry}"
+  implementation "io.opentelemetry:opentelemetry-context:${opentelemetry}"
+  implementation "io.opentelemetry:opentelemetry-semconv:${opentelemetry}-alpha"
+  runtimeOnly    "co.elastic.apm:elastic-apm-agent:${apmAgent}"
 
   compileOnly project(path: xpackModule('core'))
   testImplementation(testArtifact(project(xpackModule('core'))))

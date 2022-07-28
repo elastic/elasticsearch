@@ -119,7 +119,7 @@ public class RoutingNode implements Iterable<ShardRouting> {
         addInternal(shard, true);
     }
 
-    void addNoValidate(ShardRouting shard) {
+    void addWithoutValidation(ShardRouting shard) {
         addInternal(shard, false);
     }
 

@@ -32,6 +32,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.index.IndexSettingsTests.newIndexMeta;
 import static org.hamcrest.Matchers.arrayWithSize;
@@ -217,7 +218,10 @@ public class IndexSortSettingsTests extends ESTestCase {
         IndexFieldDataService indexFieldDataService = new IndexFieldDataService(indexSettings, cache, circuitBreakerService);
         return config.buildIndexSort(
             lookup::get,
-            (ft, s, fdo) -> indexFieldDataService.getForField(ft, new FieldDataContext("test", s, null, fdo))
+            (ft, s) -> indexFieldDataService.getForField(
+                ft,
+                new FieldDataContext("test", s, Set::of, MappedFieldType.FielddataOperation.SEARCH)
+            )
         );
     }
 }

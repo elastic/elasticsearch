@@ -41,7 +41,7 @@ public record FieldDataContext(
         return new FieldDataContext(
             "",
             () -> { throw new UnsupportedOperationException("Runtime fields not supported for [" + reason + "]"); },
-            null,
+            Set::of,
             MappedFieldType.FielddataOperation.SEARCH
         );
     }

@@ -252,8 +252,12 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                     if (expectedOutputFile.exists() == false) {
                         Path relativeOutputPath = project.getRootDir().toPath().relativize(expectedOutputFile.toPath());
                         throw new InvalidUserDataException(
-                            "Building " + bwcVersion.get() + " didn't generate expected artifact [" + relativeOutputPath + "]. " +
-                                "The working branch may be out of date."
+                            "Building "
+                                + bwcVersion.get()
+                                + " didn't generate expected artifact ["
+                                + relativeOutputPath
+                                + "]. "
+                                + "The working branch may be out of date."
                         );
                     }
                 }

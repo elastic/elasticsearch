@@ -84,7 +84,7 @@ class IngestDocMetadata extends Metadata {
     }
 
     @Override
-    public ZonedDateTime getTimestamp() {
+    public ZonedDateTime getNow() {
         return timestamp;
     }
 }

@@ -441,6 +441,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         assertThat(exception.getMessage(), containsString(rollupIndex));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/88800")
     public void testRollupDatastream() throws Exception {
         RollupActionConfig config = new RollupActionConfig(randomInterval());
         String dataStreamName = createDataStream();

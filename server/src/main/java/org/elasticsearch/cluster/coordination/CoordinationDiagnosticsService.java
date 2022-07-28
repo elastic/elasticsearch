@@ -686,7 +686,18 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
         Map<DiscoveryNode, Scheduler.Cancellable> cancellables
     ) {
         return response -> {
+            /*
+             * If clusterFormationInfoTasks is null, that means that cancelPollingClusterFormationInfo() has been called, so we don't
+             * want to run anything new, and we want to cancel anything that might still be running in our cancellables just to be safe.
+             */
             if (clusterFormationInfoTasks != null) {
+                /*
+                 * If cancellables is not the same as clusterFormationInfoTasks, that means that the current polling track has been
+                 * cancelled and a new polling track has been started. So we don't want to run anything new, and we want to cancel
+                 * anything that might still be running in our cancellables just to be safe. Note that it is possible for
+                 * clusterFormationInfoTasks to be null at this point (since it is assigned in a different thread), so it is important
+                 * that we don't call equals on it.
+                 */
                 if (cancellables.equals(clusterFormationInfoTasks)) {
                     /*
                      * As mentioned in the comment in cancelPollingClusterFormationInfo(), there is a slim possibility here that we will
@@ -715,8 +726,8 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
             /*
              * There is a slight risk here that a new Cancellable is added to clusterFormationInfoTasks after we begin iterating in the next
              * line. We are calling this an acceptable risk because it will result in an un-cancelled un-cancellable task, but it will not
-             * reschedule itself so it will not be around long. It is possible that a cancellable will be called concurrently by multiple
-             *  threads.
+             * reschedule itself so it will not be around long. It is possible that cancel() will be called on a Cancellable concurrently
+             * by multiple threads, but that will not cause any problems.
              */
             clusterFormationInfoTasks.values().forEach(Scheduler.Cancellable::cancel);
             clusterFormationInfoTasks = null;

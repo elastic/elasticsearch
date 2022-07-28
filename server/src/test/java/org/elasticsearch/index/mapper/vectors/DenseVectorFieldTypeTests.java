@@ -9,6 +9,7 @@
 package org.elasticsearch.index.mapper.vectors;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DenseVectorFieldType;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.VectorSimilarity;
@@ -52,7 +53,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
 
     public void testFielddataBuilder() {
         DenseVectorFieldType ft = createFieldType();
-        assertNotNull(ft.fielddataBuilder("index", () -> { throw new UnsupportedOperationException(); }));
+        assertNotNull(ft.fielddataBuilder(FieldDataContext.noRuntimeFields("test")));
     }
 
     public void testDocValueFormat() {

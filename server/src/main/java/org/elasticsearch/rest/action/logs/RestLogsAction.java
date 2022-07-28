@@ -18,6 +18,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.MapUtils;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
@@ -25,29 +26,22 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestActionListener;
+import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xcontent.XContentType;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.nio.charset.Charset;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.function.Consumer;
-import java.util.function.Predicate;
-import java.util.regex.Pattern;
 
-import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.function.Predicate.not;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.xcontent.XContentParserConfiguration.EMPTY;
 
 public class RestLogsAction extends BaseRestHandler {
 
@@ -68,67 +62,47 @@ public class RestLogsAction extends BaseRestHandler {
     }
 
     @Override
-    public boolean mediaTypesValid(RestRequest request) {
-        return true;
-    }
-
-    @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         Map<String, Object> globalMetadata = new HashMap<>();
+        Map<String, Object> localMetadata = new HashMap<>();
         Map<String, String> params = request.params();
         params.entrySet()
             .stream()
             .filter(not(e -> e.getKey().startsWith("_")))
             .forEach(e -> addPath(globalMetadata, e.getKey(), request.param(e.getKey())));
 
-        Predicate<String> firstLine = s -> false;
-        Predicate<String> lastLine = s -> true;
-        boolean negate = request.paramAsBoolean("_multiline.negate", false);
-        if (params.containsKey("_multiline.first_line_pattern")) {
-            Pattern firstLinePattern = Pattern.compile(request.param("_multiline.first_line_pattern"));
-            firstLine = line -> firstLinePattern.matcher(line).find();
-            if (negate) {
-                firstLine = firstLine.negate();
-            }
-            lastLine = line -> false;
-        }
-        if (params.containsKey("_multiline.last_line_pattern")) {
-            Pattern lastLinePattern = Pattern.compile(request.param("_multiline.last_line_pattern"));
-            lastLine = line -> lastLinePattern.matcher(line).find();
-            if (negate) {
-                lastLine = lastLine.negate();
-            }
-        }
-
         List<IndexRequest> indexRequests = new ArrayList<>();
-        Charset charset = Optional.ofNullable(request.getParsedContentType())
-            .map(ct -> ct.getParameters().get("charset"))
-            .map(Charset::forName)
-            .orElse(UTF_8);
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(request.content().streamInput(), charset))) {
-            Map<String, Object> localMetadata = new HashMap<>();
-            int i = 0;
-            StringBuilder logEventBuilder = new StringBuilder();
-            boolean jsonEvent = false;
-            for (String line = reader.readLine(); line != null; line = reader.readLine(), i++) {
-                if (logEventBuilder.isEmpty() || line.startsWith("{") || (jsonEvent == false && firstLine.test(line))) {
-                    jsonEvent = line.startsWith("{");
-                    if (logEventBuilder.length() > 0) {
-                        processRawLogEvent(indexRequests, globalMetadata, localMetadata, i, logEventBuilder.toString(), jsonEvent);
-                        logEventBuilder.setLength(0);
-                    }
-                    logEventBuilder.append(line);
-                } else {
-                    logEventBuilder.append("\n").append(line);
-                }
-                if ((jsonEvent && line.endsWith("}")) || (jsonEvent == false && lastLine.test(line))) {
-                    processRawLogEvent(indexRequests, globalMetadata, localMetadata, i, logEventBuilder.toString(), jsonEvent);
-                    logEventBuilder.setLength(0);
-                }
+        XContent xContent = request.getXContentType().xContent();
+        BytesReference content = request.content();
+        byte separator = xContent.streamSeparator();
+        for (int offset = 0, line = 0, endOfEvent; offset < content.length() - 1; offset = endOfEvent + 1, line++) {
+            endOfEvent = content.indexOf(separator, offset);
+            if (endOfEvent == -1) {
+                endOfEvent = content.length();
             }
-            if (logEventBuilder.length() > 0) {
-                processRawLogEvent(indexRequests, globalMetadata, localMetadata, i, logEventBuilder.toString(), jsonEvent);
-                logEventBuilder.setLength(0);
+            try (XContentParser parser = xContent.createParser(EMPTY, content.array(), offset, endOfEvent)) {
+                Map<String, Object> event = null;
+                try {
+                    event = parser.map();
+                } catch (Exception e) {
+                    event = new HashMap<>();
+                    addPath(event, "event.original", content.slice(offset, endOfEvent).utf8ToString());
+                    addPath(event, "ingest.error.type", ElasticsearchException.getExceptionName(e));
+                    addPath(event, "ingest.error.message", e.getMessage());
+                }
+                if (event.size() == 1 && event.containsKey("_metadata")) {
+                    Map<String, Object> metadata = getMetadata(event);
+                    expandDots(metadata);
+                    if (line == 0) {
+                        MapUtils.recursiveMerge(globalMetadata, metadata);
+                    } else {
+                        localMetadata.clear();
+                        localMetadata.putAll(metadata);
+                    }
+                } else {
+                    expandDots(event);
+                    addEventToBulk(indexRequests, globalMetadata, localMetadata, event);
+                }
             }
         }
 
@@ -187,43 +161,6 @@ public class RestLogsAction extends BaseRestHandler {
         };
     }
 
-    private void processRawLogEvent(
-        List<IndexRequest> indexRequests,
-        Map<String, Object> globalMetadata,
-        Map<String, Object> localMetadata,
-        int i,
-        String logEvent,
-        boolean jsonEvent
-    ) {
-        Map<String, Object> event;
-        if (jsonEvent) {
-            try {
-                event = parseJson(logEvent);
-                expandDots(event);
-            } catch (Exception e) {
-                event = new HashMap<>();
-                addPath(event, "event.original", logEvent);
-                addPath(event, "ingest.error.type", ElasticsearchException.getExceptionName(e));
-                addPath(event, "ingest.error.message", e.getMessage());
-            }
-        } else {
-            event = Map.of("message", logEvent);
-        }
-
-        if (event.size() == 1 && event.containsKey("_metadata")) {
-            Map<String, Object> metadata = getMetadata(event);
-            expandDots(metadata);
-            if (i == 0) {
-                MapUtils.recursiveMerge(globalMetadata, metadata);
-            } else {
-                localMetadata.clear();
-                localMetadata.putAll(metadata);
-            }
-        } else {
-            addEventToBulk(indexRequests, globalMetadata, localMetadata, event);
-        }
-    }
-
     private void addEventToBulk(
         List<IndexRequest> indexRequests,
         Map<String, Object> globalMetadata,
@@ -258,13 +195,6 @@ public class RestLogsAction extends BaseRestHandler {
         try (XContentBuilder builder = channel.newBuilder()) {
             builderConsumer.accept(builder);
             channel.sendResponse(new RestResponse(status, builder));
-        }
-    }
-
-    private Map<String, Object> parseJson(String json) throws IOException {
-        try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {
-            parser.allowDuplicateKeys(true);
-            return parser.map();
         }
     }
 

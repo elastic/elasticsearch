@@ -66,78 +66,6 @@ public class RestLogsActionTests extends RestActionTestCase {
         assertEquals(0, dispatchRequest(req).errors().get());
     }
 
-    public void testMultilineJsonLogs() {
-        RestRequest req = createLogsRequest("/_logs", """
-            {
-              "message": "Hello World"
-            }
-            {
-              "foo": "bar"
-            }""");
-
-        verifyingClient.setExecuteVerifier((BiFunction<ActionType<BulkResponse>, BulkRequest, BulkResponse>) (actionType, request) -> {
-            assertEquals(2, request.requests().size());
-            IndexRequest indexRequest = (IndexRequest) request.requests().get(0);
-            assertDataStreamFields("generic", "default", indexRequest);
-            assertEquals(CREATE, indexRequest.opType());
-            assertEquals("Hello World", ((IndexRequest) request.requests().get(0)).sourceAsMap().get("message"));
-            assertEquals("bar", ((IndexRequest) request.requests().get(1)).sourceAsMap().get("foo"));
-            return Mockito.mock(BulkResponse.class);
-        });
-        assertEquals(0, dispatchRequest(req).errors().get());
-    }
-
-    public void testMultilineRawLogs_first_line_pattern() {
-        testRawEvents(Map.of("_multiline.first_line_pattern", "^[A-Z]"), "INFO foo\n  bar", "INFO baz", "INFO qux");
-    }
-
-    public void testMultilineRawLogs_first_line_pattern_negate() {
-        testRawEvents(
-            Map.of("_multiline.first_line_pattern", "^\\s", "_multiline.negate", "true"),
-            "INFO foo\n  bar",
-            "INFO baz",
-            "INFO qux"
-        );
-    }
-
-    public void testMultilineRawLogs_last_line_pattern() {
-        testRawEvents(Map.of("_multiline.last_line_pattern", ">$"), "<INFO foo\n  bar>", "<INFO baz>", "<INFO qux>");
-    }
-
-    public void testMultilineRawLogs_first_line_pattern_and_last_line_pattern() {
-        testRawEvents(
-            Map.of("_multiline.first_line_pattern", "^<", "_multiline.last_line_pattern", ">$"),
-            "<INFO foo\n  bar>",
-            "INFO baz\nqux",
-            "<INFO quux>"
-        );
-    }
-
-    public void testMultilineRawLogs_last_line_pattern_negate() {
-        testRawEvents(
-            Map.of("_multiline.last_line_pattern", "\\\\$", "_multiline.negate", "true"),
-            "INFO foo\\\n  bar",
-            "INFO baz",
-            "INFO qux"
-        );
-    }
-
-    public void testRawEvents(Map<String, String> params, String... events) {
-        RestRequest req = createLogsRequest("/_logs", String.join("\n", events), params);
-
-        verifyingClient.setExecuteVerifier((BiFunction<ActionType<BulkResponse>, BulkRequest, BulkResponse>) (actionType, request) -> {
-            assertEquals(events.length, request.requests().size());
-            IndexRequest indexRequest = (IndexRequest) request.requests().get(0);
-            assertDataStreamFields("generic", "default", indexRequest);
-            assertEquals(CREATE, indexRequest.opType());
-            for (int i = 0; i < events.length; i++) {
-                assertEquals(events[i], ((IndexRequest) request.requests().get(i)).sourceAsMap().get("message"));
-            }
-            return Mockito.mock(BulkResponse.class);
-        });
-        assertEquals(0, dispatchRequest(req).errors().get());
-    }
-
     public void testInvalidJson() {
         RestRequest req = createLogsRequest("/_logs/foo", "{\"message\": \"missing end quote}");
         verifyingClient.setExecuteVerifier((BiFunction<ActionType<BulkResponse>, BulkRequest, BulkResponse>) (actionType, request) -> {
@@ -275,21 +203,6 @@ public class RestLogsActionTests extends RestActionTestCase {
         return bulkResponse;
     }
 
-    public void testIngestPlainTextLog() {
-        RestRequest req = createLogsRequest("/_logs", """
-            Hello World
-            """);
-        verifyingClient.setExecuteVerifier((BiFunction<ActionType<BulkResponse>, BulkRequest, BulkResponse>) (actionType, request) -> {
-            assertEquals(1, request.requests().size());
-            IndexRequest indexRequest = (IndexRequest) request.requests().get(0);
-            assertDataStreamFields("generic", "default", indexRequest);
-            assertEquals(CREATE, indexRequest.opType());
-            assertEquals("Hello World", indexRequest.sourceAsMap().get("message"));
-            return Mockito.mock(BulkResponse.class);
-        });
-        assertEquals(0, dispatchRequest(req).errors().get());
-    }
-
     public void testExpandDots() throws IOException {
         List<String> testScenarios = List.of("""
             {"foo.bar":"baz"}
@@ -313,7 +226,7 @@ public class RestLogsActionTests extends RestActionTestCase {
     private RestRequest createLogsRequest(String path, Map<?, ?>... ndJson) {
         return createLogsRequest(
             path,
-            Arrays.stream(ndJson).map(j -> (Map<String, ?>) j).map(this::json).collect(Collectors.joining("\n"))
+            Arrays.stream(ndJson).map(j -> (Map<String, ?>) j).map(this::json).collect(Collectors.joining(randomBoolean() ? "\n" : "\r\n"))
         );
     }
 
@@ -325,11 +238,11 @@ public class RestLogsActionTests extends RestActionTestCase {
         return new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
             .withPath(path)
             .withParams(new HashMap<>(params))
-            .withContent(BytesReference.fromByteBuffer(ByteBuffer.wrap(content.getBytes(UTF_8))), null)
+            .withContent(BytesReference.fromByteBuffer(ByteBuffer.wrap(content.getBytes(UTF_8))), XContentType.JSON)
             .build();
     }
 
-    public String json(Map<String, ?> map) {
+    private String json(Map<String, ?> map) {
         try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
             builder.map(map);
             return XContentHelper.convertToJson(BytesReference.bytes(builder), false, XContentType.JSON);

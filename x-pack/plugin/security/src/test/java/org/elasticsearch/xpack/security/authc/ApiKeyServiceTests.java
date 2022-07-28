@@ -65,6 +65,8 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKeyTests;
+import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyResponse;
@@ -542,6 +544,23 @@ public class ApiKeyServiceTests extends ESTestCase {
             assertThat(auth.getValue().principal(), is("hulk"));
             checkAuthApiKeyMetadata(metadata, auth);
         }
+    }
+
+    public void testBulkUpdateWithApiKeyCredentialNotSupported() {
+        final Settings settings = Settings.builder().put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true).build();
+        final ApiKeyService service = createApiKeyService(settings);
+
+        final PlainActionFuture<BulkUpdateApiKeyResponse> listener = new PlainActionFuture<>();
+        service.bulkUpdateApiKeys(
+            AuthenticationTestHelper.builder().apiKey().build(false),
+            new BulkUpdateApiKeyRequest(List.of("id"), null, null),
+            Set.of(),
+            listener
+        );
+
+        final var ex = expectThrows(ExecutionException.class, listener::get);
+        assertThat(ex.getCause(), instanceOf(IllegalArgumentException.class));
+        assertThat(ex.getMessage(), containsString("authentication via API key not supported: only the owner user can update an API key"));
     }
 
     private Map<String, Object> mockKeyDocument(

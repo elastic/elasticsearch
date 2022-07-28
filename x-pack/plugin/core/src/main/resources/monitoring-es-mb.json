@@ -2325,9 +2325,6 @@
             }
           }
         },
-        "version": {
-          "type": "long"
-        },
         "ccr_auto_follow_stats": {
           "properties": {
             "number_of_failed_remote_cluster_state_requests": {

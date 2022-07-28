@@ -30,7 +30,7 @@ Corruptions can remain undetected for many months.
 
 The files that make up a Lucene index are written sequentially from start to
 end and then never modified or overwritten. This access pattern means the
-checksum computation is very simple and can happen on-the-fly as the file is
+checksum computation is very simple and can happen on-the-fly as the file is initially
 written, and also makes it very unlikely that an incorrect checksum is due to a
 userspace bug at the time the file was written. The routine that computes the
 checksum is straightforward, widely used, and very well-tested, so you can be

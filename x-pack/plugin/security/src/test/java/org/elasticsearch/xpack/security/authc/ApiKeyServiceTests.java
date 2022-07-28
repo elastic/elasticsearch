@@ -1660,17 +1660,11 @@ public class ApiKeyServiceTests extends ESTestCase {
             new Authentication.RealmRef("realm1", "realm_type1", "node")
         );
 
-        var ex = expectThrows(
-            IllegalArgumentException.class,
-            () -> apiKeyService.validateForUpdate(apiKeyId, auth, apiKeyDocWithNullName)
-        );
+        var ex = expectThrows(IllegalArgumentException.class, () -> apiKeyService.validateForUpdate(apiKeyId, auth, apiKeyDocWithNullName));
         assertThat(ex.getMessage(), containsString("cannot update legacy API key [" + apiKeyId + "] without name"));
 
         final var apiKeyDocWithEmptyName = buildApiKeyDoc(hash, -1, false, "", Version.V_8_2_0.id);
-        ex = expectThrows(
-            IllegalArgumentException.class,
-            () -> apiKeyService.validateForUpdate(apiKeyId, auth, apiKeyDocWithEmptyName)
-        );
+        ex = expectThrows(IllegalArgumentException.class, () -> apiKeyService.validateForUpdate(apiKeyId, auth, apiKeyDocWithEmptyName));
         assertThat(ex.getMessage(), containsString("cannot update legacy API key [" + apiKeyId + "] without name"));
     }
 

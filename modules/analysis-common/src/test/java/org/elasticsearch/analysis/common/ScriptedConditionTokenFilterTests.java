@@ -22,6 +22,7 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.tracing.Tracer;
 
 import java.util.Collections;
 
@@ -58,7 +59,7 @@ public class ScriptedConditionTokenFilterTests extends ESTokenStreamTestCase {
         };
 
         CommonAnalysisPlugin plugin = new CommonAnalysisPlugin();
-        plugin.createComponents(null, null, null, null, scriptService, null, null, null, null, null, null);
+        plugin.createComponents(null, null, null, null, scriptService, null, null, null, null, null, null, Tracer.NOOP);
         AnalysisModule module = new AnalysisModule(TestEnvironment.newEnvironment(settings), Collections.singletonList(plugin));
 
         IndexAnalyzers analyzers = module.getAnalysisRegistry().build(idxSettings);

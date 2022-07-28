@@ -279,6 +279,8 @@ import org.elasticsearch.xpack.ml.aggs.changepoint.ChangePointAggregationBuilder
 import org.elasticsearch.xpack.ml.aggs.changepoint.ChangePointNamedContentProvider;
 import org.elasticsearch.xpack.ml.aggs.correlation.BucketCorrelationAggregationBuilder;
 import org.elasticsearch.xpack.ml.aggs.correlation.CorrelationNamedContentProvider;
+import org.elasticsearch.xpack.ml.aggs.frequentitemsets.FrequentItemSetsAggregationBuilder;
+import org.elasticsearch.xpack.ml.aggs.frequentitemsets.FrequentItemSetsAggregatorFactory;
 import org.elasticsearch.xpack.ml.aggs.heuristic.PValueScore;
 import org.elasticsearch.xpack.ml.aggs.inference.InferencePipelineAggregationBuilder;
 import org.elasticsearch.xpack.ml.aggs.kstest.BucketCountKSTestAggregationBuilder;
@@ -682,6 +684,7 @@ public class MachineLearning extends Plugin
         return node.getRoles().contains(DiscoveryNodeRole.ML_ROLE);
     }
 
+    @Override
     public List<Setting<?>> getSettings() {
         return List.of(
             MachineLearningField.AUTODETECT_PROCESS,
@@ -1467,7 +1470,13 @@ public class MachineLearning extends Plugin
                 CategorizeTextAggregationBuilder::new,
                 CategorizeTextAggregationBuilder.PARSER
             ).addResultReader(InternalCategorizationAggregation::new)
-                .setAggregatorRegistrar(s -> s.registerUsage(CategorizeTextAggregationBuilder.NAME))
+                .setAggregatorRegistrar(s -> s.registerUsage(CategorizeTextAggregationBuilder.NAME)),
+            new AggregationSpec(
+                FrequentItemSetsAggregationBuilder.NAME,
+                FrequentItemSetsAggregationBuilder::new,
+                FrequentItemSetsAggregationBuilder.PARSER
+            ).addResultReader(FrequentItemSetsAggregatorFactory.getResultReader())
+                .setAggregatorRegistrar(FrequentItemSetsAggregationBuilder::registerAggregators)
         );
     }
 
@@ -1599,6 +1608,7 @@ public class MachineLearning extends Plugin
         namedWriteables.addAll(MlAutoscalingNamedWritableProvider.getNamedWriteables());
         namedWriteables.addAll(new CorrelationNamedContentProvider().getNamedWriteables());
         namedWriteables.addAll(new ChangePointNamedContentProvider().getNamedWriteables());
+
         return namedWriteables;
     }
 

@@ -268,7 +268,7 @@ public class PyTorchModelIT extends ESRestTestCase {
             assertThat(stats, hasSize(1));
             String stringModelSizeBytes = (String) XContentMapValues.extractValue("model_size_stats.model_size", stats.get(0));
             assertThat(
-                "stats response: " + responseMap + " human stats response" + humanResponseMap,
+                "stats response: " + responseMap + " human stats response " + humanResponseMap,
                 stringModelSizeBytes,
                 is(not(nullValue()))
             );
@@ -323,6 +323,10 @@ public class PyTorchModelIT extends ESRestTestCase {
 
         infer("once", modelA);
         infer("twice", modelA);
+        // By making this request 3 times at least one of the responses must come from the cache because the cluster has 2 ML nodes
+        infer("three times", modelA);
+        infer("three times", modelA);
+        infer("three times", modelA);
         {
             Response postInferStatsResponse = getTrainedModelStats(modelA);
             List<Map<String, Object>> stats = (List<Map<String, Object>>) entityAsMap(postInferStatsResponse).get("trained_model_stats");
@@ -338,13 +342,17 @@ public class PyTorchModelIT extends ESRestTestCase {
             for (var node : nodes) {
                 assertThat(node.get("number_of_pending_requests"), notNullValue());
             }
-            // last_access and average_inference_time_ms may be null if inference wasn't performed on this node
+            assertAtLeastOneOfTheseIsNonZero("inference_cache_hit_count", nodes);
+            // last_access, average_inference_time_ms and inference_cache_hit_count_last_minute
+            // may be null if inference wasn't performed on a node. Also, in this test they'll
+            // be zero even when they are present because we don't have a full minute of history.
             assertAtLeastOneOfTheseIsNotNull("last_access", nodes);
             assertAtLeastOneOfTheseIsNotNull("average_inference_time_ms", nodes);
+            assertAtLeastOneOfTheseIsNotNull("inference_cache_hit_count_last_minute", nodes);
 
-            assertThat((Integer) XContentMapValues.extractValue("inference_stats.inference_count", stats.get(0)), equalTo(2));
+            assertThat((Integer) XContentMapValues.extractValue("inference_stats.inference_count", stats.get(0)), equalTo(5));
             int inferenceCount = sumInferenceCountOnNodes(nodes);
-            assertThat(inferenceCount, equalTo(2));
+            assertThat(inferenceCount, equalTo(5));
         }
     }
 
@@ -373,7 +381,18 @@ public class PyTorchModelIT extends ESRestTestCase {
     }
 
     private void assertAtLeastOneOfTheseIsNotNull(String name, List<Map<String, Object>> nodes) {
-        assertTrue("all nodes have null value for [" + name + "]", nodes.stream().anyMatch(n -> n.get(name) != null));
+        assertTrue("all nodes have null value for [" + name + "] in " + nodes, nodes.stream().anyMatch(n -> n.get(name) != null));
+    }
+
+    private void assertAtLeastOneOfTheseIsNonZero(String name, List<Map<String, Object>> nodes) {
+        assertTrue("all nodes have null or zero value for [" + name + "] in " + nodes, nodes.stream().anyMatch(n -> {
+            Object o = n.get(name);
+            if (o instanceof Number) {
+                return ((Number) o).longValue() != 0;
+            } else {
+                return false;
+            }
+        }));
     }
 
     @SuppressWarnings("unchecked")

@@ -35,8 +35,9 @@ import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
 /**
- * This class monitors the health of the node regarding the load on difference resources.
- * Currently, it only checks for available disk space.
+ * This class monitors the health of the node regarding the load on several resources.
+ * Currently, it only checks for available disk space. Furthermore, it informs the health
+ * node about the local health upon change or when a new node is detected.
  */
 public class LocalHealthMonitor implements ClusterStateListener {
 

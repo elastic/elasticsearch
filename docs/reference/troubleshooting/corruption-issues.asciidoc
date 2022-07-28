@@ -18,8 +18,8 @@ matching checksum doesn't prove the absence of corruption.
 
 Verifying a checksum is expensive since it involves reading every byte of the
 file which takes significant effort and might evict more useful data from the
-filesystem cache, so systems typically doesn't verify the checksum on a file
-very often. This is why you tend only to encounter a corruption exception when
+filesystem cache, so systems typically don't verify the checksum on a file very
+often. This is why you tend only to encounter a corruption exception when
 something unusual is happening. For instance, corruptions are often detected
 during merges, shard movements, and snapshots. This does not mean that these
 proceses are causing corruption: they are examples of the rare times where

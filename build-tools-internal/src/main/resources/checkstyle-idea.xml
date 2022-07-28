@@ -1,19 +1,20 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
-  <component name="CheckStyle-IDEA">
-    <option name="configuration">
-      <map>
-        <entry key="active-configuration" value="PROJECT_RELATIVE:$PROJECT_DIR$/checkstyle_ide.xml:Elasticsearch" />
-        <entry key="checkstyle-version" value="10.3" />
-        <entry key="copy-libs" value="false" />
-        <entry key="location-0" value="BUNDLED:(bundled):Sun Checks" />
-        <entry key="location-1" value="BUNDLED:(bundled):Google Checks" />
-        <entry key="location-2" value="PROJECT_RELATIVE:$PROJECT_DIR$/checkstyle_ide.xml:Elasticsearch" />
-        <entry key="scan-before-checkin" value="false" />
-        <entry key="scanscope" value="JavaOnlyWithTests" />
-        <entry key="suppress-errors" value="false" />
-        <entry key="thirdparty-classpath" value="$PROJECT_DIR$/build-conventions/build/libs/build-conventions.jar" />
-      </map>
-    </option>
-  </component>
+    <component name="CheckStyle-IDEA" serialisationVersion="2">
+        <checkstyleVersion>10.3.1</checkstyleVersion>
+        <scanScope>JavaOnlyWithTests</scanScope>
+        <option name="thirdPartyClasspath">
+            <option value="$PROJECT_DIR$/build-conventions/build/libs/build-conventions.jar" />
+        </option>
+        <option name="activeLocationIds">
+            <option value="dfb90780-ced3-4152-a4df-3cc9be08e3d8" />
+        </option>
+        <option name="locations">
+            <list>
+                <ConfigurationLocation id="bundled-sun-checks" type="BUNDLED" scope="All" description="Sun Checks">(bundled)</ConfigurationLocation>
+                <ConfigurationLocation id="bundled-google-checks" type="BUNDLED" scope="All" description="Google Checks">(bundled)</ConfigurationLocation>
+                <ConfigurationLocation id="dfb90780-ced3-4152-a4df-3cc9be08e3d8" type="PROJECT_RELATIVE" scope="All" description="Elasticsearch">$PROJECT_DIR$/checkstyle_ide.xml</ConfigurationLocation>
+            </list>
+        </option>
+    </component>
 </project>

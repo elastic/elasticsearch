@@ -141,7 +141,7 @@
       indices.refresh: {}
 
   - do:
-      catch: /Invalid fields added to context \[junk\]/
+      catch: /Cannot put key \[junk\] with value \[stuff\] into ctx/
       update_by_query:
         index: twitter
         body:
@@ -152,8 +152,8 @@
 ---
 "Can't change _id":
   - skip:
-      version: "8.4.0 -"
-      reason: "error message changed in 8.4"
+      version: "8.5.0 -"
+      reason: "error message changed in 8.5"
   - do:
       index:
         index:  twitter
@@ -172,10 +172,10 @@
             source: ctx._id = "stuff"
 
 ---
-"Can't change _id - 8.4":
+"Can't change _id - 8.5":
   - skip:
-      version: " - 8.3.99"
-      reason: "error message changed in 8.4"
+      version: " - 8.4.99"
+      reason: "error message changed in 8.5"
   - do:
       index:
         index:  twitter
@@ -333,8 +333,8 @@
 ---
 "Set unsupported operation type":
   - skip:
-      version: "8.4.0 -"
-      reason: "error message changed in 8.4"
+      version: "8.5.0 -"
+      reason: "error message changed in 8.5"
   - do:
       index:
         index:  twitter
@@ -361,10 +361,10 @@
   - match: { error.reason: 'Operation type [junk] not allowed, only [noop, index, delete] are allowed' }
 
 ---
-"Set unsupported operation type - 8.4":
+"Set unsupported operation type - 8.5":
   - skip:
       version: " - 8.3.99"
-      reason: "error message changed in 8.4"
+      reason: "error message changed in 8.5"
   - do:
       index:
         index:  twitter

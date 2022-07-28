@@ -337,8 +337,8 @@ public class SampleIterator implements Executable {
     }
 
     private void addMemory(long bytes, String label) {
-        totalRamBytesUsed += bytes;
         circuitBreaker.addEstimateBytesAndMaybeBreak(bytes, label);
+        totalRamBytesUsed += bytes;
     }
 
     private void clearCircuitBreaker() {

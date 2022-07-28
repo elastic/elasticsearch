@@ -23,7 +23,6 @@ import java.util.Map;
 public class HealthIndicatorResultTests extends ESTestCase {
     public void testToXContent() throws Exception {
         String name = randomAlphaOfLength(10);
-        String component = randomAlphaOfLength(10);
         HealthStatus status = randomFrom(HealthStatus.RED, HealthStatus.YELLOW, HealthStatus.GREEN);
         String symptom = randomAlphaOfLength(20);
         String helpUrl = randomAlphaOfLength(20);
@@ -56,7 +55,7 @@ public class HealthIndicatorResultTests extends ESTestCase {
             action2.affectedResources().add(randomAlphaOfLength(10));
         }
         actions.add(action2);
-        HealthIndicatorResult result = new HealthIndicatorResult(name, component, status, symptom, details, impacts, actions);
+        HealthIndicatorResult result = new HealthIndicatorResult(name, status, symptom, details, impacts, actions);
         XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
         result.toXContent(builder, ToXContent.EMPTY_PARAMS);
         Map<String, Object> xContentMap = XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();

@@ -96,8 +96,15 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
         MasterHistoryService masterHistoryService = createMasterHistoryService();
         StableMasterHealthIndicatorService service = createStableMasterHealthIndicatorService(nullMasterClusterState, masterHistoryService);
         List<DiscoveryNode> recentMasters = List.of(node2, node1);
+        String node1ClusterFormation = randomAlphaOfLength(100);
+        String node2ClusterFormation = randomAlphaOfLength(100);
         CoordinationDiagnosticsService.CoordinationDiagnosticsDetails coordinationDiagnosticsDetails =
-            new CoordinationDiagnosticsService.CoordinationDiagnosticsDetails(node1, recentMasters);
+            new CoordinationDiagnosticsService.CoordinationDiagnosticsDetails(
+                node1,
+                recentMasters,
+                null,
+                Map.of(node1.getId(), node1ClusterFormation, node2.getId(), node2ClusterFormation)
+            );
         CoordinationDiagnosticsService.CoordinationDiagnosticsStatus inputStatus = randomFrom(
             CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.RED,
             CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.YELLOW
@@ -113,10 +120,9 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
         assertThat(result.symptom(), equalTo("the summary of the diagnostic"));
         assertThat(result.impacts().size(), equalTo(3));
         assertThat(result.name(), equalTo(StableMasterHealthIndicatorService.NAME));
-        assertThat(result.component(), equalTo("cluster_coordination"));
         HealthIndicatorDetails details = result.details();
         Map<String, Object> detailsMap = xContentToMap(details);
-        assertThat(detailsMap.size(), equalTo(2));
+        assertThat(detailsMap.size(), equalTo(3));
         Map<String, String> currentMasterInResult = (Map<String, String>) detailsMap.get("current_master");
         assertThat(currentMasterInResult.get("name"), equalTo(node1.getName()));
         assertThat(currentMasterInResult.get("node_id"), equalTo(node1.getId()));
@@ -128,6 +134,10 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
             assertThat(recentMasterMap.get("name"), not(emptyOrNullString()));
             assertThat(recentMasterMap.get("node_id"), not(emptyOrNullString()));
         }
+        Map<String, String> clusterFormationMap = (Map<String, String>) detailsMap.get("cluster_formation");
+        assertThat(clusterFormationMap.size(), equalTo(2));
+        assertThat(clusterFormationMap.get(node1.getId()), equalTo(node1ClusterFormation));
+        assertThat(clusterFormationMap.get(node2.getId()), equalTo(node2ClusterFormation));
         List<Diagnosis> diagnosis = result.diagnosisList();
         assertThat(diagnosis.size(), equalTo(1));
         assertThat(diagnosis.get(0), is(StableMasterHealthIndicatorService.CONTACT_SUPPORT_USER_ACTION));
@@ -139,7 +149,7 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
         StableMasterHealthIndicatorService service = createStableMasterHealthIndicatorService(nullMasterClusterState, masterHistoryService);
         List<DiscoveryNode> recentMasters = List.of(node2, node1);
         CoordinationDiagnosticsService.CoordinationDiagnosticsDetails coordinationDiagnosticsDetails =
-            new CoordinationDiagnosticsService.CoordinationDiagnosticsDetails(node1, recentMasters);
+            new CoordinationDiagnosticsService.CoordinationDiagnosticsDetails(node1, recentMasters, null, null);
         CoordinationDiagnosticsService.CoordinationDiagnosticsStatus inputStatus = randomFrom(
             CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.RED,
             CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.YELLOW
@@ -155,7 +165,6 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
         assertThat(result.symptom(), equalTo("the summary of the diagnostic"));
         assertThat(result.impacts().size(), equalTo(3));
         assertThat(result.name(), equalTo(StableMasterHealthIndicatorService.NAME));
-        assertThat(result.component(), equalTo("cluster_coordination"));
         assertThat(result.details(), equalTo(HealthIndicatorDetails.EMPTY));
         List<Diagnosis> diagnosis = result.diagnosisList();
         assertThat(diagnosis.size(), equalTo(0));
@@ -167,7 +176,7 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
         StableMasterHealthIndicatorService service = createStableMasterHealthIndicatorService(nullMasterClusterState, masterHistoryService);
         List<DiscoveryNode> recentMasters = List.of(node2, node1);
         CoordinationDiagnosticsService.CoordinationDiagnosticsDetails coordinationDiagnosticsDetails =
-            new CoordinationDiagnosticsService.CoordinationDiagnosticsDetails(node1, recentMasters);
+            new CoordinationDiagnosticsService.CoordinationDiagnosticsDetails(node1, recentMasters, null, null);
         CoordinationDiagnosticsService.CoordinationDiagnosticsStatus inputStatus = randomFrom(
             CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.GREEN,
             CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.UNKNOWN
@@ -183,7 +192,6 @@ public class StableMasterHealthIndicatorServiceTests extends AbstractCoordinator
         assertThat(result.symptom(), equalTo("the summary of the diagnostic"));
         assertThat(result.impacts().size(), equalTo(0));
         assertThat(result.name(), equalTo(StableMasterHealthIndicatorService.NAME));
-        assertThat(result.component(), equalTo("cluster_coordination"));
         HealthIndicatorDetails details = result.details();
         Map<String, Object> detailsMap = xContentToMap(details);
         assertThat(detailsMap.size(), equalTo(2));

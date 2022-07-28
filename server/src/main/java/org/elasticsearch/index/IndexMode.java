@@ -17,6 +17,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocumentDimensions;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
@@ -84,13 +85,13 @@ public enum IndexMode {
         }
 
         @Override
-        public MetadataFieldMapper buildTimeSeriesIdFieldMapper() {
+        public MetadataFieldMapper timeSeriesIdFieldMapper() {
             // non time-series indices must not have a TimeSeriesIdFieldMapper
             return null;
         }
 
         @Override
-        public IdFieldMapper buildNoFieldDataIdFieldMapper() {
+        public IdFieldMapper idFieldMapperWithoutFieldData() {
             return ProvidedIdFieldMapper.NO_FIELD_DATA;
         }
 
@@ -170,12 +171,11 @@ public enum IndexMode {
         }
 
         @Override
-        public MetadataFieldMapper buildTimeSeriesIdFieldMapper() {
+        public MetadataFieldMapper timeSeriesIdFieldMapper() {
             return TimeSeriesIdFieldMapper.INSTANCE;
         }
 
-        @Override
-        public IdFieldMapper buildNoFieldDataIdFieldMapper() {
+        public IdFieldMapper idFieldMapperWithoutFieldData() {
             return TsidExtractingIdFieldMapper.INSTANCE;
         }
 
@@ -273,9 +273,16 @@ public enum IndexMode {
     @Nullable
     public abstract CompressedXContent getDefaultMapping();
 
+    /**
+     * Build the {@link FieldMapper} for {@code _id}.
+     */
     public abstract IdFieldMapper buildIdFieldMapper(BooleanSupplier fieldDataEnabled);
 
-    public abstract IdFieldMapper buildNoFieldDataIdFieldMapper();
+    /**
+     * Get the singleton {@link FieldMapper} for {@code _id}. It can never support
+     * field data.
+     */
+    public abstract IdFieldMapper idFieldMapperWithoutFieldData();
 
     /**
      * @return the time range based on the provided index metadata and index mode implementation.
@@ -289,7 +296,7 @@ public enum IndexMode {
      * the _tsid field. The field mapper will be added to the list of the metadata
      * field mappers for the index.
      */
-    public abstract MetadataFieldMapper buildTimeSeriesIdFieldMapper();
+    public abstract MetadataFieldMapper timeSeriesIdFieldMapper();
 
     /**
      * How {@code time_series_dimension} fields are handled by indices in this mode.
@@ -301,6 +308,9 @@ public enum IndexMode {
      */
     public abstract boolean shouldValidateTimestamp();
 
+    /**
+     * Parse a string into an {@link IndexMode}.
+     */
     public static IndexMode fromString(String value) {
         return switch (value) {
             case "standard" -> IndexMode.STANDARD;

@@ -16,6 +16,8 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.plugins.spi.BarPlugin;
+import org.elasticsearch.plugins.spi.BarTestService;
 import org.elasticsearch.plugins.spi.TestService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.PrivilegedOperations;
@@ -28,9 +30,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.FileSystemException;
 import java.nio.file.Files;
-import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -41,8 +41,11 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -95,7 +98,7 @@ public class PluginsServiceTests extends ESTestCase {
         Files.createDirectories(hidden);
         final IllegalStateException e = expectThrows(IllegalStateException.class, () -> newPluginsService(settings));
 
-        final String expected = "Could not load plugin descriptor for plugin directory [.hidden]";
+        final String expected = "Plugin [.hidden] is missing a descriptor properties file";
         assertThat(e, hasToString(containsString(expected)));
     }
 
@@ -111,22 +114,7 @@ public class PluginsServiceTests extends ESTestCase {
             assertNotNull(pluginsService);
         } else {
             final IllegalStateException e = expectThrows(IllegalStateException.class, () -> newPluginsService(settings));
-            assertThat(e.getMessage(), containsString("Could not load plugin descriptor for plugin directory [.DS_Store]"));
-            assertNotNull(e.getCause());
-            assertThat(e.getCause(), instanceOf(FileSystemException.class));
-            if (Constants.WINDOWS) {
-                assertThat(e.getCause(), instanceOf(NoSuchFileException.class));
-            } else {
-                // force a "Not a directory" exception to be thrown so that we can extract the locale-dependent message
-                final String expected;
-                try (InputStream ignored = Files.newInputStream(desktopServicesStore.resolve("not-a-directory"))) {
-                    throw new AssertionError();
-                } catch (final FileSystemException inner) {
-                    // locale-dependent translation of "Not a directory"
-                    expected = inner.getReason();
-                }
-                assertThat(e.getCause(), hasToString(containsString(expected)));
-            }
+            assertThat(e.getMessage(), containsString("Plugin [.DS_Store] is missing a descriptor properties file"));
         }
     }
 
@@ -468,7 +456,7 @@ public class PluginsServiceTests extends ESTestCase {
         PluginsService.loadExtensions(
             List.of(
                 new PluginsService.LoadedPlugin(
-                    new PluginDescriptor("extensible", null, null, null, null, null, null, List.of(), false, false),
+                    new PluginDescriptor("extensible", null, null, null, null, null, null, List.of(), false, false, false, false),
                     extensiblePlugin
                 )
             )
@@ -482,11 +470,11 @@ public class PluginsServiceTests extends ESTestCase {
         PluginsService.loadExtensions(
             List.of(
                 new PluginsService.LoadedPlugin(
-                    new PluginDescriptor("extensible", null, null, null, null, null, null, List.of(), false, false),
+                    new PluginDescriptor("extensible", null, null, null, null, null, null, List.of(), false, false, false, false),
                     extensiblePlugin
                 ),
                 new PluginsService.LoadedPlugin(
-                    new PluginDescriptor("test", null, null, null, null, null, null, List.of("extensible"), false, false),
+                    new PluginDescriptor("test", null, null, null, null, null, null, List.of("extensible"), false, false, false, false),
                     testPlugin
                 )
             )
@@ -695,6 +683,34 @@ public class PluginsServiceTests extends ESTestCase {
         }
     }
 
+    // The mock node loads plugins in the same class loader, make sure we can find the appropriate
+    // plugin to use in the constructor in that case too
+    public void testLoadServiceProvidersInSameClassLoader() {
+        PluginsService service = newMockPluginsService(List.of(BarPlugin.class, PluginOther.class));
+
+        // There's only one TestService implementation, FooTestService which uses FooPlugin in the constructor.
+        // We should find only one instance of this service when we load with two plugins in the same class loader.
+        @SuppressWarnings("unchecked")
+        List<TestService> testServices = (List<TestService>) service.loadServiceProviders(TestService.class);
+        assertEquals(1, testServices.size());
+
+        var fooPlugin = (BarPlugin) service.plugins().stream().filter(p -> p.instance() instanceof BarPlugin).findAny().get().instance();
+        var othPlugin = (PluginOther) service.plugins()
+            .stream()
+            .filter(p -> p.instance() instanceof PluginOther)
+            .findAny()
+            .get()
+            .instance();
+
+        // We shouldn't find the FooTestService implementation with PluginOther
+        assertThat(MockPluginsService.createExtensions(TestService.class, othPlugin), empty());
+
+        // We should find the FooTestService implementation when we use FooPlugin, because it matches the constructor arg.
+        var providers = MockPluginsService.createExtensions(TestService.class, fooPlugin);
+
+        assertThat(providers, allOf(hasSize(1), everyItem(instanceOf(BarTestService.class))));
+    }
+
     private static class TestExtensiblePlugin extends Plugin implements ExtensiblePlugin {
         private List<TestExtensionPoint> extensions;
 
@@ -733,5 +749,9 @@ public class PluginsServiceTests extends ESTestCase {
         public ThrowingConstructorExtension() {
             throw new IllegalArgumentException("test constructor failure");
         }
+    }
+
+    public static class PluginOther extends Plugin {
+        public PluginOther() {}
     }
 }

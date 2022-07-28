@@ -43,6 +43,7 @@ import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -88,7 +89,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
             controller.process("operator", parser, (e) -> x.set(e));
 
             assertTrue(x.get() instanceof IllegalStateException);
-            assertEquals("Error processing state change request for operator", x.get().getMessage());
+            assertThat(x.get().getMessage(), containsString("Error processing state change request for operator"));
         }
 
         testJSON = """
@@ -278,6 +279,27 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
             }
         };
 
+        ReservedStateHandlerMetadata hmOne = new ReservedStateHandlerMetadata("one", Set.of("a", "b"));
+        ReservedStateErrorMetadata emOne = new ReservedStateErrorMetadata(
+            1L,
+            ReservedStateErrorMetadata.ErrorKind.VALIDATION,
+            List.of("Test error 1", "Test error 2")
+        );
+
+        final ReservedStateMetadata operatorMetadata = ReservedStateMetadata.builder("namespace_one")
+            .errorMetadata(emOne)
+            .version(1L)
+            .putHandler(hmOne)
+            .build();
+
+        Metadata metadata = Metadata.builder().put(operatorMetadata).build();
+        ClusterState state = ClusterState.builder(new ClusterName("test")).metadata(metadata).build();
+
+        assertFalse(ReservedClusterStateService.isNewError(operatorMetadata, 1L));
+        assertFalse(ReservedClusterStateService.isNewError(operatorMetadata, 0L));
+        assertTrue(ReservedClusterStateService.isNewError(operatorMetadata, 2L));
+        assertTrue(ReservedClusterStateService.isNewError(null, 0L));
+
         // We submit a task with two handler, one will cause an exception, the other will create a new state.
         // When we fail to update the metadata because of version, we ensure that the returned state is equal to the
         // original state by pointer reference to avoid cluster state update task to run.
@@ -286,7 +308,7 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
             new ReservedStateChunk(Map.of("one", "two", "maker", "three"), new ReservedStateVersion(1L, Version.CURRENT)),
             Map.of(exceptionThrower.name(), exceptionThrower, newStateMaker.name(), newStateMaker),
             List.of(exceptionThrower.name(), newStateMaker.name()),
-            (errorState) -> {},
+            (errorState) -> { assertFalse(ReservedClusterStateService.isNewError(operatorMetadata, errorState.version())); },
             new ActionListener<>() {
                 @Override
                 public void onResponse(ActionResponse.Empty empty) {}
@@ -296,25 +318,11 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
             }
         );
 
-        ReservedStateHandlerMetadata hmOne = new ReservedStateHandlerMetadata("one", Set.of("a", "b"));
-        ReservedStateErrorMetadata emOne = new ReservedStateErrorMetadata(
-            1L,
-            ReservedStateErrorMetadata.ErrorKind.VALIDATION,
-            List.of("Test error 1", "Test error 2")
-        );
-
-        ReservedStateMetadata operatorMetadata = ReservedStateMetadata.builder("namespace_one")
-            .errorMetadata(emOne)
-            .version(1L)
-            .putHandler(hmOne)
-            .build();
-
-        Metadata metadata = Metadata.builder().put(operatorMetadata).build();
-        ClusterState state = ClusterState.builder(new ClusterName("test")).metadata(metadata).build();
-
         // We exit on duplicate errors before we update the cluster state error metadata
-        // The reference == ensures we return the same object as the current state to avoid publishing no-op state update
-        assertTrue(state == task.execute(state));
+        assertThat(
+            expectThrows(IllegalStateException.class, () -> task.execute(state)).getMessage(),
+            containsString("Error processing state change request for namespace_one")
+        );
 
         emOne = new ReservedStateErrorMetadata(
             0L,
@@ -323,15 +331,19 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
         );
 
         // If we are writing with older error metadata, we should get proper IllegalStateException
-        operatorMetadata = ReservedStateMetadata.builder("namespace_one").errorMetadata(emOne).version(0L).putHandler(hmOne).build();
+        ReservedStateMetadata opMetadata = ReservedStateMetadata.builder("namespace_one")
+            .errorMetadata(emOne)
+            .version(0L)
+            .putHandler(hmOne)
+            .build();
 
-        metadata = Metadata.builder().put(operatorMetadata).build();
+        metadata = Metadata.builder().put(opMetadata).build();
         ClusterState newState = ClusterState.builder(new ClusterName("test")).metadata(metadata).build();
 
         // We exit on duplicate errors before we update the cluster state error metadata
-        assertEquals(
-            "Error processing state change request for namespace_one",
-            expectThrows(IllegalStateException.class, () -> task.execute(newState)).getMessage()
+        assertThat(
+            expectThrows(IllegalStateException.class, () -> task.execute(newState)).getMessage(),
+            containsString("Error processing state change request for namespace_one")
         );
     }
 

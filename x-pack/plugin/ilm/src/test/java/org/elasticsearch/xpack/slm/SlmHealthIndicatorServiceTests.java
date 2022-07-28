@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
@@ -136,7 +137,7 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
             new SnapshotLifecycleMetadata(
                 createSlmPolicyWithInvocations(
                     snapshotInvocation(execTime, execTime + 1000L),
-                    snapshotInvocation(execTime + window, execTime + window + 1000L),
+                    snapshotInvocation(null, execTime + window + 1000L),
                     randomLongBetween(0, 4)
                 ),
                 RUNNING,
@@ -168,7 +169,7 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
             new SnapshotLifecycleMetadata(
                 createSlmPolicyWithInvocations(
                     snapshotInvocation(execTime, execTime + 1000L),
-                    snapshotInvocation(execTime + window, execTime + window + 1000L),
+                    snapshotInvocation(null, execTime + window + 1000L),
                     failedInvocations
                 ),
                 RUNNING,
@@ -237,7 +238,7 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
             .setVersion(1L)
             .setModifiedDate(System.currentTimeMillis())
             .setLastSuccess(snapshotInvocation(1000L, 2000L))
-            .setLastFailure(snapshotInvocation(8000L, 9000L))
+            .setLastFailure(snapshotInvocation(null, 9000L))
             .setInvocationsSinceLastSuccess(randomLongBetween(5L, 10L))
             .build();
 
@@ -250,7 +251,7 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
             .setVersion(1L)
             .setModifiedDate(System.currentTimeMillis())
             .setLastSuccess(snapshotInvocation(8000L, 9000L))
-            .setLastFailure(snapshotInvocation(1000L, 2000L))
+            .setLastFailure(snapshotInvocation(null, 2000L))
             .setInvocationsSinceLastSuccess(0L)
             .build();
 
@@ -289,7 +290,7 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
         );
     }
 
-    private static SnapshotInvocationRecord snapshotInvocation(long startTime, long stopTime) {
+    private static SnapshotInvocationRecord snapshotInvocation(@Nullable Long startTime, long stopTime) {
         return new SnapshotInvocationRecord("test-policy-snapshot", startTime, stopTime, null);
     }
 

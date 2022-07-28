@@ -1467,7 +1467,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         );
         final var request = new UpdateApiKeyRequest(apiKeyId, newRoleDescriptors, ApiKeyTests.randomMetadata());
 
-        final UpdateApiKeyResponse response = executeUpdateApiKey(TEST_USER_NAME, request);
+        final UpdateApiKeyResponse response = executeUpdateApiKeyMaybeUsingBulk(TEST_USER_NAME, request);
 
         assertNotNull(response);
         // In this test, non-null roleDescriptors always result in an update since they either update the role name, or associated
@@ -1666,7 +1666,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             newClusterPrivileges.toArray(new String[0])
         );
 
-        UpdateApiKeyResponse response = executeUpdateApiKey(nativeRealmUser, UpdateApiKeyRequest.usingApiKeyId(apiKeyId));
+        UpdateApiKeyResponse response = executeUpdateApiKeyMaybeUsingBulk(nativeRealmUser, UpdateApiKeyRequest.usingApiKeyId(apiKeyId));
 
         assertNotNull(response);
         assertTrue(response.isUpdated());
@@ -1685,7 +1685,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         updateUser(updatedUser);
 
         // Update API key
-        response = executeUpdateApiKey(nativeRealmUser, UpdateApiKeyRequest.usingApiKeyId(apiKeyId));
+        response = executeUpdateApiKeyMaybeUsingBulk(nativeRealmUser, UpdateApiKeyRequest.usingApiKeyId(apiKeyId));
 
         assertNotNull(response);
         assertTrue(response.isUpdated());
@@ -1708,7 +1708,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final var request = new UpdateApiKeyRequest(apiKeyId, List.of(expectedRoleDescriptor), ApiKeyTests.randomMetadata());
 
         // Validate can update own API key
-        final UpdateApiKeyResponse response = executeUpdateApiKey(TEST_USER_NAME, request);
+        final UpdateApiKeyResponse response = executeUpdateApiKeyMaybeUsingBulk(TEST_USER_NAME, request);
         assertNotNull(response);
         assertTrue(response.isUpdated());
 
@@ -1788,7 +1788,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
         final var ex = expectThrowsWithUnwrappedExecutionException(
             IllegalArgumentException.class,
-            () -> executeUpdateApiKey(TEST_USER_NAME, request)
+            () -> executeUpdateApiKeyMaybeUsingBulk(TEST_USER_NAME, request)
         );
         if (invalidated) {
             assertThat(ex.getMessage(), containsString("cannot update invalidated API key [" + apiKeyId + "]"));
@@ -1856,7 +1856,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             // metadata updates are non-noops
             randomValueOtherThanMany(Objects::isNull, ApiKeyTests::randomMetadata)
         );
-        UpdateApiKeyResponse response = executeUpdateApiKey(TEST_USER_NAME, initialRequest);
+        UpdateApiKeyResponse response = executeUpdateApiKeyMaybeUsingBulk(TEST_USER_NAME, initialRequest);
         assertNotNull(response);
         // First update is not noop, because role descriptors changed and possibly metadata
         assertTrue(response.isUpdated());
@@ -1869,13 +1869,13 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             .findFirst()
             .orElseThrow();
         final int count = serviceWithNameForDoc1.getDocCache().count();
-        response = executeUpdateApiKey(TEST_USER_NAME, initialRequest);
+        response = executeUpdateApiKeyMaybeUsingBulk(TEST_USER_NAME, initialRequest);
         assertNotNull(response);
         assertFalse(response.isUpdated());
         assertEquals(count, serviceWithNameForDoc1.getDocCache().count());
 
         // Update with empty request is a noop
-        response = executeUpdateApiKey(TEST_USER_NAME, UpdateApiKeyRequest.usingApiKeyId(apiKeyId));
+        response = executeUpdateApiKeyMaybeUsingBulk(TEST_USER_NAME, UpdateApiKeyRequest.usingApiKeyId(apiKeyId));
         assertNotNull(response);
         assertFalse(response.isUpdated());
 
@@ -1890,12 +1890,12 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 () -> RoleDescriptorTests.randomRoleDescriptor(false)
             )
         );
-        response = executeUpdateApiKey(TEST_USER_NAME, new UpdateApiKeyRequest(apiKeyId, newRoleDescriptors, null));
+        response = executeUpdateApiKeyMaybeUsingBulk(TEST_USER_NAME, new UpdateApiKeyRequest(apiKeyId, newRoleDescriptors, null));
         assertNotNull(response);
         assertTrue(response.isUpdated());
 
         // Update with re-ordered role descriptors is a noop
-        response = executeUpdateApiKey(
+        response = executeUpdateApiKeyMaybeUsingBulk(
             TEST_USER_NAME,
             new UpdateApiKeyRequest(apiKeyId, List.of(newRoleDescriptors.get(1), newRoleDescriptors.get(0)), null)
         );
@@ -1903,7 +1903,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertFalse(response.isUpdated());
 
         // Update with different metadata is not a noop
-        response = executeUpdateApiKey(
+        response = executeUpdateApiKeyMaybeUsingBulk(
             TEST_USER_NAME,
             new UpdateApiKeyRequest(
                 apiKeyId,
@@ -2055,7 +2055,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final int serviceForDoc2AuthCacheCount = serviceForDoc2.getApiKeyAuthCache().count();
 
         // Update the first key
-        final UpdateApiKeyResponse response = executeUpdateApiKey(
+        final UpdateApiKeyResponse response = executeUpdateApiKeyMaybeUsingBulk(
             ES_TEST_ROOT_USER,
             new UpdateApiKeyRequest(
                 apiKey1.v1(),
@@ -2111,7 +2111,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     private void doTestUpdateApiKeyNotFound(final UpdateApiKeyRequest request) {
         final var ex = expectThrowsWithUnwrappedExecutionException(
             ResourceNotFoundException.class,
-            () -> executeUpdateApiKey(TEST_USER_NAME, request)
+            () -> executeUpdateApiKeyMaybeUsingBulk(TEST_USER_NAME, request)
         );
         assertThat(ex.getMessage(), containsString("no API key owned by requesting user found for ID [" + request.getId() + "]"));
     }
@@ -2464,12 +2464,9 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         }
     }
 
-    private UpdateApiKeyResponse executeUpdateApiKey(final String username, final UpdateApiKeyRequest request) throws Exception {
-        return executeUpdateApiKey(username, request, randomBoolean());
-    }
-
-    private UpdateApiKeyResponse executeUpdateApiKey(final String username, final UpdateApiKeyRequest request, final boolean useBulkAction)
+    private UpdateApiKeyResponse executeUpdateApiKeyMaybeUsingBulk(final String username, final UpdateApiKeyRequest request)
         throws Exception {
+        final boolean useBulkAction = randomBoolean();
         if (useBulkAction) {
             final BulkUpdateApiKeyResponse response = executeBulkUpdateApiKey(
                 username,

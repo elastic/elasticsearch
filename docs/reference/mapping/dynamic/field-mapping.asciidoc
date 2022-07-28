@@ -114,6 +114,8 @@ PUT my-index-000001/_doc/1
 }
 --------------------------------------------------
 
+When multiple date formats are provided, only the format which matched the contents
+of one of the fields will actually be added to the allowed date formats.
 
 [[numeric-detection]]
 ==== Numeric detection

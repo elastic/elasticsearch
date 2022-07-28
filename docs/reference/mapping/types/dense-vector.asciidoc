@@ -152,6 +152,7 @@ NOTE: Although they are conceptually related, the `similarity` parameter is
 different from <<text,`text`>> field <<similarity,`similarity`>> and accepts
 a distinct set of options.
 
+[[dense-vector-index-options]]
 `index_options`::
 (Optional, object)
 An optional section that configures the kNN indexing algorithm. The HNSW

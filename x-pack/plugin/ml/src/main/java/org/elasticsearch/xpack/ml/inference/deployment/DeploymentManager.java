@@ -20,6 +20,7 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -97,19 +98,22 @@ public class DeploymentManager {
     public Optional<ModelStats> getStats(TrainedModelDeploymentTask task) {
         return Optional.ofNullable(processContextByAllocation.get(task.getId())).map(processContext -> {
             var stats = processContext.getResultProcessor().getResultStats();
+            var recentStats = stats.recentStats();
             return new ModelStats(
                 processContext.startTime,
                 stats.timingStats(),
                 stats.lastUsed(),
                 processContext.executorService.queueSize() + stats.numberOfPendingResults(),
                 stats.errorCount(),
+                stats.cacheHitCount(),
                 processContext.rejectedExecutionCount.intValue(),
                 processContext.timeoutCount.intValue(),
                 processContext.numThreadsPerAllocation,
                 processContext.numAllocations,
                 stats.peakThroughput(),
-                stats.recentStats().requestsProcessed(),
-                stats.recentStats().avgInferenceTime()
+                recentStats.requestsProcessed(),
+                recentStats.avgInferenceTime(),
+                recentStats.cacheHitCount()
             );
         });
     }
@@ -237,6 +241,7 @@ public class DeploymentManager {
         Map<String, Object> doc,
         boolean skipQueue,
         TimeValue timeout,
+        Task parentActionTask,
         ActionListener<InferenceResults> listener
     ) {
         var processContext = getProcessContext(task, listener::onFailure);
@@ -254,6 +259,7 @@ public class DeploymentManager {
             config,
             doc,
             threadPool,
+            parentActionTask,
             listener
         );
 

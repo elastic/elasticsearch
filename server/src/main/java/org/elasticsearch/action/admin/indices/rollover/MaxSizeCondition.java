@@ -18,19 +18,19 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 
 /**
- * A size-based condition for an index size.
+ * A maximum size-based condition for an index size.
  * Evaluates to <code>true</code> if the index size is at least {@link #value}.
  */
 public class MaxSizeCondition extends Condition<ByteSizeValue> {
     public static final String NAME = "max_size";
 
     public MaxSizeCondition(ByteSizeValue value) {
-        super(NAME);
+        super(NAME, Type.MAX);
         this.value = value;
     }
 
     public MaxSizeCondition(StreamInput in) throws IOException {
-        super(NAME);
+        super(NAME, Type.MAX);
         this.value = new ByteSizeValue(in.readVLong(), ByteSizeUnit.BYTES);
     }
 
@@ -62,7 +62,7 @@ public class MaxSizeCondition extends Condition<ByteSizeValue> {
         if (parser.nextToken() == XContentParser.Token.VALUE_STRING) {
             return new MaxSizeCondition(ByteSizeValue.parseBytesSizeValue(parser.text(), NAME));
         } else {
-            throw new IllegalArgumentException("invalid token: " + parser.currentToken());
+            throw new IllegalArgumentException("invalid token when parsing " + NAME + " condition: " + parser.currentToken());
         }
     }
 }

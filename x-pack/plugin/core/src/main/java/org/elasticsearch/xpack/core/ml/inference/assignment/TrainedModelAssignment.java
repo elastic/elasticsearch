@@ -199,6 +199,10 @@ public class TrainedModelAssignment implements SimpleDiffable<TrainedModelAssign
         return allocations >= taskParams.getNumberOfAllocations();
     }
 
+    public boolean hasOutdatedRoutingEntries() {
+        return nodeRoutingTable.values().stream().anyMatch(RoutingInfo::isOutdated);
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -288,6 +292,11 @@ public class TrainedModelAssignment implements SimpleDiffable<TrainedModelAssign
 
         private Builder(StartTrainedModelDeploymentAction.TaskParams taskParams) {
             this(taskParams, new LinkedHashMap<>(), AssignmentState.STARTING, null, Instant.now());
+        }
+
+        public Builder setStartTime(Instant startTime) {
+            this.startTime = startTime;
+            return this;
         }
 
         public Builder addRoutingEntry(String nodeId, RoutingInfo routingInfo) {

@@ -85,7 +85,7 @@ final class JvmOptionsParser {
         substitutions.put("ES_PATH_CONF", configDir.toString());
 
         try {
-            return parser.jvmOptions(args, configDir, envOptions, substitutions);
+            return parser.jvmOptions(args, configDir, tmpDir, envOptions, substitutions);
         } catch (final JvmOptionsFileParserException e) {
             final String errorMessage = String.format(
                 Locale.ROOT,
@@ -114,8 +114,13 @@ final class JvmOptionsParser {
         }
     }
 
-    private List<String> jvmOptions(ServerArgs args, final Path config, final String esJavaOpts, final Map<String, String> substitutions)
-        throws InterruptedException, IOException, JvmOptionsFileParserException, UserException {
+    private List<String> jvmOptions(
+        ServerArgs args,
+        final Path config,
+        Path tmpDir,
+        final String esJavaOpts,
+        final Map<String, String> substitutions
+    ) throws InterruptedException, IOException, JvmOptionsFileParserException, UserException {
 
         final List<String> jvmOptions = readJvmOptionsFiles(config);
 
@@ -131,11 +136,7 @@ final class JvmOptionsParser {
         final List<String> ergonomicJvmOptions = JvmErgonomics.choose(substitutedJvmOptions);
         final List<String> systemJvmOptions = SystemJvmOptions.systemJvmOptions();
 
-        final List<String> apmOptions = APMJvmOptions.apmJvmOptions(
-            args.nodeSettings(),
-            args.keystore(),
-            Path.of(substitutions.get("ES_TMPDIR"))
-        );
+        final List<String> apmOptions = APMJvmOptions.apmJvmOptions(args.nodeSettings(), args.keystore(), tmpDir);
 
         final List<String> finalJvmOptions = new ArrayList<>(
             systemJvmOptions.size() + substitutedJvmOptions.size() + ergonomicJvmOptions.size() + apmOptions.size()

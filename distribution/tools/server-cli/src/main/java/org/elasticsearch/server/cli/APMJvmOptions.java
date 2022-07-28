@@ -137,12 +137,6 @@ class APMJvmOptions {
      */
     static List<String> apmJvmOptions(Settings settings, @Nullable KeyStoreWrapper keystore, Path tmpdir) throws UserException,
         IOException {
-        final boolean enabled = settings.getAsBoolean("xpack.apm.enabled", false);
-
-        if (enabled == false) {
-            return List.of();
-        }
-
         final Path agentJar = findAgentJar();
 
         if (agentJar == null) {
@@ -150,6 +144,11 @@ class APMJvmOptions {
         }
 
         final Map<String, String> propertiesMap = extractApmSettings(settings);
+
+        // No point doing anything if we don't have a destination for the trace data, and it can't be configured dynamically
+        if (propertiesMap.containsKey("server_url") == false && propertiesMap.containsKey("server_urls") == false) {
+            return List.of();
+        }
 
         if (propertiesMap.containsKey("service_node_name") == false) {
             final String nodeName = settings.get("node.name");

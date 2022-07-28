@@ -93,17 +93,17 @@ class ServerCli extends EnvironmentAwareCommand {
 
             ServerArgs args = createArgs(options, env, keystore, keystorePassword, processInfo);
             this.server = startServer(terminal, processInfo, args);
+        }
 
-            if (options.has(daemonizeOption)) {
-                server.detach();
-                return;
-            }
+        if (options.has(daemonizeOption)) {
+            server.detach();
+            return;
+        }
 
-            // we are running in the foreground, so wait for the server to exit
-            int exitCode = server.waitFor();
-            if (exitCode != ExitCodes.OK) {
-                throw new UserException(exitCode, "Elasticsearch exited unexpectedly");
-            }
+        // we are running in the foreground, so wait for the server to exit
+        int exitCode = server.waitFor();
+        if (exitCode != ExitCodes.OK) {
+            throw new UserException(exitCode, "Elasticsearch exited unexpectedly");
         }
     }
 

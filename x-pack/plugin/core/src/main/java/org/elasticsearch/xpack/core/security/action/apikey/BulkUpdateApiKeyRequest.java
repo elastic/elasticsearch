@@ -14,6 +14,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -21,6 +22,10 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public final class BulkUpdateApiKeyRequest extends BaseUpdateApiKeyRequest {
+
+    public static BulkUpdateApiKeyRequest usingApiKeyIds(String... ids) {
+        return new BulkUpdateApiKeyRequest(Arrays.stream(ids).toList(), null, null);
+    }
 
     private final List<String> ids;
 

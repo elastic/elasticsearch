@@ -553,7 +553,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         final PlainActionFuture<BulkUpdateApiKeyResponse> listener = new PlainActionFuture<>();
         service.bulkUpdateApiKeys(
             AuthenticationTestHelper.builder().apiKey().build(false),
-            new BulkUpdateApiKeyRequest(List.of("id"), null, null),
+            BulkUpdateApiKeyRequest.usingApiKeyIds("id"),
             Set.of(),
             listener
         );

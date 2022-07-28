@@ -53,7 +53,7 @@ public class BulkUpdateApiKeyRequestTests extends ESTestCase {
     }
 
     public void testNullValuesValid() {
-        final var request = new BulkUpdateApiKeyRequest(List.of("id"), null, null);
+        final var request = BulkUpdateApiKeyRequest.usingApiKeyIds("id");
         assertNull(request.validate());
     }
 

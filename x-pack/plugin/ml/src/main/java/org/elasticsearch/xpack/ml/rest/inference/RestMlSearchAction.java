@@ -76,7 +76,7 @@ public class RestMlSearchAction extends BaseRestHandler {
                     SearchRequestBuilder searchRequestBuilder = cancellableNodeClient.prepareSearch();
                     request.build(searchRequestBuilder, inferenceResponse.getResults());
                     searchRequestBuilder.execute(ActionListener.wrap(
-                        r -> new SearchResponseWithInferenceTime(r.getTook(), TimeValue.timeValueMillis(inferenceResponse.getTookMillis()),r),
+                        r -> listener.onResponse(new SearchResponseWithInferenceTime(r.getTook(), TimeValue.timeValueMillis(inferenceResponse.getTookMillis()),r)),
                         listener::onFailure)
                     );
                 }, listener::onFailure)

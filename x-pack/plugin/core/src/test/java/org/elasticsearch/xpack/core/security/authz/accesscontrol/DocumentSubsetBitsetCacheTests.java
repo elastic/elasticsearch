@@ -607,7 +607,8 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
                 null,
                 () -> true,
                 null,
-                emptyMap()
+                emptyMap(),
+                null
             );
 
             context = new TestIndexContext(directory, iw, directoryReader, searchExecutionContext, leaf);

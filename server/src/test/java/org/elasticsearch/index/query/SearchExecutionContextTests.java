@@ -193,7 +193,8 @@ public class SearchExecutionContextTests extends ESTestCase {
             null,
             () -> true,
             null,
-            emptyMap()
+            emptyMap(),
+            null
         );
 
         assertTrue(context.indexSortedOnField("sort_field"));
@@ -440,7 +441,8 @@ public class SearchExecutionContextTests extends ESTestCase {
             null,
             () -> true,
             null,
-            runtimeMappings
+            runtimeMappings,
+            null
         );
     }
 

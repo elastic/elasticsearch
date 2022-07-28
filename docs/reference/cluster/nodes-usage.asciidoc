@@ -46,6 +46,14 @@ of features for each node. All the nodes selective options are explained
     `rest_actions`::
         Returns the REST actions classname with a count of the number of times
         that action has been called on the node.
+
+    `aggregations`::
+        Returns the aggregation types with a count of the number of times
+        each aggregation type was used on the node.
+
+    `queries`::
+        Returns the queries types with a count of the number of times
+        each query type was used on the node.
 --
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=node-id]
@@ -92,6 +100,9 @@ The API returns the following response:
       },
       "aggregations": {
         ...
+      },
+      "queries": {
+        ...
       }
     }
   }
@@ -103,6 +114,7 @@ The API returns the following response:
 // TESTRESPONSE[s/1492553906606/$body.$_path/]
 // TESTRESPONSE[s/"rest_actions": [^}]+}/"rest_actions": $body.$_path/]
 // TESTRESPONSE[s/"aggregations": [^}]+}/"aggregations": $body.$_path/]
+// TESTRESPONSE[s/"queries": [^}]+}/"queries": $body.$_path/]
 <1> Timestamp for when this nodes usage request was performed.
 <2> Timestamp for when the usage information recording was started. This is
 equivalent to the time that the node was started.

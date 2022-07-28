@@ -131,7 +131,8 @@ public class DataTierFieldTypeTests extends MapperServiceTestCase {
             indexNameMatcher,
             () -> true,
             null,
-            emptyMap()
+            emptyMap(),
+            null
         );
     }
 
@@ -161,7 +162,8 @@ public class DataTierFieldTypeTests extends MapperServiceTestCase {
             value -> true,
             () -> true,
             null,
-            emptyMap()
+            emptyMap(),
+            null
         );
     }
 }

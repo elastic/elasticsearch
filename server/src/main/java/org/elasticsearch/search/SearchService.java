@@ -1663,6 +1663,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                         listener.onFetchPhase(context, afterQueryTime - time);
                     } else {
                         listener.onQueryPhase(context, afterQueryTime - time);
+                        // report what queries were used in this request
+                        context.getSearchExecutionContext().reportQueriesUsage();
                     }
                 } else {
                     if (fetch) {

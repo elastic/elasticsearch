@@ -104,7 +104,8 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
             null,
             () -> true,
             null,
-            emptyMap()
+            emptyMap(),
+            null
         );
         SearchExecutionContext searchExecutionContext = spy(realSearchExecutionContext);
         DocumentSubsetBitsetCache bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY, Executors.newSingleThreadExecutor());
@@ -264,7 +265,8 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
             null,
             () -> true,
             null,
-            emptyMap()
+            emptyMap(),
+            null
         );
         SearchExecutionContext searchExecutionContext = spy(realSearchExecutionContext);
         DocumentSubsetBitsetCache bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY, Executors.newSingleThreadExecutor());

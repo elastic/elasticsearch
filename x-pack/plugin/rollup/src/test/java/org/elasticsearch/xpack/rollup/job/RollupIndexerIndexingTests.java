@@ -110,7 +110,8 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
             null,
             () -> true,
             null,
-            emptyMap()
+            emptyMap(),
+            null
         );
     }
 

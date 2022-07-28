@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.node.usage;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -18,11 +19,15 @@ public class NodesUsageRequest extends BaseNodesRequest<NodesUsageRequest> {
 
     private boolean restActions;
     private boolean aggregations;
+    private boolean queries;
 
     public NodesUsageRequest(StreamInput in) throws IOException {
         super(in);
         this.restActions = in.readBoolean();
         this.aggregations = in.readBoolean();
+        if (in.getVersion().onOrAfter(Version.V_8_5_0)) {
+            this.queries = in.readBoolean();
+        }
     }
 
     /**
@@ -39,6 +44,7 @@ public class NodesUsageRequest extends BaseNodesRequest<NodesUsageRequest> {
     public NodesUsageRequest all() {
         this.restActions = true;
         this.aggregations = true;
+        this.queries = true;
         return this;
     }
 
@@ -47,6 +53,8 @@ public class NodesUsageRequest extends BaseNodesRequest<NodesUsageRequest> {
      */
     public NodesUsageRequest clear() {
         this.restActions = false;
+        this.aggregations = false;
+        this.queries = false;
         return this;
     }
 
@@ -66,17 +74,32 @@ public class NodesUsageRequest extends BaseNodesRequest<NodesUsageRequest> {
     }
 
     /**
-     * Should the node rest actions usage statistics be returned.
+     * Should the node aggregations usage statistics be returned.
      */
     public boolean aggregations() {
         return this.aggregations;
     }
 
     /**
-     * Should the node rest actions usage statistics be returned.
+     * Should the node aggregations usage statistics be returned.
      */
     public NodesUsageRequest aggregations(boolean aggregations) {
         this.aggregations = aggregations;
+        return this;
+    }
+
+    /**
+     * Should the node queries usage statistics be returned.
+     */
+    public boolean queries() {
+        return this.queries;
+    }
+
+    /**
+     * Should the node queries usage statistics be returned.
+     */
+    public NodesUsageRequest queries(boolean queries) {
+        this.queries = queries;
         return this;
     }
 
@@ -85,5 +108,8 @@ public class NodesUsageRequest extends BaseNodesRequest<NodesUsageRequest> {
         super.writeTo(out);
         out.writeBoolean(restActions);
         out.writeBoolean(aggregations);
+        if (out.getVersion().onOrAfter(Version.V_8_5_0)) {
+            out.writeBoolean(queries);
+        }
     }
 }

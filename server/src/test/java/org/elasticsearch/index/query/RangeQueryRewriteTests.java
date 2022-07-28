@@ -48,7 +48,8 @@ public class RangeQueryRewriteTests extends ESSingleNodeTestCase {
             null,
             () -> true,
             null,
-            emptyMap()
+            emptyMap(),
+            null
         );
         RangeQueryBuilder range = new RangeQueryBuilder("foo");
         assertEquals(Relation.DISJOINT, range.getRelation(context));
@@ -88,7 +89,8 @@ public class RangeQueryRewriteTests extends ESSingleNodeTestCase {
             null,
             () -> true,
             null,
-            emptyMap()
+            emptyMap(),
+            null
         );
         RangeQueryBuilder range = new RangeQueryBuilder("foo");
         // can't make assumptions on a missing reader, so it must return INTERSECT
@@ -130,7 +132,8 @@ public class RangeQueryRewriteTests extends ESSingleNodeTestCase {
             null,
             () -> true,
             null,
-            emptyMap()
+            emptyMap(),
+            null
         );
         RangeQueryBuilder range = new RangeQueryBuilder("foo");
         // no values -> DISJOINT

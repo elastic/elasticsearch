@@ -192,7 +192,8 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
                 null,
                 () -> true,
                 null,
-                emptyMap()
+                emptyMap(),
+                null
             );
 
             SuggestionContext suggestionContext = suggestionBuilder.build(mockContext);
@@ -248,7 +249,8 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
             null,
             () -> true,
             null,
-            emptyMap()
+            emptyMap(),
+            null
         );
         if (randomBoolean()) {
             mockContext.setAllowUnmappedFields(randomBoolean());

@@ -79,7 +79,8 @@ public class IndexFieldTypeTests extends ESTestCase {
             indexNameMatcher,
             () -> true,
             null,
-            emptyMap()
+            emptyMap(),
+            null
         );
     }
 }

@@ -252,6 +252,7 @@ import org.elasticsearch.search.suggest.phrase.SmoothingModel;
 import org.elasticsearch.search.suggest.phrase.StupidBackoff;
 import org.elasticsearch.search.suggest.term.TermSuggestion;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
+import org.elasticsearch.search.usage.SearchUsageService;
 import org.elasticsearch.search.vectors.KnnScoreDocQueryBuilder;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -297,6 +298,7 @@ public class SearchModule {
     private final List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
     private final List<NamedXContentRegistry.Entry> namedXContents = new ArrayList<>();
     private final ValuesSourceRegistry valuesSourceRegistry;
+    private final SearchUsageService searchUsageService;
     private final CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> requestCacheKeyDifferentiator;
 
     /**
@@ -310,7 +312,7 @@ public class SearchModule {
         registerSuggesters(plugins);
         highlighters = setupHighlighters(settings, plugins);
         registerScoreFunctions(plugins);
-        registerQueryParsers(plugins);
+        searchUsageService = registerQueryParsers(plugins);
         registerRescorers(plugins);
         registerSorts();
         registerValueFormats();
@@ -334,6 +336,10 @@ public class SearchModule {
 
     public ValuesSourceRegistry getValuesSourceRegistry() {
         return valuesSourceRegistry;
+    }
+
+    public SearchUsageService getSearchUsageService() {
+        return searchUsageService;
     }
 
     @Nullable
@@ -674,7 +680,8 @@ public class SearchModule {
                     CommonTermsQueryBuilder.NAME_V7,
                     (streamInput) -> new CommonTermsQueryBuilder(),
                     CommonTermsQueryBuilder::fromXContent
-                )
+                ),
+                null
             );
         }
 
@@ -1079,93 +1086,110 @@ public class SearchModule {
         fetchSubPhases.add(requireNonNull(subPhase, "FetchSubPhase must not be null"));
     }
 
-    private void registerQueryParsers(List<SearchPlugin> plugins) {
-        registerQuery(new QuerySpec<>(MatchQueryBuilder.NAME, MatchQueryBuilder::new, MatchQueryBuilder::fromXContent));
-        registerQuery(new QuerySpec<>(MatchPhraseQueryBuilder.NAME, MatchPhraseQueryBuilder::new, MatchPhraseQueryBuilder::fromXContent));
-        registerQuery(
+    private SearchUsageService registerQueryParsers(List<SearchPlugin> plugins) {
+        SearchUsageService.Builder searchUsageServiceBuilder = new SearchUsageService.Builder();
+
+        List<QuerySpec<?>> querySpecs = new ArrayList<>();
+        querySpecs.add(new QuerySpec<>(MatchQueryBuilder.NAME, MatchQueryBuilder::new, MatchQueryBuilder::fromXContent));
+        querySpecs.add(new QuerySpec<>(MatchPhraseQueryBuilder.NAME, MatchPhraseQueryBuilder::new, MatchPhraseQueryBuilder::fromXContent));
+        querySpecs.add(
             new QuerySpec<>(
                 MatchPhrasePrefixQueryBuilder.NAME,
                 MatchPhrasePrefixQueryBuilder::new,
                 MatchPhrasePrefixQueryBuilder::fromXContent
             )
         );
-        registerQuery(new QuerySpec<>(MultiMatchQueryBuilder.NAME, MultiMatchQueryBuilder::new, MultiMatchQueryBuilder::fromXContent));
-        registerQuery(
+        querySpecs.add(new QuerySpec<>(MultiMatchQueryBuilder.NAME, MultiMatchQueryBuilder::new, MultiMatchQueryBuilder::fromXContent));
+        querySpecs.add(
             new QuerySpec<>(CombinedFieldsQueryBuilder.NAME, CombinedFieldsQueryBuilder::new, CombinedFieldsQueryBuilder::fromXContent)
         );
-        registerQuery(new QuerySpec<>(NestedQueryBuilder.NAME, NestedQueryBuilder::new, NestedQueryBuilder::fromXContent));
-        registerQuery(new QuerySpec<>(DisMaxQueryBuilder.NAME, DisMaxQueryBuilder::new, DisMaxQueryBuilder::fromXContent));
-        registerQuery(new QuerySpec<>(IdsQueryBuilder.NAME, IdsQueryBuilder::new, IdsQueryBuilder::fromXContent));
-        registerQuery(new QuerySpec<>(MatchAllQueryBuilder.NAME, MatchAllQueryBuilder::new, MatchAllQueryBuilder::fromXContent));
-        registerQuery(new QuerySpec<>(QueryStringQueryBuilder.NAME, QueryStringQueryBuilder::new, QueryStringQueryBuilder::fromXContent));
-        registerQuery(new QuerySpec<>(BoostingQueryBuilder.NAME, BoostingQueryBuilder::new, BoostingQueryBuilder::fromXContent));
-        registerBoolQuery(new ParseField(BoolQueryBuilder.NAME), BoolQueryBuilder::new);
-        BoolQueryBuilder.setMaxNestedDepth(INDICES_MAX_NESTED_DEPTH_SETTING.get(settings));
-        registerQuery(new QuerySpec<>(TermQueryBuilder.NAME, TermQueryBuilder::new, TermQueryBuilder::fromXContent));
-        registerQuery(new QuerySpec<>(TermsQueryBuilder.NAME, TermsQueryBuilder::new, TermsQueryBuilder::fromXContent));
-        registerQuery(new QuerySpec<>(FuzzyQueryBuilder.NAME, FuzzyQueryBuilder::new, FuzzyQueryBuilder::fromXContent));
-        registerQuery(new QuerySpec<>(RegexpQueryBuilder.NAME, RegexpQueryBuilder::new, RegexpQueryBuilder::fromXContent));
-        registerQuery(new QuerySpec<>(RangeQueryBuilder.NAME, RangeQueryBuilder::new, RangeQueryBuilder::fromXContent));
-        registerQuery(new QuerySpec<>(PrefixQueryBuilder.NAME, PrefixQueryBuilder::new, PrefixQueryBuilder::fromXContent));
-        registerQuery(new QuerySpec<>(WildcardQueryBuilder.NAME, WildcardQueryBuilder::new, WildcardQueryBuilder::fromXContent));
-        registerQuery(
+        querySpecs.add(new QuerySpec<>(NestedQueryBuilder.NAME, NestedQueryBuilder::new, NestedQueryBuilder::fromXContent));
+        querySpecs.add(new QuerySpec<>(DisMaxQueryBuilder.NAME, DisMaxQueryBuilder::new, DisMaxQueryBuilder::fromXContent));
+        querySpecs.add(new QuerySpec<>(IdsQueryBuilder.NAME, IdsQueryBuilder::new, IdsQueryBuilder::fromXContent));
+        querySpecs.add(new QuerySpec<>(MatchAllQueryBuilder.NAME, MatchAllQueryBuilder::new, MatchAllQueryBuilder::fromXContent));
+        querySpecs.add(new QuerySpec<>(QueryStringQueryBuilder.NAME, QueryStringQueryBuilder::new, QueryStringQueryBuilder::fromXContent));
+        querySpecs.add(new QuerySpec<>(BoostingQueryBuilder.NAME, BoostingQueryBuilder::new, BoostingQueryBuilder::fromXContent));
+        querySpecs.add(new QuerySpec<>(TermQueryBuilder.NAME, TermQueryBuilder::new, TermQueryBuilder::fromXContent));
+        querySpecs.add(new QuerySpec<>(TermsQueryBuilder.NAME, TermsQueryBuilder::new, TermsQueryBuilder::fromXContent));
+        querySpecs.add(new QuerySpec<>(FuzzyQueryBuilder.NAME, FuzzyQueryBuilder::new, FuzzyQueryBuilder::fromXContent));
+        querySpecs.add(new QuerySpec<>(RegexpQueryBuilder.NAME, RegexpQueryBuilder::new, RegexpQueryBuilder::fromXContent));
+        querySpecs.add(new QuerySpec<>(RangeQueryBuilder.NAME, RangeQueryBuilder::new, RangeQueryBuilder::fromXContent));
+        querySpecs.add(new QuerySpec<>(PrefixQueryBuilder.NAME, PrefixQueryBuilder::new, PrefixQueryBuilder::fromXContent));
+        querySpecs.add(new QuerySpec<>(WildcardQueryBuilder.NAME, WildcardQueryBuilder::new, WildcardQueryBuilder::fromXContent));
+        querySpecs.add(
             new QuerySpec<>(ConstantScoreQueryBuilder.NAME, ConstantScoreQueryBuilder::new, ConstantScoreQueryBuilder::fromXContent)
         );
-        registerQuery(new QuerySpec<>(SpanTermQueryBuilder.NAME, SpanTermQueryBuilder::new, SpanTermQueryBuilder::fromXContent));
-        registerQuery(new QuerySpec<>(SpanNotQueryBuilder.NAME, SpanNotQueryBuilder::new, SpanNotQueryBuilder::fromXContent));
-        registerQuery(new QuerySpec<>(SpanWithinQueryBuilder.NAME, SpanWithinQueryBuilder::new, SpanWithinQueryBuilder::fromXContent));
-        registerQuery(
+        querySpecs.add(new QuerySpec<>(SpanTermQueryBuilder.NAME, SpanTermQueryBuilder::new, SpanTermQueryBuilder::fromXContent));
+        querySpecs.add(new QuerySpec<>(SpanNotQueryBuilder.NAME, SpanNotQueryBuilder::new, SpanNotQueryBuilder::fromXContent));
+        querySpecs.add(new QuerySpec<>(SpanWithinQueryBuilder.NAME, SpanWithinQueryBuilder::new, SpanWithinQueryBuilder::fromXContent));
+        querySpecs.add(
             new QuerySpec<>(SpanContainingQueryBuilder.NAME, SpanContainingQueryBuilder::new, SpanContainingQueryBuilder::fromXContent)
         );
-        registerQuery(
+        querySpecs.add(
             new QuerySpec<>(
                 FieldMaskingSpanQueryBuilder.NAME,
                 FieldMaskingSpanQueryBuilder::new,
                 FieldMaskingSpanQueryBuilder::fromXContent
             )
         );
-        registerQuery(new QuerySpec<>(SpanFirstQueryBuilder.NAME, SpanFirstQueryBuilder::new, SpanFirstQueryBuilder::fromXContent));
-        registerQuery(new QuerySpec<>(SpanNearQueryBuilder.NAME, SpanNearQueryBuilder::new, SpanNearQueryBuilder::fromXContent));
-        registerQuery(new QuerySpec<>(SpanGapQueryBuilder.NAME, SpanGapQueryBuilder::new, SpanGapQueryBuilder::fromXContent));
-        registerQuery(new QuerySpec<>(SpanOrQueryBuilder.NAME, SpanOrQueryBuilder::new, SpanOrQueryBuilder::fromXContent));
-        registerQuery(
+        querySpecs.add(new QuerySpec<>(SpanFirstQueryBuilder.NAME, SpanFirstQueryBuilder::new, SpanFirstQueryBuilder::fromXContent));
+        querySpecs.add(new QuerySpec<>(SpanNearQueryBuilder.NAME, SpanNearQueryBuilder::new, SpanNearQueryBuilder::fromXContent));
+        querySpecs.add(new QuerySpec<>(SpanGapQueryBuilder.NAME, SpanGapQueryBuilder::new, SpanGapQueryBuilder::fromXContent));
+        querySpecs.add(new QuerySpec<>(SpanOrQueryBuilder.NAME, SpanOrQueryBuilder::new, SpanOrQueryBuilder::fromXContent));
+        querySpecs.add(
             new QuerySpec<>(MoreLikeThisQueryBuilder.NAME, MoreLikeThisQueryBuilder::new, MoreLikeThisQueryBuilder::fromXContent)
         );
-        registerQuery(new QuerySpec<>(WrapperQueryBuilder.NAME, WrapperQueryBuilder::new, WrapperQueryBuilder::fromXContent));
-        registerQuery(
+        querySpecs.add(new QuerySpec<>(WrapperQueryBuilder.NAME, WrapperQueryBuilder::new, WrapperQueryBuilder::fromXContent));
+        querySpecs.add(
             new QuerySpec<>(SpanMultiTermQueryBuilder.NAME, SpanMultiTermQueryBuilder::new, SpanMultiTermQueryBuilder::fromXContent)
         );
-        registerQuery(
+        querySpecs.add(
             new QuerySpec<>(FunctionScoreQueryBuilder.NAME, FunctionScoreQueryBuilder::new, FunctionScoreQueryBuilder::fromXContent)
         );
-        registerQuery(new QuerySpec<>(ScriptScoreQueryBuilder.NAME, ScriptScoreQueryBuilder::new, ScriptScoreQueryBuilder::fromXContent));
-        registerQuery(
+        querySpecs.add(new QuerySpec<>(ScriptScoreQueryBuilder.NAME, ScriptScoreQueryBuilder::new, ScriptScoreQueryBuilder::fromXContent));
+        querySpecs.add(
             new QuerySpec<>(SimpleQueryStringBuilder.NAME, SimpleQueryStringBuilder::new, SimpleQueryStringBuilder::fromXContent)
         );
-        registerQuery(new QuerySpec<>(ScriptQueryBuilder.NAME, ScriptQueryBuilder::new, ScriptQueryBuilder::fromXContent));
-        registerQuery(new QuerySpec<>(GeoDistanceQueryBuilder.NAME, GeoDistanceQueryBuilder::new, GeoDistanceQueryBuilder::fromXContent));
-        registerQuery(
+        querySpecs.add(new QuerySpec<>(ScriptQueryBuilder.NAME, ScriptQueryBuilder::new, ScriptQueryBuilder::fromXContent));
+        querySpecs.add(new QuerySpec<>(GeoDistanceQueryBuilder.NAME, GeoDistanceQueryBuilder::new, GeoDistanceQueryBuilder::fromXContent));
+        querySpecs.add(
             new QuerySpec<>(GeoBoundingBoxQueryBuilder.NAME, GeoBoundingBoxQueryBuilder::new, GeoBoundingBoxQueryBuilder::fromXContent)
         );
-        registerQuery(
+        querySpecs.add(
             new QuerySpec<>(
                 (new ParseField(GeoPolygonQueryBuilder.NAME).withAllDeprecated(GeoPolygonQueryBuilder.GEO_POLYGON_DEPRECATION_MSG)),
                 GeoPolygonQueryBuilder::new,
                 GeoPolygonQueryBuilder::fromXContent
             )
         );
-        registerQuery(new QuerySpec<>(ExistsQueryBuilder.NAME, ExistsQueryBuilder::new, ExistsQueryBuilder::fromXContent));
-        registerQuery(new QuerySpec<>(MatchNoneQueryBuilder.NAME, MatchNoneQueryBuilder::new, MatchNoneQueryBuilder::fromXContent));
-        registerQuery(new QuerySpec<>(TermsSetQueryBuilder.NAME, TermsSetQueryBuilder::new, TermsSetQueryBuilder::fromXContent));
-        registerQuery(new QuerySpec<>(IntervalQueryBuilder.NAME, IntervalQueryBuilder::new, IntervalQueryBuilder::fromXContent));
-        registerQuery(
+        querySpecs.add(new QuerySpec<>(ExistsQueryBuilder.NAME, ExistsQueryBuilder::new, ExistsQueryBuilder::fromXContent));
+        querySpecs.add(new QuerySpec<>(MatchNoneQueryBuilder.NAME, MatchNoneQueryBuilder::new, MatchNoneQueryBuilder::fromXContent));
+        querySpecs.add(new QuerySpec<>(TermsSetQueryBuilder.NAME, TermsSetQueryBuilder::new, TermsSetQueryBuilder::fromXContent));
+        querySpecs.add(new QuerySpec<>(IntervalQueryBuilder.NAME, IntervalQueryBuilder::new, IntervalQueryBuilder::fromXContent));
+        querySpecs.add(
             new QuerySpec<>(DistanceFeatureQueryBuilder.NAME, DistanceFeatureQueryBuilder::new, DistanceFeatureQueryBuilder::fromXContent)
         );
-        registerQuery(
+        querySpecs.add(
             new QuerySpec<>(MatchBoolPrefixQueryBuilder.NAME, MatchBoolPrefixQueryBuilder::new, MatchBoolPrefixQueryBuilder::fromXContent)
         );
-        registerQuery(new QuerySpec<>(GeoShapeQueryBuilder.NAME, GeoShapeQueryBuilder::new, GeoShapeQueryBuilder::fromXContent));
+        querySpecs.add(new QuerySpec<>(GeoShapeQueryBuilder.NAME, GeoShapeQueryBuilder::new, GeoShapeQueryBuilder::fromXContent));
+        querySpecs.add(
+            new QuerySpec<>(
+                KnnScoreDocQueryBuilder.NAME,
+                KnnScoreDocQueryBuilder::new,
+                parser -> { throw new IllegalArgumentException("[score_doc] queries cannot be provided directly"); }
+            )
+        );
+        for (QuerySpec<?> querySpec : querySpecs) {
+            registerQuery(querySpec, searchUsageServiceBuilder);
+        }
 
+        registerBoolQuery(new ParseField(BoolQueryBuilder.NAME), BoolQueryBuilder::new, searchUsageServiceBuilder);
+        BoolQueryBuilder.setMaxNestedDepth(INDICES_MAX_NESTED_DEPTH_SETTING.get(settings));
+
+        // We don't register KnnVectorQueryBuilder with SearchUsageService,
+        // as we already have KnnScoreDocQueryBuilder for knn search, and also
+        // we update SearchUsageService during query phase, while this query is executed during dfs phase.
         registerQuery(
             new QuerySpec<>(
                 KnnVectorQueryBuilder.NAME,
@@ -1173,22 +1197,16 @@ public class SearchModule {
                 parser -> {
                     throw new IllegalArgumentException("[knn] queries cannot be provided directly, use the [knn] body parameter instead");
                 }
-            )
+            ),
+            null
         );
 
-        registerQuery(
-            new QuerySpec<>(
-                KnnScoreDocQueryBuilder.NAME,
-                KnnScoreDocQueryBuilder::new,
-                parser -> { throw new IllegalArgumentException("[score_doc] queries cannot be provided directly"); }
-            )
-        );
-
-        registerFromPlugin(plugins, SearchPlugin::getQueries, this::registerQuery);
+        registerFromPlugin(plugins, SearchPlugin::getQueries, (querySpec) -> this.registerQuery(querySpec, null));
 
         if (RestApiVersion.minimumSupported() == RestApiVersion.V_7) {
-            registerQuery(new QuerySpec<>(TypeQueryV7Builder.NAME_V7, TypeQueryV7Builder::new, TypeQueryV7Builder::fromXContent));
+            registerQuery(new QuerySpec<>(TypeQueryV7Builder.NAME_V7, TypeQueryV7Builder::new, TypeQueryV7Builder::fromXContent), null);
         }
+        return searchUsageServiceBuilder.build();
     }
 
     private void registerIntervalsSourceProviders() {
@@ -1247,7 +1265,7 @@ public class SearchModule {
         );
     }
 
-    private void registerQuery(QuerySpec<?> spec) {
+    private void registerQuery(QuerySpec<?> spec, SearchUsageService.Builder builder) {
         namedWriteables.add(new NamedWriteableRegistry.Entry(QueryBuilder.class, spec.getName().getPreferredName(), spec.getReader()));
         namedXContents.add(
             new NamedXContentRegistry.Entry(
@@ -1257,13 +1275,19 @@ public class SearchModule {
                 spec.getName().getForRestApiVersion()
             )
         );
+        if (builder != null) {
+            builder.registerQuery(spec.getName().getPreferredName());
+        }
     }
 
-    private void registerBoolQuery(ParseField name, Writeable.Reader<QueryBuilder> reader) {
+    private void registerBoolQuery(ParseField name, Writeable.Reader<QueryBuilder> reader, SearchUsageService.Builder builder) {
         namedWriteables.add(new NamedWriteableRegistry.Entry(QueryBuilder.class, name.getPreferredName(), reader));
         namedXContents.add(
             new NamedXContentRegistry.Entry(QueryBuilder.class, name, (p, c) -> BoolQueryBuilder.fromXContent(p, (Integer) c))
         );
+        if (builder != null) {
+            builder.registerQuery(BoolQueryBuilder.NAME);
+        }
     }
 
     public FetchPhase getFetchPhase() {

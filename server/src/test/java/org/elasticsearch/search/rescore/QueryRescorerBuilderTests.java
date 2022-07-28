@@ -150,7 +150,8 @@ public class QueryRescorerBuilderTests extends ESTestCase {
             null,
             () -> true,
             null,
-            emptyMap()
+            emptyMap(),
+            null
         ) {
             @Override
             public MappedFieldType getFieldType(String name) {
@@ -212,7 +213,8 @@ public class QueryRescorerBuilderTests extends ESTestCase {
             null,
             () -> true,
             null,
-            emptyMap()
+            emptyMap(),
+            null
         ) {
             @Override
             public MappedFieldType getFieldType(String name) {

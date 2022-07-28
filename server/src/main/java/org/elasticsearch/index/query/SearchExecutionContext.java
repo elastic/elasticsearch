@@ -59,6 +59,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.NestedDocuments;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.usage.SearchUsageService;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -112,7 +113,9 @@ public class SearchExecutionContext extends QueryRewriteContext {
     private NestedScope nestedScope;
     private final ValuesSourceRegistry valuesSourceRegistry;
     private final Map<String, MappedFieldType> runtimeMappings;
+    private final SearchUsageService searchUsageService;
     private Predicate<String> allowedFields;
+    private final Set<String> usedQueries = new HashSet<>();
 
     /**
      * Build a {@linkplain SearchExecutionContext}.
@@ -136,7 +139,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
         Predicate<String> indexNameMatcher,
         BooleanSupplier allowExpensiveQueries,
         ValuesSourceRegistry valuesSourceRegistry,
-        Map<String, Object> runtimeMappings
+        Map<String, Object> runtimeMappings,
+        SearchUsageService searchUsageService
     ) {
         this(
             shardId,
@@ -161,7 +165,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
             allowExpensiveQueries,
             valuesSourceRegistry,
             parseRuntimeMappings(runtimeMappings, mapperService, indexSettings, mappingLookup),
-            null
+            null,
+            searchUsageService
         );
     }
 
@@ -186,7 +191,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
             source.allowExpensiveQueries,
             source.valuesSourceRegistry,
             source.runtimeMappings,
-            source.allowedFields
+            source.allowedFields,
+            source.searchUsageService
         );
     }
 
@@ -210,7 +216,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
         BooleanSupplier allowExpensiveQueries,
         ValuesSourceRegistry valuesSourceRegistry,
         Map<String, MappedFieldType> runtimeMappings,
-        Predicate<String> allowedFields
+        Predicate<String> allowedFields,
+        SearchUsageService searchUsageService
     ) {
         super(parserConfig, namedWriteableRegistry, client, nowInMillis);
         this.shardId = shardId;
@@ -231,6 +238,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         this.valuesSourceRegistry = valuesSourceRegistry;
         this.runtimeMappings = runtimeMappings;
         this.allowedFields = allowedFields;
+        this.searchUsageService = searchUsageService;
     }
 
     private void reset() {
@@ -278,6 +286,10 @@ public class SearchExecutionContext extends QueryRewriteContext {
         return allowExpensiveQueries.getAsBoolean();
     }
 
+    public SearchUsageService searchUsageService() {
+        return searchUsageService;
+    }
+
     @SuppressWarnings("unchecked")
     public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType, FielddataOperation fielddataOperation) {
         return (IFD) indexFieldDataLookup.apply(
@@ -294,6 +306,16 @@ public class SearchExecutionContext extends QueryRewriteContext {
     public void addNamedQuery(String name, Query query) {
         if (query != null) {
             namedQueries.put(name, query);
+        }
+    }
+
+    public void addQueryUsage(String query) {
+        usedQueries.add(query);
+    }
+
+    public void reportQueriesUsage() {
+        for (String query : usedQueries) {
+            searchUsageService.incrementQueryUsage(query);
         }
     }
 

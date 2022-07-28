@@ -508,7 +508,8 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 indexNameMatcher(),
                 () -> true,
                 null,
-                emptyMap()
+                emptyMap(),
+                null
             );
         }
 

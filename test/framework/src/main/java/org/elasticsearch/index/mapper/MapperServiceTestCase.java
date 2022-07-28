@@ -640,7 +640,8 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             null,
             () -> true,
             null,
-            Collections.emptyMap()
+            Collections.emptyMap(),
+            null
         );
     }
 

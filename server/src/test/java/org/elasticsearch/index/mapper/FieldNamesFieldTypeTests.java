@@ -55,7 +55,8 @@ public class FieldNamesFieldTypeTests extends ESTestCase {
             null,
             () -> true,
             null,
-            emptyMap()
+            emptyMap(),
+            null
         );
         Query termQuery = fieldNamesFieldType.termQuery("field_name", searchExecutionContext);
         assertEquals(new TermQuery(new Term(FieldNamesFieldMapper.CONTENT_TYPE, "field_name")), termQuery);

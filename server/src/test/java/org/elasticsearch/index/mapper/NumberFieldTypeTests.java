@@ -622,7 +622,8 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             null,
             () -> true,
             null,
-            emptyMap()
+            emptyMap(),
+            null
         );
 
         final int iters = 10;

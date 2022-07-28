@@ -115,7 +115,7 @@ public class NodeRestUsageIT extends ESRestTestCase {
 
     }
 
-    public void testMetricsWithAll() throws IOException {
+    public void testMetricsWithAll() {
         ResponseException exception = expectThrows(
             ResponseException.class,
             () -> client().performRequest(new Request("GET", "_nodes/usage/_all,rest_actions"))
@@ -139,7 +139,7 @@ public class NodeRestUsageIT extends ESRestTestCase {
         assertThat(beforeNodesMap, notNullValue());
         assertThat(beforeNodesMap.size(), equalTo(beforeSuccessful));
 
-        Map<String, Map<String, Long>> beforeCombinedAggsUsage = getTotalUsage(beforeNodesMap);
+        Map<String, Map<String, Long>> beforeCombinedAggsUsage = getTotalAggsUsage(beforeNodesMap);
         // Do some requests to get some rest usage stats
         Request create = new Request("PUT", "/test");
         create.setJsonEntity("""
@@ -168,7 +168,6 @@ public class NodeRestUsageIT extends ESRestTestCase {
             AggregationBuilders.terms("str_terms").field("str.keyword")
         ).aggregation(AggregationBuilders.terms("num_terms").field("num")).aggregation(AggregationBuilders.avg("num_avg").field("num"));
         searchRequest.setJsonEntity(Strings.toString(searchSource));
-        searchRequest.setJsonEntity(Strings.toString(searchSource));
         client().performRequest(searchRequest);
 
         searchRequest = new Request("GET", "/test/_search");
@@ -189,12 +188,108 @@ public class NodeRestUsageIT extends ESRestTestCase {
         assertThat(nodesMap, notNullValue());
         assertThat(nodesMap.size(), equalTo(successful));
 
-        Map<String, Map<String, Long>> afterCombinedAggsUsage = getTotalUsage(nodesMap);
+        Map<String, Map<String, Long>> afterCombinedAggsUsage = getTotalAggsUsage(nodesMap);
 
         assertDiff(beforeCombinedAggsUsage, afterCombinedAggsUsage, "terms", "numeric", 1L);
         assertDiff(beforeCombinedAggsUsage, afterCombinedAggsUsage, "terms", "date", 1L);
         assertDiff(beforeCombinedAggsUsage, afterCombinedAggsUsage, "terms", "keyword", 2L);
         assertDiff(beforeCombinedAggsUsage, afterCombinedAggsUsage, "avg", "numeric", 3L);
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testQueriesUsage() throws IOException {
+        // Get initial queries usage stats
+        String nodesUsagePath = randomFrom("_nodes/usage", "_nodes/usage/queries", "_nodes/usage/_all");
+        Response beforeResponse = client().performRequest(new Request("GET", nodesUsagePath));
+        Map<String, Long> queriesUsage0 = getTotalQueriesUsage(entityAsMap(beforeResponse));
+
+        Request createIndexRequest = new Request("PUT", "/test");
+        createIndexRequest.setJsonEntity("""
+            {
+              "mappings": {
+                "properties": {
+                  "field_knn": {
+                    "type": "dense_vector",
+                    "dims" : 4,
+                    "index": true,
+                    "similarity" : "cosine"
+                  },
+                  "field_keyword1": {
+                    "type": "keyword"
+                  },
+                  "field_keyword2": {
+                    "type": "keyword"
+                  },
+                  "field_long": {
+                    "type": "long"
+                  }
+                }
+              }
+            }""");
+        client().performRequest(createIndexRequest);
+
+        Request createDocRequest = new Request("PUT", "test/_doc/1");
+        createDocRequest.setJsonEntity("""
+            {
+              "field_knn": [1, 2, 3, 4],
+              "field_keyword1" : "value1",
+              "field_keyword2" : "value2",
+              "field_long" : 10
+            }""");
+        createDocRequest.addParameter("refresh", "true");
+        client().performRequest(createDocRequest);
+
+        // Get queries usage stats after 1st search request
+        Request searchRequest = new Request("GET", "/test/_search");
+        searchRequest.setJsonEntity("""
+                {
+                  "knn": {
+                    "query_vector": [1, 2, 3, 4],
+                    "field" : "field_knn",
+                    "k" : 2,
+                    "num_candidates" : 5
+                  },
+                  "query" : {
+                    "bool": {
+                      "must" : [
+                        { "term" : { "field_keyword1" : "value1" } },
+                        { "term" : { "field_keyword2" : "value2" } }
+                      ]
+                    }
+                  }
+                }
+            """);
+        client().performRequest(searchRequest);
+
+        Response response = client().performRequest(new Request("GET", nodesUsagePath));
+        Map<String, Long> queriesUsage1 = getTotalQueriesUsage(entityAsMap(response));
+        assertThat(queriesUsage1.get("knn_score_doc"), equalTo(1L));
+        assertThat(queriesUsage1.get("bool") - queriesUsage0.getOrDefault("bool", 0L), equalTo(1L));
+        // even though we had 2 terms queries, we count is as 1, as we count distinct query types per search request
+        assertThat(queriesUsage1.get("term") - queriesUsage0.getOrDefault("term", 0L), equalTo(1L));
+
+        // Get queries usage stats after 2nd search request
+        Request searchRequest2 = new Request("GET", "/test/_search");
+        searchRequest2.setJsonEntity("""
+                {
+                  "query" : {
+                    "bool": {
+                      "must" : [
+                        { "match" : { "field_keyword1" : "value1" } },
+                        { "range" : { "field_long" : {"gte" : 10} } }
+                      ]
+                    }
+                  }
+                }
+            """);
+        client().performRequest(searchRequest2);
+
+        response = client().performRequest(new Request("GET", nodesUsagePath));
+        Map<String, Long> queriesUsage2 = getTotalQueriesUsage(entityAsMap(response));
+        assertThat(queriesUsage2.get("bool") - queriesUsage1.get("bool"), equalTo(1L));
+        // match query is rewritten as a term query
+        assertThat(queriesUsage2.get("term") - queriesUsage1.get("term"), equalTo(1L));
+        assertThat(queriesUsage2.get("range") - queriesUsage1.getOrDefault("range", 0L), equalTo(1L));
     }
 
     private void assertDiff(
@@ -209,7 +304,7 @@ public class NodeRestUsageIT extends ESRestTestCase {
         assertThat(agg + "." + vst, valAfter - valBefore, equalTo(diff));
     }
 
-    private Map<String, Map<String, Long>> getTotalUsage(Map<String, Object> nodeUsage) {
+    private Map<String, Map<String, Long>> getTotalAggsUsage(Map<String, Object> nodeUsage) {
         Map<String, Map<String, Long>> combined = new HashMap<>();
         for (Map.Entry<String, Object> nodeEntry : nodeUsage.entrySet()) {
             @SuppressWarnings("unchecked")
@@ -227,6 +322,23 @@ public class NodeRestUsageIT extends ESRestTestCase {
                 }
             }
         }
+        return combined;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Long> getTotalQueriesUsage(Map<String, Object> responseBodyMap) {
+        assertThat(responseBodyMap, notNullValue());
+        int successful = assertSuccess(responseBodyMap);
+        Map<String, Object> nodesUsage = (Map<String, Object>) responseBodyMap.get("nodes");
+        assertThat(nodesUsage, notNullValue());
+        assertThat(nodesUsage.size(), equalTo(successful));
+
+        Map<String, Long> combined = new HashMap<>();
+        nodesUsage.forEach((node, nodeUsage) -> {
+            Map<String, Number> queriesUsage = (Map<String, Number>) ((Map<String, Object>) nodeUsage).get("queries");
+            assertThat(queriesUsage, notNullValue());
+            queriesUsage.forEach((query, usage) -> combined.merge(query, usage.longValue(), Long::sum));
+        });
         return combined;
     }
 

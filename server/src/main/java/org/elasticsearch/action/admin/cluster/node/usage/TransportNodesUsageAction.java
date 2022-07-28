@@ -17,6 +17,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.support.AggregationUsageService;
+import org.elasticsearch.search.usage.SearchUsageService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
@@ -35,6 +36,7 @@ public class TransportNodesUsageAction extends TransportNodesAction<
 
     private final UsageService restUsageService;
     private final AggregationUsageService aggregationUsageService;
+    private final SearchUsageService queryUsageService;
     private final long sinceTime;
 
     @Inject
@@ -44,7 +46,8 @@ public class TransportNodesUsageAction extends TransportNodesAction<
         TransportService transportService,
         ActionFilters actionFilters,
         UsageService restUsageService,
-        AggregationUsageService aggregationUsageService
+        AggregationUsageService aggregationUsageService,
+        SearchUsageService queryUsageService
     ) {
         super(
             NodesUsageAction.NAME,
@@ -59,6 +62,7 @@ public class TransportNodesUsageAction extends TransportNodesAction<
         );
         this.restUsageService = restUsageService;
         this.aggregationUsageService = aggregationUsageService;
+        this.queryUsageService = queryUsageService;
         this.sinceTime = System.currentTimeMillis();
     }
 
@@ -82,7 +86,9 @@ public class TransportNodesUsageAction extends TransportNodesAction<
         NodesUsageRequest request = nodeUsageRequest.request;
         Map<String, Long> restUsage = request.restActions() ? restUsageService.getRestUsageStats() : null;
         Map<String, Object> aggsUsage = request.aggregations() ? aggregationUsageService.getUsageStats() : null;
-        return new NodeUsage(clusterService.localNode(), System.currentTimeMillis(), sinceTime, restUsage, aggsUsage);
+        Map<String, Long> queriesUsage = request.queries() ? queryUsageService.getUsageStats() : null;
+
+        return new NodeUsage(clusterService.localNode(), System.currentTimeMillis(), sinceTime, restUsage, aggsUsage, queriesUsage);
     }
 
     public static class NodeUsageRequest extends TransportRequest {

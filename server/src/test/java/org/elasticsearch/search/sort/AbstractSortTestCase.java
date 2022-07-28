@@ -214,7 +214,8 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             null,
             () -> true,
             null,
-            emptyMap()
+            emptyMap(),
+            null
         ) {
 
             @Override

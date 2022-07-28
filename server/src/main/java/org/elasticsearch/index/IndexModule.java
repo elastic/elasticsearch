@@ -55,6 +55,7 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.search.usage.SearchUsageService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
@@ -437,7 +438,8 @@ public final class IndexModule {
         IdFieldMapper idFieldMapper,
         ValuesSourceRegistry valuesSourceRegistry,
         IndexStorePlugin.IndexFoldersDeletionListener indexFoldersDeletionListener,
-        Map<String, IndexStorePlugin.SnapshotCommitSupplier> snapshotCommitSuppliers
+        Map<String, IndexStorePlugin.SnapshotCommitSupplier> snapshotCommitSuppliers,
+        SearchUsageService searchUsageService
     ) throws IOException {
         final IndexEventListener eventListener = freeze();
         Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> readerWrapperFactory = indexReaderWrapper
@@ -497,7 +499,8 @@ public final class IndexModule {
                 valuesSourceRegistry,
                 recoveryStateFactory,
                 indexFoldersDeletionListener,
-                snapshotCommitSupplier
+                snapshotCommitSupplier,
+                searchUsageService
             );
             success = true;
             return indexService;

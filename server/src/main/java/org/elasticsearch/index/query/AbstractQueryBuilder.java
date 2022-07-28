@@ -115,6 +115,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
                 context.addNamedQuery(queryName, query);
             }
         }
+        context.addQueryUsage(this.getName());
         return query;
     }
 

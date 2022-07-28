@@ -1270,7 +1270,8 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             null,
             null,
             null,
-            emptyMap()
+            emptyMap(),
+            null
         );
     }
 

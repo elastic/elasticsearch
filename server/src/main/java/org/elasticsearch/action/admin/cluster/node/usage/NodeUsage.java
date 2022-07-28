@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.node.usage;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -24,6 +25,7 @@ public class NodeUsage extends BaseNodeResponse implements ToXContentFragment {
     private final long sinceTime;
     private final Map<String, Long> restUsage;
     private final Map<String, Object> aggregationUsage;
+    private final Map<String, Long> queriesUsage;
 
     @SuppressWarnings("unchecked")
     public NodeUsage(StreamInput in) throws IOException {
@@ -32,6 +34,11 @@ public class NodeUsage extends BaseNodeResponse implements ToXContentFragment {
         sinceTime = in.readLong();
         restUsage = (Map<String, Long>) in.readGenericValue();
         aggregationUsage = (Map<String, Object>) in.readGenericValue();
+        if (in.getVersion().onOrAfter(Version.V_8_5_0)) {
+            queriesUsage = (Map<String, Long>) in.readGenericValue();
+        } else {
+            queriesUsage = null;
+        }
     }
 
     /**
@@ -45,19 +52,25 @@ public class NodeUsage extends BaseNodeResponse implements ToXContentFragment {
      * @param restUsage
      *            a map containing the counts of the number of times each REST
      *            endpoint has been called
+     * @param aggregationUsage
+     *            a map containing aggregation types along with their usage counts
+     * @param queriesUsage
+     *            a map containing query types along with their usage counts
      */
     public NodeUsage(
         DiscoveryNode node,
         long timestamp,
         long sinceTime,
         Map<String, Long> restUsage,
-        Map<String, Object> aggregationUsage
+        Map<String, Object> aggregationUsage,
+        Map<String, Long> queriesUsage
     ) {
         super(node);
         this.timestamp = timestamp;
         this.sinceTime = sinceTime;
         this.restUsage = restUsage;
         this.aggregationUsage = aggregationUsage;
+        this.queriesUsage = queriesUsage;
     }
 
     /**
@@ -83,11 +96,17 @@ public class NodeUsage extends BaseNodeResponse implements ToXContentFragment {
     }
 
     /**
-     * @return a map containing the counts of the number of times each REST
-     *         endpoint has been called
+     * @return a map containing aggregation types and for each aggregation type how many times it was used
      */
     public Map<String, Object> getAggregationUsage() {
         return aggregationUsage;
+    }
+
+    /**
+     * @return a map containing query types and for each query type how many times it was used
+     */
+    public Map<String, Long> getQueriesUsage() {
+        return queriesUsage;
     }
 
     @Override
@@ -101,6 +120,10 @@ public class NodeUsage extends BaseNodeResponse implements ToXContentFragment {
             builder.field("aggregations");
             builder.map(aggregationUsage);
         }
+        if (queriesUsage != null) {
+            builder.field("queries");
+            builder.map(queriesUsage);
+        }
         return builder;
     }
 
@@ -111,6 +134,9 @@ public class NodeUsage extends BaseNodeResponse implements ToXContentFragment {
         out.writeLong(sinceTime);
         out.writeGenericValue(restUsage);
         out.writeGenericValue(aggregationUsage);
+        if (out.getVersion().onOrAfter(Version.V_8_5_0)) {
+            out.writeGenericValue(queriesUsage);
+        }
     }
 
 }

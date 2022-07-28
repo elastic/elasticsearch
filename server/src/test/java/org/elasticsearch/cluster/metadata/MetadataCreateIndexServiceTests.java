@@ -136,7 +136,8 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             null,
             () -> true,
             null,
-            emptyMap()
+            emptyMap(),
+            null
         );
     }
 

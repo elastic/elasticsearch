@@ -192,7 +192,8 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
             null,
             () -> true,
             null,
-            emptyMap()
+            emptyMap(),
+            null
         );
         MappedFieldType ft = new DateFieldType("field");
         String date = "2015-10-12T14:10:55";
@@ -247,7 +248,8 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
             null,
             () -> true,
             null,
-            emptyMap()
+            emptyMap(),
+            null
         );
         MappedFieldType ft = new DateFieldType("field");
         String date1 = "2015-10-12T14:10:55";
@@ -325,7 +327,8 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
             null,
             () -> true,
             null,
-            emptyMap()
+            emptyMap(),
+            null
         );
 
         MappedFieldType ft = new DateFieldType("field");

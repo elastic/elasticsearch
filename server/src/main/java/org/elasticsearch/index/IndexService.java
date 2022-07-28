@@ -73,6 +73,7 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.search.usage.SearchUsageService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
@@ -143,6 +144,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final IndexNameExpressionResolver expressionResolver;
     private final Supplier<Sort> indexSortSupplier;
     private final ValuesSourceRegistry valuesSourceRegistry;
+    private final SearchUsageService searchUsageService;
 
     public IndexService(
         IndexSettings indexSettings,
@@ -174,7 +176,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         ValuesSourceRegistry valuesSourceRegistry,
         IndexStorePlugin.RecoveryStateFactory recoveryStateFactory,
         IndexStorePlugin.IndexFoldersDeletionListener indexFoldersDeletionListener,
-        IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier
+        IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier,
+        SearchUsageService searchUsageService
     ) {
         super(indexSettings);
         this.allowExpensiveQueries = allowExpensiveQueries;
@@ -186,6 +189,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.expressionResolver = expressionResolver;
         this.valuesSourceRegistry = valuesSourceRegistry;
         this.snapshotCommitSupplier = snapshotCommitSupplier;
+        this.searchUsageService = searchUsageService;
         if (needsMapperService(indexSettings, indexCreationContext)) {
             assert indexAnalyzers != null;
             this.mapperService = new MapperService(
@@ -637,7 +641,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             indexNameMatcher,
             allowExpensiveQueries,
             valuesSourceRegistry,
-            runtimeMappings
+            runtimeMappings,
+            searchUsageService
         );
     }
 

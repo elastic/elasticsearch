@@ -326,7 +326,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
             null,
             () -> true,
             valuesSourceRegistry,
-            emptyMap()
+            emptyMap(),
+            null
         );
 
         MultiBucketConsumer consumer = new MultiBucketConsumer(maxBucket, breakerService.getBreaker(CircuitBreaker.REQUEST));

@@ -181,6 +181,7 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchUtils;
 import org.elasticsearch.search.aggregations.support.AggregationUsageService;
 import org.elasticsearch.search.fetch.FetchPhase;
+import org.elasticsearch.search.usage.SearchUsageService;
 import org.elasticsearch.shutdown.PluginShutdownService;
 import org.elasticsearch.snapshots.InternalSnapshotsInfoService;
 import org.elasticsearch.snapshots.RepositoryIntegrityHealthIndicatorService;
@@ -658,7 +659,8 @@ public class Node implements Closeable {
                 recoveryStateFactories,
                 indexFoldersDeletionListeners,
                 snapshotCommitSuppliers,
-                searchModule.getRequestCacheKeyDifferentiator()
+                searchModule.getRequestCacheKeyDifferentiator(),
+                searchModule.getSearchUsageService()
             );
 
             final var parameters = new IndexSettingProvider.Parameters(indicesService::createIndexMapperServiceForValidation);
@@ -980,6 +982,7 @@ public class Node implements Closeable {
                 b.bind(IndexingPressure.class).toInstance(indexingLimits);
                 b.bind(UsageService.class).toInstance(usageService);
                 b.bind(AggregationUsageService.class).toInstance(searchModule.getValuesSourceRegistry().getUsageService());
+                b.bind(SearchUsageService.class).toInstance(searchModule.getSearchUsageService());
                 b.bind(NamedWriteableRegistry.class).toInstance(namedWriteableRegistry);
                 b.bind(MetadataUpgrader.class).toInstance(metadataUpgrader);
                 b.bind(MetaStateService.class).toInstance(metaStateService);

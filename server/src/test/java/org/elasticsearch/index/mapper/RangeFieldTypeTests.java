@@ -221,7 +221,8 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
             null,
             () -> true,
             null,
-            emptyMap()
+            emptyMap(),
+            null
         );
     }
 

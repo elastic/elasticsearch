@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.core.ml.utils.MlParserUtils;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Objects;
 
 /**
  * All results must have a request_id.
@@ -28,11 +27,10 @@ import java.util.Objects;
 public class PyTorchInferenceResult implements ToXContentObject {
 
     private static final ParseField INFERENCE = new ParseField("inference");
-    private static final ParseField TIME_MS = new ParseField("time_ms");
 
     public static final ConstructingObjectParser<PyTorchInferenceResult, Void> PARSER = new ConstructingObjectParser<>(
         "pytorch_inference_result",
-        a -> new PyTorchInferenceResult((double[][][]) a[0], (Long) a[1])
+        a -> new PyTorchInferenceResult((double[][][]) a[0])
     );
 
     static {
@@ -42,7 +40,6 @@ public class PyTorchInferenceResult implements ToXContentObject {
             INFERENCE,
             ObjectParser.ValueType.VALUE_ARRAY
         );
-        PARSER.declareLong(ConstructingObjectParser.constructorArg(), TIME_MS);
     }
 
     public static PyTorchInferenceResult fromXContent(XContentParser parser) throws IOException {
@@ -50,19 +47,13 @@ public class PyTorchInferenceResult implements ToXContentObject {
     }
 
     private final double[][][] inference;
-    private final long timeMs;
 
-    public PyTorchInferenceResult(@Nullable double[][][] inference, long timeMs) {
+    public PyTorchInferenceResult(@Nullable double[][][] inference) {
         this.inference = inference;
-        this.timeMs = timeMs;
     }
 
     public double[][][] getInferenceResult() {
         return inference;
-    }
-
-    public long getTimeMs() {
-        return timeMs;
     }
 
     @Override
@@ -79,14 +70,13 @@ public class PyTorchInferenceResult implements ToXContentObject {
             }
             builder.endArray();
         }
-        builder.field(TIME_MS.getPreferredName(), timeMs);
         builder.endObject();
         return builder;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(timeMs, Arrays.deepHashCode(inference));
+        return Arrays.deepHashCode(inference);
     }
 
     @Override
@@ -95,6 +85,6 @@ public class PyTorchInferenceResult implements ToXContentObject {
         if (other == null || getClass() != other.getClass()) return false;
 
         PyTorchInferenceResult that = (PyTorchInferenceResult) other;
-        return Arrays.deepEquals(inference, that.inference) && timeMs == that.timeMs;
+        return Arrays.deepEquals(inference, that.inference);
     }
 }

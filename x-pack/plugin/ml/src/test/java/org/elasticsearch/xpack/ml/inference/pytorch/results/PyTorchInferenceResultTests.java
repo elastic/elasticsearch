@@ -41,6 +41,6 @@ public class PyTorchInferenceResultTests extends AbstractXContentTestCase<PyTorc
                 }
             }
         }
-        return new PyTorchInferenceResult(arr, randomNonNegativeLong());
+        return new PyTorchInferenceResult(arr);
     }
 }

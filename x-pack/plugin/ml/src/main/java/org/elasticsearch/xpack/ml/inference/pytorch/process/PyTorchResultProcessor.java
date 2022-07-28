@@ -122,7 +122,8 @@ public class PyTorchResultProcessor {
                 (id, pendingResult) -> pendingResult.listener.onResponse(
                     new PyTorchResult(
                         id,
-                        false,
+                        null,
+                        null,
                         null,
                         null,
                         null,
@@ -138,7 +139,7 @@ public class PyTorchResultProcessor {
         } finally {
             pendingResults.forEach(
                 (id, pendingResult) -> pendingResult.listener.onResponse(
-                    new PyTorchResult(id, false, null, null, null, new ErrorResult("inference canceled as process is stopping"))
+                    new PyTorchResult(id, false, null, null, null, null, new ErrorResult("inference canceled as process is stopping"))
                 )
             );
             pendingResults.clear();
@@ -149,9 +150,14 @@ public class PyTorchResultProcessor {
     void processInferenceResult(PyTorchResult result) {
         PyTorchInferenceResult inferenceResult = result.inferenceResult();
         assert inferenceResult != null;
+        Long timeMs = result.timeMs();
+        if (timeMs == null) {
+            assert false : "time_ms should be set for an inference result";
+            timeMs = 0L;
+        }
 
         logger.trace(() -> format("[%s] Parsed inference result with id [%s]", deploymentId, result.requestId()));
-        processResult(inferenceResult, result.isCacheHit());
+        processResult(inferenceResult, timeMs, Boolean.TRUE.equals(result.isCacheHit()));
         PendingResult pendingResult = pendingResults.remove(result.requestId());
         if (pendingResult == null) {
             logger.debug(() -> format("[%s] no pending result for inference [%s]", deploymentId, result.requestId()));
@@ -236,8 +242,8 @@ public class PyTorchResultProcessor {
         );
     }
 
-    private synchronized void processResult(PyTorchInferenceResult result, Boolean isCacheHit) {
-        timingStats.accept(result.getTimeMs());
+    private synchronized void processResult(PyTorchInferenceResult result, long timeMs, boolean isCacheHit) {
+        timingStats.accept(timeMs);
 
         lastResultTimeMs = currentTimeMsSupplier.getAsLong();
         if (lastResultTimeMs > currentPeriodEndTimeMs) {
@@ -258,15 +264,15 @@ public class PyTorchResultProcessor {
 
             lastPeriodCacheHitCount = 0;
             lastPeriodSummaryStats = new LongSummaryStatistics();
-            lastPeriodSummaryStats.accept(result.getTimeMs());
+            lastPeriodSummaryStats.accept(timeMs);
 
             // set to the end of the current bucket
             currentPeriodEndTimeMs = startTime + Intervals.alignToCeil(lastResultTimeMs - startTime, REPORTING_PERIOD_MS);
         } else {
-            lastPeriodSummaryStats.accept(result.getTimeMs());
+            lastPeriodSummaryStats.accept(timeMs);
         }
 
-        if (Boolean.TRUE.equals(isCacheHit)) {
+        if (isCacheHit) {
             cacheHitCount++;
             lastPeriodCacheHitCount++;
         }

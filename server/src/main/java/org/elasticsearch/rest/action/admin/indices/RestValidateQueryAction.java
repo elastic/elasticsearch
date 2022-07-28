@@ -18,9 +18,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -98,13 +98,13 @@ public class RestValidateQueryAction extends BaseRestHandler {
         channel.sendResponse(buildErrorResponse(channel.newBuilder(), message, request.explain()));
     }
 
-    private static BytesRestResponse buildErrorResponse(XContentBuilder builder, String error, boolean explain) throws IOException {
+    private static RestResponse buildErrorResponse(XContentBuilder builder, String error, boolean explain) throws IOException {
         builder.startObject();
         builder.field(ValidateQueryResponse.VALID_FIELD, false);
         if (explain) {
             builder.field(QueryExplanation.ERROR_FIELD, error);
         }
         builder.endObject();
-        return new BytesRestResponse(OK, builder);
+        return new RestResponse(OK, builder);
     }
 }

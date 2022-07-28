@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction.DatafeedParams;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
@@ -60,6 +61,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.PriorityQueue;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
@@ -189,6 +191,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
     static Optional<Tuple<NativeMemoryCapacity, List<NodeLoad>>> determineUnassignableJobs(
         List<String> unassignedJobs,
         Function<String, Long> sizeFunction,
+        Consumer<NodeLoad.Builder> incrementCountFunction,
         int maxNumInQueue,
         List<NodeLoad> nodeLoads
     ) {
@@ -226,10 +229,10 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
             if (nodeLoad.getFreeMemory() >= requiredMemory + requiredNativeCodeOverhead) {
                 assignmentIter.remove();
                 // Remove and add to the priority queue to make sure the biggest node with availability is first
+                nodeLoad = mostFreeMemoryFirst.poll();
+                incrementCountFunction.accept(nodeLoad);
                 mostFreeMemoryFirst.add(
-                    mostFreeMemoryFirst.poll()
-                        .incAssignedNativeCodeOverheadMemory(requiredNativeCodeOverhead)
-                        .incNumAssignedJobs()
+                    nodeLoad.incAssignedNativeCodeOverheadMemory(requiredNativeCodeOverhead)
                         .incAssignedAnomalyDetectorMemory(requiredMemory)
                 );
             }
@@ -407,6 +410,19 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
             .filter(e -> e.getValue().getAssignmentState().equals(AssignmentState.STARTING) && e.getValue().getNodeRoutingTable().isEmpty())
             .map(Map.Entry::getKey)
             .toList();
+        // TODO for autoscaling by memory, we only care about if the model is allocated to at least one node (see above)
+        // We should do this check in our autoscaling by processor count service, which will be a separate decider for readability's sake
+        final List<String> notFullyAllocatedModels = modelAssignments.entrySet()
+            .stream()
+            .filter(
+                e -> e.getValue()
+                    .calculateAllocationStatus()
+                    .map(AllocationStatus::calculateState)
+                    .orElse(AllocationStatus.State.FULLY_ALLOCATED)
+                    .equals(AllocationStatus.State.FULLY_ALLOCATED) == false
+            )
+            .map(Map.Entry::getKey)
+            .toList();
 
         final int numAnalyticsJobsInQueue = NUM_ANALYTICS_JOBS_IN_QUEUE.get(configuration);
         final int numAnomalyJobsInQueue = NUM_ANOMALY_JOBS_IN_QUEUE.get(configuration);
@@ -541,7 +557,8 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
 
         if (waitingAnalyticsJobs.isEmpty() == false
             || waitingSnapshotUpgrades.isEmpty() == false
-            || waitingAnomalyJobs.isEmpty() == false) {
+            || waitingAnomalyJobs.isEmpty() == false
+            || notFullyAllocatedModels.isEmpty() == false) {
             // We don't want to continue to consider a scale down if there are now waiting jobs
             resetScaleDownCoolDown();
             return new AutoscalingDeciderResult(
@@ -551,11 +568,13 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
                         Locale.ROOT,
                         "Passing currently perceived capacity as there are [%d] model snapshot upgrades, "
                             + "[%d] analytics and [%d] anomaly detection jobs in the queue, "
+                            + "[%d] trained models not fully-allocated, "
                             + "but the number in the queue is less than the configured maximum allowed "
                             + "or the queued jobs will eventually be assignable at the current size.",
                         waitingSnapshotUpgrades.size(),
                         waitingAnalyticsJobs.size(),
-                        waitingAnomalyJobs.size()
+                        waitingAnomalyJobs.size(),
+                        notFullyAllocatedModels.size()
                     )
                 ).build()
             );
@@ -652,6 +671,11 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
                 if (capacity == null) {
                     return null;
                 }
+                // TODO we should remove this when we can auto-scale (down and up) via a new CPU auto-scaling decider
+                if (modelAssignmentsRequireMoreThanHalfCpu(modelAssignments.values(), mlNodes)) {
+                    logger.debug("not down-scaling; model assignments require more than half of the ML tier's allocated processors");
+                    return null;
+                }
                 return new AutoscalingDeciderResult(capacity, result.reason());
             });
         if (maybeScaleDown.isPresent()) {
@@ -660,7 +684,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
             // Given maxOpenJobs, could we scale down to just one node?
             // We have no way of saying "we need X nodes"
             if (nodeLoads.size() > 1) {
-                long totalAssignedJobs = nodeLoads.stream().mapToLong(NodeLoad::getNumAssignedJobs).sum();
+                long totalAssignedJobs = nodeLoads.stream().mapToLong(NodeLoad::getNumAssignedJobsAndModels).sum();
                 // one volatile read
                 long maxOpenJobsCopy = this.maxOpenJobs;
                 if (totalAssignedJobs > maxOpenJobsCopy) {
@@ -722,11 +746,13 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
         AutoscalingCapacity newCapacity = new AutoscalingCapacity(
             new AutoscalingCapacity.AutoscalingResources(
                 currentCapacity.total().storage(),
-                ByteSizeValue.ofBytes(Math.min(scaleDownResult.total().memory().getBytes(), currentCapacity.total().memory().getBytes()))
+                ByteSizeValue.ofBytes(Math.min(scaleDownResult.total().memory().getBytes(), currentCapacity.total().memory().getBytes())),
+                null
             ),
             new AutoscalingCapacity.AutoscalingResources(
                 currentCapacity.node().storage(),
-                ByteSizeValue.ofBytes(Math.min(scaleDownResult.node().memory().getBytes(), currentCapacity.node().memory().getBytes()))
+                ByteSizeValue.ofBytes(Math.min(scaleDownResult.node().memory().getBytes(), currentCapacity.node().memory().getBytes())),
+                null
             )
         );
         if (scaleDownResult.node().memory().getBytes() - newCapacity.node().memory().getBytes() > ACCEPTABLE_DIFFERENCE
@@ -738,6 +764,26 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
             );
         }
         return newCapacity;
+    }
+
+    static boolean modelAssignmentsRequireMoreThanHalfCpu(Collection<TrainedModelAssignment> assignments, List<DiscoveryNode> mlNodes) {
+        int totalRequiredProcessors = assignments.stream()
+            .mapToInt(t -> t.getTaskParams().getNumberOfAllocations() * t.getTaskParams().getThreadsPerAllocation())
+            .sum();
+        int totalMlProcessors = mlNodes.stream().mapToInt(node -> {
+            String allocatedProcessorsString = node.getAttributes().get(MachineLearning.ALLOCATED_PROCESSORS_NODE_ATTR);
+            try {
+                return Integer.parseInt(allocatedProcessorsString);
+            } catch (NumberFormatException e) {
+                assert e == null
+                    : MachineLearning.ALLOCATED_PROCESSORS_NODE_ATTR
+                        + " should parse because we set it internally: invalid value was ["
+                        + allocatedProcessorsString
+                        + "]";
+                return 0;
+            }
+        }).sum();
+        return totalRequiredProcessors * 2 > totalMlProcessors;
     }
 
     // This doesn't allow any jobs to wait in the queue, this is because in a "normal" scaling event, we also verify if a job
@@ -858,6 +904,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
             Tuple<NativeMemoryCapacity, List<NodeLoad>> anomalyCapacityAndNewLoad = determineUnassignableJobs(
                 Stream.concat(waitingAnomalyJobs.stream(), waitingSnapshotUpgrades.stream()).toList(),
                 this::getAnomalyMemoryRequirement,
+                NodeLoad.Builder::incNumAssignedAnomalyDetectorJobs,
                 numAnomalyJobsInQueue,
                 nodeLoads
             ).orElse(Tuple.tuple(NativeMemoryCapacity.ZERO, nodeLoads));
@@ -865,6 +912,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
             Tuple<NativeMemoryCapacity, List<NodeLoad>> analyticsCapacityAndNewLoad = determineUnassignableJobs(
                 waitingAnalyticsJobs,
                 this::getAnalyticsMemoryRequirement,
+                NodeLoad.Builder::incNumAssignedDataFrameAnalyticsJobs,
                 numAnalyticsJobsInQueue,
                 anomalyCapacityAndNewLoad.v2()
             ).orElse(Tuple.tuple(NativeMemoryCapacity.ZERO, anomalyCapacityAndNewLoad.v2()));
@@ -872,6 +920,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
             Tuple<NativeMemoryCapacity, List<NodeLoad>> modelCapacityAndNewLoad = determineUnassignableJobs(
                 waitingAllocatedModels,
                 this::getAllocatedModelRequirement,
+                NodeLoad.Builder::incNumAssignedNativeInferenceModels,
                 0,
                 analyticsCapacityAndNewLoad.v2()
             ).orElse(Tuple.tuple(NativeMemoryCapacity.ZERO, analyticsCapacityAndNewLoad.v2()));

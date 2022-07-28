@@ -16,6 +16,8 @@ import io.netty.channel.ChannelDuplexHandler;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPromise;
+import io.netty.util.concurrent.Future;
+import io.netty.util.concurrent.GenericFutureListener;
 
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -34,6 +36,7 @@ import java.util.Queue;
  */
 public final class Netty4WriteThrottlingHandler extends ChannelDuplexHandler {
 
+    public static final int MAX_BYTES_PER_WRITE = 1 << 18;
     private final Queue<WriteOperation> queuedWrites = new ArrayDeque<>();
 
     private final ThreadContext threadContext;
@@ -48,67 +51,48 @@ public final class Netty4WriteThrottlingHandler extends ChannelDuplexHandler {
         assert msg instanceof OutboundMessage.SerializedBytes || msg instanceof ByteBuf;
         assert Transports.assertDefaultThreadContext(threadContext);
         assert Transports.assertTransportThread();
-        final boolean queued;
+        final ByteBuf buf;
         if (msg instanceof OutboundMessage.SerializedBytes serializedBytes) {
             List<ReleasableBytesReference> components = serializedBytes.components();
             serializedBytes.takeOwnership();
-            final ByteBuf byteBuf;
             if (components.size() > 1) {
                 CompositeByteBuf composite = Unpooled.compositeBuffer(components.size());
                 for (ReleasableBytesReference component : components) {
                     composite.addComponent(true, Netty4Utils.toReleasableByteBuf(component));
                 }
-                byteBuf = composite;
+                buf = composite;
             } else {
                 ReleasableBytesReference component = components.get(0);
-                byteBuf = Netty4Utils.toReleasableByteBuf(component);
+                buf = Netty4Utils.toReleasableByteBuf(component);
             }
-            queued = queuedWrites.offer(new WriteOperation(byteBuf, promise));
         } else {
-            queued = queuedWrites.offer(new WriteOperation((ByteBuf) msg, promise));
+            buf = (ByteBuf) msg;
         }
-        assert queued;
-    }
 
-    @Override
-    public void channelWritabilityChanged(ChannelHandlerContext ctx) {
-        if (ctx.channel().isWritable()) {
-            doFlush(ctx);
-        }
-        ctx.fireChannelWritabilityChanged();
-    }
-
-    @Override
-    public void flush(ChannelHandlerContext ctx) {
-        if (doFlush(ctx) == false) {
-            ctx.flush();
+        if (ctx.channel().isWritable() && currentWrite == null && queuedWrites.isEmpty()) {
+            // nothing is queued for writing and the channel is writable, set to current write and write
+            currentWrite = new WriteOperation(buf, promise);
+            writeBytes(ctx);
+        } else {
+            final boolean queued = queuedWrites.offer(new WriteOperation(buf, promise));
+            assert queued;
         }
     }
 
-    @Override
-    public void channelInactive(ChannelHandlerContext ctx) throws Exception {
-        doFlush(ctx);
-        super.channelInactive(ctx);
-    }
+    private boolean writeBytes(ChannelHandlerContext ctx) {
+        Channel channel = ctx.channel();
 
-    private boolean doFlush(ChannelHandlerContext ctx) {
-        assert ctx.executor().inEventLoop();
-        final Channel channel = ctx.channel();
-        if (channel.isActive() == false) {
-            failQueuedWrites();
-            return false;
-        }
-        boolean needsFlush = true;
+        boolean bytesWritten = false;
         while (channel.isWritable()) {
             if (currentWrite == null) {
                 currentWrite = queuedWrites.poll();
-            }
-            if (currentWrite == null) {
-                break;
+                if (currentWrite == null) {
+                    break;
+                }
             }
             final WriteOperation write = currentWrite;
             final int readableBytes = write.buf.readableBytes();
-            final int bufferSize = Math.min(readableBytes, 10);
+            final int bufferSize = Math.min(readableBytes, MAX_BYTES_PER_WRITE);
             final int readerIndex = write.buf.readerIndex();
             final boolean sliced = readableBytes != bufferSize;
             final ByteBuf writeBuffer;
@@ -119,45 +103,67 @@ public final class Netty4WriteThrottlingHandler extends ChannelDuplexHandler {
                 writeBuffer = write.buf;
             }
             final ChannelFuture writeFuture = ctx.write(writeBuffer);
-            needsFlush = true;
+            bytesWritten = true;
+
             if (sliced == false) {
                 currentWrite = null;
-                writeFuture.addListener(future -> {
-                    assert ctx.executor().inEventLoop();
-                    if (future.isSuccess()) {
-                        write.promise.trySuccess();
-                    } else {
-                        write.promise.tryFailure(future.cause());
-                    }
-                });
+                writeFuture.addListener(forwardResultListener(ctx, write.promise));
             } else {
-                writeFuture.addListener(future -> {
-                    assert ctx.executor().inEventLoop();
-                    if (future.isSuccess() == false) {
-                        write.promise.tryFailure(future.cause());
-                    }
-                });
+                writeFuture.addListener(forwardFailureListener(ctx, write.promise));
             }
-            if (channel.isWritable() == false) {
-                // try flushing to make channel writable again, loop will only continue if channel becomes writable again
+        }
+        attemptToReleaseBytes();
+        return bytesWritten;
+    }
+
+    @Override
+    public void channelWritabilityChanged(ChannelHandlerContext ctx) {
+        if (ctx.channel().isWritable()) {
+            if (writeBytes(ctx)) {
                 ctx.flush();
-                needsFlush = false;
-                if (currentWrite != null && currentWrite.buf.refCnt() == 1) {
-                    currentWrite.buf.discardSomeReadBytes();
-                }
+                attemptToReleaseBytes();
             }
 
         }
-        if (needsFlush) {
-            ctx.flush();
-            if (currentWrite != null && currentWrite.buf.refCnt() == 1) {
-                currentWrite.buf.discardSomeReadBytes();
+        ctx.fireChannelWritabilityChanged();
+    }
+
+    @Override
+    public void flush(ChannelHandlerContext ctx) throws Exception {
+        super.flush(ctx);
+        attemptToReleaseBytes();
+    }
+
+    @Override
+    public void channelInactive(ChannelHandlerContext ctx) throws Exception {
+        failQueuedWrites();
+        super.channelInactive(ctx);
+    }
+
+    private void attemptToReleaseBytes() {
+        if (currentWrite != null && currentWrite.buf.refCnt() == 1) {
+            currentWrite.buf.discardSomeReadBytes();
+        }
+    }
+
+    private static GenericFutureListener<Future<Void>> forwardFailureListener(ChannelHandlerContext ctx, ChannelPromise promise) {
+        return future -> {
+            assert ctx.executor().inEventLoop();
+            if (future.isSuccess() == false) {
+                promise.tryFailure(future.cause());
             }
-        }
-        if (channel.isActive() == false) {
-            failQueuedWrites();
-        }
-        return true;
+        };
+    }
+
+    private static GenericFutureListener<Future<Void>> forwardResultListener(ChannelHandlerContext ctx, ChannelPromise promise) {
+        return future -> {
+            assert ctx.executor().inEventLoop();
+            if (future.isSuccess()) {
+                promise.trySuccess();
+            } else {
+                promise.tryFailure(future.cause());
+            }
+        };
     }
 
     private void failQueuedWrites() {

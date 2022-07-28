@@ -10,7 +10,6 @@ package org.elasticsearch.cluster.routing;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
@@ -26,6 +25,8 @@ import org.elasticsearch.core.SuppressForbidden;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BiFunction;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * A {@link BatchedRerouteService} is a {@link RerouteService} that batches together reroute requests to avoid unnecessary extra reroutes.
@@ -129,23 +130,13 @@ public class BatchedRerouteService implements RerouteService {
                     }
                     final ClusterState state = clusterService.state();
                     if (MasterService.isPublishFailureException(e)) {
-                        logger.debug(
-                            () -> new ParameterizedMessage("unexpected failure during [{}], current state:\n{}", source, state),
-                            e
-                        );
+                        logger.debug(() -> format("unexpected failure during [%s], current state:\n%s", source, state), e);
                         // no big deal, the new master will reroute again
                     } else if (logger.isTraceEnabled()) {
-                        logger.error(
-                            () -> new ParameterizedMessage("unexpected failure during [{}], current state:\n{}", source, state),
-                            e
-                        );
+                        logger.error(() -> format("unexpected failure during [%s], current state:\n%s", source, state), e);
                     } else {
                         logger.error(
-                            () -> new ParameterizedMessage(
-                                "unexpected failure during [{}], current state version [{}]",
-                                source,
-                                state.version()
-                            ),
+                            () -> format("unexpected failure during [%s], current state version [%s]", source, state.version()),
                             e
                         );
                     }

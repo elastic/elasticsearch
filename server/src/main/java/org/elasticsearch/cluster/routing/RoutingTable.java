@@ -107,11 +107,11 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
         return indexRouting != null && indexRouting.getIndex().equals(index) ? indexRouting : null;
     }
 
-    public ImmutableOpenMap<String, IndexRoutingTable> indicesRouting() {
+    public Map<String, IndexRoutingTable> indicesRouting() {
         return indicesRouting;
     }
 
-    public ImmutableOpenMap<String, IndexRoutingTable> getIndicesRouting() {
+    public Map<String, IndexRoutingTable> getIndicesRouting() {
         return indicesRouting();
     }
 
@@ -343,10 +343,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(version);
-        out.writeVInt(indicesRouting.size());
-        for (IndexRoutingTable index : indicesRouting.values()) {
-            index.writeTo(out);
-        }
+        out.writeCollection(indicesRouting.values());
     }
 
     private static class RoutingTableDiff implements Diff<RoutingTable> {

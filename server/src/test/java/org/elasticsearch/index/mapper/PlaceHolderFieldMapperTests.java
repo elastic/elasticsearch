@@ -12,18 +12,19 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
+import org.elasticsearch.search.fetch.subphase.FieldFetcher;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xcontent.XContentBuilder;
 
-import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
-import java.util.Set;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.instanceOf;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class PlaceHolderFieldMapperTests extends MapperServiceTestCase {
 
@@ -61,15 +62,17 @@ public class PlaceHolderFieldMapperTests extends MapperServiceTestCase {
             );
         }, iw -> {
             SearchLookup lookup = new SearchLookup(mapperService::fieldType, fieldDataLookup());
-            SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
-            when(searchExecutionContext.lookup()).thenReturn(lookup);
-            when(searchExecutionContext.sourcePath("field")).thenReturn(Set.of("field"));
-            ValueFetcher valueFetcher = mapperService.fieldType("field").valueFetcher(searchExecutionContext, null);
+            SearchExecutionContext searchExecutionContext = createSearchExecutionContext(mapperService);
+            FieldFetcher fieldFetcher = FieldFetcher.create(
+                searchExecutionContext,
+                Collections.singletonList(new FieldAndFormat("field", null))
+            );
             IndexSearcher searcher = newSearcher(iw);
             LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
             lookup.source().setSegmentAndDocument(context, 0);
-            valueFetcher.setNextReader(context);
-            assertEquals(List.of("value"), valueFetcher.fetchValues(lookup.source(), new ArrayList<>()));
+            Map<String, DocumentField> fields = fieldFetcher.fetch(lookup.source());
+            assertEquals(1, fields.size());
+            assertEquals(List.of("value"), fields.get("field").getValues());
         });
     }
 }

@@ -18,6 +18,10 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.settings.SecureSetting;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -29,6 +33,7 @@ import org.elasticsearch.repositories.FinalizeSnapshotContext;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
+import org.elasticsearch.snapshots.SnapshotDeleteListener;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.Scheduler;
@@ -56,8 +61,15 @@ import java.util.function.Function;
  */
 class S3Repository extends MeteredBlobStoreRepository {
     private static final Logger logger = LogManager.getLogger(S3Repository.class);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(logger.getName());
 
     static final String TYPE = "s3";
+
+    /** The access key to authenticate with s3. This setting is insecure because cluster settings are stored in cluster state */
+    static final Setting<SecureString> ACCESS_KEY_SETTING = SecureSetting.insecureString("access_key");
+
+    /** The secret key to authenticate with s3. This setting is insecure because cluster settings are stored in cluster state */
+    static final Setting<SecureString> SECRET_KEY_SETTING = SecureSetting.insecureString("secret_key");
 
     /**
      * Default is to use 100MB (S3 defaults) for heaps above 2GB and 5% of
@@ -232,6 +244,16 @@ class S3Repository extends MeteredBlobStoreRepository {
         this.storageClass = STORAGE_CLASS_SETTING.get(metadata.settings());
         this.cannedACL = CANNED_ACL_SETTING.get(metadata.settings());
 
+        if (S3ClientSettings.checkDeprecatedCredentials(metadata.settings())) {
+            // provided repository settings
+            deprecationLogger.critical(
+                DeprecationCategory.SECURITY,
+                "s3_repository_secret_settings",
+                "Using s3 access/secret key from repository settings. Instead "
+                    + "store these in named clients and the elasticsearch keystore for secure settings."
+            );
+        }
+
         coolDown = COOLDOWN_PERIOD.get(metadata.settings());
 
         logger.debug(
@@ -275,12 +297,42 @@ class S3Repository extends MeteredBlobStoreRepository {
         Collection<SnapshotId> snapshotIds,
         long repositoryStateId,
         Version repositoryMetaVersion,
-        ActionListener<RepositoryData> listener
+        SnapshotDeleteListener listener
     ) {
-        if (SnapshotsService.useShardGenerations(repositoryMetaVersion) == false) {
-            listener = delayedListener(listener);
+        final SnapshotDeleteListener wrappedListener;
+        if (SnapshotsService.useShardGenerations(repositoryMetaVersion)) {
+            wrappedListener = listener;
+        } else {
+            wrappedListener = new SnapshotDeleteListener() {
+                @Override
+                public void onDone() {
+                    listener.onDone();
+                }
+
+                @Override
+                public void onRepositoryDataWritten(RepositoryData repositoryData) {
+                    logCooldownInfo();
+                    final Scheduler.Cancellable existing = finalizationFuture.getAndSet(threadPool.schedule(() -> {
+                        final Scheduler.Cancellable cancellable = finalizationFuture.getAndSet(null);
+                        assert cancellable != null;
+                        listener.onRepositoryDataWritten(repositoryData);
+                    }, coolDown, ThreadPool.Names.SNAPSHOT));
+                    assert existing == null : "Already have an ongoing finalization " + finalizationFuture;
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logCooldownInfo();
+                    final Scheduler.Cancellable existing = finalizationFuture.getAndSet(threadPool.schedule(() -> {
+                        final Scheduler.Cancellable cancellable = finalizationFuture.getAndSet(null);
+                        assert cancellable != null;
+                        listener.onFailure(e);
+                    }, coolDown, ThreadPool.Names.SNAPSHOT));
+                    assert existing == null : "Already have an ongoing finalization " + finalizationFuture;
+                }
+            };
         }
-        super.deleteSnapshots(snapshotIds, repositoryStateId, repositoryMetaVersion, listener);
+        super.deleteSnapshots(snapshotIds, repositoryStateId, repositoryMetaVersion, wrappedListener);
     }
 
     /**

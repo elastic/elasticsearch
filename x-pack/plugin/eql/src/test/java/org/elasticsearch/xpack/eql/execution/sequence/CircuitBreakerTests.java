@@ -388,7 +388,7 @@ public class CircuitBreakerTests extends ESTestCase {
                 0,
                 ShardSearchFailure.EMPTY_ARRAY,
                 SearchResponse.Clusters.EMPTY,
-                searchRequestsRemainingCount() == 1 ? searchRequest.pointInTimeBuilder().getEncodedId() : null
+                searchRequest.pointInTimeBuilder().getEncodedId()
             );
 
             if (searchRequestsRemainingCount() == 1) {
@@ -467,7 +467,7 @@ public class CircuitBreakerTests extends ESTestCase {
                         0,
                         failures,
                         SearchResponse.Clusters.EMPTY,
-                        null
+                        searchRequest.pointInTimeBuilder().getEncodedId()
                     );
 
                     // this should still be caught and the exception handled properly and circuit breaker cleared

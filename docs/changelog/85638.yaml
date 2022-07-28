@@ -1,6 +1,0 @@
-pr: 85638
-summary: Ignore frozen shared cache file during data folder upgrades
-area: Snapshot/Restore
-type: bug
-issues:
- - 85603

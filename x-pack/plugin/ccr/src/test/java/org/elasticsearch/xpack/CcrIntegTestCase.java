@@ -41,7 +41,6 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -859,7 +858,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
                                 listener.onResponse(null);
                             } else if (newEntry == null) {
                                 clusterService.removeListener(this);
-                                ImmutableOpenMap<ShardId, RestoreInProgress.ShardRestoreStatus> shards = prevEntry.shards();
+                                Map<ShardId, RestoreInProgress.ShardRestoreStatus> shards = prevEntry.shards();
                                 RestoreInfo ri = new RestoreInfo(
                                     prevEntry.snapshot().getSnapshotId().getName(),
                                     prevEntry.indices(),

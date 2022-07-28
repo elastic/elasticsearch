@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.mapper.extras;
 
-import org.apache.lucene.document.Field;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
@@ -20,6 +19,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.FieldData;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
@@ -44,7 +44,6 @@ import org.elasticsearch.script.field.ScaledFloatDocValuesField;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
@@ -58,7 +57,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Supplier;
 
 /** A {@link FieldMapper} for scaled floats. Values are internally multiplied
  *  by a scaling factor and rounded to the closest long. */
@@ -277,7 +275,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+        public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             failIfNoDocValues();
             return (cache, breakerService) -> {
                 final IndexNumericFieldData scaledValues = new SortedNumericIndexFieldData.Builder(
@@ -466,8 +464,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
         long scaledValue = encode(doubleValue, scalingFactor);
 
-        List<Field> fields = NumberFieldMapper.NumberType.LONG.createFields(fieldType().name(), scaledValue, indexed, hasDocValues, stored);
-        context.doc().addAll(fields);
+        NumberFieldMapper.NumberType.LONG.addFields(context.doc(), fieldType().name(), scaledValue, indexed, hasDocValues, stored);
 
         if (hasDocValues == false && (indexed || stored)) {
             context.addToFieldNames(fieldType().name());
@@ -680,7 +677,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
         return new NumberFieldMapper.NumericSyntheticFieldLoader(name(), simpleName()) {
             @Override
-            protected void loadNextValue(XContentBuilder b, long value) throws IOException {
+            protected void writeValue(XContentBuilder b, long value) throws IOException {
                 b.value(decodeForSyntheticSource(value, scalingFactor));
             }
         };

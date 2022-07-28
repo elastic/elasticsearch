@@ -8,16 +8,24 @@
 
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.common.geo.GeoBoundingBox;
+import org.elasticsearch.index.fielddata.AbstractNumericDocValues;
+import org.elasticsearch.index.fielddata.AbstractSortingNumericDocValues;
+import org.elasticsearch.index.fielddata.GeoPointValues;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 
+import java.io.IOException;
+
 /**
- * Base class to help convert {@link MultiGeoPointValues} to {@link CellValues}
+ * Base class to help convert {@link MultiGeoPointValues} to {@link CellMultiValues}
+ * and {@link GeoPointValues} to {@link CellSingleValue}
  */
 public abstract class CellIdSource extends ValuesSource.Numeric {
 
@@ -45,22 +53,35 @@ public abstract class CellIdSource extends ValuesSource.Numeric {
     @Override
     public final SortedNumericDocValues longValues(LeafReaderContext ctx) {
         final MultiGeoPointValues multiGeoPointValues = valuesSource.geoPointValues(ctx);
+        final GeoPointValues values = org.elasticsearch.index.fielddata.FieldData.unwrapSingleton(multiGeoPointValues);
         if (geoBoundingBox.isUnbounded()) {
-            return unboundedCellValues(multiGeoPointValues);
+            return values == null ? unboundedCellMultiValues(multiGeoPointValues) : DocValues.singleton(unboundedCellSingleValue(values));
         } else {
-            return boundedCellValues(multiGeoPointValues, geoBoundingBox);
+            return values == null
+                ? boundedCellMultiValues(multiGeoPointValues, geoBoundingBox)
+                : DocValues.singleton(boundedCellSingleValue(values, geoBoundingBox));
         }
     }
 
     /**
-     * Generate an unbounded iterator of grid-cells
+     * Generate an unbounded iterator of grid-cells for singleton case.
      */
-    protected abstract CellValues unboundedCellValues(MultiGeoPointValues values);
+    protected abstract NumericDocValues unboundedCellSingleValue(GeoPointValues values);
 
     /**
-     * Generate a bounded iterator of grid-cells
+     * Generate a bounded iterator of grid-cells for singleton case.
      */
-    protected abstract CellValues boundedCellValues(MultiGeoPointValues values, GeoBoundingBox boundingBox);
+    protected abstract NumericDocValues boundedCellSingleValue(GeoPointValues values, GeoBoundingBox boundingBox);
+
+    /**
+     * Generate an unbounded iterator of grid-cells for multi-value case.
+     */
+    protected abstract SortedNumericDocValues unboundedCellMultiValues(MultiGeoPointValues values);
+
+    /**
+     * Generate a bounded iterator of grid-cells for multi-value case.
+     */
+    protected abstract SortedNumericDocValues boundedCellMultiValues(MultiGeoPointValues values, GeoBoundingBox boundingBox);
 
     @Override
     public final SortedNumericDoubleValues doubleValues(LeafReaderContext ctx) {
@@ -89,4 +110,85 @@ public abstract class CellIdSource extends ValuesSource.Numeric {
         return false;
     }
 
+    /**
+     * Class representing the long-encoded grid-cells belonging to
+     * the multi-value geo-doc-values. Class must encode the values and then
+     * sort them in order to account for the cells correctly.
+     */
+    protected abstract static class CellMultiValues extends AbstractSortingNumericDocValues {
+        private final MultiGeoPointValues geoValues;
+        protected final int precision;
+
+        protected CellMultiValues(MultiGeoPointValues geoValues, int precision) {
+            this.geoValues = geoValues;
+            this.precision = precision;
+        }
+
+        @Override
+        public boolean advanceExact(int docId) throws IOException {
+            if (geoValues.advanceExact(docId)) {
+                int docValueCount = geoValues.docValueCount();
+                resize(docValueCount);
+                int j = 0;
+                for (int i = 0; i < docValueCount; i++) {
+                    j = advanceValue(geoValues.nextValue(), j);
+                }
+                resize(j);
+                sort();
+                return true;
+            } else {
+                return false;
+            }
+        }
+
+        /**
+         * Sets the appropriate long-encoded value for <code>target</code>
+         * in <code>values</code>.
+         *
+         * @param target    the geo-value to encode
+         * @param valuesIdx the index into <code>values</code> to set
+         * @return          valuesIdx + 1 if value was set, valuesIdx otherwise.
+         */
+        protected abstract int advanceValue(org.elasticsearch.common.geo.GeoPoint target, int valuesIdx);
+    }
+
+    /**
+     * Class representing the long-encoded grid-cells belonging to
+     * the singleton geo-doc-values.
+     */
+    protected abstract static class CellSingleValue extends AbstractNumericDocValues {
+        private final GeoPointValues geoValues;
+        protected final int precision;
+        protected long value;
+
+        protected CellSingleValue(GeoPointValues geoValues, int precision) {
+            this.geoValues = geoValues;
+            this.precision = precision;
+
+        }
+
+        @Override
+        public boolean advanceExact(int docId) throws IOException {
+            return geoValues.advanceExact(docId) && advance(geoValues.geoPointValue());
+        }
+
+        @Override
+        public long longValue() throws IOException {
+            return value;
+        }
+
+        /**
+         * Sets the appropriate long-encoded value for <code>target</code>
+         * in <code>value</code>.
+         *
+         * @param target    the geo-value to encode
+         * @return          true if the value needs to be added, otherwise false.
+         */
+        protected abstract boolean advance(org.elasticsearch.common.geo.GeoPoint target);
+
+        @Override
+        public int docID() {
+            return -1;
+        }
+    }
 }

@@ -21,7 +21,7 @@ pre-indexed in another index. Both formats are defined below with
 examples.
 
 
-==== Inline Shape Definition
+==== Inline shape definition
 
 Similar to the `geo_point` type, the `geo_shape` query uses
 http://geojson.org[GeoJSON] to represent shapes.
@@ -169,7 +169,7 @@ GET /example_points/_search
 // TESTRESPONSE[s/"took" : 17/"took" : $body.took/]
 
 
-==== Pre-Indexed Shape
+==== Pre-indexed shape
 
 The query also supports using a shape which has already been indexed in another
 index. This is particularly useful for when you have a pre-defined list of
@@ -229,7 +229,7 @@ GET /example/_search
 --------------------------------------------------
 
 
-==== Spatial Relations
+==== Spatial relations
 
 The following is a complete list of spatial relation operators available when
 searching a geo field:
@@ -244,7 +244,7 @@ geometry. Line geometries are not supported.
 geometry.
 
 [discrete]
-==== Ignore Unmapped
+==== Ignore unmapped
 
 When set to `true` the `ignore_unmapped` option will ignore an unmapped field
 and will not match any documents for this query. This can be useful when

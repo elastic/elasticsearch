@@ -39,9 +39,6 @@ import static org.elasticsearch.xpack.core.security.authc.RealmSettings.DOMAIN_U
  */
 public class XPackSettings {
 
-    public static final boolean USER_PROFILE_FEATURE_FLAG_ENABLED = Build.CURRENT.isSnapshot()
-        || "true".equals(System.getProperty("es.user_profile_feature_flag_enabled"));
-
     private static final boolean IS_DARWIN_AARCH64;
     static {
         final String name = System.getProperty("os.name");
@@ -57,6 +54,9 @@ public class XPackSettings {
      * Setting for controlling whether or not CCR is enabled.
      */
     public static final Setting<Boolean> CCR_ENABLED_SETTING = Setting.boolSetting("xpack.ccr.enabled", true, Property.NodeScope);
+
+    public static final boolean CROSS_CLUSTER_2_FEATURE_FLAG_ENABLED = Build.CURRENT.isSnapshot()
+        || "true".equals(System.getProperty("es.cross_cluster_2_feature_flag_enabled"));
 
     /** Setting for enabling or disabling security. Defaults to true. */
     public static final Setting<Boolean> SECURITY_ENABLED = Setting.boolSetting("xpack.security.enabled", true, Setting.Property.NodeScope);
@@ -269,11 +269,9 @@ public class XPackSettings {
         settings.add(PASSWORD_HASHING_ALGORITHM);
         settings.add(ENROLLMENT_ENABLED);
         settings.add(SECURITY_AUTOCONFIGURATION_ENABLED);
-        if (USER_PROFILE_FEATURE_FLAG_ENABLED) {
-            settings.add(DOMAIN_TO_REALM_ASSOC_SETTING);
-            settings.add(DOMAIN_UID_LITERAL_USERNAME_SETTING);
-            settings.add(DOMAIN_UID_SUFFIX_SETTING);
-        }
+        settings.add(DOMAIN_TO_REALM_ASSOC_SETTING);
+        settings.add(DOMAIN_UID_LITERAL_USERNAME_SETTING);
+        settings.add(DOMAIN_UID_SUFFIX_SETTING);
         return Collections.unmodifiableList(settings);
     }
 

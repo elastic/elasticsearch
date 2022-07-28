@@ -29,7 +29,6 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
@@ -120,11 +119,9 @@ public class DestinationIndexTests extends ESTestCase {
         ArgumentCaptor<GetMappingsRequest> getMappingsRequestCaptor = ArgumentCaptor.forClass(GetMappingsRequest.class);
         ArgumentCaptor<FieldCapabilitiesRequest> fieldCapabilitiesRequestCaptor = ArgumentCaptor.forClass(FieldCapabilitiesRequest.class);
 
-        ImmutableOpenMap.Builder<String, Settings> indexToSettings = ImmutableOpenMap.builder();
-        indexToSettings.put("index_1", index1Settings);
-        indexToSettings.put("index_2", index2Settings);
+        Map<String, Settings> indexToSettings = Map.of("index_1", index1Settings, "index_2", index2Settings);
 
-        GetSettingsResponse getSettingsResponse = new GetSettingsResponse(indexToSettings.build(), ImmutableOpenMap.of());
+        GetSettingsResponse getSettingsResponse = new GetSettingsResponse(indexToSettings, Map.of());
 
         doAnswer(callListenerOnResponse(getSettingsResponse)).when(client)
             .execute(eq(GetSettingsAction.INSTANCE), getSettingsRequestCaptor.capture(), any());
@@ -149,11 +146,9 @@ public class DestinationIndexTests extends ESTestCase {
         MappingMetadata index1MappingMetadata = new MappingMetadata("_doc", indexMappings);
         MappingMetadata index2MappingMetadata = new MappingMetadata("_doc", indexMappings);
 
-        ImmutableOpenMap.Builder<String, MappingMetadata> mappings = ImmutableOpenMap.builder();
-        mappings.put("index_1", index1MappingMetadata);
-        mappings.put("index_2", index2MappingMetadata);
+        Map<String, MappingMetadata> mappings = Map.of("index_1", index1MappingMetadata, "index_2", index2MappingMetadata);
 
-        GetMappingsResponse getMappingsResponse = new GetMappingsResponse(mappings.build());
+        GetMappingsResponse getMappingsResponse = new GetMappingsResponse(mappings);
 
         doAnswer(callListenerOnResponse(getMappingsResponse)).when(client)
             .execute(eq(GetMappingsAction.INSTANCE), getMappingsRequestCaptor.capture(), any());
@@ -237,11 +232,10 @@ public class DestinationIndexTests extends ESTestCase {
     public void testCreateDestinationIndex_ResultsFieldsExistsInSourceIndex() {
         DataFrameAnalyticsConfig config = createConfig(new OutlierDetection.Builder().build());
 
-        GetSettingsResponse getSettingsResponse = new GetSettingsResponse(ImmutableOpenMap.of(), ImmutableOpenMap.of());
+        GetSettingsResponse getSettingsResponse = new GetSettingsResponse(Map.of(), Map.of());
 
-        ImmutableOpenMap.Builder<String, MappingMetadata> mappings = ImmutableOpenMap.builder();
-        mappings.put("", new MappingMetadata("_doc", Map.of("properties", Map.of("ml", "some-mapping"))));
-        GetMappingsResponse getMappingsResponse = new GetMappingsResponse(mappings.build());
+        Map<String, MappingMetadata> mappings = Map.of("", new MappingMetadata("_doc", Map.of("properties", Map.of("ml", "some-mapping"))));
+        GetMappingsResponse getMappingsResponse = new GetMappingsResponse(mappings);
 
         doAnswer(callListenerOnResponse(getSettingsResponse)).when(client).execute(eq(GetSettingsAction.INSTANCE), any(), any());
         doAnswer(callListenerOnResponse(getMappingsResponse)).when(client).execute(eq(GetMappingsAction.INSTANCE), any(), any());
@@ -273,15 +267,14 @@ public class DestinationIndexTests extends ESTestCase {
             ALIAS_TO_NESTED_FIELD,
             Map.of("type", "alias", "path", OUTER_FIELD + "." + INNER_FIELD)
         );
-        ImmutableOpenMap.Builder<String, MappingMetadata> mappings = ImmutableOpenMap.builder();
-        mappings.put("", new MappingMetadata("_doc", Map.of("properties", properties)));
+        Map<String, MappingMetadata> mappings = Map.of("", new MappingMetadata("_doc", Map.of("properties", properties)));
         GetIndexResponse getIndexResponse = new GetIndexResponse(
             new String[] { DEST_INDEX },
-            mappings.build(),
-            ImmutableOpenMap.of(),
-            ImmutableOpenMap.of(),
-            ImmutableOpenMap.of(),
-            ImmutableOpenMap.of()
+            mappings,
+            Map.of(),
+            Map.of(),
+            Map.of(),
+            Map.of()
         );
 
         ArgumentCaptor<PutMappingRequest> putMappingRequestCaptor = ArgumentCaptor.forClass(PutMappingRequest.class);
@@ -359,15 +352,14 @@ public class DestinationIndexTests extends ESTestCase {
     public void testUpdateMappingsToDestIndex_ResultsFieldsExistsInSourceIndex() {
         DataFrameAnalyticsConfig config = createConfig(new OutlierDetection.Builder().build());
 
-        ImmutableOpenMap.Builder<String, MappingMetadata> mappings = ImmutableOpenMap.builder();
-        mappings.put("", new MappingMetadata("_doc", Map.of("properties", Map.of("ml", "some-mapping"))));
+        Map<String, MappingMetadata> mappings = Map.of("", new MappingMetadata("_doc", Map.of("properties", Map.of("ml", "some-mapping"))));
         GetIndexResponse getIndexResponse = new GetIndexResponse(
             new String[] { DEST_INDEX },
-            mappings.build(),
-            ImmutableOpenMap.of(),
-            ImmutableOpenMap.of(),
-            ImmutableOpenMap.of(),
-            ImmutableOpenMap.of()
+            mappings,
+            Map.of(),
+            Map.of(),
+            Map.of(),
+            Map.of()
         );
 
         ElasticsearchStatusException e = expectThrows(

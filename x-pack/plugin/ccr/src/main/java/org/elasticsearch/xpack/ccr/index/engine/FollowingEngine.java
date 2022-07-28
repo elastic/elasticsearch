@@ -13,7 +13,7 @@ import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
@@ -192,7 +192,7 @@ public class FollowingEngine extends InternalEngine {
                 BooleanClause.Occur.FILTER
             )
                 // excludes the non-root nested documents which don't have primary_term.
-                .add(new DocValuesFieldExistsQuery(SeqNoFieldMapper.PRIMARY_TERM_NAME), BooleanClause.Occur.FILTER)
+                .add(new FieldExistsQuery(SeqNoFieldMapper.PRIMARY_TERM_NAME), BooleanClause.Occur.FILTER)
                 .build();
             final TopDocs topDocs = searcher.search(query, 1);
             if (topDocs.scoreDocs.length == 1) {

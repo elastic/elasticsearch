@@ -1,6 +1,0 @@
-pr: 86555
-summary: Fix mvt polygon orientation
-area: Geo
-type: bug
-issues:
- - 86560

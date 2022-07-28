@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.profile;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -82,6 +81,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Function;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction.toSingleItemBulkRequest;
@@ -91,7 +91,6 @@ import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_PROFILE_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.isFileOrNativeRealm;
-import static org.elasticsearch.xpack.core.security.support.Validation.VALID_NAME_CHARS;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_PROFILE_ALIAS;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.VERSION_SECURITY_PROFILE_ORIGIN;
 
@@ -390,7 +389,7 @@ public class ProfileService {
                             }
                         }
                         if (loggedException != null) {
-                            logger.debug(new ParameterizedMessage("Failed to retrieve profiles {}", failures), loggedException);
+                            logger.debug(() -> format("Failed to retrieve profiles %s", failures), loggedException);
                         }
                         listener.onResponse(new Tuple<>(retrievedDocs, failures));
                     }, listener::onFailure))
@@ -452,20 +451,20 @@ public class ProfileService {
                             if (subject.canAccessResourcesOf(profileDocument.user().toSubject())) {
                                 listener.onResponse(new VersionedDocument(profileDocument, hit.getPrimaryTerm(), hit.getSeqNo()));
                             } else {
-                                final ParameterizedMessage errorMessage = new ParameterizedMessage(
-                                    "profile [{}] matches search criteria but is not accessible to "
-                                        + "the current subject with username [{}] and realm name [{}]",
+                                final String errorMessage = org.elasticsearch.core.Strings.format(
+                                    "profile [%s] matches search criteria but is not accessible to "
+                                        + "the current subject with username [%s] and realm name [%s]",
                                     profileDocument.uid(),
                                     subject.getUser().principal(),
                                     subject.getRealm().getName()
                                 );
                                 logger.error(errorMessage);
                                 assert false : "this should not happen";
-                                listener.onFailure(new ElasticsearchException(errorMessage.getFormattedMessage()));
+                                listener.onFailure(new ElasticsearchException(errorMessage));
                             }
                         } else {
-                            final ParameterizedMessage errorMessage = new ParameterizedMessage(
-                                "multiple [{}] profiles [{}] found for user [{}] from realm [{}]{}",
+                            final String errorMessage = org.elasticsearch.core.Strings.format(
+                                "multiple [%s] profiles [%s] found for user [%s] from realm [%s]%s",
                                 hits.length,
                                 Arrays.stream(hits)
                                     .map(SearchHit::getId)
@@ -479,7 +478,7 @@ public class ProfileService {
                                     : (" under domain [" + subject.getRealm().getDomain().name() + "]")
                             );
                             logger.error(errorMessage);
-                            listener.onFailure(new ElasticsearchException(errorMessage.getFormattedMessage()));
+                            listener.onFailure(new ElasticsearchException(errorMessage));
                         }
                     }, listener::onFailure)
                 )
@@ -487,10 +486,12 @@ public class ProfileService {
         });
     }
 
+    private static final Pattern VALID_LITERAL_USERNAME = Pattern.compile("^[a-zA-Z0-9][a-zA-Z0-9-]{0,255}$");
+
     private static final String INVALID_USERNAME_MESSAGE = "Security domain [%s] is configured to use literal username. "
         + "As a result, creating new user profile requires the username to be at least 1 and no more than 256 characters. "
-        + "The username can contain alphanumeric characters (a-z, A-Z, 0-9), spaces, punctuation, "
-        + "and printable symbols in the Basic Latin (ASCII) block.";
+        + "The username must begin with an alphanumeric character (a-z, A-Z, 0-9) and followed by any alphanumeric "
+        + "or dash (-) characters.";
 
     private void validateUsername(Subject subject) {
         final RealmDomain realmDomain = subject.getRealm().getDomain();
@@ -501,14 +502,8 @@ public class ProfileService {
         final String username = subject.getUser().principal();
         assert username != null;
 
-        if (username.length() < 1 || username.length() > 256) {
+        if (false == VALID_LITERAL_USERNAME.matcher(username).matches()) {
             throw new ElasticsearchException(String.format(Locale.ROOT, INVALID_USERNAME_MESSAGE, realmDomain.name()));
-        }
-
-        for (char character : username.toCharArray()) {
-            if (VALID_NAME_CHARS.contains(character) == false) {
-                throw new ElasticsearchException(String.format(Locale.ROOT, INVALID_USERNAME_MESSAGE, realmDomain.name()));
-            }
         }
     }
 

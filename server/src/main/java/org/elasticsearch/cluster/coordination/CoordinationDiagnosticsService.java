@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -662,13 +663,21 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
     ) {
         masterEligibleNodes.forEach(masterEligibleNode -> {
             Consumer<ClusterFormationStateOrException> responseConsumer = result -> nodeResponseConsumer.accept(masterEligibleNode, result);
-            cancellables.put(
-                masterEligibleNode,
-                fetchClusterFormationInfo(
+            try {
+                cancellables.put(
                     masterEligibleNode,
-                    responseConsumer.andThen(rescheduleFetchConsumer(masterEligibleNode, responseConsumer, cancellables))
-                )
-            );
+                    fetchClusterFormationInfo(
+                        masterEligibleNode,
+                        responseConsumer.andThen(rescheduleFetchConsumer(masterEligibleNode, responseConsumer, cancellables))
+                    )
+                );
+            } catch (EsRejectedExecutionException e) {
+                if (e.isExecutorShutdown()) {
+                    logger.trace("Not rescheduling request for cluster coordination info because this node is being shutdown", e);
+                } else {
+                    throw e;
+                }
+            }
         });
     }
 
@@ -704,13 +713,21 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                      * add a task here for a poll that has already been cancelled. But when it completes and runs rescheduleFetchConsumer()
                      * we will then see that clusterFormationInfoTasks does not equal cancellables, so it will not be run again.
                      */
-                    cancellables.put(
-                        masterEligibleNode,
-                        fetchClusterFormationInfo(
+                    try {
+                        cancellables.put(
                             masterEligibleNode,
-                            responseConsumer.andThen(rescheduleFetchConsumer(masterEligibleNode, responseConsumer, cancellables))
-                        )
-                    );
+                            fetchClusterFormationInfo(
+                                masterEligibleNode,
+                                responseConsumer.andThen(rescheduleFetchConsumer(masterEligibleNode, responseConsumer, cancellables))
+                            )
+                        );
+                    } catch (EsRejectedExecutionException e) {
+                        if (e.isExecutorShutdown()) {
+                            logger.trace("Not rescheduling request for cluster coordination info because this node is being shutdown", e);
+                        } else {
+                            throw e;
+                        }
+                    }
                 } else {
                     cancellables.values().forEach(Scheduler.Cancellable::cancel);
                 }
@@ -741,6 +758,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
      * @param node The node to poll for cluster formation information
      * @param responseConsumer The consumer of the cluster formation info for the node, or the exception encountered while contacting it
      * @return A Cancellable for the task that is scheduled to fetch cluster formation information
+     * @throws EsRejectedExecutionException If the task cannot be scheduled, possibly because the node is shutting down.
      */
     private Scheduler.Cancellable fetchClusterFormationInfo(
         DiscoveryNode node,

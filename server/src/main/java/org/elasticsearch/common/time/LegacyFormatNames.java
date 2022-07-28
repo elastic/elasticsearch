@@ -108,6 +108,27 @@ public enum LegacyFormatNames {
         this.snakeCaseName = snakeCaseName;
     }
 
+    public static LegacyFormatNames forName(String format) {
+        for (var name : values()) {
+            if (name.matches(format)) {
+                return name;
+            }
+        }
+        return null;
+    }
+
+    public boolean isCamelCase(String format) {
+        return format.equals(camelCaseName);
+    }
+
+    public String getSnakeCaseName() {
+        return snakeCaseName;
+    }
+
+    public boolean matches(String format) {
+        return format.equals(camelCaseName) || format.equals(snakeCaseName);
+    }
+
     public static String camelCaseToSnakeCase(String format) {
         return ALL_NAMES.getOrDefault(format, format);
     }

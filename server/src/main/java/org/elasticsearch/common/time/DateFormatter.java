@@ -127,4 +127,15 @@ public interface DateFormatter {
 
         return JavaDateFormatter.combined(input, formatters);
     }
+
+    static List<String> splitCombinedPatterns(String input) {
+        List<String> patterns = new ArrayList<>();
+        for (String pattern : Strings.delimitedListToStringArray(input, "||")) {
+            if (Strings.hasLength(pattern) == false) {
+                throw new IllegalArgumentException("Cannot have empty element in multi date format pattern: " + input);
+            }
+            patterns.add(pattern);
+        }
+        return patterns;
+    }
 }

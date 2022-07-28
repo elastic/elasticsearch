@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.security.action.apikey;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -65,9 +64,9 @@ public abstract class TransportBaseUpdateApiKeyAction<Request extends BaseUpdate
     }
 
     abstract void doUpdate(
-        final Request request,
-        final Authentication authentication,
-        final Set<RoleDescriptor> roleDescriptors,
-        final ActionListener<Response> listener
+        Request request,
+        Authentication authentication,
+        Set<RoleDescriptor> roleDescriptors,
+        ActionListener<Response> listener
     );
 }

@@ -224,7 +224,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         final EncodedApiKey apiKeyExpectingNoop = createApiKey("my-api-key-name-2", Map.of("not", "returned (changed)", "foo", "bar"));
         final Map<String, Object> metadataForInvalidatedKey = Map.of("will not be updated", true);
         final EncodedApiKey invalidatedApiKey = createApiKey("my-api-key-name-3", metadataForInvalidatedKey);
-        getSecurityClient().invalidateApiKey(invalidatedApiKey.id);
+        getSecurityClient().invalidateApiKeys(invalidatedApiKey.id);
         final var notFoundApiKeyId = "not-found-api-key-id";
         final List<String> idsToUpdate = shuffledList(
             List.of(apiKeyExpectingUpdate.id, apiKeyExpectingNoop.id, notFoundApiKeyId, invalidatedApiKey.id)

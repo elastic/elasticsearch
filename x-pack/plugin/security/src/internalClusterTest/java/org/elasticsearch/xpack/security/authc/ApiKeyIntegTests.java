@@ -1586,6 +1586,19 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             expectRoleDescriptorsForApiKey("limited_by_role_descriptors", expectedLimitedByRoleDescriptors, doc);
             expectMetadataForApiKey(newMetadata, doc);
         }
+
+        // Check that bulk update works when all updates result in errors
+        getSecurityClient().invalidateApiKeys(apiKeyIds.toArray(new String[0]));
+        final BulkUpdateApiKeyRequest requestWithErrors = new BulkUpdateApiKeyRequest(
+            shuffledList(apiKeyIds),
+            newRoleDescriptors,
+            newMetadata
+        );
+        final BulkUpdateApiKeyResponse responseWithErrors = executeBulkUpdateApiKey(TEST_USER_NAME, requestWithErrors);
+        assertThat(responseWithErrors.getUpdated(), empty());
+        assertThat(responseWithErrors.getNoops(), empty());
+        assertEquals(apiKeyIds.size(), responseWithErrors.getErrorDetails().size());
+        assertEquals(responseWithErrors.getErrorDetails().keySet(), Set.copyOf(apiKeyIds));
     }
 
     public void testUpdateApiKeyAutoUpdatesUserFields() throws Exception {

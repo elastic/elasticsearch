@@ -42,6 +42,8 @@ types:
 ** <<numeric-synthetic-source,`short`>>
 ** <<text-synthetic-source,`text`>> (with a `keyword` sub-field)
 
+Runtime fields cannot, at this stage, use synthetic `_source`.
+
 [[synthetic-source-modifications]]
 ===== Synthetic source modifications
 

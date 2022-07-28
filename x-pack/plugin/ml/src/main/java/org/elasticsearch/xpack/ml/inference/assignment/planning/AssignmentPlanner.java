@@ -62,9 +62,9 @@ public class AssignmentPlanner {
         logger.debug(() -> format("Computing plan for nodes = %s; models = %s", nodes, models));
 
         AssignmentPlan bestPlan;
-        AssignmentPlan planSatisfyingPreviousAssignments = solveSatisfyingPreviousAssignments();
-        logger.debug(() -> "Plan satisfying previous assignments =\n" + planSatisfyingPreviousAssignments.prettyPrint());
-        if (planSatisfyingPreviousAssignments.arePreviouslyAssignedModelsAssigned() == false && tryAssigningPreviouslyAssignedModels) {
+        AssignmentPlan planSatisfyingCurrentAssignments = solveSatisfyingCurrentAssignments();
+        logger.debug(() -> "Plan satisfying current assignments =\n" + planSatisfyingCurrentAssignments.prettyPrint());
+        if (planSatisfyingCurrentAssignments.arePreviouslyAssignedModelsAssigned() == false && tryAssigningPreviouslyAssignedModels) {
             AssignmentPlan planAllocatingAtLeastOnceModelsThatWerePreviouslyAllocated =
                 solveAllocatingAtLeastOnceModelsThatWerePreviouslyAllocated();
             logger.debug(
@@ -74,14 +74,14 @@ public class AssignmentPlanner {
             if (planAllocatingAtLeastOnceModelsThatWerePreviouslyAllocated.arePreviouslyAssignedModelsAssigned()) {
                 bestPlan = planAllocatingAtLeastOnceModelsThatWerePreviouslyAllocated;
             } else {
-                bestPlan = planSatisfyingPreviousAssignments
+                bestPlan = planSatisfyingCurrentAssignments
                     .countPreviouslyAssignedModelsThatAreStillAssigned() >= planAllocatingAtLeastOnceModelsThatWerePreviouslyAllocated
                         .countPreviouslyAssignedModelsThatAreStillAssigned()
-                            ? planSatisfyingPreviousAssignments
+                            ? planSatisfyingCurrentAssignments
                             : planAllocatingAtLeastOnceModelsThatWerePreviouslyAllocated;
             }
         } else {
-            bestPlan = planSatisfyingPreviousAssignments;
+            bestPlan = planSatisfyingCurrentAssignments;
         }
 
         logger.debug(() -> "Best plan =\n" + bestPlan.prettyPrint());
@@ -89,19 +89,19 @@ public class AssignmentPlanner {
         return bestPlan;
     }
 
-    private AssignmentPlan solveSatisfyingPreviousAssignments() {
+    private AssignmentPlan solveSatisfyingCurrentAssignments() {
         AssignmentPlan bestPlan;
         // First solve preserving one allocation per assignment because that is most flexible
-        AssignmentPlan planKeepingOneAllocationOnPreviousAssignments = solveKeepingOneAllocationOnPreviousAssignments();
-        if (planKeepingOneAllocationOnPreviousAssignments.satisfiesPreviousAssignments() == false) {
-            bestPlan = solvePreservingAllPreviousAssignments();
-        } else if (planKeepingOneAllocationOnPreviousAssignments.satisfiesAllModels() == false) {
-            AssignmentPlan planKeepingAllAllocationsOnPreviousAssignments = solvePreservingAllPreviousAssignments();
-            bestPlan = planKeepingAllAllocationsOnPreviousAssignments.compareTo(planKeepingOneAllocationOnPreviousAssignments) >= 0
-                ? planKeepingAllAllocationsOnPreviousAssignments
-                : planKeepingOneAllocationOnPreviousAssignments;
+        AssignmentPlan planKeepingOneAllocationOnCurrentAssignments = solveKeepingOneAllocationOnCurrentAssignments();
+        if (planKeepingOneAllocationOnCurrentAssignments.satisfiesCurrentAssignments() == false) {
+            bestPlan = solvePreservingAllAllocationsOnCurrentAssignments();
+        } else if (planKeepingOneAllocationOnCurrentAssignments.satisfiesAllModels() == false) {
+            AssignmentPlan planKeepingAllAllocationsOnCurrentAssignments = solvePreservingAllAllocationsOnCurrentAssignments();
+            bestPlan = planKeepingAllAllocationsOnCurrentAssignments.compareTo(planKeepingOneAllocationOnCurrentAssignments) >= 0
+                ? planKeepingAllAllocationsOnCurrentAssignments
+                : planKeepingOneAllocationOnCurrentAssignments;
         } else {
-            bestPlan = planKeepingOneAllocationOnPreviousAssignments;
+            bestPlan = planKeepingOneAllocationOnCurrentAssignments;
         }
         return bestPlan;
     }
@@ -153,19 +153,19 @@ public class AssignmentPlanner {
         return new AssignmentPlanner(nodes, planModels).computePlan(false);
     }
 
-    private AssignmentPlan solveKeepingOneAllocationOnPreviousAssignments() {
+    private AssignmentPlan solveKeepingOneAllocationOnCurrentAssignments() {
         // We do not want to ever completely unassign a model from a node so we
         // can move allocations without having temporary impact on performance.
-        logger.trace(() -> format("Solving preserving one allocation on previous assignments"));
-        return solvePreservingPreviousAssignments(new PreserveOneAllocation(nodes, models));
+        logger.trace(() -> format("Solving preserving one allocation on current assignments"));
+        return solvePreservingCurrentAssignments(new PreserveOneAllocation(nodes, models));
     }
 
-    private AssignmentPlan solvePreservingAllPreviousAssignments() {
-        logger.trace(() -> format("Solving preserving all allocations on previous assignments"));
-        return solvePreservingPreviousAssignments(new PreserveAllAllocations(nodes, models));
+    private AssignmentPlan solvePreservingAllAllocationsOnCurrentAssignments() {
+        logger.trace(() -> format("Solving preserving all allocations on current assignments"));
+        return solvePreservingCurrentAssignments(new PreserveAllAllocations(nodes, models));
     }
 
-    private AssignmentPlan solvePreservingPreviousAssignments(AbstractPreserveAllocations preserveAllocations) {
+    private AssignmentPlan solvePreservingCurrentAssignments(AbstractPreserveAllocations preserveAllocations) {
         List<Node> planNodes = preserveAllocations.nodesPreservingAllocations();
         List<Model> planModels = preserveAllocations.modelsPreservingAllocations();
         logger.trace(() -> format("Nodes after applying allocation preserving strategy = %s", planNodes));

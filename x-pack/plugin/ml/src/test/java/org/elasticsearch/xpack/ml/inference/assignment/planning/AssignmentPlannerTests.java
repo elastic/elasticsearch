@@ -549,7 +549,7 @@ public class AssignmentPlannerTests extends ESTestCase {
                 allocations += e.getValue();
             }
             assertThat(m.currentAllocationsByNodeId().keySet(), everyItem(in(assignedNodeIds)));
-            assertThat(allocations, greaterThanOrEqualTo(m.getPreviouslyAssignedAllocations()));
+            assertThat(allocations, greaterThanOrEqualTo(m.getCurrentAssignedAllocations()));
         }
     }
 

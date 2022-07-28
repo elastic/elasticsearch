@@ -36,7 +36,7 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
         int maxAssignedAllocations
     ) {
 
-        int getPreviouslyAssignedAllocations() {
+        int getCurrentAssignedAllocations() {
             return currentAllocationsByNodeId.values().stream().mapToInt(Integer::intValue).sum();
         }
 
@@ -115,17 +115,17 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
         return Comparator.comparing(AssignmentPlan::computeQuality).compare(this, o);
     }
 
-    public boolean satisfiesPreviousAssignments() {
-        return models().stream().allMatch(this::isSatisfyingPreviousAssignmentsForModel);
+    public boolean satisfiesCurrentAssignments() {
+        return models().stream().allMatch(this::isSatisfyingCurrentAssignmentsForModel);
     }
 
-    private boolean isSatisfyingPreviousAssignmentsForModel(Model m) {
+    private boolean isSatisfyingCurrentAssignmentsForModel(Model m) {
         if (m.currentAllocationsByNodeId().isEmpty()) {
             return true;
         }
         Map<Node, Integer> nodeAssignments = assignments.get(m);
         int currentAllocations = nodeAssignments.values().stream().mapToInt(Integer::intValue).sum();
-        return currentAllocations >= m.getPreviouslyAssignedAllocations();
+        return currentAllocations >= m.getCurrentAssignedAllocations();
     }
 
     public boolean satisfiesAllocations(Model m) {
@@ -173,7 +173,7 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
 
         for (Map.Entry<Model, Map<Node, Integer>> entry : assignments.entrySet()) {
             Model m = entry.getKey();
-            isSatisfyingPreviousAssignments = isSatisfyingPreviousAssignments && isSatisfyingPreviousAssignmentsForModel(m);
+            isSatisfyingPreviousAssignments = isSatisfyingPreviousAssignments && isSatisfyingCurrentAssignmentsForModel(m);
             Map<Node, Integer> modelAssignments = entry.getValue();
             if (modelAssignments != null) {
                 for (Map.Entry<Node, Integer> nodeAllocations : modelAssignments.entrySet()) {

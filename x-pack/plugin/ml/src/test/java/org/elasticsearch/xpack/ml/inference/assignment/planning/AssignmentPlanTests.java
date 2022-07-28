@@ -57,11 +57,11 @@ public class AssignmentPlanTests extends ESTestCase {
         AssignmentPlan plan = builder.build();
 
         assertThat(plan.models(), contains(m));
-        assertThat(plan.satisfiesPreviousAssignments(), is(true));
+        assertThat(plan.satisfiesCurrentAssignments(), is(true));
         assertThat(plan.assignments(m).get(), equalTo(Map.of(n, 1)));
     }
 
-    public void testAssignModelToNode_GivenNewPlanSatisfiesPreviousAssignment() {
+    public void testAssignModelToNode_GivenNewPlanSatisfiesCurrentAssignment() {
         Node n = new Node("n_1", 100, 4);
         Model m = new Model("m_1", 40, 2, 2, Map.of("n_1", 1), 0);
 
@@ -77,11 +77,11 @@ public class AssignmentPlanTests extends ESTestCase {
         AssignmentPlan plan = builder.build();
 
         assertThat(plan.models(), contains(m));
-        assertThat(plan.satisfiesPreviousAssignments(), is(true));
+        assertThat(plan.satisfiesCurrentAssignments(), is(true));
         assertThat(plan.assignments(m).get(), equalTo(Map.of(n, 1)));
     }
 
-    public void testAssignModelToNode_GivenNewPlanDoesNotSatisfyPreviousAssignment() {
+    public void testAssignModelToNode_GivenNewPlanDoesNotSatisfyCurrentAssignment() {
         Node n = new Node("n_1", 100, 4);
         Model m = new Model("m_1", 40, 2, 2, Map.of("n_1", 2), 0);
 
@@ -97,7 +97,7 @@ public class AssignmentPlanTests extends ESTestCase {
         AssignmentPlan plan = builder.build();
 
         assertThat(plan.models(), contains(m));
-        assertThat(plan.satisfiesPreviousAssignments(), is(false));
+        assertThat(plan.satisfiesCurrentAssignments(), is(false));
         assertThat(plan.assignments(m).get(), equalTo(Map.of(n, 1)));
     }
 
@@ -120,7 +120,7 @@ public class AssignmentPlanTests extends ESTestCase {
         AssignmentPlan plan = builder.build();
 
         assertThat(plan.models(), contains(m));
-        assertThat(plan.satisfiesPreviousAssignments(), is(true));
+        assertThat(plan.satisfiesCurrentAssignments(), is(true));
         assertThat(plan.assignments(m).get(), equalTo(Map.of(n, 2)));
     }
 
@@ -180,7 +180,7 @@ public class AssignmentPlanTests extends ESTestCase {
         AssignmentPlan plan = builder.build();
 
         assertThat(plan.models(), contains(m));
-        assertThat(plan.satisfiesPreviousAssignments(), is(true));
+        assertThat(plan.satisfiesCurrentAssignments(), is(true));
         assertThat(plan.assignments(m).get(), equalTo(Map.of(n, 3)));
     }
 

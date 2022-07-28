@@ -125,9 +125,4 @@ public class LocalStateSecurity extends LocalStateCompositeXPackPlugin {
     protected Class<? extends TransportAction<XPackInfoRequest, XPackInfoResponse>> getInfoAction() {
         return SecurityTransportXPackInfoAction.class;
     }
-
-    @Override
-    public void onTracer(Tracer tracer) {
-        plugins.forEach(plugin -> plugin.onTracer(tracer));
-    }
 }

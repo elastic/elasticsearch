@@ -793,8 +793,6 @@ public class Node implements Closeable {
             final HttpServerTransport httpServerTransport = newHttpTransport(networkModule);
             final IndexingPressure indexingLimits = new IndexingPressure(settings);
 
-            pluginsService.filterPlugins(Plugin.class).forEach(plugin -> plugin.onTracer(tracer));
-
             final RecoverySettings recoverySettings = new RecoverySettings(settings, settingsModule.getClusterSettings());
             RepositoriesModule repositoriesModule = new RepositoriesModule(
                 this.environment,

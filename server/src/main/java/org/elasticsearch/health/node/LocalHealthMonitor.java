@@ -173,7 +173,10 @@ public class LocalHealthMonitor implements ClusterStateListener {
                 long frozenFloodStageThreshold = diskMetadata.getFreeBytesFrozenFloodStageWatermark(totalBytes).getBytes();
                 if (usage.getFreeBytes() < frozenFloodStageThreshold) {
                     logger.debug("flood stage disk watermark [{}] exceeded on {}", frozenFloodStageThreshold, usage);
-                    return new IndividualNodeHealth.Disk(HealthStatus.RED, IndividualNodeHealth.Disk.Cause.FROZEN_NODE_OVER_FLOOD_STAGE_THRESHOLD);
+                    return new IndividualNodeHealth.Disk(
+                        HealthStatus.RED,
+                        IndividualNodeHealth.Disk.Cause.FROZEN_NODE_OVER_FLOOD_STAGE_THRESHOLD
+                    );
                 }
                 return new IndividualNodeHealth.Disk(HealthStatus.GREEN);
             }

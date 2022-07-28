@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.sql.optimizer;
 
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.aggregations.metrics.PercentilesConfig;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
@@ -1060,21 +1059,13 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         }
     }
 
-    private static class PercentileKey extends Tuple<Expression, PercentilesConfig> {
+    private record PercentileKey(Expression field, PercentilesConfig percentilesConfig) {
         PercentileKey(Percentile per) {
-            super(per.field(), per.percentilesConfig());
+            this(per.field(), per.percentilesConfig());
         }
 
         PercentileKey(PercentileRank per) {
-            super(per.field(), per.percentilesConfig());
-        }
-
-        private Expression field() {
-            return v1();
-        }
-
-        private PercentilesConfig percentilesConfig() {
-            return v2();
+            this(per.field(), per.percentilesConfig());
         }
     }
 

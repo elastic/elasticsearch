@@ -122,7 +122,7 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
                     // A replica Set might have one (and not more) replicas with the state of RELOCATING.
                     if (shard.assignedToNode()) {
                         // LinkedHashMap to preserve order
-                        nodesToShards.computeIfAbsent(shard.currentNodeId(), createRoutingNode).add(shard);
+                        nodesToShards.computeIfAbsent(shard.currentNodeId(), createRoutingNode).addWithoutValidation(shard);
                         assignedShardsAdd(shard);
                         if (shard.relocating()) {
                             relocatingShards++;
@@ -130,7 +130,8 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
                             addInitialRecovery(targetShardRouting, indexShard.primary);
                             // LinkedHashMap to preserve order.
                             // Add the counterpart shard with relocatingNodeId reflecting the source from which it's relocating from.
-                            nodesToShards.computeIfAbsent(shard.relocatingNodeId(), createRoutingNode).add(targetShardRouting);
+                            nodesToShards.computeIfAbsent(shard.relocatingNodeId(), createRoutingNode)
+                                .addWithoutValidation(targetShardRouting);
                             assignedShardsAdd(targetShardRouting);
                         } else if (shard.initializing()) {
                             if (shard.primary()) {
@@ -145,6 +146,7 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
                 }
             }
         }
+        nodesToShards.values().forEach(RoutingNode::invariant);
     }
 
     private RoutingNodes(RoutingNodes routingNodes) {
@@ -152,27 +154,14 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
         // instance
         assert routingNodes.readOnly : "tried to create a mutable copy from a mutable instance";
         this.readOnly = false;
-        this.nodesToShards = Maps.newMapWithExpectedSize(routingNodes.nodesToShards.size());
-        for (Map.Entry<String, RoutingNode> entry : routingNodes.nodesToShards.entrySet()) {
-            this.nodesToShards.put(entry.getKey(), entry.getValue().copy());
-        }
-        this.assignedShards = Maps.newMapWithExpectedSize(routingNodes.assignedShards.size());
-        for (Map.Entry<ShardId, List<ShardRouting>> entry : routingNodes.assignedShards.entrySet()) {
-            this.assignedShards.put(entry.getKey(), new ArrayList<>(entry.getValue()));
-        }
+        this.nodesToShards = Maps.copyOf(routingNodes.nodesToShards, RoutingNode::copy);
+        this.assignedShards = Maps.copyOf(routingNodes.assignedShards, ArrayList::new);
         this.unassignedShards = routingNodes.unassignedShards.copyFor(this);
-
         this.inactivePrimaryCount = routingNodes.inactivePrimaryCount;
         this.inactiveShardCount = routingNodes.inactiveShardCount;
         this.relocatingShards = routingNodes.relocatingShards;
-        this.attributeValuesByAttribute = Maps.newMapWithExpectedSize(routingNodes.attributeValuesByAttribute.size());
-        for (Map.Entry<String, Set<String>> entry : routingNodes.attributeValuesByAttribute.entrySet()) {
-            this.attributeValuesByAttribute.put(entry.getKey(), new HashSet<>(entry.getValue()));
-        }
-        this.recoveriesPerNode = Maps.newMapWithExpectedSize(routingNodes.recoveriesPerNode.size());
-        for (Map.Entry<String, Recoveries> entry : routingNodes.recoveriesPerNode.entrySet()) {
-            this.recoveriesPerNode.put(entry.getKey(), entry.getValue().copy());
-        }
+        this.attributeValuesByAttribute = Maps.copyOf(routingNodes.attributeValuesByAttribute, HashSet::new);
+        this.recoveriesPerNode = Maps.copyOf(routingNodes.recoveriesPerNode, Recoveries::copy);
     }
 
     /**

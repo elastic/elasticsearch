@@ -43,9 +43,9 @@ public final class UpdateApiKeyRequest extends ActionRequest {
 
     public UpdateApiKeyRequest(StreamInput in) throws IOException {
         super(in);
-        this.id = in.readString();
         this.roleDescriptors = in.readOptionalList(RoleDescriptor::new);
         this.metadata = in.readMap();
+        this.id = in.readString();
     }
 
     @Override
@@ -68,9 +68,9 @@ public final class UpdateApiKeyRequest extends ActionRequest {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(id);
         out.writeOptionalCollection(roleDescriptors);
         out.writeGenericMap(metadata);
+        out.writeString(id);
     }
 
     public static UpdateApiKeyRequest usingApiKeyId(String id) {

@@ -153,32 +153,24 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                     buildStats(metadata.index(trialSourceIndexName), statsResponse)
                 );
 
-                // If this is a dry run, return with the results without invoking a cluster state update
-                if (rolloverRequest.isDryRun()) {
-                    listener.onResponse(
-                        new RolloverResponse(trialSourceIndexName, trialRolloverIndexName, trialConditionResults, true, false, false, false)
-                    );
-                    return;
-                }
-
-                final List<Condition<?>> trialMetConditions = rolloverRequest.getConditions()
-                    .values()
-                    .stream()
-                    .filter(condition -> trialConditionResults.get(condition.toString()))
-                    .toList();
-
                 final RolloverResponse trialRolloverResponse = new RolloverResponse(
                     trialSourceIndexName,
                     trialRolloverIndexName,
                     trialConditionResults,
-                    false,
+                    rolloverRequest.isDryRun(),
                     false,
                     false,
                     false
                 );
 
+                // If this is a dry run, return with the results without invoking a cluster state update
+                if (rolloverRequest.isDryRun()) {
+                    listener.onResponse(trialRolloverResponse);
+                    return;
+                }
+
                 // Pre-check the conditions to see whether we should submit a new cluster state task
-                if (trialConditionResults.size() == 0 || trialMetConditions.size() > 0) {
+                if (rolloverRequest.areConditionsMet(trialConditionResults)) {
                     String source = "rollover_index source [" + trialRolloverIndexName + "] to target [" + trialRolloverIndexName + "]";
                     RolloverTask rolloverTask = new RolloverTask(rolloverRequest, statsResponse, trialRolloverResponse, listener);
                     ClusterStateTaskConfig config = ClusterStateTaskConfig.build(Priority.NORMAL, rolloverRequest.masterNodeTimeout());
@@ -315,13 +307,13 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 rolloverRequest.getConditions().values(),
                 buildStats(currentState.metadata().index(sourceIndexName), rolloverTask.statsResponse())
             );
-            final List<Condition<?>> metConditions = rolloverRequest.getConditions()
-                .values()
-                .stream()
-                .filter(condition -> postConditionResults.get(condition.toString()))
-                .toList();
 
-            if (postConditionResults.size() == 0 || metConditions.size() > 0) {
+            if (rolloverRequest.areConditionsMet(postConditionResults)) {
+                final List<Condition<?>> metConditions = rolloverRequest.getConditions()
+                    .values()
+                    .stream()
+                    .filter(condition -> postConditionResults.get(condition.toString()))
+                    .toList();
 
                 // Perform the actual rollover
                 final var rolloverResult = rolloverService.rolloverClusterState(

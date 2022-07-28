@@ -124,8 +124,10 @@ public class IndexDeprecationChecks {
     }
 
     private static void fieldLevelMappingIssue(IndexMetadata indexMetadata, BiConsumer<MappingMetadata, Map<String, Object>> checker) {
-        Map<String, Object> sourceAsMap = indexMetadata.mapping().sourceAsMap();
-        checker.accept(indexMetadata.mapping(), sourceAsMap);
+        if (indexMetadata.mapping() != null) {
+            Map<String, Object> sourceAsMap = indexMetadata.mapping().sourceAsMap();
+            checker.accept(indexMetadata.mapping(), sourceAsMap);
+        }
     }
 
     /**

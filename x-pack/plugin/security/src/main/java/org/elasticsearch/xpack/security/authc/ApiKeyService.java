@@ -1496,7 +1496,7 @@ public class ApiKeyService {
             } else {
                 // Since we made an index request against an existing document, we can't get a NOOP or CREATED here
                 assert bulkItemResponse.getResponse().getResult() == DocWriteResponse.Result.UPDATED;
-                responseBuilder.update(apiKeyId);
+                responseBuilder.updated(apiKeyId);
             }
         }
         clearApiKeyDocCache(responseBuilder.build(), listener);

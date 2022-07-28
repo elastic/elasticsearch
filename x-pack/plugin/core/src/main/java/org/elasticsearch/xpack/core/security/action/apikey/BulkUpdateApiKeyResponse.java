@@ -99,7 +99,7 @@ public final class BulkUpdateApiKeyResponse extends ActionResponse implements To
             errorDetails = new HashMap<>();
         }
 
-        public Builder update(final String id) {
+        public Builder updated(final String id) {
             updated.add(id);
             return this;
         }

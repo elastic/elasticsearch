@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.aggregatemetric.mapper;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
@@ -32,6 +34,7 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
+import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
@@ -284,6 +287,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
         /**
          * Return a delegate field type for a given metric sub-field
+         *
          * @return a field type
          */
         private NumberFieldMapper.NumberFieldType delegateFieldType(Metric metric) {
@@ -292,6 +296,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
         /**
          * Return a delegate field type for the default metric sub-field
+         *
          * @return a field type
          */
         private NumberFieldMapper.NumberFieldType delegateFieldType() {
@@ -509,6 +514,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
         /**
          * If field is a time series metric field, returns its metric type
+         *
          * @return the metric type or null
          */
         public MetricType getMetricType() {
@@ -524,13 +530,19 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
     private final Version indexCreatedVersion;
 
-    /** A set of metrics supported */
+    /**
+     * A set of metrics supported
+     */
     private final EnumSet<Metric> metrics;
 
-    /** The default metric to be when querying this field type */
+    /**
+     * The default metric to be when querying this field type
+     */
     protected Metric defaultMetric;
 
-    /** The metric type (gauge, counter, summary) if  field is a time series metric */
+    /**
+     * The metric type (gauge, counter, summary) if  field is a time series metric
+     */
     private final TimeSeriesParams.MetricType metricType;
 
     private AggregateDoubleMetricFieldMapper(
@@ -574,7 +586,6 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
     @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
-
         context.path().add(simpleName());
         XContentParser.Token token;
         XContentSubParser subParser = null;
@@ -674,5 +685,182 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
     @Override
     public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), ignoreMalformedByDefault, indexCreatedVersion).metric(metricType).init(this);
+    }
+
+    @Override
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        if (ignoreMalformed) {
+            throw new IllegalArgumentException(
+                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it ignores malformed numbers"
+            );
+        }
+        return new NumericSyntheticFieldLoader(name(), simpleName(), metrics);
+    }
+
+    public static class NumericSyntheticFieldLoader implements SourceLoader.SyntheticFieldLoader {
+        private final String name;
+        private final String simpleName;
+        private final EnumSet<Metric> metrics;
+
+        protected NumericSyntheticFieldLoader(String name, String simpleName, EnumSet<Metric> metrics) {
+            this.name = name;
+            this.simpleName = simpleName;
+            this.metrics = metrics;
+        }
+
+        @Override
+        public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException {
+            Map<Metric, SortedNumericDocValues> metricDocValues = new EnumMap<>(Metric.class);
+            for (Metric m : metrics) {
+                SortedNumericDocValues dv = dv(reader, m);
+                if (dv != null) {
+                    metricDocValues.put(m, dv);
+                }
+            }
+
+            if (metricDocValues.isEmpty()) {
+                return SourceLoader.SyntheticFieldLoader.NOTHING_LEAF;
+            }
+
+            // if (docIdsInLeaf.length > 1) {
+            // /*
+            // * The singleton optimization is mostly about looking up all
+            // * values for the field at once. If there's just a single
+            // * document then it's just extra overhead.
+            // */
+            // NumericDocValues single = DocValues.unwrapSingleton(dv);
+            // if (single != null) {
+            // return singletonLeaf(single, docIdsInLeaf);
+            // }
+            // }
+            return new NumericSyntheticFieldLoader.ImmediateLeaf(metricDocValues);
+        }
+
+        private class ImmediateLeaf implements Leaf {
+            private final Map<Metric, SortedNumericDocValues> metricDocValues;
+            private Map<Metric, Boolean> dvHasValue;
+
+            private boolean hasValues;
+
+            ImmediateLeaf(Map<Metric, SortedNumericDocValues> metricDocValues) {
+                this.metricDocValues = metricDocValues;
+            }
+
+            @Override
+            public boolean empty() {
+                return false;
+            }
+
+            @Override
+            public boolean advanceToDoc(int docId) throws IOException {
+                // It is required that all defined metrics must exist. In this case
+                // it is enough to check for the first docValue. However, in the future
+                // we may relax the requirement of all metrics existing. In this case
+                // we should check the doc value for each metric separately
+                dvHasValue = new EnumMap<>(Metric.class);
+                hasValues = false;
+                for (Map.Entry<Metric, SortedNumericDocValues> e : metricDocValues.entrySet()) {
+                    boolean b = e.getValue().advanceExact(docId);
+                    hasValues = hasValues || b;
+                    dvHasValue.put(e.getKey(), b);
+                }
+
+                return hasValues;
+            }
+
+            @Override
+            public void write(XContentBuilder b) throws IOException {
+                if (false == hasValues) {
+                    return;
+                }
+                b.startObject(simpleName);
+                for (Map.Entry<Metric, SortedNumericDocValues> entry : metricDocValues.entrySet()) {
+                    if (dvHasValue.get(entry.getKey())) {
+                        String metricName = entry.getKey().name();
+                        long value = entry.getValue().nextValue();
+                        if (entry.getKey() == Metric.value_count) {
+                            b.field(metricName, value);
+                        } else {
+                            b.field(metricName, NumericUtils.sortableLongToDouble(value));
+                        }
+                    }
+                }
+                b.endObject();
+            }
+        }
+
+        // /**
+        // * Load all values for all docs up front. This should be much more
+        // * disk and cpu-friendly than {@link NumericSyntheticFieldLoader.ImmediateLeaf} because it resolves
+        // * the values all at once, always scanning forwards on the disk.
+        // */
+        private Leaf singletonLeaf(NumericDocValues singleton, int[] docIdsInLeaf) throws IOException {
+            long[] values = new long[docIdsInLeaf.length];
+            boolean[] hasValue = new boolean[docIdsInLeaf.length];
+            boolean found = false;
+            for (int d = 0; d < docIdsInLeaf.length; d++) {
+                if (false == singleton.advanceExact(docIdsInLeaf[d])) {
+                    hasValue[d] = false;
+                    continue;
+                }
+                hasValue[d] = true;
+                values[d] = singleton.longValue();
+                found = true;
+            }
+            if (found == false) {
+                return SourceLoader.SyntheticFieldLoader.NOTHING_LEAF;
+            }
+            return new Leaf() {
+                private int idx = -1;
+
+                @Override
+                public boolean empty() {
+                    return false;
+                }
+
+                @Override
+                public boolean advanceToDoc(int docId) throws IOException {
+                    idx++;
+                    if (docIdsInLeaf[idx] != docId) {
+                        throw new IllegalArgumentException(
+                            "expected to be called with [" + docIdsInLeaf[idx] + "] but was called with " + docId + " instead"
+                        );
+                    }
+                    return hasValue[idx];
+                }
+
+                @Override
+                public void write(XContentBuilder b) throws IOException {
+                    if (hasValue[idx] == false) {
+                        return;
+                    }
+                    // b.startObject(simpleName());
+                    // for (Metric m : metrics) {
+                    // b.field(m.name(), 1);
+                    // }
+                    // b.endObject();
+
+                }
+            };
+        }
+
+        /**
+         * Returns a {@link SortedNumericDocValues} or null if it doesn't have any doc values.
+         * See {@link DocValues#getSortedNumeric} which is *nearly* the same, but it returns
+         * an "empty" implementation if there aren't any doc values. We need to be able to
+         * tell if there aren't any and return our empty leaf source loader.
+         */
+        private SortedNumericDocValues dv(LeafReader reader, Metric metric) throws IOException {
+            String fieldName = subfieldName(name, metric);
+            SortedNumericDocValues dv = reader.getSortedNumericDocValues(fieldName);
+            if (dv != null) {
+                return dv;
+            }
+            NumericDocValues single = reader.getNumericDocValues(fieldName);
+            if (single != null) {
+                return DocValues.singleton(single);
+            }
+            return null;
+        }
     }
 }

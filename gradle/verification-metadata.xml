@@ -4,8 +4,10 @@
       <verify-metadata>false</verify-metadata>
       <verify-signatures>false</verify-signatures>
       <trusted-artifacts>
+         <trust group="org.elasticsearch.ml"/>
          <trust group="org.elasticsearch" name="elasticsearch"/>
          <trust group="org.elasticsearch.distribution.zip" name="elasticsearch"/>
+         <trust group="elasticsearch-distribution" name="elasticsearch"/>
          <trust file=".*-javadoc[.]jar" regex="true"/>
          <trust file=".*-sources[.]jar" regex="true"/>
       </trusted-artifacts>

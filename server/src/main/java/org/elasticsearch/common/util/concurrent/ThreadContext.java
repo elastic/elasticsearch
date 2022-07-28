@@ -152,9 +152,9 @@ public final class ThreadContext implements Writeable {
      * @return a stored context, which can be restored when this context is no longer needed.
      */
     public StoredContext newTraceContext() {
-        final ThreadContextStruct context = threadLocal.get();
-        final Map<String, String> newRequestHeaders = new HashMap<>(context.requestHeaders);
-        final Map<String, Object> newTransientHeaders = new HashMap<>(context.transientHeaders);
+        final ThreadContextStruct originalContext = threadLocal.get();
+        final Map<String, String> newRequestHeaders = new HashMap<>(originalContext.requestHeaders);
+        final Map<String, Object> newTransientHeaders = new HashMap<>(originalContext.transientHeaders);
 
         final String previousTraceParent = newRequestHeaders.remove(Task.TRACE_PARENT_HTTP_HEADER);
         if (previousTraceParent != null) {
@@ -174,13 +174,23 @@ public final class ThreadContext implements Writeable {
         threadLocal.set(
             new ThreadContextStruct(
                 newRequestHeaders,
-                context.responseHeaders,
+                originalContext.responseHeaders,
                 newTransientHeaders,
-                context.isSystemContext,
-                context.warningHeadersSize
+                originalContext.isSystemContext,
+                originalContext.warningHeadersSize
             )
         );
-        return () -> threadLocal.set(context);
+        // this is the context when this method returns
+        final ThreadContextStruct newContext = threadLocal.get();
+        return () -> {
+            if (threadLocal.get() != newContext) {
+                // Tracing shouldn't interrupt the propagation of response headers, so in the same as #newStoredContext(...),
+                // pass on any potential changes to the response headers.
+                threadLocal.set(originalContext.putResponseHeaders(threadLocal.get().responseHeaders));
+            } else {
+                threadLocal.set(originalContext);
+            }
+        };
     }
 
     public boolean hasTraceContext() {

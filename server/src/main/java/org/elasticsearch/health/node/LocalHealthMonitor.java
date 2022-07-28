@@ -57,7 +57,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
 
     private volatile TimeValue monitorInterval;
     private volatile Scheduler.ScheduledCancellable scheduled;
-    private volatile NodeHealth lastObservedHealth = NodeHealth.INITIALIZING;
+    private volatile NodeHealth lastReportedHealth = null;
     private volatile boolean enabled;
     private volatile boolean healthMetadataInitialized;
 
@@ -105,7 +105,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
                     scheduleNextRunIfEnabled(TimeValue.timeValueMillis(1));
                 }
             } else if (newHealthNodeSelected(event)) {
-                sendHealth(lastObservedHealth);
+                sendHealth(lastReportedHealth);
             }
         }
     }
@@ -126,21 +126,24 @@ public class LocalHealthMonitor implements ClusterStateListener {
         ClusterState clusterState = clusterService.state();
         HealthMetadata healthMetadata = HealthMetadata.getFromClusterState(clusterState);
         assert healthMetadata != null : "health metadata should have been initialized.";
-        NodeHealth previousHealth = this.lastObservedHealth;
+        NodeHealth previousHealth = this.lastReportedHealth;
         NodeHealth currentHealth = new NodeHealth(diskCheck.getHealth(healthMetadata, clusterState));
         if (currentHealth.equals(previousHealth) == false) {
             sendHealth(currentHealth);
-            this.lastObservedHealth = currentHealth;
         }
         scheduleNextRunIfEnabled(monitorInterval);
     }
 
-    private void sendHealth(NodeHealth currentHealth) {
+    // This method is synchronized to ensure that we keep track of the last reported health state to the health node.
+    // Note: this is for demonstration purposes, when we will be actually sending the information to the health node we might
+    // choose a different way to keep it thread safe.
+    private synchronized void sendHealth(NodeHealth currentHealth) {
         logger.info("Sending node health [{}] to health node", currentHealth);
+        this.lastReportedHealth = currentHealth;
     }
 
-    NodeHealth getLastObservedHealth() {
-        return lastObservedHealth;
+    NodeHealth getLastReportedHealth() {
+        return lastReportedHealth;
     }
 
     /**
@@ -237,30 +240,6 @@ public class LocalHealthMonitor implements ClusterStateListener {
 
         private boolean hasRelocatingShards(ClusterState clusterState, String nodeId) {
             return clusterState.getRoutingNodes().node(nodeId).shardsWithState(ShardRoutingState.RELOCATING).isEmpty() == false;
-        }
-    }
-
-    /**
-     * The health of this node which consists by the health status of different resources, currently only disk space.
-     */
-    record NodeHealth(Disk disk) {
-        static final NodeHealth INITIALIZING = new NodeHealth(new Disk(HealthStatus.UNKNOWN, Disk.Cause.NODE_JUST_STARTED));
-
-        /**
-         * The health status of the disk space of this node along with the cause.
-         */
-        record Disk(HealthStatus healthStatus, Cause cause) {
-            Disk(HealthStatus healthStatus) {
-                this(healthStatus, null);
-            }
-
-            enum Cause {
-                NODE_OVER_HIGH_THRESHOLD,
-                NODE_OVER_THE_FLOOD_STAGE_THRESHOLD,
-                FROZEN_NODE_OVER_FLOOD_STAGE_THRESHOLD,
-                NODE_HAS_NO_DISK_STATS,
-                NODE_JUST_STARTED
-            }
         }
     }
 }

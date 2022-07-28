@@ -229,7 +229,6 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
 
             private Builder() {}
 
-
             public Disk.Builder highWatermark(RelativeByteSizeValue highWatermark) {
                 this.highWatermark = highWatermark;
                 return this;

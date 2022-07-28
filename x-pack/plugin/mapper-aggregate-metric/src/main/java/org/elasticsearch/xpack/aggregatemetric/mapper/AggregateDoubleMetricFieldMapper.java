@@ -694,15 +694,15 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                 "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it ignores malformed numbers"
             );
         }
-        return new NumericSyntheticFieldLoader(name(), simpleName(), metrics);
+        return new AggregateMetricSyntheticFieldLoader(name(), simpleName(), metrics);
     }
 
-    public static class NumericSyntheticFieldLoader implements SourceLoader.SyntheticFieldLoader {
+    public static class AggregateMetricSyntheticFieldLoader implements SourceLoader.SyntheticFieldLoader {
         private final String name;
         private final String simpleName;
         private final EnumSet<Metric> metrics;
 
-        protected NumericSyntheticFieldLoader(String name, String simpleName, EnumSet<Metric> metrics) {
+        protected AggregateMetricSyntheticFieldLoader(String name, String simpleName, EnumSet<Metric> metrics) {
             this.name = name;
             this.simpleName = simpleName;
             this.metrics = metrics;
@@ -722,18 +722,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                 return SourceLoader.SyntheticFieldLoader.NOTHING_LEAF;
             }
 
-            // if (docIdsInLeaf.length > 1) {
-            // /*
-            // * The singleton optimization is mostly about looking up all
-            // * values for the field at once. If there's just a single
-            // * document then it's just extra overhead.
-            // */
-            // NumericDocValues single = DocValues.unwrapSingleton(dv);
-            // if (single != null) {
-            // return singletonLeaf(single, docIdsInLeaf);
-            // }
-            // }
-            return new NumericSyntheticFieldLoader.ImmediateLeaf(metricDocValues);
+            return new AggregateMetricSyntheticFieldLoader.ImmediateLeaf(metricDocValues);
         }
 
         private class ImmediateLeaf implements Leaf {
@@ -787,61 +776,6 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                 }
                 b.endObject();
             }
-        }
-
-        // /**
-        // * Load all values for all docs up front. This should be much more
-        // * disk and cpu-friendly than {@link NumericSyntheticFieldLoader.ImmediateLeaf} because it resolves
-        // * the values all at once, always scanning forwards on the disk.
-        // */
-        private Leaf singletonLeaf(NumericDocValues singleton, int[] docIdsInLeaf) throws IOException {
-            long[] values = new long[docIdsInLeaf.length];
-            boolean[] hasValue = new boolean[docIdsInLeaf.length];
-            boolean found = false;
-            for (int d = 0; d < docIdsInLeaf.length; d++) {
-                if (false == singleton.advanceExact(docIdsInLeaf[d])) {
-                    hasValue[d] = false;
-                    continue;
-                }
-                hasValue[d] = true;
-                values[d] = singleton.longValue();
-                found = true;
-            }
-            if (found == false) {
-                return SourceLoader.SyntheticFieldLoader.NOTHING_LEAF;
-            }
-            return new Leaf() {
-                private int idx = -1;
-
-                @Override
-                public boolean empty() {
-                    return false;
-                }
-
-                @Override
-                public boolean advanceToDoc(int docId) throws IOException {
-                    idx++;
-                    if (docIdsInLeaf[idx] != docId) {
-                        throw new IllegalArgumentException(
-                            "expected to be called with [" + docIdsInLeaf[idx] + "] but was called with " + docId + " instead"
-                        );
-                    }
-                    return hasValue[idx];
-                }
-
-                @Override
-                public void write(XContentBuilder b) throws IOException {
-                    if (hasValue[idx] == false) {
-                        return;
-                    }
-                    // b.startObject(simpleName());
-                    // for (Metric m : metrics) {
-                    // b.field(m.name(), 1);
-                    // }
-                    // b.endObject();
-
-                }
-            };
         }
 
         /**

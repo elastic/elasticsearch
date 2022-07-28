@@ -1797,12 +1797,11 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         }
     }
 
-    public void testUpdateApiKeyAccountsForSecurityDomains() throws ExecutionException, InterruptedException, IOException {
+    public void testUpdateApiKeyAccountsForSecurityDomains() throws Exception {
         final Tuple<CreateApiKeyResponse, Map<String, Object>> createdApiKey = createApiKey(TEST_USER_NAME, null);
         final var apiKeyId = createdApiKey.v1().getId();
 
         final ServiceWithNodeName serviceWithNodeName = getServiceWithNodeName();
-        final PlainActionFuture<UpdateApiKeyResponse> listener = new PlainActionFuture<>();
         final RealmConfig.RealmIdentifier creatorRealmOnCreatedApiKey = new RealmConfig.RealmIdentifier(FileRealmSettings.TYPE, "file");
         final RealmConfig.RealmIdentifier otherRealmInDomain = AuthenticationTestHelper.randomRealmIdentifier(true);
         final var realmDomain = new RealmDomain(
@@ -1825,8 +1824,12 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 )
                 .build()
         );
-        serviceWithNodeName.service().updateApiKey(authentication, UpdateApiKeyRequest.usingApiKeyId(apiKeyId), Set.of(), listener);
-        final UpdateApiKeyResponse response = listener.get();
+        final UpdateApiKeyResponse response = updateApiKeyMaybeUsingBulk(
+            serviceWithNodeName.service(),
+            authentication,
+            UpdateApiKeyRequest.usingApiKeyId(apiKeyId),
+            Set.of()
+        );
 
         assertNotNull(response);
         assertTrue(response.isUpdated());
@@ -1915,7 +1918,6 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         // First, ensure that the user role descriptors alone do *not* cause an update, so we can test that we correctly perform the noop
         // check when we update creator info
         final ServiceWithNodeName serviceWithNodeName = getServiceWithNodeName();
-        PlainActionFuture<UpdateApiKeyResponse> listener = new PlainActionFuture<>();
         // Role descriptor corresponding to SecuritySettingsSource.TEST_ROLE_YML, i.e., should not result in update
         final Set<RoleDescriptor> oldUserRoleDescriptors = Set.of(
             new RoleDescriptor(
@@ -1926,17 +1928,15 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 null
             )
         );
-        serviceWithNodeName.service()
-            .updateApiKey(
-                Authentication.newRealmAuthentication(
-                    new User(TEST_USER_NAME, TEST_ROLE),
-                    new Authentication.RealmRef("file", "file", serviceWithNodeName.nodeName())
-                ),
-                UpdateApiKeyRequest.usingApiKeyId(apiKeyId),
-                oldUserRoleDescriptors,
-                listener
-            );
-        response = listener.get();
+        response = updateApiKeyMaybeUsingBulk(
+            serviceWithNodeName.service(),
+            Authentication.newRealmAuthentication(
+                new User(TEST_USER_NAME, TEST_ROLE),
+                new Authentication.RealmRef("file", "file", serviceWithNodeName.nodeName())
+            ),
+            UpdateApiKeyRequest.usingApiKeyId(apiKeyId),
+            oldUserRoleDescriptors
+        );
         assertNotNull(response);
         assertFalse(response.isUpdated());
         final User updatedUser = AuthenticationTestHelper.userWithRandomMetadataAndDetails(TEST_USER_NAME, TEST_ROLE);
@@ -1967,15 +1967,17 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             Authentication::isApiKey,
             () -> AuthenticationTestHelper.builder().user(updatedUser).realmRef(realmRef).build()
         );
-        listener = new PlainActionFuture<>();
-        serviceWithNodeName.service()
-            .updateApiKey(authentication, UpdateApiKeyRequest.usingApiKeyId(apiKeyId), oldUserRoleDescriptors, listener);
-        response = listener.get();
+        response = updateApiKeyMaybeUsingBulk(
+            serviceWithNodeName.service(),
+            authentication,
+            UpdateApiKeyRequest.usingApiKeyId(apiKeyId),
+            oldUserRoleDescriptors
+        );
         assertNotNull(response);
         assertTrue(response.isUpdated());
     }
 
-    public void testUpdateApiKeyAutoUpdatesLegacySuperuserRoleDescriptor() throws ExecutionException, InterruptedException, IOException {
+    public void testUpdateApiKeyAutoUpdatesLegacySuperuserRoleDescriptor() throws Exception {
         final Tuple<CreateApiKeyResponse, Map<String, Object>> createdApiKey = createApiKey(TEST_USER_NAME, null);
         final var apiKeyId = createdApiKey.v1().getId();
         final ServiceWithNodeName serviceWithNodeName = getServiceWithNodeName();
@@ -1984,29 +1986,35 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             new Authentication.RealmRef("file", "file", serviceWithNodeName.nodeName())
         );
         final Set<RoleDescriptor> legacySuperuserRoleDescriptor = Set.of(ApiKeyService.LEGACY_SUPERUSER_ROLE_DESCRIPTOR);
-        PlainActionFuture<UpdateApiKeyResponse> listener = new PlainActionFuture<>();
         // Force set user role descriptors to 7.x legacy superuser role descriptors
-        serviceWithNodeName.service()
-            .updateApiKey(authentication, UpdateApiKeyRequest.usingApiKeyId(apiKeyId), legacySuperuserRoleDescriptor, listener);
-        UpdateApiKeyResponse response = listener.get();
+        UpdateApiKeyResponse response = updateApiKeyMaybeUsingBulk(
+            serviceWithNodeName.service(),
+            authentication,
+            UpdateApiKeyRequest.usingApiKeyId(apiKeyId),
+            legacySuperuserRoleDescriptor
+        );
         assertNotNull(response);
         assertTrue(response.isUpdated());
         expectRoleDescriptorsForApiKey("limited_by_role_descriptors", legacySuperuserRoleDescriptor, getApiKeyDocument(apiKeyId));
 
         final Set<RoleDescriptor> currentSuperuserRoleDescriptors = Set.of(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR);
-        PlainActionFuture<UpdateApiKeyResponse> listener2 = new PlainActionFuture<>();
-        serviceWithNodeName.service()
-            .updateApiKey(authentication, UpdateApiKeyRequest.usingApiKeyId(apiKeyId), currentSuperuserRoleDescriptors, listener2);
-        response = listener2.get();
+        response = updateApiKeyMaybeUsingBulk(
+            serviceWithNodeName.service(),
+            authentication,
+            UpdateApiKeyRequest.usingApiKeyId(apiKeyId),
+            currentSuperuserRoleDescriptors
+        );
         assertNotNull(response);
         // The first request is not a noop because we are auto-updating the legacy role descriptors to 8.x role descriptors
         assertTrue(response.isUpdated());
         expectRoleDescriptorsForApiKey("limited_by_role_descriptors", currentSuperuserRoleDescriptors, getApiKeyDocument(apiKeyId));
 
-        PlainActionFuture<UpdateApiKeyResponse> listener3 = new PlainActionFuture<>();
-        serviceWithNodeName.service()
-            .updateApiKey(authentication, UpdateApiKeyRequest.usingApiKeyId(apiKeyId), currentSuperuserRoleDescriptors, listener3);
-        response = listener3.get();
+        response = updateApiKeyMaybeUsingBulk(
+            serviceWithNodeName.service(),
+            authentication,
+            UpdateApiKeyRequest.usingApiKeyId(apiKeyId),
+            currentSuperuserRoleDescriptors
+        );
         assertNotNull(response);
         // Second update is noop because role descriptors were auto-updated by the previous request
         assertFalse(response.isUpdated());
@@ -2433,6 +2441,29 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         );
     }
 
+    private UpdateApiKeyResponse updateApiKeyMaybeUsingBulk(
+        final ApiKeyService service,
+        final Authentication authentication,
+        final UpdateApiKeyRequest request,
+        final Set<RoleDescriptor> userRoleDescriptors
+    ) throws Exception {
+        final boolean useBulkMethod = randomBoolean();
+        if (useBulkMethod) {
+            final PlainActionFuture<BulkUpdateApiKeyResponse> listener = new PlainActionFuture<>();
+            service.bulkUpdateApiKeys(
+                authentication,
+                new BulkUpdateApiKeyRequest(List.of(request.getId()), request.getRoleDescriptors(), request.getMetadata()),
+                userRoleDescriptors,
+                listener
+            );
+            return fromBulkUpdateResponse(listener.get());
+        } else {
+            final PlainActionFuture<UpdateApiKeyResponse> listener = new PlainActionFuture<>();
+            service.updateApiKey(authentication, request, userRoleDescriptors, listener);
+            return listener.get();
+        }
+    }
+
     private UpdateApiKeyResponse executeUpdateApiKey(final String username, final UpdateApiKeyRequest request) throws Exception {
         return executeUpdateApiKey(username, request, randomBoolean());
     }
@@ -2444,22 +2475,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 username,
                 new BulkUpdateApiKeyRequest(List.of(request.getId()), request.getRoleDescriptors(), request.getMetadata())
             );
-            if (response.getErrorDetails().isEmpty() == false) {
-                assertEquals(1, response.getErrorDetails().size());
-                assertThat(response.getUpdated(), empty());
-                assertThat(response.getNoops(), empty());
-                throw response.getErrorDetails().values().iterator().next();
-            } else if (response.getUpdated().isEmpty() == false) {
-                assertEquals(1, response.getUpdated().size());
-                assertThat(response.getErrorDetails(), anEmptyMap());
-                assertThat(response.getNoops(), empty());
-                return new UpdateApiKeyResponse(true);
-            } else {
-                assertEquals(1, response.getNoops().size());
-                assertThat(response.getErrorDetails(), anEmptyMap());
-                assertThat(response.getUpdated(), empty());
-                return new UpdateApiKeyResponse(false);
-            }
+            return fromBulkUpdateResponse(response);
         } else {
             final var listener = new PlainActionFuture<UpdateApiKeyResponse>();
             final Client client = client().filterWithHeader(
@@ -2478,6 +2494,25 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         );
         client.execute(BulkUpdateApiKeyAction.INSTANCE, request, listener);
         return listener.get();
+    }
+
+    private UpdateApiKeyResponse fromBulkUpdateResponse(BulkUpdateApiKeyResponse response) throws Exception {
+        if (response.getErrorDetails().isEmpty() == false) {
+            assertEquals(1, response.getErrorDetails().size());
+            assertThat(response.getUpdated(), empty());
+            assertThat(response.getNoops(), empty());
+            throw response.getErrorDetails().values().iterator().next();
+        } else if (response.getUpdated().isEmpty() == false) {
+            assertEquals(1, response.getUpdated().size());
+            assertThat(response.getErrorDetails(), anEmptyMap());
+            assertThat(response.getNoops(), empty());
+            return new UpdateApiKeyResponse(true);
+        } else {
+            assertEquals(1, response.getNoops().size());
+            assertThat(response.getErrorDetails(), anEmptyMap());
+            assertThat(response.getUpdated(), empty());
+            return new UpdateApiKeyResponse(false);
+        }
     }
 
     private void assertErrorMessage(final ElasticsearchSecurityException ese, String action, String userName, String apiKeyId) {

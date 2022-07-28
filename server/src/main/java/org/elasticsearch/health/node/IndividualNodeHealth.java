@@ -13,7 +13,7 @@ import org.elasticsearch.health.HealthStatus;
 /**
  * The health of an individual node which consists by the health status of different resources, currently only disk space.
  */
-record NodeHealth(Disk disk) {
+record IndividualNodeHealth(Disk disk) {
 
     /**
      * The health status of the disk space of this node along with the cause.

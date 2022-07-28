@@ -24,6 +24,7 @@ import org.gradle.api.tasks.TaskProvider;
 import org.gradle.language.base.plugins.LifecycleBasePlugin;
 
 import java.io.File;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -249,8 +250,10 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                 @Override
                 public void execute(Task task) {
                     if (expectedOutputFile.exists() == false) {
+                        Path relativeOutputPath = project.getRootDir().toPath().relativize(expectedOutputFile.toPath());
                         throw new InvalidUserDataException(
-                            "Building " + bwcVersion.get() + " didn't generate expected artifact " + expectedOutputFile
+                            "Building " + bwcVersion.get() + " didn't generate expected artifact [" + relativeOutputPath + "]. " +
+                                "The working branch may be out of date."
                         );
                     }
                 }

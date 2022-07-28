@@ -22,6 +22,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskAwareRequest;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -42,6 +43,7 @@ public class PersistentTasksNodeService implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(PersistentTasksNodeService.class);
 
+    private final ThreadPool threadPool;
     private final Map<Long, AllocatedPersistentTask> runningTasks = new HashMap<>();
     private final PersistentTasksService persistentTasksService;
     private final PersistentTasksExecutorRegistry persistentTasksExecutorRegistry;
@@ -49,11 +51,13 @@ public class PersistentTasksNodeService implements ClusterStateListener {
     private final NodePersistentTasksExecutor nodePersistentTasksExecutor;
 
     public PersistentTasksNodeService(
+        ThreadPool threadPool,
         PersistentTasksService persistentTasksService,
         PersistentTasksExecutorRegistry persistentTasksExecutorRegistry,
         TaskManager taskManager,
         NodePersistentTasksExecutor nodePersistentTasksExecutor
     ) {
+        this.threadPool = threadPool;
         this.persistentTasksService = persistentTasksService;
         this.persistentTasksExecutorRegistry = persistentTasksExecutorRegistry;
         this.taskManager = taskManager;
@@ -182,56 +186,58 @@ public class PersistentTasksNodeService implements ClusterStateListener {
             }
         };
 
-        AllocatedPersistentTask task;
-        try {
-            task = (AllocatedPersistentTask) taskManager.register("persistent", taskInProgress.getTaskName() + "[c]", request);
-        } catch (Exception e) {
-            logger.error(
-                "Fatal error registering persistent task ["
-                    + taskInProgress.getTaskName()
-                    + "] with id ["
-                    + taskInProgress.getId()
-                    + "] and allocation id ["
-                    + taskInProgress.getAllocationId()
-                    + "], removing from persistent tasks",
-                e
-            );
-            notifyMasterOfFailedTask(taskInProgress, e);
-            return;
-        }
-
-        boolean processed = false;
-        Exception initializationException = null;
-        try {
-            task.init(persistentTasksService, taskManager, taskInProgress.getId(), taskInProgress.getAllocationId());
-            logger.trace(
-                "Persistent task [{}] with id [{}] and allocation id [{}] was created",
-                task.getAction(),
-                task.getPersistentTaskId(),
-                task.getAllocationId()
-            );
+        try (var ignored = threadPool.getThreadContext().newTraceContext()) {
+            AllocatedPersistentTask task;
             try {
-                runningTasks.put(taskInProgress.getAllocationId(), task);
-                nodePersistentTasksExecutor.executeTask(taskInProgress.getParams(), taskInProgress.getState(), task, executor);
+                task = (AllocatedPersistentTask) taskManager.register("persistent", taskInProgress.getTaskName() + "[c]", request);
             } catch (Exception e) {
-                // Submit task failure
-                task.markAsFailed(e);
+                logger.error(
+                    "Fatal error registering persistent task ["
+                        + taskInProgress.getTaskName()
+                        + "] with id ["
+                        + taskInProgress.getId()
+                        + "] and allocation id ["
+                        + taskInProgress.getAllocationId()
+                        + "], removing from persistent tasks",
+                    e
+                );
+                notifyMasterOfFailedTask(taskInProgress, e);
+                return;
             }
-            processed = true;
-        } catch (Exception e) {
-            initializationException = e;
-        } finally {
-            if (processed == false) {
-                // something went wrong - unregistering task
-                logger.warn(
-                    "Persistent task [{}] with id [{}] and allocation id [{}] failed to create",
+
+            boolean processed = false;
+            Exception initializationException = null;
+            try {
+                task.init(persistentTasksService, taskManager, taskInProgress.getId(), taskInProgress.getAllocationId());
+                logger.trace(
+                    "Persistent task [{}] with id [{}] and allocation id [{}] was created",
                     task.getAction(),
                     task.getPersistentTaskId(),
                     task.getAllocationId()
                 );
-                taskManager.unregister(task);
-                if (initializationException != null) {
-                    notifyMasterOfFailedTask(taskInProgress, initializationException);
+                try {
+                    runningTasks.put(taskInProgress.getAllocationId(), task);
+                    nodePersistentTasksExecutor.executeTask(taskInProgress.getParams(), taskInProgress.getState(), task, executor);
+                } catch (Exception e) {
+                    // Submit task failure
+                    task.markAsFailed(e);
+                }
+                processed = true;
+            } catch (Exception e) {
+                initializationException = e;
+            } finally {
+                if (processed == false) {
+                    // something went wrong - unregistering task
+                    logger.warn(
+                        "Persistent task [{}] with id [{}] and allocation id [{}] failed to create",
+                        task.getAction(),
+                        task.getPersistentTaskId(),
+                        task.getAllocationId()
+                    );
+                    taskManager.unregister(task);
+                    if (initializationException != null) {
+                        notifyMasterOfFailedTask(taskInProgress, initializationException);
+                    }
                 }
             }
         }

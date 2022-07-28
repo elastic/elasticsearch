@@ -37,6 +37,7 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedFieldType.FielddataOperation;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -91,7 +92,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
     private final MappingLookup mappingLookup;
     private final SimilarityService similarityService;
     private final BitsetFilterCache bitsetFilterCache;
-    private final BiFunction<MappedFieldType, FieldDataContext, IndexFieldData<?>> indexFieldDataService;
+    private final BiFunction<MappedFieldType, FieldDataContext, IndexFieldData<?>> indexFieldDataLookup;
     private SearchLookup lookup = null;
 
     private final int shardId;
@@ -170,7 +171,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
             source.shardRequestIndex,
             source.indexSettings,
             source.bitsetFilterCache,
-            source.indexFieldDataService,
+            source.indexFieldDataLookup,
             source.mapperService,
             source.mappingLookup,
             source.similarityService,
@@ -218,7 +219,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         this.mapperService = mapperService;
         this.mappingLookup = mappingLookup;
         this.bitsetFilterCache = bitsetFilterCache;
-        this.indexFieldDataService = indexFieldDataLookup;
+        this.indexFieldDataLookup = indexFieldDataLookup;
         this.allowUnmappedFields = indexSettings.isDefaultAllowUnmappedFields();
         this.nestedScope = new NestedScope();
         this.scriptService = scriptService;
@@ -278,10 +279,15 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     @SuppressWarnings("unchecked")
-    public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType) {
-        return (IFD) indexFieldDataService.apply(
+    public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType, FielddataOperation fielddataOperation) {
+        return (IFD) indexFieldDataLookup.apply(
             fieldType,
-            new FieldDataContext(fullyQualifiedIndex.getName(), () -> this.lookup().forkAndTrackFieldReferences(fieldType.name()))
+            new FieldDataContext(
+                fullyQualifiedIndex.getName(),
+                () -> this.lookup().forkAndTrackFieldReferences(fieldType.name()),
+                this::sourcePath,
+                fielddataOperation
+            )
         );
     }
 
@@ -477,9 +483,9 @@ public class SearchExecutionContext extends QueryRewriteContext {
         if (this.lookup == null) {
             this.lookup = new SearchLookup(
                 this::getFieldType,
-                (fieldType, searchLookup) -> indexFieldDataService.apply(
+                (fieldType, searchLookup, fielddataOperation) -> indexFieldDataLookup.apply(
                     fieldType,
-                    new FieldDataContext(fullyQualifiedIndex.getName(), searchLookup)
+                    new FieldDataContext(fullyQualifiedIndex.getName(), searchLookup, this::sourcePath, fielddataOperation)
                 )
             );
         }

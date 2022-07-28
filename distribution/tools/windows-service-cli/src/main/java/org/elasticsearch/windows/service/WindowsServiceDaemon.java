@@ -20,9 +20,9 @@ import org.elasticsearch.server.cli.ServerProcess;
 
 /**
  * Starts an Elasticsearch process, but does not wait for it to exit.
- *
- * This class is expected to be run via Apache Procrun in a long lived JVM that will call close
- * when the server should shutdown.
+ * <p>
+ * This class is expected to be run via Apache Procrun in a long-lived JVM that will call close
+ * when the server should shut down.
  */
 class WindowsServiceDaemon extends EnvironmentAwareCommand {
 

@@ -136,7 +136,7 @@ public class ServerProcess {
     /**
      * Detaches the server process from the current process, enabling the current process to exit.
      *
-     * @throws IOException If an I/O error occured while reading stderr or closing any of the standard streams
+     * @throws IOException If an I/O error occurred while reading stderr or closing any of the standard streams
      */
     public synchronized void detach() throws IOException {
         errorPump.drain();
@@ -176,7 +176,7 @@ public class ServerProcess {
             args.writeTo(out);
             out.flush();
         } catch (IOException ignore) {
-            // A failure to write here means the process has problems, and it will die anyways. We let this fall through
+            // A failure to write here means the process has problems, and it will die anyway. We let this fall through
             // so the pump thread can complete, writing out the actual error. All we get here is the failure to write to
             // the process pipe, which isn't helpful to print.
         }
@@ -231,7 +231,7 @@ public class ServerProcess {
     /**
      * Returns the java.io.tmpdir Elasticsearch should use, creating it if necessary.
      *
-     * <p> On non-Windows OS, this will be created as a sub-directory of the default temporary directory.
+     * <p> On non-Windows OS, this will be created as a subdirectory of the default temporary directory.
      * Note that this causes the created temporary directory to be a private temporary directory.
      */
     private static Path setupTempDir(ProcessInfo processInfo, String tmpDirOverride) throws UserException, IOException {

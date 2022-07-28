@@ -70,10 +70,12 @@ final class JvmOptionsParser {
      * variable.
      *
      * @param configDir the ES config dir
+     * @param tmpDir the directory that should be passed to {@code -Djava.io.tmpdir}
+     * @param envOptions the options passed through the ES_JAVA_OPTS env var
      * @return the list of options to put on the Java command line
      * @throws InterruptedException if the java subprocess is interrupted
      * @throws IOException if there is a problem reading any of the files
-     * @throws UserException if there is a problem parsing the jvm.options file or jvm.options.d files
+     * @throws UserException if there is a problem parsing the `jvm.options` file or `jvm.options.d` files
      */
     static List<String> determineJvmOptions(ServerArgs args, Path configDir, Path tmpDir, String envOptions) throws InterruptedException,
         IOException, UserException {

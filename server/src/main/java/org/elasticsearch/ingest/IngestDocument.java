@@ -59,7 +59,7 @@ public final class IngestDocument {
     public IngestDocument(String index, String id, long version, String routing, VersionType versionType, Map<String, Object> source) {
         this.sourceAndMetadata = new IngestCtxMap(index, id, version, routing, versionType, ZonedDateTime.now(ZoneOffset.UTC), source);
         this.ingestMetadata = new HashMap<>();
-        this.ingestMetadata.put(TIMESTAMP, sourceAndMetadata.getMetadata().getTimestamp());
+        this.ingestMetadata.put(TIMESTAMP, sourceAndMetadata.getMetadata().getNow());
     }
 
     /**

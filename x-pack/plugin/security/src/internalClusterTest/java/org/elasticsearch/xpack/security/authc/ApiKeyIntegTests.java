@@ -1566,16 +1566,20 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         // Check that bulk update works when there are no actual updates
         final List<String> newIds = new ArrayList<>(apiKeyIds);
         // include not found ID to force error
-        final String notFoundId = randomValueOtherThanMany(apiKeyIds::contains, () -> randomAlphaOfLength(10));
-        newIds.add(notFoundId);
+        final List<String> notFoundIds = randomList(
+            1,
+            5,
+            () -> randomValueOtherThanMany(apiKeyIds::contains, () -> randomAlphaOfLength(10))
+        );
+        newIds.addAll(notFoundIds);
         final BulkUpdateApiKeyRequest request = new BulkUpdateApiKeyRequest(shuffledList(newIds), newRoleDescriptors, newMetadata);
         final BulkUpdateApiKeyResponse responseWithNoExpectedUpdates = executeBulkUpdateApiKey(TEST_USER_NAME, request);
         assertNotNull(responseWithNoExpectedUpdates);
         assertThat(responseWithNoExpectedUpdates.getUpdated(), empty());
         assertEquals(apiKeyIds.size(), responseWithNoExpectedUpdates.getNoops().size());
         assertThat(responseWithNoExpectedUpdates.getNoops(), containsInAnyOrder(apiKeyIds.toArray()));
-        assertEquals(1, responseWithNoExpectedUpdates.getErrorDetails().size());
-        assertThat(responseWithNoExpectedUpdates.getErrorDetails(), hasKey(notFoundId));
+        assertEquals(notFoundIds.size(), responseWithNoExpectedUpdates.getErrorDetails().size());
+        assertEquals(responseWithNoExpectedUpdates.getErrorDetails().keySet(), Set.copyOf(notFoundIds));
         for (String apiKeyId : apiKeyIds) {
             final Map<String, Object> doc = getApiKeyDocument(apiKeyId);
             expectRoleDescriptorsForApiKey("role_descriptors", newRoleDescriptors, doc);

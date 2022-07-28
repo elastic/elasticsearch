@@ -21,20 +21,20 @@ class UpsertMetadata extends UpdateMetadata {
         SET_ONCE_STRING,
         OP,
         new FieldProperty<>(String.class, true, true, null),
-        TIMESTAMP,
+        NOW,
         SET_ONCE_LONG
     );
 
-    UpsertMetadata(String index, String id, String op, long timestamp) {
-        super(metadataMap(index, id, op, timestamp), Set.of("noop", "create"), PROPERTIES);
+    UpsertMetadata(String index, String id, String op, long now) {
+        super(metadataMap(index, id, op, now), Set.of("noop", "create"), PROPERTIES);
     }
 
-    protected static Map<String, Object> metadataMap(String index, String id, String op, long timestamp) {
+    protected static Map<String, Object> metadataMap(String index, String id, String op, long now) {
         Map<String, Object> metadata = Maps.newHashMapWithExpectedSize(PROPERTIES.size());
         metadata.put(INDEX, index);
         metadata.put(ID, id);
         metadata.put(OP, op);
-        metadata.put(TIMESTAMP, timestamp);
+        metadata.put(NOW, now);
         return metadata;
     }
 

@@ -471,19 +471,6 @@ public class ApiKeyService {
         );
     }
 
-    private void addErrorsForNotFoundApiKeys(
-        final BulkUpdateApiKeyResponse.Builder responseBuilder,
-        final Collection<VersionedApiKeyDoc> foundDocs,
-        final List<String> requestedIds
-    ) {
-        final Set<String> foundIds = foundDocs.stream().map(VersionedApiKeyDoc::id).collect(Collectors.toUnmodifiableSet());
-        for (String id : requestedIds) {
-            if (foundIds.contains(id) == false) {
-                responseBuilder.error(id, new ResourceNotFoundException("no API key owned by requesting user found for ID [" + id + "]"));
-            }
-        }
-    }
-
     // package-private for testing
     void validateForUpdate(final String apiKeyId, final Authentication authentication, final ApiKeyDoc apiKeyDoc) {
         assert authentication.getEffectiveSubject().getUser().principal().equals(apiKeyDoc.creator.get("principal"));
@@ -1228,6 +1215,19 @@ public class ApiKeyService {
                 .setIfPrimaryTerm(currentVersionedDoc.primaryTerm())
                 .setOpType(DocWriteRequest.OpType.INDEX)
                 .request();
+    }
+
+    private void addErrorsForNotFoundApiKeys(
+        final BulkUpdateApiKeyResponse.Builder responseBuilder,
+        final Collection<VersionedApiKeyDoc> foundDocs,
+        final List<String> requestedIds
+    ) {
+        final Set<String> foundIds = foundDocs.stream().map(VersionedApiKeyDoc::id).collect(Collectors.toUnmodifiableSet());
+        for (String id : requestedIds) {
+            if (foundIds.contains(id) == false) {
+                responseBuilder.error(id, new ResourceNotFoundException("no API key owned by requesting user found for ID [" + id + "]"));
+            }
+        }
     }
 
     /**

@@ -583,7 +583,7 @@ public class DataTierAllocationDeciderIT extends ESIntegTestCase {
     private void updateDesiredNodes(List<DesiredNode> desiredNodes) {
         assertThat(desiredNodes.size(), is(greaterThan(0)));
 
-        final var request = new UpdateDesiredNodesRequest(randomAlphaOfLength(10), 1, desiredNodes);
+        final var request = new UpdateDesiredNodesRequest(randomAlphaOfLength(10), 1, desiredNodes, false);
         internalCluster().client().execute(UpdateDesiredNodesAction.INSTANCE, request).actionGet();
     }
 

@@ -9,6 +9,5 @@
 
   - is_true: cluster_name
   - match:   { status: "green" }
-  - match:   { components.cluster_coordination.status: "green" }
-  - match:   { components.cluster_coordination.indicators.master_is_stable.status: "green" }
-  - match:   { components.cluster_coordination.indicators.master_is_stable.summary: "The cluster has a stable master node" }
+  - match:   { indicators.master_is_stable.status: "green" }
+  - match:   { indicators.master_is_stable.symptom: "The cluster has a stable master node" }

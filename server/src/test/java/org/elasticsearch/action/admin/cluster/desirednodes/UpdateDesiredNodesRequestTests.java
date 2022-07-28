@@ -29,7 +29,8 @@ public class UpdateDesiredNodesRequestTests extends ESTestCase {
         final UpdateDesiredNodesRequest updateDesiredNodesRequest = new UpdateDesiredNodesRequest(
             randomBoolean() ? "" : "     ",
             -1,
-            randomBoolean() ? Collections.emptyList() : List.of(hotDesiredNode())
+            randomBoolean() ? Collections.emptyList() : List.of(hotDesiredNode()),
+            randomBoolean()
         );
         ActionRequestValidationException exception = updateDesiredNodesRequest.validate();
         assertThat(exception, is(notNullValue()));

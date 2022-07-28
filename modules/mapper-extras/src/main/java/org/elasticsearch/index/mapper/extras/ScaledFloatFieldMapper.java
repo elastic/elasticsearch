@@ -721,8 +721,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             } else {
                 v += Math.ulp(v);
             }
-            reenc = Math.round(v * scalingFactor);
-            assert reenc == scaledValue : reenc + " != " + scaledValue;
+            assert Math.round(v * scalingFactor) == scaledValue : Math.round(v * scalingFactor) + " != " + scaledValue;
         }
         return v;
     }

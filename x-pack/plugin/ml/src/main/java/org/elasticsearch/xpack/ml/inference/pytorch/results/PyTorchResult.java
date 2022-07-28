@@ -19,24 +19,39 @@ import java.io.IOException;
  * The top level object capturing output from the pytorch process.
  */
 public record PyTorchResult(
+    String requestId,
+    Boolean isCacheHit,
     @Nullable PyTorchInferenceResult inferenceResult,
     @Nullable ThreadSettings threadSettings,
+    @Nullable AckResult ackResult,
     @Nullable ErrorResult errorResult
 ) implements ToXContentObject {
 
-    static final ParseField REQUEST_ID = new ParseField("request_id");
+    private static final ParseField REQUEST_ID = new ParseField("request_id");
+    private static final ParseField CACHE_HIT = new ParseField("cache_hit");
 
     private static final ParseField RESULT = new ParseField("result");
     private static final ParseField THREAD_SETTINGS = new ParseField("thread_settings");
+    private static final ParseField ACK = new ParseField("ack");
 
     public static ConstructingObjectParser<PyTorchResult, Void> PARSER = new ConstructingObjectParser<>(
         "pytorch_result",
-        a -> new PyTorchResult((PyTorchInferenceResult) a[0], (ThreadSettings) a[1], (ErrorResult) a[2])
+        a -> new PyTorchResult(
+            (String) a[0],
+            (Boolean) a[1],
+            (PyTorchInferenceResult) a[2],
+            (ThreadSettings) a[3],
+            (AckResult) a[4],
+            (ErrorResult) a[5]
+        )
     );
 
     static {
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), REQUEST_ID);
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), CACHE_HIT);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), PyTorchInferenceResult.PARSER, RESULT);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), ThreadSettings.PARSER, THREAD_SETTINGS);
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), AckResult.PARSER, ACK);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), ErrorResult.PARSER, ErrorResult.ERROR);
     }
 
@@ -47,11 +62,20 @@ public record PyTorchResult(
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        if (requestId != null) {
+            builder.field(REQUEST_ID.getPreferredName(), requestId);
+        }
+        if (isCacheHit != null) {
+            builder.field(CACHE_HIT.getPreferredName(), isCacheHit);
+        }
         if (inferenceResult != null) {
             builder.field(RESULT.getPreferredName(), inferenceResult);
         }
         if (threadSettings != null) {
             builder.field(THREAD_SETTINGS.getPreferredName(), threadSettings);
+        }
+        if (ackResult != null) {
+            builder.field(ACK.getPreferredName(), ackResult);
         }
         if (errorResult != null) {
             builder.field(ErrorResult.ERROR.getPreferredName(), errorResult);

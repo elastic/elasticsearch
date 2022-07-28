@@ -27,6 +27,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.metadata.HealthMetadata;
+import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.node.NodeService;
@@ -57,6 +58,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
     private volatile Scheduler.ScheduledCancellable scheduled;
     private volatile NodeHealth lastObservedHealth = NodeHealth.INITIALIZING;
     private volatile boolean enabled;
+    private volatile boolean healthMetadataInitialized;
 
     public LocalHealthMonitor(Settings settings, ClusterService clusterService, NodeService nodeService, ThreadPool threadPool) {
         this.threadPool = threadPool;
@@ -96,26 +98,44 @@ public class LocalHealthMonitor implements ClusterStateListener {
         // Wait until every node in the cluster is upgraded to 8.4.0 or later
         if (event.state().nodesIfRecovered().getMinNodeVersion().onOrAfter(Version.V_8_4_0)) {
             // Wait until the health metadata is available in the cluster state
-            if (HealthMetadata.getHealthCustomMetadata(event.state()) != null) {
-                scheduleNextRunIfEnabled(new TimeValue(1));
-                // We do not track the changes in the cluster state anymore, if the health metadata is changed,
-                // the updated metadata will be used in the next round
-                clusterService.removeListener(this);
+            if (healthMetadataInitialized == false) {
+                healthMetadataInitialized = HealthMetadata.getFromClusterState(event.state()) != null;
+                if (healthMetadataInitialized) {
+                    scheduleNextRunIfEnabled(TimeValue.timeValueMillis(1));
+                }
+            } else if (newHealthNodeSelected(event)) {
+                sendHealth(lastObservedHealth);
             }
+        }
+    }
+
+    private boolean newHealthNodeSelected(ClusterChangedEvent event) {
+        DiscoveryNode previous = HealthNode.findHealthNode(event.previousState());
+        DiscoveryNode current = HealthNode.findHealthNode(event.state());
+        if (current == null) {
+            return false;
+        } else if (previous == null) {
+            return true;
+        } else {
+            return current.getId().equals(previous.getId()) == false;
         }
     }
 
     void monitorHealth() {
         ClusterState clusterState = clusterService.state();
-        HealthMetadata healthMetadata = HealthMetadata.getHealthCustomMetadata(clusterState);
+        HealthMetadata healthMetadata = HealthMetadata.getFromClusterState(clusterState);
         assert healthMetadata != null : "health metadata should have been initialized.";
         NodeHealth previousHealth = this.lastObservedHealth;
         NodeHealth currentHealth = new NodeHealth(diskCheck.getHealth(healthMetadata, clusterState));
         if (currentHealth.equals(previousHealth) == false) {
+            sendHealth(currentHealth);
             this.lastObservedHealth = currentHealth;
-            logger.info("Node health changed from {} to {}", previousHealth, currentHealth);
         }
         scheduleNextRunIfEnabled(monitorInterval);
+    }
+
+    private void sendHealth(NodeHealth currentHealth) {
+        logger.info("Sending node health [{}] to health node", currentHealth);
     }
 
     NodeHealth getLastObservedHealth() {

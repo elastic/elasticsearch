@@ -95,7 +95,7 @@ public class LocalHealthMonitorTests extends ESTestCase {
         );
         clusterState = ClusterState.EMPTY_STATE.copyAndUpdate(
             b -> b.nodes(DiscoveryNodes.builder().add(node).add(frozenNode).localNodeId(node.getId()).build())
-        ).copyAndUpdateMetadata(b -> b.putCustom(HealthMetadata.TYPE, healthMetadata));
+        ).copyAndUpdate(b -> b.putCustom(HealthMetadata.TYPE, healthMetadata));
 
         // Set-up cluster service
         clusterService = mock(ClusterService.class);

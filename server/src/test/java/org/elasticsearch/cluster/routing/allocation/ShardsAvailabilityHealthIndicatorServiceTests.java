@@ -33,13 +33,13 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
-import org.elasticsearch.health.UserAction;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
@@ -84,7 +84,6 @@ import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.RED;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
-import static org.elasticsearch.health.ServerHealthComponents.DATA;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -111,7 +110,6 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 createExpectedResult(
                     GREEN,
                     "This cluster has all shards available.",
-                    null,
                     Map.of("started_primaries", 2, "started_replicas", 1),
                     Collections.emptyList(),
                     Collections.emptyList()
@@ -144,7 +142,6 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     unavailableReplicas.size() > 1
                         ? "This cluster has " + unavailableReplicas.size() + " unavailable replicas."
                         : "This cluster has 1 unavailable replica.",
-                    ShardsAvailabilityHealthIndicatorService.HELP_URL,
                     Map.of(
                         "started_primaries",
                         1,
@@ -160,7 +157,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                             List.of(ImpactArea.SEARCH)
                         )
                     ),
-                    List.of(new UserAction(ACTION_CHECK_ALLOCATION_EXPLAIN_API, List.of("yellow-index")))
+                    List.of(new Diagnosis(ACTION_CHECK_ALLOCATION_EXPLAIN_API, List.of("yellow-index")))
                 )
             )
         );
@@ -179,7 +176,6 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 createExpectedResult(
                     RED,
                     "This cluster has 1 unavailable primary.",
-                    ShardsAvailabilityHealthIndicatorService.HELP_URL,
                     Map.of("unassigned_primaries", 1, "started_replicas", 1),
                     List.of(
                         new HealthIndicatorImpact(
@@ -188,7 +184,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                             List.of(ImpactArea.INGEST, ImpactArea.SEARCH)
                         )
                     ),
-                    List.of(new UserAction(ACTION_CHECK_ALLOCATION_EXPLAIN_API, List.of("red-index")))
+                    List.of(new Diagnosis(ACTION_CHECK_ALLOCATION_EXPLAIN_API, List.of("red-index")))
                 )
             )
         );
@@ -204,7 +200,6 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 createExpectedResult(
                     RED,
                     "This cluster has 1 unavailable primary.",
-                    ShardsAvailabilityHealthIndicatorService.HELP_URL,
                     Map.of("unassigned_primaries", 1),
                     List.of(
                         new HealthIndicatorImpact(
@@ -213,7 +208,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                             List.of(ImpactArea.INGEST, ImpactArea.SEARCH)
                         )
                     ),
-                    List.of(new UserAction(ACTION_CHECK_ALLOCATION_EXPLAIN_API, List.of("red-index")))
+                    List.of(new Diagnosis(ACTION_CHECK_ALLOCATION_EXPLAIN_API, List.of("red-index")))
                 )
             )
         );
@@ -228,7 +223,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
 
         HealthIndicatorResult result = service.calculate(true);
         assertEquals(RED, result.status());
-        assertEquals("This cluster has 1 unavailable primary, 1 unavailable replica.", result.summary());
+        assertEquals("This cluster has 1 unavailable primary, 1 unavailable replica.", result.symptom());
         assertEquals(1, result.impacts().size());
         assertEquals(
             result.impacts().get(0),
@@ -258,7 +253,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
 
         HealthIndicatorResult result = service.calculate(true);
         assertEquals(RED, result.status());
-        assertEquals("This cluster has 1 unavailable primary, 2 unavailable replicas.", result.summary());
+        assertEquals("This cluster has 1 unavailable primary, 2 unavailable replicas.", result.symptom());
         assertEquals(2, result.impacts().size());
         assertEquals(
             result.impacts().get(0),
@@ -334,7 +329,6 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 createExpectedResult(
                     GREEN,
                     "This cluster has 1 restarting replica.",
-                    null,
                     Map.of("started_primaries", 1, "restarting_replicas", 1),
                     Collections.emptyList(),
                     Collections.emptyList()
@@ -356,7 +350,6 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 createExpectedResult(
                     GREEN,
                     "This cluster has all shards available.",
-                    null,
                     Map.of("started_primaries", 1),
                     Collections.emptyList(),
                     Collections.emptyList()
@@ -384,7 +377,6 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 createExpectedResult(
                     YELLOW,
                     "This cluster has 1 unavailable replica.",
-                    ShardsAvailabilityHealthIndicatorService.HELP_URL,
                     Map.of("started_primaries", 1, "unassigned_replicas", 1),
                     List.of(
                         new HealthIndicatorImpact(
@@ -394,7 +386,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                             List.of(ImpactArea.SEARCH)
                         )
                     ),
-                    List.of(new UserAction(ACTION_CHECK_ALLOCATION_EXPLAIN_API, List.of("restarting-index")))
+                    List.of(new Diagnosis(ACTION_CHECK_ALLOCATION_EXPLAIN_API, List.of("restarting-index")))
                 )
             )
         );
@@ -413,7 +405,6 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 createExpectedResult(
                     GREEN,
                     "This cluster has 1 creating primary.",
-                    null,
                     Map.of("creating_primaries", 1),
                     Collections.emptyList(),
                     Collections.emptyList()
@@ -435,7 +426,6 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 createExpectedResult(
                     GREEN,
                     "This cluster has 1 restarting primary.",
-                    null,
                     Map.of("restarting_primaries", 1),
                     Collections.emptyList(),
                     Collections.emptyList()
@@ -462,7 +452,6 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 createExpectedResult(
                     RED,
                     "This cluster has 1 unavailable primary.",
-                    ShardsAvailabilityHealthIndicatorService.HELP_URL,
                     Map.of("unassigned_primaries", 1),
                     List.of(
                         new HealthIndicatorImpact(
@@ -471,7 +460,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                             List.of(ImpactArea.INGEST, ImpactArea.SEARCH)
                         )
                     ),
-                    List.of(new UserAction(ACTION_CHECK_ALLOCATION_EXPLAIN_API, List.of("restarting-index")))
+                    List.of(new Diagnosis(ACTION_CHECK_ALLOCATION_EXPLAIN_API, List.of("restarting-index")))
                 )
             )
         );
@@ -501,7 +490,6 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 createExpectedTruncatedResult(
                     RED,
                     "This cluster has 1 unavailable primary.",
-                    ShardsAvailabilityHealthIndicatorService.HELP_URL,
                     List.of(
                         new HealthIndicatorImpact(
                             1,
@@ -529,7 +517,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         );
 
         var service = createAllocationHealthIndicatorService();
-        List<UserAction.Definition> definitions = service.diagnoseUnassignedShardRouting(shardRouting, ClusterState.EMPTY_STATE);
+        List<Diagnosis.Definition> definitions = service.diagnoseUnassignedShardRouting(shardRouting, ClusterState.EMPTY_STATE);
 
         assertThat(definitions, hasSize(1));
         assertThat(definitions, contains(ACTION_RESTORE_FROM_SNAPSHOT));
@@ -578,7 +566,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
 
         // Get the list of user actions that are generated for this unassigned index shard
         ShardRouting shardRouting = clusterState.routingTable().index(indexMetadata.getIndex()).shard(0).primaryShard();
-        List<UserAction.Definition> actions = service.diagnoseUnassignedShardRouting(shardRouting, clusterState);
+        List<Diagnosis.Definition> actions = service.diagnoseUnassignedShardRouting(shardRouting, clusterState);
 
         assertThat(actions, hasSize(1));
         assertThat(actions, contains(ACTION_CHECK_ALLOCATION_EXPLAIN_API));
@@ -600,7 +588,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createAllocationHealthIndicatorService();
 
         // Get the list of user actions that are generated for this unassigned index shard
-        List<UserAction.Definition> actions = service.checkIsAllocationDisabled(
+        List<Diagnosis.Definition> actions = service.checkIsAllocationDisabled(
             indexMetadata,
             List.of(
                 new NodeAllocationResult(
@@ -632,7 +620,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         );
 
         // Get the list of user actions that are generated for this unassigned index shard
-        List<UserAction.Definition> actions = service.checkIsAllocationDisabled(
+        List<Diagnosis.Definition> actions = service.checkIsAllocationDisabled(
             indexMetadata,
             List.of(
                 new NodeAllocationResult(
@@ -669,7 +657,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         );
 
         // Get the list of user actions that are generated for this unassigned index shard
-        List<UserAction.Definition> actions = service.checkIsAllocationDisabled(
+        List<Diagnosis.Definition> actions = service.checkIsAllocationDisabled(
             indexMetadata,
             List.of(
                 new NodeAllocationResult(
@@ -702,7 +690,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createAllocationHealthIndicatorService();
 
         // Get the list of user actions that are generated for this unassigned index shard
-        List<UserAction.Definition> actions = service.checkDataTierRelatedIssues(
+        List<Diagnosis.Definition> actions = service.checkDataTierRelatedIssues(
             indexMetadata,
             List.of(
                 // Shard is not allowed due to data tier filter
@@ -761,7 +749,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createAllocationHealthIndicatorService();
 
         // Get the list of user actions that are generated for this unassigned index shard
-        List<UserAction.Definition> actions = service.checkDataTierRelatedIssues(
+        List<Diagnosis.Definition> actions = service.checkDataTierRelatedIssues(
             indexMetadata,
             List.of(
                 new NodeAllocationResult(
@@ -826,7 +814,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         );
 
         // Get the list of user actions that are generated for this unassigned index shard
-        List<UserAction.Definition> actions = service.checkDataTierRelatedIssues(
+        List<Diagnosis.Definition> actions = service.checkDataTierRelatedIssues(
             indexMetadata,
             List.of(
                 new NodeAllocationResult(
@@ -886,7 +874,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createAllocationHealthIndicatorService();
 
         // Get the list of user actions that are generated for this unassigned index shard
-        List<UserAction.Definition> actions = service.checkDataTierRelatedIssues(
+        List<Diagnosis.Definition> actions = service.checkDataTierRelatedIssues(
             indexMetadata,
             List.of(
                 new NodeAllocationResult(
@@ -951,7 +939,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         );
 
         // Get the list of user actions that are generated for this unassigned index shard
-        List<UserAction.Definition> actions = service.checkDataTierRelatedIssues(
+        List<Diagnosis.Definition> actions = service.checkDataTierRelatedIssues(
             indexMetadata,
             List.of(
                 new NodeAllocationResult(
@@ -986,7 +974,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createAllocationHealthIndicatorService();
 
         // Get the list of user actions that are generated for this unassigned index shard
-        List<UserAction.Definition> actions = service.checkDataTierRelatedIssues(
+        List<Diagnosis.Definition> actions = service.checkDataTierRelatedIssues(
             indexMetadata,
             List.of(
                 // Shard is allowed on data tier, but disallowed because of allocation filters
@@ -1022,7 +1010,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createAllocationHealthIndicatorService();
 
         // Get the list of user actions that are generated for this unassigned index shard
-        List<UserAction.Definition> actions = service.checkDataTierRelatedIssues(
+        List<Diagnosis.Definition> actions = service.checkDataTierRelatedIssues(
             indexMetadata,
             List.of(
                 // Shard is allowed on data tier, but disallowed because of allocation filters
@@ -1057,7 +1045,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createAllocationHealthIndicatorService();
 
         // Get the list of user actions that are generated for this unassigned index shard
-        List<UserAction.Definition> actions = service.checkDataTierRelatedIssues(
+        List<Diagnosis.Definition> actions = service.checkDataTierRelatedIssues(
             indexMetadata,
             List.of(
                 // Shard is allowed on data tier, but disallowed because of allocation filters
@@ -1092,7 +1080,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createAllocationHealthIndicatorService();
 
         // Get the list of user actions that are generated for this unassigned index shard
-        List<UserAction.Definition> actions = service.checkDataTierRelatedIssues(
+        List<Diagnosis.Definition> actions = service.checkDataTierRelatedIssues(
             indexMetadata,
             List.of(
                 // Shard is allowed on data tier, but disallowed because node is already hosting a copy of it.
@@ -1132,7 +1120,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createAllocationHealthIndicatorService();
 
         // Get the list of user actions that are generated for this unassigned index shard
-        List<UserAction.Definition> actions = service.checkDataTierRelatedIssues(
+        List<Diagnosis.Definition> actions = service.checkDataTierRelatedIssues(
             indexMetadata,
             List.of(
                 // Shard is allowed on data tier, but disallowed because node is already hosting a copy of it.
@@ -1158,40 +1146,23 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
 
     private HealthIndicatorResult createExpectedResult(
         HealthStatus status,
-        String summary,
-        String helpURL,
+        String symptom,
         Map<String, Object> details,
         List<HealthIndicatorImpact> impacts,
-        List<UserAction> actions
+        List<Diagnosis> diagnosisList
     ) {
         return new HealthIndicatorResult(
             NAME,
-            DATA,
             status,
-            summary,
-            helpURL,
+            symptom,
             new SimpleHealthIndicatorDetails(addDefaults(details)),
             impacts,
-            actions
+            diagnosisList
         );
     }
 
-    private HealthIndicatorResult createExpectedTruncatedResult(
-        HealthStatus status,
-        String summary,
-        String helpUrl,
-        List<HealthIndicatorImpact> impacts
-    ) {
-        return new HealthIndicatorResult(
-            NAME,
-            DATA,
-            status,
-            summary,
-            helpUrl,
-            HealthIndicatorDetails.EMPTY,
-            impacts,
-            Collections.emptyList()
-        );
+    private HealthIndicatorResult createExpectedTruncatedResult(HealthStatus status, String symptom, List<HealthIndicatorImpact> impacts) {
+        return new HealthIndicatorResult(NAME, status, symptom, HealthIndicatorDetails.EMPTY, impacts, Collections.emptyList());
     }
 
     private static ClusterState createClusterStateWith(List<IndexRoutingTable> indexRoutes, List<NodeShutdown> nodeShutdowns) {

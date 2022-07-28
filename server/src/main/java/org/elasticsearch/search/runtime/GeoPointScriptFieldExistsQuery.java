@@ -17,7 +17,7 @@ public class GeoPointScriptFieldExistsQuery extends AbstractGeoPointScriptFieldQ
     }
 
     @Override
-    protected boolean matches(long[] values, int count) {
+    protected boolean matches(double[] lats, double[] lons, int count) {
         return count > 0;
     }
 

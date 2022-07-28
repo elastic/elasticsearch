@@ -297,7 +297,7 @@ public class ProfileIT extends ESRestTestCase {
         activateProfileRequest.setJsonEntity("""
             {
               "grant_type": "password",
-              "username": "rac_user",
+              "username": "rac-user",
               "password": "x-pack-test-password"
             }""");
 

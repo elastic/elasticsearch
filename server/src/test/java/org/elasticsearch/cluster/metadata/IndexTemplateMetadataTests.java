@@ -9,7 +9,6 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
@@ -23,6 +22,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
@@ -93,8 +93,8 @@ public class IndexTemplateMetadataTests extends ESTestCase {
                 randomInt(),
                 Collections.emptyList(),
                 Settings.EMPTY,
-                ImmutableOpenMap.of(),
-                ImmutableOpenMap.of()
+                Map.of(),
+                Map.of()
             );
         });
         assertThat(emptyPatternError.getMessage(), equalTo("Index patterns must not be null or empty; got []"));
@@ -106,8 +106,8 @@ public class IndexTemplateMetadataTests extends ESTestCase {
                 randomInt(),
                 null,
                 Settings.EMPTY,
-                ImmutableOpenMap.of(),
-                ImmutableOpenMap.of()
+                Map.of(),
+                Map.of()
             );
         });
         assertThat(nullPatternError.getMessage(), equalTo("Index patterns must not be null or empty; got null"));

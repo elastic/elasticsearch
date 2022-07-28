@@ -25,6 +25,7 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -74,8 +75,7 @@ public class ScriptScoreBenchmark {
         Settings.EMPTY,
         null,
         null,
-        Path.of(System.getProperty("plugins.dir")),
-        List.of()
+        Path.of(System.getProperty("plugins.dir"))
     );
     private final ScriptModule scriptModule = new ScriptModule(Settings.EMPTY, pluginsService.filterPlugins(ScriptPlugin.class));
 
@@ -84,9 +84,9 @@ public class ScriptScoreBenchmark {
     );
     private final IndexFieldDataCache fieldDataCache = new IndexFieldDataCache.None();
     private final CircuitBreakerService breakerService = new NoneCircuitBreakerService();
-    private SearchLookup lookup = new SearchLookup(
+    private final SearchLookup lookup = new SearchLookup(
         fieldTypes::get,
-        (mft, lookup) -> mft.fielddataBuilder("test", lookup).build(fieldDataCache, breakerService)
+        (mft, lookup) -> mft.fielddataBuilder(FieldDataContext.noRuntimeFields("benchmark")).build(fieldDataCache, breakerService)
     );
 
     @Param({ "expression", "metal", "painless_cast", "painless_def" })

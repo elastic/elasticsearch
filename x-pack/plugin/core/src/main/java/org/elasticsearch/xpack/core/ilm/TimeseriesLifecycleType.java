@@ -10,7 +10,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.rollup.RollupV2;
+import org.elasticsearch.index.IndexSettings;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -56,29 +56,30 @@ public class TimeseriesLifecycleType implements LifecycleType {
         UnfollowAction.NAME,
         RolloverAction.NAME,
         ReadOnlyAction.NAME,
-        RollupV2.isEnabled() ? RollupILMAction.NAME : null,
+        IndexSettings.isTimeSeriesModeEnabled() ? RollupILMAction.NAME : null,
         ShrinkAction.NAME,
         ForceMergeAction.NAME,
         SearchableSnapshotAction.NAME
     ).filter(Objects::nonNull).toList();
-    public static final List<String> ORDERED_VALID_WARM_ACTIONS = Arrays.asList(
+    public static final List<String> ORDERED_VALID_WARM_ACTIONS = Stream.of(
         SetPriorityAction.NAME,
         UnfollowAction.NAME,
         ReadOnlyAction.NAME,
+        IndexSettings.isTimeSeriesModeEnabled() ? RollupILMAction.NAME : null,
         AllocateAction.NAME,
         MigrateAction.NAME,
         ShrinkAction.NAME,
         ForceMergeAction.NAME
-    );
+    ).filter(Objects::nonNull).toList();
     public static final List<String> ORDERED_VALID_COLD_ACTIONS = Stream.of(
         SetPriorityAction.NAME,
         UnfollowAction.NAME,
         ReadOnlyAction.NAME,
+        IndexSettings.isTimeSeriesModeEnabled() ? RollupILMAction.NAME : null,
         SearchableSnapshotAction.NAME,
         AllocateAction.NAME,
         MigrateAction.NAME,
-        FreezeAction.NAME,
-        RollupV2.isEnabled() ? RollupILMAction.NAME : null
+        FreezeAction.NAME
     ).filter(Objects::nonNull).toList();
     public static final List<String> ORDERED_VALID_FROZEN_ACTIONS = List.of(UnfollowAction.NAME, SearchableSnapshotAction.NAME);
     public static final List<String> ORDERED_VALID_DELETE_ACTIONS = List.of(WaitForSnapshotAction.NAME, DeleteAction.NAME);

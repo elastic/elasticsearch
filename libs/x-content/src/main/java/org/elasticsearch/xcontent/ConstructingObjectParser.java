@@ -341,7 +341,7 @@ public final class ConstructingObjectParser<Value, Context> extends AbstractObje
      * Constructor arguments are detected by this "marker" consumer. It
      * keeps the API looking clean even if it is a bit sleezy.
      */
-    private boolean isConstructorArg(BiConsumer<?, ?> consumer) {
+    private static boolean isConstructorArg(BiConsumer<?, ?> consumer) {
         return consumer == REQUIRED_CONSTRUCTOR_ARG_MARKER || consumer == OPTIONAL_CONSTRUCTOR_ARG_MARKER;
     }
 

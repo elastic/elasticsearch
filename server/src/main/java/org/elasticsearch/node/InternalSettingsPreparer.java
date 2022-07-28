@@ -45,23 +45,16 @@ public class InternalSettingsPreparer {
         Supplier<String> defaultNodeName
     ) {
         Path configDir = findConfigDir(configPath, input, properties);
+        Path configFile = configDir.resolve("elasticsearch.yml");
 
         Settings.Builder output = Settings.builder(); // start with a fresh output
-        Path path = configDir.resolve("elasticsearch.yml");
 
-        if (Files.exists(path)) {
-            try {
-                loadConfigWithSubstitutions(output, path, System::getenv);
-            } catch (IOException e) {
-                throw new SettingsException("Failed to load settings from " + path.toString(), e);
-            }
-        }
-
+        loadConfigWithSubstitutions(output, configFile, System::getenv);
         loadOverrides(output, properties);
-
-        // re-initialize settings now that the config file has been loaded
-        initializeSettings(output, input);
-        finalizeSettings(output, defaultNodeName);
+        output.put(input);
+        replaceForcedSettings(output);
+        output.replacePropertyPlaceholders();
+        ensureSpecialSettingsExist(output, defaultNodeName);
 
         return new Environment(output.build(), configDir);
     }
@@ -88,56 +81,52 @@ public class InternalSettingsPreparer {
         return PathUtils.get(esHome).resolve("config");
     }
 
-    /**
-     * Initializes the builder with the given input settings, and applies settings from the specified map (these settings typically come
-     * from the command line).
-     *
-     * @param output the settings builder to apply the input and default settings to
-     * @param input the input settings
-     */
-    static void initializeSettings(final Settings.Builder output, final Settings input) {
-        output.put(input);
-        output.replacePropertyPlaceholders();
-    }
+    static void loadConfigWithSubstitutions(Settings.Builder output, Path configFile, Function<String, String> substitutions) {
 
-    static void loadConfigWithSubstitutions(Settings.Builder output, Path configFile, Function<String, String> substitutions)
-        throws IOException {
-        long existingSize = Files.size(configFile);
-        StringBuilder builder = new StringBuilder((int) existingSize);
-        try (BufferedReader reader = Files.newBufferedReader(configFile, StandardCharsets.UTF_8)) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                int dollarNdx;
-                int nextNdx = 0;
-                while ((dollarNdx = line.indexOf("${", nextNdx)) != -1) {
-                    int closeNdx = line.indexOf('}', dollarNdx + 2);
-                    if (closeNdx == -1) {
-                        // No close substitution was found. Break to leniently copy the rest of the line as is.
-                        break;
-                    }
-                    // copy up to the dollar
-                    if (dollarNdx > nextNdx) {
-                        builder.append(line, nextNdx, dollarNdx);
-                    }
-                    nextNdx = closeNdx + 1;
-
-                    String substKey = line.substring(dollarNdx + 2, closeNdx);
-                    String substValue = substitutions.apply(substKey);
-                    if (substValue != null) {
-                        builder.append(substValue);
-                    } else {
-                        // the substitution name doesn't exist, defer to setting based substitution after yaml parsing
-                        builder.append(line, dollarNdx, nextNdx);
-                    }
-                }
-                if (nextNdx < line.length()) {
-                    builder.append(line, nextNdx, line.length());
-                }
-                builder.append(System.lineSeparator());
-            }
+        if (Files.exists(configFile) == false) {
+            return;
         }
-        var is = new ByteArrayInputStream(builder.toString().getBytes(StandardCharsets.UTF_8));
-        output.loadFromStream(configFile.getFileName().toString(), is, false);
+
+        try {
+            long existingSize = Files.size(configFile);
+            StringBuilder builder = new StringBuilder((int) existingSize);
+            try (BufferedReader reader = Files.newBufferedReader(configFile, StandardCharsets.UTF_8)) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    int dollarNdx;
+                    int nextNdx = 0;
+                    while ((dollarNdx = line.indexOf("${", nextNdx)) != -1) {
+                        int closeNdx = line.indexOf('}', dollarNdx + 2);
+                        if (closeNdx == -1) {
+                            // No close substitution was found. Break to leniently copy the rest of the line as is.
+                            break;
+                        }
+                        // copy up to the dollar
+                        if (dollarNdx > nextNdx) {
+                            builder.append(line, nextNdx, dollarNdx);
+                        }
+                        nextNdx = closeNdx + 1;
+
+                        String substKey = line.substring(dollarNdx + 2, closeNdx);
+                        String substValue = substitutions.apply(substKey);
+                        if (substValue != null) {
+                            builder.append(substValue);
+                        } else {
+                            // the substitution name doesn't exist, defer to setting based substitution after yaml parsing
+                            builder.append(line, dollarNdx, nextNdx);
+                        }
+                    }
+                    if (nextNdx < line.length()) {
+                        builder.append(line, nextNdx, line.length());
+                    }
+                    builder.append(System.lineSeparator());
+                }
+            }
+            var is = new ByteArrayInputStream(builder.toString().getBytes(StandardCharsets.UTF_8));
+            output.loadFromStream(configFile.getFileName().toString(), is, false);
+        } catch (IOException e) {
+            throw new SettingsException("Failed to load settings from " + configFile.toString(), e);
+        }
     }
 
     static void loadOverrides(Settings.Builder output, Map<String, String> overrides) {
@@ -157,11 +146,7 @@ public class InternalSettingsPreparer {
         }
     }
 
-    /**
-     * Finish preparing settings by replacing forced settings and any defaults that need to be added.
-     */
-    static void finalizeSettings(Settings.Builder output, Supplier<String> defaultNodeName) {
-        // allow to force set properties based on configuration of the settings provided
+    private static void replaceForcedSettings(Settings.Builder output) {
         List<String> forcedSettings = new ArrayList<>();
         for (String setting : output.keys()) {
             if (setting.startsWith("force.")) {
@@ -172,8 +157,9 @@ public class InternalSettingsPreparer {
             String value = output.remove(forcedSetting);
             output.put(forcedSetting.substring("force.".length()), value);
         }
-        output.replacePropertyPlaceholders();
+    }
 
+    private static void ensureSpecialSettingsExist(Settings.Builder output, Supplier<String> defaultNodeName) {
         // put the cluster and node name if they aren't set
         if (output.get(ClusterName.CLUSTER_NAME_SETTING.getKey()) == null) {
             output.put(ClusterName.CLUSTER_NAME_SETTING.getKey(), ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY).value());

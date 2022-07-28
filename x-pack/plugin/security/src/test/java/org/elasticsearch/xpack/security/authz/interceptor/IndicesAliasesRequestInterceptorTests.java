@@ -19,6 +19,7 @@ import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationResult;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.EmptyAuthorizationInfo;
@@ -55,11 +56,13 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
         when(licenseState.isAllowed(DOCUMENT_LEVEL_SECURITY_FEATURE)).thenReturn(true);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         AuditTrailService auditTrailService = new AuditTrailService(Collections.emptyList(), licenseState);
-        Authentication authentication = new Authentication(
-            new User("john", "role"),
-            new RealmRef("auth_name", "auth_type", "node"),
-            new RealmRef("look_name", "look_type", "node")
-        );
+        Authentication authentication = AuthenticationTestHelper.builder()
+            .user(new User("not-john", "not-role"))
+            .realmRef(new RealmRef("auth_name", "auth_type", "node"))
+            .runAs()
+            .user(new User("john", "role"))
+            .realmRef(new RealmRef("look_name", "look_type", "node"))
+            .build();
         final FieldPermissions fieldPermissions;
         final boolean useFls = randomBoolean();
         if (useFls) {
@@ -125,11 +128,13 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
         when(licenseState.isAllowed(DOCUMENT_LEVEL_SECURITY_FEATURE)).thenReturn(randomBoolean());
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         AuditTrailService auditTrailService = new AuditTrailService(Collections.emptyList(), licenseState);
-        Authentication authentication = new Authentication(
-            new User("john", "role"),
-            new RealmRef("auth_name", "auth_type", "node"),
-            new RealmRef("look_name", "look_type", "node")
-        );
+        Authentication authentication = AuthenticationTestHelper.builder()
+            .user(new User("not-john", "not-role"))
+            .realmRef(new RealmRef("auth_name", "auth_type", "node"))
+            .runAs()
+            .user(new User("john", "role"))
+            .realmRef(new RealmRef("look_name", "look_type", "node"))
+            .build();
         final String action = IndicesAliasesAction.NAME;
         IndicesAccessControl accessControl = new IndicesAccessControl(true, Collections.emptyMap());
         threadContext.putTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, accessControl);

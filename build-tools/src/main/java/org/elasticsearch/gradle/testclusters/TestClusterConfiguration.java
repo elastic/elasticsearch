@@ -113,9 +113,13 @@ public interface TestClusterConfiguration {
 
     String getTransportPortURI();
 
+    String getReadinessPortURI();
+
     List<String> getAllHttpSocketURI();
 
     List<String> getAllTransportPortURI();
+
+    List<String> getAllReadinessPortURI();
 
     void stop(boolean tailLogs);
 

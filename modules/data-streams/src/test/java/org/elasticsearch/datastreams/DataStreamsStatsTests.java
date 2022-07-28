@@ -47,7 +47,6 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
         return List.of(DataStreamsPlugin.class);
     }
 
-    private String timestampFieldName = "@timestamp";
     private final Set<String> createdDataStreams = new HashSet<>();
 
     @Override
@@ -231,8 +230,8 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
     private String createDataStream(boolean hidden) throws Exception {
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.getDefault());
         Template idxTemplate = new Template(null, new CompressedXContent("""
-            {"properties":{"%s":{"type":"date"},"data":{"type":"keyword"}}}
-            """.formatted(timestampFieldName)), null);
+            {"properties":{"@timestamp":{"type":"date"},"data":{"type":"keyword"}}}
+            """), null);
         ComposableIndexTemplate template = new ComposableIndexTemplate(
             List.of(dataStreamName + "*"),
             idxTemplate,
@@ -240,7 +239,7 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
             null,
             null,
             null,
-            new ComposableIndexTemplate.DataStreamTemplate(hidden, false, null),
+            new ComposableIndexTemplate.DataStreamTemplate(hidden, false),
             null
         );
         assertTrue(
@@ -265,7 +264,7 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
                 .source(
                     JsonXContent.contentBuilder()
                         .startObject()
-                        .field(timestampFieldName, timestamp)
+                        .field("@timestamp", timestamp)
                         .field("data", randomAlphaOfLength(25))
                         .endObject()
                 )

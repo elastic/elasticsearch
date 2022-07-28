@@ -42,7 +42,7 @@ import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.http.HttpServerTransport;
@@ -76,6 +76,7 @@ import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.ShutdownAwarePlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
+import org.elasticsearch.plugins.interceptor.RestInterceptorActionPlugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.rest.RestController;
@@ -87,6 +88,7 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -130,7 +132,8 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
         IndexStorePlugin,
         SystemIndexPlugin,
         SearchPlugin,
-        ShutdownAwarePlugin {
+        ShutdownAwarePlugin,
+        RestInterceptorActionPlugin {
 
     private XPackLicenseState licenseState;
     private SSLService sslService;
@@ -195,7 +198,8 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
         NodeEnvironment nodeEnvironment,
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver expressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier
+        Supplier<RepositoriesService> repositoriesServiceSupplier,
+        Tracer tracer
     ) {
         List<Object> components = new ArrayList<>();
         components.addAll(
@@ -210,7 +214,8 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
                 nodeEnvironment,
                 namedWriteableRegistry,
                 expressionResolver,
-                repositoriesServiceSupplier
+                repositoriesServiceSupplier,
+                tracer
             )
         );
 
@@ -228,7 +233,8 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
                         nodeEnvironment,
                         namedWriteableRegistry,
                         expressionResolver,
-                        repositoriesServiceSupplier
+                        repositoriesServiceSupplier,
+                        tracer
                     )
                 )
             );
@@ -400,7 +406,8 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
         NamedXContentRegistry xContentRegistry,
         NetworkService networkService,
         HttpServerTransport.Dispatcher dispatcher,
-        ClusterSettings clusterSettings
+        ClusterSettings clusterSettings,
+        Tracer tracer
     ) {
         Map<String, Supplier<HttpServerTransport>> transports = new HashMap<>();
         filterPlugins(NetworkPlugin.class).stream()
@@ -415,7 +422,8 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
                         xContentRegistry,
                         networkService,
                         dispatcher,
-                        clusterSettings
+                        clusterSettings,
+                        tracer
                     )
                 )
             );
@@ -430,11 +438,13 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
     }
 
     @Override
-    public UnaryOperator<RestHandler> getRestHandlerWrapper(ThreadContext threadContext) {
+    public UnaryOperator<RestHandler> getRestHandlerInterceptor(ThreadContext threadContext) {
 
         // There can be only one.
         List<UnaryOperator<RestHandler>> items = filterPlugins(ActionPlugin.class).stream()
-            .map(p -> p.getRestHandlerWrapper(threadContext))
+            .filter(RestInterceptorActionPlugin.class::isInstance)
+            .map(RestInterceptorActionPlugin.class::cast)
+            .map(p -> p.getRestHandlerInterceptor(threadContext))
             .filter(Objects::nonNull)
             .collect(Collectors.toList());
 
@@ -472,10 +482,10 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
     }
 
     @Override
-    public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders() {
+    public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders(IndexSettingProvider.Parameters parameters) {
         Set<IndexSettingProvider> providers = new HashSet<>();
-        filterPlugins(Plugin.class).stream().forEach(p -> providers.addAll(p.getAdditionalIndexSettingProviders()));
-        providers.addAll(super.getAdditionalIndexSettingProviders());
+        filterPlugins(Plugin.class).stream().forEach(p -> providers.addAll(p.getAdditionalIndexSettingProviders(parameters)));
+        providers.addAll(super.getAdditionalIndexSettingProviders(parameters));
         return providers;
 
     }
@@ -715,10 +725,16 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
         List<SystemIndexPlugin> systemPlugins = filterPlugins(SystemIndexPlugin.class);
 
         GroupedActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> allListeners = new GroupedActionListener<>(
-            ActionListener.wrap(
-                listenerResults -> finalListener.onResponse(ResetFeatureStateStatus.success(getFeatureName())),
-                finalListener::onFailure
-            ),
+            ActionListener.wrap(listenerResults -> {
+                // If the clean-up produced only one result, use that to pass along. In most
+                // cases it should be 1-1 mapping of feature to response. Passing back success
+                // prevents us from writing validation tests on this API.
+                if (listenerResults != null && listenerResults.size() == 1) {
+                    finalListener.onResponse(listenerResults.stream().findFirst().get());
+                } else {
+                    finalListener.onResponse(ResetFeatureStateStatus.success(getFeatureName()));
+                }
+            }, finalListener::onFailure),
             systemPlugins.size()
         );
         systemPlugins.forEach(plugin -> plugin.cleanUpFeature(clusterService, client, allListeners));

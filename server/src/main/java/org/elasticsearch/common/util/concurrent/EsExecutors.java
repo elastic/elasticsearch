@@ -355,7 +355,7 @@ public class EsExecutors {
             }
         }
 
-        private void put(ThreadPoolExecutor executor, Runnable task) {
+        private static void put(ThreadPoolExecutor executor, Runnable task) {
             final BlockingQueue<Runnable> queue = executor.getQueue();
             // force queue policy should only be used with a scaling queue
             assert queue instanceof ExecutorScalingQueue;

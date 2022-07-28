@@ -205,7 +205,7 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
 
-        List<Index> backingIndices = List.of(sourceIndexMetadata.getIndex(), writeIndexMetadata.getIndex());
+        List<Index> backingIndices = List.of(writeIndexMetadata.getIndex());
         ClusterState clusterState = ClusterState.builder(emptyClusterState())
             .metadata(
                 Metadata.builder()

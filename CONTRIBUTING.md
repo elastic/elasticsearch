@@ -87,7 +87,7 @@ Once your changes and tests are ready to submit for review:
 
 3. Rebase your changes
 
-    Update your local repository with the most recent code from the main Elasticsearch repository, and rebase your branch on top of the latest master branch. We prefer your initial changes to be squashed into a single commit. Later, if we ask you to make changes, add them as separate commits.  This makes them easier to review.  As a final step before merging we will either ask you to squash all commits yourself or we'll do it for you.
+    Update your local repository with the most recent code from the main Elasticsearch repository, and rebase your branch on top of the latest main branch. We prefer your initial changes to be squashed into a single commit. Later, if we ask you to make changes, add them as separate commits.  This makes them easier to review.  As a final step before merging we will either ask you to squash all commits yourself or we'll do it for you.
 
 
 4. Submit a pull request
@@ -100,8 +100,8 @@ Please adhere to the general guideline that you should never force push
 to a publicly shared branch. Once you have opened your pull request, you
 should consider your branch publicly shared. Instead of force pushing
 you can just add incremental commits; this is generally easier on your
-reviewers. If you need to pick up changes from master, you can merge
-master into your branch. A reviewer might ask you to rebase a
+reviewers. If you need to pick up changes from main, you can merge
+main into your branch. A reviewer might ask you to rebase a
 long-running pull request in which case force pushing is okay for that
 request. Note that squashing at the end of the review process should
 also not be done, that can be done when the pull request is [integrated
@@ -266,7 +266,7 @@ IntelliJ IDEs can
 the same settings file, and / or use the [Eclipse Code Formatter] plugin.
 
 You can also tell Spotless to [format a specific
-file](https://github.com/diffplug/spotless/tree/master/plugin-gradle#can-i-apply-spotless-to-specific-files)
+file](https://github.com/diffplug/spotless/tree/main/plugin-gradle#can-i-apply-spotless-to-specific-files)
 from the command line.
 
 ### Javadoc
@@ -450,14 +450,15 @@ causes and their causes, as well as any suppressed exceptions and so on:
     logger.debug("operation failed", exception);
 
 If you wish to use placeholders and an exception at the same time, construct a
-`ParameterizedMessage`:
+`Supplier<String>` and use `org.elasticsearch.core.Strings.format`
+- note java.util.Formatter syntax
 
-    logger.debug(new ParameterizedMessage("failed at offset [{}]", offset), exception);
+    logger.debug(() -> Strings.format("failed at offset [%s]", offset), exception);
 
-You can also use a `Supplier<ParameterizedMessage>` to avoid constructing
+You can also use a `java.util.Supplier<String>` to avoid constructing
 expensive messages that will usually be discarded:
 
-    logger.debug(() -> new ParameterizedMessage("rarely seen output [{}]", expensiveMethod()));
+    logger.debug(() -> "rarely seen output [" + expensiveMethod() + "]");
 
 Logging is an important behaviour of the system and sometimes deserves its own
 unit tests, especially if there is complex logic for computing what is logged
@@ -603,7 +604,7 @@ threshold has been breached:
 
     logger.warn(
         "flood stage disk watermark [{}] exceeded on {}, all indices on this node will be marked read-only",
-        diskThresholdSettings.describeFloodStageThreshold(),
+        diskThresholdSettings.describeFloodStageThreshold(total, false),
         usage
     );
 
@@ -650,7 +651,7 @@ which it will not recover. For instance, the `FsHealthService` uses `ERROR`
 logs to record that the data path failed some basic health checks and hence the
 node cannot continue to operate as a member of the cluster:
 
-    logger.error(new ParameterizedMessage("health check of [{}] failed", path), ex);
+    logger.error(() -> "health check of [" + path + "] failed", ex);
 
 Errors like this should be very rare. When in doubt, prefer `WARN` to `ERROR`.
 
@@ -695,7 +696,28 @@ If your changes affect only the documentation, run:
     ./gradlew -p docs check
 
 For more information about testing code examples in the documentation, see
-https://github.com/elastic/elasticsearch/blob/master/docs/README.asciidoc
+https://github.com/elastic/elasticsearch/blob/main/docs/README.asciidoc
+
+### Only running failed tests
+
+When you open your pull-request it may be approved for review. If so, the full
+test suite is run within Elasticsearch's CI environment. If a test fails,
+you can see how to run that particular test by searching for the `REPRODUCE`
+string in the CI's console output.
+
+Elasticsearch's testing suite takes advantage of randomized testing. Consequently,
+a test that passes locally, may actually fail later due to random settings
+or data input. To make tests repeatable, a `REPRODUCE` line in CI will also include
+the `-Dtests.seed` parameter.
+
+When running locally, gradle does its best to take advantage of cached results.
+So, if the code is unchanged, running the same test with the same `-Dtests.seed`
+repeatedly may not actually run the test if it has passed with that seed
+ in the previous execution. A way around this is to pass a separate parameter
+to adjust the command options seen by gradle.
+A simple option may be to add the parameter `-Dtests.timestamp=$(date +%s)`
+which will give the current time stamp as a parameter, thus making the parameters
+sent to gradle unique and bypassing the cache.
 
 ### Project layout
 
@@ -909,4 +931,4 @@ repeating in this section because it has come up in this context.
 [Checkstyle]: https://plugins.jetbrains.com/plugin/1065-checkstyle-idea
 [spotless]: https://github.com/diffplug/spotless
 [Eclipse Code Formatter]: https://plugins.jetbrains.com/plugin/6546-eclipse-code-formatter
-[Spotless Gradle]: https://github.com/diffplug/spotless/tree/master/plugin-gradle
+[Spotless Gradle]: https://github.com/diffplug/spotless/tree/main/plugin-gradle

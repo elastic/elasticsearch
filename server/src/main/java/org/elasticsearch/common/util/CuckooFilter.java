@@ -394,7 +394,7 @@ public class CuckooFilter implements Writeable {
     /**
      * Calculate the optimal number of bits per entry
      */
-    private int bitsPerEntry(double fpp, int numEntriesPerBucket) {
+    private static int bitsPerEntry(double fpp, int numEntriesPerBucket) {
         return (int) Math.round(log2((2 * numEntriesPerBucket) / fpp));
     }
 
@@ -402,7 +402,7 @@ public class CuckooFilter implements Writeable {
      * Calculate the optimal number of entries per bucket.  Will return 2, 4 or 8
      * depending on the false positive rate
      */
-    private int entriesPerBucket(double fpp) {
+    private static int entriesPerBucket(double fpp) {
         /*
           Empirical constants from paper:
             "the space-optimal bucket size depends on the target false positive rate ε:
@@ -423,7 +423,7 @@ public class CuckooFilter implements Writeable {
      * Calculates the optimal load factor for the filter, given the number of entries
      * per bucket.  Will return 0.84, 0.955 or 0.98 depending on b
      */
-    private double getLoadFactor(int b) {
+    private static double getLoadFactor(int b) {
         if ((b == 2 || b == 4 || b == 8) == false) {
             throw new IllegalArgumentException("b must be one of [2,4,8]");
         }
@@ -449,14 +449,14 @@ public class CuckooFilter implements Writeable {
      *
      * TODO: there are schemes to avoid powers of two, might want to investigate those
      */
-    private int getNumBuckets(long capacity, double loadFactor, int b) {
+    private static int getNumBuckets(long capacity, double loadFactor, int b) {
         long buckets = Math.round((((double) capacity / loadFactor)) / (double) b);
 
         // Rounds up to nearest power of 2
         return 1 << -Integer.numberOfLeadingZeros((int) buckets - 1);
     }
 
-    private double log2(double x) {
+    private static double log2(double x) {
         return Math.log(x) / LN_2;
     }
 
@@ -618,54 +618,6 @@ public class CuckooFilter implements Writeable {
             // Two blocks
             blocks[elementPos] = blocks[elementPos] & ~(maskRight >>> endBits) | (value >>> endBits);
             blocks[elementPos + 1] = blocks[elementPos + 1] & (~0L >>> endBits) | (value << (BLOCK_SIZE - endBits));
-        }
-
-        public int set(int index, long[] arr, int off, int len) {
-            assert len > 0 : "len must be > 0 (got " + len + ")";
-            assert index >= 0 && index < valueCount;
-            len = Math.min(len, valueCount - index);
-            assert off + len <= arr.length;
-
-            final int originalIndex = index;
-            final PackedInts.Encoder encoder = PackedInts.getEncoder(PackedInts.Format.PACKED, PackedInts.VERSION_CURRENT, bitsPerValue);
-
-            // go to the next block where the value does not span across two blocks
-            final int offsetInBlocks = index % encoder.longValueCount();
-            if (offsetInBlocks != 0) {
-                for (int i = offsetInBlocks; i < encoder.longValueCount() && len > 0; ++i) {
-                    set(index++, arr[off++]);
-                    --len;
-                }
-                if (len == 0) {
-                    return index - originalIndex;
-                }
-            }
-
-            // bulk set
-            assert index % encoder.longValueCount() == 0;
-            int blockIndex = (int) (((long) index * bitsPerValue) >>> BLOCK_BITS);
-            assert (((long) index * bitsPerValue) & MOD_MASK) == 0;
-            final int iterations = len / encoder.longValueCount();
-            encoder.encode(arr, off, blocks, blockIndex, iterations);
-            final int setValues = iterations * encoder.longValueCount();
-            index += setValues;
-            len -= setValues;
-            assert len >= 0;
-
-            if (index > originalIndex) {
-                // stay at the block boundary
-                return index - originalIndex;
-            } else {
-                // no progress so far => already at a block boundary but no full block to get
-                assert index == originalIndex;
-                len = Math.min(len, size() - index);
-                assert off + len <= arr.length;
-
-                for (int i = index, o = off, end = index + len; i < end; ++i, ++o) {
-                    set(i, arr[o]);
-                }
-                return len;
-            }
         }
 
         public long ramBytesUsed() {

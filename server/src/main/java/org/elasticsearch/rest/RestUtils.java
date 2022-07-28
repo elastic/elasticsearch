@@ -25,12 +25,7 @@ public class RestUtils {
      */
     private static final boolean DECODE_PLUS_AS_SPACE = Booleans.parseBoolean(System.getProperty("es.rest.url_plus_as_space", "false"));
 
-    public static final PathTrie.Decoder REST_DECODER = new PathTrie.Decoder() {
-        @Override
-        public String decode(String value) {
-            return RestUtils.decodeComponent(value);
-        }
-    };
+    public static final PathTrie.Decoder REST_DECODER = RestUtils::decodeComponent;
 
     public static void decodeQueryString(String s, int fromIndex, Map<String, String> params) {
         if (fromIndex < 0) {

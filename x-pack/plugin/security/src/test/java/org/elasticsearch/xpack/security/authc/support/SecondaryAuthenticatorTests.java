@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.DefaultAuthenticationFailureHandler;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig.RealmIdentifier;
@@ -298,11 +299,10 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
 
     public void testAuthenticateUsingBearerToken() throws Exception {
         final User user = new User(randomAlphaOfLengthBetween(6, 12));
-        Authentication auth = new Authentication(
-            user,
-            new RealmRef(randomAlphaOfLengthBetween(4, 8), randomAlphaOfLengthBetween(3, 6), randomAlphaOfLengthBetween(8, 12)),
-            null
-        );
+        Authentication auth = AuthenticationTestHelper.builder()
+            .user(user)
+            .realmRef(new RealmRef(randomAlphaOfLengthBetween(4, 8), randomAlphaOfLengthBetween(3, 6), randomAlphaOfLengthBetween(8, 12)))
+            .build(false);
 
         final AtomicReference<String> tokenDocId = new AtomicReference<>();
         final AtomicReference<BytesReference> tokenSource = new AtomicReference<>();

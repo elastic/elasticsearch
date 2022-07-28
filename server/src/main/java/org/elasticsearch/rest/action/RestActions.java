@@ -21,7 +21,6 @@ import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -33,7 +32,9 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 
@@ -166,7 +167,7 @@ public class RestActions {
     }
 
     /**
-     * Automatically transform the {@link ToXContent}-compatible, nodes-level {@code response} into a a {@link BytesRestResponse}.
+     * Automatically transform the {@link ToXContent}-compatible, nodes-level {@code response} into a a {@link RestResponse}.
      * <p>
      * This looks like:
      * <code>
@@ -184,7 +185,7 @@ public class RestActions {
      * @throws IOException if building the response causes an issue
      */
     @SuppressWarnings({ "rawtypes", "unchecked" })
-    public static <NodesResponse extends BaseNodesResponse & ToXContent> BytesRestResponse nodesResponse(
+    public static <NodesResponse extends BaseNodesResponse & ToXContent> RestResponse nodesResponse(
         final XContentBuilder builder,
         final Params params,
         final NodesResponse response
@@ -195,12 +196,26 @@ public class RestActions {
         response.toXContent(builder, params);
         builder.endObject();
 
-        return new BytesRestResponse(RestStatus.OK, builder);
+        return new RestResponse(RestStatus.OK, builder);
     }
+
+    private static final String[] queryStringParams = new String[] { "df", "analyzer", "analyze_wildcard", "lenient", "default_operator" };
 
     public static QueryBuilder urlParamsToQueryBuilder(RestRequest request) {
         String queryString = request.param("q");
         if (queryString == null) {
+            List<String> unconsumedParams = Arrays.stream(queryStringParams).filter(key -> request.param(key) != null).toList();
+            if (unconsumedParams.isEmpty() == false) {
+                // this would lead to a non-descriptive error from RestBaseHandler#unrecognized later, so throw a better IAE here
+                throw new IllegalArgumentException(
+                    String.format(
+                        Locale.ROOT,
+                        "request [%s] contains parameters %s but missing query string parameter 'q'.",
+                        request.path(),
+                        unconsumedParams.toString()
+                    )
+                );
+            }
             return null;
         }
         QueryStringQueryBuilder queryBuilder = QueryBuilders.queryStringQuery(queryString);

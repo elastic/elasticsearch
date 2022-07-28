@@ -23,7 +23,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
@@ -34,6 +33,7 @@ import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -46,6 +46,7 @@ import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.RuntimeField;
+import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.support.NestedScope;
@@ -69,11 +70,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
-import java.util.function.Supplier;
 
 /**
  * The context used to execute a search request on a shard. It provides access
@@ -90,7 +91,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
     private final MappingLookup mappingLookup;
     private final SimilarityService similarityService;
     private final BitsetFilterCache bitsetFilterCache;
-    private final TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataService;
+    private final BiFunction<MappedFieldType, FieldDataContext, IndexFieldData<?>> indexFieldDataService;
     private SearchLookup lookup = null;
 
     private final int shardId;
@@ -120,7 +121,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         int shardRequestIndex,
         IndexSettings indexSettings,
         BitsetFilterCache bitsetFilterCache,
-        TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataLookup,
+        BiFunction<MappedFieldType, FieldDataContext, IndexFieldData<?>> indexFieldDataLookup,
         MapperService mapperService,
         MappingLookup mappingLookup,
         SimilarityService similarityService,
@@ -193,7 +194,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         int shardRequestIndex,
         IndexSettings indexSettings,
         BitsetFilterCache bitsetFilterCache,
-        TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataLookup,
+        BiFunction<MappedFieldType, FieldDataContext, IndexFieldData<?>> indexFieldDataLookup,
         MapperService mapperService,
         MappingLookup mappingLookup,
         SimilarityService similarityService,
@@ -280,8 +281,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
     public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType) {
         return (IFD) indexFieldDataService.apply(
             fieldType,
-            fullyQualifiedIndex.getName(),
-            () -> this.lookup().forkAndTrackFieldReferences(fieldType.name())
+            new FieldDataContext(fullyQualifiedIndex.getName(), () -> this.lookup().forkAndTrackFieldReferences(fieldType.name()))
         );
     }
 
@@ -375,6 +375,9 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     public boolean isMultiField(String field) {
+        if (runtimeMappings.containsKey(field)) {
+            return false;
+        }
         return mapperService.isMultiField(field);
     }
 
@@ -384,6 +387,16 @@ public class SearchExecutionContext extends QueryRewriteContext {
 
     public boolean isSourceEnabled() {
         return mappingLookup.isSourceEnabled();
+    }
+
+    /**
+     * Build something to load source {@code _source}.
+     */
+    public SourceLoader newSourceLoader(boolean forceSyntheticSource) {
+        if (forceSyntheticSource) {
+            return new SourceLoader.Synthetic(mappingLookup.getMapping());
+        }
+        return mappingLookup.newSourceLoader();
     }
 
     /**
@@ -464,7 +477,10 @@ public class SearchExecutionContext extends QueryRewriteContext {
         if (this.lookup == null) {
             this.lookup = new SearchLookup(
                 this::getFieldType,
-                (fieldType, searchLookup) -> indexFieldDataService.apply(fieldType, fullyQualifiedIndex.getName(), searchLookup)
+                (fieldType, searchLookup) -> indexFieldDataService.apply(
+                    fieldType,
+                    new FieldDataContext(fullyQualifiedIndex.getName(), searchLookup)
+                )
             );
         }
         return this.lookup;
@@ -608,7 +624,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         return client;
     }
 
-    public QueryBuilder parseInnerQueryBuilder(XContentParser parser) throws IOException {
+    public static QueryBuilder parseInnerQueryBuilder(XContentParser parser) throws IOException {
         return AbstractQueryBuilder.parseInnerQueryBuilder(parser);
     }
 

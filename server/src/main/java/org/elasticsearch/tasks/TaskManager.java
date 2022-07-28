@@ -8,12 +8,8 @@
 
 package org.elasticsearch.tasks;
 
-import com.carrotsearch.hppc.ObjectIntHashMap;
-import com.carrotsearch.hppc.ObjectIntMap;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.ElasticsearchException;
@@ -33,10 +29,12 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.TaskTransportChannel;
 import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.TcpTransportChannel;
@@ -59,9 +57,8 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE;
 
@@ -92,14 +89,22 @@ public class TaskManager implements ClusterStateApplier {
 
     private DiscoveryNodes lastDiscoveryNodes = DiscoveryNodes.EMPTY_NODES;
 
+    private final Tracer tracer;
+
     private final ByteSizeValue maxHeaderSize;
     private final Map<TcpChannel, ChannelPendingTaskTracker> channelPendingTaskTrackers = ConcurrentCollections.newConcurrentMap();
     private final SetOnce<TaskCancellationService> cancellationService = new SetOnce<>();
 
+    // For testing
     public TaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {
+        this(settings, threadPool, taskHeaders, Tracer.NOOP);
+    }
+
+    public TaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders, Tracer tracer) {
         this.threadPool = threadPool;
         this.taskHeaders = taskHeaders.toArray(Strings.EMPTY_ARRAY);
         this.maxHeaderSize = SETTING_HTTP_MAX_HEADER_SIZE.get(settings);
+        this.tracer = tracer;
     }
 
     public void setTaskResultsService(TaskResultsService taskResultsService) {
@@ -141,8 +146,20 @@ public class TaskManager implements ClusterStateApplier {
         } else {
             Task previousTask = tasks.put(task.getId(), task);
             assert previousTask == null;
+            startTrace(threadContext, task);
         }
         return task;
+    }
+
+    private void startTrace(ThreadContext threadContext, Task task) {
+        TaskId parentTask = task.getParentTaskId();
+        Map<String, Object> attributes = Map.of(
+            Tracer.AttributeKeys.TASK_ID,
+            task.getId(),
+            Tracer.AttributeKeys.PARENT_TASK_ID,
+            parentTask.toString()
+        );
+        tracer.startTrace(threadContext, "task-" + task.getId(), task.getAction(), attributes);
     }
 
     public <Request extends ActionRequest, Response extends ActionResponse> Task registerAndExecute(
@@ -150,19 +167,19 @@ public class TaskManager implements ClusterStateApplier {
         TransportAction<Request, Response> action,
         Request request,
         Transport.Connection localConnection,
-        TaskListener<Response> taskListener
+        ActionListener<Response> taskListener
     ) {
         final Releasable unregisterChildNode;
         if (request.getParentTask().isSet()) {
             unregisterChildNode = registerChildConnection(request.getParentTask().getId(), localConnection);
         } else {
-            unregisterChildNode = () -> {};
+            unregisterChildNode = null;
         }
         final Task task;
         try {
             task = register(type, action.actionName, request);
         } catch (TaskCancelledException e) {
-            unregisterChildNode.close();
+            Releasables.close(unregisterChildNode);
             throw e;
         }
         // NOTE: ActionListener cannot infer Response, see https://bugs.openjdk.java.net/browse/JDK-8203195
@@ -172,7 +189,7 @@ public class TaskManager implements ClusterStateApplier {
                 try {
                     release();
                 } finally {
-                    taskListener.onResponse(task, response);
+                    taskListener.onResponse(response);
                 }
             }
 
@@ -181,7 +198,7 @@ public class TaskManager implements ClusterStateApplier {
                 try {
                     release();
                 } finally {
-                    taskListener.onFailure(task, e);
+                    taskListener.onFailure(e);
                 }
             }
 
@@ -201,6 +218,7 @@ public class TaskManager implements ClusterStateApplier {
         CancellableTask cancellableTask = (CancellableTask) task;
         CancellableTaskHolder holder = new CancellableTaskHolder(cancellableTask);
         cancellableTasks.put(task, holder);
+        startTrace(threadPool.getThreadContext(), task);
         // Check if this task was banned before we start it. The empty check is used to avoid
         // computing the hash code of the parent taskId as most of the time bannedParents is empty.
         if (task.getParentTaskId().isSet() && bannedParents.isEmpty() == false) {
@@ -239,26 +257,33 @@ public class TaskManager implements ClusterStateApplier {
      */
     public Task unregister(Task task) {
         logger.trace("unregister task for id: {}", task.getId());
-        if (task instanceof CancellableTask) {
-            CancellableTaskHolder holder = cancellableTasks.remove(task);
-            if (holder != null) {
-                holder.finish();
-                assert holder.task == task;
-                return holder.getTask();
+        try {
+            if (task instanceof CancellableTask) {
+                CancellableTaskHolder holder = cancellableTasks.remove(task);
+                if (holder != null) {
+                    holder.finish();
+                    assert holder.task == task;
+                    return holder.getTask();
+                } else {
+                    return null;
+                }
             } else {
-                return null;
+                final Task removedTask = tasks.remove(task.getId());
+                assert removedTask == null || removedTask == task;
+                return removedTask;
             }
-        } else {
-            final Task removedTask = tasks.remove(task.getId());
-            assert removedTask == null || removedTask == task;
-            return removedTask;
+        } finally {
+            tracer.stopTrace("task-" + task.getId());
         }
     }
 
     /**
      * Register a connection on which a child task will execute on the target connection. The returned {@link Releasable} must be called
      * to unregister the child connection once the child task is completed or failed.
+     *
+     * @return Releasable that must be closed once the child task completes or {@code null} if no cancellable task for the given id exists
      */
+    @Nullable
     public Releasable registerChildConnection(long taskId, Transport.Connection childConnection) {
         assert TransportService.unwrapConnection(childConnection) == childConnection : "Child connection must be unwrapped";
         final CancellableTaskHolder holder = cancellableTasks.get(taskId);
@@ -270,7 +295,16 @@ public class TaskManager implements ClusterStateApplier {
                 holder.unregisterChildConnection(childConnection);
             });
         }
-        return () -> {};
+        return null;
+    }
+
+    // package private for testing
+    Integer childTasksPerConnection(long taskId, Transport.Connection childConnection) {
+        final CancellableTaskHolder holder = cancellableTasks.get(taskId);
+        if (holder != null) {
+            return holder.childTasksPerConnection.get(childConnection);
+        }
+        return null;
     }
 
     /**
@@ -287,7 +321,7 @@ public class TaskManager implements ClusterStateApplier {
         try {
             taskResult = task.result(localNode, error);
         } catch (IOException ex) {
-            logger.warn(() -> new ParameterizedMessage("couldn't store error {}", ExceptionsHelper.stackTrace(error)), ex);
+            logger.warn(() -> format("couldn't store error %s", ExceptionsHelper.stackTrace(error)), ex);
             listener.onFailure(ex);
             return;
         }
@@ -299,7 +333,7 @@ public class TaskManager implements ClusterStateApplier {
 
             @Override
             public void onFailure(Exception e) {
-                logger.warn(() -> new ParameterizedMessage("couldn't store error {}", ExceptionsHelper.stackTrace(error)), e);
+                logger.warn(() -> format("couldn't store error %s", ExceptionsHelper.stackTrace(error)), e);
                 listener.onFailure(e);
             }
         });
@@ -320,7 +354,7 @@ public class TaskManager implements ClusterStateApplier {
         try {
             taskResult = task.result(localNode, response);
         } catch (IOException ex) {
-            logger.warn(() -> new ParameterizedMessage("couldn't store response {}", response), ex);
+            logger.warn(() -> format("couldn't store response %s", response), ex);
             listener.onFailure(ex);
             return;
         }
@@ -333,7 +367,7 @@ public class TaskManager implements ClusterStateApplier {
 
             @Override
             public void onFailure(Exception e) {
-                logger.warn(() -> new ParameterizedMessage("couldn't store response {}", response), e);
+                logger.warn(() -> format("couldn't store response %s", response), e);
                 listener.onFailure(e);
             }
         });
@@ -502,7 +536,7 @@ public class TaskManager implements ClusterStateApplier {
         private final CancellableTask task;
         private boolean finished = false;
         private List<Runnable> cancellationListeners = null;
-        private ObjectIntMap<Transport.Connection> childTasksPerConnection = null;
+        private Map<Transport.Connection, Integer> childTasksPerConnection = null;
         private String banChildrenReason;
         private List<Runnable> childTaskCompletedListeners = null;
 
@@ -546,12 +580,11 @@ public class TaskManager implements ClusterStateApplier {
             final List<Runnable> listeners;
             synchronized (this) {
                 this.finished = true;
-                if (cancellationListeners != null) {
-                    listeners = cancellationListeners;
-                    cancellationListeners = null;
-                } else {
-                    listeners = Collections.emptyList();
+                if (cancellationListeners == null) {
+                    return;
                 }
+                listeners = cancellationListeners;
+                cancellationListeners = null;
             }
             // We need to call the listener outside of the synchronised section to avoid potential bottle necks
             // in the listener synchronization
@@ -584,23 +617,22 @@ public class TaskManager implements ClusterStateApplier {
                 throw new TaskCancelledException("parent task was cancelled [" + banChildrenReason + ']');
             }
             if (childTasksPerConnection == null) {
-                childTasksPerConnection = new ObjectIntHashMap<>();
+                childTasksPerConnection = new HashMap<>();
             }
-            childTasksPerConnection.addTo(connection, 1);
+            childTasksPerConnection.merge(connection, 1, Integer::sum);
         }
 
         void unregisterChildConnection(Transport.Connection node) {
             final List<Runnable> listeners;
             synchronized (this) {
-                if (childTasksPerConnection.addTo(node, -1) == 0) {
+                if (childTasksPerConnection.merge(node, -1, Integer::sum) == 0) {
                     childTasksPerConnection.remove(node);
                 }
-                if (childTasksPerConnection.isEmpty() && this.childTaskCompletedListeners != null) {
-                    listeners = childTaskCompletedListeners;
-                    childTaskCompletedListeners = null;
-                } else {
-                    listeners = Collections.emptyList();
+                if (childTasksPerConnection.isEmpty() == false || this.childTaskCompletedListeners == null) {
+                    return;
                 }
+                listeners = childTaskCompletedListeners;
+                childTaskCompletedListeners = null;
             }
             notifyListeners(listeners);
         }
@@ -615,9 +647,7 @@ public class TaskManager implements ClusterStateApplier {
                 if (childTasksPerConnection == null) {
                     pendingChildConnections = Collections.emptySet();
                 } else {
-                    pendingChildConnections = StreamSupport.stream(childTasksPerConnection.spliterator(), false)
-                        .map(e -> e.key)
-                        .collect(Collectors.toUnmodifiableSet());
+                    pendingChildConnections = Set.copyOf(childTasksPerConnection.keySet());
                 }
                 if (pendingChildConnections.isEmpty()) {
                     assert childTaskCompletedListeners == null;
@@ -717,7 +747,7 @@ public class TaskManager implements ClusterStateApplier {
                 @Override
                 protected void doRun() {
                     for (CancellableTask task : tasks) {
-                        cancelTaskAndDescendants(task, "channel was closed", false, ActionListener.wrap(() -> {}));
+                        cancelTaskAndDescendants(task, "channel was closed", false, ActionListener.noop());
                     }
                 }
             });

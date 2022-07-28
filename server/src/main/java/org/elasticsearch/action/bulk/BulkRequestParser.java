@@ -407,7 +407,7 @@ public final class BulkRequestParser {
                         }
                         IndexRequest upsertRequest = updateRequest.upsertRequest();
                         if (upsertRequest != null) {
-                            upsertRequest.setPipeline(defaultPipeline);
+                            upsertRequest.setPipeline(pipeline);
                         }
 
                         updateRequestConsumer.accept(updateRequest);
@@ -419,7 +419,7 @@ public final class BulkRequestParser {
         }
     }
 
-    private void checkBulkActionIsProperlyClosed(XContentParser parser) throws IOException {
+    private static void checkBulkActionIsProperlyClosed(XContentParser parser) throws IOException {
         XContentParser.Token token;
         try {
             token = parser.nextToken();

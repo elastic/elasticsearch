@@ -345,7 +345,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         return fieldType.termsQuery(values, context);
     }
 
-    private void fetch(TermsLookup termsLookup, Client client, ActionListener<List<Object>> actionListener) {
+    private static void fetch(TermsLookup termsLookup, Client client, ActionListener<List<Object>> actionListener) {
         GetRequest getRequest = new GetRequest(termsLookup.index(), termsLookup.id());
         getRequest.preference("_local").routing(termsLookup.routing());
         client.get(getRequest, actionListener.map(getResponse -> {
@@ -581,7 +581,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
             return Objects.hash(valueRef);
         }
 
-        private int consumerHeadersAndGetListSize(StreamInput in) throws IOException {
+        private static int consumerHeadersAndGetListSize(StreamInput in) throws IOException {
             byte genericSign = in.readByte();
             assert genericSign == 7;
             return in.readVInt();

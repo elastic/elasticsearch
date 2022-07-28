@@ -7,11 +7,17 @@
 package org.elasticsearch.xpack.core.security.xcontent;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
+import org.elasticsearch.xpack.core.security.authc.Subject;
+import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
+import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 public class XContentUtils {
 
@@ -64,5 +70,44 @@ public class XContentUtils {
             }
         }
         return list.toArray(new String[list.size()]);
+    }
+
+    /**
+     * Adds information about the permissions that a background service will run as to the X-Content representation
+     * of its configuration:
+     * - If the permissions are based on a user's roles at the time the config was created then the list of these
+     *   roles is added.
+     * - If the permissions come from an API key then the ID and name of the API key are added.
+     * - If the permissions come from a service account then the name of the service account is added.
+     * @param builder The {@link XContentBuilder} that the extra fields will be added to.
+     * @param headers Security headers that were stored to determine which permissions a background service
+     *                will run as. If <code>null</code> or no authentication key entry is present then no
+     *                fields are added.
+     */
+    public static void addAuthorizationInfo(final XContentBuilder builder, final Map<String, String> headers) throws IOException {
+        if (headers == null) {
+            return;
+        }
+        String authKey = headers.get(AuthenticationField.AUTHENTICATION_KEY);
+        if (authKey == null) {
+            return;
+        }
+        builder.startObject("authorization");
+        Subject authenticationSubject = AuthenticationContextSerializer.decode(authKey).getEffectiveSubject();
+        switch (authenticationSubject.getType()) {
+            case USER -> builder.array(User.Fields.ROLES.getPreferredName(), authenticationSubject.getUser().roles());
+            case API_KEY -> {
+                builder.startObject("api_key");
+                Map<String, Object> metadata = authenticationSubject.getMetadata();
+                builder.field("id", metadata.get(AuthenticationField.API_KEY_ID_KEY));
+                Object name = metadata.get(AuthenticationField.API_KEY_NAME_KEY);
+                if (name != null) {
+                    builder.field("name", name);
+                }
+                builder.endObject();
+            }
+            case SERVICE_ACCOUNT -> builder.field("service_account", authenticationSubject.getUser().principal());
+        }
+        builder.endObject();
     }
 }

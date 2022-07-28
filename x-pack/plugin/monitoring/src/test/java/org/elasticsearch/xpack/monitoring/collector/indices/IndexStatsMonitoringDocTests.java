@@ -527,7 +527,7 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
                 }
             }
 
-            builder.addIndexShard(shard.build());
+            builder.addIndexShard(shard);
         }
 
         // sanity checks

@@ -25,7 +25,7 @@ public class PatternReplaceTokenFilterFactory extends AbstractTokenFilterFactory
     private final boolean all;
 
     public PatternReplaceTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-        super(indexSettings, name, settings);
+        super(name, settings);
 
         String sPattern = settings.get("pattern", null);
         if (sPattern == null) {

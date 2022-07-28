@@ -200,14 +200,14 @@ public class HotThreadsTests extends ESTestCase {
             when(threadTwo.getThreadName()).thenReturn("Thread Two");
             when(threadTwo.getStackTrace()).thenReturn(testCase.two);
 
-            assertEquals(testCase.similarityScore, hotThreads.similarity(threadOne, threadTwo));
+            assertEquals(testCase.similarityScore, HotThreads.similarity(threadOne, threadTwo));
         }
 
         ThreadInfo threadOne = mock(ThreadInfo.class);
         when(threadOne.getThreadName()).thenReturn("Thread One");
         when(threadOne.getStackTrace()).thenReturn(testCases[0].one);
 
-        assertEquals(0, hotThreads.similarity(threadOne, null));
+        assertEquals(0, HotThreads.similarity(threadOne, null));
     }
 
     private ThreadInfo makeThreadInfoMocksHelper(ThreadMXBean mockedMXBean, long threadId) {
@@ -269,7 +269,7 @@ public class HotThreadsTests extends ESTestCase {
         return mockedMXBean;
     }
 
-    private SunThreadInfo makeMockSunThreadInfoHelper() {
+    private static SunThreadInfo makeMockSunThreadInfoHelper() {
         SunThreadInfo mockedSunThreadInfo = mock(SunThreadInfo.class);
         when(mockedSunThreadInfo.isThreadAllocatedMemorySupported()).thenReturn(true);
         when(mockedSunThreadInfo.isThreadAllocatedMemoryEnabled()).thenReturn(true);

@@ -159,8 +159,9 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private final Path confPathLogs;
     private final Path transportPortFile;
     private final Path httpPortsFile;
-    private final Path esLogFile;
-    private final Path esStdinFile;
+    private final Path readinessPortsFile;
+    private final Path esOutputFile;
+    private final Path esInputFile;
     private final Path tmpDir;
     private final Provider<File> runtimeJava;
     private final Function<Version, Boolean> isReleasedVersion;
@@ -209,8 +210,9 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         confPathLogs = workingDir.resolve("logs");
         transportPortFile = confPathLogs.resolve("transport.ports");
         httpPortsFile = confPathLogs.resolve("http.ports");
-        esLogFile = confPathLogs.resolve(clusterName + ".log");
-        esStdinFile = workingDir.resolve("es.stdin");
+        readinessPortsFile = confPathLogs.resolve("readiness.ports");
+        esOutputFile = confPathLogs.resolve("es.out");
+        esInputFile = workingDir.resolve("es.in");
         tmpDir = workingDir.resolve("tmp");
         waitConditions.put("ports files", this::checkPortsFilesExistWithDelay);
         defaultConfig.put("cluster.name", clusterName);
@@ -591,11 +593,11 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     private void logToProcessStdout(String message) {
         try {
-            if (Files.exists(esLogFile.getParent()) == false) {
-                Files.createDirectories(esLogFile.getParent());
+            if (Files.exists(esOutputFile.getParent()) == false) {
+                Files.createDirectories(esOutputFile.getParent());
             }
             Files.writeString(
-                esLogFile,
+                esOutputFile,
                 "[" + Instant.now().toString() + "] [BUILD] " + message + "\n",
                 StandardOpenOption.CREATE,
                 StandardOpenOption.APPEND
@@ -914,14 +916,15 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         environment.clear();
         environment.putAll(getESEnvironment());
 
-        // Just toss the output since we rely on the normal log file written by Elasticsearch
-        processBuilder.redirectOutput(ProcessBuilder.Redirect.DISCARD);
-        processBuilder.redirectError(ProcessBuilder.Redirect.DISCARD);
+        // Direct the stderr to the ES log file. This should capture any jvm problems to start.
+        // Stdout is discarded because ES duplicates the log file to stdout when run in the foreground.
+        processBuilder.redirectOutput(ProcessBuilder.Redirect.appendTo(esOutputFile.toFile()));
+        processBuilder.redirectErrorStream(true);
 
         if (keystorePassword != null && keystorePassword.length() > 0) {
             try {
-                Files.writeString(esStdinFile, keystorePassword + "\n", StandardOpenOption.CREATE);
-                processBuilder.redirectInput(esStdinFile.toFile());
+                Files.writeString(esInputFile, keystorePassword + "\n", StandardOpenOption.CREATE);
+                processBuilder.redirectInput(esInputFile.toFile());
             } catch (IOException e) {
                 throw new TestClustersException("Failed to set the keystore password for " + this, e);
             }
@@ -956,6 +959,12 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     @Override
     @Internal
+    public String getReadinessPortURI() {
+        return getReadinessPortInternal().get(0);
+    }
+
+    @Override
+    @Internal
     public List<String> getAllHttpSocketURI() {
         waitForAllConditions();
         return getHttpPortInternal();
@@ -966,6 +975,13 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     public List<String> getAllTransportPortURI() {
         waitForAllConditions();
         return getTransportPortInternal();
+    }
+
+    @Override
+    @Internal
+    public List<String> getAllReadinessPortURI() {
+        waitForAllConditions();
+        return getReadinessPortInternal();
     }
 
     @Internal
@@ -987,6 +1003,9 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             }
             if (Files.exists(transportPortFile)) {
                 Files.delete(transportPortFile);
+            }
+            if (Files.exists(readinessPortsFile)) {
+                Files.delete(readinessPortsFile);
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -1010,10 +1029,13 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             if (Files.exists(transportPortFile)) {
                 Files.delete(transportPortFile);
             }
+            if (Files.exists(readinessPortsFile)) {
+                Files.delete(readinessPortsFile);
+            }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-        logFileContents("Log output of node", esLogFile, tailLogs);
+        logFileContents("Log output of node", esOutputFile, tailLogs);
     }
 
     @Override
@@ -1119,7 +1141,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         }
         if (tailLogs) {
             if (errorsAndWarnings.isEmpty() == false || ring.isEmpty() == false) {
-                LOGGER.error("\n=== {} `{}` ===", description, this);
+                LOGGER.lifecycle("\n=== {} `{}` ===", description, this);
             }
             if (errorsAndWarnings.isEmpty() == false) {
                 LOGGER.lifecycle("\n»    ↓ errors and warnings from " + from + " ↓");
@@ -1408,6 +1430,14 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         }
     }
 
+    private List<String> getReadinessPortInternal() {
+        try {
+            return readPortsFile(readinessPortsFile);
+        } catch (IOException e) {
+            return new ArrayList<>();
+        }
+    }
+
     private List<String> readPortsFile(Path file) throws IOException {
         try (Stream<String> lines = Files.lines(file, StandardCharsets.UTF_8)) {
             return lines.map(String::trim).collect(Collectors.toList());
@@ -1586,8 +1616,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     @Internal
-    Path getEsLogFile() {
-        return esLogFile;
+    Path getEsOutputFile() {
+        return esOutputFile;
     }
 
     private static class FileEntry implements Named {

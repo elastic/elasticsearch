@@ -9,7 +9,7 @@
 Creates a trained model vocabulary.
 This is supported only for natural language processing (NLP) models.
 
-experimental::[]
+preview::[]
 
 [[ml-put-trained-model-vocabulary-request]]
 == {api-request-title}

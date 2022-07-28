@@ -14,6 +14,7 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.Objects;
 import java.util.Set;
 import java.util.SortedSet;
@@ -48,6 +49,19 @@ public final class Sets {
     public static <T> HashSet<T> newHashSet(T... elements) {
         Objects.requireNonNull(elements);
         return new HashSet<>(Arrays.asList(elements));
+    }
+
+    public static <E> Set<E> newHashSetWithExpectedSize(int expectedSize) {
+        return new HashSet<>(capacity(expectedSize));
+    }
+
+    public static <E> LinkedHashSet<E> newLinkedHashSetWithExpectedSize(int expectedSize) {
+        return new LinkedHashSet<>(capacity(expectedSize));
+    }
+
+    static int capacity(int expectedSize) {
+        assert expectedSize >= 0;
+        return expectedSize < 2 ? expectedSize + 1 : (int) (expectedSize / 0.75 + 1.0);
     }
 
     public static <T> Set<T> newConcurrentHashSet() {

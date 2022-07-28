@@ -20,8 +20,6 @@ public interface HealthIndicatorService {
 
     String name();
 
-    String component();
-
     HealthIndicatorResult calculate(boolean explain);
 
     /**
@@ -44,6 +42,6 @@ public interface HealthIndicatorService {
             .sorted(Comparator.comparingInt(HealthIndicatorImpact::severity))
             .limit(3)
             .collect(Collectors.toList());
-        return new HealthIndicatorResult(name(), component(), status, symptom, details, impactsList, diagnosisList);
+        return new HealthIndicatorResult(name(), status, symptom, details, impactsList, diagnosisList);
     }
 }

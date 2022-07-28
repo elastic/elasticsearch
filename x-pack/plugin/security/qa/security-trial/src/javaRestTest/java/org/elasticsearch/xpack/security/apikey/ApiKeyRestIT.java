@@ -33,6 +33,7 @@ import java.util.Set;
 
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField.RUN_AS_USER_HEADER;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -327,11 +328,21 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         bulkUpdateApiKeyRequest.setJsonEntity(
             XContentTestUtils.convertToXContent(Map.of("ids", List.of(apiKeyId)), XContentType.JSON).utf8ToString()
         );
-        final Response r2 = adminClient().performRequest(bulkUpdateApiKeyRequest);
-        assertOK(response);
-        final Map<String, Object> responseMap = responseAsMap(r2);
-        final Map<String, Object> errors = (Map<String, Object>) responseMap.get("errors");
+        final Response bulkUpdateApiKeyResponse = adminClient().performRequest(bulkUpdateApiKeyRequest);
+
+        assertOK(bulkUpdateApiKeyResponse);
+        final Map<String, Object> bulkUpdateApiKeyResponseMap = responseAsMap(bulkUpdateApiKeyResponse);
+        assertThat((List<String>) bulkUpdateApiKeyResponseMap.get("updated"), empty());
+        assertThat((List<String>) bulkUpdateApiKeyResponseMap.get("noops"), empty());
+        final Map<String, Object> errors = (Map<String, Object>) bulkUpdateApiKeyResponseMap.get("errors");
         assertEquals(1, errors.get("count"));
+        final Map<String, Map<String, Object>> errorDetails = (Map<String, Map<String, Object>>) errors.get("details");
+        assertEquals(1, errorDetails.size());
+        expectErrorFields(
+            "resource_not_found_exception",
+            "no API key owned by requesting user found for ID [" + apiKeyId + "]",
+            errorDetails.get(apiKeyId)
+        );
     }
 
     private void doTestAuthenticationWithApiKey(final String apiKeyName, final String apiKeyId, final String apiKeyEncoded)
@@ -397,10 +408,10 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         );
 
         final Response createApiKeyResponse = client().performRequest(createApiKeyRequest);
-        final Map<String, Object> createApiKeyResponseMap = responseAsMap(createApiKeyResponse); // keys: id, name, api_key, encoded
+        final Map<String, Object> createApiKeyResponseMap = responseAsMap(createApiKeyResponse);
         final var apiKeyId = (String) createApiKeyResponseMap.get("id");
-        final var apiKeyEncoded = (String) createApiKeyResponseMap.get("encoded"); // Base64(id:api_key)
-        final var actualApiKeyName = (String) createApiKeyResponseMap.get("name"); // Base64(id:api_key)
+        final var apiKeyEncoded = (String) createApiKeyResponseMap.get("encoded");
+        final var actualApiKeyName = (String) createApiKeyResponseMap.get("name");
         assertThat(apiKeyId, not(emptyString()));
         assertThat(apiKeyEncoded, not(emptyString()));
         assertThat(apiKeyName, equalTo(actualApiKeyName));

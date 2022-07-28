@@ -8,6 +8,7 @@
 
 package org.elasticsearch.common.time;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 
 import java.time.Instant;
@@ -99,6 +100,10 @@ public interface DateFormatter {
     DateMathParser toDateMathParser();
 
     static DateFormatter forPattern(String input) {
+        return forPattern(input, Version.CURRENT);
+    }
+
+    static DateFormatter forPattern(String input, Version supportedVersion) {
         if (Strings.hasLength(input) == false) {
             throw new IllegalArgumentException("No date pattern provided");
         }
@@ -113,7 +118,7 @@ public interface DateFormatter {
             if (Strings.hasLength(pattern) == false) {
                 throw new IllegalArgumentException("Cannot have empty element in multi date format pattern: " + input);
             }
-            formatters.add(DateFormatters.forPattern(pattern));
+            formatters.add(DateFormatters.forPattern(pattern, supportedVersion));
         }
 
         if (formatters.size() == 1) {

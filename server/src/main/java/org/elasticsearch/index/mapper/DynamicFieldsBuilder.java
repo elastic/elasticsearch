@@ -418,7 +418,9 @@ final class DynamicFieldsBuilder {
         @Override
         public void newDynamicDateField(DocumentParserContext context, String name, DateFormatter dateFormatter) {
             String fullName = context.path().pathAsText(name);
-            createDynamicField(DateScriptFieldType.sourceOnly(fullName, dateFormatter), context);
+            MappingParserContext parserContext = context.dynamicTemplateParserContext(dateFormatter);
+
+            createDynamicField(DateScriptFieldType.sourceOnly(fullName, dateFormatter, parserContext.indexVersionCreated()), context);
         }
     }
 }

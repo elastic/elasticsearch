@@ -8,6 +8,7 @@
 
 package org.elasticsearch.common.time;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.SuppressForbidden;
 
@@ -1951,11 +1952,19 @@ public class DateFormatters {
     /////////////////////////////////////////
 
     static DateFormatter forPattern(String input) {
+        return forPattern(input, Version.CURRENT);
+    }
+
+    static DateFormatter forPattern(String input, Version supportedVersion) {
         if (Strings.hasLength(input)) {
             input = input.trim();
         }
         if (input == null || input.length() == 0) {
             throw new IllegalArgumentException("No date pattern provided");
+        }
+
+        if (supportedVersion.major < Version.V_8_0_0.major) {
+            input = LegacyFormatNames.camelCaseToSnakeCase(input);
         }
 
         if (FormatNames.ISO8601.matches(input)) {

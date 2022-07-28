@@ -37,14 +37,14 @@ public class UpdateMetadata extends Metadata {
         StringField.withNullable(),
         OP,
         StringField.withWritable().withNullable(),
-        TIMESTAMP,
+        NOW,
         LongField
     );
 
     protected final Set<String> validOps;
 
-    public UpdateMetadata(String index, String id, long version, String routing, String type, String op, long timestamp) {
-        this(metadataMap(index, id, version, routing, type, op, timestamp), Set.of("noop", "index", "delete"), PROPERTIES);
+    public UpdateMetadata(String index, String id, long version, String routing, String type, String op, long now) {
+        this(metadataMap(index, id, version, routing, type, op, now), Set.of("noop", "index", "delete"), PROPERTIES);
     }
 
     protected UpdateMetadata(Map<String, Object> metadata, Set<String> validOps, Map<String, FieldProperty<?>> properties) {
@@ -59,7 +59,7 @@ public class UpdateMetadata extends Metadata {
         String routing,
         String type,
         String op,
-        long timestamp
+        long now
     ) {
         Map<String, Object> metadata = Maps.newHashMapWithExpectedSize(PROPERTIES.size());
         metadata.put(INDEX, index);
@@ -68,7 +68,7 @@ public class UpdateMetadata extends Metadata {
         metadata.put(ROUTING, routing);
         metadata.put(TYPE, type);
         metadata.put(OP, op);
-        metadata.put(TIMESTAMP, timestamp);
+        metadata.put(NOW, now);
         return metadata;
     }
 

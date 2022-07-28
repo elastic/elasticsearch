@@ -56,6 +56,14 @@ class IngestCtxMap extends CtxMap<IngestDocMetadata> {
     }
 
     /**
+     * In ingest, all non-metadata keys are source keys, so the {@link #source} map is accessed directly from ctx.
+     */
+    @Override
+    protected boolean directSourceAccess() {
+        return true;
+    }
+
+    /**
      * Fetch the timestamp from the ingestMetadata, if it exists
      * @return the timestamp for the document or null
      */
@@ -70,16 +78,5 @@ class IngestCtxMap extends CtxMap<IngestDocMetadata> {
             return ZonedDateTime.parse(str);
         }
         return null;
-    }
-
-    @Override
-    public Map<String, Object> getSource() {
-        return source;
-    }
-
-    @Override
-    protected Map<String, Object> wrapSource(Map<String, Object> source) {
-        // Not wrapped in Ingest
-        return source;
     }
 }

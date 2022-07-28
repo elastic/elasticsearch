@@ -29,7 +29,6 @@ import static org.elasticsearch.common.Strings.collectionToDelimitedStringWithLi
 import static org.elasticsearch.common.util.CollectionUtils.limitSize;
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.RED;
-import static org.elasticsearch.health.ServerHealthComponents.SNAPSHOT;
 
 /**
  * This indicator reports health for snapshot repositories.
@@ -64,11 +63,6 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
     @Override
     public String name() {
         return NAME;
-    }
-
-    @Override
-    public String component() {
-        return SNAPSHOT;
     }
 
     @Override

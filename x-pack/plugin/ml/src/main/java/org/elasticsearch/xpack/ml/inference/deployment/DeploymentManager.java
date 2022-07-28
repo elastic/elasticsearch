@@ -98,19 +98,22 @@ public class DeploymentManager {
     public Optional<ModelStats> getStats(TrainedModelDeploymentTask task) {
         return Optional.ofNullable(processContextByAllocation.get(task.getId())).map(processContext -> {
             var stats = processContext.getResultProcessor().getResultStats();
+            var recentStats = stats.recentStats();
             return new ModelStats(
                 processContext.startTime,
                 stats.timingStats(),
                 stats.lastUsed(),
                 processContext.executorService.queueSize() + stats.numberOfPendingResults(),
                 stats.errorCount(),
+                stats.cacheHitCount(),
                 processContext.rejectedExecutionCount.intValue(),
                 processContext.timeoutCount.intValue(),
                 processContext.numThreadsPerAllocation,
                 processContext.numAllocations,
                 stats.peakThroughput(),
-                stats.recentStats().requestsProcessed(),
-                stats.recentStats().avgInferenceTime()
+                recentStats.requestsProcessed(),
+                recentStats.avgInferenceTime(),
+                recentStats.cacheHitCount()
             );
         });
     }

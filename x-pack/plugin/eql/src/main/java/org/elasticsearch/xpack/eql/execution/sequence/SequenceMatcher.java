@@ -305,21 +305,14 @@ public class SequenceMatcher {
         clearCircuitBreaker();
     }
 
+    // protected for testing purposes
     protected long ramBytesUsedInFlight() {
         return RamUsageEstimator.sizeOf(keyToSequences) + RamUsageEstimator.sizeOf(stageToKeys);
     }
 
+    // protected for testing purposes
     protected long ramBytesUsedCompleted() {
         return RamUsageEstimator.sizeOfCollection(completed);
-    }
-
-    private void addMemory(long bytes, String label) {
-        circuitBreaker.addEstimateBytesAndMaybeBreak(bytes, label);
-        if (CB_COMPLETED_LABEL.equals(label)) {
-            prevRamBytesUsedCompleted += bytes;
-        } else {
-            prevRamBytesUsedInFlight += bytes;
-        }
     }
 
     private void clearCircuitBreaker() {
@@ -335,11 +328,11 @@ public class SequenceMatcher {
     // sequences.
     private void trackMemory() {
         long newRamBytesUsedInFlight = ramBytesUsedInFlight();
-        addMemory(newRamBytesUsedInFlight - prevRamBytesUsedInFlight, CB_INFLIGHT_LABEL);
+        circuitBreaker.addEstimateBytesAndMaybeBreak(newRamBytesUsedInFlight - prevRamBytesUsedInFlight, CB_INFLIGHT_LABEL);
         prevRamBytesUsedInFlight = newRamBytesUsedInFlight;
 
         long newRamBytesUsedCompleted = ramBytesUsedCompleted();
-        addMemory(newRamBytesUsedCompleted - prevRamBytesUsedCompleted, CB_COMPLETED_LABEL);
+        circuitBreaker.addEstimateBytesAndMaybeBreak(newRamBytesUsedCompleted - prevRamBytesUsedCompleted, CB_COMPLETED_LABEL);
         prevRamBytesUsedCompleted = newRamBytesUsedCompleted;
     }
 

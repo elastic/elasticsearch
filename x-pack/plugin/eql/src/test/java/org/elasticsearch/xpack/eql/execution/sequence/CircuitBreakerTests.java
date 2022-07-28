@@ -192,23 +192,14 @@ public class CircuitBreakerTests extends ESTestCase {
     }
 
     private void assertMemoryCleared(int sequenceFiltersCount, BiFunction<CircuitBreaker, Integer, ESMockClient> esClientSupplier) {
-        final int SEARCH_REQUESTS_EXPECTED_COUNT = 2;
-        List<BreakerSettings> eqlBreakerSettings = Collections.singletonList(
-            new BreakerSettings(
-                CIRCUIT_BREAKER_NAME,
-                CIRCUIT_BREAKER_LIMIT,
-                CIRCUIT_BREAKER_OVERHEAD,
-                CircuitBreaker.Type.MEMORY,
-                CircuitBreaker.Durability.TRANSIENT
-            )
-        );
+        final int searchRequestsExpectedCount = 2;
         try (
             CircuitBreakerService service = new HierarchyCircuitBreakerService(
                 Settings.EMPTY,
-                eqlBreakerSettings,
+                breakerSettings(),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
             );
-            ESMockClient esClient = esClientSupplier.apply(service.getBreaker(CIRCUIT_BREAKER_NAME), SEARCH_REQUESTS_EXPECTED_COUNT);
+            ESMockClient esClient = esClientSupplier.apply(service.getBreaker(CIRCUIT_BREAKER_NAME), searchRequestsExpectedCount);
         ) {
             CircuitBreaker eqlCircuitBreaker = service.getBreaker(CIRCUIT_BREAKER_NAME);
             QueryClient eqlClient = buildQueryClient(esClient, eqlCircuitBreaker);
@@ -223,18 +214,10 @@ public class CircuitBreakerTests extends ESTestCase {
         }
     }
 
+    // test covering fix for https://github.com/elastic/elasticsearch/issues/88300
     public void testParentCircuitBreakerOnClean() {
-        int sequenceFiltersCount = 2;
-        final int SEARCH_REQUESTS_EXPECTED_COUNT = 2;
-        List<BreakerSettings> eqlBreakerSettings = Collections.singletonList(
-            new BreakerSettings(
-                CIRCUIT_BREAKER_NAME,
-                CIRCUIT_BREAKER_LIMIT,
-                CIRCUIT_BREAKER_OVERHEAD,
-                CircuitBreaker.Type.MEMORY,
-                CircuitBreaker.Durability.TRANSIENT
-            )
-        );
+        final int sequenceFiltersCount = 2;
+        final int searchRequestsExpectedCount = 2;
 
         // let the parent circuit breaker fail, setting its limit to zero
         Settings settings = Settings.builder().put(HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), 0).build();
@@ -242,10 +225,10 @@ public class CircuitBreakerTests extends ESTestCase {
         try (
             CircuitBreakerService service = new HierarchyCircuitBreakerService(
                 settings,
-                eqlBreakerSettings,
+                breakerSettings(),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
             );
-            ESMockClient esClient = new SuccessfulESMockClient(service.getBreaker(CIRCUIT_BREAKER_NAME), SEARCH_REQUESTS_EXPECTED_COUNT);
+            ESMockClient esClient = new SuccessfulESMockClient(service.getBreaker(CIRCUIT_BREAKER_NAME), searchRequestsExpectedCount);
         ) {
             CircuitBreaker eqlCircuitBreaker = service.getBreaker(CIRCUIT_BREAKER_NAME);
             QueryClient eqlClient = buildQueryClient(esClient, eqlCircuitBreaker);
@@ -255,6 +238,19 @@ public class CircuitBreakerTests extends ESTestCase {
             TumblingWindow window = new TumblingWindow(eqlClient, criteria, null, matcher);
             window.execute(wrap(p -> fail(), ex -> assertTrue(ex instanceof CircuitBreakingException)));
         }
+    }
+
+    private List<BreakerSettings> breakerSettings() {
+        List<BreakerSettings> eqlBreakerSettings = Collections.singletonList(
+            new BreakerSettings(
+                CIRCUIT_BREAKER_NAME,
+                CIRCUIT_BREAKER_LIMIT,
+                CIRCUIT_BREAKER_OVERHEAD,
+                CircuitBreaker.Type.MEMORY,
+                CircuitBreaker.Durability.TRANSIENT
+            )
+        );
+        return eqlBreakerSettings;
     }
 
     private List<Criterion<BoxedQueryRequest>> buildCriteria(int sequenceFiltersCount) {

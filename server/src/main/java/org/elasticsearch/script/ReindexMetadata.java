@@ -39,7 +39,7 @@ public class ReindexMetadata extends Metadata {
         StringField.withWritable().withNullable(),
         OP,
         StringField.withWritable().withValidation(stringSetValidator(Set.of("noop", "index", "delete"))),
-        TIMESTAMP,
+        NOW,
         LongField
     );
 
@@ -66,7 +66,7 @@ public class ReindexMetadata extends Metadata {
         metadata.put(VERSION, version);
         metadata.put(ROUTING, routing);
         metadata.put(OP, op);
-        metadata.put(TIMESTAMP, timestamp);
+        metadata.put(NOW, timestamp);
         return metadata;
     }
 

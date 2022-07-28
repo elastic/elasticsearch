@@ -852,7 +852,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
 
             T metadata = ctxMap.getMetadata();
 
-            request.setSource(extractSource(ctxMap.getSourceWrapper()));
+            request.setSource(ctxMap.getSource());
 
             updateRequest(request, metadata);
 
@@ -860,34 +860,6 @@ public abstract class AbstractAsyncBulkByScrollAction<
         }
 
         protected abstract CtxMap<T> execute(ScrollableHitSource.Hit doc, Map<String, Object> source);
-
-        /**
-         * Retrieves _source as a Map
-         * @throws IllegalArgumentException if _source is missing, a non-map or there are other keys
-         */
-        @SuppressWarnings("unchecked")
-        protected Map<String, Object> extractSource(Map<String, Object> sourceWrapper) {
-            Object rawSource = sourceWrapper.get("_source");
-            if (rawSource == null) {
-                throw new IllegalArgumentException("missing source");
-            } else if (sourceWrapper.size() > 1) {
-                throw new IllegalArgumentException(
-                    "Invalid fields added to context ["
-                        + sourceWrapper.keySet()
-                            .stream()
-                            .filter(k -> "_source".equals(k) == false)
-                            .sorted()
-                            .collect(Collectors.joining(", "))
-                        + "]"
-                );
-            }
-            if (rawSource instanceof Map<?, ?> source) {
-                return (Map<String, Object>) source;
-            }
-            throw new IllegalArgumentException(
-                "unexpected type for _source [" + rawSource + "] expected Map, but got [" + rawSource.getClass().getName() + "]"
-            );
-        }
 
         protected abstract void updateRequest(RequestWrapper<?> request, T metadata);
 

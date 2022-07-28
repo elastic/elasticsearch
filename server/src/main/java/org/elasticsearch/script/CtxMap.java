@@ -29,7 +29,7 @@ import java.util.stream.Collectors;
 public class CtxMap<T extends Metadata> extends AbstractMap<String, Object> {
     protected static final String SOURCE = "_source";
     protected Map<String, Object> source;
-    protected final Metadata metadata;
+    protected final T metadata;
 
     /**
      * Create CtxMap from a source and metadata
@@ -37,7 +37,7 @@ public class CtxMap<T extends Metadata> extends AbstractMap<String, Object> {
      * @param source the source document map
      * @param metadata the metadata map
      */
-    protected CtxMap(Map<String, Object> source, Metadata metadata) {
+    public CtxMap(Map<String, Object> source, T metadata) {
         this.source = source;
         this.metadata = metadata;
         Set<String> badKeys = Sets.intersection(this.metadata.keySet(), this.source.keySet());
@@ -64,13 +64,6 @@ public class CtxMap<T extends Metadata> extends AbstractMap<String, Object> {
      * get the source map, if externally modified then the guarantees of this class are not enforced
      */
     public final Map<String, Object> getSource() {
-        return source;
-    }
-
-    /**
-     * Get the wrapper around source
-     */
-    public Map<String, Object> getSourceWrapper() {
         return source;
     }
 

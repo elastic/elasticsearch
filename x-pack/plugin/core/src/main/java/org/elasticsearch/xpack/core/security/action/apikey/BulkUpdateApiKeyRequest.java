@@ -35,7 +35,7 @@ public final class BulkUpdateApiKeyRequest extends BaseUpdateApiKeyRequest {
         @Nullable final Map<String, Object> metadata
     ) {
         super(roleDescriptors, metadata);
-        this.ids = Objects.requireNonNull(ids, "API key ID must not be null");
+        this.ids = Objects.requireNonNull(ids, "API key IDs must not be null");
     }
 
     public BulkUpdateApiKeyRequest(StreamInput in) throws IOException {

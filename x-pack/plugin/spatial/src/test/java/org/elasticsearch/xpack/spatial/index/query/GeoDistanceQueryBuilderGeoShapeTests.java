@@ -61,6 +61,10 @@ public class GeoDistanceQueryBuilderGeoShapeTests extends GeoDistanceQueryBuilde
             assertTrue("Found no indexed geo query.", query instanceof MatchNoDocsQuery);
         }
         assertEquals(GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType.class, fieldType.getClass());
-        assertEquals(IndexOrDocValuesQuery.class, query.getClass());
+        if (fieldType.hasDocValues()) {
+            assertEquals(IndexOrDocValuesQuery.class, query.getClass());
+        } else {
+            assertNotEquals(IndexOrDocValuesQuery.class, query.getClass());
+        }
     }
 }

@@ -39,11 +39,11 @@ the data read from disk is different from the data that {es} previously wrote.
 
 The files that make up a Lucene index are written in full before they are used.
 If a file is needed to recover an index after a restart then your storage
-system will previously have confirmed to {es} that this file was durably synced
-to disk. On Linux this means that the `fsync()` system call returned
-successfully. {es} sometimes detects that an index is corrupt because a file
-needed for recovery has been truncated or is missing its footer. This indicates
-that your storage system acknowledges durable writes incorrectly.
+system previously confirmed to {es} that this file was durably synced to disk.
+On Linux this means that the `fsync()` system call returned successfully. {es}
+sometimes detects that an index is corrupt because a file needed for recovery
+has been truncated or is missing its footer. This indicates that your storage
+system acknowledges durable writes incorrectly.
 
 There are many possible explanations for {es} detecting corruption in your
 cluster. Databases like {es} generate a challenging I/O workload that may find

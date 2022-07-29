@@ -94,6 +94,15 @@ All other fields are not indexed by default. But you can still use all fields in
 
 Dotted field names are expanded to objects so that they can be used interchangeably with nested objects. For example, the following documents are treated equally: `{"log.level": "INFO"}`, `{"log": { "level": "INFO"} }`.
 
+[[logs-api-response-body]]
+==== {api-response-body-title}
+
+The log API's response body is always empty.
+
+Status
+
+* 202 Accepted: the log events have been received and will be searchable after a while
+* 500 Internal Server Error: There was an error while processing the log events. Some logs may not have been ingested.
 
 [discrete]
 [[logs-api-example]]

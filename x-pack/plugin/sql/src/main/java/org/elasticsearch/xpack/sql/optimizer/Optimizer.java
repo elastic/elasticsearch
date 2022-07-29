@@ -1303,20 +1303,17 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         }
 
         private Expression convertIn(In in) {
-            if (in.list().isEmpty()) {
-                return in;
-            }
             List<Expression> newRight = new ArrayList<>();
             List<Expression> additionalConditions = new ArrayList<>();
-            DataType type = in.value().dataType();
+            DataType inType = in.value().dataType();
             boolean converted = false;
             for (Expression exp : in.list()) {
-                if (type == exp.dataType() || exp.foldable() == false || DataTypes.areCompatible(type, exp.dataType())) {
+                if (inType == exp.dataType() || exp.foldable() == false || DataTypes.areCompatible(inType, exp.dataType())) {
                     newRight.add(exp);
                 } else {
                     converted = true;
                     Object foldedValue = exp.fold();
-                    if (DataTypes.isDateTime(type) && DataTypes.isString(exp.dataType())) {
+                    if (DataTypes.isDateTime(inType) && DataTypes.isString(exp.dataType())) {
                         try {
                             // try date math first
                             Tuple<Long, Long> range = DateFieldMapper.DateFieldType.toTimestampRange(
@@ -1324,10 +1321,10 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                                 foldedValue,
                                 true,
                                 true,
-                                ZoneOffset.UTC,
+                                null,
                                 DateUtils.DATE_MATH_PARSER,
                                 DateFieldMapper.Resolution.MILLISECONDS,
-                                () -> System.currentTimeMillis()
+                                System::currentTimeMillis
                             );
                             if (range.v1() < range.v2()) {
                                 /*
@@ -1341,9 +1338,9 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                                     new Range(
                                         in.source(),
                                         in.value(),
-                                        tryCast(exp, range.v1(), type),
+                                        tryCast(exp, range.v1(), inType),
                                         true,
-                                        tryCast(exp, range.v2(), type),
+                                        tryCast(exp, range.v2(), inType),
                                         true,
                                         in.zoneId()
                                     )
@@ -1356,7 +1353,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                             newRight.add(exp);
                         }
                     } else {
-                        newRight.add(tryCast(exp, foldedValue, type));
+                        newRight.add(tryCast(exp, foldedValue, inType));
                     }
                 }
             }
@@ -1379,10 +1376,10 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 return toOrTree(in.source(), additionalConditions);
             }
 
-            return in;
+            return in; // the IN is empty
         }
 
-        private Expression toOrTree(Source source, List<Expression> items) {
+        private static Expression toOrTree(Source source, List<Expression> items) {
             if (items.size() == 1) {
                 return items.get(0);
             }

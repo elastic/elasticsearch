@@ -26,7 +26,7 @@
     }
   },
   "_meta": {
-    "description": "default mappings for the logs-generic-* index template installed by x-pack",
+    "description": "default mappings for the logs-dlq-* index template installed by x-pack",
     "managed": true
   },
   "version": ${xpack.stack.template.version}

@@ -36,7 +36,7 @@ enable <<deprecation-logging, deprecation logging>>.
 
 [discrete]
 [[deprecations_85_network_plugins]]
-==== Java API deprecations
+==== Plugin API deprecations
 
 [[network_plugins_deprecated]]
 Plugins that extend the NetworkPlugin interface are deprecated.

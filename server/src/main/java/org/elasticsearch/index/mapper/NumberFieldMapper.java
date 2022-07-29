@@ -1632,7 +1632,7 @@ public class NumberFieldMapper extends FieldMapper {
 
         @Override
         public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException {
-            SortedNumericDocValues dv = dv(reader);
+            SortedNumericDocValues dv = dv(reader, name);
             if (dv == null) {
                 return SourceLoader.SyntheticFieldLoader.NOTHING_LEAF;
             }
@@ -1743,12 +1743,12 @@ public class NumberFieldMapper extends FieldMapper {
          * an "empty" implementation if there aren't any doc values. We need to be able to
          * tell if there aren't any and return our empty leaf source loader.
          */
-        private SortedNumericDocValues dv(LeafReader reader) throws IOException {
-            SortedNumericDocValues dv = reader.getSortedNumericDocValues(name);
+        public static SortedNumericDocValues dv(LeafReader reader, String fieldName) throws IOException {
+            SortedNumericDocValues dv = reader.getSortedNumericDocValues(fieldName);
             if (dv != null) {
                 return dv;
             }
-            NumericDocValues single = reader.getNumericDocValues(name);
+            NumericDocValues single = reader.getNumericDocValues(fieldName);
             if (single != null) {
                 return DocValues.singleton(single);
             }

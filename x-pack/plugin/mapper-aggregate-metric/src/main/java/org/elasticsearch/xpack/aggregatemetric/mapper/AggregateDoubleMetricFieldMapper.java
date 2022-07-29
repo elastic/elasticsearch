@@ -712,7 +712,8 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException {
             Map<Metric, SortedNumericDocValues> metricDocValues = new EnumMap<>(Metric.class);
             for (Metric m : metrics) {
-                SortedNumericDocValues dv = dv(reader, m);
+                String fieldName = subfieldName(name, m);
+                SortedNumericDocValues dv = NumberFieldMapper.NumericSyntheticFieldLoader.dv(reader, fieldName);
                 if (dv != null) {
                     metricDocValues.put(m, dv);
                 }
@@ -749,9 +750,9 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                 dvHasValue = new EnumMap<>(Metric.class);
                 hasValues = false;
                 for (Map.Entry<Metric, SortedNumericDocValues> e : metricDocValues.entrySet()) {
-                    boolean b = e.getValue().advanceExact(docId);
-                    hasValues = hasValues || b;
-                    dvHasValue.put(e.getKey(), b);
+                    boolean leafHasValues = e.getValue().advanceExact(docId);
+                    hasValues = hasValues || leafHasValues;
+                    dvHasValue.put(e.getKey(), leafHasValues);
                 }
 
                 return hasValues;
@@ -776,25 +777,6 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                 }
                 b.endObject();
             }
-        }
-
-        /**
-         * Returns a {@link SortedNumericDocValues} or null if it doesn't have any doc values.
-         * See {@link DocValues#getSortedNumeric} which is *nearly* the same, but it returns
-         * an "empty" implementation if there aren't any doc values. We need to be able to
-         * tell if there aren't any and return our empty leaf source loader.
-         */
-        private SortedNumericDocValues dv(LeafReader reader, Metric metric) throws IOException {
-            String fieldName = subfieldName(name, metric);
-            SortedNumericDocValues dv = reader.getSortedNumericDocValues(fieldName);
-            if (dv != null) {
-                return dv;
-            }
-            NumericDocValues single = reader.getNumericDocValues(fieldName);
-            if (single != null) {
-                return DocValues.singleton(single);
-            }
-            return null;
         }
     }
 }

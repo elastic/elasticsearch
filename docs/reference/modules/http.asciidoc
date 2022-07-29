@@ -127,9 +127,9 @@ NOTE: This header is only returned when the setting is set to `true`.
 
 `http.detailed_errors.enabled`::
 (<<static-cluster-setting,Static>>, boolean)
-Configures whether detailed errors may be returned in HTTP responses. Defaults
-to `true`, which means that HTTP requests which include
-<<common-options-error-options,`?error_trace` URI parameter>> will return a
+Configures whether detailed error reporting in HTTP responses is enabled.
+Defaults to `true`, which means that HTTP requests that include the
+<<common-options-error-options,`?error_trace` parameter>> will return a
 detailed error message including a stack trace if they encounter an exception.
 If set to `false`, requests with the `?error_trace` parameter are rejected.
 

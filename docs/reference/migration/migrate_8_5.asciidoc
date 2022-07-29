@@ -70,4 +70,7 @@ Discontinue using any plugins that override getJoinValidator or
 getElectionStrategies in DiscoveryPlugin. You can see if any plugins
 use deprecated functionality by checking the Elasticsearch deprecation log.
 ====
+<<<<<<< HEAD
 
+=======
+>>>>>>> 456b8cda7ab (Deprecation overriding DiscoveryPlugin internals)

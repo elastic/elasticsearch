@@ -70,7 +70,7 @@ public class RestTermsEnumActionTests extends ESTestCase {
      */
     @BeforeClass
     public static void stubTermEnumAction() {
-        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet(), Tracer.NOOP);
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
 
         final TransportAction<? extends ActionRequest, ? extends ActionResponse> transportAction = new TransportAction<>(
             TermsEnumAction.NAME,

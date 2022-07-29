@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.enterprisesearch.search;
 
 import org.elasticsearch.rest.RestRequest;
 
+import java.util.List;
+
 public class XSearchQueryOptions {
 
     public final String queryString;

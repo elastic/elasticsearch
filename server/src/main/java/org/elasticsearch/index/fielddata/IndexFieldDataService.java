@@ -100,7 +100,6 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
     public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType, FieldDataContext fieldDataContext) {
         final String fieldName = fieldType.name();
         IndexFieldData.Builder builder = fieldType.fielddataBuilder(fieldDataContext);
-
         IndexFieldDataCache cache;
         synchronized (this) {
             cache = fieldDataCaches.get(fieldName);

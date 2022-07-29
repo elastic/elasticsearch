@@ -460,7 +460,7 @@ public class ExpressionScriptEngine implements ScriptEngine {
             throw new ParseException("Field [" + fieldname + "] does not exist in mappings", 5);
         }
 
-        IndexFieldData<?> fieldData = lookup.getForField(fieldType);
+        IndexFieldData<?> fieldData = lookup.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
         final DoubleValuesSource valueSource;
         if (fieldType instanceof GeoPointFieldType) {
             // geo

@@ -420,11 +420,12 @@ public class ES85BloomFilterPostingsFormat extends PostingsFormat {
 
     static int hashTerm(BytesRef br) {
         final int hash = murmurhash3_x86_32(br.bytes, br.offset, br.length, 0x9747b28c);
-        return hash < 0 ? -hash : hash;
+        return hash & 0x7FFF_FFFF;
     }
 
     /**
-     * Forked from Lucene's StringHelper#murmurhash3_x86_32 so that changes to the Lucene implementation do not break the compatibility of this format.
+     * Forked from Lucene's StringHelper#murmurhash3_x86_32 so that changes to the Lucene implementation
+     * do not break the compatibility of this format.
      */
     @SuppressWarnings("fallthrough")
     private static int murmurhash3_x86_32(byte[] data, int offset, int len, int seed) {

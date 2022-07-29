@@ -163,9 +163,7 @@ public class DiffableTests extends ESTestCase {
         protected final Set<Integer> keysToAdd = Sets.difference(randomPositiveIntSet(), keys);
         protected final Set<Integer> keysUnchanged = Sets.difference(keysThatAreNotRemoved, keysToOverride);
 
-        protected final DiffableUtils.KeySerializer<Integer> keySerializer = randomBoolean()
-            ? DiffableUtils.getIntKeySerializer()
-            : DiffableUtils.getVIntKeySerializer();
+        protected final DiffableUtils.KeySerializer<Integer> keySerializer = DiffableUtils.getVIntKeySerializer();
 
         protected final boolean useProtoForDiffableSerialization = randomBoolean();
 

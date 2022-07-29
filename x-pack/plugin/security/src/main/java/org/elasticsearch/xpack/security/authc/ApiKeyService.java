@@ -426,12 +426,13 @@ public class ApiKeyService {
         }
 
         logger.trace("Executing bulk request to update [{}] API keys", bulkRequestBuilder.numberOfActions());
+        bulkRequestBuilder.setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
         securityIndex.prepareIndexIfNeededThenExecute(
             ex -> listener.onFailure(traceLog("prepare security index before update", ex)),
             () -> executeAsyncWithOrigin(
                 client.threadPool().getThreadContext(),
                 SECURITY_ORIGIN,
-                bulkRequestBuilder.setRefreshPolicy(RefreshPolicy.WAIT_UNTIL).request(),
+                bulkRequestBuilder.request(),
                 ActionListener.<BulkResponse>wrap(
                     bulkResponse -> buildResponseAndClearCache(bulkResponse, responseBuilder, listener),
                     ex -> listener.onFailure(traceLog("execute bulk request for update", ex))

@@ -127,9 +127,11 @@ NOTE: This header is only returned when the setting is set to `true`.
 
 `http.detailed_errors.enabled`::
 (<<static-cluster-setting,Static>>, boolean)
-If `true`, enables the output of detailed error messages and stack traces in the response output. Defaults to `true`.
-+
-If `false`, use the `error_trace` parameter to <<common-options-error-options,enable stack traces>> and return detailed error messages. Otherwise, only a simple message will be returned.
+Configures whether detailed errors may be returned in HTTP responses. Defaults
+to `true`, which means that HTTP requests which include
+<<common-options-error-options,`?error_trace` URI parameter>> will return a
+detailed error message including a stack trace if they encounter an exception.
+If set to `false`, requests with the `?error_trace` parameter are rejected.
 
 `http.pipelining.max_events`::
 (<<static-cluster-setting,Static>>, integer)

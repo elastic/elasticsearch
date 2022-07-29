@@ -31,7 +31,6 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
-import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -129,7 +128,7 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
         out.writeString(repositoryName);
         out.writeString(snapshotName);
         out.writeString(snapshotIndexName);
-        writeSettingsToStream(indexSettings, out);
+        indexSettings.writeTo(out);
         out.writeStringArray(ignoredIndexSettings);
         out.writeBoolean(waitForCompletion);
         if (out.getVersion().onOrAfter(SHARED_CACHE_VERSION)) {

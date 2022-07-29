@@ -26,10 +26,10 @@ import java.util.stream.Collectors;
  * all other updates to source.  Implements the {@link Map} interface for backwards compatibility while performing
  * validation via {@link Metadata}.
  */
-public class CtxMap extends AbstractMap<String, Object> {
+public class CtxMap<T extends Metadata> extends AbstractMap<String, Object> {
     protected static final String SOURCE = "_source";
     protected Map<String, Object> source;
-    protected final Metadata metadata;
+    protected final T metadata;
 
     /**
      * Create CtxMap from a source and metadata
@@ -37,7 +37,7 @@ public class CtxMap extends AbstractMap<String, Object> {
      * @param source the source document map
      * @param metadata the metadata map
      */
-    protected CtxMap(Map<String, Object> source, Metadata metadata) {
+    public CtxMap(Map<String, Object> source, T metadata) {
         this.source = source;
         this.metadata = metadata;
         Set<String> badKeys = Sets.intersection(this.metadata.keySet(), this.source.keySet());
@@ -70,7 +70,7 @@ public class CtxMap extends AbstractMap<String, Object> {
     /**
      * get the metadata map, if externally modified then the guarantees of this class are not enforced
      */
-    public Metadata getMetadata() {
+    public T getMetadata() {
         return metadata;
     }
 
@@ -337,7 +337,7 @@ public class CtxMap extends AbstractMap<String, Object> {
         if (this == o) return true;
         if ((o instanceof CtxMap) == false) return false;
         if (super.equals(o) == false) return false;
-        CtxMap ctxMap = (CtxMap) o;
+        CtxMap<?> ctxMap = (CtxMap<?>) o;
         return source.equals(ctxMap.source) && metadata.equals(ctxMap.metadata);
     }
 

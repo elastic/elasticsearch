@@ -15,7 +15,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -26,7 +25,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 /**
  * A {@link RoutingNode} represents a cluster node associated with a single {@link DiscoveryNode} including all shards
@@ -118,7 +116,14 @@ public class RoutingNode implements Iterable<ShardRouting> {
      * @param shard Shard to create on this Node
      */
     void add(ShardRouting shard) {
-        assert invariant();
+        addInternal(shard, true);
+    }
+
+    void addWithoutValidation(ShardRouting shard) {
+        addInternal(shard, false);
+    }
+
+    private void addInternal(ShardRouting shard, boolean validate) {
         final ShardRouting existing = shards.putIfAbsent(shard.shardId(), shard);
         if (existing != null) {
             final IllegalStateException e = new IllegalStateException(
@@ -142,11 +147,10 @@ public class RoutingNode implements Iterable<ShardRouting> {
             relocatingShards.add(shard);
         }
         shardsByIndex.computeIfAbsent(shard.index(), k -> new HashSet<>()).add(shard);
-        assert invariant();
+        assert validate == false || invariant();
     }
 
     void update(ShardRouting oldShard, ShardRouting newShard) {
-        assert invariant();
         if (shards.containsKey(oldShard.shardId()) == false) {
             // Shard was already removed by routing nodes iterator
             // TODO: change caller logic in RoutingNodes so that this check can go away
@@ -174,7 +178,6 @@ public class RoutingNode implements Iterable<ShardRouting> {
     }
 
     void remove(ShardRouting shard) {
-        assert invariant();
         ShardRouting previousValue = shards.remove(shard.shardId());
         assert previousValue == shard : "expected shard " + previousValue + " but was " + shard;
         if (shard.initializing()) {
@@ -342,20 +345,24 @@ public class RoutingNode implements Iterable<ShardRouting> {
         return shards.isEmpty();
     }
 
-    private boolean invariant() {
-        // initializingShards must consistent with that in shards
-        Collection<ShardRouting> shardRoutingsInitializing = shards.values().stream().filter(ShardRouting::initializing).toList();
-        assert initializingShards.size() == shardRoutingsInitializing.size();
-        assert initializingShards.containsAll(shardRoutingsInitializing);
+    boolean invariant() {
+        var shardRoutingsInitializing = new ArrayList<ShardRouting>(shards.size());
+        var shardRoutingsRelocating = new ArrayList<ShardRouting>(shards.size());
+        // this guess assumes 1 shard per index, this is not precise, but okay for assertion
+        var shardRoutingsByIndex = Maps.<Index, Set<ShardRouting>>newHashMapWithExpectedSize(shards.size());
 
-        // relocatingShards must consistent with that in shards
-        Collection<ShardRouting> shardRoutingsRelocating = shards.values().stream().filter(ShardRouting::relocating).toList();
-        assert relocatingShards.size() == shardRoutingsRelocating.size();
-        assert relocatingShards.containsAll(shardRoutingsRelocating);
+        for (var shard : shards.values()) {
+            if (shard.initializing()) {
+                shardRoutingsInitializing.add(shard);
+            }
+            if (shard.relocating()) {
+                shardRoutingsRelocating.add(shard);
+            }
+            shardRoutingsByIndex.computeIfAbsent(shard.index(), k -> new HashSet<>(10)).add(shard);
+        }
 
-        final Map<Index, Set<ShardRouting>> shardRoutingsByIndex = shards.values()
-            .stream()
-            .collect(Collectors.groupingBy(ShardRouting::index, Collectors.toSet()));
+        assert initializingShards.size() == shardRoutingsInitializing.size() && initializingShards.containsAll(shardRoutingsInitializing);
+        assert relocatingShards.size() == shardRoutingsRelocating.size() && relocatingShards.containsAll(shardRoutingsRelocating);
         assert shardRoutingsByIndex.equals(shardsByIndex);
 
         return true;

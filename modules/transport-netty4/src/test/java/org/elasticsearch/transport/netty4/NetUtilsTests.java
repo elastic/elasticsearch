@@ -21,13 +21,10 @@ import static org.hamcrest.Matchers.hasItem;
 public class NetUtilsTests extends ESTestCase {
 
     public void testExtendedSocketOptions() throws IOException {
-        assumeTrue(
+        assertTrue(
             "jdk.net module not resolved",
             ModuleLayer.boot().modules().stream().map(Module::getName).anyMatch(nm -> nm.equals("jdk.net"))
         );
-        assertNotNull(NetUtils.getTcpKeepIdleSocketOption());
-        assertNotNull(NetUtils.getTcpKeepIntervalSocketOption());
-        assertNotNull(NetUtils.getTcpKeepCountSocketOption());
 
         assumeTrue("Platform possibly not supported", IOUtils.LINUX || IOUtils.MAC_OS_X);
         try (var channel = networkChannel()) {

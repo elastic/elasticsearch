@@ -758,7 +758,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     assert UpdateApiKeyAction.NAME.equals(action);
                     securityChangeLogEntryBuilder(requestId).withRequestBody(updateApiKeyRequest).build();
                 } else if (msg instanceof final BulkUpdateApiKeyRequest bulkUpdateApiKeyRequest) {
-                    assert UpdateApiKeyAction.NAME.equals(action);
+                    assert BulkUpdateApiKeyAction.NAME.equals(action);
                     securityChangeLogEntryBuilder(requestId).withRequestBody(bulkUpdateApiKeyRequest).build();
                 } else {
                     throw new IllegalStateException(

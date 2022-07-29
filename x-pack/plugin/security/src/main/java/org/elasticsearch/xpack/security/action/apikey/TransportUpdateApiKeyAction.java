@@ -63,25 +63,25 @@ public final class TransportUpdateApiKeyAction extends TransportBaseUpdateApiKey
                 && response.getErrorDetails().containsKey(apiKeyId)
                 && response.getUpdated().isEmpty()
                 && response.getNoops().isEmpty())) {
-                mustProvideSingleMatchingResponseException(apiKeyId);
+                singleMatchingResponseRequiredException(apiKeyId);
             }
             throw response.getErrorDetails().values().iterator().next();
         } else if (response.getUpdated().isEmpty() == false) {
             if (false == (response.getUpdated().size() == 1
                 && response.getUpdated().get(0).equals(apiKeyId)
                 && response.getNoops().isEmpty())) {
-                mustProvideSingleMatchingResponseException(apiKeyId);
+                singleMatchingResponseRequiredException(apiKeyId);
             }
             return new UpdateApiKeyResponse(true);
         } else {
             if (false == (response.getNoops().size() == 1 && response.getNoops().get(0).equals(apiKeyId))) {
-                mustProvideSingleMatchingResponseException(apiKeyId);
+                singleMatchingResponseRequiredException(apiKeyId);
             }
             return new UpdateApiKeyResponse(false);
         }
     }
 
-    private void mustProvideSingleMatchingResponseException(final String apiKeyId) {
+    private void singleMatchingResponseRequiredException(final String apiKeyId) {
         final String message = "single API key update must provide single response matching requested ID [" + apiKeyId + "]";
         assert false : message;
         throw new IllegalStateException(message);

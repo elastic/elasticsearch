@@ -22,7 +22,6 @@ import static org.hamcrest.Matchers.hasItem;
 public class NetUtilsTests extends ESTestCase {
 
     public void testExtendedSocketOptions() throws IOException {
-        assumeTrue("JDK possibly not supported", Constants.JVM_NAME.contains("HotSpot") || Constants.JVM_NAME.contains("OpenJDK"));
         assumeTrue(
             "jdk.net module not resolved",
             ModuleLayer.boot().modules().stream().map(Module::getName).anyMatch(nm -> nm.equals("jdk.net"))

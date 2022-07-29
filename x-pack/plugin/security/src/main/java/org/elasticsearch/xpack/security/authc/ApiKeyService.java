@@ -1156,6 +1156,8 @@ public class ApiKeyService {
         final Collection<VersionedApiKeyDoc> foundDocs,
         final List<String> requestedIds
     ) {
+        assert foundDocs.size() <= requestedIds.size()
+            : "more docs were found for update than were requested. requested : " + requestedIds.size() + " updated : " + foundDocs.size();
         // Short-circuiting by size is safe: `foundDocs` only contains unique IDs of those requested. Same size here necessarily implies
         // same content
         if (foundDocs.size() == requestedIds.size()) {

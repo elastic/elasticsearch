@@ -1623,6 +1623,8 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final List<String> allIds = Stream.concat(response.getUpdated().stream(), response.getNoops().stream()).toList();
         assertEquals(apiKeyIds.size(), allIds.size());
         assertThat(allIds, containsInAnyOrder(apiKeyIds.toArray()));
+
+        // Check not found IDs reported once for duplicates
     }
 
     public void testUpdateApiKeysAutoUpdatesUserFields() throws Exception {

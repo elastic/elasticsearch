@@ -145,7 +145,13 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
         } catch (final Exception e) {
             return new NodesReloadSecureSettingsResponse.NodeResponse(clusterService.localNode(), e);
         } finally {
-            secureSettingsPassword.close();
+            // Do not close the secureString if this is executed on the local node. It is shared with
+            // the Nodes level request, it will be closed when the nodes request is completed. Since it
+            // is also shared by all Node level requests, closing it here can sometimes cause serialization
+            // failure when sending other non-local-node requests across the wire.
+            if (false == clusterService.localNode().getId().equals(nodeReloadRequest.getParentTask().getNodeId())) {
+                secureSettingsPassword.close();
+            }
         }
     }
 

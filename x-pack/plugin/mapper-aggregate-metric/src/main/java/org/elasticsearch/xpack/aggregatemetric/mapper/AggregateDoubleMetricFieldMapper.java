@@ -738,7 +738,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
             @Override
             public boolean empty() {
-                return false;
+                return metricDocValues.isEmpty();
             }
 
             @Override

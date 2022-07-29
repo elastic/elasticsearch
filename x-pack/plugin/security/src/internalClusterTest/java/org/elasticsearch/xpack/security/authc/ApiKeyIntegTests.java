@@ -1592,13 +1592,15 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             newRoleDescriptors,
             newMetadata
         );
+
         final BulkUpdateApiKeyResponse responseWithErrors = executeBulkUpdateApiKey(TEST_USER_NAME, requestWithErrors);
+
         assertThat(responseWithErrors.getUpdated(), empty());
         assertThat(responseWithErrors.getNoops(), empty());
         assertThat(responseWithErrors.getErrorDetails().keySet(), containsInAnyOrder(apiKeyIds.toArray()));
     }
 
-    public void testBulkUpdateApiKeyWithDuplicates() throws ExecutionException, InterruptedException {
+    public void testBulkUpdateApiKeysWithDuplicates() throws ExecutionException, InterruptedException {
         final Tuple<List<CreateApiKeyResponse>, List<Map<String, Object>>> apiKeys = createApiKeys(
             TEST_USER_NAME,
             randomIntBetween(3, 5),

@@ -131,7 +131,8 @@ final class PluginIntrospector {
                         // it's not overridden
                     } else {
                         assert clazz.isAssignableFrom(m.getDeclaringClass());
-                        overriddenMethods.put(mt.name(), clazz.getSimpleName());
+                        var existing = overriddenMethods.put(mt.name(), clazz.getSimpleName());
+                        assert existing == null;
                     }
                 } catch (NoSuchMethodException unexpected) {
                     throw new AssertionError(unexpected);

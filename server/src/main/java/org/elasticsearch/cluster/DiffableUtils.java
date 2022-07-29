@@ -455,7 +455,7 @@ public final class DiffableUtils {
         @Override
         public void writeKey(Integer key, StreamOutput out) throws IOException {
             if (key < 0) {
-                throw new IllegalArgumentException("Map key [" + key + "] must be positive");
+                throw new IllegalArgumentException("Map key [" + key + "] must not be negative");
             }
             if (out.getVersion().onOrAfter(Version.V_8_5_0)) {
                 out.writeVInt(key);

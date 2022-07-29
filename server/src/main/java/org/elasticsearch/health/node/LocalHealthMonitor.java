@@ -58,10 +58,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
     private volatile TimeValue monitorInterval;
     private volatile boolean enabled;
     // Signals that the health metadata is available, so we can start monitoring.
-    // We might not be able to detect that in a single cluster state change because
-    // it might happen before we have confirmed that the cluster is on 8.5.x or newer.
-    // This does not need to be volatile because the cluster state applier is single threaded.
-    private boolean healthMetadataInitialized;
+    private volatile boolean healthMetadataInitialized;
     // Ensures that there will no parallel executions of the monitoring process and
     // simplifies the rescheduling during enabling/disabling or the change of the interval.
     private final AtomicBoolean inProgress = new AtomicBoolean();
@@ -91,7 +88,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
     }
 
     private void scheduleNextRunIfEnabled(TimeValue time) {
-        if (enabled) {
+        if (enabled && healthMetadataInitialized) {
             threadPool.scheduleUnlessShuttingDown(time, ThreadPool.Names.MANAGEMENT, this::monitorHealth);
         }
     }
@@ -108,9 +105,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
             // Wait until the health metadata is available in the cluster state
             if (healthMetadataInitialized == false) {
                 healthMetadataInitialized = HealthMetadata.getFromClusterState(event.state()) != null;
-                if (healthMetadataInitialized) {
-                    scheduleNowIfEnabled();
-                }
+                scheduleNowIfEnabled();
             }
         }
     }

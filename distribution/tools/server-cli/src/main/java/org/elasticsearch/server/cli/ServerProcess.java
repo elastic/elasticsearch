@@ -216,6 +216,7 @@ public class ServerProcess {
         command.addAll(jvmOptions);
         command.add("--module-path");
         command.add(esHome.resolve("lib").toString());
+        command.add("--add-modules=jdk.net");
         command.add("-m");
         command.add("org.elasticsearch.server/org.elasticsearch.bootstrap.Elasticsearch");
 

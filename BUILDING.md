@@ -63,6 +63,30 @@ E.g. [configuration-cache support](https://github.com/elastic/elasticsearch/issu
 There are a few guidelines to follow that should make your life easier to make changes to the elasticsearch build.
 Please add a member of the `es-delivery` team as a reviewer if you're making non-trivial changes to the build.
 
+#### Adding or updating a dependency
+
+We rely on [Gradle dependency verification](https://docs.gradle.org/current/userguide/dependency_verification.html) to mitigate the security risks and avoid integrating compromised dependencies.
+
+This requires to have third party dependencies and there checksums listed in `gradle/verification-metadata.xml`.
+
+For updated or newly added dependencies you need to add an entry to this verification file or update the existing one:
+```
+      <component group="asm" name="asm" version="3.1">
+         <artifact name="asm-3.1.jar">
+            <sha256 value="333ff5369043975b7e031b8b27206937441854738e038c1f47f98d072a20437a" origin="official site"/>
+         </artifact>
+      </component>
+```
+
+You can also automate the generation of this entry by running your build using the `--write-verification-metadata` commandline option:
+```
+>./gradlew --write-verification-metadata sha256 precommit
+```
+
+Make sure you use the sha256 checksum as sha1 is not considered safe anymore these days. Once the build has finished verify
+the updated `gradle/verification-metadata.xml`. When you have manually confirmed the checksum (e.g by looking it up on the website of the library)
+please replace the content of the `origin` tag by `official site`.
+
 #### Custom Plugin and Task implementations
 
 Build logic that is used across multiple subprojects should considered to be moved into a Gradle plugin with according Gradle task implmentation.

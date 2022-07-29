@@ -30,8 +30,9 @@ import org.elasticsearch.health.metadata.HealthMetadata;
 import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.node.NodeService;
-import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
+
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * This class monitors the health of the node regarding the load on several resources.
@@ -55,13 +56,15 @@ public class LocalHealthMonitor implements ClusterStateListener {
     private final DiskCheck diskCheck;
 
     private volatile TimeValue monitorInterval;
-    private volatile Scheduler.ScheduledCancellable scheduled;
     private volatile boolean enabled;
     // Signals that the health metadata is available, so we can start monitoring.
     // We might not be able to detect that in a single cluster state change because
     // it might happen before we have confirmed that the cluster is on 8.5.x or newer.
     // This does not need to be volatile because the cluster state applier is single threaded.
     private boolean healthMetadataInitialized;
+    // Ensures that there will no parallel executions of the monitoring process and
+    // simplifies the rescheduling during enabling/disabling or the change of the interval.
+    private final AtomicBoolean inProgress = new AtomicBoolean();
     // Keeps the latest health state that was successfully reported.
     private IndividualNodeHealth lastReportedHealth = null;
 
@@ -79,25 +82,23 @@ public class LocalHealthMonitor implements ClusterStateListener {
 
     void setMonitorInterval(TimeValue monitorInterval) {
         this.monitorInterval = monitorInterval;
-        if (scheduled != null && scheduled.cancel()) {
-            scheduleNextRunIfEnabled(new TimeValue(1));
-        }
+        scheduleNowIfEnabled();
     }
 
     void setEnabled(boolean enabled) {
         this.enabled = enabled;
-        if (scheduled != null) {
-            scheduled.cancel();
-            if (enabled) {
-                scheduleNextRunIfEnabled(new TimeValue(1));
-            }
-        }
+        scheduleNowIfEnabled();
     }
 
     private void scheduleNextRunIfEnabled(TimeValue time) {
-        if (enabled && threadPool.scheduler().isShutdown() == false) {
-            scheduled = threadPool.schedule(this::monitorHealth, time, ThreadPool.Names.MANAGEMENT);
+        if (enabled) {
+            threadPool.scheduleUnlessShuttingDown(time, ThreadPool.Names.MANAGEMENT, this::monitorHealth);
         }
+    }
+
+    // Helper method that starts the monitoring without a delay.
+    private void scheduleNowIfEnabled() {
+        scheduleNextRunIfEnabled(new TimeValue(1));
     }
 
     @Override
@@ -108,7 +109,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
             if (healthMetadataInitialized == false) {
                 healthMetadataInitialized = HealthMetadata.getFromClusterState(event.state()) != null;
                 if (healthMetadataInitialized) {
-                    scheduleNextRunIfEnabled(TimeValue.timeValueMillis(1));
+                    scheduleNowIfEnabled();
                 }
             }
         }
@@ -116,16 +117,19 @@ public class LocalHealthMonitor implements ClusterStateListener {
 
     // Visible for testing
     void monitorHealth() {
-        ClusterState clusterState = clusterService.state();
-        HealthMetadata healthMetadata = HealthMetadata.getFromClusterState(clusterState);
-        assert healthMetadata != null : "health metadata should have been initialized.";
-        IndividualNodeHealth previousHealth = this.lastReportedHealth;
-        IndividualNodeHealth currentHealth = new IndividualNodeHealth(diskCheck.getHealth(healthMetadata, clusterState));
-        if (currentHealth.equals(previousHealth) == false) {
-            logger.info("Sending node health [{}] to health node", currentHealth);
-            this.lastReportedHealth = currentHealth;
+        if (inProgress.compareAndSet(false, true)) {
+            ClusterState clusterState = clusterService.state();
+            HealthMetadata healthMetadata = HealthMetadata.getFromClusterState(clusterState);
+            assert healthMetadata != null : "health metadata should have been initialized.";
+            IndividualNodeHealth previousHealth = this.lastReportedHealth;
+            IndividualNodeHealth currentHealth = new IndividualNodeHealth(diskCheck.getHealth(healthMetadata, clusterState));
+            if (currentHealth.equals(previousHealth) == false) {
+                logger.info("Sending node health [{}] to health node", currentHealth);
+                this.lastReportedHealth = currentHealth;
+            }
+            scheduleNextRunIfEnabled(monitorInterval);
+            inProgress.set(false);
         }
-        scheduleNextRunIfEnabled(monitorInterval);
     }
 
     IndividualNodeHealth getLastReportedHealth() {

@@ -216,12 +216,7 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
 
     private static final Map<String, ComposableIndexTemplate> COMPOSABLE_INDEX_TEMPLATE_CONFIGS = parseComposableTemplates(
         new IndexTemplateConfig(LOGS_INDEX_TEMPLATE_NAME, "/logs-template.json", REGISTRY_VERSION, TEMPLATE_VERSION_VARIABLE),
-        new IndexTemplateConfig(
-            LOGS_DLQ_INDEX_TEMPLATE_NAME,
-            "/logs-dlq-template.json",
-            REGISTRY_VERSION,
-            TEMPLATE_VERSION_VARIABLE
-        ),
+        new IndexTemplateConfig(LOGS_DLQ_INDEX_TEMPLATE_NAME, "/logs-dlq-template.json", REGISTRY_VERSION, TEMPLATE_VERSION_VARIABLE),
         new IndexTemplateConfig(METRICS_INDEX_TEMPLATE_NAME, "/metrics-template.json", REGISTRY_VERSION, TEMPLATE_VERSION_VARIABLE),
         new IndexTemplateConfig(SYNTHETICS_INDEX_TEMPLATE_NAME, "/synthetics-template.json", REGISTRY_VERSION, TEMPLATE_VERSION_VARIABLE)
     );

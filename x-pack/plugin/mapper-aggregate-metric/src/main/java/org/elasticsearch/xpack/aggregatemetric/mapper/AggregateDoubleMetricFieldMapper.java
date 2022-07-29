@@ -11,7 +11,6 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
@@ -713,7 +712,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
             Map<Metric, SortedNumericDocValues> metricDocValues = new EnumMap<>(Metric.class);
             for (Metric m : metrics) {
                 String fieldName = subfieldName(name, m);
-                SortedNumericDocValues dv = NumberFieldMapper.NumericSyntheticFieldLoader.dv(reader, fieldName);
+                SortedNumericDocValues dv = NumberFieldMapper.NumericSyntheticFieldLoader.docValuesOrNull(reader, fieldName);
                 if (dv != null) {
                     metricDocValues.put(m, dv);
                 }

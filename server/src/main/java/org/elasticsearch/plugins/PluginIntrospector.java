@@ -87,7 +87,7 @@ final class PluginIntrospector {
      * contains the simple names of the methods.
      */
     List<String> overriddenMethods(final Class<?> pluginClass) {
-        return List.copyOf(findOverriddenMethods(pluginClass, pluginMethodsMap).keySet());
+        return findOverriddenMethods(pluginClass, pluginMethodsMap).keySet().stream().sorted().toList();
     }
 
     /**

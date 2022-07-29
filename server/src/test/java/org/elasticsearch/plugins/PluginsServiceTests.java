@@ -804,8 +804,4 @@ public class PluginsServiceTests extends ESTestCase {
     public static class PluginOther extends Plugin {
         public PluginOther() {}
     }
-
-    public static class DeprecatedPlugin extends Plugin implements NetworkPlugin {
-        public DeprecatedPlugin() {}
-    }
 }

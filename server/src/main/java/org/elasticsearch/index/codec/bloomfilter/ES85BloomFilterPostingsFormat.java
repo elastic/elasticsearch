@@ -287,6 +287,8 @@ public class ES85BloomFilterPostingsFormat extends PostingsFormat {
 
         @Override
         public void checkIntegrity() throws IOException {
+            // already fully checked the meta file; let's fully checked the index file.
+            CodecUtil.checksumEntireFile(indexIn);
             termsReader.checkIntegrity();
         }
 

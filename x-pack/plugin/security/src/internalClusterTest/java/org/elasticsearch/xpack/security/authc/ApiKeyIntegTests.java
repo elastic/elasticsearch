@@ -1824,7 +1824,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 )
                 .build()
         );
-        final UpdateApiKeyResponse response = updateApiKeyMaybeUsingBulk(
+        final UpdateApiKeyResponse response = updateApiKeys(
             serviceWithNodeName.service(),
             authentication,
             UpdateApiKeyRequest.usingApiKeyId(apiKeyId),
@@ -1928,7 +1928,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 null
             )
         );
-        response = updateApiKeyMaybeUsingBulk(
+        response = updateApiKeys(
             serviceWithNodeName.service(),
             Authentication.newRealmAuthentication(
                 new User(TEST_USER_NAME, TEST_ROLE),
@@ -1967,7 +1967,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             Authentication::isApiKey,
             () -> AuthenticationTestHelper.builder().user(updatedUser).realmRef(realmRef).build()
         );
-        response = updateApiKeyMaybeUsingBulk(
+        response = updateApiKeys(
             serviceWithNodeName.service(),
             authentication,
             UpdateApiKeyRequest.usingApiKeyId(apiKeyId),
@@ -1987,7 +1987,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         );
         final Set<RoleDescriptor> legacySuperuserRoleDescriptor = Set.of(ApiKeyService.LEGACY_SUPERUSER_ROLE_DESCRIPTOR);
         // Force set user role descriptors to 7.x legacy superuser role descriptors
-        UpdateApiKeyResponse response = updateApiKeyMaybeUsingBulk(
+        UpdateApiKeyResponse response = updateApiKeys(
             serviceWithNodeName.service(),
             authentication,
             UpdateApiKeyRequest.usingApiKeyId(apiKeyId),
@@ -1998,7 +1998,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         expectRoleDescriptorsForApiKey("limited_by_role_descriptors", legacySuperuserRoleDescriptor, getApiKeyDocument(apiKeyId));
 
         final Set<RoleDescriptor> currentSuperuserRoleDescriptors = Set.of(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR);
-        response = updateApiKeyMaybeUsingBulk(
+        response = updateApiKeys(
             serviceWithNodeName.service(),
             authentication,
             UpdateApiKeyRequest.usingApiKeyId(apiKeyId),
@@ -2009,7 +2009,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertTrue(response.isUpdated());
         expectRoleDescriptorsForApiKey("limited_by_role_descriptors", currentSuperuserRoleDescriptors, getApiKeyDocument(apiKeyId));
 
-        response = updateApiKeyMaybeUsingBulk(
+        response = updateApiKeys(
             serviceWithNodeName.service(),
             authentication,
             UpdateApiKeyRequest.usingApiKeyId(apiKeyId),
@@ -2441,27 +2441,20 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         );
     }
 
-    private UpdateApiKeyResponse updateApiKeyMaybeUsingBulk(
+    private UpdateApiKeyResponse updateApiKeys(
         final ApiKeyService service,
         final Authentication authentication,
         final UpdateApiKeyRequest request,
         final Set<RoleDescriptor> userRoleDescriptors
     ) throws Exception {
-        final boolean useBulkMethod = randomBoolean();
-        if (useBulkMethod) {
-            final PlainActionFuture<BulkUpdateApiKeyResponse> listener = new PlainActionFuture<>();
-            service.bulkUpdateApiKeys(
-                authentication,
-                new BulkUpdateApiKeyRequest(List.of(request.getId()), request.getRoleDescriptors(), request.getMetadata()),
-                userRoleDescriptors,
-                listener
-            );
-            return toUpdateResponse(listener.get());
-        } else {
-            final PlainActionFuture<UpdateApiKeyResponse> listener = new PlainActionFuture<>();
-            service.updateApiKey(authentication, request, userRoleDescriptors, listener);
-            return listener.get();
-        }
+        final PlainActionFuture<BulkUpdateApiKeyResponse> listener = new PlainActionFuture<>();
+        service.updateApiKeys(
+            authentication,
+            new BulkUpdateApiKeyRequest(List.of(request.getId()), request.getRoleDescriptors(), request.getMetadata()),
+            userRoleDescriptors,
+            listener
+        );
+        return toUpdateResponse(listener.get());
     }
 
     private UpdateApiKeyResponse updateApiKeyMaybeUsingBulk(final String username, final UpdateApiKeyRequest request) throws Exception {

@@ -27,6 +27,10 @@ public final class BulkUpdateApiKeyRequest extends BaseUpdateApiKeyRequest {
         return new BulkUpdateApiKeyRequest(Arrays.stream(ids).toList(), null, null);
     }
 
+    public static BulkUpdateApiKeyRequest wrap(final UpdateApiKeyRequest request) {
+        return new BulkUpdateApiKeyRequest(List.of(request.getId()), request.getRoleDescriptors(), request.getMetadata());
+    }
+
     private final List<String> ids;
 
     public BulkUpdateApiKeyRequest(

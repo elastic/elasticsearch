@@ -91,7 +91,6 @@ import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyResponse;
-import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
@@ -358,42 +357,7 @@ public class ApiKeyService {
         }));
     }
 
-    public void updateApiKey(
-        final Authentication authentication,
-        final UpdateApiKeyRequest request,
-        final Set<RoleDescriptor> userRoleDescriptors,
-        final ActionListener<UpdateApiKeyResponse> listener
-    ) {
-        ensureEnabled();
-
-        if (authentication == null) {
-            listener.onFailure(new IllegalArgumentException("authentication must be provided"));
-            return;
-        } else if (authentication.isApiKey()) {
-            listener.onFailure(
-                new IllegalArgumentException("authentication via API key not supported: only the owner user can update an API key")
-            );
-            return;
-        }
-
-        logger.debug("Updating API key [{}]", request.getId());
-
-        findVersionedApiKeyDocsForSubject(authentication, new String[] { request.getId() }, ActionListener.wrap((versionedDocs) -> {
-            final var apiKeyId = request.getId();
-
-            if (versionedDocs.isEmpty()) {
-                throw new ResourceNotFoundException("no API key owned by requesting user found for ID [" + apiKeyId + "]");
-            }
-
-            final VersionedApiKeyDoc versionedDoc = singleDoc(apiKeyId, versionedDocs);
-
-            validateForUpdate(apiKeyId, authentication, versionedDoc.doc());
-
-            doUpdateApiKey(authentication, request, userRoleDescriptors, versionedDoc, listener);
-        }, ex -> listener.onFailure(traceLog("update", ex))));
-    }
-
-    public void bulkUpdateApiKeys(
+    public void updateApiKeys(
         final Authentication authentication,
         final BulkUpdateApiKeyRequest request,
         final Set<RoleDescriptor> userRoleDescriptors,
@@ -411,18 +375,18 @@ public class ApiKeyService {
             return;
         }
 
-        logger.debug("Bulk updating [{}] API keys", request.getIds().size());
+        logger.debug("Updating [{}] API keys", request.getIds().size());
         findVersionedApiKeyDocsForSubject(
             authentication,
             request.getIds().toArray(new String[0]),
             ActionListener.wrap(
-                versionedDocs -> bulkUpdateApiKeys(authentication, request, userRoleDescriptors, versionedDocs, listener),
+                versionedDocs -> updateApiKeys(authentication, request, userRoleDescriptors, versionedDocs, listener),
                 ex -> listener.onFailure(traceLog("bulk update", ex))
             )
         );
     }
 
-    private void bulkUpdateApiKeys(
+    private void updateApiKeys(
         final Authentication authentication,
         final BulkUpdateApiKeyRequest request,
         final Set<RoleDescriptor> userRoleDescriptors,
@@ -1143,36 +1107,6 @@ public class ApiKeyService {
         }
     }
 
-    private void doUpdateApiKey(
-        final Authentication authentication,
-        final UpdateApiKeyRequest request,
-        final Set<RoleDescriptor> userRoleDescriptors,
-        final VersionedApiKeyDoc currentVersionedDoc,
-        final ActionListener<UpdateApiKeyResponse> listener
-    ) throws IOException {
-        final IndexRequest indexRequest = maybeBuildIndexRequest(currentVersionedDoc, authentication, request, userRoleDescriptors);
-        final boolean isNoop = indexRequest == null;
-        if (isNoop) {
-            logger.debug("Detected noop update request for API key [{}]. Skipping index request.", currentVersionedDoc.id());
-            listener.onResponse(new UpdateApiKeyResponse(false));
-            return;
-        }
-        logger.trace("Executing bulk request to update API key [{}]", currentVersionedDoc.id());
-        securityIndex.prepareIndexIfNeededThenExecute(
-            ex -> listener.onFailure(traceLog("prepare security index before update", ex)),
-            () -> executeAsyncWithOrigin(
-                client.threadPool().getThreadContext(),
-                SECURITY_ORIGIN,
-                client.prepareBulk().add(indexRequest).setRefreshPolicy(RefreshPolicy.WAIT_UNTIL).request(),
-                ActionListener.<BulkResponse>wrap(
-                    bulkResponse -> translateResponseAndClearCache(request.getId(), bulkResponse, listener),
-                    ex -> listener.onFailure(traceLog("execute bulk request for update", ex))
-                ),
-                client::bulk
-            )
-        );
-    }
-
     @Nullable
     private IndexRequest maybeBuildIndexRequest(
         final VersionedApiKeyDoc currentVersionedDoc,
@@ -1500,19 +1434,6 @@ public class ApiKeyService {
             }
         }
         clearApiKeyDocCache(responseBuilder.build(), listener);
-    }
-
-    private static VersionedApiKeyDoc singleDoc(final String apiKeyId, final Collection<VersionedApiKeyDoc> elements) {
-        if (elements.size() != 1) {
-            final var message = "expected single API key doc with ID ["
-                + apiKeyId
-                + "] to be found for update but found ["
-                + elements.size()
-                + "]";
-            assert false : message;
-            throw new IllegalStateException(message);
-        }
-        return elements.iterator().next();
     }
 
     private static void addLimitedByRoleDescriptors(final XContentBuilder builder, final Set<RoleDescriptor> limitedByRoleDescriptors)

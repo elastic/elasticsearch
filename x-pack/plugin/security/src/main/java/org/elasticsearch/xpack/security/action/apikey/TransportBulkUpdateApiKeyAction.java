@@ -57,6 +57,6 @@ public final class TransportBulkUpdateApiKeyAction extends TransportBaseUpdateAp
         final Set<RoleDescriptor> roleDescriptors,
         final ActionListener<BulkUpdateApiKeyResponse> listener
     ) {
-        apiKeyService.bulkUpdateApiKeys(authentication, request, roleDescriptors, listener);
+        apiKeyService.updateApiKeys(authentication, request, roleDescriptors, listener);
     }
 }

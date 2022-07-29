@@ -13,6 +13,8 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyResponse;
@@ -47,6 +49,27 @@ public final class TransportUpdateApiKeyAction extends TransportBaseUpdateApiKey
         final Set<RoleDescriptor> roleDescriptors,
         final ActionListener<UpdateApiKeyResponse> listener
     ) {
-        apiKeyService.updateApiKey(authentication, request, roleDescriptors, listener);
+        apiKeyService.updateApiKeys(
+            authentication,
+            BulkUpdateApiKeyRequest.wrap(request),
+            roleDescriptors,
+            ActionListener.wrap(bulkResponse -> listener.onResponse(fromBulkResponse(request.getId(), bulkResponse)), listener::onFailure)
+        );
+    }
+
+    private UpdateApiKeyResponse fromBulkResponse(final String apiKeyId, final BulkUpdateApiKeyResponse response) throws Exception {
+        if (response.getErrorDetails().isEmpty() == false) {
+            assert response.getErrorDetails().size() == 1 && response.getUpdated().isEmpty() && response.getNoops().isEmpty();
+            assert response.getErrorDetails().containsKey(apiKeyId);
+            throw response.getErrorDetails().values().iterator().next();
+        } else if (response.getUpdated().isEmpty() == false) {
+            assert response.getUpdated().size() == 1 && response.getNoops().isEmpty();
+            assert response.getUpdated().get(0).equals(apiKeyId);
+            return new UpdateApiKeyResponse(true);
+        } else {
+            assert response.getNoops().size() == 1;
+            assert response.getNoops().get(0).equals(apiKeyId);
+            return new UpdateApiKeyResponse(false);
+        }
     }
 }

@@ -1156,6 +1156,11 @@ public class ApiKeyService {
         final Collection<VersionedApiKeyDoc> foundDocs,
         final List<String> requestedIds
     ) {
+        // Short-circuiting by size is safe: `foundDocs` only contains unique IDs of those requested. Same size here necessarily implies
+        // same content
+        if (foundDocs.size() == requestedIds.size()) {
+            return;
+        }
         final Set<String> foundIds = foundDocs.stream().map(VersionedApiKeyDoc::id).collect(Collectors.toUnmodifiableSet());
         for (String id : requestedIds) {
             if (foundIds.contains(id) == false) {

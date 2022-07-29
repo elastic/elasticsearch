@@ -59,17 +59,31 @@ public final class TransportUpdateApiKeyAction extends TransportBaseUpdateApiKey
 
     private UpdateApiKeyResponse fromBulkResponse(final String apiKeyId, final BulkUpdateApiKeyResponse response) throws Exception {
         if (response.getErrorDetails().isEmpty() == false) {
-            assert response.getErrorDetails().size() == 1 && response.getUpdated().isEmpty() && response.getNoops().isEmpty();
-            assert response.getErrorDetails().containsKey(apiKeyId);
+            if (false == (response.getErrorDetails().size() == 1
+                && response.getUpdated().isEmpty()
+                && response.getNoops().isEmpty()
+                && response.getErrorDetails().containsKey(apiKeyId))) {
+                illegalStateException(apiKeyId);
+            }
             throw response.getErrorDetails().values().iterator().next();
         } else if (response.getUpdated().isEmpty() == false) {
-            assert response.getUpdated().size() == 1 && response.getNoops().isEmpty();
-            assert response.getUpdated().get(0).equals(apiKeyId);
+            if (false == (response.getUpdated().size() == 1
+                && response.getNoops().isEmpty()
+                && response.getUpdated().get(0).equals(apiKeyId))) {
+                illegalStateException(apiKeyId);
+            }
             return new UpdateApiKeyResponse(true);
         } else {
-            assert response.getNoops().size() == 1;
-            assert response.getNoops().get(0).equals(apiKeyId);
+            if (false == (response.getNoops().size() == 1 && response.getNoops().get(0).equals(apiKeyId))) {
+                illegalStateException(apiKeyId);
+            }
             return new UpdateApiKeyResponse(false);
         }
+    }
+
+    private void illegalStateException(final String apiKeyId) {
+        final String message = "single API update must contain exactly one response for the requested ID [" + apiKeyId + "]";
+        assert false : message;
+        throw new IllegalStateException(message);
     }
 }

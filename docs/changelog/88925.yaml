@@ -1,0 +1,11 @@
+pr: 88925
+summary: Deprecation overriding `DiscoveryPlugin` internals
+area: Infra/Plugins
+type: deprecation
+issues: []
+deprecation:
+  title: Deprecation overriding `DiscoveryPlugin` internals
+  area: Infra/Plugins
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users

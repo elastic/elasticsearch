@@ -12,18 +12,39 @@ import org.apache.lucene.util.Constants;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.channels.NetworkChannel;
 import java.nio.channels.SocketChannel;
+
+import static org.hamcrest.Matchers.hasItem;
 
 public class NetUtilsTests extends ESTestCase {
 
-    public void testExtendedSocketOptions() throws Exception {
+    public void testExtendedSocketOptions() throws IOException {
         assumeTrue("JDK possibly not supported", Constants.JVM_NAME.contains("HotSpot") || Constants.JVM_NAME.contains("OpenJDK"));
-        assumeTrue("Platform possibly not supported", IOUtils.LINUX || IOUtils.MAC_OS_X);
+        assumeTrue(
+            "jdk.net module not resolved",
+            ModuleLayer.boot().modules().stream().map(Module::getName).anyMatch(nm -> nm.equals("jdk.net"))
+        );
         assertNotNull(NetUtils.getTcpKeepIdleSocketOption());
         assertNotNull(NetUtils.getTcpKeepIntervalSocketOption());
         assertNotNull(NetUtils.getTcpKeepCountSocketOption());
-        SocketChannel.open().supportedOptions().contains(NetUtils.getTcpKeepIdleSocketOption());
-        SocketChannel.open().supportedOptions().contains(NetUtils.getTcpKeepIntervalSocketOption());
-        SocketChannel.open().supportedOptions().contains(NetUtils.getTcpKeepCountSocketOption());
+
+        assumeTrue("Platform possibly not supported", IOUtils.LINUX || IOUtils.MAC_OS_X);
+        try (var channel = networkChannel()) {
+            var options = channel.supportedOptions();
+            assertThat(options, hasItem(NetUtils.getTcpKeepIdleSocketOption()));
+            assertThat(options, hasItem(NetUtils.getTcpKeepIntervalSocketOption()));
+            assertThat(options, hasItem(NetUtils.getTcpKeepCountSocketOption()));
+        }
+    }
+
+    private static NetworkChannel networkChannel() {
+        try {
+            return SocketChannel.open();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 }

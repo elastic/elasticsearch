@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.apm;
+package org.elasticsearch.tracing.apm;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -99,7 +99,7 @@ class APMAgentSettings {
         });
     }
 
-    private static final String APM_SETTING_PREFIX = "xpack.apm.";
+    private static final String APM_SETTING_PREFIX = "tracing.apm.";
 
     /**
      * A list of APM agent config keys that should never be configured by the user.
@@ -107,7 +107,7 @@ class APMAgentSettings {
     private static final List<String> PROHIBITED_AGENT_KEYS = List.of(
         // ES generates a config file and sets this value
         "config_file",
-        // ES controls this via `xpack.apm.enabled`
+        // ES controls this via `tracing.apm.enabled`
         "recording"
     );
 

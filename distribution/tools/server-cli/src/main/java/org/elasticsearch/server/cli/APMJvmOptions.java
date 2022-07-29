@@ -139,10 +139,6 @@ class APMJvmOptions {
         IOException {
         final Path agentJar = findAgentJar();
 
-        if (agentJar == null) {
-            return List.of();
-        }
-
         final Map<String, String> propertiesMap = extractApmSettings(settings);
 
         // No point doing anything if we don't have a destination for the trace data, and it can't be configured dynamically
@@ -177,8 +173,8 @@ class APMJvmOptions {
     private static void extractSecureSettings(KeyStoreWrapper keystore, Map<String, String> propertiesMap) {
         final Set<String> settingNames = keystore.getSettingNames();
         for (String key : List.of("api_key", "secret_token")) {
-            if (settingNames.contains("xpack.apm." + key)) {
-                try (SecureString token = keystore.getString("xpack.apm." + key)) {
+            if (settingNames.contains("tracing.apm." + key)) {
+                try (SecureString token = keystore.getString("tracing.apm." + key)) {
                     propertiesMap.put(key, token.toString());
                 }
             }
@@ -207,7 +203,7 @@ class APMJvmOptions {
     private static Map<String, String> extractApmSettings(Settings settings) throws UserException {
         final Map<String, String> propertiesMap = new HashMap<>();
 
-        final Settings agentSettings = settings.getByPrefix("xpack.apm.agent.");
+        final Settings agentSettings = settings.getByPrefix("tracing.apm.agent.");
         agentSettings.keySet().forEach(key -> propertiesMap.put(key, String.valueOf(agentSettings.get(key))));
 
         // These settings must not be changed
@@ -215,7 +211,7 @@ class APMJvmOptions {
             if (propertiesMap.containsKey(key)) {
                 throw new UserException(
                     ExitCodes.CONFIG,
-                    "Do not set a value for [xpack.apm.agent." + key + "], as this is configured automatically by Elasticsearch"
+                    "Do not set a value for [tracing.apm.agent." + key + "], as this is configured automatically by Elasticsearch"
                 );
             }
         }
@@ -254,11 +250,7 @@ class APMJvmOptions {
      */
     @Nullable
     private static Path findAgentJar() throws IOException, UserException {
-        final Path apmModule = Path.of("modules/x-pack-apm-integration");
-
-        if (Files.isDirectory(apmModule) == false) {
-            return null;
-        }
+        final Path apmModule = Path.of("modules/apm");
 
         try (var apmStream = Files.list(apmModule)) {
             final List<Path> paths = apmStream.filter(
@@ -268,11 +260,18 @@ class APMJvmOptions {
             if (paths.size() > 1) {
                 throw new UserException(
                     ExitCodes.CODE_ERROR,
-                    "Found multiple [elastic-apm-agent] jars under [modules/x-pack-apm-integration]! Installation is corrupt."
+                    "Found multiple [elastic-apm-agent] jars under [" + apmModule + "]! Installation is corrupt."
                 );
             }
 
-            return paths.isEmpty() ? null : paths.get(0);
+            if (paths.isEmpty()) {
+                throw new UserException(
+                    ExitCodes.CODE_ERROR,
+                    "Found no [elastic-apm-agent] jar under [" + apmModule + "]! Installation is corrupt."
+                );
+            }
+
+            return paths.get(0);
         }
     }
 }

@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.apm;
+package org.elasticsearch.tracing.apm;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.client.internal.Client;
@@ -38,8 +38,8 @@ import java.util.function.Supplier;
  * programmatically attach the agent, the Security Manager permissions required for this
  * make this approach difficult to the point of impossibility.
  * <p>
- * All settings are found under the <code>xpack.apm.</code> prefix. Any setting under
- * the <code>xpack.apm.agent.</code> prefix will be forwarded on to the APM Java agent
+ * All settings are found under the <code>tracing.apm.</code> prefix. Any setting under
+ * the <code>tracing.apm.agent.</code> prefix will be forwarded on to the APM Java agent
  * by setting appropriate system properties. Some settings can only be set once, and must be
  * set when the agent starts. We therefore also create and configure a config file in
  * the {@code APMJvmOptions} class, which we then delete when Elasticsearch starts, so that

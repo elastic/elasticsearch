@@ -286,7 +286,6 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
         /**
          * Return a delegate field type for a given metric sub-field
-         *
          * @return a field type
          */
         private NumberFieldMapper.NumberFieldType delegateFieldType(Metric metric) {
@@ -295,7 +294,6 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
         /**
          * Return a delegate field type for the default metric sub-field
-         *
          * @return a field type
          */
         private NumberFieldMapper.NumberFieldType delegateFieldType() {
@@ -513,7 +511,6 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
         /**
          * If field is a time series metric field, returns its metric type
-         *
          * @return the metric type or null
          */
         public MetricType getMetricType() {
@@ -529,19 +526,13 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
     private final Version indexCreatedVersion;
 
-    /**
-     * A set of metrics supported
-     */
+    /** A set of metrics supported */
     private final EnumSet<Metric> metrics;
 
-    /**
-     * The default metric to be when querying this field type
-     */
+    /** The default metric to be when querying this field type */
     protected Metric defaultMetric;
 
-    /**
-     * The metric type (gauge, counter, summary) if  field is a time series metric
-     */
+    /** The metric type (gauge, counter, summary) if  field is a time series metric */
     private final TimeSeriesParams.MetricType metricType;
 
     private AggregateDoubleMetricFieldMapper(

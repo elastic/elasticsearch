@@ -463,7 +463,8 @@ public final class IndexSettings {
         "index.bloom_filter_for_id_field.enabled",
         true,
         Setting.Property.Dynamic,
-        Setting.Property.IndexScope
+        Setting.Property.IndexScope,
+        Property.DeprecatedWarning
     );
 
     /**

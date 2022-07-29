@@ -1,0 +1,11 @@
+pr: 88924
+summary: Deprecate network plugins
+area: Infra/Plugins
+type: deprecation
+issues: []
+deprecation:
+  title: Deprecate network plugins
+  area: Infra/Plugins
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users

@@ -21,13 +21,38 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.io.OutputStream;
 
+/**
+ * The body of a rest response that uses chunked HTTP encoding. Implementations are used to avoid materializing full responses on heap and
+ * instead serialize only as much of the response as can be flushed to the network right away.
+ */
 public interface ChunkedRestResponseBody {
 
+    /**
+     * @return true once this response has been written fully.
+     */
     boolean isDone();
 
+    /**
+     * Serializes approximately as many bytes of the response as request by {@code sizeHint} to a {@link ReleasableBytesReference} that
+     * is created from buffers backed by the given {@code recycler}.
+     *
+     * @param sizeHint how many bytes to approximately serialize for the given chunk
+     * @param recycler recycler used to acquire buffers
+     * @return serialized chunk
+     * @throws IOException on serialization failure
+     */
     ReleasableBytesReference encodeChunk(int sizeHint, Recycler<BytesRef> recycler) throws IOException;
 
-    static ChunkedRestResponseBody fromXContent(ChunkedToXContent chunkedToXContent, ToXContent.Params params, RestChannel channel) {
+    /**
+     * Create a chunked response body to be written to a specific {@link RestChannel} from a {@link ChunkedToXContent}.
+     *
+     * @param chunkedToXContent chunked x-content instance to serialize
+     * @param params parameters to use for serialization
+     * @param channel channel the response will be written to
+     * @return chunked rest response body
+     */
+    static ChunkedRestResponseBody fromXContent(ChunkedToXContent chunkedToXContent, ToXContent.Params params, RestChannel channel)
+        throws IOException {
 
         return new ChunkedRestResponseBody() {
 
@@ -42,7 +67,11 @@ public interface ChunkedRestResponseBody {
                     target.write(b, off, len);
                 }
             };
-            private ChunkedToXContent.ChunkedXContentSerialization serialization;
+
+            private final ChunkedToXContent.ChunkedXContentSerialization serialization = chunkedToXContent.toXContentChunked(
+                channel.newBuilder(channel.request().getXContentType(), null, true, Streams.noCloseStream(out)),
+                params
+            );
 
             private boolean done = false;
 
@@ -58,14 +87,8 @@ public interface ChunkedRestResponseBody {
                 final RecyclerBytesStreamOutput chunkStream = new RecyclerBytesStreamOutput(recycler);
                 assert this.target == null;
                 this.target = chunkStream;
-                if (serialization == null) {
-                    serialization = chunkedToXContent.toXContentChunked(
-                        channel.newBuilder(channel.request().getXContentType(), null, true, Streams.noCloseStream(out)),
-                        params
-                    );
-                }
                 XContentBuilder b;
-                while ((b = serialization.encodeChunk()) == null) {
+                while ((b = serialization.writeChunk()) == null) {
                     if (chunkStream.size() > sizeHint) {
                         break;
                     }

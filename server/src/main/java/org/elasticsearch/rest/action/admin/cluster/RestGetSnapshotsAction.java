@@ -88,7 +88,7 @@ public class RestGetSnapshotsAction extends BaseRestHandler {
             .cluster()
             .getSnapshots(getSnapshotsRequest, new RestActionListener<>(channel) {
                 @Override
-                protected void processResponse(GetSnapshotsResponse getSnapshotsResponse) {
+                protected void processResponse(GetSnapshotsResponse getSnapshotsResponse) throws IOException {
                     ensureOpen();
                     channel.sendResponse(
                         new RestResponse(

@@ -196,7 +196,7 @@ public class GetSnapshotsResponse extends ActionResponse implements ChunkedToXCo
         }
 
         @Override
-        public XContentBuilder encodeChunk() throws IOException {
+        public XContentBuilder writeChunk() throws IOException {
             if (snapshotsIter == null) {
                 throw new IllegalStateException("Already finished serializing");
             }

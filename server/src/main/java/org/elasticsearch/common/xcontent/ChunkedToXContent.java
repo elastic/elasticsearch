@@ -14,6 +14,9 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
+/**
+ * An extension of {@link ToXContent} that can be serialized in chunks by creating a {@link ChunkedXContentSerialization}.
+ */
 public interface ChunkedToXContent extends ToXContent {
 
     ChunkedXContentSerialization toXContentChunked(XContentBuilder builder, ToXContent.Params params);
@@ -23,14 +26,24 @@ public interface ChunkedToXContent extends ToXContent {
         ChunkedXContentSerialization serialization = toXContentChunked(builder, params);
         XContentBuilder b = null;
         while (b == null) {
-            b = serialization.encodeChunk();
+            b = serialization.writeChunk();
         }
         return b;
     }
 
+    /**
+     * The state of a chunked x-content serialization.
+     */
     interface ChunkedXContentSerialization {
 
+        /**
+         * Writes a single chunk to the underlying {@link XContentBuilder}. Must be called repeatedly until a non-null return to complete
+         * the serialization.
+         *
+         * @return the {@link XContentBuilder} that was used for this serialization once finished
+         * @throws IOException on serialization failure
+         */
         @Nullable
-        XContentBuilder encodeChunk() throws IOException;
+        XContentBuilder writeChunk() throws IOException;
     }
 }

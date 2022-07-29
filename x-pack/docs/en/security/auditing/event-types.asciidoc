@@ -260,7 +260,7 @@ event action.
 
 [[event-change-apikeys]]
 `change_apikeys`::
-Logged when the <<security-api-bulk-update-api-key,bulk update API keys>> API is
+Logged when the <<security-api-bulk-update-api-keys,bulk update API keys>> API is
 invoked to update the attributes of a batch of existing API keys.
 +
 You must include the `security_config_change` event type to audit the related

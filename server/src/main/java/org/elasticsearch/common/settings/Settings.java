@@ -611,8 +611,7 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
 
             @Override
             public Object read(StreamInput in, String key) throws IOException {
-                final var value = in.readGenericValue();
-                return value;
+                return in.readGenericValue();
             }
         };
 
@@ -638,6 +637,8 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
     }
 
     private static void writeSettingValue(StreamOutput streamOutput, Object value) throws IOException {
+        // we only have strings, lists of strings or null values so as an optimization we can dispatch those directly instead of going
+        // through the much slower StreamOutput#writeGenericValue that would write the same format
         if (value instanceof String) {
             streamOutput.writeGenericString((String) value);
         } else if (value instanceof List<?>) {

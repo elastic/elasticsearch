@@ -32,6 +32,7 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
@@ -444,13 +445,30 @@ public class SettingsTests extends ESTestCase {
 
     public void testDiff() throws IOException {
         final Settings before = Settings.builder().put("foo", "bar").put("setting", "value").build();
-        final Settings after = Settings.builder().put("foo", "bar").putNull("null_setting").build();
-        final Diff<Settings> diff = after.diff(before);
-        BytesStreamOutput out = new BytesStreamOutput();
-        diff.writeTo(out);
-        final Diff<Settings> diffRead = Settings.readSettingsDiffFromStream(out.bytes().streamInput());
-        final Settings afterFromDiff = diffRead.apply(before);
-        assertEquals(after, afterFromDiff);
+        {
+            final Settings after = Settings.builder()
+                .put("foo", "bar")
+                .putNull("null_setting")
+                .putList("list_setting", List.of("a", "bbb", "ccc"))
+                .put("added_setting", "added")
+                .build();
+            final Diff<Settings> diff = after.diff(before);
+            BytesStreamOutput out = new BytesStreamOutput();
+            diff.writeTo(out);
+            final Diff<Settings> diffRead = Settings.readSettingsDiffFromStream(out.bytes().streamInput());
+            final Settings afterFromDiff = diffRead.apply(before);
+            assertEquals(after, afterFromDiff);
+        }
+
+        {
+            final Settings afterSameAsBefore = Settings.builder().put(before).build();
+            final Diff<Settings> diff = afterSameAsBefore.diff(before);
+            BytesStreamOutput out = new BytesStreamOutput();
+            diff.writeTo(out);
+            final Diff<Settings> diffRead = Settings.readSettingsDiffFromStream(out.bytes().streamInput());
+            assertSame(before, diff.apply(before));
+            assertSame(before, diffRead.apply(before));
+        }
     }
 
     public void testSecureSettingConflict() {

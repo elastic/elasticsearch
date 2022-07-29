@@ -1613,7 +1613,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final List<String> idsWithDuplicates = shuffledList(Stream.concat(apiKeyIds.stream(), apiKeyIds.stream()).toList());
         assertEquals(idsWithDuplicates.size(), apiKeyIds.size() * 2);
 
-        final BulkUpdateApiKeyResponse response = executeBulkUpdateApiKey(
+        BulkUpdateApiKeyResponse response = executeBulkUpdateApiKey(
             TEST_USER_NAME,
             new BulkUpdateApiKeyRequest(idsWithDuplicates, newRoleDescriptors, newMetadata)
         );
@@ -1625,6 +1625,22 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertThat(allIds, containsInAnyOrder(apiKeyIds.toArray()));
 
         // Check not found IDs reported once for duplicates
+        final List<String> notFoundIds = randomList(
+            1,
+            5,
+            () -> randomValueOtherThanMany(apiKeyIds::contains, () -> randomAlphaOfLength(10))
+        );
+        final List<String> notFoundIdsWithDuplicates = shuffledList(Stream.concat(notFoundIds.stream(), notFoundIds.stream()).toList());
+
+        response = executeBulkUpdateApiKey(
+            TEST_USER_NAME,
+            new BulkUpdateApiKeyRequest(notFoundIdsWithDuplicates, newRoleDescriptors, newMetadata)
+        );
+
+        assertNotNull(response);
+        assertThat(response.getErrorDetails().keySet(), containsInAnyOrder(notFoundIds.toArray()));
+        assertThat(response.getUpdated(), empty());
+        assertThat(response.getNoops(), empty());
     }
 
     public void testUpdateApiKeysAutoUpdatesUserFields() throws Exception {

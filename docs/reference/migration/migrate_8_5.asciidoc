@@ -24,11 +24,11 @@ There are no breaking changes in {es} 8.5.
 [[deprecated-8.5]]
 === Deprecations
 
-The following functionality has been deprecated in {es} 8.3
+The following functionality has been deprecated in {es} 8.5
 and will be removed in a future version.
 While this won't have an immediate impact on your applications,
 we strongly encourage you take the described steps to update your code
-after upgrading to 8.3.
+after upgrading to 8.5.
 
 To find out if you are using any deprecated functionality,
 enable <<deprecation-logging, deprecation logging>>.
@@ -36,7 +36,7 @@ enable <<deprecation-logging, deprecation logging>>.
 
 [discrete]
 [[deprecations_85_network_plugins]]
-==== Plugin deprecations
+==== Java API deprecations
 
 [[network_plugins_deprecated]]
 Plugins that extend the NetworkPlugin interface are deprecated.

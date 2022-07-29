@@ -59,7 +59,7 @@ The dataset and namespace parameters determine the <<data-streams, data stream>>
 Any provided query parameter will be added to each log line.
 For example, `/_logs/myapp?service.name=myapp` will add `"data_stream.dataset": "myapp"` and `"service.name": "myapp"` to all logs.
 
-
+[discrete]
 [[logs-api-request-body]]
 === {api-request-body-title}
 The request body contains a newline-delimited list of log events to ingest.

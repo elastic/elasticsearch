@@ -1544,7 +1544,6 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertNotNull(response);
         assertThat(response.getErrorDetails(), anEmptyMap());
         final List<String> allIds = Stream.concat(response.getUpdated().stream(), response.getNoops().stream()).toList();
-        assertEquals(apiKeyIds.size(), allIds.size());
         assertThat(allIds, containsInAnyOrder(apiKeyIds.toArray()));
         // Role descriptor corresponding to SecuritySettingsSource.TEST_ROLE_YML
         final var expectedLimitedByRoleDescriptors = Set.of(
@@ -1578,7 +1577,6 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertThat(responseWithNoExpectedUpdates.getUpdated(), empty());
         assertEquals(apiKeyIds.size(), responseWithNoExpectedUpdates.getNoops().size());
         assertThat(responseWithNoExpectedUpdates.getNoops(), containsInAnyOrder(apiKeyIds.toArray()));
-        assertEquals(notFoundIds.size(), responseWithNoExpectedUpdates.getErrorDetails().size());
         assertThat(responseWithNoExpectedUpdates.getErrorDetails().keySet(), containsInAnyOrder(notFoundIds.toArray()));
         for (String apiKeyId : apiKeyIds) {
             final Map<String, Object> doc = getApiKeyDocument(apiKeyId);
@@ -1597,7 +1595,6 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final BulkUpdateApiKeyResponse responseWithErrors = executeBulkUpdateApiKey(TEST_USER_NAME, requestWithErrors);
         assertThat(responseWithErrors.getUpdated(), empty());
         assertThat(responseWithErrors.getNoops(), empty());
-        assertEquals(apiKeyIds.size(), responseWithErrors.getErrorDetails().size());
         assertThat(responseWithErrors.getErrorDetails().keySet(), containsInAnyOrder(apiKeyIds.toArray()));
     }
 
@@ -1621,7 +1618,6 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertNotNull(response);
         assertThat(response.getErrorDetails(), anEmptyMap());
         final List<String> allIds = Stream.concat(response.getUpdated().stream(), response.getNoops().stream()).toList();
-        assertEquals(apiKeyIds.size(), allIds.size());
         assertThat(allIds, containsInAnyOrder(apiKeyIds.toArray()));
 
         // Check not found IDs reported once for duplicates

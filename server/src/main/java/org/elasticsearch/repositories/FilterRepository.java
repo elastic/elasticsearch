@@ -181,11 +181,6 @@ public class FilterRepository implements Repository {
     }
 
     @Override
-    public void removeLifecycleListener(LifecycleListener listener) {
-        in.removeLifecycleListener(listener);
-    }
-
-    @Override
     public void start() {
         in.start();
     }

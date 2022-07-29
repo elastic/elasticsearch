@@ -21,6 +21,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -70,6 +71,12 @@ import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 
 public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
+
+    @Override
+    protected Settings nodeSettings() {
+        // Disable the health node selection so the task assignment does not interfere with the cluster state during the test
+        return Settings.builder().put(HealthNodeTaskExecutor.ENABLED_SETTING.getKey(), false).build();
+    }
 
     public void testLegacyNoopUpdate() throws IOException {
         ClusterState state = ClusterState.EMPTY_STATE;

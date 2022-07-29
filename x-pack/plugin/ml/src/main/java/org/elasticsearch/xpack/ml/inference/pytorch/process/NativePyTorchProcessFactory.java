@@ -69,7 +69,7 @@ public class NativePyTorchProcessFactory implements PyTorchProcessFactory {
             true,
             true,
             true,
-            false
+            false // We do not need a persist pipe. This is also why we use 3 threads per model assignment in the pytorch thread pool.
         );
 
         executeProcess(processPipes, task);
@@ -103,7 +103,8 @@ public class NativePyTorchProcessFactory implements PyTorchProcessFactory {
             nativeController,
             processPipes,
             task.getParams().getThreadsPerAllocation(),
-            task.getParams().getNumberOfAllocations()
+            task.getParams().getNumberOfAllocations(),
+            task.getParams().getCacheSizeBytes()
         );
         try {
             pyTorchBuilder.build();

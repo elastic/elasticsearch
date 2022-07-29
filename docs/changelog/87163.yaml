@@ -1,6 +1,0 @@
-pr: 87163
-summary: Clean up `DeflateCompressor` after exception
-area: Infra/Core
-type: bug
-issues:
- - 87160

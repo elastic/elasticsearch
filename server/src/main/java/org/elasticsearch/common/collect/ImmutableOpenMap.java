@@ -27,7 +27,6 @@ import java.util.Spliterators;
 import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
-import java.util.function.Predicate;
 
 /**
  * An immutable map implementation based on open hash map.
@@ -458,22 +457,6 @@ public final class ImmutableOpenMap<KType, VType> extends AbstractMap<KType, VTy
             return mutableMap.getOrDefault(kType, vType);
         }
 
-        public void putAll(Builder<KType, VType> builder) {
-            maybeCloneMap();
-            for (var entry : builder.mutableMap) {
-                mutableMap.put(entry.key, entry.value);
-            }
-        }
-
-        /**
-         * Remove that can be used in the fluent pattern.
-         */
-        public Builder<KType, VType> fRemove(KType key) {
-            maybeCloneMap();
-            mutableMap.remove(key);
-            return this;
-        }
-
         public VType remove(KType key) {
             maybeCloneMap();
             return mutableMap.remove(key);
@@ -489,16 +472,6 @@ public final class ImmutableOpenMap<KType, VType> extends AbstractMap<KType, VTy
             return mutableMap.size();
         }
 
-        public boolean isEmpty() {
-            maybeCloneMap();
-            return mutableMap.isEmpty();
-        }
-
-        public int removeAll(Predicate<? super KType> predicate) {
-            maybeCloneMap();
-            return mutableMap.removeAll(predicate::test);
-        }
-
         public void clear() {
             maybeCloneMap();
             mutableMap.clear();
@@ -509,29 +482,9 @@ public final class ImmutableOpenMap<KType, VType> extends AbstractMap<KType, VTy
             return new KeySet<>(mutableMap.keys());
         }
 
-        @SuppressWarnings("unchecked")
-        public <K, V> Builder<K, V> cast() {
-            return (Builder) this;
-        }
-
         public int removeAll(BiPredicate<? super KType, ? super VType> predicate) {
             maybeCloneMap();
             return mutableMap.removeAll(predicate::test);
-        }
-
-        public int indexOf(KType key) {
-            maybeCloneMap();
-            return mutableMap.indexOf(key);
-        }
-
-        public boolean indexExists(int index) {
-            maybeCloneMap();
-            return mutableMap.indexExists(index);
-        }
-
-        public void release() {
-            maybeCloneMap();
-            mutableMap.release();
         }
 
     }

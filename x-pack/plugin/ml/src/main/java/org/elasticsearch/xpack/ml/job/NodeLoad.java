@@ -27,7 +27,7 @@ public class NodeLoad {
     private final String error;
     private final int numAssignedAnomalyDetectorJobs;
     private final int numAssignedDataFrameAnalyticsJobs;
-    private final int numAssignedNativeInferenceJobs;
+    private final int numAssignedNativeInferenceModels;
     private final long assignedNativeCodeOverheadMemory;
     private final long assignedAnomalyDetectorMemory;
     private final long assignedDataFrameAnalyticsMemory;
@@ -42,7 +42,7 @@ public class NodeLoad {
         String error,
         int numAssignedAnomalyDetectorJobs,
         int numAssignedDataFrameAnalyticsJobs,
-        int numAssignedNativeInferenceJobs,
+        int numAssignedNativeInferenceModels,
         long assignedNativeCodeOverheadMemory,
         long assignedAnomalyDetectorMemory,
         long assignedDataFrameAnalyticsMemory,
@@ -56,7 +56,7 @@ public class NodeLoad {
         this.error = error;
         this.numAssignedAnomalyDetectorJobs = numAssignedAnomalyDetectorJobs;
         this.numAssignedDataFrameAnalyticsJobs = numAssignedDataFrameAnalyticsJobs;
-        this.numAssignedNativeInferenceJobs = numAssignedNativeInferenceJobs;
+        this.numAssignedNativeInferenceModels = numAssignedNativeInferenceModels;
         this.assignedNativeCodeOverheadMemory = assignedNativeCodeOverheadMemory;
         this.assignedAnomalyDetectorMemory = assignedAnomalyDetectorMemory;
         this.assignedDataFrameAnalyticsMemory = assignedDataFrameAnalyticsMemory;
@@ -65,10 +65,10 @@ public class NodeLoad {
     }
 
     /**
-     * @return The total number of assigned jobs
+     * @return The total number of assigned jobs and models
      */
-    public int getNumAssignedJobs() {
-        return numAssignedAnomalyDetectorJobs + numAssignedDataFrameAnalyticsJobs + numAssignedNativeInferenceJobs;
+    public int getNumAssignedJobsAndModels() {
+        return numAssignedAnomalyDetectorJobs + numAssignedDataFrameAnalyticsJobs + numAssignedNativeInferenceModels;
     }
 
     /**
@@ -166,7 +166,8 @@ public class NodeLoad {
      * @return The number of jobs that can still be assigned to the node
      */
     public int remainingJobs() {
-        return Math.max(maxJobs - getNumAssignedJobs(), 0);
+        // Native inference jobs use their own thread pool so they should not account towards the limit of open jobs.
+        return Math.max(maxJobs - (getNumAssignedJobsAndModels() - numAssignedNativeInferenceModels), 0);
     }
 
     /**
@@ -194,7 +195,7 @@ public class NodeLoad {
             && useMemory == nodeLoad.useMemory
             && numAssignedAnomalyDetectorJobs == nodeLoad.numAssignedAnomalyDetectorJobs
             && numAssignedDataFrameAnalyticsJobs == nodeLoad.numAssignedDataFrameAnalyticsJobs
-            && numAssignedNativeInferenceJobs == nodeLoad.numAssignedNativeInferenceJobs
+            && numAssignedNativeInferenceModels == nodeLoad.numAssignedNativeInferenceModels
             && assignedNativeCodeOverheadMemory == nodeLoad.assignedNativeCodeOverheadMemory
             && assignedAnomalyDetectorMemory == nodeLoad.assignedAnomalyDetectorMemory
             && assignedDataFrameAnalyticsMemory == nodeLoad.assignedDataFrameAnalyticsMemory
@@ -214,7 +215,7 @@ public class NodeLoad {
             error,
             numAssignedAnomalyDetectorJobs,
             numAssignedDataFrameAnalyticsJobs,
-            numAssignedNativeInferenceJobs,
+            numAssignedNativeInferenceModels,
             assignedNativeCodeOverheadMemory,
             assignedAnomalyDetectorMemory,
             assignedDataFrameAnalyticsMemory,
@@ -239,7 +240,7 @@ public class NodeLoad {
         private String error;
         private int numAssignedAnomalyDetectorJobs;
         private int numAssignedDataFrameAnalyticsJobs;
-        private int numAssignedNativeInferenceJobs;
+        private int numAssignedNativeInferenceModels;
         private long assignedNativeCodeOverheadMemory;
         private long assignedAnomalyDetectorMemory;
         private long assignedDataFrameAnalyticsMemory;
@@ -254,7 +255,7 @@ public class NodeLoad {
             this.error = nodeLoad.error;
             this.numAssignedAnomalyDetectorJobs = nodeLoad.numAssignedAnomalyDetectorJobs;
             this.numAssignedDataFrameAnalyticsJobs = nodeLoad.numAssignedDataFrameAnalyticsJobs;
-            this.numAssignedNativeInferenceJobs = nodeLoad.numAssignedNativeInferenceJobs;
+            this.numAssignedNativeInferenceModels = nodeLoad.numAssignedNativeInferenceModels;
             this.assignedNativeCodeOverheadMemory = nodeLoad.assignedNativeCodeOverheadMemory;
             this.assignedAnomalyDetectorMemory = nodeLoad.assignedAnomalyDetectorMemory;
             this.assignedDataFrameAnalyticsMemory = nodeLoad.assignedDataFrameAnalyticsMemory;
@@ -275,7 +276,8 @@ public class NodeLoad {
         }
 
         public int remainingJobs() {
-            return Math.max(maxJobs - getNumAssignedJobs(), 0);
+            // Native inference jobs use their own thread pool so they should not account towards the limit of open jobs.
+            return Math.max(maxJobs - (getNumAssignedJobs() - numAssignedNativeInferenceModels), 0);
         }
 
         public String getNodeId() {
@@ -283,7 +285,7 @@ public class NodeLoad {
         }
 
         public int getNumAssignedJobs() {
-            return numAssignedAnomalyDetectorJobs + numAssignedDataFrameAnalyticsJobs + numAssignedNativeInferenceJobs;
+            return numAssignedAnomalyDetectorJobs + numAssignedDataFrameAnalyticsJobs + numAssignedNativeInferenceModels;
         }
 
         public Builder setMaxMemory(long maxMemory) {
@@ -320,8 +322,8 @@ public class NodeLoad {
             return this;
         }
 
-        public Builder incNumAssignedNativeInferenceJobs() {
-            ++this.numAssignedNativeInferenceJobs;
+        public Builder incNumAssignedNativeInferenceModels() {
+            ++this.numAssignedNativeInferenceModels;
             return this;
         }
 
@@ -390,7 +392,7 @@ public class NodeLoad {
                 error,
                 numAssignedAnomalyDetectorJobs,
                 numAssignedDataFrameAnalyticsJobs,
-                numAssignedNativeInferenceJobs,
+                numAssignedNativeInferenceModels,
                 assignedNativeCodeOverheadMemory,
                 assignedAnomalyDetectorMemory,
                 assignedDataFrameAnalyticsMemory,

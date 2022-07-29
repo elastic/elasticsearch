@@ -32,7 +32,6 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -71,7 +70,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         prepareIndex(1, 0);
 
         logger.info("--> stopping the node with the primary");
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNodeName()));
+        internalCluster().stopNode(primaryNodeName());
         ensureStableCluster(1);
         refreshClusterInfo();
 
@@ -150,7 +149,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
 
         prepareIndex(1, 1);
         logger.info("--> stopping the node with the replica");
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(replicaNode().getName()));
+        internalCluster().stopNode(replicaNode().getName());
         ensureStableCluster(2);
         refreshClusterInfo();
         assertBusy(() ->
@@ -291,8 +290,8 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         logger.info("--> shutting down all nodes except the one that holds the primary");
         Settings node0DataPathSettings = internalCluster().dataPathSettings(nodes.get(0));
         Settings node1DataPathSettings = internalCluster().dataPathSettings(nodes.get(1));
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodes.get(0)));
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodes.get(1)));
+        internalCluster().stopNode(nodes.get(0));
+        internalCluster().stopNode(nodes.get(1));
         ensureStableCluster(1);
 
         logger.info("--> setting allocation filtering to only allow allocation on the currently running node");
@@ -1080,7 +1079,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         assertThat(primaryNodeName(), equalTo(primaryNode));
 
         logger.info("--> stop node with the replica shard");
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(replicaNode));
+        internalCluster().stopNode(replicaNode);
 
         final IndexMetadata.State indexState = randomIndexState();
         if (indexState == IndexMetadata.State.OPEN) {
@@ -1102,7 +1101,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         }
 
         logger.info("--> stop the node with the primary");
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNode));
+        internalCluster().stopNode(primaryNode);
 
         logger.info("--> restart the node with the stale replica");
         String restartedNode = internalCluster().startDataOnlyNode(replicaDataPathSettings);

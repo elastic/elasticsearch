@@ -1078,21 +1078,13 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         }
     }
 
-    private static class PercentileKey extends Tuple<Expression, PercentilesConfig> {
+    private record PercentileKey(Expression field, PercentilesConfig percentilesConfig) {
         PercentileKey(Percentile per) {
-            super(per.field(), per.percentilesConfig());
+            this(per.field(), per.percentilesConfig());
         }
 
         PercentileKey(PercentileRank per) {
-            super(per.field(), per.percentilesConfig());
-        }
-
-        private Expression field() {
-            return v1();
-        }
-
-        private PercentilesConfig percentilesConfig() {
-            return v2();
+            this(per.field(), per.percentilesConfig());
         }
     }
 

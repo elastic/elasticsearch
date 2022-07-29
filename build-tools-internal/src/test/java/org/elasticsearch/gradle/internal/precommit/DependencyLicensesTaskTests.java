@@ -8,7 +8,6 @@
 package org.elasticsearch.gradle.internal.precommit;
 
 import org.apache.groovy.util.Maps;
-import org.elasticsearch.gradle.internal.test.GradleUnitTestCase;
 import org.gradle.api.Action;
 import org.gradle.api.GradleException;
 import org.gradle.api.Project;
@@ -34,7 +33,7 @@ import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.containsString;
 
-public class DependencyLicensesTaskTests extends GradleUnitTestCase {
+public class DependencyLicensesTaskTests {
 
     private static final String PERMISSIVE_LICENSE_TEXT = "Eclipse Public License - v 2.0";
     private static final String STRICT_LICENSE_TEXT = "GNU LESSER GENERAL PUBLIC LICENSE Version 3";

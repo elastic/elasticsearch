@@ -58,7 +58,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class KeywordFieldMapperTests extends MapperTestCase {
-
     /**
      * Creates a copy of the lowercase token filter which we use for testing merge errors.
      */
@@ -572,7 +571,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Object generateRandomInputValue(MappedFieldType ft) {
-        return switch (between(0, 3)) {
+        return switch (between(0, 4)) {
             case 0 -> randomAlphaOfLengthBetween(1, 100);
             case 1 -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 100);
             case 2 -> randomLong();
@@ -631,12 +630,12 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         private final String nullValue = usually() ? null : randomAlphaOfLength(2);
 
         @Override
-        public SyntheticSourceExample example() {
+        public SyntheticSourceExample example(int maxValues) {
             if (randomBoolean()) {
                 Tuple<String, String> v = generateValue();
                 return new SyntheticSourceExample(v.v1(), v.v2(), this::mapping);
             }
-            List<Tuple<String, String>> values = randomList(1, 5, this::generateValue);
+            List<Tuple<String, String>> values = randomList(1, maxValues, this::generateValue);
             List<String> in = values.stream().map(Tuple::v1).toList();
             List<String> outList = values.stream().map(Tuple::v2).collect(Collectors.toSet()).stream().sorted().toList();
             Object out = outList.size() == 1 ? outList.get(0) : outList;

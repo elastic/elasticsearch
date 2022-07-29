@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfigE
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -218,7 +217,7 @@ public class MetadataTests extends ESTestCase {
 
     public void testAliasCollidingWithAnExistingIndex() {
         int indexCount = randomIntBetween(10, 100);
-        Set<String> indices = new HashSet<>(indexCount);
+        Set<String> indices = Sets.newHashSetWithExpectedSize(indexCount);
         for (int i = 0; i < indexCount; i++) {
             indices.add(randomAlphaOfLength(10));
         }
@@ -570,7 +569,7 @@ public class MetadataTests extends ESTestCase {
 
     private Set<VotingConfigExclusion> randomVotingConfigExclusions() {
         final int size = randomIntBetween(0, 10);
-        final Set<VotingConfigExclusion> nodes = new HashSet<>(size);
+        final Set<VotingConfigExclusion> nodes = Sets.newHashSetWithExpectedSize(size);
         while (nodes.size() < size) {
             assertTrue(nodes.add(new VotingConfigExclusion(randomAlphaOfLength(10), randomAlphaOfLength(10))));
         }
@@ -1094,9 +1093,8 @@ public class MetadataTests extends ESTestCase {
     public void testBuilderRejectsNullInCustoms() {
         final Metadata.Builder builder = Metadata.builder();
         final String key = randomAlphaOfLength(10);
-        final ImmutableOpenMap.Builder<String, Metadata.Custom> mapBuilder = ImmutableOpenMap.builder();
-        mapBuilder.put(key, null);
-        final ImmutableOpenMap<String, Metadata.Custom> map = mapBuilder.build();
+        final Map<String, Metadata.Custom> map = new HashMap<>();
+        map.put(key, null);
         assertThat(expectThrows(NullPointerException.class, () -> builder.customs(map)).getMessage(), containsString(key));
     }
 
@@ -1240,37 +1238,30 @@ public class MetadataTests extends ESTestCase {
         IndexAbstraction value = metadata.getIndicesLookup().get("d1");
         assertThat(value, notNullValue());
         assertThat(value.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
-        assertThat(value.getAliases(), containsInAnyOrder("a1", "a3"));
 
         value = metadata.getIndicesLookup().get("d2");
         assertThat(value, notNullValue());
         assertThat(value.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
-        assertThat(value.getAliases(), contains("a1"));
 
         value = metadata.getIndicesLookup().get("d3");
         assertThat(value, notNullValue());
         assertThat(value.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
-        assertThat(value.getAliases(), contains("a2"));
 
         value = metadata.getIndicesLookup().get("d4");
         assertThat(value, notNullValue());
         assertThat(value.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
-        assertThat(value.getAliases(), empty());
 
         value = metadata.getIndicesLookup().get("a1");
         assertThat(value, notNullValue());
         assertThat(value.getType(), equalTo(IndexAbstraction.Type.ALIAS));
-        assertThat(value.getAliases(), nullValue());
 
         value = metadata.getIndicesLookup().get("a2");
         assertThat(value, notNullValue());
         assertThat(value.getType(), equalTo(IndexAbstraction.Type.ALIAS));
-        assertThat(value.getAliases(), nullValue());
 
         value = metadata.getIndicesLookup().get("a3");
         assertThat(value, notNullValue());
         assertThat(value.getType(), equalTo(IndexAbstraction.Type.ALIAS));
-        assertThat(value.getAliases(), nullValue());
     }
 
     public void testDataStreamAliasValidation() {
@@ -2178,7 +2169,7 @@ public class MetadataTests extends ESTestCase {
         final Set<String> randomMappingDefinitions;
         {
             int numEntries = randomIntBetween(4, 8);
-            randomMappingDefinitions = new HashSet<>(numEntries);
+            randomMappingDefinitions = Sets.newHashSetWithExpectedSize(numEntries);
             for (int i = 0; i < numEntries; i++) {
                 Map<String, Object> mapping = RandomAliasActionsGenerator.randomMap(2);
                 String mappingAsString = Strings.toString((builder, params) -> builder.mapContents(mapping));

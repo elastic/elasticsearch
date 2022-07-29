@@ -1113,6 +1113,9 @@ public class ApiKeyService {
         }
     }
 
+    /**
+     * @return `null` if the update is a noop, i.e., if no changes to `currentApiKeyDoc` are required
+     */
     @Nullable
     private IndexRequest maybeBuildIndexRequest(
         final VersionedApiKeyDoc currentVersionedDoc,

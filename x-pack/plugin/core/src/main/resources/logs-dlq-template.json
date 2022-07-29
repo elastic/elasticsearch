@@ -1,5 +1,5 @@
 {
-  "index_patterns": ["logs-generic-*"],
+  "index_patterns": ["logs-dlq-*"],
   "priority": 200,
   "data_stream": {},
   "composed_of": [

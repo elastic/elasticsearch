@@ -71,10 +71,11 @@ public class RestLogsActionTests extends RestActionTestCase {
         verifyingClient.setExecuteVerifier((BiFunction<ActionType<BulkResponse>, BulkRequest, BulkResponse>) (actionType, request) -> {
             assertEquals(1, request.requests().size());
             IndexRequest indexRequest = (IndexRequest) request.requests().get(0);
-            assertDataStreamFields("foo", "default", indexRequest);
+            assertDataStreamFields("dlq", "default", indexRequest);
             Map<String, Object> doc = ((IndexRequest) request.requests().get(0)).sourceAsMap();
-            assertEquals("{\"message\": \"missing end quote}", getPath(doc, "event.original"));
-            assertEquals("json_e_o_f_exception", getPath(doc, "ingest.error.type"));
+            assertEquals("foo", getPath(doc, "event.original.data_stream.dataset"));
+            assertEquals("json_e_o_f_exception", getPath(doc, "error.type"));
+            assertTrue(((String) getPath(doc, "error.message")).contains("{\"message\": \"missing end quote}"));
             return Mockito.mock(BulkResponse.class);
         });
         assertEquals(0, dispatchRequest(req).errors().get());
@@ -142,13 +143,13 @@ public class RestLogsActionTests extends RestActionTestCase {
             } else {
                 assertEquals(1, request.requests().size());
                 IndexRequest indexRequest = (IndexRequest) request.requests().get(0);
-                assertDataStreamFields("generic", "bar", indexRequest);
+                assertDataStreamFields("dlq", "bar", indexRequest);
                 Map<String, Object> doc = indexRequest.sourceAsMap();
-                assertEquals("mapper_parsing_exception", getPath(doc, "ingest.error.type"));
-                assertEquals("bad foo", getPath(doc, "ingest.error.message"));
-                assertEquals("logs", getPath(doc, "ingest.error.data_stream.type"));
-                assertEquals("foo", getPath(doc, "ingest.error.data_stream.dataset"));
-                assertEquals("bar", getPath(doc, "ingest.error.data_stream.namespace"));
+                assertEquals("mapper_parsing_exception", getPath(doc, "error.type"));
+                assertEquals("bad foo", getPath(doc, "error.message"));
+                assertEquals("logs", getPath(doc, "event.original.data_stream.type"));
+                assertEquals("foo", getPath(doc, "event.original.data_stream.dataset"));
+                assertEquals("bar", getPath(doc, "event.original.data_stream.namespace"));
                 return Mockito.mock(BulkResponse.class);
             }
         });

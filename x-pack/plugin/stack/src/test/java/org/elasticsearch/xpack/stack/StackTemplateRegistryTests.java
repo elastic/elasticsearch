@@ -279,8 +279,8 @@ public class StackTemplateRegistryTests extends ESTestCase {
         versions.put(StackTemplateRegistry.DATA_STREAMS_MAPPINGS_COMPONENT_TEMPLATE_NAME, StackTemplateRegistry.REGISTRY_VERSION);
         versions.put(StackTemplateRegistry.LOGS_SETTINGS_COMPONENT_TEMPLATE_NAME, StackTemplateRegistry.REGISTRY_VERSION);
         versions.put(StackTemplateRegistry.LOGS_MAPPINGS_COMPONENT_TEMPLATE_NAME, StackTemplateRegistry.REGISTRY_VERSION);
-        versions.put(StackTemplateRegistry.LOGS_GENERIC_INDEX_TEMPLATE_NAME, StackTemplateRegistry.REGISTRY_VERSION);
-        versions.put(StackTemplateRegistry.LOGS_GENERIC_MAPPINGS_COMPONENT_TEMPLATE_NAME, StackTemplateRegistry.REGISTRY_VERSION);
+        versions.put(StackTemplateRegistry.LOGS_DLQ_INDEX_TEMPLATE_NAME, StackTemplateRegistry.REGISTRY_VERSION);
+        versions.put(StackTemplateRegistry.LOGS_DLQ_MAPPINGS_COMPONENT_TEMPLATE_NAME, StackTemplateRegistry.REGISTRY_VERSION);
         versions.put(StackTemplateRegistry.METRICS_SETTINGS_COMPONENT_TEMPLATE_NAME, StackTemplateRegistry.REGISTRY_VERSION);
         versions.put(StackTemplateRegistry.METRICS_MAPPINGS_COMPONENT_TEMPLATE_NAME, StackTemplateRegistry.REGISTRY_VERSION);
         versions.put(StackTemplateRegistry.SYNTHETICS_SETTINGS_COMPONENT_TEMPLATE_NAME, StackTemplateRegistry.REGISTRY_VERSION);
@@ -317,11 +317,11 @@ public class StackTemplateRegistryTests extends ESTestCase {
             StackTemplateRegistry.REGISTRY_VERSION + randomIntBetween(1, 1000)
         );
         versions.put(
-            StackTemplateRegistry.LOGS_GENERIC_MAPPINGS_COMPONENT_TEMPLATE_NAME,
+            StackTemplateRegistry.LOGS_DLQ_MAPPINGS_COMPONENT_TEMPLATE_NAME,
             StackTemplateRegistry.REGISTRY_VERSION + randomIntBetween(1, 1000)
         );
         versions.put(
-            StackTemplateRegistry.LOGS_GENERIC_INDEX_TEMPLATE_NAME,
+            StackTemplateRegistry.LOGS_DLQ_INDEX_TEMPLATE_NAME,
             StackTemplateRegistry.REGISTRY_VERSION + randomIntBetween(1, 1000)
         );
         versions.put(

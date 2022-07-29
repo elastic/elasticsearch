@@ -41,6 +41,10 @@ import java.util.function.Consumer;
 
 import static java.util.function.Predicate.not;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.action.logs.DataStreamNamingUtils.DATA_STREAM;
+import static org.elasticsearch.rest.action.logs.DataStreamNamingUtils.DATA_STREAM_DATASET;
+import static org.elasticsearch.rest.action.logs.DataStreamNamingUtils.DATA_STREAM_NAMESPACE;
+import static org.elasticsearch.rest.action.logs.DataStreamNamingUtils.DATA_STREAM_TYPE;
 import static org.elasticsearch.xcontent.XContentParserConfiguration.EMPTY;
 
 public class RestLogsAction extends BaseRestHandler {
@@ -84,25 +88,25 @@ public class RestLogsAction extends BaseRestHandler {
                 Map<String, Object> event = null;
                 try {
                     event = parser.map();
-                } catch (Exception e) {
-                    event = new HashMap<>();
-                    addPath(event, "event.original", content.slice(offset, endOfEvent).utf8ToString());
-                    addPath(event, "ingest.error.type", ElasticsearchException.getExceptionName(e));
-                    addPath(event, "ingest.error.message", e.getMessage());
-                }
-                if (event.size() == 1 && event.containsKey("_metadata")) {
-                    Map<String, Object> metadata = getMetadata(event);
-                    expandDots(metadata);
-                    if (line == 0) {
-                        MapUtils.recursiveMerge(globalMetadata, metadata);
+                    if (event.size() == 1 && event.containsKey("_metadata")) {
+                        Map<String, Object> metadata = getMetadata(event);
+                        expandDots(metadata);
+                        if (line == 0) {
+                            MapUtils.recursiveMerge(globalMetadata, metadata);
+                        } else {
+                            localMetadata = metadata;
+                        }
+                        continue;
                     } else {
-                        localMetadata.clear();
-                        localMetadata.putAll(metadata);
+                        expandDots(event);
+                        event = mergeMetadata(event, globalMetadata, localMetadata);
+                        applyDefaultValues(event);
                     }
-                } else {
-                    expandDots(event);
-                    addEventToBulk(indexRequests, globalMetadata, localMetadata, event);
+                } catch (Exception e) {
+                    event = mergeMetadata(Map.of(), globalMetadata, localMetadata);
+                    event = createDlqDoc(event, e);
                 }
+                indexRequests.add(Requests.indexRequest(routeToDataStream(event)).opType(DocWriteRequest.OpType.CREATE).source(event));
             }
         }
 
@@ -126,16 +130,8 @@ public class RestLogsAction extends BaseRestHandler {
                             // looks like a persistent error (such as a mapping issue);
                             // re-try in fallback data stream which has lenient mappings
                             Exception cause = failure.getCause();
-                            addPath(doc, "ingest.error.type", ElasticsearchException.getExceptionName(cause));
-                            addPath(doc, "ingest.error.message", cause.getMessage());
-                            @SuppressWarnings("unchecked")
-                            Map<String, String> dataStream = (Map<String, String>) doc.get("data_stream");
-                            addPath(doc, "ingest.error.data_stream", new HashMap<>(dataStream));
-                            dataStream.put("type", "logs");
-                            dataStream.put("dataset", "generic");
-                            retryBulk.add(
-                                Requests.indexRequest(routeToDataStream(dataStream)).opType(DocWriteRequest.OpType.CREATE).source(doc)
-                            );
+                            doc = createDlqDoc(doc, cause);
+                            retryBulk.add(Requests.indexRequest(routeToDataStream(doc)).opType(DocWriteRequest.OpType.CREATE).source(doc));
                         }
                     });
                     client.bulk(retryBulk, new RestActionListener<>(channel) {
@@ -161,33 +157,51 @@ public class RestLogsAction extends BaseRestHandler {
         };
     }
 
-    private void addEventToBulk(
-        List<IndexRequest> indexRequests,
+    private Map<String, Object> createDlqDoc(Map<String, Object> doc, Exception cause) {
+        Map<String, Object> dlqDoc = new HashMap<>();
+        dlqDoc.put("@timestamp", Instant.now().toString());
+        addPath(dlqDoc, "event.original", doc);
+        addPath(dlqDoc, "error.type", ElasticsearchException.getExceptionName(cause));
+        addPath(dlqDoc, "error.message", cause.getMessage());
+        addPath(dlqDoc, DATA_STREAM_TYPE, "logs");
+        addPath(dlqDoc, DATA_STREAM_DATASET, "dlq");
+        @SuppressWarnings("unchecked")
+        Map<String, String> dataStream = (Map<String, String>) doc.getOrDefault(DATA_STREAM, Map.of());
+        addPath(dlqDoc, DATA_STREAM_NAMESPACE, dataStream.getOrDefault("namespace", "default"));
+        return dlqDoc;
+    }
+
+    private Map<String, Object> mergeMetadata(
+        Map<String, Object> event,
         Map<String, Object> globalMetadata,
-        Map<String, Object> localMetadata,
-        Map<String, Object> event
+        Map<String, Object> localMetadata
     ) {
         HashMap<String, Object> doc = new HashMap<>(globalMetadata);
         MapUtils.recursiveMerge(doc, localMetadata);
         MapUtils.recursiveMerge(doc, event);
-        if (doc.containsKey("@timestamp") == false) {
-            String now = Instant.now().toString();
-            doc.put("@timestamp", now);
-        }
-        // routing based on data_stream.* fields
-        // this part will be handled by document based routing in the future
-        // for example, by a routing pipeline that is attached to the logs-router-default data stream
-        doc.putIfAbsent("data_stream", new HashMap<>());
+        return doc;
+    }
+
+    private void applyDefaultValues(Map<String, Object> doc) {
+        doc.computeIfAbsent("@timestamp", k -> Instant.now().toString());
+        doc.computeIfAbsent("data_stream", k -> new HashMap<>());
         @SuppressWarnings("unchecked")
         Map<String, String> dataStream = (Map<String, String>) doc.get("data_stream");
         dataStream.put("type", "logs");
+        dataStream.computeIfPresent("dataset", (k, v) -> DataStreamNamingUtils.sanitizeDataStreamDataset(v));
+        dataStream.computeIfPresent("namespace", (k, v) -> DataStreamNamingUtils.sanitizeDataStreamNamespace(v));
         dataStream.putIfAbsent("dataset", "generic");
         dataStream.putIfAbsent("namespace", "default");
-        indexRequests.add(Requests.indexRequest(routeToDataStream(dataStream)).opType(DocWriteRequest.OpType.CREATE).source(doc));
     }
 
-    private String routeToDataStream(Map<String, String> dataStream) {
-        // TODO validate or sanitize dataset and namespace
+    /*
+     * routing based on data_stream.* fields
+     * this part will be handled by document based routing in the future
+     * for example, by a routing pipeline that is attached to the logs-router-default data stream
+     */
+    private String routeToDataStream(Map<String, Object> doc) {
+        @SuppressWarnings("unchecked")
+        Map<String, String> dataStream = (Map<String, String>) doc.getOrDefault("data_stream", Map.of());
         return "logs-" + dataStream.getOrDefault("dataset", "generic") + "-" + dataStream.getOrDefault("namespace", "default");
     }
 

@@ -82,7 +82,7 @@ public final class TransportUpdateApiKeyAction extends TransportBaseUpdateApiKey
     }
 
     private void illegalStateException(final String apiKeyId) {
-        final String message = "single API update must contain exactly one response for the requested ID [" + apiKeyId + "]";
+        final String message = "single API update must have exactly one response for the requested ID [" + apiKeyId + "]";
         assert false : message;
         throw new IllegalStateException(message);
     }

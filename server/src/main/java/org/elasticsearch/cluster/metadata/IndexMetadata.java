@@ -1313,7 +1313,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return builder;
     }
 
-    private static final Version SETTING_DIFF_VERSION = Version.V_8_4_0;
+    private static final Version SETTING_DIFF_VERSION = Version.V_8_5_0;
 
     private static class IndexMetadataDiff implements Diff<IndexMetadata> {
 

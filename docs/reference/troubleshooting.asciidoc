@@ -71,6 +71,8 @@ include::troubleshooting/data/add-tier.asciidoc[]
 
 include::troubleshooting/data/diagnose-unassigned-shards.asciidoc[]
 
+include::troubleshooting/discovery-issues.asciidoc[]
+
 include::troubleshooting/data/increase-tier-capacity.asciidoc[]
 
 include::troubleshooting/data/start-ilm.asciidoc[]
@@ -79,8 +81,15 @@ include::troubleshooting/data/start-slm.asciidoc[]
 
 include::troubleshooting/data/restore-from-snapshot.asciidoc[]
 
+<<<<<<< HEAD
+=======
+include::troubleshooting/snapshot/add-repository.asciidoc[]
+
+>>>>>>> main
 include::monitoring/troubleshooting.asciidoc[]
 
 include::transform/troubleshooting.asciidoc[leveloffset=+1]
 
 include::../../x-pack/docs/en/watcher/troubleshooting.asciidoc[]
+
+include::troubleshooting/corruption-issues.asciidoc[]

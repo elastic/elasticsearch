@@ -83,8 +83,8 @@ You can also automate the generation of this entry by running your build using t
 >./gradlew --write-verification-metadata sha256 precommit
 ```
 
-Make sure you use the sha256 checksum as sha1 is not considered safe anymore these days. Once the build has finished verify
-the updated `gradle/verification-metadata.xml`. When you have manually confirmed the checksum (e.g by looking it up on the website of the library)
+We prefer sha256 checksums as md5 and sha1 are not considered safe anymore these days.
+Once the build has finished verify the updated `gradle/verification-metadata.xml`. When you have manually confirmed the checksum (e.g by looking it up on the website of the library)
 please replace the content of the `origin` tag by `official site`.
 
 #### Custom Plugin and Task implementations

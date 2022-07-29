@@ -424,7 +424,7 @@ public class ES84BloomFilterPostingsFormat extends PostingsFormat {
     }
 
     /**
-     * Forked from Lucene's StringHelper#murmurhash3_x86_32
+     * Forked from Lucene's StringHelper#murmurhash3_x86_32 so that changes to the Lucene implementation do not break the compatibility of this format.
      */
     @SuppressWarnings("fallthrough")
     private static int murmurhash3_x86_32(byte[] data, int offset, int len, int seed) {

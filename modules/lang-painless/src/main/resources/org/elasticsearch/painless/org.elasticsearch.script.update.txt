@@ -26,7 +26,7 @@ class org.elasticsearch.script.Metadata {
     long getVersion()
     String getOp()
     void setOp(String)
-    ZonedDateTime getTimestamp()
+    ZonedDateTime getNow()
 }
 
 class org.elasticsearch.script.UpdateScript {

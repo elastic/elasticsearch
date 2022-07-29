@@ -1467,7 +1467,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         );
         final var request = new UpdateApiKeyRequest(apiKeyId, newRoleDescriptors, ApiKeyTests.randomMetadata());
 
-        final UpdateApiKeyResponse response = updateApiKeyMaybeUsingBulk(TEST_USER_NAME, request);
+        final UpdateApiKeyResponse response = updateSingleApiKeyMaybeUsingBulk(TEST_USER_NAME, request);
 
         assertNotNull(response);
         // In this test, non-null roleDescriptors always result in an update since they either update the role name, or associated
@@ -1666,7 +1666,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             newClusterPrivileges.toArray(new String[0])
         );
 
-        UpdateApiKeyResponse response = updateApiKeyMaybeUsingBulk(nativeRealmUser, UpdateApiKeyRequest.usingApiKeyId(apiKeyId));
+        UpdateApiKeyResponse response = updateSingleApiKeyMaybeUsingBulk(nativeRealmUser, UpdateApiKeyRequest.usingApiKeyId(apiKeyId));
 
         assertNotNull(response);
         assertTrue(response.isUpdated());
@@ -1685,7 +1685,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         updateUser(updatedUser);
 
         // Update API key
-        response = updateApiKeyMaybeUsingBulk(nativeRealmUser, UpdateApiKeyRequest.usingApiKeyId(apiKeyId));
+        response = updateSingleApiKeyMaybeUsingBulk(nativeRealmUser, UpdateApiKeyRequest.usingApiKeyId(apiKeyId));
 
         assertNotNull(response);
         assertTrue(response.isUpdated());
@@ -1708,7 +1708,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final var request = new UpdateApiKeyRequest(apiKeyId, List.of(expectedRoleDescriptor), ApiKeyTests.randomMetadata());
 
         // Validate can update own API key
-        final UpdateApiKeyResponse response = updateApiKeyMaybeUsingBulk(TEST_USER_NAME, request);
+        final UpdateApiKeyResponse response = updateSingleApiKeyMaybeUsingBulk(TEST_USER_NAME, request);
         assertNotNull(response);
         assertTrue(response.isUpdated());
 
@@ -1788,7 +1788,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
         final var ex = expectThrowsWithUnwrappedExecutionException(
             IllegalArgumentException.class,
-            () -> updateApiKeyMaybeUsingBulk(TEST_USER_NAME, request)
+            () -> updateSingleApiKeyMaybeUsingBulk(TEST_USER_NAME, request)
         );
         if (invalidated) {
             assertThat(ex.getMessage(), containsString("cannot update invalidated API key [" + apiKeyId + "]"));
@@ -1824,7 +1824,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 )
                 .build()
         );
-        final UpdateApiKeyResponse response = updateApiKeys(
+        final UpdateApiKeyResponse response = updateSingleApiKey(
             serviceWithNodeName.service(),
             authentication,
             UpdateApiKeyRequest.usingApiKeyId(apiKeyId),
@@ -1856,7 +1856,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             // metadata updates are non-noops
             randomValueOtherThanMany(Objects::isNull, ApiKeyTests::randomMetadata)
         );
-        UpdateApiKeyResponse response = updateApiKeyMaybeUsingBulk(TEST_USER_NAME, initialRequest);
+        UpdateApiKeyResponse response = updateSingleApiKeyMaybeUsingBulk(TEST_USER_NAME, initialRequest);
         assertNotNull(response);
         // First update is not noop, because role descriptors changed and possibly metadata
         assertTrue(response.isUpdated());
@@ -1869,13 +1869,13 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             .findFirst()
             .orElseThrow();
         final int count = serviceWithNameForDoc1.getDocCache().count();
-        response = updateApiKeyMaybeUsingBulk(TEST_USER_NAME, initialRequest);
+        response = updateSingleApiKeyMaybeUsingBulk(TEST_USER_NAME, initialRequest);
         assertNotNull(response);
         assertFalse(response.isUpdated());
         assertEquals(count, serviceWithNameForDoc1.getDocCache().count());
 
         // Update with empty request is a noop
-        response = updateApiKeyMaybeUsingBulk(TEST_USER_NAME, UpdateApiKeyRequest.usingApiKeyId(apiKeyId));
+        response = updateSingleApiKeyMaybeUsingBulk(TEST_USER_NAME, UpdateApiKeyRequest.usingApiKeyId(apiKeyId));
         assertNotNull(response);
         assertFalse(response.isUpdated());
 
@@ -1890,12 +1890,12 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 () -> RoleDescriptorTests.randomRoleDescriptor(false)
             )
         );
-        response = updateApiKeyMaybeUsingBulk(TEST_USER_NAME, new UpdateApiKeyRequest(apiKeyId, newRoleDescriptors, null));
+        response = updateSingleApiKeyMaybeUsingBulk(TEST_USER_NAME, new UpdateApiKeyRequest(apiKeyId, newRoleDescriptors, null));
         assertNotNull(response);
         assertTrue(response.isUpdated());
 
         // Update with re-ordered role descriptors is a noop
-        response = updateApiKeyMaybeUsingBulk(
+        response = updateSingleApiKeyMaybeUsingBulk(
             TEST_USER_NAME,
             new UpdateApiKeyRequest(apiKeyId, List.of(newRoleDescriptors.get(1), newRoleDescriptors.get(0)), null)
         );
@@ -1903,7 +1903,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertFalse(response.isUpdated());
 
         // Update with different metadata is not a noop
-        response = updateApiKeyMaybeUsingBulk(
+        response = updateSingleApiKeyMaybeUsingBulk(
             TEST_USER_NAME,
             new UpdateApiKeyRequest(
                 apiKeyId,
@@ -1928,7 +1928,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 null
             )
         );
-        response = updateApiKeys(
+        response = updateSingleApiKey(
             serviceWithNodeName.service(),
             Authentication.newRealmAuthentication(
                 new User(TEST_USER_NAME, TEST_ROLE),
@@ -1967,7 +1967,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             Authentication::isApiKey,
             () -> AuthenticationTestHelper.builder().user(updatedUser).realmRef(realmRef).build()
         );
-        response = updateApiKeys(
+        response = updateSingleApiKey(
             serviceWithNodeName.service(),
             authentication,
             UpdateApiKeyRequest.usingApiKeyId(apiKeyId),
@@ -1987,7 +1987,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         );
         final Set<RoleDescriptor> legacySuperuserRoleDescriptor = Set.of(ApiKeyService.LEGACY_SUPERUSER_ROLE_DESCRIPTOR);
         // Force set user role descriptors to 7.x legacy superuser role descriptors
-        UpdateApiKeyResponse response = updateApiKeys(
+        UpdateApiKeyResponse response = updateSingleApiKey(
             serviceWithNodeName.service(),
             authentication,
             UpdateApiKeyRequest.usingApiKeyId(apiKeyId),
@@ -1998,7 +1998,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         expectRoleDescriptorsForApiKey("limited_by_role_descriptors", legacySuperuserRoleDescriptor, getApiKeyDocument(apiKeyId));
 
         final Set<RoleDescriptor> currentSuperuserRoleDescriptors = Set.of(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR);
-        response = updateApiKeys(
+        response = updateSingleApiKey(
             serviceWithNodeName.service(),
             authentication,
             UpdateApiKeyRequest.usingApiKeyId(apiKeyId),
@@ -2009,7 +2009,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertTrue(response.isUpdated());
         expectRoleDescriptorsForApiKey("limited_by_role_descriptors", currentSuperuserRoleDescriptors, getApiKeyDocument(apiKeyId));
 
-        response = updateApiKeys(
+        response = updateSingleApiKey(
             serviceWithNodeName.service(),
             authentication,
             UpdateApiKeyRequest.usingApiKeyId(apiKeyId),
@@ -2055,7 +2055,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final int serviceForDoc2AuthCacheCount = serviceForDoc2.getApiKeyAuthCache().count();
 
         // Update the first key
-        final UpdateApiKeyResponse response = updateApiKeyMaybeUsingBulk(
+        final UpdateApiKeyResponse response = updateSingleApiKeyMaybeUsingBulk(
             ES_TEST_ROOT_USER,
             new UpdateApiKeyRequest(
                 apiKey1.v1(),
@@ -2111,7 +2111,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     private void doTestUpdateApiKeyNotFound(final UpdateApiKeyRequest request) {
         final var ex = expectThrowsWithUnwrappedExecutionException(
             ResourceNotFoundException.class,
-            () -> updateApiKeyMaybeUsingBulk(TEST_USER_NAME, request)
+            () -> updateSingleApiKeyMaybeUsingBulk(TEST_USER_NAME, request)
         );
         assertThat(ex.getMessage(), containsString("no API key owned by requesting user found for ID [" + request.getId() + "]"));
     }
@@ -2441,7 +2441,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         );
     }
 
-    private UpdateApiKeyResponse updateApiKeys(
+    private UpdateApiKeyResponse updateSingleApiKey(
         final ApiKeyService service,
         final Authentication authentication,
         final UpdateApiKeyRequest request,
@@ -2457,7 +2457,8 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         return toUpdateResponse(listener.get());
     }
 
-    private UpdateApiKeyResponse updateApiKeyMaybeUsingBulk(final String username, final UpdateApiKeyRequest request) throws Exception {
+    private UpdateApiKeyResponse updateSingleApiKeyMaybeUsingBulk(final String username, final UpdateApiKeyRequest request)
+        throws Exception {
         final boolean useBulkAction = randomBoolean();
         if (useBulkAction) {
             final BulkUpdateApiKeyResponse response = executeBulkUpdateApiKey(

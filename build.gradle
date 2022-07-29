@@ -123,7 +123,7 @@ tasks.register("verifyVersions") {
     String versionMapping = backportConfig.get("branchLabelMapping").fields().find { it.value.textValue() == 'main' }.key
     String expectedMapping = "^v${versions.elasticsearch.replaceAll('-SNAPSHOT', '')}\$"
     if (versionMapping != expectedMapping) {
-      throw new GradleException("Backport label mapping for branch 'master' is '${versionMapping}' but should be " +
+      throw new GradleException("Backport label mapping for branch 'main' is '${versionMapping}' but should be " +
         "'${expectedMapping}'. Update .backportrc.json.")
     }
   }

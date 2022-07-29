@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.xpack.apm;
+package org.elasticsearch.tracing.apm;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;

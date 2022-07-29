@@ -209,9 +209,6 @@ public class SourceLookup {
 
         @Override
         public XContentType sourceContentType() {
-            if (sourceContentType == null) {
-                throw new UnsupportedOperationException("no source content type available on already parsed source");
-            }
             return sourceContentType;
         }
 

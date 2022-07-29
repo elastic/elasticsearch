@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.BufferedInputStream;
@@ -303,9 +302,11 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
     CountDownLatch processFileSettings(Path path, Consumer<Exception> errorHandler) throws IOException {
         CountDownLatch waitForCompletion = new CountDownLatch(1);
         logger.info("processing path [{}] for [{}]", path, NAMESPACE);
-        try (var fis = Files.newInputStream(path);
-             var bis = new BufferedInputStream(fis);
-             var parser = JSON.xContent().createParser(XContentParserConfiguration.EMPTY, bis)) {
+        try (
+            var fis = Files.newInputStream(path);
+            var bis = new BufferedInputStream(fis);
+            var parser = JSON.xContent().createParser(XContentParserConfiguration.EMPTY, bis)
+        ) {
             stateService.process(NAMESPACE, parser, (e) -> {
                 try {
                     if (e != null) {

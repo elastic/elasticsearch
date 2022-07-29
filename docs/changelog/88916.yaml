@@ -1,6 +1,6 @@
 pr: 88916
 summary: "Synthetic source: fix `scaled_float` rounding"
-area: "Mapping, TSDB"
+area: "TSDB"
 type: bug
 issues:
  - 88854

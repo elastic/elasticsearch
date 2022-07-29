@@ -2472,6 +2472,12 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertThat(response.getUpdated(), empty());
     }
 
+    private void assertSingleError(final String apiKeyId, final BulkUpdateApiKeyResponse response) {
+        assertThat(response.getErrorDetails().keySet(), contains(apiKeyId));
+        assertThat(response.getUpdated(), empty());
+        assertThat(response.getNoops(), empty());
+    }
+
     private UpdateApiKeyResponse updateSingleApiKeyMaybeUsingBulkAction(final String username, final UpdateApiKeyRequest request)
         throws Exception {
         final boolean useBulkAction = randomBoolean();
@@ -2503,22 +2509,13 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
     private UpdateApiKeyResponse toUpdateApiKeyResponse(final String apiKeyId, final BulkUpdateApiKeyResponse response) throws Exception {
         if (response.getErrorDetails().isEmpty() == false) {
-            assertEquals(1, response.getErrorDetails().size());
-            assertThat(response.getErrorDetails().keySet(), contains(apiKeyId));
-            assertThat(response.getUpdated(), empty());
-            assertThat(response.getNoops(), empty());
+            assertSingleError(apiKeyId, response);
             throw response.getErrorDetails().values().iterator().next();
         } else if (response.getUpdated().isEmpty() == false) {
-            assertEquals(1, response.getUpdated().size());
-            assertEquals(apiKeyId, response.getUpdated().get(0));
-            assertThat(response.getErrorDetails(), anEmptyMap());
-            assertThat(response.getNoops(), empty());
+            assertSingleUpdate(apiKeyId, response);
             return new UpdateApiKeyResponse(true);
         } else {
-            assertEquals(1, response.getNoops().size());
-            assertEquals(apiKeyId, response.getNoops().get(0));
-            assertThat(response.getErrorDetails(), anEmptyMap());
-            assertThat(response.getUpdated(), empty());
+            assertSingleNoop(apiKeyId, response);
             return new UpdateApiKeyResponse(false);
         }
     }

@@ -1,3 +1,5 @@
 [role="xpack"]
 [[security-api-update-api-key]]
 === Bulk update API keys API
+
+coming::[8.5.0]

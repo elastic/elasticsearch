@@ -19,8 +19,10 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.http.HttpTransportSettings;
+import org.elasticsearch.tasks.Task;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -97,16 +99,17 @@ public final class ThreadContext implements Writeable {
     /**
      * Removes the current context and resets a default context. The removed context can be
      * restored by closing the returned {@link StoredContext}.
+     * @return a stored context that will restore the current context to its state at the point this method was called
      */
     public StoredContext stashContext() {
         final ThreadContextStruct context = threadLocal.get();
-        /**
+
+        /*
          * X-Opaque-ID should be preserved in a threadContext in order to propagate this across threads.
          * This is needed so the DeprecationLogger in another thread can see the value of X-Opaque-ID provided by a user.
          * The same is applied to Task.TRACE_ID.
-         * Otherwise when context is stash, it should be empty.
+         * Otherwise when context is stashed, it should be empty.
          */
-
         boolean hasHeadersToCopy = false;
         if (context.requestHeaders.isEmpty() == false) {
             for (String header : HEADERS_TO_COPY) {
@@ -116,13 +119,22 @@ public final class ThreadContext implements Writeable {
                 }
             }
         }
+
+        boolean hasTransientHeadersToCopy = context.transientHeaders.containsKey(Task.APM_TRACE_CONTEXT);
+
+        ThreadContextStruct threadContextStruct = DEFAULT_CONTEXT;
         if (hasHeadersToCopy) {
-            Map<String, String> map = headers(context);
-            ThreadContextStruct threadContextStruct = DEFAULT_CONTEXT.putHeaders(map);
-            threadLocal.set(threadContextStruct);
-        } else {
-            threadLocal.set(DEFAULT_CONTEXT);
+            Map<String, String> copiedHeaders = getHeadersToCopy(context);
+            threadContextStruct = DEFAULT_CONTEXT.putHeaders(copiedHeaders);
         }
+        if (hasTransientHeadersToCopy) {
+            threadContextStruct = threadContextStruct.putTransient(
+                Task.APM_TRACE_CONTEXT,
+                context.transientHeaders.get(Task.APM_TRACE_CONTEXT)
+            );
+        }
+        threadLocal.set(threadContextStruct);
+
         return () -> {
             // If the node and thus the threadLocal get closed while this task
             // is still executing, we don't want this runnable to fail with an
@@ -131,9 +143,98 @@ public final class ThreadContext implements Writeable {
         };
     }
 
-    private static Map<String, String> headers(ThreadContextStruct context) {
-        Map<String, String> map = Maps.newMapWithExpectedSize(org.elasticsearch.tasks.Task.HEADERS_TO_COPY.size());
-        for (String header : org.elasticsearch.tasks.Task.HEADERS_TO_COPY) {
+    /**
+     * When using a {@link org.elasticsearch.tracing.Tracer} to capture activity in Elasticsearch, when a parent span is already
+     * in progress, it is necessary to start a new context before beginning a child span. This method creates a context,
+     * moving tracing-related fields to different names so that a new child span can be started. This child span will pick up
+     * the moved fields and use them to establish the parent-child relationship.
+     *
+     * @return a stored context, which can be restored when this context is no longer needed.
+     */
+    public StoredContext newTraceContext() {
+        final ThreadContextStruct originalContext = threadLocal.get();
+        final Map<String, String> newRequestHeaders = new HashMap<>(originalContext.requestHeaders);
+        final Map<String, Object> newTransientHeaders = new HashMap<>(originalContext.transientHeaders);
+
+        final String previousTraceParent = newRequestHeaders.remove(Task.TRACE_PARENT_HTTP_HEADER);
+        if (previousTraceParent != null) {
+            newTransientHeaders.put("parent_" + Task.TRACE_PARENT_HTTP_HEADER, previousTraceParent);
+        }
+
+        final String previousTraceState = newRequestHeaders.remove(Task.TRACE_STATE);
+        if (previousTraceState != null) {
+            newTransientHeaders.put("parent_" + Task.TRACE_STATE, previousTraceState);
+        }
+
+        final Object previousTraceContext = newTransientHeaders.remove(Task.APM_TRACE_CONTEXT);
+        if (previousTraceContext != null) {
+            newTransientHeaders.put("parent_" + Task.APM_TRACE_CONTEXT, previousTraceContext);
+        }
+
+        threadLocal.set(
+            new ThreadContextStruct(
+                newRequestHeaders,
+                originalContext.responseHeaders,
+                newTransientHeaders,
+                originalContext.isSystemContext,
+                originalContext.warningHeadersSize
+            )
+        );
+        // this is the context when this method returns
+        final ThreadContextStruct newContext = threadLocal.get();
+        return () -> {
+            if (threadLocal.get() != newContext) {
+                // Tracing shouldn't interrupt the propagation of response headers, so in the same as #newStoredContext(...),
+                // pass on any potential changes to the response headers.
+                threadLocal.set(originalContext.putResponseHeaders(threadLocal.get().responseHeaders));
+            } else {
+                threadLocal.set(originalContext);
+            }
+        };
+    }
+
+    public boolean hasTraceContext() {
+        final ThreadContextStruct context = threadLocal.get();
+        return context.requestHeaders.containsKey(Task.TRACE_PARENT_HTTP_HEADER)
+            || context.requestHeaders.containsKey(Task.TRACE_STATE)
+            || context.transientHeaders.containsKey(Task.APM_TRACE_CONTEXT);
+    }
+
+    /**
+     * When using a {@link org.elasticsearch.tracing.Tracer}, sometimes you need to start a span completely unrelated
+     * to any current span. In order to avoid any parent/child relationship being created, this method creates a new
+     * context that clears all the tracing fields.
+     *
+     * @return a stored context, which can be restored when this context is no longer needed.
+     */
+    public StoredContext clearTraceContext() {
+        final ThreadContextStruct context = threadLocal.get();
+        final Map<String, String> newRequestHeaders = new HashMap<>(context.requestHeaders);
+        final Map<String, Object> newTransientHeaders = new HashMap<>(context.transientHeaders);
+
+        newRequestHeaders.remove(Task.TRACE_PARENT_HTTP_HEADER);
+        newRequestHeaders.remove(Task.TRACE_STATE);
+
+        newTransientHeaders.remove("parent_" + Task.TRACE_PARENT_HTTP_HEADER);
+        newTransientHeaders.remove("parent_" + Task.TRACE_STATE);
+        newTransientHeaders.remove(Task.APM_TRACE_CONTEXT);
+        newTransientHeaders.remove("parent_" + Task.APM_TRACE_CONTEXT);
+
+        threadLocal.set(
+            new ThreadContextStruct(
+                newRequestHeaders,
+                context.responseHeaders,
+                newTransientHeaders,
+                context.isSystemContext,
+                context.warningHeadersSize
+            )
+        );
+        return () -> threadLocal.set(context);
+    }
+
+    private static Map<String, String> getHeadersToCopy(ThreadContextStruct context) {
+        Map<String, String> map = Maps.newMapWithExpectedSize(HEADERS_TO_COPY.size());
+        for (String header : HEADERS_TO_COPY) {
             final String value = context.requestHeaders.get(header);
             if (value != null) {
                 map.put(header, value);
@@ -476,10 +577,7 @@ public final class ThreadContext implements Writeable {
     }
 
     @FunctionalInterface
-    public interface StoredContext extends AutoCloseable {
-        @Override
-        void close();
-
+    public interface StoredContext extends AutoCloseable, Releasable {
         default void restore() {
             close();
         }

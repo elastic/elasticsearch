@@ -13,7 +13,7 @@ import java.util.Map;
 /**
  * Source and metadata for update (as opposed to insert via upsert) in the Update context.
  */
-public class UpdateCtxMap extends CtxMap {
+public class UpdateCtxMap extends CtxMap<UpdateMetadata> {
 
     public UpdateCtxMap(
         String index,
@@ -28,7 +28,7 @@ public class UpdateCtxMap extends CtxMap {
         super(source, new UpdateMetadata(index, id, version, routing, type, op, now));
     }
 
-    protected UpdateCtxMap(Map<String, Object> source, Metadata metadata) {
+    protected UpdateCtxMap(Map<String, Object> source, UpdateMetadata metadata) {
         super(source, metadata);
     }
 }

@@ -129,7 +129,7 @@ Provides metadata via local metadata events.
 [source,console]
 ------------------------------------------------------------
 POST _logs
-{"_metadata": {}
+{"_metadata": {}}
 {"_metadata": {"data_stream.dataset":"myapp"}}
 {"@timestamp":"2016-05-23T08:05:34.853Z", "message":"Hello app"}
 {"_metadata": {"data_stream.dataset":"my_other_app"}}

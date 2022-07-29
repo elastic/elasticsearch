@@ -741,7 +741,10 @@ public class DateFieldMapperTests extends MapperTestCase {
         @SuppressWarnings("unchecked")
         FieldMapper.Parameter<String> formatParam = (FieldMapper.Parameter<String>) builder.getParameters()[3];
         formatParam.parse("date_time_format", mock(MappingParserContext.class), "strictDateOptionalTime");
-        DateFormatter formatter = builder.buildFormatter(); // shouldn't throw exception
+        builder.buildFormatter(); // shouldn't throw exception
+
+        formatParam.parse("date_time_format", mock(MappingParserContext.class), "strictDateOptionalTime||strictDateOptionalTimeNanos");
+        builder.buildFormatter(); // shouldn't throw exception
 
         DateFieldMapper.Builder newFieldBuilder = new DateFieldMapper.Builder(
             "format",

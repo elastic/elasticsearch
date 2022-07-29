@@ -27,7 +27,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.metadata.HealthMetadata;
-import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.node.NodeService;
@@ -57,9 +56,14 @@ public class LocalHealthMonitor implements ClusterStateListener {
 
     private volatile TimeValue monitorInterval;
     private volatile Scheduler.ScheduledCancellable scheduled;
-    private volatile IndividualNodeHealth lastReportedHealth = null;
     private volatile boolean enabled;
-    private volatile boolean healthMetadataInitialized;
+    // Signals that the health metadata is available, so we can start monitoring.
+    // We might not be able to detect that in a single cluster state change because
+    // it might happen before we have confirmed that the cluster is on 8.5.x or newer.
+    // This does not need to be volatile because the cluster state applier is single threaded.
+    private boolean healthMetadataInitialized;
+    // Keeps the latest health state that was successfully reported.
+    private IndividualNodeHealth lastReportedHealth = null;
 
     public LocalHealthMonitor(Settings settings, ClusterService clusterService, NodeService nodeService, ThreadPool threadPool) {
         this.threadPool = threadPool;
@@ -106,21 +110,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
                 if (healthMetadataInitialized) {
                     scheduleNextRunIfEnabled(TimeValue.timeValueMillis(1));
                 }
-            } else if (newHealthNodeSelected(event)) {
-                sendHealth(lastReportedHealth);
             }
-        }
-    }
-
-    private boolean newHealthNodeSelected(ClusterChangedEvent event) {
-        DiscoveryNode previous = HealthNode.findHealthNode(event.previousState());
-        DiscoveryNode current = HealthNode.findHealthNode(event.state());
-        if (current == null) {
-            return false;
-        } else if (previous == null) {
-            return true;
-        } else {
-            return current.getId().equals(previous.getId()) == false;
         }
     }
 
@@ -132,17 +122,10 @@ public class LocalHealthMonitor implements ClusterStateListener {
         IndividualNodeHealth previousHealth = this.lastReportedHealth;
         IndividualNodeHealth currentHealth = new IndividualNodeHealth(diskCheck.getHealth(healthMetadata, clusterState));
         if (currentHealth.equals(previousHealth) == false) {
-            sendHealth(currentHealth);
+            logger.info("Sending node health [{}] to health node", currentHealth);
+            this.lastReportedHealth = currentHealth;
         }
         scheduleNextRunIfEnabled(monitorInterval);
-    }
-
-    // This method is synchronized to ensure that we keep track of the last reported health state to the health node.
-    // Note: this is for demonstration purposes, when we will be actually sending the information to the health node we might
-    // choose a different way to keep it thread safe.
-    private synchronized void sendHealth(IndividualNodeHealth currentHealth) {
-        logger.info("Sending node health [{}] to health node", currentHealth);
-        this.lastReportedHealth = currentHealth;
     }
 
     IndividualNodeHealth getLastReportedHealth() {

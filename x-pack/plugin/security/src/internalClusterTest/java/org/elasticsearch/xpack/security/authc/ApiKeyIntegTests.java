@@ -2473,6 +2473,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     }
 
     private void assertSingleError(final String apiKeyId, final BulkUpdateApiKeyResponse response) {
+        assertNotNull(response);
         assertThat(response.getErrorDetails().keySet(), contains(apiKeyId));
         assertThat(response.getUpdated(), empty());
         assertThat(response.getNoops(), empty());

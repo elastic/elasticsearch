@@ -31,7 +31,7 @@ public class NetUtils {
     /**
      * Returns the extended TCP_KEEPIDLE socket option.
      */
-    @SuppressForbidden(reason = "access to non-portable socket option requied")
+    @SuppressForbidden(reason = "access to non-portable socket option required")
     public static SocketOption<Integer> getTcpKeepIdleSocketOption() {
         return ExtendedSocketOptions.TCP_KEEPIDLE;
     }
@@ -39,7 +39,7 @@ public class NetUtils {
     /**
      * Returns the extended TCP_KEEPINTERVAL socket option.
      */
-    @SuppressForbidden(reason = "access to non-portable socket option requied")
+    @SuppressForbidden(reason = "access to non-portable socket option required")
     public static SocketOption<Integer> getTcpKeepIntervalSocketOption() {
         return ExtendedSocketOptions.TCP_KEEPINTERVAL;
     }
@@ -47,7 +47,7 @@ public class NetUtils {
     /**
      * Returns the extended TCP_KEEPCOUNT socket option.
      */
-    @SuppressForbidden(reason = "access to non-portable socket option requied")
+    @SuppressForbidden(reason = "access to non-portable socket option required")
     public static SocketOption<Integer> getTcpKeepCountSocketOption() {
         return ExtendedSocketOptions.TCP_KEEPCOUNT;
     }

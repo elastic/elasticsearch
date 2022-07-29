@@ -60,29 +60,29 @@ public final class TransportUpdateApiKeyAction extends TransportBaseUpdateApiKey
     private UpdateApiKeyResponse fromBulkResponse(final String apiKeyId, final BulkUpdateApiKeyResponse response) throws Exception {
         if (response.getErrorDetails().isEmpty() == false) {
             if (false == (response.getErrorDetails().size() == 1
+                && response.getErrorDetails().containsKey(apiKeyId)
                 && response.getUpdated().isEmpty()
-                && response.getNoops().isEmpty()
-                && response.getErrorDetails().containsKey(apiKeyId))) {
-                illegalStateException(apiKeyId);
+                && response.getNoops().isEmpty())) {
+                mustProvideSingleMatchingResponseException(apiKeyId);
             }
             throw response.getErrorDetails().values().iterator().next();
         } else if (response.getUpdated().isEmpty() == false) {
             if (false == (response.getUpdated().size() == 1
-                && response.getNoops().isEmpty()
-                && response.getUpdated().get(0).equals(apiKeyId))) {
-                illegalStateException(apiKeyId);
+                && response.getUpdated().get(0).equals(apiKeyId)
+                && response.getNoops().isEmpty())) {
+                mustProvideSingleMatchingResponseException(apiKeyId);
             }
             return new UpdateApiKeyResponse(true);
         } else {
             if (false == (response.getNoops().size() == 1 && response.getNoops().get(0).equals(apiKeyId))) {
-                illegalStateException(apiKeyId);
+                mustProvideSingleMatchingResponseException(apiKeyId);
             }
             return new UpdateApiKeyResponse(false);
         }
     }
 
-    private void illegalStateException(final String apiKeyId) {
-        final String message = "single API update must have exactly one response for the requested ID [" + apiKeyId + "]";
+    private void mustProvideSingleMatchingResponseException(final String apiKeyId) {
+        final String message = "single API key update must provide single response matching requested ID [" + apiKeyId + "]";
         assert false : message;
         throw new IllegalStateException(message);
     }

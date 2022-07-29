@@ -23,6 +23,8 @@ import java.util.regex.Pattern;
 
 public class LogTextStructureFinder implements TextStructureFinder {
 
+    private static final String ECS_COMPATIBILITY_V1 = "v1";
+
     private static final int TOO_MANY_IDENTICAL_DELIMITERS_BEFORE_WILDCARDS = 8;
     private final List<String> sampleMessages;
     private final TextStructure structure;
@@ -146,14 +148,17 @@ public class LogTextStructureFinder implements TextStructureFinder {
         fieldStats.put("message", TextStructureUtils.calculateFieldStats(messageMapping, sampleMessages, timeoutChecker));
 
         Map<String, String> customGrokPatternDefinitions = timestampFormatFinder.getCustomGrokPatternDefinitions();
+
         GrokPatternCreator grokPatternCreator = new GrokPatternCreator(
             explanation,
             sampleMessages,
             fieldMappings,
             fieldStats,
             customGrokPatternDefinitions,
-            timeoutChecker
+            timeoutChecker,
+            ECS_COMPATIBILITY_V1.equalsIgnoreCase(overrides.getEcsCompatibility())
         );
+
         // We can't parse directly into @timestamp using Grok, so parse to some other time field, which the date filter will then remove
         String interimTimestampField = overrides.getTimestampField();
         String grokPattern = overrides.getGrokPattern();
@@ -191,6 +196,7 @@ public class LogTextStructureFinder implements TextStructureFinder {
             .setJavaTimestampFormats(timestampFormatFinder.getJavaTimestampFormats())
             .setNeedClientTimezone(needClientTimeZone)
             .setGrokPattern(grokPattern)
+            .setEcsCompatibility(overrides.getEcsCompatibility())
             .setIngestPipeline(
                 TextStructureUtils.makeIngestPipelineDefinition(
                     grokPattern,
@@ -238,7 +244,8 @@ public class LogTextStructureFinder implements TextStructureFinder {
             false,
             false,
             false,
-            timeoutChecker
+            timeoutChecker,
+            ECS_COMPATIBILITY_V1.equalsIgnoreCase(overrides.getEcsCompatibility())
         );
 
         for (String sampleLine : sampleLines) {

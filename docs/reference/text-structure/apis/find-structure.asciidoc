@@ -99,6 +99,12 @@ specified, the name of the timestamp field in the Grok pattern must match
 "timestamp". If `grok_pattern` is not specified, the structure finder creates a
 Grok pattern.
 
+`ecs_compatibility`::
+(Optional, string) The mode of compatibity with ECS compliant Grok patterns.
+When the structure finder creates a Grok pattern you can use this parameter to
+specify whether to use ECS Grok patterns instead of the legacy ones. Valid values
+are `disabled` and `v1`. The default value is `disabled`.
+
 `has_header_row`::
 (Optional, Boolean) If you have set `format` to `delimited`, you can use this
 parameter to indicate whether the column names are in the first row of the text.

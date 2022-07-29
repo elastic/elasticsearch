@@ -48,6 +48,7 @@ import java.util.stream.Collectors;
  */
 public final class TimestampFormatFinder {
 
+    private static final boolean ECS_COMPATIBILITY = false;
     private static final String PREFACE = "preface";
     private static final String EPILOGUE = "epilogue";
 
@@ -289,6 +290,182 @@ public final class TimestampFormatFinder {
     );
 
     /**
+     * The first match in this list will be chosen, so it needs to be ordered
+     * such that more generic patterns come after more specific patterns.
+     */
+    static final List<CandidateTimestampFormat> ORDERED_CANDIDATE_FORMATS_ECS_V1 = Arrays.asList(
+        // CATALINA8_DATESTAMP %{MONTHDAY}-%{MONTH}-%{YEAR} %{HOUR}:%{MINUTE}:%{SECOND}
+        // 29-Aug-2009 12:03:33
+        new CandidateTimestampFormat(
+            example -> Collections.singletonList("dd-MMM-yyyy hh:mm:ss"),
+            "\\b\\d{2}-[A-Z]\\S{2}-\\d{4} \\d{2}:\\d{2}:\\d{2}[:.,]\\d{3}",
+            "\\b%{MONTHDAY}-%{MONTH}-%{YEAR} %{HOUR}:%{MINUTE}:%{SECOND}\\b",
+            "CATALINA8_DATESTAMP",
+            "11     1111 11 11 11",
+            0,
+            13
+        ),
+        // CATALINA7_DATESTAMP %{MONTH} %{MONTHDAY}, %{YEAR} %{HOUR}:%{MINUTE}:%{SECOND} (?:AM|PM)
+        new CandidateTimestampFormat(
+            example -> Collections.singletonList("MMM dd, yyyy hh:mm:ss a"),
+            "\\b[A-Z]\\S{2} \\d{2}, \\d{2} \\d{4}:\\d{2}:\\d{2}[:.,]\\d{3}",
+            "\\b%{MONTH} %{MONTHDAY}, %{YEAR} %{HOUR}:%{MINUTE}:%{SECOND} (?:AM|PM)\\b",
+            "CATALINA7_DATESTAMP",
+            "    11  1111 11 11 11 111",
+            0,
+            13
+        ),
+        // The TOMCATLEGACY_DATESTAMP format has to come before ISO8601 because it's basically ISO8601 but
+        // with a space before the timezone, and because the timezone is optional in ISO8601 it will
+        // be recognised as that with the timezone missed off if ISO8601 is checked first
+        new CandidateTimestampFormat(
+            example -> CandidateTimestampFormat.iso8601LikeFormatFromExample(example, " ", " "),
+            "\\b\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}[:.,]\\d{3}",
+            "\\b20\\d{2}-%{MONTHNUM}-%{MONTHDAY} %{HOUR}:?%{MINUTE}:(?:[0-5][0-9]|60)[:.,][0-9]{3,9} (?:Z|[+-]%{HOUR}%{MINUTE})\\b",
+            "TOMCATLEGACY_DATESTAMP",
+            "1111 11 11 11 11 11 111",
+            0,
+            13
+        ),
+        ISO8601_CANDIDATE_FORMAT,
+        new CandidateTimestampFormat(
+            example -> Arrays.asList("EEE MMM dd yy HH:mm:ss zzz", "EEE MMM d yy HH:mm:ss zzz"),
+            "\\b[A-Z]\\S{2} [A-Z]\\S{2} \\d{1,2} \\d{2} \\d{2}:\\d{2}:\\d{2}\\b",
+            "\\b%{DAY} %{MONTH} %{MONTHDAY} %{YEAR} %{HOUR}:%{MINUTE}(?::(?:[0-5][0-9]|60)) %{TZ}\\b",
+            "DATESTAMP_RFC822",
+            Arrays.asList("        11 11 11 11 11", "        1 11 11 11 11"),
+            0,
+            5
+        ),
+        new CandidateTimestampFormat(
+            example -> CandidateTimestampFormat.adjustTrailingTimezoneFromExample(example, "EEE, dd MMM yyyy HH:mm:ss XX"),
+            "\\b[A-Z]\\S{2}, \\d{1,2} [A-Z]\\S{2} \\d{4} \\d{2}:\\d{2}:\\d{2}\\b",
+            "\\b%{DAY}, %{MONTHDAY} %{MONTH} %{YEAR} %{HOUR}:%{MINUTE}(?::(?:[0-5][0-9]|60)) (?:Z|[+-]%{HOUR}:?%{MINUTE})\\b",
+            "DATESTAMP_RFC2822",
+            Arrays.asList("     11     1111 11 11 11", "     1     1111 11 11 11"),
+            0,
+            7
+        ),
+        new CandidateTimestampFormat(
+            example -> Arrays.asList("EEE MMM dd HH:mm:ss zzz yyyy", "EEE MMM d HH:mm:ss zzz yyyy"),
+            "\\b[A-Z]\\S{2,8} [A-Z]\\S{2,8} \\d{1,2} \\d{2}:\\d{2}:\\d{2}\\b",
+            "\\b%{DAY} %{MONTH} %{MONTHDAY} %{HOUR}:%{MINUTE}(?::(?:[0-5][0-9]|60)) %{TZ} %{YEAR}\\b",
+            "DATESTAMP_OTHER",
+            Arrays.asList("        11 11 11 11", "        1 11 11 11"),
+            12,
+            10
+        ),
+        new CandidateTimestampFormat(
+            example -> Collections.singletonList("yyyyMMddHHmmss"),
+            "\\b\\d{14}\\b",
+            "\\b20\\d{2}%{MONTHNUM2}(?:(?:0[1-9])|(?:[12][0-9])|(?:3[01]))(?:2[0123]|[01][0-9])%{MINUTE}(?:[0-5][0-9]|60)\\b",
+            "DATESTAMP_EVENTLOG",
+            "11111111111111",
+            0,
+            0
+        ),
+        new CandidateTimestampFormat(
+            example -> Collections.singletonList("EEE MMM dd HH:mm:ss yyyy"),
+            "\\b[A-Z]\\S{2} [A-Z]\\S{2} \\d{2} \\d{2}:\\d{2}:\\d{2} \\d{4}\\b",
+            "\\b%{DAY} %{MONTH} %{MONTHDAY} %{HOUR}:%{MINUTE}:(?:[0-5][0-9]|60) %{YEAR}\\b",
+            "HTTPDERROR_DATE",
+            "        11 11 11 11 1111",
+            0,
+            0
+        ),
+        new CandidateTimestampFormat(
+            example -> CandidateTimestampFormat.expandDayAndAdjustFractionalSecondsFromExample(example, "MMM dd HH:mm:ss"),
+            "\\b[A-Z]\\S{2,8} {1,2}\\d{1,2} \\d{2}:\\d{2}:\\d{2}\\b",
+            "%{MONTH} +%{MONTHDAY} %{HOUR}:%{MINUTE}:(?:[0-5][0-9]|60)(?:[:.,][0-9]{3,9})?\\b",
+            "SYSLOGTIMESTAMP",
+            Arrays.asList("    11 11 11 11", "    1 11 11 11"),
+            6,
+            10
+        ),
+        new CandidateTimestampFormat(
+            example -> Collections.singletonList("dd/MMM/yyyy:HH:mm:ss XX"),
+            "\\b\\d{2}/[A-Z]\\S{2}/\\d{4}:\\d{2}:\\d{2}:\\d{2} ",
+            "\\b%{MONTHDAY}/%{MONTH}/%{YEAR}:%{HOUR}:%{MINUTE}:(?:[0-5][0-9]|60) [+-]?%{HOUR}%{MINUTE}\\b",
+            "HTTPDATE",
+            "11     1111 11 11 11",
+            0,
+            6
+        ),
+        new CandidateTimestampFormat(
+            example -> Collections.singletonList("MMM dd, yyyy h:mm:ss a"),
+            "\\b[A-Z]\\S{2} \\d{2}, \\d{4} \\d{1,2}:\\d{2}:\\d{2} [AP]M\\b",
+            "%{MONTH} %{MONTHDAY}, 20\\d{2} %{HOUR}:%{MINUTE}:(?:[0-5][0-9]|60) (?:AM|PM)\\b",
+            "CATALINA_DATESTAMP",
+            Arrays.asList("    11  1111 1 11 11", "    11  1111 11 11 11"),
+            0,
+            3
+        ),
+        new CandidateTimestampFormat(
+            example -> Arrays.asList("MMM dd yyyy HH:mm:ss", "MMM  d yyyy HH:mm:ss", "MMM d yyyy HH:mm:ss"),
+            "\\b[A-Z]\\S{2} {1,2}\\d{1,2} \\d{4} \\d{2}:\\d{2}:\\d{2}\\b",
+            "%{MONTH} +%{MONTHDAY} %{YEAR} %{HOUR}:%{MINUTE}:(?:[0-5][0-9]|60)\\b",
+            "CISCOTIMESTAMP",
+            Arrays.asList("    11 1111 11 11 11", "    1 1111 11 11 11"),
+            1,
+            0
+        ),
+        new CandidateTimestampFormat(
+            CandidateTimestampFormat::indeterminateDayMonthFormatFromExample,
+            "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}[- ]\\d{2}:\\d{2}:\\d{2}\\b",
+            "\\b%{DATESTAMP}\\b",
+            "DATESTAMP",
+            // In DATESTAMP the month may be 1 or 2 digits, the year 2 or 4, but the day must be 2
+            // Also note the Grok pattern search space is set to start one character before a quick rule-out
+            // match because we don't want 11 11 11 matching into 1111 11 11 with this pattern
+            Arrays.asList(
+                "11 11 1111 11 11 11",
+                "1 11 1111 11 11 11",
+                "11 1 1111 11 11 11",
+                "11 11 11 11 11 11",
+                "1 11 11 11 11 11",
+                "11 1 11 11 11 11"
+            ),
+            1,
+            10
+        ),
+        new CandidateTimestampFormat(
+            CandidateTimestampFormat::indeterminateDayMonthFormatFromExample,
+            "\\b\\d{1,2}[/.-]\\d{1,2}[/.-](?:\\d{2}){1,2}\\b",
+            "\\b%{DATE}\\b",
+            "DATE",
+            // In DATE the month may be 1 or 2 digits, the year 2 or 4, but the day must be 2
+            // Also note the Grok pattern search space is set to start one character before a quick rule-out
+            // match because we don't want 11 11 11 matching into 1111 11 11 with this pattern
+            Arrays.asList("11 11 1111", "11 1 1111", "1 11 1111", "11 11 11", "11 1 11", "1 11 11"),
+            1,
+            0
+        ),
+        UNIX_MS_CANDIDATE_FORMAT,
+        UNIX_CANDIDATE_FORMAT,
+        TAI64N_CANDIDATE_FORMAT,
+        // This one is an ISO8601 date with no time, but the TIMESTAMP_ISO8601 Grok pattern doesn't cover it
+        new CandidateTimestampFormat(
+            example -> Collections.singletonList("ISO8601"),
+            "\\b\\d{4}-\\d{2}-\\d{2}\\b",
+            "\\b%{YEAR}-%{MONTHNUM2}-%{MONTHDAY}\\b",
+            CUSTOM_TIMESTAMP_GROK_NAME,
+            "1111 11 11",
+            0,
+            0
+        ),
+        // The Kibana export format
+        new CandidateTimestampFormat(
+            example -> Collections.singletonList("MMM d, yyyy @ HH:mm:ss.SSS"),
+            "\\b[A-Z]\\S{2} \\d{1,2}, \\d{4} @ \\d{2}:\\d{2}:\\d{2}\\.\\d{3}\\b",
+            "\\b%{MONTH} %{MONTHDAY}, %{YEAR} @ %{HOUR}:%{MINUTE}:%{SECOND}\\b",
+            CUSTOM_TIMESTAMP_GROK_NAME,
+            Arrays.asList("    11  1111   11 11 11 111", "    1  1111   11 11 11 111"),
+            0,
+            0
+        )
+    );
+
+    /**
      * It is expected that the explanation will be shared with other code.
      * Both this class and other classes will update it.
      */
@@ -312,6 +489,27 @@ public final class TimestampFormatFinder {
      * @param errorOnNoTimestamp      Should an exception be thrown if a sample is added that does not contain a recognised timestamp?
      * @param errorOnMultiplePatterns Should an exception be thrown if samples are uploaded that require different Grok patterns?
      * @param timeoutChecker          Will abort the operation if its timeout is exceeded.
+     * @param ecsCompatibility        Mode of compatibility with ECS compliant Grok patterns.
+     */
+    public TimestampFormatFinder(
+        List<String> explanation,
+        boolean requireFullMatch,
+        boolean errorOnNoTimestamp,
+        boolean errorOnMultiplePatterns,
+        TimeoutChecker timeoutChecker,
+        boolean ecsCompatibility
+    ) {
+        this(explanation, null, requireFullMatch, errorOnNoTimestamp, errorOnMultiplePatterns, timeoutChecker, ecsCompatibility);
+    }
+
+    /**
+     * Construct without any specific timestamp format override.
+     * @param explanation             List of reasons for making decisions.  May contain items when passed and new reasons
+     *                                can be appended by the methods of this class.
+     * @param requireFullMatch        Must samples added to this object represent a timestamp in their entirety?
+     * @param errorOnNoTimestamp      Should an exception be thrown if a sample is added that does not contain a recognised timestamp?
+     * @param errorOnMultiplePatterns Should an exception be thrown if samples are uploaded that require different Grok patterns?
+     * @param timeoutChecker          Will abort the operation if its timeout is exceeded.
      */
     public TimestampFormatFinder(
         List<String> explanation,
@@ -320,7 +518,7 @@ public final class TimestampFormatFinder {
         boolean errorOnMultiplePatterns,
         TimeoutChecker timeoutChecker
     ) {
-        this(explanation, null, requireFullMatch, errorOnNoTimestamp, errorOnMultiplePatterns, timeoutChecker);
+        this(explanation, null, requireFullMatch, errorOnNoTimestamp, errorOnMultiplePatterns, timeoutChecker, ECS_COMPATIBILITY);
     }
 
     /**
@@ -335,6 +533,7 @@ public final class TimestampFormatFinder {
      * @param errorOnNoTimestamp      Should an exception be thrown if a sample is added that does not contain a recognised timestamp?
      * @param errorOnMultiplePatterns Should an exception be thrown if samples are uploaded that require different Grok patterns?
      * @param timeoutChecker          Will abort the operation if its timeout is exceeded.
+     * @param ecsCompatibility        Mode of compatibility with ECS compliant Grok patterns.
      */
     public TimestampFormatFinder(
         List<String> explanation,
@@ -342,14 +541,16 @@ public final class TimestampFormatFinder {
         boolean requireFullMatch,
         boolean errorOnNoTimestamp,
         boolean errorOnMultiplePatterns,
-        TimeoutChecker timeoutChecker
+        TimeoutChecker timeoutChecker,
+        boolean ecsCompatibility
     ) {
         this.explanation = Objects.requireNonNull(explanation);
         this.requireFullMatch = requireFullMatch;
         this.errorOnNoTimestamp = errorOnNoTimestamp;
         this.errorOnMultiplePatterns = errorOnMultiplePatterns;
         this.orderedCandidateFormats = (overrideFormat != null)
-            ? Collections.singletonList(makeCandidateFromOverrideFormat(overrideFormat, timeoutChecker))
+            ? Collections.singletonList(makeCandidateFromOverrideFormat(overrideFormat, timeoutChecker, ecsCompatibility))
+            : ecsCompatibility ? ORDERED_CANDIDATE_FORMATS_ECS_V1
             : ORDERED_CANDIDATE_FORMATS;
         this.timeoutChecker = Objects.requireNonNull(timeoutChecker);
         this.matches = new ArrayList<>();
@@ -445,11 +646,16 @@ public final class TimestampFormatFinder {
     /**
      * Given a user supplied Java timestamp format, return an appropriate candidate timestamp object as required by this class.
      * The returned candidate might be a built-in one, or might be generated from the supplied format.
-     * @param overrideFormat A user supplied Java timestamp format.
-     * @param timeoutChecker Will abort the operation if its timeout is exceeded.
+     * @param overrideFormat   A user supplied Java timestamp format.
+     * @param timeoutChecker   Will abort the operation if its timeout is exceeded.
+     * @param ecsCompatibility Mode of compatibility with ECS compliant Grok patterns.
      * @return An appropriate candidate timestamp object.
      */
-    static CandidateTimestampFormat makeCandidateFromOverrideFormat(String overrideFormat, TimeoutChecker timeoutChecker) {
+    static CandidateTimestampFormat makeCandidateFromOverrideFormat(
+        String overrideFormat,
+        TimeoutChecker timeoutChecker,
+        boolean ecsCompatibility
+    ) {
 
         // First check for a special format string
         switch (overrideFormat.toUpperCase(Locale.ROOT)) {
@@ -476,7 +682,7 @@ public final class TimestampFormatFinder {
         String generatedTimestamp = javaTimeFormatter.withZone(ZoneOffset.ofHoursMinutesSeconds(5, 45, 0))
             .format(Instant.ofEpochMilli(981173106123L).plusNanos(456789L));
         BitSet numberPosBitSet = stringToNumberPosBitSet(generatedTimestamp);
-        for (CandidateTimestampFormat candidate : ORDERED_CANDIDATE_FORMATS) {
+        for (CandidateTimestampFormat candidate : ecsCompatibility ? ORDERED_CANDIDATE_FORMATS_ECS_V1 : ORDERED_CANDIDATE_FORMATS) {
 
             TimestampMatch match = checkCandidate(candidate, generatedTimestamp, numberPosBitSet, true, timeoutChecker);
             if (match != null) {

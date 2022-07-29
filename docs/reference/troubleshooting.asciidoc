@@ -81,11 +81,8 @@ include::troubleshooting/data/start-slm.asciidoc[]
 
 include::troubleshooting/data/restore-from-snapshot.asciidoc[]
 
-<<<<<<< HEAD
-=======
 include::troubleshooting/snapshot/add-repository.asciidoc[]
 
->>>>>>> main
 include::monitoring/troubleshooting.asciidoc[]
 
 include::transform/troubleshooting.asciidoc[leveloffset=+1]

@@ -29,12 +29,6 @@ dependencies {
   }
 }
 
-tasks.named("thirdPartyAudit").configure {
-  ignoreMissingClasses(
-    'org.slf4j.ext.EventData'
-  )
-}
-
 tasks.named("dependencyLicenses").configure {
   mapping from: /opentelemetry-.*/, to: 'opentelemetry'
 }

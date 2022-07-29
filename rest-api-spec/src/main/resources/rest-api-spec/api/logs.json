@@ -1,0 +1,57 @@
+{
+  "bulk":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/logs.html",
+      "description":"Provides a simple JSON API to ingest log events into Elasticsearch."
+    },
+    "stability":"experimental",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/x-ndjson"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_logs",
+          "methods":[
+            "POST"
+          ]
+        },
+        {
+          "path":"/_logs/{data_stream.dataset}",
+          "methods":[
+            "POST"
+          ],
+          "parts":{
+            "data_stream.dataset":{
+              "type":"string",
+              "description":"Default index for items which don't provide one"
+            }
+          }
+        },
+        {
+          "path":"/_logs/{data_stream.dataset}/{data_stream.namespace}",
+          "methods":[
+            "POST"
+          ],
+          "parts":{
+            "data_stream.dataset":{
+              "type":"string",
+              "description":"Describes the ingested data and its structure."
+            },
+            "data_stream.namespace":{
+              "type":"string",
+              "description":"A user-configurable arbitrary grouping, such as an environment (dev, prod, or qa), a team, or a strategic business unit."
+            }
+          }
+        }
+      ]
+    },
+    "body":{
+      "description":"The log events, separated by newlines",
+      "required":true,
+      "serialize":"bulk"
+    }
+  }
+}

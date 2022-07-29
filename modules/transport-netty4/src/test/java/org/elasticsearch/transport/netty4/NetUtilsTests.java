@@ -8,7 +8,6 @@
 
 package org.elasticsearch.transport.netty4;
 
-import org.apache.lucene.util.Constants;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.test.ESTestCase;
 

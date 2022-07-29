@@ -303,15 +303,18 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
     CountDownLatch processFileSettings(Path path, Consumer<Exception> errorHandler) throws IOException {
         CountDownLatch waitForCompletion = new CountDownLatch(1);
         logger.info("processing path [{}] for [{}]", path, NAMESPACE);
-        try (var json = new BufferedInputStream(Files.newInputStream(path))) {
-            try (XContentParser parser = JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {
-                stateService.process(NAMESPACE, parser, (e) -> {
+        try (var fis = Files.newInputStream(path);
+             var bis = new BufferedInputStream(fis);
+             var parser = JSON.xContent().createParser(XContentParserConfiguration.EMPTY, bis)) {
+            stateService.process(NAMESPACE, parser, (e) -> {
+                try {
                     if (e != null) {
                         errorHandler.accept(e);
                     }
+                } finally {
                     waitForCompletion.countDown();
-                });
-            }
+                }
+            });
         }
 
         return waitForCompletion;

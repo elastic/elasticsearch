@@ -48,9 +48,10 @@ public class TransportActivateProfileAction extends TransportGrantAction<Activat
     }
 
     @Override
-    protected void executeOnSuccessfulGrant(
-        Authentication authentication,
+    protected void doExecuteOnSuccessfulGrant(
+        Task task,
         ActivateProfileRequest request,
+        Authentication authentication,
         ActionListener<ActivateProfileResponse> listener
     ) {
         profileService.activateProfile(authentication, listener.map(ActivateProfileResponse::new));

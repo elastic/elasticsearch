@@ -79,9 +79,10 @@ public final class TransportGrantApiKeyAction extends TransportGrantAction<Grant
     }
 
     @Override
-    protected void executeOnSuccessfulGrant(
-        Authentication authentication,
+    protected void doExecuteOnSuccessfulGrant(
+        Task task,
         GrantApiKeyRequest request,
+        Authentication authentication,
         ActionListener<CreateApiKeyResponse> listener
     ) {
         resolver.resolveUserRoleDescriptors(

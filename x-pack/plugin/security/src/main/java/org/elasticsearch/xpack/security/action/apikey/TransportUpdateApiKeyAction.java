@@ -55,11 +55,11 @@ public final class TransportUpdateApiKeyAction extends TransportBaseUpdateApiKey
             authentication,
             BulkUpdateApiKeyRequest.wrap(request),
             roleDescriptors,
-            ActionListener.wrap(bulkResponse -> listener.onResponse(fromBulkResponse(request.getId(), bulkResponse)), listener::onFailure)
+            ActionListener.wrap(bulkResponse -> listener.onResponse(toSingleResponse(request.getId(), bulkResponse)), listener::onFailure)
         );
     }
 
-    private UpdateApiKeyResponse fromBulkResponse(final String apiKeyId, final BulkUpdateApiKeyResponse response) throws Exception {
+    private UpdateApiKeyResponse toSingleResponse(final String apiKeyId, final BulkUpdateApiKeyResponse response) throws Exception {
         if (response.getErrorDetails().isEmpty() == false) {
             if (false == (response.getErrorDetails().size() == 1
                 && response.getErrorDetails().containsKey(apiKeyId)

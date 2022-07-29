@@ -1,0 +1,5 @@
+pr: 88953
+summary: Ensure that the `FileSettingService` closes the config file input stream
+area: Infra/Core
+type: bug
+issues: []

@@ -260,7 +260,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
                 DecayFunctionBuilder.ORIGIN
             );
         }
-        IndexNumericFieldData numericFieldData = context.getForField(fieldType);
+        IndexNumericFieldData numericFieldData = context.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
         return new NumericFieldDataScoreFunction(origin, scale, decay, offset, getDecayFunction(), numericFieldData, mode);
     }
 
@@ -300,7 +300,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
         }
         double scale = DistanceUnit.DEFAULT.parse(scaleString, DistanceUnit.DEFAULT);
         double offset = DistanceUnit.DEFAULT.parse(offsetString, DistanceUnit.DEFAULT);
-        IndexGeoPointFieldData indexFieldData = context.getForField(fieldType);
+        IndexGeoPointFieldData indexFieldData = context.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
         return new GeoFieldDataScoreFunction(origin, scale, decay, offset, getDecayFunction(), indexFieldData, mode);
 
     }
@@ -350,7 +350,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
         double scale = val.getMillis();
         val = TimeValue.parseTimeValue(offsetString, TimeValue.timeValueHours(24), DecayFunctionParser.class.getSimpleName() + ".offset");
         double offset = val.getMillis();
-        IndexNumericFieldData numericFieldData = context.getForField(dateFieldType);
+        IndexNumericFieldData numericFieldData = context.getForField(dateFieldType, MappedFieldType.FielddataOperation.SEARCH);
         return new NumericFieldDataScoreFunction(origin, scale, decay, offset, getDecayFunction(), numericFieldData, mode);
     }
 

@@ -10,6 +10,7 @@ Provides a simple JSON API to ingest log events into Elasticsearch.
 
 `POST /_logs/<dataset>/<namespace>`
 
+[discrete]
 [[logs-api-prereqs]]
 === {api-prereq-title}
 * If the {es} {security-features} are enabled, you must have the `create`
@@ -51,6 +52,7 @@ The default mappings for the `logs-*-*` data streams are designed to minimize ma
 
 The dataset and namespace parameters determine the <<data-streams, data stream>> in which the events will be indexed `logs-<dataset>-<namespace>`. This can be overridden on a per-event basis.
 
+[discrete]
 [[logs-api-query-params]]
 === {api-query-parms-title}
 
@@ -94,6 +96,7 @@ All other fields are not indexed by default. But you can still use all fields in
 
 Dotted field names are expanded to objects so that they can be used interchangeably with nested objects. For example, the following documents are treated equally: `{"log.level": "INFO"}`, `{"log": { "level": "INFO"} }`.
 
+[discrete]
 [[logs-api-response-body]]
 ==== {api-response-body-title}
 

@@ -1,11 +1,12 @@
 pr: 88925
-summary: Deprecation overriding `DiscoveryPlugin` internals
+summary: Deprecate overriding `DiscoveryPlugin` internals
 area: Infra/Plugins
 type: deprecation
 issues: []
 deprecation:
-  title: Deprecation overriding `DiscoveryPlugin` internals
-  area: Infra/Plugins
-  details: Please describe the details of this change for the release notes. You can
-    use asciidoc.
-  impact: Please describe the impact of this change to users
+  title: Deprecate overriding `DiscoveryPlugin` internals
+  area: Java API
+  details: Plugins extending DiscoveryPlugin and overriding
+    join validators or election strategies are deprecated.
+  impact: Users should discontinue using plugins that override join
+    validators or election strategies in DiscoveryPlugin.

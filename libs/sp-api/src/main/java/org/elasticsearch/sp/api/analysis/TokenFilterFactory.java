@@ -15,4 +15,13 @@ import org.apache.lucene.analysis.TokenStream;
  */
 public non-sealed interface TokenFilterFactory extends NamedComponent {
     TokenStream create(TokenStream tokenStream);
+
+    /**
+     * Normalize a tokenStream for use in multi-term queries
+     *
+     * The default implementation is a no-op
+     */
+    default TokenStream normalize(TokenStream tokenStream) {
+        return tokenStream;
+    }
 }

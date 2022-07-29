@@ -8,16 +8,8 @@
 
 package org.elasticsearch.sp.api.analysis;
 
-import java.io.Reader;
-
-/**
- * An analysis component used to create char filters.
- */
-public non-sealed interface CharFilterFactory extends NamedComponent {
-    Reader create(Reader reader);
-
-    default Reader normalize(Reader reader) {
-        return reader;
-    }
-
+public enum AnalyzerScope {
+    INDEX,
+    INDICES,
+    GLOBAL
 }

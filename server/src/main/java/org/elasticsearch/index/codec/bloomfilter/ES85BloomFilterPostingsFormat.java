@@ -67,8 +67,8 @@ import java.util.Objects;
  * A {@link PostingsFormat} useful for low doc-frequency fields such as primary keys. Bloom filters
  * offers "fast-fail" for reads in segments known to have no record of the key.
  */
-public class ES84BloomFilterPostingsFormat extends PostingsFormat {
-    static final String BLOOM_CODEC_NAME = "ES84BloomFilter";
+public class ES85BloomFilterPostingsFormat extends PostingsFormat {
+    static final String BLOOM_CODEC_NAME = "ES85BloomFilter";
     static final int VERSION_START = 0;
     static final int VERSION_CURRENT = VERSION_START;
     static final String BLOOM_FILTER_META_FILE = "bfm";
@@ -77,25 +77,25 @@ public class ES84BloomFilterPostingsFormat extends PostingsFormat {
     private PostingsFormat postingsFormat;
     private BigArrays bigArrays;
 
-    public ES84BloomFilterPostingsFormat(PostingsFormat postingsFormat, BigArrays bigArrays) {
+    public ES85BloomFilterPostingsFormat(PostingsFormat postingsFormat, BigArrays bigArrays) {
         this();
         this.postingsFormat = Objects.requireNonNull(postingsFormat);
         this.bigArrays = Objects.requireNonNull(bigArrays);
         if (postingsFormat instanceof PerFieldPostingsFormat) {
-            assert false : "Can't use PerFieldPostingsFormat with ES84BloomFilterPostingsFormat";
-            throw new UnsupportedOperationException("Can't use PerFieldPostingsFormat with ES84BloomFilterPostingsFormat");
+            assert false : "Can't use PerFieldPostingsFormat with " + BLOOM_CODEC_NAME;
+            throw new UnsupportedOperationException("Can't use PerFieldPostingsFormat with " + BLOOM_CODEC_NAME);
         }
     }
 
-    public ES84BloomFilterPostingsFormat() {
+    public ES85BloomFilterPostingsFormat() {
         super(BLOOM_CODEC_NAME);
     }
 
     @Override
     public FieldsConsumer fieldsConsumer(SegmentWriteState state) throws IOException {
         if (postingsFormat == null || bigArrays == null) {
-            assert false : "ES84BloomFilterPostingsFormat was initialized with a wrong constructor";
-            throw new UnsupportedOperationException("ES84BloomFilterPostingsFormat was initialized with a wrong constructor");
+            assert false : BLOOM_CODEC_NAME + " was initialized with a wrong constructor";
+            throw new UnsupportedOperationException(BLOOM_CODEC_NAME + " was initialized with a wrong constructor");
         }
         return new FieldsWriter(postingsFormat, state);
     }
@@ -107,7 +107,7 @@ public class ES84BloomFilterPostingsFormat extends PostingsFormat {
 
     @Override
     public String toString() {
-        return "ES84BloomFilterPostingsFormat(" + postingsFormat.getName() + ")";
+        return BLOOM_CODEC_NAME + "(" + postingsFormat.getName() + ")";
     }
 
     private static String metaFile(SegmentInfo si, String segmentSuffix) {

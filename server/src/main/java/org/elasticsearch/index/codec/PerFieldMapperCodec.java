@@ -17,7 +17,7 @@ import org.apache.lucene.codecs.lucene92.Lucene92Codec;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.codec.bloomfilter.ES84BloomFilterPostingsFormat;
+import org.elasticsearch.index.codec.bloomfilter.ES85BloomFilterPostingsFormat;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -53,7 +53,7 @@ public class PerFieldMapperCodec extends Lucene92Codec {
         if (IdFieldMapper.NAME.equals(field)
             && mapperService.mappingLookup().isDataStreamTimestampFieldEnabled() == false
             && IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING.get(mapperService.getIndexSettings().getSettings())) {
-            return new ES84BloomFilterPostingsFormat(super.getPostingsFormatForField(field), bigArrays);
+            return new ES85BloomFilterPostingsFormat(super.getPostingsFormatForField(field), bigArrays);
 
         }
         final PostingsFormat format = mapperService.mappingLookup().getPostingsFormat(field);

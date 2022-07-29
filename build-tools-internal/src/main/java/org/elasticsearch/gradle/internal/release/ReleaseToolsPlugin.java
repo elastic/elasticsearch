@@ -71,9 +71,11 @@ public class ReleaseToolsPlugin implements Plugin<Project> {
 
         final Function<Boolean, Action<GenerateReleaseNotesTask>> configureGenerateTask = shouldConfigureYamlFiles -> task -> {
             task.setGroup("Documentation");
-            task.setDescription("Generates release notes from changelog files held in this checkout");
             if (shouldConfigureYamlFiles) {
                 task.setChangelogs(yamlFiles);
+                task.setDescription("Generates release notes from changelog files held in this checkout");
+            } else {
+                task.setDescription("Generates stub release notes e.g. after feature freeze");
             }
 
             task.setReleaseNotesIndexTemplate(projectDirectory.file(RESOURCES + "templates/release-notes-index.asciidoc"));

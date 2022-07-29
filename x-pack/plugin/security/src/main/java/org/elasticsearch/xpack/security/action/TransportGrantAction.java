@@ -51,7 +51,7 @@ public abstract class TransportGrantAction<Request extends GrantRequest, Respons
     }
 
     @Override
-    protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
+    public void doExecute(Task task, Request request, ActionListener<Response> listener) {
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             final AuthenticationToken authenticationToken = request.getGrant().getAuthenticationToken();
             assert authenticationToken != null : "authentication token must not be null";

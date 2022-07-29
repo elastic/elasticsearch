@@ -12,20 +12,21 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestStatusToXContentListener;
-import org.elasticsearch.xpack.core.security.action.profile.GetProfileAction;
-import org.elasticsearch.xpack.core.security.action.profile.GetProfileRequest;
+import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xpack.core.security.action.profile.GetProfilesAction;
+import org.elasticsearch.xpack.core.security.action.profile.GetProfilesRequest;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
-public class RestGetProfileAction extends SecurityBaseRestHandler {
+public class RestGetProfilesAction extends SecurityBaseRestHandler {
 
-    public RestGetProfileAction(Settings settings, XPackLicenseState licenseState) {
+    public RestGetProfilesAction(Settings settings, XPackLicenseState licenseState) {
         super(settings, licenseState);
     }
 
@@ -41,9 +42,9 @@ public class RestGetProfileAction extends SecurityBaseRestHandler {
 
     @Override
     protected RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
-        final String uid = request.param("uid");
+        final String[] uids = request.paramAsStringArray("uid", Strings.EMPTY_ARRAY);
         final Set<String> dataKeys = Strings.tokenizeByCommaToSet(request.param("data", null));
-        final GetProfileRequest getProfileRequest = new GetProfileRequest(uid, dataKeys);
-        return channel -> client.execute(GetProfileAction.INSTANCE, getProfileRequest, new RestStatusToXContentListener<>(channel));
+        final GetProfilesRequest getProfilesRequest = new GetProfilesRequest(Arrays.asList(uids), dataKeys);
+        return channel -> client.execute(GetProfilesAction.INSTANCE, getProfilesRequest, new RestToXContentListener<>(channel));
     }
 }

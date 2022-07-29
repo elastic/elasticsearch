@@ -7,13 +7,13 @@
 
 package org.elasticsearch.xpack.core.security.action.apikey;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.security.xcontent.XContentUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -59,20 +59,7 @@ public final class BulkUpdateApiKeyResponse extends ActionResponse implements To
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject().stringListField("updated", updated).stringListField("noops", noops);
-        if (errorDetails.isEmpty() == false) {
-            builder.startObject("errors");
-            {
-                builder.field("count", errorDetails.size());
-                builder.startObject("details");
-                for (Map.Entry<String, Exception> idWithException : errorDetails.entrySet()) {
-                    builder.startObject(idWithException.getKey());
-                    ElasticsearchException.generateThrowableXContent(builder, params, idWithException.getValue());
-                    builder.endObject();
-                }
-                builder.endObject();
-            }
-            builder.endObject();
-        }
+        XContentUtils.maybeAddErrorDetails(builder, errorDetails);
         return builder.endObject();
     }
 

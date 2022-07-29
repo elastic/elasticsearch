@@ -111,7 +111,7 @@ public class BulkUpdateApiKeyResponseTests extends ESTestCase {
              }""")));
     }
 
-    public void testToXContentOmitsErrorDetailsIfNoErrors() throws IOException {
+    public void testToXContentOmitsErrorsSectionIfNoErrors() throws IOException {
         final var response = new BulkUpdateApiKeyResponse(List.of("api-key-id-1"), List.of("api-key-id-2", "api-key-id-3"), Map.of());
         final XContentBuilder builder = XContentFactory.jsonBuilder();
         response.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -123,10 +123,7 @@ public class BulkUpdateApiKeyResponseTests extends ESTestCase {
                "noops": [
                  "api-key-id-2",
                  "api-key-id-3"
-               ],
-               "errors": {
-                 "count": 0
-               }
+               ]
              }""")));
     }
 }

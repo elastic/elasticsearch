@@ -55,10 +55,10 @@ public final class BulkUpdateApiKeyResponse extends ActionResponse implements To
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject().stringListField("updated", updated).stringListField("noops", noops);
-        builder.startObject("errors");
-        {
-            builder.field("count", errorDetails.size());
-            if (errorDetails.isEmpty() == false) {
+        if (errorDetails.isEmpty() == false) {
+            builder.startObject("errors");
+            {
+                builder.field("count", errorDetails.size());
                 builder.startObject("details");
                 for (Map.Entry<String, Exception> idWithException : errorDetails.entrySet()) {
                     builder.startObject(idWithException.getKey());
@@ -67,8 +67,8 @@ public final class BulkUpdateApiKeyResponse extends ActionResponse implements To
                 }
                 builder.endObject();
             }
+            builder.endObject();
         }
-        builder.endObject();
         return builder.endObject();
     }
 

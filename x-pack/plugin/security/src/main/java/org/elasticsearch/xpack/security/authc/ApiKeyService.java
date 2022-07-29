@@ -91,7 +91,6 @@ import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyResponse;
-import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
@@ -1409,24 +1408,6 @@ public class ApiKeyService {
         }
     }
 
-    private void translateResponseAndClearCache(
-        final String apiKeyId,
-        final BulkResponse bulkResponse,
-        final ActionListener<UpdateApiKeyResponse> listener
-    ) {
-        final BulkItemResponse[] elements = bulkResponse.getItems();
-        assert elements.length == 1 : "expected single item in bulk index response for API key update";
-        final var bulkItemResponse = elements[0];
-        if (bulkItemResponse.isFailed()) {
-            listener.onFailure(bulkItemResponse.getFailure().getCause());
-        } else {
-            assert bulkItemResponse.getResponse().getId().equals(apiKeyId);
-            // Since we made an index request against an existing document, we can't get a NOOP or CREATED here
-            assert bulkItemResponse.getResponse().getResult() == DocWriteResponse.Result.UPDATED;
-            clearApiKeyDocCache(apiKeyId, new UpdateApiKeyResponse(true), listener);
-        }
-    }
-
     private void buildResponseAndClearCache(
         final BulkResponse bulkResponse,
         final BulkUpdateApiKeyResponse.Builder responseBuilder,
@@ -1502,14 +1483,6 @@ public class ApiKeyService {
             listener,
             new ClearSecurityCacheRequest().cacheName("api_key").keys(result.getInvalidatedApiKeys().toArray(String[]::new))
         );
-    }
-
-    private void clearApiKeyDocCache(
-        final String apiKeyId,
-        final UpdateApiKeyResponse result,
-        final ActionListener<UpdateApiKeyResponse> listener
-    ) {
-        executeClearCacheRequest(result, listener, new ClearSecurityCacheRequest().cacheName("api_key_doc").keys(apiKeyId));
     }
 
     private void clearApiKeyDocCache(final BulkUpdateApiKeyResponse result, final ActionListener<BulkUpdateApiKeyResponse> listener) {

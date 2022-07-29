@@ -27,7 +27,7 @@ import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceCo
 
 public class TextSimilarityProcessor extends NlpTask.Processor {
 
-    TextSimilarityProcessor(NlpTokenizer tokenizer, TextSimilarityConfig config) {
+    TextSimilarityProcessor(NlpTokenizer tokenizer) {
         super(tokenizer);
     }
 
@@ -49,8 +49,11 @@ public class TextSimilarityProcessor extends NlpTask.Processor {
     @Override
     public NlpTask.ResultProcessor getResultProcessor(NlpConfig nlpConfig) {
         if (nlpConfig instanceof TextSimilarityConfig textSimilarityConfig) {
-            String resultsFieldValue = textSimilarityConfig.getResultsField();
-            return new ResultProcessor(textSimilarityConfig.getText(), resultsFieldValue, textSimilarityConfig.getSpanScoreFunction());
+            return new ResultProcessor(
+                textSimilarityConfig.getText(),
+                textSimilarityConfig.getResultsField(),
+                textSimilarityConfig.getSpanScoreFunction()
+            );
         }
         throw ExceptionsHelper.badRequestException(
             "please provide configuration update for text_similarity task including the desired [text]"

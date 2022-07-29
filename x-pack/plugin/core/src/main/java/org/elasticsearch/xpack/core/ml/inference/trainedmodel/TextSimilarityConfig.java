@@ -76,7 +76,7 @@ public class TextSimilarityConfig implements NlpConfig {
     private final String text;
     private final SpanScoreFunction spanScoreFunction;
 
-    public TextSimilarityConfig(
+    TextSimilarityConfig(
         @Nullable VocabularyConfig vocabularyConfig,
         @Nullable Tokenization tokenization,
         @Nullable String resultsField,
@@ -149,7 +149,7 @@ public class TextSimilarityConfig implements NlpConfig {
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return Version.V_8_4_0;
+        return Version.V_8_5_0;
     }
 
     @Override

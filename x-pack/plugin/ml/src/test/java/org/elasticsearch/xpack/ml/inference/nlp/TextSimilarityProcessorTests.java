@@ -41,7 +41,7 @@ public class TextSimilarityProcessorTests extends ESTestCase {
             "result",
             TextSimilarityConfig.SpanScoreFunction.MAX
         );
-        TextSimilarityProcessor processor = new TextSimilarityProcessor(tokenizer, textSimilarityConfig);
+        TextSimilarityProcessor processor = new TextSimilarityProcessor(tokenizer);
         TokenizationResult tokenizationResult = processor.getRequestBuilder(textSimilarityConfig)
             .buildRequest(List.of(input), "1", Tokenization.Truncate.NONE, 128)
             .tokenization();
@@ -51,7 +51,7 @@ public class TextSimilarityProcessorTests extends ESTestCase {
         assertThat(tokenizationResult.getTokenization(0).seqPairOffset(), equalTo(7));
         double[][][] scores = { { { 42 } } };
         NlpTask.ResultProcessor resultProcessor = processor.getResultProcessor(textSimilarityConfig);
-        PyTorchInferenceResult pyTorchResult = new PyTorchInferenceResult("1", scores, 1L, null);
+        PyTorchInferenceResult pyTorchResult = new PyTorchInferenceResult("1", scores, 1L, false);
         TextSimilarityInferenceResults result = (TextSimilarityInferenceResults) resultProcessor.processResult(
             tokenizationResult,
             pyTorchResult
@@ -71,10 +71,10 @@ public class TextSimilarityProcessorTests extends ESTestCase {
             "result",
             TextSimilarityConfig.SpanScoreFunction.MAX
         );
-        TextSimilarityProcessor processor = new TextSimilarityProcessor(tokenizer, textSimilarityConfig);
+        TextSimilarityProcessor processor = new TextSimilarityProcessor(tokenizer);
         NlpTask.ResultProcessor resultProcessor = processor.getResultProcessor(textSimilarityConfig);
         double[][][] scores = { { { 42 }, { 12 }, { 100 } } };
-        PyTorchInferenceResult pyTorchResult = new PyTorchInferenceResult("1", scores, 1L, null);
+        PyTorchInferenceResult pyTorchResult = new PyTorchInferenceResult("1", scores, 1L, false);
         TextSimilarityInferenceResults result = (TextSimilarityInferenceResults) resultProcessor.processResult(
             new BertTokenizationResult(List.of(), List.of(), 1),
             pyTorchResult
@@ -88,7 +88,7 @@ public class TextSimilarityProcessorTests extends ESTestCase {
             "result",
             TextSimilarityConfig.SpanScoreFunction.MEAN
         );
-        processor = new TextSimilarityProcessor(tokenizer, textSimilarityConfig);
+        processor = new TextSimilarityProcessor(tokenizer);
         resultProcessor = processor.getResultProcessor(textSimilarityConfig);
         result = (TextSimilarityInferenceResults) resultProcessor.processResult(
             new BertTokenizationResult(List.of(), List.of(), 1),

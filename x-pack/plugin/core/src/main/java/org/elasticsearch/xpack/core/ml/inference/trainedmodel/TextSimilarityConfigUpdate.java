@@ -69,13 +69,13 @@ public class TextSimilarityConfigUpdate extends NlpConfigUpdate implements Named
     private final TextSimilarityConfig.SpanScoreFunction spanScoreFunction;
 
     public TextSimilarityConfigUpdate(
-        String question,
+        String text,
         @Nullable String resultsField,
         @Nullable TokenizationUpdate tokenizationUpdate,
         @Nullable String spanScoreFunction
     ) {
         super(tokenizationUpdate);
-        this.text = ExceptionsHelper.requireNonNull(question, TEXT);
+        this.text = ExceptionsHelper.requireNonNull(text, TEXT);
         this.resultsField = resultsField;
         this.spanScoreFunction = Optional.ofNullable(spanScoreFunction)
             .map(TextSimilarityConfig.SpanScoreFunction::fromString)
@@ -211,6 +211,6 @@ public class TextSimilarityConfigUpdate extends NlpConfigUpdate implements Named
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return Version.V_8_4_0;
+        return Version.V_8_5_0;
     }
 }

@@ -61,7 +61,7 @@ For example, `/_logs/myapp?service.name=myapp` will add `"data_stream.dataset": 
 
 
 [[logs-api-request-body]]
-==== {api-request-body-title}
+=== {api-request-body-title}
 The request body contains a newline-delimited list of log events to ingest.
 The individual events don't have any required fields and can contain arbitrary JSON content.
 

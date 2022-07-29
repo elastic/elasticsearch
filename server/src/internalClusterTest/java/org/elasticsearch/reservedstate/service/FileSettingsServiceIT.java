@@ -86,7 +86,7 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         FileSettingsService fileSettingsService = internalCluster().getInstance(FileSettingsService.class, node);
 
         Files.createDirectories(fileSettingsService.operatorSettingsDir());
-        Path tempFilePath = fileSettingsService.operatorSettingsFile().resolveSibling("settings.tmp");
+        Path tempFilePath = createTempFile();
 
         Files.write(tempFilePath, Strings.format(json, version).getBytes(StandardCharsets.UTF_8));
         Files.move(tempFilePath, fileSettingsService.operatorSettingsFile(), StandardCopyOption.ATOMIC_MOVE);

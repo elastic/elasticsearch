@@ -1,6 +1,7 @@
 ---
 "Create index with camel case on format (allowed with warning in 7.x)":
   - skip:
+      version: "8.0.0 -"
       features: "warnings"
   - do:
       warnings:

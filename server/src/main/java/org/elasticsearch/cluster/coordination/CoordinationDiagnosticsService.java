@@ -99,12 +99,6 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
     // Non-private for testing
     volatile ConcurrentMap<DiscoveryNode, ClusterFormationStateOrException> clusterFormationResponses = null;
 
-    /*
-     * This is used to disable automatically polling master eligible nodes during unit tests so that we can better capture what is
-     * happening.
-     */
-    boolean disableAutoPollingForTestMode = false;
-
     private static final Logger logger = LogManager.getLogger(CoordinationDiagnosticsService.class);
 
     /**
@@ -616,17 +610,15 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                 }
             }
         }
-        if (disableAutoPollingForTestMode == false) {
-            if (currentMaster == null && clusterService.localNode().isMasterNode()) {
-                /*
-                 * This begins polling all master-eligible nodes for cluster formation information. However there's a 10-second delay
-                 * before it starts, so in the normal situation where during a master transition it flips from master1 -> null ->
-                 * master2, it the polling tasks will be canceled before any requests are actually made.
-                 */
-                beginPollingClusterFormationInfo();
-            } else {
-                cancelPollingClusterFormationInfo();
-            }
+        if (currentMaster == null && clusterService.localNode().isMasterNode()) {
+            /*
+             * This begins polling all master-eligible nodes for cluster formation information. However there's a 10-second delay
+             * before it starts, so in the normal situation where during a master transition it flips from master1 -> null ->
+             * master2, it the polling tasks will be canceled before any requests are actually made.
+             */
+            beginPollingClusterFormationInfo();
+        } else {
+            cancelPollingClusterFormationInfo();
         }
     }
 
@@ -634,7 +626,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
      * This method begins polling all known master-eligible nodes for cluster formation information. After a 10-second initial delay, it
      * polls each node every 10 seconds until cancelPollingClusterFormationInfo() is called.
      */
-    private void beginPollingClusterFormationInfo() {
+    void beginPollingClusterFormationInfo() {
         assert ThreadPool.assertCurrentThreadPool(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME);
         cancelPollingClusterFormationInfo();
         ConcurrentMap<DiscoveryNode, ClusterFormationStateOrException> responses = new ConcurrentHashMap<>();
@@ -737,7 +729,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
         };
     }
 
-    private void cancelPollingClusterFormationInfo() {
+    void cancelPollingClusterFormationInfo() {
         assert ThreadPool.assertCurrentThreadPool(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME);
         if (clusterFormationInfoTasks != null) {
             /*

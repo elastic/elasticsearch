@@ -39,17 +39,6 @@ class ItemSetBitSet implements Cloneable {
         initWords(nbits);
     }
 
-    /*private ItemSetBitSet(long[] words) {
-        this.words = words;
-        this.wordsInUse = words.length;
-    }
-
-    public static ItemSetBitSet valueOf(long[] longs) {
-        int n;
-        for (n = longs.length; n > 0 && longs[n - 1] == 0; n--)
-            ;
-        return new ItemSetBitSet(Arrays.copyOf(longs, n));
-    }*/
     void reset(ItemSetBitSet bitSet) {
         ensureCapacity(bitSet.wordsInUse);
         System.arraycopy(bitSet.words, 0, this.words, 0, bitSet.wordsInUse);

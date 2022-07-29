@@ -95,7 +95,7 @@ public abstract class WholeNumberFieldMapperTests extends NumberFieldMapperTests
     public void testSingleValuedField() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
-            b.field("single_value", true);
+            b.field("allow_multiple_values", false);
         }));
 
         Exception e = expectThrows(

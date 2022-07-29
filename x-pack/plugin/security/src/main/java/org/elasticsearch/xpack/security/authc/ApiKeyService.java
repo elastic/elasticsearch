@@ -394,6 +394,12 @@ public class ApiKeyService {
         final ActionListener<BulkUpdateApiKeyResponse> listener
     ) {
         logger.trace("Found [{}] API keys of [{}] requested for update", targetVersionedDocs.size(), request.getIds().size());
+        assert targetVersionedDocs.size() <= request.getIds().size()
+            : "more docs were found for update than were requested. requested: "
+                + request.getIds().size()
+                + " found: "
+                + targetVersionedDocs.size();
+
         final BulkUpdateApiKeyResponse.Builder responseBuilder = BulkUpdateApiKeyResponse.builder();
         final BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
         for (VersionedApiKeyDoc versionedDoc : targetVersionedDocs) {
@@ -1156,8 +1162,6 @@ public class ApiKeyService {
         final Collection<VersionedApiKeyDoc> foundDocs,
         final List<String> requestedIds
     ) {
-        assert foundDocs.size() <= requestedIds.size()
-            : "more docs were found for update than were requested. requested: " + requestedIds.size() + " updated: " + foundDocs.size();
         // Short-circuiting by size is safe: `foundDocs` only contains unique IDs of those requested. Same size here necessarily implies
         // same content
         if (foundDocs.size() == requestedIds.size()) {

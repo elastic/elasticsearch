@@ -342,7 +342,7 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
 
         Aggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
         aggregator.preCollection();
-        indexSearcher.search(query, aggregator);
+        indexSearcher.search(query, aggregator.asCollector());
         aggregator.postCollection();
         @SuppressWarnings("unchecked")
         InternalGeoGrid<T> topLevel = (InternalGeoGrid<T>) aggregator.buildTopLevel();

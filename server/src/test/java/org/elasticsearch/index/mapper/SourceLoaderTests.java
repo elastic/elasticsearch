@@ -74,7 +74,7 @@ public class SourceLoaderTests extends MapperServiceTestCase {
 
     public void testNoSubobjectsRootObject() throws IOException {
         XContentBuilder mappings = topMapping(b -> {
-            b.startObject("_source").field("synthetic", true).endObject();
+            b.startObject("_source").field("mode", "synthetic").endObject();
             b.field("subobjects", false);
             b.startObject("properties");
             b.startObject("foo.bar.baz").field("type", "keyword").endObject();

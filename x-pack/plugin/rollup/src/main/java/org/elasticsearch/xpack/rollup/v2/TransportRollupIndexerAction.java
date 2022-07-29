@@ -131,7 +131,8 @@ public class TransportRollupIndexerAction extends TransportBroadcastAction<
             request.getRollupIndex(),
             request.getRollupConfig(),
             request.getDimensionFields(),
-            request.getMetricFields()
+            request.getMetricFields(),
+            request.getLabelFields()
         );
         return indexer.execute();
     }

@@ -441,7 +441,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
 
         GlobalAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
         aggregator.preCollection();
-        indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+        indexSearcher.search(new MatchAllDocsQuery(), aggregator.asCollector());
         aggregator.postCollection();
 
         Global global = (Global) aggregator.buildTopLevel();
@@ -486,7 +486,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
 
         MaxAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
         aggregator.preCollection();
-        indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+        indexSearcher.search(new MatchAllDocsQuery(), aggregator.asCollector());
         aggregator.postCollection();
 
         Max max = (Max) aggregator.buildAggregation(0L);
@@ -695,7 +695,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
 
         GlobalAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
         aggregator.preCollection();
-        indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+        indexSearcher.search(new MatchAllDocsQuery(), aggregator.asCollector());
         aggregator.postCollection();
 
         Global global = (Global) aggregator.buildTopLevel();
@@ -737,7 +737,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
 
         TermsAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
         aggregator.preCollection();
-        indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+        indexSearcher.search(new MatchAllDocsQuery(), aggregator.asCollector());
         aggregator.postCollection();
 
         Terms terms = (Terms) aggregator.buildTopLevel();
@@ -790,7 +790,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
 
         BucketCollector bucketCollector = MultiBucketCollector.wrap(true, List.of(maxAggregator, countAggregator));
         bucketCollector.preCollection();
-        indexSearcher.search(new MatchAllDocsQuery(), bucketCollector);
+        indexSearcher.search(new MatchAllDocsQuery(), bucketCollector.asCollector());
         bucketCollector.postCollection();
 
         Max max = (Max) maxAggregator.buildAggregation(0L);
@@ -840,7 +840,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
 
             BucketCollector bucketCollector = MultiBucketCollector.wrap(true, List.of(maxAggregator, countAggregator, termsAggregator));
             bucketCollector.preCollection();
-            indexSearcher.search(new MatchAllDocsQuery(), bucketCollector);
+            indexSearcher.search(new MatchAllDocsQuery(), bucketCollector.asCollector());
             bucketCollector.postCollection();
 
             Max max = (Max) maxAggregator.buildTopLevel();
@@ -896,7 +896,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         AggregationContext context = createAggregationContext(indexSearcher, null, fieldType);
         MaxAggregator aggregator = createAggregator(aggregationBuilder, context);
         aggregator.preCollection();
-        indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+        indexSearcher.search(new MatchAllDocsQuery(), aggregator.asCollector());
         aggregator.postCollection();
 
         Max max = (Max) aggregator.buildAggregation(0L);
@@ -942,7 +942,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         AggregationContext context = createAggregationContext(indexSearcher, null, fieldType);
         MaxAggregator aggregator = createAggregator(aggregationBuilder, context);
         aggregator.preCollection();
-        indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+        indexSearcher.search(new MatchAllDocsQuery(), aggregator.asCollector());
         aggregator.postCollection();
 
         Max max = (Max) aggregator.buildAggregation(0L);
@@ -959,7 +959,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         context = createAggregationContext(indexSearcher, null, fieldType);
         aggregator = createAggregator(aggregationBuilder, context);
         aggregator.preCollection();
-        indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+        indexSearcher.search(new MatchAllDocsQuery(), aggregator.asCollector());
         aggregator.postCollection();
 
         max = (Max) aggregator.buildAggregation(0L);

@@ -3517,26 +3517,16 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     /**
      * The result of removing a snapshot from a shard folder in the repository.
+     *
+     * @param indexId       Index that the snapshot was removed from
+     * @param shardId       Shard id that the snapshot was removed from
+     * @param newGeneration Id of the new index-${uuid} blob that does not include the snapshot any more
+     * @param blobsToDelete Blob names in the shard directory that have become unreferenced in the new shard generation
      */
-    private static final class ShardSnapshotMetaDeleteResult {
-
-        // Index that the snapshot was removed from
-        private final IndexId indexId;
-
-        // Shard id that the snapshot was removed from
-        private final int shardId;
-
-        // Id of the new index-${uuid} blob that does not include the snapshot any more
-        private final ShardGeneration newGeneration;
-
-        // Blob names in the shard directory that have become unreferenced in the new shard generation
-        private final Collection<String> blobsToDelete;
-
-        ShardSnapshotMetaDeleteResult(IndexId indexId, int shardId, ShardGeneration newGeneration, Collection<String> blobsToDelete) {
-            this.indexId = indexId;
-            this.shardId = shardId;
-            this.newGeneration = newGeneration;
-            this.blobsToDelete = blobsToDelete;
-        }
-    }
+    private record ShardSnapshotMetaDeleteResult(
+        IndexId indexId,
+        int shardId,
+        ShardGeneration newGeneration,
+        Collection<String> blobsToDelete
+    ) {}
 }

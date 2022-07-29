@@ -32,6 +32,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
@@ -68,7 +69,6 @@ import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.lookup.LeafDocLookup;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
@@ -149,7 +149,7 @@ public class SearchExecutionContextTests extends ESTestCase {
 
         IndexFieldMapper mapper = new IndexFieldMapper();
 
-        IndexFieldData<?> forField = context.getForField(mapper.fieldType());
+        IndexFieldData<?> forField = context.getForField(mapper.fieldType(), MappedFieldType.FielddataOperation.SEARCH);
         String expected = clusterAlias == null
             ? context.getIndexSettings().getIndexMetadata().getIndex().getName()
             : clusterAlias + ":" + context.getIndexSettings().getIndex().getName();
@@ -426,7 +426,7 @@ public class SearchExecutionContextTests extends ESTestCase {
             0,
             indexSettings,
             null,
-            (mappedFieldType, idxName, searchLookup) -> mappedFieldType.fielddataBuilder(idxName, searchLookup).build(null, null),
+            (mappedFieldType, fdc) -> mappedFieldType.fielddataBuilder(fdc).build(null, null),
             mapperService,
             mappingLookup,
             null,
@@ -482,7 +482,7 @@ public class SearchExecutionContextTests extends ESTestCase {
     private static RuntimeField runtimeField(String name, BiFunction<LeafSearchLookup, Integer, String> runtimeDocValues) {
         TestRuntimeField.TestRuntimeFieldType fieldType = new TestRuntimeField.TestRuntimeFieldType(name, null) {
             @Override
-            public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+            public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
                 return (cache, breakerService) -> new IndexFieldData<>() {
                     @Override
                     public String getFieldName() {
@@ -516,7 +516,7 @@ public class SearchExecutionContextTests extends ESTestCase {
                                     @Override
                                     public void setNextDocId(int docId) {
                                         assert docId >= 0;
-                                        LeafSearchLookup leafLookup = searchLookup.get().getLeafSearchLookup(context);
+                                        LeafSearchLookup leafLookup = fieldDataContext.lookupSupplier().get().getLeafSearchLookup(context);
                                         leafLookup.setDocument(docId);
                                         value = runtimeDocValues.apply(leafLookup, docId);
                                     }
@@ -598,9 +598,9 @@ public class SearchExecutionContextTests extends ESTestCase {
                 MappedFieldType fieldType = searchExecutionContext.getFieldType(field);
                 IndexFieldData<?> indexFieldData;
                 if (randomBoolean()) {
-                    indexFieldData = searchExecutionContext.getForField(fieldType);
+                    indexFieldData = searchExecutionContext.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
                 } else {
-                    indexFieldData = searchExecutionContext.lookup().getForField(fieldType);
+                    indexFieldData = searchExecutionContext.lookup().getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
                 }
                 searcher.search(query, new Collector() {
                     @Override

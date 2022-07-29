@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.support;
@@ -24,12 +13,10 @@ import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.TestUtil;
-import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.fielddata.AbstractSortedNumericDocValues;
 import org.elasticsearch.index.fielddata.AbstractSortedSetDocValues;
-import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.test.ESTestCase;
@@ -108,7 +95,7 @@ public class MissingValuesTests extends ESTestCase {
                 ords[i][j] = j;
             }
             for (int j = ords[i].length - 1; j >= 0; --j) {
-                final int maxOrd = j == ords[i].length - 1 ? numOrds : ords[i][j+1];
+                final int maxOrd = j == ords[i].length - 1 ? numOrds : ords[i][j + 1];
                 ords[i][j] = TestUtil.nextInt(random(), ords[i][j], maxOrd - 1);
             }
         }
@@ -142,6 +129,11 @@ public class MissingValuesTests extends ESTestCase {
                     return NO_MORE_ORDS;
                 }
             }
+
+            @Override
+            public int docValueCount() {
+                return ords[doc].length;
+            }
         };
 
         final BytesRef existingMissing = RandomPicks.randomFrom(random(), values);
@@ -158,8 +150,7 @@ public class MissingValuesTests extends ESTestCase {
                 assertTrue(withMissingReplaced.advanceExact(i));
                 if (ords[i].length > 0) {
                     for (int ord : ords[i]) {
-                        assertEquals(values[ord],
-                                withMissingReplaced.lookupOrd(withMissingReplaced.nextOrd()));
+                        assertEquals(values[ord], withMissingReplaced.lookupOrd(withMissingReplaced.nextOrd()));
                     }
                     assertEquals(SortedSetDocValues.NO_MORE_ORDS, withMissingReplaced.nextOrd());
                 } else {
@@ -213,7 +204,11 @@ public class MissingValuesTests extends ESTestCase {
         SortedSetDocValues sortedGlobalValues = asOrds(globalValues);
 
         LongUnaryOperator withMissingSegmentToGlobalOrd = MissingValues.getGlobalMapping(
-                sortedValues, sortedGlobalValues, segmentToGlobalOrd, missing);
+            sortedValues,
+            sortedGlobalValues,
+            segmentToGlobalOrd,
+            missing
+        );
         SortedSetDocValues withMissingValues = MissingValues.replaceMissing(sortedValues, missing);
         SortedSetDocValues withMissingGlobalValues = MissingValues.replaceMissing(sortedGlobalValues, missing);
 
@@ -233,6 +228,11 @@ public class MissingValuesTests extends ESTestCase {
 
             @Override
             public long nextOrd() throws IOException {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public int docValueCount() {
                 throw new UnsupportedOperationException();
             }
 
@@ -340,53 +340,6 @@ public class MissingValuesTests extends ESTestCase {
             } else {
                 assertEquals(1, withMissingReplaced.docValueCount());
                 assertEquals(missing, withMissingReplaced.nextValue(), 0);
-            }
-        }
-    }
-
-    public void testMissingGeoPoints() throws IOException {
-        final int numDocs = TestUtil.nextInt(random(), 1, 100);
-        final GeoPoint[][] values = new GeoPoint[numDocs][];
-        for (int i = 0; i < numDocs; ++i) {
-            values[i] = new GeoPoint[random().nextInt(4)];
-            for (int j = 0; j < values[i].length; ++j) {
-                values[i][j] = new GeoPoint(randomDouble() * 90, randomDouble() * 180);
-            }
-        }
-        MultiGeoPointValues asGeoValues = new MultiGeoPointValues() {
-
-            int doc = -1;
-            int i;
-
-            @Override
-            public GeoPoint nextValue() {
-                return values[doc][i++];
-            }
-
-            @Override
-            public boolean advanceExact(int docId) {
-                doc = docId;
-                i = 0;
-                return values[doc].length > 0;
-            }
-
-            @Override
-            public int docValueCount() {
-                return values[doc].length;
-            }
-        };
-        final GeoPoint missing = new GeoPoint(randomDouble() * 90, randomDouble() * 180);
-        MultiGeoPointValues withMissingReplaced = MissingValues.replaceMissing(asGeoValues, missing);
-        for (int i = 0; i < numDocs; ++i) {
-            assertTrue(withMissingReplaced.advanceExact(i));
-            if (values[i].length > 0) {
-                assertEquals(values[i].length, withMissingReplaced.docValueCount());
-                for (int j = 0; j < values[i].length; ++j) {
-                    assertEquals(values[i][j], withMissingReplaced.nextValue());
-                }
-            } else {
-                assertEquals(1, withMissingReplaced.docValueCount());
-                assertEquals(missing, withMissingReplaced.nextValue());
             }
         }
     }

@@ -1,11 +1,6 @@
 [[completion-suggester]]
 ==== Completion Suggester
 
-NOTE: In order to understand the format of suggestions, please
-read the <<search-suggesters>> page first. For more flexible
-search-as-you-type searches that do not use suggesters, see the
-<<search-as-you-type,`search_as_you_type` field type>>.
-
 The `completion` suggester provides auto-complete/search-as-you-type
 functionality. This is a navigational feature to guide users to
 relevant results as they are typing, improving search precision.
@@ -382,7 +377,7 @@ The following parameters are supported:
     If `true`, all measurements (like fuzzy edit
     distance, transpositions, and lengths) are
     measured in Unicode code points instead of
-    in bytes.  This is slightly slower than raw
+    in bytes. This is slightly slower than raw
     bytes, so it is set to `false` by default.
 
 NOTE: If you want to stick with the default values, but
@@ -423,6 +418,6 @@ The following parameters are supported:
     Regular expressions are dangerous because it's easy to accidentally
     create an innocuous looking one that requires an exponential number of
     internal determinized automaton states (and corresponding RAM and CPU)
-    for Lucene to execute.  Lucene prevents these using the
-    `max_determinized_states` setting (defaults to 10000).  You can raise
+    for Lucene to execute. Lucene prevents these using the
+    `max_determinized_states` setting (defaults to 10000). You can raise
     this limit to allow more complex regular expressions to execute.

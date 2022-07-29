@@ -1,0 +1,176 @@
+---
+setup:
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+---
+"Test put watch with allow no indices":
+  - skip:
+      features: ["warnings"]
+      version: "7.10.1 - 7.10.2"
+      reason: "watch parsing with partial indices options was broken in 7.10.1 and 7.10.2"
+  - do:
+      watcher.put_watch:
+        id: "my_watch_allow_no_indices"
+        body:  >
+          {
+            "trigger": {
+              "schedule" : { "cron" : "0 0 0 1 * ? 2099" }
+            },
+            "input": {
+              "search" : {
+                "request" : {
+                  "indices" : [ "my_test_index" ],
+                  "rest_total_hits_as_int": false,
+                  "body" : {
+                    "query": {
+                      "match_all" : {}
+                    }
+                  },
+                  "indices_options" : {
+                    "allow_no_indices" : false
+                  }
+                }
+              }
+            },
+            "actions": {
+              "test_index": {
+                "index": {
+                  "index": "test"
+                }
+              }
+            }
+          }
+  - match: { _id: "my_watch_allow_no_indices" }
+
+# The get watch api, parses the watch, which yields deprecation warning if an indices_options definition is defined.
+  - do:
+      warnings:
+        - "Deprecated field [ignore_throttled] used, this field is unused and will be removed entirely"
+      watcher.get_watch:
+        id: "my_watch_allow_no_indices"
+  - match: { found : true}
+  - match: { _id: "my_watch_allow_no_indices" }
+  - match: { watch.input.search.request.indices_options.allow_no_indices: false }
+
+# During tear down, the list watch api is used to delete all watches. This parses the watches, which causes deprecation
+# warnings for any watch that have any indices_options defined. So manually delete this watch to avoid this.
+  - do:
+      watcher.delete_watch:
+        id: "my_watch_allow_no_indices"
+  - match: { found: true }
+
+---
+"Test put watch with expand wildcards":
+  - skip:
+      features: ["warnings"]
+      version: "7.10.1 - 7.10.2"
+      reason: "watch parsing with partial indices options was broken in 7.10.1 and 7.10.2"
+  - do:
+      watcher.put_watch:
+        id: "my_watch_expand_wildcards"
+        body:  >
+          {
+            "trigger": {
+              "schedule" : { "cron" : "0 0 0 1 * ? 2099" }
+            },
+            "input": {
+              "search" : {
+                "request" : {
+                  "indices" : [ "my_test_index" ],
+                  "rest_total_hits_as_int": false,
+                  "body" : {
+                    "query": {
+                      "match_all" : {}
+                    }
+                  },
+                  "indices_options" : {
+                    "expand_wildcards" : [ "open", "hidden" ]
+                  }
+                }
+              }
+            },
+            "actions": {
+              "test_index": {
+                "index": {
+                  "index": "test"
+                }
+              }
+            }
+          }
+  - match: { _id: "my_watch_expand_wildcards" }
+
+# The get watch api parses the watch, which yields deprecation warning if an indices_options definition is defined.
+  - do:
+      warnings:
+        - "Deprecated field [ignore_throttled] used, this field is unused and will be removed entirely"
+      watcher.get_watch:
+        id: "my_watch_expand_wildcards"
+  - match: { found : true}
+  - match: { _id: "my_watch_expand_wildcards" }
+  - match: { watch.input.search.request.indices_options.expand_wildcards: [ "open", "hidden" ] }
+
+# During tear down, the list watch api is used to delete all watches. This parses the watches, which causes deprecation
+# warnings for any watch that have any indices_options defined. So manually delete this watch to avoid this.
+  - do:
+      watcher.delete_watch:
+        id: "my_watch_expand_wildcards"
+  - match: { found: true }
+
+---
+"Test put watch with ignore unavailable":
+  - skip:
+      features: ["warnings"]
+      version: "7.10.1 - 7.10.2"
+      reason: "watch parsing with partial indices options was broken in 7.10.1 and 7.10.2"
+  - do:
+      watcher.put_watch:
+        id: "my_watch_ignore_unavailable"
+        body:  >
+          {
+            "trigger": {
+              "schedule" : { "cron" : "0 0 0 1 * ? 2099" }
+            },
+            "input": {
+              "search" : {
+                "request" : {
+                  "indices" : [ "my_test_index" ],
+                  "rest_total_hits_as_int": false,
+                  "body" : {
+                    "query": {
+                      "match_all" : {}
+                    }
+                  },
+                  "indices_options" : {
+                    "ignore_unavailable" : false
+                  }
+                }
+              }
+            },
+            "actions": {
+              "test_index": {
+                "index": {
+                  "index": "test"
+                }
+              }
+            }
+          }
+  - match: { _id: "my_watch_ignore_unavailable" }
+
+# The get watch api parses the watch, which yields deprecation warning if an indices_options definition is defined.
+  - do:
+      warnings:
+        - "Deprecated field [ignore_throttled] used, this field is unused and will be removed entirely"
+      watcher.get_watch:
+        id: "my_watch_ignore_unavailable"
+  - match: { found : true}
+  - match: { _id: "my_watch_ignore_unavailable" }
+  - match: { watch.input.search.request.indices_options.ignore_unavailable: false }
+
+# During tear down, the list watch api is used to delete all watches. This parses the watches, which causes deprecation
+# warnings for any watch that have any indices_options defined. So manually delete this watch to avoid this.
+  - do:
+      watcher.delete_watch:
+        id: "my_watch_ignore_unavailable"
+  - match: { found: true }

@@ -1,5 +1,3 @@
-[role="xpack"]
-[testenv="gold+"]
 [[elasticsearch-croneval]]
 == elasticsearch-croneval
 
@@ -24,6 +22,8 @@ cron expressions are valid for use with
 
 This command is provided in the `$ES_HOME/bin` directory.
 
+[discrete]
+[[elasticsearch-croneval-parameters]]
 === Parameters
 
 `-c, --count` <Integer>::

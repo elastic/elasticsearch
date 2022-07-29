@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.idp;
@@ -19,7 +20,7 @@ public class LocalStateIdentityProviderPlugin extends LocalStateCompositeXPackPl
     public LocalStateIdentityProviderPlugin(Settings settings, Path configPath) throws Exception {
         super(settings, configPath);
         LocalStateIdentityProviderPlugin thisVar = this;
-        plugins.add(new Security(settings, configPath) {
+        plugins.add(new Security(settings) {
             @Override
             protected SSLService getSslService() {
                 return thisVar.getSslService();

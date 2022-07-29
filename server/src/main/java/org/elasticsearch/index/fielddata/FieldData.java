@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.fielddata;
@@ -25,7 +14,6 @@ import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.geo.GeoPoint;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -67,27 +55,6 @@ public enum FieldData {
      */
     public static SortedNumericDoubleValues emptySortedNumericDoubles() {
         return singleton(emptyNumericDouble());
-    }
-
-    public static GeoPointValues emptyGeoPoint() {
-        return new GeoPointValues() {
-            @Override
-            public boolean advanceExact(int doc) throws IOException {
-                return false;
-            }
-
-            @Override
-            public GeoPoint geoPointValue() {
-                throw new UnsupportedOperationException();
-            }
-        };
-    }
-
-    /**
-     * Return a {@link SortedNumericDoubleValues} that doesn't contain any value.
-     */
-    public static MultiGeoPointValues emptyMultiGeoPoints() {
-        return singleton(emptyGeoPoint());
     }
 
     /**
@@ -246,22 +213,11 @@ public enum FieldData {
     }
 
     /**
-     * Returns a multi-valued view over the provided {@link GeoPointValues}.
-     */
-    public static MultiGeoPointValues singleton(GeoPointValues values) {
-        return new SingletonMultiGeoPointValues(values);
-    }
-
-    /**
      * Returns a single-valued view of the {@link MultiGeoPointValues},
-     * if it was previously wrapped with {@link #singleton(GeoPointValues)},
-     * or null.
+     * if the wrapped {@link SortedNumericDocValues} is a singleton.
      */
     public static GeoPointValues unwrapSingleton(MultiGeoPointValues values) {
-        if (values instanceof SingletonMultiGeoPointValues) {
-            return ((SingletonMultiGeoPointValues) values).getGeoPointValues();
-        }
-        return null;
+        return values.getGeoPointValues();
     }
 
     /**
@@ -302,6 +258,7 @@ public enum FieldData {
             public boolean advanceExact(int doc) throws IOException {
                 return values.advanceExact(doc);
             }
+
             @Override
             public void get(List<CharSequence> list) throws IOException {
                 for (int i = 0, count = values.docValueCount(); i < count; ++i) {
@@ -322,6 +279,7 @@ public enum FieldData {
             public boolean advanceExact(int doc) throws IOException {
                 return values.advanceExact(doc);
             }
+
             @Override
             public void get(List<CharSequence> list) throws IOException {
                 for (int i = 0, count = values.docValueCount(); i < count; ++i) {
@@ -345,7 +303,7 @@ public enum FieldData {
                 if (values.advanceExact(doc) == false) {
                     return false;
                 }
-                for (int i = 0; ; ++i) {
+                for (int i = 0;; ++i) {
                     if (values.nextOrd() == SortedSetDocValues.NO_MORE_ORDS) {
                         count = i;
                         break;
@@ -381,6 +339,7 @@ public enum FieldData {
             public boolean advanceExact(int doc) throws IOException {
                 return values.advanceExact(doc);
             }
+
             @Override
             public void get(List<CharSequence> list) throws IOException {
                 for (int i = 0, count = values.docValueCount(); i < count; ++i) {

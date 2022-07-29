@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.transforms;
@@ -20,6 +21,8 @@ class TransformContext {
     public interface Listener {
         void shutdown();
 
+        void failureCountChanged();
+
         void fail(String failureMessage, ActionListener<Void> listener);
     }
 
@@ -28,28 +31,26 @@ class TransformContext {
     private final Listener taskListener;
     private volatile int numFailureRetries = Transform.DEFAULT_FAILURE_RETRIES;
     private final AtomicInteger failureCount;
+    // Keeps track of the last failure that occured, used for throttling logs and audit
+    private final AtomicReference<String> lastFailure = new AtomicReference<>();
     private volatile Instant changesLastDetectedAt;
-    private volatile boolean shouldStopAtCheckpoint;
+    private volatile Instant lastSearchTime;
+    private volatile boolean shouldStopAtCheckpoint = false;
 
     // the checkpoint of this transform, storing the checkpoint until data indexing from source to dest is _complete_
     // Note: Each indexer run creates a new future checkpoint which becomes the current checkpoint only after the indexer run finished
     private final AtomicLong currentCheckpoint;
 
-    TransformContext(final TransformTaskState taskState, String stateReason, long currentCheckpoint, Listener taskListener) {
+    TransformContext(TransformTaskState taskState, String stateReason, long currentCheckpoint, Listener taskListener) {
         this.taskState = new AtomicReference<>(taskState);
         this.stateReason = new AtomicReference<>(stateReason);
         this.currentCheckpoint = new AtomicLong(currentCheckpoint);
         this.taskListener = taskListener;
         this.failureCount = new AtomicInteger(0);
-        this.shouldStopAtCheckpoint = shouldStopAtCheckpoint;
     }
 
     TransformTaskState getTaskState() {
         return taskState.get();
-    }
-
-    void setTaskState(TransformTaskState newState) {
-        taskState.set(newState);
     }
 
     boolean setTaskState(TransformTaskState oldState, TransformTaskState newState) {
@@ -69,6 +70,8 @@ class TransformContext {
     void resetReasonAndFailureCounter() {
         stateReason.set(null);
         failureCount.set(0);
+        lastFailure.set(null);
+        taskListener.failureCountChanged();
     }
 
     String getStateReason() {
@@ -83,8 +86,8 @@ class TransformContext {
         return currentCheckpoint.get();
     }
 
-    long getAndIncrementCheckpoint() {
-        return currentCheckpoint.getAndIncrement();
+    long incrementAndGetCheckpoint() {
+        return currentCheckpoint.incrementAndGet();
     }
 
     void setNumFailureRetries(int numFailureRetries) {
@@ -95,8 +98,19 @@ class TransformContext {
         return numFailureRetries;
     }
 
-    int getAndIncrementFailureCount() {
-        return failureCount.getAndIncrement();
+    int getFailureCount() {
+        return failureCount.get();
+    }
+
+    int incrementAndGetFailureCount(String failure) {
+        int newFailureCount = failureCount.incrementAndGet();
+        lastFailure.set(failure);
+        taskListener.failureCountChanged();
+        return newFailureCount;
+    }
+
+    String getLastFailure() {
+        return lastFailure.get();
     }
 
     void setChangesLastDetectedAt(Instant time) {
@@ -105,6 +119,14 @@ class TransformContext {
 
     Instant getChangesLastDetectedAt() {
         return changesLastDetectedAt;
+    }
+
+    void setLastSearchTime(Instant time) {
+        lastSearchTime = time;
+    }
+
+    Instant getLastSearchTime() {
+        return lastSearchTime;
     }
 
     public boolean shouldStopAtCheckpoint() {
@@ -120,18 +142,9 @@ class TransformContext {
     }
 
     void markAsFailed(String failureMessage) {
-        taskListener
-            .fail(
-                failureMessage,
-                ActionListener
-                    .wrap(
-                        r -> {
-                            // Successfully marked as failed, reset counter so that task can be restarted
-                            failureCount.set(0);
-                        },
-                        e -> {}
-                    )
-            );
+        taskListener.fail(failureMessage, ActionListener.wrap(r -> {
+            // Successfully marked as failed, reset counter so that task can be restarted
+            failureCount.set(0);
+        }, e -> {}));
     }
-
 }

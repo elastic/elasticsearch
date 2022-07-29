@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.bulk;
@@ -54,13 +43,14 @@ public class BulkPrimaryExecutionContextTests extends ESTestCase {
         }
 
         ArrayList<DocWriteRequest<?>> visitedRequests = new ArrayList<>();
-        for (BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(shardRequest, null);
-             context.hasMoreOperationsToExecute();
-             ) {
+        for (BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(shardRequest, null); context
+            .hasMoreOperationsToExecute();) {
             visitedRequests.add(context.getCurrent());
             context.setRequestToExecute(context.getCurrent());
             // using failures prevents caring about types
-            context.markOperationAsExecuted(new Engine.IndexResult(new ElasticsearchException("bla"), 1));
+            context.markOperationAsExecuted(
+                new Engine.IndexResult(new ElasticsearchException("bla"), 1, context.getRequestToExecute().id())
+            );
             context.markAsCompleted(context.getExecutionResult());
         }
 
@@ -70,27 +60,15 @@ public class BulkPrimaryExecutionContextTests extends ESTestCase {
     private BulkShardRequest generateRandomRequest() {
         BulkItemRequest[] items = new BulkItemRequest[randomInt(20)];
         for (int i = 0; i < items.length; i++) {
-            final DocWriteRequest request;
-            switch (randomFrom(DocWriteRequest.OpType.values())) {
-                case INDEX:
-                    request = new IndexRequest("index").id("id_" + i);
-                    break;
-                case CREATE:
-                    request = new IndexRequest("index").id("id_" + i).create(true);
-                    break;
-                case UPDATE:
-                    request = new UpdateRequest("index", "id_" + i);
-                    break;
-                case DELETE:
-                    request = new DeleteRequest("index", "id_" + i);
-                    break;
-                default:
-                    throw new AssertionError("unknown type");
-            }
+            final DocWriteRequest<?> request = switch (randomFrom(DocWriteRequest.OpType.values())) {
+                case INDEX -> new IndexRequest("index").id("id_" + i);
+                case CREATE -> new IndexRequest("index").id("id_" + i).create(true);
+                case UPDATE -> new UpdateRequest("index", "id_" + i);
+                case DELETE -> new DeleteRequest("index", "id_" + i);
+            };
             items[i] = new BulkItemRequest(i, request);
         }
-        return new BulkShardRequest(new ShardId("index", "_na_", 0),
-            randomFrom(WriteRequest.RefreshPolicy.values()), items);
+        return new BulkShardRequest(new ShardId("index", "_na_", 0), randomFrom(WriteRequest.RefreshPolicy.values()), items);
     }
 
     public void testTranslogLocation() {
@@ -118,33 +96,31 @@ public class BulkPrimaryExecutionContextTests extends ESTestCase {
 
             Translog.Location location = new Translog.Location(translogGen, translogOffset, randomInt(200));
             switch (current.opType()) {
-                case INDEX:
-                case CREATE:
+                case INDEX, CREATE -> {
                     context.setRequestToExecute(current);
                     if (failure) {
-                        result = new Engine.IndexResult(new ElasticsearchException("bla"), 1);
+                        result = new Engine.IndexResult(new ElasticsearchException("bla"), 1, current.id());
                     } else {
-                        result = new FakeIndexResult(1, 1, randomLongBetween(0, 200), randomBoolean(), location);
+                        result = new FakeIndexResult(1, 1, randomLongBetween(0, 200), randomBoolean(), location, "id");
                     }
-                    break;
-                case UPDATE:
+                }
+                case UPDATE -> {
                     context.setRequestToExecute(new IndexRequest(current.index()).id(current.id()));
                     if (failure) {
-                        result = new Engine.IndexResult(new ElasticsearchException("bla"), 1, 1, 1);
+                        result = new Engine.IndexResult(new ElasticsearchException("bla"), 1, 1, 1, current.id());
                     } else {
-                        result = new FakeIndexResult(1, 1, randomLongBetween(0, 200), randomBoolean(), location);
+                        result = new FakeIndexResult(1, 1, randomLongBetween(0, 200), randomBoolean(), location, "id");
                     }
-                    break;
-                case DELETE:
+                }
+                case DELETE -> {
                     context.setRequestToExecute(current);
                     if (failure) {
-                        result = new Engine.DeleteResult(new ElasticsearchException("bla"), 1, 1);
+                        result = new Engine.DeleteResult(new ElasticsearchException("bla"), 1, 1, current.id());
                     } else {
-                        result = new FakeDeleteResult(1, 1, randomLongBetween(0, 200), randomBoolean(), location);
+                        result = new FakeDeleteResult(1, 1, randomLongBetween(0, 200), randomBoolean(), location, current.id());
                     }
-                    break;
-                default:
-                    throw new AssertionError("unknown type:" + current.opType());
+                }
+                default -> throw new AssertionError("unknown type:" + current.opType());
             }
             if (failure == false) {
                 expectedLocation = location;

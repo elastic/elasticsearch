@@ -1,0 +1,65 @@
+[discrete]
+[[breaking_80_packaging_changes]]
+==== Packaging changes
+
+//NOTE: The notable-breaking-changes tagged regions are re-used in the
+//Installation and Upgrade Guide
+
+//tag::notable-breaking-changes[]
+TIP: {ess-skip-section}
+
+.The layout of the data folder has changed.
+[%collapsible]
+====
+*Details* +
+Each node's data is now stored directly in the data directory set by the
+`path.data` setting, rather than in `${path.data}/nodes/0`, because the removal
+of the `node.max_local_storage_nodes` setting means that nodes may no longer
+share a data path.
+
+*Impact* +
+At startup, {es} will automatically migrate the data path to the new layout.
+This automatic migration will not proceed if the data path contains data for
+more than one node. You should move to a configuration in which each node has
+its own data path before upgrading.
+
+If you try to upgrade a configuration in which there is data for more than one
+node in a data path then the automatic migration will fail and {es}
+will refuse to start. To resolve this you will need to perform the migration
+manually. The data for the extra nodes are stored in folders named
+`${path.data}/nodes/1`, `${path.data}/nodes/2` and so on, and you should move
+each of these folders to an appropriate location and then configure the
+corresponding node to use this location for its data path. If your nodes each
+have more than one data path in their `path.data` settings then you should move
+all the corresponding subfolders in parallel. Each node uses the same subfolder
+(e.g. `nodes/2`) across all its data paths.
+====
+
+.The default Maxmind geoip databases have been removed.
+[%collapsible]
+====
+*Details* +
+The default Maxmind geoip databases that shipped by default with Elasticsearch
+have been removed. These databases are out dated and stale and using these
+databases will likely result in incorrect geoip lookups.
+
+By default since 7.13, these pre-packaged geoip databases
+were used in case no database were specified in the config directory or before
+the geoip downloader downloaded the geoip databases. When the geoip database
+downloader completed downloading the new databases then these pre-packaged
+databases were no longer used.
+
+*Impact* +
+If the geoip downloader is disabled and no geoip databases are provided
+in the config directory of each ingest node then the geoip processor will
+no longer perform geoip lookups and tag these documents with the fact that
+the requested database is no longer available.
+
+After a cluster has been started and before the geoip downloader has completed
+downloading the most up to data databases, the geoip processor will not perform
+any geoip lookups and tag documents that the requested database is not available.
+After the geoip downloader has completed downloading the most up to data databases
+then the geoip processor will function as normal. The window of time that the
+geoip processor can't do geoip lookups after cluster startup should be very small.
+====
+//end::notable-breaking-changes[]

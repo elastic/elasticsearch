@@ -1,13 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.job.config;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.core.ml.utils.MlStrings;
-
 
 public final class DefaultDetectorDescription {
     private static final String BY_TOKEN = " by ";
@@ -44,8 +44,7 @@ public final class DefaultDetectorDescription {
         if (isNotNullOrEmpty(detector.getFunction().getFullName())) {
             sb.append(detector.getFunction());
             if (isNotNullOrEmpty(detector.getFieldName())) {
-                sb.append('(').append(quoteField(detector.getFieldName()))
-                .append(')');
+                sb.append('(').append(quoteField(detector.getFieldName())).append(')');
             }
         } else if (isNotNullOrEmpty(detector.getFieldName())) {
             sb.append(quoteField(detector.getFieldName()));
@@ -77,6 +76,6 @@ public final class DefaultDetectorDescription {
     }
 
     private static boolean isNotNullOrEmpty(String arg) {
-        return !Strings.isNullOrEmpty(arg);
+        return Strings.isNullOrEmpty(arg) == false;
     }
 }

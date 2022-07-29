@@ -1,0 +1,44 @@
+[[release-notes-8.2.0]]
+== {es} version 8.2.0
+
+coming[8.2.0]
+
+Also see <<breaking-changes-8.2,Breaking changes in 8.2>>.
+
+[discrete]
+[[security-updates-8.2.0]]
+=== Security updates
+
+* Test security issue
+
+[discrete]
+[[known-issues-8.2.0]]
+=== Known issues
+
+* Test known issue
+
+[[deprecation-8.2.0]]
+[float]
+=== Deprecations
+
+Cluster::
+* Test changelog entry 1_0 {es-pull}1000[#1000] (issue: {es-issue}1001[#1001])
+* Test changelog entry 1_1 {es-pull}1002[#1002] (issues: {es-issue}1003[#1003], {es-issue}1004[#1004])
+
+[[enhancement-8.2.0]]
+[float]
+=== Enhancements
+
+Indices::
+* Test changelog entry 2_0 {es-pull}2000[#2000] (issue: {es-issue}2001[#2001])
+* Test changelog entry 2_1 {es-pull}2002[#2002] (issues: {es-issue}2003[#2003], {es-issue}2004[#2004])
+
+[[feature-8.2.0]]
+[float]
+=== New features
+
+Mappings::
+* Test changelog entry 3_0 {es-pull}3000[#3000] (issue: {es-issue}3001[#3001])
+* Test changelog entry 3_1 {es-pull}3002[#3002] (issues: {es-issue}3003[#3003], {es-issue}3004[#3004])
+
+

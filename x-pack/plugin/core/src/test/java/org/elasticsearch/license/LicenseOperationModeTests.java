@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.license;
 
@@ -61,8 +62,7 @@ public class LicenseOperationModeTests extends ESTestCase {
                 OperationMode.resolve(licenseType);
 
                 fail(String.format(Locale.ROOT, "[%s] should not be recognized as an operation mode", type));
-            }
-            catch (IllegalArgumentException e) {
+            } catch (IllegalArgumentException e) {
                 assertThat(e.getMessage(), equalTo("unknown license type [" + type + "]"));
             }
         }

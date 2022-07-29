@@ -1,0 +1,98 @@
+---
+"Test delete autoscaling policy":
+  - do:
+      autoscaling.put_autoscaling_policy:
+        name: my_autoscaling_policy
+        body:
+          roles: []
+          deciders:
+            fixed: {}
+
+  - match: { "acknowledged": true }
+
+  - do:
+      autoscaling.delete_autoscaling_policy:
+        name: my_autoscaling_policy
+
+  # validate the policy does not exist
+  - do:
+      catch: /autoscaling policy with name \[my_autoscaling_policy\] does not exist/
+      autoscaling.get_autoscaling_policy:
+        name: my_autoscaling_policy
+
+---
+"Test delete non-existent autoscaling policy":
+  - do:
+      catch: missing
+      autoscaling.delete_autoscaling_policy:
+        name: does_not_exist
+
+  - do:
+      catch: /autoscaling policy with name \[does_not_exist\] does not exist/
+      autoscaling.delete_autoscaling_policy:
+        name: does_not_exist
+
+---
+"Test delete all non-existing autoscaling policies":
+  - do:
+      autoscaling.delete_autoscaling_policy:
+        name: "*"
+
+---
+"Test delete all existing autoscaling policies":
+  - do:
+      autoscaling.put_autoscaling_policy:
+        name: my_autoscaling_policy_1
+        body:
+          roles: [ "data" ]
+
+  - do:
+      autoscaling.put_autoscaling_policy:
+        name: my_autoscaling_policy_2
+        body:
+          roles: [ "data" ]
+
+  - do:
+      autoscaling.delete_autoscaling_policy:
+        name: "*"
+
+  - do:
+      catch: missing
+      autoscaling.get_autoscaling_policy:
+        name: my_autoscaling_policy_1
+
+  - do:
+      catch: missing
+      autoscaling.get_autoscaling_policy:
+        name: my_autoscaling_policy_2
+
+---
+"Test delete autoscaling policies by wildcard":
+  - do:
+      autoscaling.put_autoscaling_policy:
+        name: my_autoscaling_policy_delete
+        body:
+          roles: [ "data" ]
+
+  - do:
+      autoscaling.put_autoscaling_policy:
+        name: my_autoscaling_policy_keep
+        body:
+          roles: [ "data" ]
+
+  - do:
+      autoscaling.delete_autoscaling_policy:
+        name: "my_autoscaling_policy_delete*"
+
+  - do:
+      catch: missing
+      autoscaling.get_autoscaling_policy:
+        name: my_autoscaling_policy_delete
+
+  - do:
+      autoscaling.get_autoscaling_policy:
+        name: my_autoscaling_policy_keep
+
+  - do:
+      autoscaling.delete_autoscaling_policy:
+        name: my_autoscaling_policy_keep

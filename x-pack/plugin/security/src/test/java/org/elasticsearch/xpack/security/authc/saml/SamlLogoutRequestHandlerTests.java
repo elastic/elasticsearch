@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
-import org.joda.time.DateTime;
+import org.elasticsearch.core.TimeValue;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -19,7 +19,6 @@ import org.opensaml.saml.saml2.core.NameID;
 import org.opensaml.security.x509.X509Credential;
 import org.opensaml.xmlsec.signature.support.SignatureConstants;
 
-import java.io.UnsupportedEncodingException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URLEncoder;
@@ -109,8 +108,8 @@ public class SamlLogoutRequestHandlerTests extends SamlTestCase {
         final String realQuery = buildSignedQueryString(realLogoutRequest);
 
         final String tamperedQuery = fakeQuery.replaceFirst("&Signature=.*$", "")
-                + "&Signature="
-                + realQuery.replaceFirst("^.*&Signature=", "");
+            + "&Signature="
+            + realQuery.replaceFirst("^.*&Signature=", "");
 
         final SamlLogoutRequestHandler handler = buildHandler();
         final ElasticsearchSecurityException exception = expectSamlException(() -> handler.parseFromQueryString(tamperedQuery));
@@ -123,8 +122,9 @@ public class SamlLogoutRequestHandlerTests extends SamlTestCase {
         final String realQuery = buildSignedQueryString(logoutRequest);
 
         final String tamperedQuery = realQuery.replaceFirst(
-                urlEncode(SignatureConstants.ALGO_ID_SIGNATURE_RSA_SHA256),
-                urlEncode(SignatureConstants.ALGO_ID_SIGNATURE_RSA_SHA1));
+            urlEncode(SignatureConstants.ALGO_ID_SIGNATURE_RSA_SHA256),
+            urlEncode(SignatureConstants.ALGO_ID_SIGNATURE_RSA_SHA1)
+        );
 
         final SamlLogoutRequestHandler handler = buildHandler();
         assertThat(handler.parseFromQueryString(realQuery), notNullValue());
@@ -172,8 +172,8 @@ public class SamlLogoutRequestHandlerTests extends SamlTestCase {
         assertThat(result.getRelayState(), equalTo("Hail Hydra"));
     }
 
-    private String urlEncode(String str) throws UnsupportedEncodingException {
-        return URLEncoder.encode(str, StandardCharsets.US_ASCII.name());
+    private String urlEncode(String str) {
+        return URLEncoder.encode(str, StandardCharsets.US_ASCII);
     }
 
     private String buildSignedQueryString(LogoutRequest logoutRequest) throws URISyntaxException {
@@ -189,7 +189,7 @@ public class SamlLogoutRequestHandlerTests extends SamlTestCase {
     private LogoutRequest buildLogoutRequest() {
         final LogoutRequest logoutRequest = SamlUtils.buildObject(LogoutRequest.class, LogoutRequest.DEFAULT_ELEMENT_NAME);
         logoutRequest.setDestination(LOGOUT_URL);
-        logoutRequest.setIssueInstant(new DateTime(clock.millis()));
+        logoutRequest.setIssueInstant(clock.instant());
         logoutRequest.setID(SamlUtils.generateSecureNCName(randomIntBetween(8, 30)));
         final Issuer issuer = SamlUtils.buildObject(Issuer.class, Issuer.DEFAULT_ELEMENT_NAME);
         issuer.setValue(IDP_ENTITY_ID);
@@ -205,14 +205,15 @@ public class SamlLogoutRequestHandlerTests extends SamlTestCase {
 
         final X509Credential spCredential = (X509Credential) buildOpenSamlCredential(readRandomKeyPair()).get(0);
         final SigningConfiguration signingConfiguration = new SigningConfiguration(Collections.singleton("*"), spCredential);
-        final SpConfiguration sp = new SpConfiguration("https://sp.test/", "https://sp.test/saml/asc", LOGOUT_URL,
-            signingConfiguration, Arrays.asList(spCredential), Collections.emptyList());
-        return new SamlLogoutRequestHandler(
-            clock,
-            idp,
-            sp,
-            TimeValue.timeValueSeconds(1)
+        final SpConfiguration sp = new SpConfiguration(
+            "https://sp.test/",
+            "https://sp.test/saml/asc",
+            LOGOUT_URL,
+            signingConfiguration,
+            Arrays.asList(spCredential),
+            Collections.emptyList()
         );
+        return new SamlLogoutRequestHandler(clock, idp, sp, TimeValue.timeValueSeconds(1));
     }
 
 }

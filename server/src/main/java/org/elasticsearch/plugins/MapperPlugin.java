@@ -1,26 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.plugins;
 
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.index.mapper.RuntimeField;
 
 import java.util.Collections;
 import java.util.Map;
@@ -40,6 +30,17 @@ public interface MapperPlugin {
      * mapper settings into a {@link Mapper}.
      */
     default Map<String, Mapper.TypeParser> getMappers() {
+        return Collections.emptyMap();
+    }
+
+    /**
+     * Returns the runtime field implementations added by this plugin.
+     * <p>
+     * The key of the returned {@link Map} is the unique name for the field type which will be used
+     * as the mapping {@code type}, and the value is a {@link RuntimeField.Parser} to parse the
+     * field type settings into a {@link RuntimeField}.
+     */
+    default Map<String, RuntimeField.Parser> getRuntimeFields() {
         return Collections.emptyMap();
     }
 

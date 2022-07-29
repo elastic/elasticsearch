@@ -2,9 +2,13 @@
 [[ilm-readonly]]
 === Read only
 
-Phases allowed: warm.
+Phases allowed: hot, warm, cold.
 
-Makes the index <<dynamic-index-settings,read-only>>.
+Makes the index read-only;
+writes and metadata changes are no longer allowed.
+
+To use the `readonly` action in the `hot` phase, the `rollover` action *must* be present.
+If no rollover action is configured, {ilm-init} will reject the policy.
 
 [[ilm-read-only-options]]
 ==== Options

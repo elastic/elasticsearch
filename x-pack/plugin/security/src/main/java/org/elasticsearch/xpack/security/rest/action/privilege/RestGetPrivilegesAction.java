@@ -1,21 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.rest.action.privilege;
 
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
@@ -42,18 +43,14 @@ public class RestGetPrivilegesAction extends SecurityBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public List<ReplacedRoute> replacedRoutes() {
-        // TODO: remove deprecated endpoint in 8.0.0
         return List.of(
-            new ReplacedRoute(GET, "/_security/privilege/", GET, "/_xpack/security/privilege/"),
-            new ReplacedRoute(GET, "/_security/privilege/{application}",
-                GET, "/_xpack/security/privilege/{application}"),
-            new ReplacedRoute(GET, "/_security/privilege/{application}/{privilege}",
-                GET, "/_xpack/security/privilege/{application}/{privilege}")
+            Route.builder(GET, "/_security/privilege/").replaces(GET, "/_xpack/security/privilege/", RestApiVersion.V_7).build(),
+            Route.builder(GET, "/_security/privilege/{application}")
+                .replaces(GET, "/_xpack/security/privilege/{application}", RestApiVersion.V_7)
+                .build(),
+            Route.builder(GET, "/_security/privilege/{application}/{privilege}")
+                .replaces(GET, "/_xpack/security/privilege/{application}/{privilege}", RestApiVersion.V_7)
+                .build()
         );
     }
 
@@ -91,21 +88,18 @@ public class RestGetPrivilegesAction extends SecurityBaseRestHandler {
                 // if the user asked for specific privileges, but none of them were found
                 // we'll return an empty result and 404 status code
                 if (privileges.length != 0 && response.isEmpty()) {
-                    return new BytesRestResponse(RestStatus.NOT_FOUND, builder);
+                    return new RestResponse(RestStatus.NOT_FOUND, builder);
                 }
 
                 // either the user asked for all privileges, or at least one of the privileges
                 // was found
-                return new BytesRestResponse(RestStatus.OK, builder);
+                return new RestResponse(RestStatus.OK, builder);
             }
         });
     }
 
     static Map<String, Set<ApplicationPrivilegeDescriptor>> groupByApplicationName(ApplicationPrivilegeDescriptor[] privileges) {
-        return Arrays.stream(privileges).collect(Collectors.toMap(
-                ApplicationPrivilegeDescriptor::getApplication,
-                Collections::singleton,
-                Sets::union
-        ));
+        return Arrays.stream(privileges)
+            .collect(Collectors.toMap(ApplicationPrivilegeDescriptor::getApplication, Collections::singleton, Sets::union));
     }
 }

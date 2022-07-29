@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ml.dataframe.traintestsplit;
@@ -18,8 +19,13 @@ public class StratifiedTrainTestSplitter extends AbstractReservoirTrainTestSplit
 
     private final Map<String, SampleInfo> classSamples;
 
-    public StratifiedTrainTestSplitter(List<String> fieldNames, String dependentVariable, Map<String, Long> classCounts,
-                                       double trainingPercent, long randomizeSeed) {
+    public StratifiedTrainTestSplitter(
+        List<String> fieldNames,
+        String dependentVariable,
+        Map<String, Long> classCounts,
+        double trainingPercent,
+        long randomizeSeed
+    ) {
         super(fieldNames, dependentVariable, trainingPercent, randomizeSeed);
         this.classSamples = new HashMap<>();
         classCounts.entrySet().forEach(entry -> classSamples.put(entry.getKey(), new SampleInfo(entry.getValue())));

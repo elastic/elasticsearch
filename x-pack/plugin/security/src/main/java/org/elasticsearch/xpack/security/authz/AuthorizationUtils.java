@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authz;
 
@@ -11,8 +12,10 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
+import org.elasticsearch.xpack.core.security.user.SecurityProfileUser;
 import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 
@@ -23,16 +26,20 @@ import static org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskActio
 import static org.elasticsearch.ingest.IngestService.INGEST_ORIGIN;
 import static org.elasticsearch.persistent.PersistentTasksService.PERSISTENT_TASK_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
-import static org.elasticsearch.xpack.core.ClientHelper.ENRICH_ORIGIN;
-import static org.elasticsearch.xpack.core.ClientHelper.IDP_ORIGIN;
-import static org.elasticsearch.xpack.core.ClientHelper.STACK_ORIGIN;
-import static org.elasticsearch.xpack.core.ClientHelper.TRANSFORM_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.DEPRECATION_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.ENRICH_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.FLEET_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.IDP_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.INDEX_LIFECYCLE_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.LOGSTASH_MANAGEMENT_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.MONITORING_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.ROLLUP_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.SEARCHABLE_SNAPSHOTS_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_PROFILE_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.STACK_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.TRANSFORM_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
 
 public final class AuthorizationUtils {
@@ -72,7 +79,7 @@ public final class AuthorizationUtils {
         // we have a internal action being executed by a user other than the system user, lets verify that there is a
         // originating action that is not a internal action. We verify that there must be a originating action as an
         // internal action should never be called by user code from a client
-        final String originatingAction = threadContext.getTransient(AuthorizationService.ORIGINATING_ACTION_KEY);
+        final String originatingAction = threadContext.getTransient(AuthorizationServiceField.ORIGINATING_ACTION_KEY);
         if (originatingAction != null && isInternalAction(originatingAction) == false) {
             return true;
         }
@@ -97,8 +104,12 @@ public final class AuthorizationUtils {
      * This method knows nothing about listeners so it is important that callers ensure their listeners preserve their
      * context and restore it appropriately.
      */
-    public static void switchUserBasedOnActionOriginAndExecute(ThreadContext threadContext, SecurityContext securityContext,
-                                                               Consumer<ThreadContext.StoredContext> consumer) {
+    public static void switchUserBasedOnActionOriginAndExecute(
+        ThreadContext threadContext,
+        SecurityContext securityContext,
+        Version version,
+        Consumer<ThreadContext.StoredContext> consumer
+    ) {
         final String actionOrigin = threadContext.getTransient(ClientHelper.ACTION_ORIGIN_TRANSIENT_NAME);
         if (actionOrigin == null) {
             assert false : "cannot switch user if there is no action origin";
@@ -107,7 +118,10 @@ public final class AuthorizationUtils {
 
         switch (actionOrigin) {
             case SECURITY_ORIGIN:
-                securityContext.executeAsUser(XPackSecurityUser.INSTANCE, consumer, Version.CURRENT);
+                securityContext.executeAsInternalUser(XPackSecurityUser.INSTANCE, version, consumer);
+                break;
+            case SECURITY_PROFILE_ORIGIN:
+                securityContext.executeAsInternalUser(SecurityProfileUser.INSTANCE, version, consumer);
                 break;
             case WATCHER_ORIGIN:
             case ML_ORIGIN:
@@ -121,11 +135,14 @@ public final class AuthorizationUtils {
             case IDP_ORIGIN:
             case INGEST_ORIGIN:
             case STACK_ORIGIN:
+            case SEARCHABLE_SNAPSHOTS_ORIGIN:
+            case LOGSTASH_MANAGEMENT_ORIGIN:
+            case FLEET_ORIGIN:
             case TASKS_ORIGIN:   // TODO use a more limited user for tasks
-                securityContext.executeAsUser(XPackUser.INSTANCE, consumer, Version.CURRENT);
+                securityContext.executeAsInternalUser(XPackUser.INSTANCE, version, consumer);
                 break;
             case ASYNC_SEARCH_ORIGIN:
-                securityContext.executeAsUser(AsyncSearchUser.INSTANCE, consumer, Version.CURRENT);
+                securityContext.executeAsInternalUser(AsyncSearchUser.INSTANCE, version, consumer);
                 break;
             default:
                 assert false : "action.origin [" + actionOrigin + "] is unknown!";

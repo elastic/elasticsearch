@@ -44,13 +44,19 @@ GET /_component_template/template_1
 [[get-component-template-api-request]]
 ==== {api-request-title}
 
-`GET /_component-template/<component-template>`
+`GET /_component_template/<component-template>`
 
+[[get-component-template-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`manage_index_templates` or `manage` <<privileges-list-cluster,cluster
+privilege>> to use this API.
 
 [[get-component-template-api-path-params]]
 ==== {api-path-parms-title}
 
-`<component-template>`
+`<component-template>`::
 (Optional, string)
 Comma-separated list of component template names used to limit the request.
 Wildcard (`*`) expressions are supported.

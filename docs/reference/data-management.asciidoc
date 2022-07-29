@@ -1,0 +1,36 @@
+[role="xpack"]
+[[data-management]]
+= Data management
+
+[partintro]
+--
+The data you store in {es} generally falls into one of two categories:
+
+* Content: a collection of items you want to search, such as a catalog of products
+* Time series data: a stream of continuously-generated timestamped data, such as log entries
+
+Content might be frequently updated, 
+but the value of the content remains relatively constant over time. 
+You want to be able to retrieve items quickly regardless of how old they are. 
+
+Time series data keeps accumulating over time, so you need strategies for 
+balancing the value of the data against the cost of storing it. 
+As it ages, it tends to become less important and less-frequently accessed, 
+so you can move it to less expensive, less performant hardware. 
+For your oldest data, what matters is that you have access to the data. 
+It's ok if queries take longer to complete.
+
+To help you manage your data, {es} enables you to:
+
+* Define <<data-tiers, multiple tiers>> of data nodes with different performance characteristics.
+* Automatically transition indices through the data tiers according to your performance needs and retention policies
+with <<index-lifecycle-management, {ilm}>> ({ilm-init}). 
+* Leverage <<searchable-snapshots, searchable snapshots>> stored in a remote repository to provide resiliency 
+for your older indices while reducing operating costs and maintaining search performance.  
+* Perform <<async-search-intro, asynchronous searches>> of data stored on less-performant hardware.
+--
+
+include::ilm/index.asciidoc[]
+
+include::datatiers.asciidoc[]
+

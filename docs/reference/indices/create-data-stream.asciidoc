@@ -7,9 +7,6 @@
 
 Creates a new <<data-streams,data stream>>.
 
-Data streams require a matching <<indices-templates,index template>>.
-See <<set-up-a-data-stream>>.
-
 ////
 [source,console]
 ----
@@ -41,22 +38,30 @@ DELETE /_index_template/template
 
 `PUT /_data_stream/<data-stream>`
 
+[[indices-create-data-stream-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `create_index`
+or `manage` <<privileges-list-indices,index privilege>> for the data stream.
+
+* A matching <<index-templates,index template>> with data stream enabled.
+See <<set-up-a-data-stream>>.
+
 [[indices-create-data-stream-api-path-params]]
 ==== {api-path-parms-title}
 
 `<data-stream>`::
 +
 --
-(Required, string) Name of the data stream to create.
-
-Data stream names must meet the following criteria:
+(Required, string) Name of the data stream to create. Data stream names must
+meet the following criteria:
 
 - Lowercase only
-- Cannot include `\`, `/`, `*`, `?`, `"`, `<`, `>`, `|`, ` ` (space character),
-`,`, `#`, `:`
-- Cannot start with `-`, `_`, `+`, `.`
+- Cannot include `\`, `/`, `*`, `?`, `"`, `<`, `>`, `|`, `,`, `#`, `:`, or a
+space character
+- Cannot start with `-`, `_`, `+`, or `.ds-`
 - Cannot be `.` or `..`
-- Cannot be longer than 255 bytes (note it is bytes, so multi-byte characters
-will count towards the 255 limit faster)
+- Cannot be longer than 255 bytes. Multi-byte characters
+count towards this limit faster.
 --
 

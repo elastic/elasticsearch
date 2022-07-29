@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.security.authc.support;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
@@ -40,9 +41,7 @@ public class RealmUserLookupTests extends ESTestCase {
 
     @Before
     public void setup() {
-        globalSettings = Settings.builder()
-            .put("path.home", createTempDir())
-            .build();
+        globalSettings = Settings.builder().put("path.home", createTempDir()).build();
         env = TestEnvironment.newEnvironment(globalSettings);
         threadContext = new ThreadContext(globalSettings);
     }
@@ -87,10 +86,17 @@ public class RealmUserLookupTests extends ESTestCase {
 
     public void testRealmException() {
         RealmIdentifier realmIdentifier = new RealmIdentifier("test", "test");
-        final Realm realm = new Realm(new RealmConfig(realmIdentifier,
-            Settings.builder().put(globalSettings)
-                .put(RealmSettings.getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), 0).build(),
-            env, threadContext)) {
+        final Realm realm = new Realm(
+            new RealmConfig(
+                realmIdentifier,
+                Settings.builder()
+                    .put(globalSettings)
+                    .put(RealmSettings.getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), 0)
+                    .build(),
+                env,
+                threadContext
+            )
+        ) {
             @Override
             public boolean supports(AuthenticationToken token) {
                 return false;
@@ -102,7 +108,7 @@ public class RealmUserLookupTests extends ESTestCase {
             }
 
             @Override
-            public void authenticate(AuthenticationToken token, ActionListener<AuthenticationResult> listener) {
+            public void authenticate(AuthenticationToken token, ActionListener<AuthenticationResult<User>> listener) {
                 listener.onResponse(AuthenticationResult.notHandled());
             }
 
@@ -122,11 +128,15 @@ public class RealmUserLookupTests extends ESTestCase {
         final List<MockLookupRealm> realms = new ArrayList<>(realmCount);
         for (int i = 1; i <= realmCount; i++) {
             RealmIdentifier realmIdentifier = new RealmIdentifier("mock", "lookup-" + i);
-            final RealmConfig config = new RealmConfig(realmIdentifier,
-                Settings.builder().put(globalSettings)
-                    .put(RealmSettings.getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), 0).build(),
+            final RealmConfig config = new RealmConfig(
+                realmIdentifier,
+                Settings.builder()
+                    .put(globalSettings)
+                    .put(RealmSettings.getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), 0)
+                    .build(),
                 env,
-                threadContext);
+                threadContext
+            );
             final MockLookupRealm realm = new MockLookupRealm(config);
             for (int j = 0; j < 5; j++) {
                 realm.registerUser(new User(randomAlphaOfLengthBetween(6, 12)));

@@ -1,0 +1,34 @@
+{
+  "ml.put_trained_model_vocabulary":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/put-trained-model-vocabulary.html",
+      "description":"Creates a trained model vocabulary"
+    },
+    "stability":"experimental",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_ml/trained_models/{model_id}/vocabulary",
+          "methods":[
+            "PUT"
+          ],
+          "parts":{
+            "model_id":{
+              "type":"string",
+              "description":"The ID of the trained model for this vocabulary"
+            }
+          }
+        }
+      ]
+    },
+    "body":{
+      "description":"The trained model vocabulary",
+      "required":true
+    }
+  }
+}

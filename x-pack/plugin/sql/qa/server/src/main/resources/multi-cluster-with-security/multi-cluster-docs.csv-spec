@@ -1,0 +1,17 @@
+// To mute tests follow example in file: example.csv-spec
+
+//
+// CSV spec used by the docs
+//
+
+fromQualifiedTableQuoted
+// tag::fromQualifiedTableQuoted
+SELECT emp_no FROM "my*cluster:*emp" LIMIT 1;
+
+    emp_no
+---------------
+10001
+
+// end::fromQualifiedTableQuoted
+;
+

@@ -1,17 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.input.search;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.time.DateUtils;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.input.Input;
 import org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
@@ -22,22 +23,30 @@ import java.time.ZoneId;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Objects;
 import java.util.Set;
 
 import static java.util.Collections.unmodifiableSet;
-import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
+import static org.elasticsearch.core.TimeValue.timeValueMillis;
 
 public class SearchInput implements Input {
 
     public static final String TYPE = "search";
 
     private final WatcherSearchTemplateRequest request;
-    @Nullable private final Set<String> extractKeys;
-    @Nullable private final TimeValue timeout;
-    @Nullable private final ZoneId dynamicNameTimeZone;
+    @Nullable
+    private final Set<String> extractKeys;
+    @Nullable
+    private final TimeValue timeout;
+    @Nullable
+    private final ZoneId dynamicNameTimeZone;
 
-    public SearchInput(WatcherSearchTemplateRequest request, @Nullable Set<String> extractKeys,
-                       @Nullable TimeValue timeout, @Nullable ZoneId dynamicNameTimeZone) {
+    public SearchInput(
+        WatcherSearchTemplateRequest request,
+        @Nullable Set<String> extractKeys,
+        @Nullable TimeValue timeout,
+        @Nullable ZoneId dynamicNameTimeZone
+    ) {
         this.request = request;
         this.extractKeys = extractKeys;
         this.timeout = timeout;
@@ -51,15 +60,17 @@ public class SearchInput implements Input {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
         SearchInput that = (SearchInput) o;
-
-        if (request != null ? !request.equals(that.request) : that.request != null) return false;
-        if (extractKeys != null ? !extractKeys.equals(that.extractKeys) : that.extractKeys != null) return false;
-        if (timeout != null ? !timeout.equals(that.timeout) : that.timeout != null) return false;
-        return !(dynamicNameTimeZone != null ? !dynamicNameTimeZone.equals(that.dynamicNameTimeZone) : that.dynamicNameTimeZone != null);
+        return Objects.equals(request, that.request)
+            && Objects.equals(extractKeys, that.extractKeys)
+            && Objects.equals(timeout, that.timeout)
+            && Objects.equals(dynamicNameTimeZone, that.dynamicNameTimeZone);
     }
 
     @Override
@@ -121,8 +132,13 @@ public class SearchInput implements Input {
                 try {
                     request = WatcherSearchTemplateRequest.fromXContent(parser, ExecutableSearchInput.DEFAULT_SEARCH_TYPE);
                 } catch (ElasticsearchParseException srpe) {
-                    throw new ElasticsearchParseException("could not parse [{}] input for watch [{}]. failed to parse [{}]", srpe, TYPE,
-                            watchId, currentFieldName);
+                    throw new ElasticsearchParseException(
+                        "could not parse [{}] input for watch [{}]. failed to parse [{}]",
+                        srpe,
+                        TYPE,
+                        watchId,
+                        currentFieldName
+                    );
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if (Field.EXTRACT.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -131,13 +147,23 @@ public class SearchInput implements Input {
                         if (token == XContentParser.Token.VALUE_STRING) {
                             extract.add(parser.text());
                         } else {
-                            throw new ElasticsearchParseException("could not parse [{}] input for watch [{}]. expected a string value in " +
-                                    "[{}] array, but found [{}] instead", TYPE, watchId, currentFieldName, token);
+                            throw new ElasticsearchParseException(
+                                "could not parse [{}] input for watch [{}]. expected a string value in "
+                                    + "[{}] array, but found [{}] instead",
+                                TYPE,
+                                watchId,
+                                currentFieldName,
+                                token
+                            );
                         }
                     }
                 } else {
-                    throw new ElasticsearchParseException("could not parse [{}] input for watch [{}]. unexpected array field [{}]", TYPE,
-                            watchId, currentFieldName);
+                    throw new ElasticsearchParseException(
+                        "could not parse [{}] input for watch [{}]. unexpected array field [{}]",
+                        TYPE,
+                        watchId,
+                        currentFieldName
+                    );
                 }
             } else if (Field.TIMEOUT.match(currentFieldName, parser.getDeprecationHandler())) {
                 timeout = timeValueMillis(parser.longValue());
@@ -148,18 +174,31 @@ public class SearchInput implements Input {
                 if (token == XContentParser.Token.VALUE_STRING) {
                     dynamicNameTimeZone = DateUtils.of(parser.text());
                 } else {
-                    throw new ElasticsearchParseException("could not parse [{}] input for watch [{}]. failed to parse [{}]. must be a " +
-                            "string value (e.g. 'UTC' or '+01:00').", TYPE, watchId, currentFieldName);
+                    throw new ElasticsearchParseException(
+                        "could not parse [{}] input for watch [{}]. failed to parse [{}]. must be a "
+                            + "string value (e.g. 'UTC' or '+01:00').",
+                        TYPE,
+                        watchId,
+                        currentFieldName
+                    );
                 }
             } else {
-                throw new ElasticsearchParseException("could not parse [{}] input for watch [{}]. unexpected token [{}]", TYPE, watchId,
-                        token);
+                throw new ElasticsearchParseException(
+                    "could not parse [{}] input for watch [{}]. unexpected token [{}]",
+                    TYPE,
+                    watchId,
+                    token
+                );
             }
         }
 
         if (request == null) {
-            throw new ElasticsearchParseException("could not parse [{}] input for watch [{}]. missing required [{}] field", TYPE,
-                    watchId, Field.REQUEST.getPreferredName());
+            throw new ElasticsearchParseException(
+                "could not parse [{}] input for watch [{}]. missing required [{}] field",
+                TYPE,
+                watchId,
+                Field.REQUEST.getPreferredName()
+            );
         }
         return new SearchInput(request, extract, timeout, dynamicNameTimeZone);
     }
@@ -170,7 +209,8 @@ public class SearchInput implements Input {
 
     public static class Result extends Input.Result {
 
-        @Nullable private final WatcherSearchTemplateRequest request;
+        @Nullable
+        private final WatcherSearchTemplateRequest request;
 
         public Result(WatcherSearchTemplateRequest request, Payload payload) {
             super(TYPE, payload);

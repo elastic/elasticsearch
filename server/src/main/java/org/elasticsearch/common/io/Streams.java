@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.io;
@@ -59,6 +48,7 @@ public abstract class Streams {
         public void write(int b) {
             // no-op
         }
+
         @Override
         public void write(byte[] b, int off, int len) {
             // no-op
@@ -81,10 +71,9 @@ public abstract class Streams {
         }
     }
 
-
-    //---------------------------------------------------------------------
+    // ---------------------------------------------------------------------
     // Copy methods for java.io.Reader / java.io.Writer
-    //---------------------------------------------------------------------
+    // ---------------------------------------------------------------------
 
     /**
      * Copy the contents of the given Reader to the given Writer.
@@ -147,22 +136,6 @@ public abstract class Streams {
         return out.toString();
     }
 
-    public static int readFully(Reader reader, char[] dest) throws IOException {
-        return readFully(reader, dest, 0, dest.length);
-    }
-
-    public static int readFully(Reader reader, char[] dest, int offset, int len) throws IOException {
-        int read = 0;
-        while (read < len) {
-            final int r = reader.read(dest, offset + read, len - read);
-            if (r == -1) {
-                break;
-            }
-            read += r;
-        }
-        return read;
-    }
-
     public static int readFully(InputStream reader, byte[] dest) throws IOException {
         return readFully(reader, dest, 0, dest.length);
     }
@@ -183,7 +156,7 @@ public abstract class Streams {
      * Fully consumes the input stream, throwing the bytes away. Returns the number of bytes consumed.
      */
     public static long consumeFully(InputStream inputStream) throws IOException {
-        return org.elasticsearch.core.internal.io.Streams.copy(inputStream, NULL_OUTPUT_STREAM);
+        return org.elasticsearch.core.Streams.copy(inputStream, NULL_OUTPUT_STREAM);
     }
 
     public static List<String> readAllLines(InputStream input) throws IOException {
@@ -229,7 +202,7 @@ public abstract class Streams {
      */
     public static BytesReference readFully(InputStream in) throws IOException {
         BytesStreamOutput out = new BytesStreamOutput();
-        org.elasticsearch.core.internal.io.Streams.copy(in, out);
+        org.elasticsearch.core.Streams.copy(in, out);
         return out.bytes();
     }
 
@@ -271,11 +244,6 @@ public abstract class Streams {
         @Override
         public void close() throws IOException {
             flush();
-        }
-
-        @Override
-        public void reset() throws IOException {
-            delegate.reset();
         }
 
         @Override

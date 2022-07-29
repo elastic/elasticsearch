@@ -1,23 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.fielddata;
 
+import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.common.geo.GeoPoint;
 
 import java.io.IOException;
@@ -37,24 +29,32 @@ import java.io.IOException;
  * The set of values associated with a document might contain duplicates and
  * comes in a non-specified order.
  */
-public abstract class MultiGeoPointValues {
+public final class MultiGeoPointValues {
+
+    private final GeoPoint point = new GeoPoint();
+    private final SortedNumericDocValues numericValues;
 
     /**
      * Creates a new {@link MultiGeoPointValues} instance
      */
-    protected MultiGeoPointValues() {
+    public MultiGeoPointValues(SortedNumericDocValues numericValues) {
+        this.numericValues = numericValues;
     }
 
     /**
      * Advance this instance to the given document id
      * @return true if there is a value for this document
      */
-    public abstract boolean advanceExact(int doc) throws IOException;
+    public boolean advanceExact(int doc) throws IOException {
+        return numericValues.advanceExact(doc);
+    }
 
     /**
      * Return the number of geo points the current document has.
      */
-    public abstract int docValueCount();
+    public int docValueCount() {
+        return numericValues.docValueCount();
+    }
 
     /**
      * Return the next value associated with the current document. This must not be
@@ -64,6 +64,16 @@ public abstract class MultiGeoPointValues {
      *
      * @return the next value for the current docID set to {@link #advanceExact(int)}.
      */
-    public abstract GeoPoint nextValue() throws IOException;
+    public GeoPoint nextValue() throws IOException {
+        return point.resetFromEncoded(numericValues.nextValue());
+    }
+
+    /**
+     * Returns a single-valued view of the {@link MultiGeoPointValues} if possible, otherwise null.
+     */
+    GeoPointValues getGeoPointValues() {
+        final NumericDocValues singleton = DocValues.unwrapSingleton(numericValues);
+        return singleton != null ? new GeoPointValues(singleton) : null;
+    }
 
 }

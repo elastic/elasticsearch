@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.seqno;
@@ -33,33 +22,38 @@ public class RetentionLeaseTests extends ESTestCase {
 
     public void testEmptyId() {
         final IllegalArgumentException e = expectThrows(
-                IllegalArgumentException.class,
-                () -> new RetentionLease("", randomNonNegativeLong(), randomNonNegativeLong(), "source"));
+            IllegalArgumentException.class,
+            () -> new RetentionLease("", randomNonNegativeLong(), randomNonNegativeLong(), "source")
+        );
         assertThat(e, hasToString(containsString("retention lease ID can not be empty")));
     }
 
     public void testRetainingSequenceNumberOutOfRange() {
         final long retainingSequenceNumber = randomLongBetween(Long.MIN_VALUE, -1);
         final IllegalArgumentException e = expectThrows(
-                IllegalArgumentException.class,
-                () -> new RetentionLease("id", retainingSequenceNumber, randomNonNegativeLong(), "source"));
+            IllegalArgumentException.class,
+            () -> new RetentionLease("id", retainingSequenceNumber, randomNonNegativeLong(), "source")
+        );
         assertThat(
-                e,
-                hasToString(containsString("retention lease retaining sequence number [" + retainingSequenceNumber + "] out of range")));
+            e,
+            hasToString(containsString("retention lease retaining sequence number [" + retainingSequenceNumber + "] out of range"))
+        );
     }
 
     public void testTimestampOutOfRange() {
         final long timestamp = randomLongBetween(Long.MIN_VALUE, -1);
         final IllegalArgumentException e = expectThrows(
-                IllegalArgumentException.class,
-                () -> new RetentionLease("id", randomNonNegativeLong(), timestamp, "source"));
+            IllegalArgumentException.class,
+            () -> new RetentionLease("id", randomNonNegativeLong(), timestamp, "source")
+        );
         assertThat(e, hasToString(containsString("retention lease timestamp [" + timestamp + "] out of range")));
     }
 
     public void testEmptySource() {
         final IllegalArgumentException e = expectThrows(
-                IllegalArgumentException.class,
-                () -> new RetentionLease("id", randomNonNegativeLong(), randomNonNegativeLong(), ""));
+            IllegalArgumentException.class,
+            () -> new RetentionLease("id", randomNonNegativeLong(), randomNonNegativeLong(), "")
+        );
         assertThat(e, hasToString(containsString("retention lease source can not be empty")));
     }
 

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.transport;
@@ -24,10 +13,10 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.TestCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -102,11 +91,11 @@ public class InboundAggregatorTests extends ESTestCase {
         assertThat(aggregated.getHeader().getRequestId(), equalTo(requestId));
         assertThat(aggregated.getHeader().getVersion(), equalTo(Version.CURRENT));
         for (ReleasableBytesReference reference : references) {
-            assertEquals(1, reference.refCount());
+            assertTrue(reference.hasReferences());
         }
         aggregated.close();
         for (ReleasableBytesReference reference : references) {
-            assertEquals(0, reference.refCount());
+            assertFalse(reference.hasReferences());
         }
     }
 
@@ -122,7 +111,7 @@ public class InboundAggregatorTests extends ESTestCase {
         final ReleasableBytesReference content = ReleasableBytesReference.wrap(bytes);
         aggregator.aggregate(content);
         content.close();
-        assertEquals(0, content.refCount());
+        assertFalse(content.hasReferences());
 
         // Signal EOS
         InboundMessage aggregated = aggregator.finishAggregation();
@@ -150,7 +139,7 @@ public class InboundAggregatorTests extends ESTestCase {
         // Signal EOS
         InboundMessage aggregated1 = aggregator.finishAggregation();
 
-        assertEquals(0, content1.refCount());
+        assertFalse(content1.hasReferences());
         assertThat(aggregated1, notNullValue());
         assertTrue(aggregated1.isShortCircuit());
         assertThat(aggregated1.getException(), instanceOf(CircuitBreakingException.class));
@@ -169,7 +158,7 @@ public class InboundAggregatorTests extends ESTestCase {
         // Signal EOS
         InboundMessage aggregated2 = aggregator.finishAggregation();
 
-        assertEquals(1, content2.refCount());
+        assertTrue(content2.hasReferences());
         assertThat(aggregated2, notNullValue());
         assertFalse(aggregated2.isShortCircuit());
 
@@ -188,7 +177,7 @@ public class InboundAggregatorTests extends ESTestCase {
         // Signal EOS
         InboundMessage aggregated3 = aggregator.finishAggregation();
 
-        assertEquals(1, content3.refCount());
+        assertTrue(content3.hasReferences());
         assertThat(aggregated3, notNullValue());
         assertFalse(aggregated3.isShortCircuit());
     }
@@ -222,7 +211,7 @@ public class InboundAggregatorTests extends ESTestCase {
         aggregator.close();
 
         for (ReleasableBytesReference reference : references) {
-            assertEquals(0, reference.refCount());
+            assertFalse(reference.hasReferences());
         }
     }
 
@@ -255,10 +244,10 @@ public class InboundAggregatorTests extends ESTestCase {
             assertFalse(header.needsToReadVariableHeader());
             assertEquals(actionName, header.getActionName());
             if (unknownAction) {
-                assertEquals(0, content.refCount());
+                assertFalse(content.hasReferences());
                 assertTrue(aggregated.isShortCircuit());
             } else {
-                assertEquals(1, content.refCount());
+                assertTrue(content.hasReferences());
                 assertFalse(aggregated.isShortCircuit());
             }
         }

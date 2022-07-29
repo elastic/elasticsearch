@@ -1,59 +1,55 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.index.store;
 
-import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.indices.shards.IndicesShardStoresResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.Requests;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.nodes.BaseNodeResponse;
+import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -87,6 +83,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -94,7 +91,10 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 
+import static java.util.stream.Collectors.collectingAndThen;
+import static java.util.stream.Collectors.toCollection;
 import static org.elasticsearch.common.util.CollectionUtils.iterableAsArrayList;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
@@ -111,11 +111,11 @@ import static org.hamcrest.Matchers.notNullValue;
 public class CorruptedFileIT extends ESIntegTestCase {
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
             // we really need local GW here since this also checks for corruption etc.
             // and we need to make sure primaries are not just trashed if we don't have replicas
-            .put(super.nodeSettings(nodeOrdinal))
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
             // speed up recoveries
             .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING.getKey(), 5)
             .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 5)
@@ -125,16 +125,17 @@ public class CorruptedFileIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(
-                MockTransportService.TestPlugin.class,
-                MockIndexEventListener.TestPlugin.class,
-                MockFSIndexStore.TestPlugin.class,
-                InternalSettingsPlugin.class);
+            MockTransportService.TestPlugin.class,
+            MockIndexEventListener.TestPlugin.class,
+            MockFSIndexStore.TestPlugin.class,
+            InternalSettingsPlugin.class
+        );
     }
 
     /**
      * Tests that we can actually recover from a corruption on the primary given that we have replica shards around.
      */
-    public void testCorruptFileAndRecover() throws ExecutionException, InterruptedException, IOException {
+    public void testCorruptFileAndRecover() throws InterruptedException, IOException {
         int numDocs = scaledRandomIntBetween(100, 1000);
         // have enough space for 3 copies
         internalCluster().ensureAtLeastNumDataNodes(3);
@@ -144,15 +145,18 @@ public class CorruptedFileIT extends ESIntegTestCase {
 
         assertThat(cluster().numDataNodes(), greaterThanOrEqualTo(3));
 
-        assertAcked(prepareCreate("test").setSettings(Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, "1")
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "1")
-            .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
-            // no checkindex - we corrupt shards on purpose
-            .put(MockFSIndexStore.INDEX_CHECK_INDEX_ON_CLOSE_SETTING.getKey(), false)
-            // no translog based flush - it might change the .liv / segments.N files
-            .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.PB))
-        ));
+        assertAcked(
+            prepareCreate("test").setSettings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, "1")
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "1")
+                    .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
+                    // no checkindex - we corrupt shards on purpose
+                    .put(MockFSIndexStore.INDEX_CHECK_INDEX_ON_CLOSE_SETTING.getKey(), false)
+                    // no translog based flush - it might change the .liv / segments.N files
+                    .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.PB))
+            )
+        );
         ensureGreen();
         disableAllocation("test");
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
@@ -165,35 +169,39 @@ public class CorruptedFileIT extends ESIntegTestCase {
         assertAllSuccessful(client().admin().indices().prepareFlush().setForce(true).get());
         assertAllSuccessful(client().admin().indices().prepareFlush().setForce(true).get());
         // we have to flush at least once here since we don't corrupt the translog
-        SearchResponse countResponse = client().prepareSearch().setSize(0).get();
-        assertHitCount(countResponse, numDocs);
+        assertHitCount(client().prepareSearch().setSize(0).get(), numDocs);
 
         final int numShards = numShards("test");
         ShardRouting corruptedShardRouting = corruptRandomPrimaryFile();
         logger.info("--> {} corrupted", corruptedShardRouting);
         enableAllocation("test");
-         /*
+        /*
          * we corrupted the primary shard - now lets make sure we never recover from it successfully
          */
         Settings build = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "2").build();
         client().admin().indices().prepareUpdateSettings("test").setSettings(build).get();
-        ClusterHealthResponse health = client().admin().cluster()
-            .health(Requests.clusterHealthRequest("test").waitForGreenStatus()
-                .timeout("5m") // sometimes due to cluster rebalacing and random settings default timeout is just not enough.
-                .waitForNoRelocatingShards(true)).actionGet();
+        ClusterHealthResponse health = client().admin()
+            .cluster()
+            .health(
+                Requests.clusterHealthRequest("test")
+                    .waitForGreenStatus()
+                    .timeout("5m") // sometimes due to cluster rebalacing and random settings default timeout is just not enough.
+                    .waitForNoRelocatingShards(true)
+            )
+            .actionGet();
         if (health.isTimedOut()) {
-            logger.info("cluster state:\n{}\n{}",
-                client().admin().cluster().prepareState().get().getState(), client().admin().cluster().preparePendingClusterTasks().get());
+            logger.info(
+                "cluster state:\n{}\n{}",
+                client().admin().cluster().prepareState().get().getState(),
+                client().admin().cluster().preparePendingClusterTasks().get()
+            );
             assertThat("timed out waiting for green state", health.isTimedOut(), equalTo(false));
         }
         assertThat(health.getStatus(), equalTo(ClusterHealthStatus.GREEN));
         final int numIterations = scaledRandomIntBetween(5, 20);
         for (int i = 0; i < numIterations; i++) {
-            SearchResponse response = client().prepareSearch().setSize(numDocs).get();
-            assertHitCount(response, numDocs);
+            assertHitCount(client().prepareSearch().setSize(numDocs).get(), numDocs);
         }
-
-
 
         /*
          * now hook into the IndicesService and register a close listener to
@@ -208,14 +216,14 @@ public class CorruptedFileIT extends ESIntegTestCase {
                     Store store = indexShard.store();
                     store.incRef();
                     try {
-                        if (!Lucene.indexExists(store.directory()) && indexShard.state() == IndexShardState.STARTED) {
+                        if (Lucene.indexExists(store.directory()) == false && indexShard.state() == IndexShardState.STARTED) {
                             return;
                         }
                         BytesStreamOutput os = new BytesStreamOutput();
                         PrintStream out = new PrintStream(os, false, StandardCharsets.UTF_8.name());
                         CheckIndex.Status status = store.checkIndex(out);
                         out.flush();
-                        if (!status.clean) {
+                        if (status.clean == false) {
                             logger.warn("check index [failure]\n{}", os.bytes().utf8ToString());
                             throw new IOException("index check failure");
                         }
@@ -229,8 +237,9 @@ public class CorruptedFileIT extends ESIntegTestCase {
             }
         };
 
-        for (MockIndexEventListener.TestEventListener eventListener :
-                internalCluster().getDataNodeInstances(MockIndexEventListener.TestEventListener.class)) {
+        for (MockIndexEventListener.TestEventListener eventListener : internalCluster().getDataNodeInstances(
+            MockIndexEventListener.TestEventListener.class
+        )) {
             eventListener.setNewDelegate(listener);
         }
         try {
@@ -238,8 +247,9 @@ public class CorruptedFileIT extends ESIntegTestCase {
             latch.await();
             assertThat(exception, empty());
         } finally {
-            for (MockIndexEventListener.TestEventListener eventListener :
-                    internalCluster().getDataNodeInstances(MockIndexEventListener.TestEventListener.class)) {
+            for (MockIndexEventListener.TestEventListener eventListener : internalCluster().getDataNodeInstances(
+                MockIndexEventListener.TestEventListener.class
+            )) {
                 eventListener.setNewDelegate(null);
             }
         }
@@ -253,13 +263,17 @@ public class CorruptedFileIT extends ESIntegTestCase {
         int numDocs = scaledRandomIntBetween(100, 1000);
         internalCluster().ensureAtLeastNumDataNodes(2);
 
-        assertAcked(prepareCreate("test").setSettings(Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "0")
-            .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
-            .put(MockFSIndexStore.INDEX_CHECK_INDEX_ON_CLOSE_SETTING.getKey(), false) // no checkindex - we corrupt shards on purpose
-            // no translog based flush - it might change the .liv / segments.N files
-            .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.PB))
-        ));
+        assertAcked(
+            prepareCreate("test").setSettings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "0")
+                    .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
+                    .put(MockFSIndexStore.INDEX_CHECK_INDEX_ON_CLOSE_SETTING.getKey(), false) // no checkindex - we corrupt shards on
+                                                                                              // purpose
+                    // no translog based flush - it might change the .liv / segments.N files
+                    .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.PB))
+            )
+        );
         ensureGreen();
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < builders.length; i++) {
@@ -271,8 +285,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         assertAllSuccessful(client().admin().indices().prepareFlush().setForce(true).get());
         assertAllSuccessful(client().admin().indices().prepareFlush().setForce(true).get());
         // we have to flush at least once here since we don't corrupt the translog
-        SearchResponse countResponse = client().prepareSearch().setSize(0).get();
-        assertHitCount(countResponse, numDocs);
+        assertHitCount(client().prepareSearch().setSize(0).get(), numDocs);
 
         ShardRouting shardRouting = corruptRandomPrimaryFile();
         /*
@@ -283,24 +296,24 @@ public class CorruptedFileIT extends ESIntegTestCase {
         client().admin().cluster().prepareReroute().get();
 
         boolean didClusterTurnRed = waitUntil(() -> {
-            ClusterHealthStatus test = client().admin().cluster()
-                .health(Requests.clusterHealthRequest("test")).actionGet().getStatus();
+            ClusterHealthStatus test = client().admin().cluster().health(Requests.clusterHealthRequest("test")).actionGet().getStatus();
             return test == ClusterHealthStatus.RED;
         }, 5, TimeUnit.MINUTES);// sometimes on slow nodes the replication / recovery is just dead slow
 
-        final ClusterHealthResponse response = client().admin().cluster()
-            .health(Requests.clusterHealthRequest("test")).get();
+        final ClusterHealthResponse response = client().admin().cluster().health(Requests.clusterHealthRequest("test")).get();
 
         if (response.getStatus() != ClusterHealthStatus.RED) {
             logger.info("Cluster turned red in busy loop: {}", didClusterTurnRed);
-            logger.info("cluster state:\n{}\n{}",
+            logger.info(
+                "cluster state:\n{}\n{}",
                 client().admin().cluster().prepareState().get().getState(),
-                client().admin().cluster().preparePendingClusterTasks().get());
+                client().admin().cluster().preparePendingClusterTasks().get()
+            );
         }
         assertThat(response.getStatus(), is(ClusterHealthStatus.RED));
         ClusterState state = client().admin().cluster().prepareState().get().getState();
-        GroupShardsIterator<ShardIterator> shardIterators =
-            state.getRoutingTable().activePrimaryShardsGrouped(new String[]{"test"}, false);
+        GroupShardsIterator<ShardIterator> shardIterators = state.getRoutingTable()
+            .activePrimaryShardsGrouped(new String[] { "test" }, false);
         for (ShardIterator iterator : shardIterators) {
             ShardRouting routing;
             while ((routing = iterator.nextOrNull()) != null) {
@@ -328,51 +341,50 @@ public class CorruptedFileIT extends ESIntegTestCase {
      * This simulates recoveries from old indices or even without checksums and makes sure if we fail during finalization
      * we also check if the primary is ok. Without the relevant checks this test fails with a RED cluster
      */
-    public void testCorruptionOnNetworkLayerFinalizingRecovery() throws ExecutionException, InterruptedException, IOException {
+    public void testCorruptionOnNetworkLayerFinalizingRecovery() throws InterruptedException {
         internalCluster().ensureAtLeastNumDataNodes(2);
-        NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats().get();
-        List<NodeStats> dataNodeStats = new ArrayList<>();
-        for (NodeStats stat : nodeStats.getNodes()) {
-            if (stat.getNode().isDataNode()) {
-                dataNodeStats.add(stat);
-            }
-        }
 
-        assertThat(dataNodeStats.size(), greaterThanOrEqualTo(2));
-        Collections.shuffle(dataNodeStats, random());
-        NodeStats primariesNode = dataNodeStats.get(0);
-        NodeStats unluckyNode = dataNodeStats.get(1);
-        assertAcked(prepareCreate("test").setSettings(Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "0")
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put("index.routing.allocation.include._name", primariesNode.getNode().getName())
-            .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
-            .put("index.allocation.max_retries", Integer.MAX_VALUE) // keep on retrying
+        var dataNodes = getShuffledDataNodes();
 
-        ));
+        var primariesNode = dataNodes.get(0);
+        var unluckyNode = dataNodes.get(1);
+        assertAcked(
+            prepareCreate("test").setSettings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "0")
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put("index.routing.allocation.include._name", primariesNode.getName())
+                    .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
+                    .put("index.allocation.max_retries", Integer.MAX_VALUE) // keep on retrying
+            )
+        );
         ensureGreen(); // allocated with empty commit
         final AtomicBoolean corrupt = new AtomicBoolean(true);
         final CountDownLatch hasCorrupted = new CountDownLatch(1);
-        for (NodeStats dataNode : dataNodeStats) {
-            MockTransportService mockTransportService =
-                ((MockTransportService) internalCluster().getInstance(TransportService.class, dataNode.getNode().getName()));
-            mockTransportService.addSendBehavior(internalCluster().getInstance(TransportService.class, unluckyNode.getNode().getName()),
+        for (var dataNode : dataNodes) {
+            MockTransportService mockTransportService = ((MockTransportService) internalCluster().getInstance(
+                TransportService.class,
+                dataNode.getName()
+            ));
+            mockTransportService.addSendBehavior(
+                internalCluster().getInstance(TransportService.class, unluckyNode.getName()),
                 (connection, requestId, action, request, options) -> {
-                if (corrupt.get() && action.equals(PeerRecoveryTargetService.Actions.FILE_CHUNK)) {
-                    RecoveryFileChunkRequest req = (RecoveryFileChunkRequest) request;
-                    byte[] array = BytesRef.deepCopyOf(req.content().toBytesRef()).bytes;
-                    int i = randomIntBetween(0, req.content().length() - 1);
-                    array[i] = (byte) ~array[i]; // flip one byte in the content
-                    hasCorrupted.countDown();
+                    if (corrupt.get() && action.equals(PeerRecoveryTargetService.Actions.FILE_CHUNK)) {
+                        RecoveryFileChunkRequest req = (RecoveryFileChunkRequest) request;
+                        byte[] array = BytesRef.deepCopyOf(req.content().toBytesRef()).bytes;
+                        int i = randomIntBetween(0, req.content().length() - 1);
+                        array[i] = (byte) ~array[i]; // flip one byte in the content
+                        hasCorrupted.countDown();
+                    }
+                    connection.sendRequest(requestId, action, request, options);
                 }
-                connection.sendRequest(requestId, action, request, options);
-            });
+            );
         }
 
         Settings build = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "1")
-            .put("index.routing.allocation.include._name",
-                primariesNode.getNode().getName() + "," + unluckyNode.getNode().getName()).build();
+            .put("index.routing.allocation.include._name", primariesNode.getName() + "," + unluckyNode.getName())
+            .build();
         client().admin().indices().prepareUpdateSettings("test").setSettings(build).get();
         client().admin().cluster().prepareReroute().get();
         hasCorrupted.await();
@@ -384,118 +396,23 @@ public class CorruptedFileIT extends ESIntegTestCase {
      * Tests corruption that happens on the network layer and that the primary does not get affected by corruption that happens on the way
      * to the replica. The file on disk stays uncorrupted
      */
-    public void testCorruptionOnNetworkLayer() throws ExecutionException, InterruptedException {
+    public void testCorruptionOnNetworkLayer() throws InterruptedException {
         int numDocs = scaledRandomIntBetween(100, 1000);
-        internalCluster().ensureAtLeastNumDataNodes(2);
-        if (cluster().numDataNodes() < 3) {
-            internalCluster().startDataOnlyNode();
-        }
-        NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats().get();
-        List<NodeStats> dataNodeStats = new ArrayList<>();
-        for (NodeStats stat : nodeStats.getNodes()) {
-            if (stat.getNode().isDataNode()) {
-                dataNodeStats.add(stat);
-            }
-        }
+        internalCluster().ensureAtLeastNumDataNodes(3);
 
-        assertThat(dataNodeStats.size(), greaterThanOrEqualTo(2));
-        Collections.shuffle(dataNodeStats, random());
-        NodeStats primariesNode = dataNodeStats.get(0);
-        NodeStats unluckyNode = dataNodeStats.get(1);
-
-
-        assertAcked(prepareCreate("test").setSettings(Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "0")
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 4)) // don't go crazy here it must recovery fast
-            // This does corrupt files on the replica, so we can't check:
-            .put(MockFSIndexStore.INDEX_CHECK_INDEX_ON_CLOSE_SETTING.getKey(), false)
-            .put("index.routing.allocation.include._name", primariesNode.getNode().getName())
-            .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
-        ));
-        ensureGreen();
-        IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
-        for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex("test").setSource("field", "value");
-        }
-        indexRandom(true, builders);
-        ensureGreen();
-        assertAllSuccessful(client().admin().indices().prepareFlush().setForce(true).execute().actionGet());
-        // we have to flush at least once here since we don't corrupt the translog
-        SearchResponse countResponse = client().prepareSearch().setSize(0).get();
-        assertHitCount(countResponse, numDocs);
-        final boolean truncate = randomBoolean();
-        for (NodeStats dataNode : dataNodeStats) {
-            MockTransportService mockTransportService =
-                ((MockTransportService) internalCluster().getInstance(TransportService.class, dataNode.getNode().getName()));
-            mockTransportService.addSendBehavior(internalCluster().getInstance(TransportService.class, unluckyNode.getNode().getName()),
-                    (connection, requestId, action, request, options) -> {
-                if (action.equals(PeerRecoveryTargetService.Actions.FILE_CHUNK)) {
-                    RecoveryFileChunkRequest req = (RecoveryFileChunkRequest) request;
-                    if (truncate && req.length() > 1) {
-                        BytesRef bytesRef = req.content().toBytesRef();
-                        BytesArray array = new BytesArray(bytesRef.bytes, bytesRef.offset, (int) req.length() - 1);
-                        request = new RecoveryFileChunkRequest(req.recoveryId(), req.requestSeqNo(), req.shardId(), req.metadata(),
-                            req.position(), array, req.lastChunk(), req.totalTranslogOps(), req.sourceThrottleTimeInNanos());
-                    } else {
-                        assert req.content().toBytesRef().bytes == req.content().toBytesRef().bytes : "no internal reference!!";
-                        final byte[] array = req.content().toBytesRef().bytes;
-                        int i = randomIntBetween(0, req.content().length() - 1);
-                        array[i] = (byte) ~array[i]; // flip one byte in the content
-                    }
-                }
-                connection.sendRequest(requestId, action, request, options);
-            });
-        }
-
-        Settings build = Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "1")
-            .put("index.routing.allocation.include._name", "*").build();
-        client().admin().indices().prepareUpdateSettings("test").setSettings(build).get();
-        client().admin().cluster().prepareReroute().get();
-        ClusterHealthResponse actionGet = client().admin().cluster()
-            .health(Requests.clusterHealthRequest("test").waitForGreenStatus()).actionGet();
-        if (actionGet.isTimedOut()) {
-            logger.info("ensureGreen timed out, cluster state:\n{}\n{}",
-                client().admin().cluster().prepareState().get().getState(), client().admin().cluster().preparePendingClusterTasks().get());
-            assertThat("timed out waiting for green state", actionGet.isTimedOut(), equalTo(false));
-        }
-        // we are green so primaries got not corrupted.
-        // ensure that no shard is actually allocated on the unlucky node
-        ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().get();
-        for (IndexShardRoutingTable table : clusterStateResponse.getState().getRoutingTable().index("test")) {
-            for (ShardRouting routing : table) {
-                if (unluckyNode.getNode().getId().equals(routing.currentNodeId())) {
-                    assertThat(routing.state(), not(equalTo(ShardRoutingState.STARTED)));
-                    assertThat(routing.state(), not(equalTo(ShardRoutingState.RELOCATING)));
-                }
-            }
-        }
-        final int numIterations = scaledRandomIntBetween(5, 20);
-        for (int i = 0; i < numIterations; i++) {
-            SearchResponse response = client().prepareSearch().setSize(numDocs).get();
-            assertHitCount(response, numDocs);
-        }
-
-    }
-
-
-    /**
-     * Tests that restoring of a corrupted shard fails and we get a partial snapshot.
-     * TODO once checksum verification on snapshotting is implemented this test needs to be fixed or split into several
-     * parts... We should also corrupt files on the actual snapshot and check that we don't restore the corrupted shard.
-     */
-    public void testCorruptFileThenSnapshotAndRestore() throws ExecutionException, InterruptedException, IOException {
-        int numDocs = scaledRandomIntBetween(100, 1000);
-        internalCluster().ensureAtLeastNumDataNodes(2);
+        var dataNodes = getShuffledDataNodes();
+        var primariesNode = dataNodes.get(0);
+        var unluckyNode = dataNodes.get(1);
 
         assertAcked(
-            prepareCreate("test").setSettings(Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "0") // no replicas for this test
-                .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
-                // no checkindex - we corrupt shards on purpose
-                .put(MockFSIndexStore.INDEX_CHECK_INDEX_ON_CLOSE_SETTING.getKey(), false)
-                // no translog based flush - it might change the .liv / segments.N files
-                .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.PB))
+            prepareCreate("test").setSettings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "0")
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 4)) // don't go crazy here it must recovery fast
+                    // This does corrupt files on the replica, so we can't check:
+                    .put(MockFSIndexStore.INDEX_CHECK_INDEX_ON_CLOSE_SETTING.getKey(), false)
+                    .put("index.routing.allocation.include._name", primariesNode.getName())
+                    .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
             )
         );
         ensureGreen();
@@ -507,8 +424,152 @@ public class CorruptedFileIT extends ESIntegTestCase {
         ensureGreen();
         assertAllSuccessful(client().admin().indices().prepareFlush().setForce(true).execute().actionGet());
         // we have to flush at least once here since we don't corrupt the translog
-        SearchResponse countResponse = client().prepareSearch().setSize(0).get();
-        assertHitCount(countResponse, numDocs);
+        assertHitCount(client().prepareSearch().setSize(0).get(), numDocs);
+
+        var source = (MockTransportService) internalCluster().getInstance(TransportService.class, primariesNode.getName());
+        var target = internalCluster().getInstance(TransportService.class, unluckyNode.getName());
+
+        final boolean truncate = randomBoolean();
+        source.addSendBehavior(target, (connection, requestId, action, request, options) -> {
+            if (action.equals(PeerRecoveryTargetService.Actions.FILE_CHUNK)) {
+                RecoveryFileChunkRequest req = (RecoveryFileChunkRequest) request;
+                if (truncate && req.length() > 1) {
+                    BytesRef bytesRef = req.content().toBytesRef();
+                    BytesArray array = new BytesArray(bytesRef.bytes, bytesRef.offset, (int) req.length() - 1);
+                    request = new RecoveryFileChunkRequest(
+                        req.recoveryId(),
+                        req.requestSeqNo(),
+                        req.shardId(),
+                        req.metadata(),
+                        req.position(),
+                        ReleasableBytesReference.wrap(array),
+                        req.lastChunk(),
+                        req.totalTranslogOps(),
+                        req.sourceThrottleTimeInNanos()
+                    );
+                } else {
+                    assert req.content().toBytesRef().bytes == req.content().toBytesRef().bytes : "no internal reference!!";
+                    final byte[] array = req.content().toBytesRef().bytes;
+                    int i = randomIntBetween(0, req.content().length() - 1);
+                    array[i] = (byte) ~array[i]; // flip one byte in the content
+                }
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        final var allocationGivenUpFuture = new PlainActionFuture<Void>();
+        final var maxRetries = MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.get(Settings.EMPTY);
+        new ClusterStateObserver(
+            internalCluster().getCurrentMasterNodeInstance(ClusterService.class),
+            logger,
+            new ThreadContext(Settings.EMPTY)
+        ).waitForNextChange(new ClusterStateObserver.Listener() {
+            @Override
+            public void onNewClusterState(ClusterState state) {
+                allocationGivenUpFuture.onResponse(null);
+            }
+
+            @Override
+            public void onClusterServiceClose() {
+                allocationGivenUpFuture.onFailure(new ElasticsearchException("closed"));
+            }
+
+            @Override
+            public void onTimeout(TimeValue timeout) {
+                allocationGivenUpFuture.onFailure(new ElasticsearchException("timed out"));
+            }
+        }, state -> {
+            final var indexRoutingTable = state.routingTable().index("test");
+            for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
+                final var replicaShards = indexRoutingTable.shard(shardId).replicaShards();
+                if (replicaShards.isEmpty()
+                    || replicaShards.stream()
+                        .anyMatch(sr -> sr.unassigned() == false || sr.unassignedInfo().getNumFailedAllocations() < maxRetries)) {
+                    return false;
+                }
+            }
+            return true;
+        }, TimeValue.timeValueSeconds(30));
+
+        // can not allocate on unluckyNode
+        client().admin()
+            .indices()
+            .prepareUpdateSettings("test")
+            .setSettings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "1")
+                    .put("index.routing.allocation.include._name", primariesNode.getName() + "," + unluckyNode.getName())
+            )
+            .get();
+        allocationGivenUpFuture.actionGet();
+        assertThatAllShards("test", shard -> {
+            assertThat(shard.primaryShard().currentNodeId(), equalTo(primariesNode.getId()));
+            assertThat(shard.replicaShards().get(0).state(), equalTo(ShardRoutingState.UNASSIGNED));
+        });
+
+        // can allocate on any other data node
+        client().admin()
+            .indices()
+            .prepareUpdateSettings("test")
+            .setSettings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "1")
+                    .putNull("index.routing.allocation.include._name")
+                    .put("index.routing.allocation.exclude._name", unluckyNode.getName())
+            )
+            .get();
+        client().admin().cluster().prepareReroute().setRetryFailed(true).get();
+        ensureGreen("test");
+        assertThatAllShards("test", shard -> {
+            assertThat(shard.primaryShard().currentNodeId(), not(equalTo(unluckyNode.getId())));
+            assertThat(shard.replicaShards().get(0).state(), equalTo(ShardRoutingState.STARTED));
+            assertThat(shard.replicaShards().get(0).currentNodeId(), not(equalTo(unluckyNode.getId())));
+        });
+
+        final int numIterations = scaledRandomIntBetween(5, 20);
+        for (int i = 0; i < numIterations; i++) {
+            assertHitCount(client().prepareSearch().setSize(numDocs).get(), numDocs);
+        }
+    }
+
+    private void assertThatAllShards(String index, Consumer<IndexShardRoutingTable> verifier) {
+        var clusterStateResponse = client().admin().cluster().state(new ClusterStateRequest().routingTable(true)).actionGet();
+        var indexRoutingTable = clusterStateResponse.getState().getRoutingTable().index(index);
+        for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
+            verifier.accept(indexRoutingTable.shard(shardId));
+        }
+    }
+
+    /**
+     * Tests that restoring of a corrupted shard fails and we get a partial snapshot.
+     * TODO once checksum verification on snapshotting is implemented this test needs to be fixed or split into several
+     * parts... We should also corrupt files on the actual snapshot and check that we don't restore the corrupted shard.
+     */
+    public void testCorruptFileThenSnapshotAndRestore() throws InterruptedException, IOException {
+        int numDocs = scaledRandomIntBetween(100, 1000);
+        internalCluster().ensureAtLeastNumDataNodes(2);
+
+        assertAcked(
+            prepareCreate("test").setSettings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "0") // no replicas for this test
+                    .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
+                    // no checkindex - we corrupt shards on purpose
+                    .put(MockFSIndexStore.INDEX_CHECK_INDEX_ON_CLOSE_SETTING.getKey(), false)
+                    // no translog based flush - it might change the .liv / segments.N files
+                    .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.PB))
+            )
+        );
+        ensureGreen();
+        IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
+        for (int i = 0; i < builders.length; i++) {
+            builders[i] = client().prepareIndex("test").setSource("field", "value");
+        }
+        indexRandom(true, builders);
+        ensureGreen();
+        assertAllSuccessful(client().admin().indices().prepareFlush().setForce(true).execute().actionGet());
+        // we have to flush at least once here since we don't corrupt the translog
+        assertHitCount(client().prepareSearch().setSize(0).get(), numDocs);
 
         ShardRouting shardRouting = corruptRandomPrimaryFile(false);
         logger.info("--> shard {} has a corrupted file", shardRouting);
@@ -516,17 +577,25 @@ public class CorruptedFileIT extends ESIntegTestCase {
         // the other problem here why we can't corrupt segments.X files is that the snapshot flushes again before
         // it snapshots and that will write a new segments.X+1 file
         logger.info("-->  creating repository");
-        assertAcked(client().admin().cluster().preparePutRepository("test-repo")
-                .setType("fs").setSettings(Settings.builder()
+        assertAcked(
+            client().admin()
+                .cluster()
+                .preparePutRepository("test-repo")
+                .setType("fs")
+                .setSettings(
+                    Settings.builder()
                         .put("location", randomRepoPath().toAbsolutePath())
                         .put("compress", randomBoolean())
-                        .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
+                        .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
+                )
+        );
         logger.info("--> snapshot");
-        final CreateSnapshotResponse createSnapshotResponse =
-            client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
-                .setWaitForCompletion(true)
-                .setIndices("test")
-                .get();
+        final CreateSnapshotResponse createSnapshotResponse = client().admin()
+            .cluster()
+            .prepareCreateSnapshot("test-repo", "test-snap")
+            .setWaitForCompletion(true)
+            .setIndices("test")
+            .get();
         final SnapshotState snapshotState = createSnapshotResponse.getSnapshotInfo().state();
         logger.info("--> snapshot terminated with state " + snapshotState);
         final List<Path> files = listShardFiles(shardRouting);
@@ -551,13 +620,17 @@ public class CorruptedFileIT extends ESIntegTestCase {
         int numDocs = scaledRandomIntBetween(100, 1000);
         internalCluster().ensureAtLeastNumDataNodes(2);
 
-        assertAcked(prepareCreate("test").setSettings(Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, cluster().numDataNodes() - 1)
-            .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
-            .put(MockFSIndexStore.INDEX_CHECK_INDEX_ON_CLOSE_SETTING.getKey(), false) // no checkindex - we corrupt shards on purpose
-            .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(),
-                new ByteSizeValue(1, ByteSizeUnit.PB)) // no translog based flush - it might change the .liv / segments.N files
-        ));
+        assertAcked(
+            prepareCreate("test").setSettings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, cluster().numDataNodes() - 1)
+                    .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
+                    // no checkindex - we corrupt shards on purpose
+                    .put(MockFSIndexStore.INDEX_CHECK_INDEX_ON_CLOSE_SETTING.getKey(), false)
+                    // no translog based flush - it might change the .liv / segments.N files
+                    .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.PB))
+            )
+        );
         ensureGreen();
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < builders.length; i++) {
@@ -567,14 +640,18 @@ public class CorruptedFileIT extends ESIntegTestCase {
         ensureGreen();
         assertAllSuccessful(client().admin().indices().prepareFlush().setForce(true).execute().actionGet());
         // we have to flush at least once here since we don't corrupt the translog
-        SearchResponse countResponse = client().prepareSearch().setSize(0).get();
-        assertHitCount(countResponse, numDocs);
+        assertHitCount(client().prepareSearch().setSize(0).get(), numDocs);
 
         // disable allocations of replicas post restart (the restart will change replicas to primaries, so we have
         // to capture replicas post restart)
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(
-            Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "primaries")
-        ));
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(
+                    Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "primaries")
+                )
+        );
 
         internalCluster().fullRestart();
 
@@ -584,11 +661,11 @@ public class CorruptedFileIT extends ESIntegTestCase {
 
         final IndicesShardStoresResponse stores = client().admin().indices().prepareShardStores(index.getName()).get();
 
-
-        for (IntObjectCursor<List<IndicesShardStoresResponse.StoreStatus>> shards :
-            stores.getStoreStatuses().get(index.getName())) {
-            for (IndicesShardStoresResponse.StoreStatus store : shards.value) {
-                final ShardId shardId = new ShardId(index, shards.key);
+        for (Map.Entry<Integer, List<IndicesShardStoresResponse.StoreStatus>> shards : stores.getStoreStatuses()
+            .get(index.getName())
+            .entrySet()) {
+            for (IndicesShardStoresResponse.StoreStatus store : shards.getValue()) {
+                final ShardId shardId = new ShardId(index, shards.getKey());
                 if (store.getAllocationStatus().equals(IndicesShardStoresResponse.StoreStatus.AllocationStatus.UNUSED)) {
                     for (Path path : findFilesToCorruptOnNode(store.getNode().getName(), shardId)) {
                         try (OutputStream os = Files.newOutputStream(path)) {
@@ -601,16 +678,21 @@ public class CorruptedFileIT extends ESIntegTestCase {
         }
 
         // enable allocation
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(
-            Settings.builder().putNull(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey())
-        ));
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(
+                    Settings.builder().putNull(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey())
+                )
+        );
 
         ensureGreen(TimeValue.timeValueSeconds(60));
     }
 
     private int numShards(String... index) {
         ClusterState state = client().admin().cluster().prepareState().get().getState();
-        GroupShardsIterator shardIterators = state.getRoutingTable().activePrimaryShardsGrouped(index, false);
+        GroupShardsIterator<?> shardIterators = state.getRoutingTable().activePrimaryShardsGrouped(index, false);
         return shardIterators.size();
     }
 
@@ -638,7 +720,8 @@ public class CorruptedFileIT extends ESIntegTestCase {
     private ShardRouting corruptRandomPrimaryFile(final boolean includePerCommitFiles) throws IOException {
         ClusterState state = client().admin().cluster().prepareState().get().getState();
         Index test = state.metadata().index("test").getIndex();
-        GroupShardsIterator shardIterators = state.getRoutingTable().activePrimaryShardsGrouped(new String[]{"test"}, false);
+        GroupShardsIterator<ShardIterator> shardIterators = state.getRoutingTable()
+            .activePrimaryShardsGrouped(new String[] { "test" }, false);
         List<ShardIterator> iterators = iterableAsArrayList(shardIterators);
         ShardIterator shardIterator = RandomPicks.randomFrom(random(), iterators);
         ShardRouting shardRouting = shardIterator.nextOrNull();
@@ -651,7 +734,10 @@ public class CorruptedFileIT extends ESIntegTestCase {
         for (FsInfo.Path info : nodeStatses.getNodes().get(0).getFs()) {
             String path = info.getPath();
             Path file = PathUtils.get(path)
-                .resolve("indices").resolve(test.getUUID()).resolve(Integer.toString(shardRouting.getId())).resolve("index");
+                .resolve("indices")
+                .resolve(test.getUUID())
+                .resolve(Integer.toString(shardRouting.getId()))
+                .resolve("index");
             if (Files.exists(file)) { // multi data path might only have one path in use
                 try (Directory dir = FSDirectory.open(file)) {
                     SegmentInfos segmentCommitInfos = Lucene.readSegmentInfos(dir);
@@ -704,5 +790,17 @@ public class CorruptedFileIT extends ESIntegTestCase {
             }
         }
         return files;
+    }
+
+    private List<DiscoveryNode> getShuffledDataNodes() {
+        var response = client().admin().cluster().prepareNodesStats().get();
+        return response.getNodes()
+            .stream()
+            .map(BaseNodeResponse::getNode)
+            .filter(DiscoveryNode::canContainData)
+            .collect(collectingAndThen(toCollection(ArrayList::new), list -> {
+                Collections.shuffle(list, random());
+                return list;
+            }));
     }
 }

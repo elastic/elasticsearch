@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.planner;
 
@@ -29,13 +30,11 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Binar
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexMatch;
+import org.elasticsearch.xpack.ql.planner.ExpressionTranslator;
 import org.elasticsearch.xpack.ql.planner.ExpressionTranslators;
 import org.elasticsearch.xpack.ql.planner.TranslatorHandler;
-import org.elasticsearch.xpack.ql.querydsl.query.ExistsQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.GeoDistanceQuery;
-import org.elasticsearch.xpack.ql.querydsl.query.NotQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.Query;
-import org.elasticsearch.xpack.ql.querydsl.query.ScriptQuery;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.ReflectionUtils;
@@ -89,42 +88,42 @@ import static org.elasticsearch.xpack.ql.expression.Foldables.valueOf;
 
 final class QueryTranslator {
 
-    public static final String DATE_FORMAT = "strict_date_time";
-    public static final String TIME_FORMAT = "strict_hour_minute_second_millis";
+    public static final String DATE_FORMAT = "strict_date_optional_time_nanos";
+    public static final String TIME_FORMAT = "strict_hour_minute_second_fraction";
 
     private QueryTranslator() {}
 
     private static final List<SqlExpressionTranslator<?>> QUERY_TRANSLATORS = Arrays.asList(
-            new BinaryComparisons(),
-            new InComparisons(),
-            new Ranges(),
-            new BinaryLogic(),
-            new Nots(),
-            new IsNullTranslator(),
-            new IsNotNullTranslator(),
-            new Likes(),
-            new StringQueries(),
-            new Matches(),
-            new MultiMatches(),
-            new Scalars()
-            );
+        new BinaryComparisons(),
+        new InComparisons(),
+        new Ranges(),
+        new BinaryLogic(),
+        new Nots(),
+        new IsNullTranslator(),
+        new IsNotNullTranslator(),
+        new Likes(),
+        new StringQueries(),
+        new Matches(),
+        new MultiMatches(),
+        new Scalars()
+    );
 
     private static final List<AggTranslator<?>> AGG_TRANSLATORS = Arrays.asList(
-            new Maxes(),
-            new Mins(),
-            new Avgs(),
-            new Sums(),
-            new StatsAggs(),
-            new ExtendedStatsAggs(),
-            new MatrixStatsAggs(),
-            new PercentilesAggs(),
-            new PercentileRanksAggs(),
-            new CountAggs(),
-            new DateTimes(),
-            new Firsts(),
-            new Lasts(),
-            new MADs()
-            );
+        new Maxes(),
+        new Mins(),
+        new Avgs(),
+        new Sums(),
+        new StatsAggs(),
+        new ExtendedStatsAggs(),
+        new MatrixStatsAggs(),
+        new PercentilesAggs(),
+        new PercentileRanksAggs(),
+        new CountAggs(),
+        new DateTimes(),
+        new Firsts(),
+        new Lasts(),
+        new MADs()
+    );
 
     static class QueryTranslation {
         final Query query;
@@ -184,11 +183,9 @@ final class QueryTranslator {
 
         if (left.aggFilter == null) {
             aggFilter = right.aggFilter;
-        }
-        else if (right.aggFilter == null) {
+        } else if (right.aggFilter == null) {
             aggFilter = left.aggFilter;
-        }
-        else {
+        } else {
             aggFilter = new AndAggFilter(left.aggFilter, right.aggFilter);
         }
 
@@ -213,11 +210,9 @@ final class QueryTranslator {
 
         if (left.aggFilter == null) {
             aggFilter = right.aggFilter;
-        }
-        else if (right.aggFilter == null) {
+        } else if (right.aggFilter == null) {
             aggFilter = left.aggFilter;
-        }
-        else {
+        } else {
             aggFilter = new OrAggFilter(left.aggFilter, right.aggFilter);
         }
 
@@ -225,13 +220,12 @@ final class QueryTranslator {
     }
 
     static String nameOf(Expression e) {
-        if (e instanceof DateTimeFunction) {
-            return nameOf(((DateTimeFunction) e).field());
+        if (e instanceof DateTimeFunction dateTimeFunction) {
+            return nameOf(dateTimeFunction.field());
         }
-        if (e instanceof NamedExpression) {
-            return ((NamedExpression) e).name();
-        }
-        else {
+        if (e instanceof NamedExpression namedExpression) {
+            return namedExpression.name();
+        } else {
             return e.sourceText();
         }
     }
@@ -240,8 +234,7 @@ final class QueryTranslator {
         if (arg.foldable()) {
             return String.valueOf(arg.fold());
         }
-        if (arg instanceof FieldAttribute) {
-            FieldAttribute field = (FieldAttribute) arg;
+        if (arg instanceof FieldAttribute field) {
             // COUNT(DISTINCT) uses cardinality aggregation which works on exact values (not changed by analyzers or normalizers)
             if ((af instanceof Count && ((Count) af).distinct()) || af instanceof TopHits) {
                 // use the `keyword` version of the field, if there is one
@@ -249,8 +242,11 @@ final class QueryTranslator {
             }
             return field.name();
         }
-        throw new SqlIllegalArgumentException("Does not know how to convert argument {} for function {}", arg.nodeString(),
-                                              af.nodeString());
+        throw new SqlIllegalArgumentException(
+            "Does not know how to convert argument {} for function {}",
+            arg.nodeString(),
+            af.nodeString()
+        );
     }
 
     private static boolean isFieldOrLiteral(Expression e) {
@@ -309,8 +305,11 @@ final class QueryTranslator {
     static class BinaryLogic extends SqlExpressionTranslator<org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogic> {
 
         @Override
-        protected QueryTranslation asQuery(org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogic e, boolean onAggs,
-                                           TranslatorHandler handler) {
+        protected QueryTranslation asQuery(
+            org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogic e,
+            boolean onAggs,
+            TranslatorHandler handler
+        ) {
             if (e instanceof And) {
                 return and(e.source(), toQuery(e.left(), onAggs), toQuery(e.right(), onAggs));
             }
@@ -349,13 +348,7 @@ final class QueryTranslator {
             if (onAggs) {
                 aggFilter = new AggFilter(id(isNotNull), isNotNull.asScript());
             } else {
-                Query q = null;
-                if (isNotNull.field() instanceof FieldAttribute) {
-                    q = new ExistsQuery(isNotNull.source(), handler.nameOf(isNotNull.field()));
-                } else {
-                    q = new ScriptQuery(isNotNull.source(), isNotNull.asScript());
-                }
-                query = handler.wrapFunctionQuery(isNotNull, isNotNull.field(), q);
+                query = ExpressionTranslators.IsNotNulls.doTranslate(isNotNull, handler);
             }
 
             return new QueryTranslation(query, aggFilter);
@@ -372,13 +365,7 @@ final class QueryTranslator {
             if (onAggs) {
                 aggFilter = new AggFilter(id(isNull), isNull.asScript());
             } else {
-                Query q = null;
-                if (isNull.field() instanceof FieldAttribute) {
-                    q = new NotQuery(isNull.source(), new ExistsQuery(isNull.source(), handler.nameOf(isNull.field())));
-                } else {
-                    q = new ScriptQuery(isNull.source(), isNull.asScript());
-                }
-                query = handler.wrapFunctionQuery(isNull, isNull.field(), q);
+                query = ExpressionTranslators.IsNulls.doTranslate(isNull, handler);
             }
 
             return new QueryTranslation(query, aggFilter);
@@ -412,7 +399,7 @@ final class QueryTranslator {
 
             // Possible geo optimization
             if (bc.left() instanceof StDistance && value instanceof Number) {
-                 if (bc instanceof LessThan || bc instanceof LessThanOrEqual) {
+                if (bc instanceof LessThan || bc instanceof LessThanOrEqual) {
                     // Special case for ST_Distance translatable into geo_distance query
                     StDistance stDistance = (StDistance) bc.left();
                     if (stDistance.left() instanceof FieldAttribute && stDistance.right().foldable()) {
@@ -421,8 +408,14 @@ final class QueryTranslator {
                             Geometry geometry = ((GeoShape) geoShape).toGeometry();
                             if (geometry instanceof Point) {
                                 String field = nameOf(stDistance.left());
-                                return new GeoDistanceQuery(source, field, ((Number) value).doubleValue(),
-                                    ((Point) geometry).getY(), ((Point) geometry).getX());
+                                Query query = new GeoDistanceQuery(
+                                    source,
+                                    field,
+                                    ((Number) value).doubleValue(),
+                                    ((Point) geometry).getY(),
+                                    ((Point) geometry).getX()
+                                );
+                                return ExpressionTranslator.wrapIfNested(query, stDistance.left());
                             }
                         }
                     }
@@ -447,8 +440,7 @@ final class QueryTranslator {
             //
             if (onAggs) {
                 aggFilter = new AggFilter(id(in.value()), in.asScript());
-            }
-            else {
+            } else {
                 query = org.elasticsearch.xpack.ql.planner.ExpressionTranslators.InComparisons.doTranslate(in, handler);
             }
             return new QueryTranslation(query, aggFilter);
@@ -487,13 +479,12 @@ final class QueryTranslator {
             if (onAggs) {
                 aggFilter = new AggFilter(id(f), f.asScript());
             } else {
-                query = org.elasticsearch.xpack.ql.planner.ExpressionTranslators.Scalars.doTranslate(f, handler);
+                query = ExpressionTranslators.Scalars.doTranslate(f, handler);
             }
 
             return new QueryTranslation(query, aggFilter);
         }
     }
-
 
     abstract static class SqlExpressionTranslator<E extends Expression> {
 
@@ -627,7 +618,7 @@ final class QueryTranslator {
 
         @Override
         protected LeafAgg toAgg(String id, Percentiles p) {
-            return new PercentilesAgg(id, asFieldOrLiteralOrScript(p), foldAndConvertToDoubles(p.percents()));
+            return new PercentilesAgg(id, asFieldOrLiteralOrScript(p), foldAndConvertToDoubles(p.percents()), p.percentilesConfig());
         }
     }
 
@@ -635,7 +626,7 @@ final class QueryTranslator {
 
         @Override
         protected LeafAgg toAgg(String id, PercentileRanks p) {
-            return new PercentileRanksAgg(id, asFieldOrLiteralOrScript(p), foldAndConvertToDoubles(p.values()));
+            return new PercentileRanksAgg(id, asFieldOrLiteralOrScript(p), foldAndConvertToDoubles(p.values()), p.percentilesConfig());
         }
     }
 
@@ -696,4 +687,5 @@ final class QueryTranslator {
         }
         return values;
     }
+
 }

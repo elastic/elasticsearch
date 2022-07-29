@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ql.common;
@@ -66,8 +67,13 @@ public class Failure {
         return failures.stream().map(f -> {
             Location l = f.node().source().source();
             return "line " + l.getLineNumber() + ":" + l.getColumnNumber() + ": " + f.message();
-        }).collect(Collectors.joining(StringUtils.NEW_LINE,
-                format("Found {} problem{}\n", failures.size(), failures.size() > 1 ? "s" : StringUtils.EMPTY),
-                StringUtils.EMPTY));
+        })
+            .collect(
+                Collectors.joining(
+                    StringUtils.NEW_LINE,
+                    format("Found {} problem{}\n", failures.size(), failures.size() > 1 ? "s" : StringUtils.EMPTY),
+                    StringUtils.EMPTY
+                )
+            );
     }
 }

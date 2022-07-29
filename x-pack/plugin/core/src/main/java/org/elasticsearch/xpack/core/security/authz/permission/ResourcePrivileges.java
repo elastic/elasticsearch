@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.security.authz.permission;
 
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.TreeMap;
 
 /**
  * A generic structure to encapsulate resource to privileges map.
@@ -68,7 +69,7 @@ public final class ResourcePrivileges {
 
     public static final class Builder {
         private final String resource;
-        private Map<String, Boolean> privileges = new HashMap<>();
+        private Map<String, Boolean> privileges = new TreeMap<>();
 
         private Builder(String resource) {
             this.resource = resource;
@@ -79,8 +80,8 @@ public final class ResourcePrivileges {
             return this;
         }
 
-        public Builder addPrivileges(Map<String, Boolean> privileges) {
-            for (Entry<String, Boolean> entry : privileges.entrySet()) {
+        public Builder addPrivileges(Map<String, Boolean> privilegeMap) {
+            for (Entry<String, Boolean> entry : privilegeMap.entrySet()) {
                 addPrivilege(entry.getKey(), entry.getValue());
             }
             return this;

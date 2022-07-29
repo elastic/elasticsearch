@@ -1,27 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.metrics;
 
 import java.util.concurrent.atomic.LongAdder;
 
-public class MeanMetric implements Metric {
+public final class MeanMetric {
 
     private final LongAdder counter = new LongAdder();
     private final LongAdder sum = new LongAdder();
@@ -31,13 +20,14 @@ public class MeanMetric implements Metric {
         sum.add(n);
     }
 
-    public void dec(long n) {
-        counter.decrement();
-        sum.add(-n);
-    }
-
+    /**
+     * Returns the current count of this metric. This metric supports only {@link #inc(long)} that increases the counter
+     * whenever it's invoked; hence, the returned count is always non-negative.
+     */
     public long count() {
-        return counter.sum();
+        final long count = counter.sum();
+        assert count >= 0 : "Count of MeanMetric must always be non-negative; got " + count;
+        return count;
     }
 
     public long sum() {
@@ -50,10 +40,5 @@ public class MeanMetric implements Metric {
             return sum.sum() / (double) count;
         }
         return 0.0;
-    }
-
-    public void clear() {
-        counter.reset();
-        sum.reset();
     }
 }

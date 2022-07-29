@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.transforms.pivot;
@@ -14,7 +15,7 @@ import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -39,6 +40,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
+import static java.util.Collections.emptyMap;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -74,8 +76,7 @@ public class AggregationSchemaAndResultTests extends ESTestCase {
             ActionListener<Response> listener
         ) {
 
-            if (request instanceof FieldCapabilitiesRequest) {
-                FieldCapabilitiesRequest fieldCapsRequest = (FieldCapabilitiesRequest) request;
+            if (request instanceof FieldCapabilitiesRequest fieldCapsRequest) {
 
                 Map<String, Map<String, FieldCapabilities>> fieldCaps = new HashMap<>();
                 for (String field : fieldCapsRequest.fields()) {
@@ -86,10 +87,7 @@ public class AggregationSchemaAndResultTests extends ESTestCase {
 
                     fieldCaps.put(
                         field,
-                        Collections.singletonMap(
-                            type,
-                            new FieldCapabilities(field, type, true, true, null, null, null, Collections.emptyMap())
-                        )
+                        Collections.singletonMap(type, new FieldCapabilities(field, type, false, true, true, null, null, null, emptyMap()))
                     );
                 }
 
@@ -121,17 +119,32 @@ public class AggregationSchemaAndResultTests extends ESTestCase {
         // percentile produces 1 output per percentile + 1 for the parent object
         aggs.addAggregator(AggregationBuilders.percentiles("p_rating").field("long_stars").percentiles(1, 5, 10, 50, 99.9));
 
+        // range produces 1 output per range + 1 for the parent object
+        aggs.addAggregator(
+            AggregationBuilders.range("some_range")
+                .field("long_stars")
+                .addUnboundedTo(10.5)
+                .addRange(10.5, 19.5)
+                .addRange(19.5, 20)
+                .addUnboundedFrom(20)
+        );
+
         // scripted metric produces no output because its dynamic
         aggs.addAggregator(AggregationBuilders.scriptedMetric("collapsed_ratings"));
 
-        AggregationConfig aggregationConfig = new AggregationConfig(Collections.emptyMap(), aggs);
+        AggregationConfig aggregationConfig = new AggregationConfig(emptyMap(), aggs);
         GroupConfig groupConfig = GroupConfigTests.randomGroupConfig();
         PivotConfig pivotConfig = new PivotConfig(groupConfig, aggregationConfig, null);
+        long numGroupsWithoutScripts = groupConfig.getGroups()
+            .values()
+            .stream()
+            .filter(singleGroupSource -> singleGroupSource.getScriptConfig() == null)
+            .count();
 
         this.<Map<String, String>>assertAsync(
-            listener -> SchemaUtil.deduceMappings(client, pivotConfig, new String[] { "source-index" }, listener),
+            listener -> SchemaUtil.deduceMappings(client, pivotConfig, new String[] { "source-index" }, emptyMap(), listener),
             mappings -> {
-                assertEquals(groupConfig.getGroups().size() + 10, mappings.size());
+                assertEquals("Mappings were: " + mappings, numGroupsWithoutScripts + 15, mappings.size());
                 assertEquals("long", mappings.get("max_rating"));
                 assertEquals("double", mappings.get("avg_rating"));
                 assertEquals("long", mappings.get("count_rating"));
@@ -141,6 +154,11 @@ public class AggregationSchemaAndResultTests extends ESTestCase {
                 assertEquals("double", mappings.get("p_rating.5"));
                 assertEquals("double", mappings.get("p_rating.10"));
                 assertEquals("double", mappings.get("p_rating.99_9"));
+                assertEquals("object", mappings.get("some_range"));
+                assertEquals("long", mappings.get("some_range.*-10_5"));
+                assertEquals("long", mappings.get("some_range.10_5-19_5"));
+                assertEquals("long", mappings.get("some_range.19_5-20"));
+                assertEquals("long", mappings.get("some_range.20-*"));
 
                 Aggregation agg = AggregationResultUtilsTests.createSingleMetricAgg("avg_rating", 33.3, "33.3");
                 assertThat(AggregationResultUtils.getExtractor(agg).value(agg, mappings, ""), equalTo(33.3));
@@ -186,14 +204,19 @@ public class AggregationSchemaAndResultTests extends ESTestCase {
                 )
         );
 
-        AggregationConfig aggregationConfig = new AggregationConfig(Collections.emptyMap(), aggs);
+        AggregationConfig aggregationConfig = new AggregationConfig(emptyMap(), aggs);
         GroupConfig groupConfig = GroupConfigTests.randomGroupConfig();
         PivotConfig pivotConfig = new PivotConfig(groupConfig, aggregationConfig, null);
+        long numGroupsWithoutScripts = groupConfig.getGroups()
+            .values()
+            .stream()
+            .filter(singleGroupSource -> singleGroupSource.getScriptConfig() == null)
+            .count();
 
         this.<Map<String, String>>assertAsync(
-            listener -> SchemaUtil.deduceMappings(client, pivotConfig, new String[] { "source-index" }, listener),
+            listener -> SchemaUtil.deduceMappings(client, pivotConfig, new String[] { "source-index" }, emptyMap(), listener),
             mappings -> {
-                assertEquals(groupConfig.getGroups().size() + 12, mappings.size());
+                assertEquals(numGroupsWithoutScripts + 12, mappings.size());
                 assertEquals("long", mappings.get("filter_1"));
                 assertEquals("object", mappings.get("filter_2"));
                 assertEquals("long", mappings.get("filter_2.max_drinks_2"));
@@ -215,7 +238,7 @@ public class AggregationSchemaAndResultTests extends ESTestCase {
                     23144,
                     AggregationResultUtilsTests.createSingleMetricAgg("max_drinks_2", 45.0, "forty_five")
                 );
-                assertThat(AggregationResultUtils.getExtractor(agg).value(agg, mappings, ""), equalTo(asMap("max_drinks_2", 45.0)));
+                assertThat(AggregationResultUtils.getExtractor(agg).value(agg, mappings, ""), equalTo(asMap("max_drinks_2", 45L)));
 
                 agg = AggregationResultUtilsTests.createSingleBucketAgg(
                     "filter_3",

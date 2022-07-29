@@ -1,0 +1,21 @@
+---
+"Missing document with catch":
+
+
+
+ - do:
+      catch:      missing
+      delete:
+          index:  test_1
+          id:     "1"
+
+---
+"Missing document with ignore":
+
+
+
+ - do:
+      delete:
+          index:  test_1
+          id:     "1"
+          ignore: 404

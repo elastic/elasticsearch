@@ -1,13 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 
 import java.io.IOException;
@@ -41,19 +42,18 @@ public class LogisticRegressionTests extends WeightedAggregatorTests<LogisticReg
     }
 
     public void testAggregate() {
-        double[] ones = new double[]{1.0, 1.0, 1.0, 1.0, 1.0};
-        double[][] values = new double[][]{
-            new double[] {1.0},
-            new double[] {2.0},
-            new double[] {2.0},
-            new double[] {3.0},
-            new double[] {5.0}
-        };
+        double[] ones = new double[] { 1.0, 1.0, 1.0, 1.0, 1.0 };
+        double[][] values = new double[][] {
+            new double[] { 1.0 },
+            new double[] { 2.0 },
+            new double[] { 2.0 },
+            new double[] { 3.0 },
+            new double[] { 5.0 } };
 
         LogisticRegression logisticRegression = new LogisticRegression(ones);
         assertThat(logisticRegression.aggregate(logisticRegression.processValues(values)), equalTo(1.0));
 
-        double[] variedWeights = new double[]{.01, -1.0, .1, 0.0, 0.0};
+        double[] variedWeights = new double[] { .01, -1.0, .1, 0.0, 0.0 };
 
         logisticRegression = new LogisticRegression(variedWeights);
         assertThat(logisticRegression.aggregate(logisticRegression.processValues(values)), equalTo(0.0));
@@ -63,14 +63,13 @@ public class LogisticRegressionTests extends WeightedAggregatorTests<LogisticReg
     }
 
     public void testAggregateMultiValueArrays() {
-        double[] ones = new double[]{1.0, 1.0, 1.0, 1.0, 1.0};
-        double[][] values = new double[][]{
-            new double[] {1.0, 0.0, 1.0},
-            new double[] {2.0, 0.0, 0.0},
-            new double[] {2.0, 3.0, 1.0},
-            new double[] {3.0, 3.0, 1.0},
-            new double[] {1.0, 1.0, 5.0}
-        };
+        double[] ones = new double[] { 1.0, 1.0, 1.0, 1.0, 1.0 };
+        double[][] values = new double[][] {
+            new double[] { 1.0, 0.0, 1.0 },
+            new double[] { 2.0, 0.0, 0.0 },
+            new double[] { 2.0, 3.0, 1.0 },
+            new double[] { 3.0, 3.0, 1.0 },
+            new double[] { 1.0, 1.0, 5.0 } };
 
         LogisticRegression logisticRegression = new LogisticRegression(ones);
         double[] processedValues = logisticRegression.processValues(values);
@@ -80,7 +79,7 @@ public class LogisticRegressionTests extends WeightedAggregatorTests<LogisticReg
         assertThat(processedValues[2], closeTo(0.244728471, 0.00001));
         assertThat(logisticRegression.aggregate(logisticRegression.processValues(values)), equalTo(0.0));
 
-        double[] variedWeights = new double[]{1.0, -1.0, .5, 1.0, 5.0};
+        double[] variedWeights = new double[] { 1.0, -1.0, .5, 1.0, 5.0 };
 
         logisticRegression = new LogisticRegression(variedWeights);
         processedValues = logisticRegression.processValues(values);

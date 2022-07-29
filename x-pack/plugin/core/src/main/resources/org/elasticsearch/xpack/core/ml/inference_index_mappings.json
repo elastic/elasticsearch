@@ -1,0 +1,151 @@
+{
+  "_doc": {
+    "_meta": {
+      "version": "${xpack.ml.version}"
+    },
+    "dynamic": false,
+    "properties": {
+      "doc_type": {
+        "type": "keyword"
+      },
+      "model_id": {
+        "type": "keyword"
+      },
+      "created_by": {
+        "type": "keyword"
+      },
+      "input": {
+        "enabled": false
+      },
+      "version": {
+        "type": "keyword"
+      },
+      "description": {
+        "type": "text"
+      },
+      "create_time": {
+        "type": "date"
+      },
+      "tags": {
+        "type": "keyword"
+      },
+      "metadata": {
+        "enabled": false
+      },
+      "estimated_operations": {
+        "type": "long"
+      },
+      "estimated_heap_memory_usage_bytes": {
+        "type": "long"
+      },
+      "model_size_bytes": {
+        "type": "long"
+      },
+      "doc_num": {
+        "type": "long"
+      },
+      "definition": {
+        "enabled": false
+      },
+      "binary_definition": {
+        "type": "binary"
+      },
+      "compression_version": {
+        "type": "long"
+      },
+      "definition_length": {
+        "type": "long"
+      },
+      "total_definition_length": {
+        "type": "long"
+      },
+      "default_field_map": {
+        "enabled": false
+      },
+      "inference_config": {
+        "enabled": false
+      },
+      "feature_importance_baseline": {
+        "properties": {
+          "baseline": {
+            "type": "double"
+          },
+          "classes": {
+            "properties": {
+              "class_name": { "type": "keyword"},
+              "baseline": {"type" : "double"}
+            }
+          }
+        }
+      },
+      "total_feature_importance": {
+        "type": "nested",
+        "dynamic": false,
+        "properties": {
+          "importance": {
+            "properties": {
+              "min": {
+                "type": "double"
+              },
+              "max": {
+                "type": "double"
+              },
+              "mean_magnitude": {
+                "type": "double"
+              }
+            }
+          },
+          "feature_name": {
+            "type": "keyword"
+          },
+          "classes": {
+            "type": "nested",
+            "dynamic": false,
+            "properties": {
+              "importance": {
+                "properties": {
+                  "min": {
+                    "type": "double"
+                  },
+                  "max": {
+                    "type": "double"
+                  },
+                  "mean_magnitude": {
+                    "type": "double"
+                  }
+                }
+              },
+              "class_name": {
+                "type": "keyword"
+              }
+            }
+          }
+        }
+      },
+      "hyperparameters": {
+        "type": "nested",
+        "dynamic": false,
+        "properties": {
+          "name": {
+            "type": "keyword"
+          },
+          "value": {
+            "type": "double"
+          },
+          "absolute_importance": {
+            "type": "double"
+          },
+          "relative_importance": {
+            "type": "double"
+          },
+          "supplied": {
+            "type": "boolean"
+          }
+        }
+      },
+      "vocab": {
+        "enabled": false
+      }
+    }
+  }
+}

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.action.termvectors;
 
@@ -23,12 +12,9 @@ import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.similarities.ClassicSimilarity;
 import org.apache.lucene.search.similarities.TFIDFSimilarity;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.search.dfs.AggregatedDfs;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -52,20 +38,18 @@ public class TermVectorsFilter {
     private int minWordLength = DEFAULT_MIN_WORD_LENGTH;
     private int maxWordLength = DEFAULT_MAX_WORD_LENGTH;
 
-    private Fields fields;
-    private Fields topLevelFields;
+    private final Fields fields;
+    private final Fields topLevelFields;
     private final Set<String> selectedFields;
-    private AggregatedDfs dfs;
-    private Map<Term, ScoreTerm> scoreTerms;
-    private Map<String, Integer> sizes = new HashMap<>();
-    private TFIDFSimilarity similarity;
+    private final Map<Term, ScoreTerm> scoreTerms;
+    private final Map<String, Integer> sizes = new HashMap<>();
+    private final TFIDFSimilarity similarity;
 
-    public TermVectorsFilter(Fields termVectorsByField, Fields topLevelFields, Set<String> selectedFields, @Nullable AggregatedDfs dfs) {
+    public TermVectorsFilter(Fields termVectorsByField, Fields topLevelFields, Set<String> selectedFields) {
         this.fields = termVectorsByField;
         this.topLevelFields = topLevelFields;
         this.selectedFields = selectedFields;
 
-        this.dfs = dfs;
         this.scoreTerms = new HashMap<>();
         this.similarity = new ClassicSimilarity();
     }
@@ -184,7 +168,7 @@ public class TermVectorsFilter {
         PostingsEnum docsEnum = null;
 
         for (String fieldName : fields) {
-            if ((selectedFields != null) && (!selectedFields.contains(fieldName))) {
+            if (selectedFields != null && selectedFields.contains(fieldName) == false) {
                 continue;
             }
 
@@ -196,7 +180,7 @@ public class TermVectorsFilter {
                 topLevelTerms = terms;
             }
 
-            long numDocs = getDocCount(fieldName, topLevelTerms);
+            long numDocs = topLevelTerms.getDocCount();
 
             // one queue per field name
             ScoreTermsQueue queue = new ScoreTermsQueue(Math.min(maxNumTerms, (int) terms.size()));
@@ -212,14 +196,16 @@ public class TermVectorsFilter {
                 Term term = new Term(fieldName, termBytesRef);
 
                 // remove noise words
-                int freq = getTermFreq(termsEnum, docsEnum);
+                docsEnum = termsEnum.postings(docsEnum);
+                docsEnum.nextDoc();
+                int freq = docsEnum.freq();
                 if (isNoise(term.bytes().utf8ToString(), freq)) {
                     continue;
                 }
 
                 // now call on docFreq
-                long docFreq = getTermStatistics(topLevelTermsEnum, term).docFreq();
-                if (!isAccepted(docFreq)) {
+                long docFreq = topLevelTermsEnum.docFreq();
+                if (isAccepted(docFreq) == false) {
                     continue;
                 }
 
@@ -273,26 +259,6 @@ public class TermVectorsFilter {
             return false;
         }
         return true;
-    }
-
-    private long getDocCount(String fieldName, Terms topLevelTerms) throws IOException {
-        if (dfs != null) {
-            return dfs.fieldStatistics().get(fieldName).docCount();
-        }
-        return topLevelTerms.getDocCount();
-    }
-
-    private TermStatistics getTermStatistics(TermsEnum termsEnum, Term term) throws IOException {
-        if (dfs != null) {
-            return dfs.termStatistics().get(term);
-        }
-        return new TermStatistics(termsEnum.term(), termsEnum.docFreq(), termsEnum.totalTermFreq());
-    }
-
-    private int getTermFreq(TermsEnum termsEnum, PostingsEnum docsEnum) throws IOException {
-        docsEnum = termsEnum.postings(docsEnum);
-        docsEnum.nextDoc();
-        return docsEnum.freq();
     }
 
     private float computeScore(long docFreq, int freq, long numDocs) {

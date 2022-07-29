@@ -1,24 +1,12 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.painless;
-
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -30,7 +18,7 @@ public class GetByPathAugmentationTests extends ScriptTestCase {
 
     private final String k001Key = "k011";
     private final String k001Value = "b";
-    private final Map<String,String> k001Obj = new HashMap<>();
+    private final Map<String, String> k001Obj = new HashMap<>();
     private final String k001MapStr = "['" + k001Key + "': '" + k001Value + "']";
     private final String mapMapList = "['k0': ['k01': [['k010': 'a'], " + k001MapStr + "]], 'k1': ['q']]";
 
@@ -83,10 +71,7 @@ public class GetByPathAugmentationTests extends ScriptTestCase {
     }
 
     private IllegalArgumentException assertPathError(String script, String message) {
-        IllegalArgumentException illegal = expectScriptThrows(
-            IllegalArgumentException.class,
-            () -> exec(script)
-        );
+        IllegalArgumentException illegal = expectScriptThrows(IllegalArgumentException.class, () -> exec(script));
         assertEquals(message, illegal.getMessage());
         return illegal;
     }
@@ -216,37 +201,24 @@ public class GetByPathAugmentationTests extends ScriptTestCase {
 
     public void testBiListDefaultBadIndex() {
         String path = "1.k0";
-        IllegalArgumentException err = assertPathError(
-            "[['a','b'],['c','d']]",
-            path,
-            "'foo'",
-            numberFormat("k0", path, 1));
+        IllegalArgumentException err = assertPathError("[['a','b'],['c','d']]", path, "'foo'", numberFormat("k0", path, 1));
         assertEquals(err.getCause().getClass(), NumberFormatException.class);
     }
 
     public void testBiMapListDefaultBadIndex() {
         String path = "k0.k01.k012";
-        IllegalArgumentException err = assertPathError(
-            mapMapList,
-            path,
-            "'foo'",
-            numberFormat("k012", path, 2));
+        IllegalArgumentException err = assertPathError(mapMapList, path, "'foo'", numberFormat("k012", path, 2));
         assertEquals(err.getCause().getClass(), NumberFormatException.class);
     }
 
     public void testListMapBiListObjectDefaultBadIndex() {
         String path = "2.m2.a8";
-        IllegalArgumentException err = assertPathError(
-            listMapListList,
-            path,
-            "'foo'",
-            numberFormat("a8", path, 2));
+        IllegalArgumentException err = assertPathError(listMapListList, path, "'foo'", numberFormat("a8", path, 2));
         assertEquals(err.getCause().getClass(), NumberFormatException.class);
     }
 
     public void testNonContainerDefaultBadIndex() {
-        assertPathError(mapMap, "a.b.c", "'foo'",
-            "Non-container [java.lang.String] at [c], index [2] in path [a.b.c]");
+        assertPathError(mapMap, "a.b.c", "'foo'", "Non-container [java.lang.String] at [c], index [2] in path [a.b.c]");
     }
 
     public void testDoubleDotDefault() {

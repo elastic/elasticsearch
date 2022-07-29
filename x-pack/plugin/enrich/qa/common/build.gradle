@@ -1,5 +1,4 @@
-apply plugin: 'elasticsearch.build'
-test.enabled = false
+apply plugin: 'elasticsearch.java'
 
 dependencies {
   api project(':test:framework')

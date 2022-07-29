@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
 
 import java.io.IOException;
@@ -41,10 +42,9 @@ public class HuberTests extends AbstractSerializingTestCase<Huber> {
     }
 
     public void testEvaluate() {
-        Aggregations aggs = new Aggregations(Arrays.asList(
-            mockSingleValue("regression_huber", 0.8123),
-            mockSingleValue("some_other_single_metric_agg", 0.2377)
-        ));
+        Aggregations aggs = new Aggregations(
+            Arrays.asList(mockSingleValue("regression_huber", 0.8123), mockSingleValue("some_other_single_metric_agg", 0.2377))
+        );
 
         Huber huber = new Huber((Double) null);
         huber.process(aggs);
@@ -55,9 +55,7 @@ public class HuberTests extends AbstractSerializingTestCase<Huber> {
     }
 
     public void testEvaluate_GivenMissingAggs() {
-        Aggregations aggs = new Aggregations(Collections.singletonList(
-            mockSingleValue("some_other_single_metric_agg", 0.2377)
-        ));
+        Aggregations aggs = new Aggregations(Collections.singletonList(mockSingleValue("some_other_single_metric_agg", 0.2377)));
 
         Huber huber = new Huber((Double) null);
         huber.process(aggs);

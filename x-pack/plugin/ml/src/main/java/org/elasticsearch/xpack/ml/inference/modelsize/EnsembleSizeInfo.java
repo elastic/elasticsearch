@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ml.inference.modelsize;
 
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.LogisticRegression;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference.EnsembleInferenceModel;
 
@@ -20,8 +21,8 @@ import java.util.Objects;
 
 import static org.apache.lucene.util.RamUsageEstimator.alignObjectSize;
 import static org.apache.lucene.util.RamUsageEstimator.sizeOfCollection;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.ml.inference.modelsize.SizeEstimatorHelper.sizeOfDoubleArray;
 import static org.elasticsearch.xpack.ml.inference.modelsize.SizeEstimatorHelper.sizeOfStringCollection;
 
@@ -39,12 +40,14 @@ public class EnsembleSizeInfo implements TrainedModelSizeInfo {
     static ConstructingObjectParser<EnsembleSizeInfo, Void> PARSER = new ConstructingObjectParser<>(
         "ensemble_size",
         false,
-        a -> new EnsembleSizeInfo((List<TreeSizeInfo>)a[0],
-            (Integer)a[1],
-            (List<Integer>)a[2],
-            a[3] == null ? 0 : (Integer)a[3],
-            a[4] == null ? 0 : (Integer)a[4],
-            a[5] == null ? 0 : (Integer)a[5])
+        a -> new EnsembleSizeInfo(
+            (List<TreeSizeInfo>) a[0],
+            (Integer) a[1],
+            (List<Integer>) a[2],
+            a[3] == null ? 0 : (Integer) a[3],
+            a[4] == null ? 0 : (Integer) a[4],
+            a[5] == null ? 0 : (Integer) a[5]
+        )
     );
     static {
         PARSER.declareObjectArray(constructorArg(), TreeSizeInfo.PARSER::apply, TREE_SIZES);
@@ -59,7 +62,6 @@ public class EnsembleSizeInfo implements TrainedModelSizeInfo {
         return PARSER.apply(parser, null);
     }
 
-
     private final List<TreeSizeInfo> treeSizeInfos;
     private final int numOperations;
     private final int[] featureNameLengths;
@@ -67,12 +69,14 @@ public class EnsembleSizeInfo implements TrainedModelSizeInfo {
     private final int numClassificationWeights;
     private final int numClasses;
 
-    public EnsembleSizeInfo(List<TreeSizeInfo> treeSizeInfos,
-                            int numOperations,
-                            List<Integer> featureNameLengths,
-                            int numOutputProcessorWeights,
-                            int numClassificationWeights,
-                            int numClasses) {
+    public EnsembleSizeInfo(
+        List<TreeSizeInfo> treeSizeInfos,
+        int numOperations,
+        List<Integer> featureNameLengths,
+        int numOutputProcessorWeights,
+        int numClassificationWeights,
+        int numClasses
+    ) {
         this.treeSizeInfos = treeSizeInfos;
         this.numOperations = numOperations;
         this.featureNameLengths = featureNameLengths.stream().mapToInt(Integer::intValue).toArray();
@@ -114,12 +118,12 @@ public class EnsembleSizeInfo implements TrainedModelSizeInfo {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         EnsembleSizeInfo that = (EnsembleSizeInfo) o;
-        return numOperations == that.numOperations &&
-            numOutputProcessorWeights == that.numOutputProcessorWeights &&
-            numClassificationWeights == that.numClassificationWeights &&
-            numClasses == that.numClasses &&
-            Objects.equals(treeSizeInfos, that.treeSizeInfos) &&
-            Arrays.equals(featureNameLengths, that.featureNameLengths);
+        return numOperations == that.numOperations
+            && numOutputProcessorWeights == that.numOutputProcessorWeights
+            && numClassificationWeights == that.numClassificationWeights
+            && numClasses == that.numClasses
+            && Objects.equals(treeSizeInfos, that.treeSizeInfos)
+            && Arrays.equals(featureNameLengths, that.featureNameLengths);
     }
 
     @Override

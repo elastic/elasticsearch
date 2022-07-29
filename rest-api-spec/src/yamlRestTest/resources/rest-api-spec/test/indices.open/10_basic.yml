@@ -1,0 +1,150 @@
+---
+"Basic test for index open/close":
+  - skip:
+      features: ["allowed_warnings"]
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            number_of_replicas: 0
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+
+  - do:
+      indices.close:
+        index: test_index
+      allowed_warnings:
+        - "the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
+  - is_true: acknowledged
+
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        index: test_index
+
+  - do:
+      indices.open:
+        index: test_index
+  - is_true: acknowledged
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_index
+
+---
+"Open index with wait_for_active_shards set to all":
+  - skip:
+      features: ["allowed_warnings"]
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            number_of_replicas: 0
+
+  - do:
+      indices.close:
+        index: test_index
+      allowed_warnings:
+        - "the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
+  - is_true: acknowledged
+
+  - do:
+      indices.open:
+        index: test_index
+        wait_for_active_shards: all
+  - is_true: acknowledged
+  - match: { acknowledged: true }
+  - match: { shards_acknowledged: true }
+
+---
+"Close index with wait_for_active_shards set to all":
+  - skip:
+      version: " - 7.1.99"
+      reason:  "closed indices are replicated starting version 7.2.0"
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            number_of_replicas: 0
+
+  - do:
+      indices.close:
+        index: test_index
+        wait_for_active_shards: all
+  - is_true: acknowledged
+  - match: { acknowledged: true }
+  - match: { shards_acknowledged: true }
+---
+"Close index response with result per index":
+  - skip:
+      features: ["allowed_warnings"]
+
+  - do:
+      indices.create:
+        index: index_1
+        body:
+          settings:
+            number_of_replicas: 0
+
+  - do:
+      indices.create:
+        index: index_2
+        body:
+          settings:
+            number_of_replicas: 0
+
+  - do:
+      indices.create:
+        index: index_3
+        body:
+          settings:
+            number_of_replicas: 0
+
+  - do:
+      indices.close:
+        index: "index_*"
+      allowed_warnings:
+        - "the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
+
+  - match: { acknowledged: true }
+  - match: { shards_acknowledged: true }
+  - match: { indices.index_1.closed: true }
+  - match: { indices.index_2.closed: true }
+  - match: { indices.index_3.closed: true }
+
+---
+"?wait_for_active_shards=index-setting is deprecated":
+  - skip:
+      version: " - 7.99.99"
+      reason: "required deprecation warning is only emitted in 8.0 and later"
+      features: ["warnings", "node_selector"]
+
+  - do:
+      indices.create:
+        index: index_1
+        body:
+          settings:
+            number_of_replicas: 0
+
+  - do:
+      indices.close:
+        index: "index_*"
+        wait_for_active_shards: index-setting
+      node_selector:
+        version: "8.0.0 - "
+      warnings:
+        - "?wait_for_active_shards=index-setting is now the default behaviour; the 'index-setting' value for this parameter should no longer be used since it will become unsupported in version 9"

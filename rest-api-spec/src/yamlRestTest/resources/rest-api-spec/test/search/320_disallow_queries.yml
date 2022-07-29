@@ -1,0 +1,147 @@
+---
+setup:
+  - skip:
+      version: " - 7.6.99"
+      reason: "implemented in 7.7.0"
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              text:
+                type: text
+                analyzer: standard
+                fields:
+                  raw:
+                    type: keyword
+              nested1:
+                type: nested
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "test", "_id": "1"}}'
+          - '{"text" : "Some like it hot, some like it cold", "nested1": [{"foo": "bar1"}]}'
+          - '{"index": {"_index": "test", "_id": "2"}}'
+          - '{"text" : "Its cold outside, theres no kind of atmosphere", "nested1": [{"foo": "bar2"}]}'
+          - '{"index": {"_index": "test", "_id": "3"}}'
+          - '{"text" : "Baby its cold there outside", "nested1": [{"foo": "bar3"}]}'
+          - '{"index": {"_index": "test", "_id": "4"}}'
+          - '{"text" : "Outside it is cold and wet", "nested1": [{"foo": "bar4"}]}'
+
+---
+teardown:
+  - skip:
+      version: " - 7.6.99"
+      reason: "implemented in 7.7.0"
+
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            search.allow_expensive_queries: null
+
+---
+"Test disallow expensive queries":
+  - skip:
+      version: " - 7.6.99"
+      reason: "implemented in 7.7.0"
+
+  ### Check for initial setting = null -> false
+  - do:
+      cluster.get_settings:
+        flat_settings: true
+
+  - is_false: search.allow_expensive_queries
+
+  ### Update setting to false
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            search.allow_expensive_queries: "false"
+        flat_settings: true
+
+  - match: {persistent: {search.allow_expensive_queries: "false"}}
+
+  ### Prefix
+  - do:
+      catch: /\[prefix\] queries cannot be executed when \'search.allow_expensive_queries\' is set to false. For optimised prefix queries on text fields please enable \[index_prefixes\]./
+      search:
+        index: test
+        body:
+          query:
+            prefix:
+              text:
+                value: out
+
+  ### Fuzzy
+  - do:
+      catch: /\[fuzzy\] queries cannot be executed when \'search.allow_expensive_queries\' is set to false./
+      search:
+        index: test
+        body:
+          query:
+            fuzzy:
+              text:
+                value: outwide
+
+  ### Regexp
+  - do:
+      catch: /\[regexp\] queries cannot be executed when \'search.allow_expensive_queries\' is set to false./
+      search:
+        index: test
+        body:
+          query:
+            regexp:
+              text:
+                value: .*ou.*id.*
+
+  ### Wildcard
+  - do:
+      catch: /\[wildcard\] queries cannot be executed when \'search.allow_expensive_queries\' is set to false./
+      search:
+        index: test
+        body:
+          query:
+            wildcard:
+              text:
+                value: out?ide
+
+  ### Range on text
+  - do:
+      catch: /\[range\] queries on \[text\] or \[keyword\] fields cannot be executed when \'search.allow_expensive_queries\' is set to false./
+      search:
+        index: test
+        body:
+          query:
+            range:
+              text:
+                gte: "theres"
+
+  ### Range on keyword
+  - do:
+      catch: /\[range\] queries on \[text\] or \[keyword\] fields cannot be executed when \'search.allow_expensive_queries\' is set to false./
+      search:
+        index: test
+        body:
+          query:
+            range:
+              text.raw:
+                gte : "Outside it is cold and wet"
+
+  ### Nested
+  - do:
+      catch: /\[joining\] queries cannot be executed when \'search.allow_expensive_queries\' is set to false./
+      search:
+        index: test
+        body:
+          query:
+            nested:
+              path: "nested1"
+              query:
+                bool:
+                  must: [{"match" : {"nested1.foo" : "bar2"}}]

@@ -1,29 +1,18 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.indices;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 
@@ -48,17 +37,10 @@ public class TermsLookupTests extends ESTestCase {
         String path = randomAlphaOfLength(5);
         String index = randomAlphaOfLength(5);
         switch (randomIntBetween(0, 2)) {
-            case 0:
-                id = null;
-                break;
-            case 1:
-                path = null;
-                break;
-            case 2:
-                index = null;
-                break;
-            default:
-                fail("unknown case");
+            case 0 -> id = null;
+            case 1 -> path = null;
+            case 2 -> index = null;
+            default -> fail("unknown case");
         }
         try {
             new TermsLookup(index, id, path);
@@ -81,8 +63,8 @@ public class TermsLookupTests extends ESTestCase {
     }
 
     public void testXContentParsing() throws IOException {
-        XContentParser parser = createParser(JsonXContent.jsonXContent,
-            "{ \"index\" : \"index\", \"id\" : \"id\", \"path\" : \"path\", \"routing\" : \"routing\" }");
+        XContentParser parser = createParser(JsonXContent.jsonXContent, """
+            { "index" : "index", "id" : "id", "path" : "path", "routing" : "routing" }""");
 
         TermsLookup tl = TermsLookup.parseTermsLookup(parser);
         assertEquals("index", tl.index());
@@ -92,11 +74,9 @@ public class TermsLookupTests extends ESTestCase {
     }
 
     public static TermsLookup randomTermsLookup() {
-        return new TermsLookup(
-            randomAlphaOfLength(10),
-            randomAlphaOfLength(10),
-            randomAlphaOfLength(10).replace('.', '_')
-        ).routing(randomBoolean() ? randomAlphaOfLength(10) : null);
+        return new TermsLookup(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10).replace('.', '_')).routing(
+            randomBoolean() ? randomAlphaOfLength(10) : null
+        );
     }
 
 }

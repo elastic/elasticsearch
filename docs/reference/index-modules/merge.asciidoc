@@ -15,7 +15,7 @@ resources between merging and other activities like search.
 === Merge scheduling
 
 The merge scheduler (ConcurrentMergeScheduler) controls the execution of merge
-operations when they are needed.  Merges run in separate threads, and when the
+operations when they are needed. Merges run in separate threads, and when the
 maximum number of threads is reached, further merges will wait until a merge
 thread becomes available.
 
@@ -26,6 +26,6 @@ The merge scheduler supports the following _dynamic_ setting:
     The maximum number of threads on a single shard that may be merging at once.
 	Defaults to
     `Math.max(1, Math.min(4, <<node.processors, node.processors>> / 2))` which
-    works well for a good solid-state-disk (SSD).  If your index is on spinning
+    works well for a good solid-state-disk (SSD). If your index is on spinning
     platter drives instead, decrease this to 1.
 

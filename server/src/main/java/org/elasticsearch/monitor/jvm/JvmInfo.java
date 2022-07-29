@@ -1,35 +1,23 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.monitor.jvm;
 
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.node.ReportingService;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.lang.management.GarbageCollectorMXBean;
@@ -46,7 +34,7 @@ import java.util.Map;
 
 public class JvmInfo implements ReportingService.Info {
 
-    private static JvmInfo INSTANCE;
+    private static final JvmInfo INSTANCE;
 
     static {
         RuntimeMXBean runtimeMXBean = ManagementFactory.getRuntimeMXBean();
@@ -103,8 +91,10 @@ public class JvmInfo implements ReportingService.Info {
         long configuredInitialHeapSize = -1;
         long configuredMaxHeapSize = -1;
         try {
-            @SuppressWarnings("unchecked") Class<? extends PlatformManagedObject> clazz =
-                    (Class<? extends PlatformManagedObject>)Class.forName("com.sun.management.HotSpotDiagnosticMXBean");
+            @SuppressWarnings("unchecked")
+            Class<? extends PlatformManagedObject> clazz = (Class<? extends PlatformManagedObject>) Class.forName(
+                "com.sun.management.HotSpotDiagnosticMXBean"
+            );
             Class<?> vmOptionClazz = Class.forName("com.sun.management.VMOption");
             PlatformManagedObject hotSpotDiagnosticMXBean = ManagementFactory.getPlatformMXBean(clazz);
             Method vmOptionMethod = clazz.getMethod("getVMOption", String.class);
@@ -113,80 +103,69 @@ public class JvmInfo implements ReportingService.Info {
             try {
                 Object onErrorObject = vmOptionMethod.invoke(hotSpotDiagnosticMXBean, "OnError");
                 onError = (String) valueMethod.invoke(onErrorObject);
-            } catch (Exception ignored) {
-            }
+            } catch (Exception ignored) {}
 
             try {
                 Object onOutOfMemoryErrorObject = vmOptionMethod.invoke(hotSpotDiagnosticMXBean, "OnOutOfMemoryError");
                 onOutOfMemoryError = (String) valueMethod.invoke(onOutOfMemoryErrorObject);
-            } catch (Exception ignored) {
-            }
+            } catch (Exception ignored) {}
 
             try {
                 Object useCompressedOopsVmOptionObject = vmOptionMethod.invoke(hotSpotDiagnosticMXBean, "UseCompressedOops");
                 useCompressedOops = (String) valueMethod.invoke(useCompressedOopsVmOptionObject);
-            } catch (Exception ignored) {
-            }
+            } catch (Exception ignored) {}
 
             try {
                 Object useG1GCVmOptionObject = vmOptionMethod.invoke(hotSpotDiagnosticMXBean, "UseG1GC");
                 useG1GC = (String) valueMethod.invoke(useG1GCVmOptionObject);
                 Object regionSizeVmOptionObject = vmOptionMethod.invoke(hotSpotDiagnosticMXBean, "G1HeapRegionSize");
                 g1RegisionSize = Long.parseLong((String) valueMethod.invoke(regionSizeVmOptionObject));
-            } catch (Exception ignored) {
-            }
+            } catch (Exception ignored) {}
 
             try {
                 Object initialHeapSizeVmOptionObject = vmOptionMethod.invoke(hotSpotDiagnosticMXBean, "InitialHeapSize");
                 configuredInitialHeapSize = Long.parseLong((String) valueMethod.invoke(initialHeapSizeVmOptionObject));
-            } catch (Exception ignored) {
-            }
+            } catch (Exception ignored) {}
 
             try {
                 Object maxHeapSizeVmOptionObject = vmOptionMethod.invoke(hotSpotDiagnosticMXBean, "MaxHeapSize");
                 configuredMaxHeapSize = Long.parseLong((String) valueMethod.invoke(maxHeapSizeVmOptionObject));
-            } catch (Exception ignored) {
-            }
+            } catch (Exception ignored) {}
 
             try {
                 Object useSerialGCVmOptionObject = vmOptionMethod.invoke(hotSpotDiagnosticMXBean, "UseSerialGC");
                 useSerialGC = (String) valueMethod.invoke(useSerialGCVmOptionObject);
-            } catch (Exception ignored) {
-            }
+            } catch (Exception ignored) {}
 
         } catch (Exception ignored) {
 
         }
 
-        final boolean bundledJdk = Booleans.parseBoolean(System.getProperty("es.bundled_jdk", Boolean.FALSE.toString()));
-        final Boolean usingBundledJdk = bundledJdk ? usingBundledJdk() : null;
-
         INSTANCE = new JvmInfo(
-                ProcessHandle.current().pid(),
-                System.getProperty("java.version"),
-                runtimeMXBean.getVmName(),
-                runtimeMXBean.getVmVersion(),
-                runtimeMXBean.getVmVendor(),
-                bundledJdk,
-                usingBundledJdk,
-                runtimeMXBean.getStartTime(),
-                configuredInitialHeapSize,
-                configuredMaxHeapSize,
-                mem,
-                inputArguments,
-                bootClassPath,
-                classPath,
-                systemProperties,
-                gcCollectors,
-                memoryPools,
-                onError,
-                onOutOfMemoryError,
-                useCompressedOops,
-                useG1GC,
-                useSerialGC,
-                g1RegisionSize);
+            ProcessHandle.current().pid(),
+            System.getProperty("java.version"),
+            runtimeMXBean.getVmName(),
+            runtimeMXBean.getVmVersion(),
+            runtimeMXBean.getVmVendor(),
+            usingBundledJdk(),
+            runtimeMXBean.getStartTime(),
+            configuredInitialHeapSize,
+            configuredMaxHeapSize,
+            mem,
+            inputArguments,
+            bootClassPath,
+            classPath,
+            systemProperties,
+            gcCollectors,
+            memoryPools,
+            onError,
+            onOutOfMemoryError,
+            useCompressedOops,
+            useG1GC,
+            useSerialGC,
+            g1RegisionSize
+        );
     }
-
 
     @SuppressForbidden(reason = "PathUtils#get")
     private static boolean usingBundledJdk() {
@@ -197,7 +176,7 @@ public class JvmInfo implements ReportingService.Info {
         final String javaHome = System.getProperty("java.home");
         final String userDir = System.getProperty("user.dir");
         if (Constants.MAC_OS_X) {
-            return PathUtils.get(javaHome).equals(PathUtils.get(userDir).resolve("jdk/Contents/Home").toAbsolutePath());
+            return PathUtils.get(javaHome).equals(PathUtils.get(userDir).resolve("jdk.app/Contents/Home").toAbsolutePath());
         } else {
             return PathUtils.get(javaHome).equals(PathUtils.get(userDir).resolve("jdk").toAbsolutePath());
         }
@@ -217,7 +196,6 @@ public class JvmInfo implements ReportingService.Info {
     private final String vmName;
     private final String vmVersion;
     private final String vmVendor;
-    private final boolean bundledJdk;
     private final Boolean usingBundledJdk;
     private final long startTime;
     private final long configuredInitialHeapSize;
@@ -236,17 +214,35 @@ public class JvmInfo implements ReportingService.Info {
     private final String useSerialGC;
     private final long g1RegionSize;
 
-    private JvmInfo(long pid, String version, String vmName, String vmVersion, String vmVendor, boolean bundledJdk, Boolean usingBundledJdk,
-                    long startTime, long configuredInitialHeapSize, long configuredMaxHeapSize, Mem mem, String[] inputArguments,
-                    String bootClassPath, String classPath, Map<String, String> systemProperties, String[] gcCollectors,
-                    String[] memoryPools, String onError, String onOutOfMemoryError, String useCompressedOops, String useG1GC,
-                    String useSerialGC, long g1RegionSize) {
+    private JvmInfo(
+        long pid,
+        String version,
+        String vmName,
+        String vmVersion,
+        String vmVendor,
+        Boolean usingBundledJdk,
+        long startTime,
+        long configuredInitialHeapSize,
+        long configuredMaxHeapSize,
+        Mem mem,
+        String[] inputArguments,
+        String bootClassPath,
+        String classPath,
+        Map<String, String> systemProperties,
+        String[] gcCollectors,
+        String[] memoryPools,
+        String onError,
+        String onOutOfMemoryError,
+        String useCompressedOops,
+        String useG1GC,
+        String useSerialGC,
+        long g1RegionSize
+    ) {
         this.pid = pid;
         this.version = version;
         this.vmName = vmName;
         this.vmVersion = vmVersion;
         this.vmVendor = vmVendor;
-        this.bundledJdk = bundledJdk;
         this.usingBundledJdk = usingBundledJdk;
         this.startTime = startTime;
         this.configuredInitialHeapSize = configuredInitialHeapSize;
@@ -272,13 +268,11 @@ public class JvmInfo implements ReportingService.Info {
         vmName = in.readString();
         vmVersion = in.readString();
         vmVendor = in.readString();
-        if (in.getVersion().onOrAfter(Version.V_7_0_0)) {
-            bundledJdk = in.readBoolean();
-            usingBundledJdk = in.readOptionalBoolean();
-        } else {
-            bundledJdk = false;
-            usingBundledJdk = null;
+        if (in.getVersion().before(Version.V_8_3_0)) {
+            // Before 8.0 the no-jdk distributions could have bundledJdk false, this is always true now.
+            in.readBoolean();
         }
+        usingBundledJdk = in.readOptionalBoolean();
         startTime = in.readLong();
         inputArguments = new String[in.readInt()];
         for (int i = 0; i < inputArguments.length; i++) {
@@ -291,7 +285,7 @@ public class JvmInfo implements ReportingService.Info {
         gcCollectors = in.readStringArray();
         memoryPools = in.readStringArray();
         useCompressedOops = in.readString();
-        //the following members are only used locally for bootstrap checks, never serialized nor printed out
+        // the following members are only used locally for bootstrap checks, never serialized nor printed out
         this.configuredMaxHeapSize = -1;
         this.configuredInitialHeapSize = -1;
         this.onError = null;
@@ -308,10 +302,10 @@ public class JvmInfo implements ReportingService.Info {
         out.writeString(vmName);
         out.writeString(vmVersion);
         out.writeString(vmVendor);
-        if (out.getVersion().onOrAfter(Version.V_7_0_0)) {
-            out.writeBoolean(bundledJdk);
-            out.writeOptionalBoolean(usingBundledJdk);
+        if (out.getVersion().before(Version.V_8_3_0)) {
+            out.writeBoolean(true);
         }
+        out.writeOptionalBoolean(usingBundledJdk);
         out.writeLong(startTime);
         out.writeInt(inputArguments.length);
         for (String inputArgument : inputArguments) {
@@ -319,11 +313,7 @@ public class JvmInfo implements ReportingService.Info {
         }
         out.writeString(bootClassPath);
         out.writeString(classPath);
-        out.writeVInt(this.systemProperties.size());
-        for (Map.Entry<String, String> entry : systemProperties.entrySet()) {
-            out.writeString(entry.getKey());
-            out.writeString(entry.getValue());
-        }
+        out.writeMap(this.systemProperties, StreamOutput::writeString, StreamOutput::writeString);
         mem.writeTo(out);
         out.writeStringArray(gcCollectors);
         out.writeStringArray(memoryPools);
@@ -352,68 +342,6 @@ public class JvmInfo implements ReportingService.Info {
         return this.version;
     }
 
-    public int versionAsInteger() {
-        try {
-            int i = 0;
-            StringBuilder sVersion = new StringBuilder();
-            for (; i < version.length(); i++) {
-                if (!Character.isDigit(version.charAt(i)) && version.charAt(i) != '.') {
-                    break;
-                }
-                if (version.charAt(i) != '.') {
-                    sVersion.append(version.charAt(i));
-                }
-            }
-            if (i == 0) {
-                return -1;
-            }
-            return Integer.parseInt(sVersion.toString());
-        } catch (Exception e) {
-            return -1;
-        }
-    }
-
-    public int versionUpdatePack() {
-        try {
-            int i = 0;
-            StringBuilder sVersion = new StringBuilder();
-            for (; i < version.length(); i++) {
-                if (!Character.isDigit(version.charAt(i)) && version.charAt(i) != '.') {
-                    break;
-                }
-                if (version.charAt(i) != '.') {
-                    sVersion.append(version.charAt(i));
-                }
-            }
-            if (i == 0) {
-                return -1;
-            }
-            Integer.parseInt(sVersion.toString());
-            int from;
-            if (version.charAt(i) == '_') {
-                // 1.7.0_4
-                from = ++i;
-            } else if (version.charAt(i) == '-' && version.charAt(i + 1) == 'u') {
-                // 1.7.0-u2-b21
-                i = i + 2;
-                from = i;
-            } else {
-                return -1;
-            }
-            for (; i < version.length(); i++) {
-                if (!Character.isDigit(version.charAt(i)) && version.charAt(i) != '.') {
-                    break;
-                }
-            }
-            if (from == i) {
-                return -1;
-            }
-            return Integer.parseInt(version.substring(from, i));
-        } catch (Exception e) {
-            return -1;
-        }
-    }
-
     public String getVmName() {
         return this.vmName;
     }
@@ -424,10 +352,6 @@ public class JvmInfo implements ReportingService.Info {
 
     public String getVmVendor() {
         return this.vmVendor;
-    }
-
-    public boolean getBundledJdk() {
-        return bundledJdk;
     }
 
     public Boolean getUsingBundledJdk() {
@@ -444,18 +368,6 @@ public class JvmInfo implements ReportingService.Info {
 
     public String[] getInputArguments() {
         return this.inputArguments;
-    }
-
-    public String getBootClassPath() {
-        return this.bootClassPath;
-    }
-
-    public String getClassPath() {
-        return this.classPath;
-    }
-
-    public Map<String, String> getSystemProperties() {
-        return this.systemProperties;
     }
 
     public long getConfiguredInitialHeapSize() {
@@ -498,14 +410,6 @@ public class JvmInfo implements ReportingService.Info {
         return g1RegionSize;
     }
 
-    public String[] getGcCollectors() {
-        return gcCollectors;
-    }
-
-    public String[] getMemoryPools() {
-        return memoryPools;
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.JVM);
@@ -514,7 +418,6 @@ public class JvmInfo implements ReportingService.Info {
         builder.field(Fields.VM_NAME, vmName);
         builder.field(Fields.VM_VERSION, vmVersion);
         builder.field(Fields.VM_VENDOR, vmVendor);
-        builder.field(Fields.BUNDLED_JDK, bundledJdk);
         builder.field(Fields.USING_BUNDLED_JDK, usingBundledJdk);
         builder.timeField(Fields.START_TIME_IN_MILLIS, Fields.START_TIME, startTime);
 
@@ -544,7 +447,6 @@ public class JvmInfo implements ReportingService.Info {
         static final String VM_NAME = "vm_name";
         static final String VM_VERSION = "vm_version";
         static final String VM_VENDOR = "vm_vendor";
-        static final String BUNDLED_JDK = "bundled_jdk";
         static final String USING_BUNDLED_JDK = "using_bundled_jdk";
         static final String START_TIME = "start_time";
         static final String START_TIME_IN_MILLIS = "start_time_in_millis";
@@ -607,16 +509,5 @@ public class JvmInfo implements ReportingService.Info {
             return new ByteSizeValue(heapMax);
         }
 
-        public ByteSizeValue getNonHeapInit() {
-            return new ByteSizeValue(nonHeapInit);
-        }
-
-        public ByteSizeValue getNonHeapMax() {
-            return new ByteSizeValue(nonHeapMax);
-        }
-
-        public ByteSizeValue getDirectMemoryMax() {
-            return new ByteSizeValue(directMemoryMax);
-        }
     }
 }

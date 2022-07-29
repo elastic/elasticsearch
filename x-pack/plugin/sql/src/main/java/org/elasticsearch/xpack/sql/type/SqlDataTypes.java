@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql.type;
@@ -11,25 +12,26 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.sql.expression.literal.geo.GeoShape;
 import org.elasticsearch.xpack.sql.expression.literal.interval.Interval;
 import org.elasticsearch.xpack.sql.expression.literal.interval.Intervals;
+import org.elasticsearch.xpack.versionfield.Version;
 
 import java.sql.JDBCType;
 import java.sql.SQLType;
 import java.time.OffsetTime;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.unmodifiableMap;
-import static java.util.stream.Collectors.toUnmodifiableList;
 import static java.util.stream.Collectors.toUnmodifiableMap;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BINARY;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BYTE;
-import static org.elasticsearch.xpack.ql.type.DataTypes.CONSTANT_KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.FLOAT;
@@ -44,12 +46,15 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.OBJECT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.SCALED_FLOAT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.SHORT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
+import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSUPPORTED;
+import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
+import static org.elasticsearch.xpack.ql.type.DataTypes.isDateTime;
 import static org.elasticsearch.xpack.ql.util.CollectionUtils.mapSize;
 
 public class SqlDataTypes {
 
-    // @formatter:off
+    // tag::noformat
     // date-only, time-only
     public static final DataType DATE = new DataType("DATE", null, Long.BYTES, false, false, true);
     public static final DataType TIME = new DataType("TIME", null, Long.BYTES, false, false, true);
@@ -84,7 +89,7 @@ public class SqlDataTypes {
     public static final DataType GEO_SHAPE = new DataType("geo_shape", Integer.MAX_VALUE, false, false, false);
     public static final DataType GEO_POINT = new DataType("geo_point", Double.BYTES * 2,  false, false, false);
     public static final DataType SHAPE =     new DataType("shape",     Integer.MAX_VALUE, false, false, false);
-    // @formatter:on
+    // end::noformat
 
     private static final Map<String, DataType> ODBC_TO_ES = new HashMap<>(mapSize(38));
 
@@ -95,6 +100,7 @@ public class SqlDataTypes {
         ODBC_TO_ES.put("SQL_SMALLINT", SHORT);
         ODBC_TO_ES.put("SQL_INTEGER", INTEGER);
         ODBC_TO_ES.put("SQL_BIGINT", LONG);
+        ODBC_TO_ES.put("SQL_UBIGINT", UNSIGNED_LONG);
         ODBC_TO_ES.put("SQL_REAL", FLOAT);
         ODBC_TO_ES.put("SQL_FLOAT", DOUBLE);
         ODBC_TO_ES.put("SQL_DOUBLE", DOUBLE);
@@ -136,7 +142,9 @@ public class SqlDataTypes {
         ODBC_TO_ES.put("SQL_INTERVAL_MINUTE_TO_SECOND", INTERVAL_MINUTE_TO_SECOND);
     }
 
-    private static final Collection<DataType> TYPES = Stream.concat(DataTypes.types().stream(), Stream.of(
+    private static final Collection<DataType> TYPES = Stream.concat(
+        DataTypes.types().stream(),
+        Stream.of(
             DATE,
             TIME,
             INTERVAL_YEAR,
@@ -154,16 +162,19 @@ public class SqlDataTypes {
             INTERVAL_MINUTE_TO_SECOND,
             GEO_SHAPE,
             GEO_POINT,
-            SHAPE))
-            .sorted(Comparator.comparing(DataType::typeName))
-            .collect(toUnmodifiableList());
+            SHAPE
+        )
+    ).sorted(Comparator.comparing(DataType::typeName)).toList();
 
-    private static final Map<String, DataType> NAME_TO_TYPE = TYPES.stream()
-            .collect(toUnmodifiableMap(DataType::typeName, t -> t));
+    private static final Map<String, DataType> NAME_TO_TYPE = TYPES.stream().collect(toUnmodifiableMap(DataType::typeName, t -> t));
 
-    private static final Map<String, DataType> ES_TO_TYPE = TYPES.stream()
-            .filter(e -> e.esType() != null)
-            .collect(toUnmodifiableMap(DataType::esType, t -> t));
+    private static final Map<String, DataType> ES_TO_TYPE;
+
+    static {
+        Map<String, DataType> map = TYPES.stream().filter(e -> e.esType() != null).collect(Collectors.toMap(DataType::esType, t -> t));
+        map.put("date_nanos", DATETIME);
+        ES_TO_TYPE = Collections.unmodifiableMap(map);
+    }
 
     private static final Map<String, DataType> SQL_TO_ES;
 
@@ -220,6 +231,9 @@ public class SqlDataTypes {
         if (value instanceof GeoShape) {
             return GEO_SHAPE;
         }
+        if (value instanceof Version) {
+            return VERSION;
+        }
 
         return null;
     }
@@ -237,14 +251,20 @@ public class SqlDataTypes {
     }
 
     public static boolean isDayTimeInterval(DataType dataType) {
-        return dataType == INTERVAL_DAY || dataType == INTERVAL_HOUR  || dataType == INTERVAL_MINUTE || dataType == INTERVAL_SECOND
-                || dataType == INTERVAL_DAY_TO_HOUR || dataType == INTERVAL_DAY_TO_MINUTE  || dataType == INTERVAL_DAY_TO_SECOND
-                || dataType == INTERVAL_HOUR_TO_MINUTE || dataType == INTERVAL_HOUR_TO_SECOND
-                || dataType == INTERVAL_MINUTE_TO_SECOND;
+        return dataType == INTERVAL_DAY
+            || dataType == INTERVAL_HOUR
+            || dataType == INTERVAL_MINUTE
+            || dataType == INTERVAL_SECOND
+            || dataType == INTERVAL_DAY_TO_HOUR
+            || dataType == INTERVAL_DAY_TO_MINUTE
+            || dataType == INTERVAL_DAY_TO_SECOND
+            || dataType == INTERVAL_HOUR_TO_MINUTE
+            || dataType == INTERVAL_HOUR_TO_SECOND
+            || dataType == INTERVAL_MINUTE_TO_SECOND;
     }
 
     public static boolean isDateBased(DataType type) {
-        return type == DATE || type == DATETIME;
+        return isDateTime(type) || type == DATE;
     }
 
     public static boolean isTimeBased(DataType type) {
@@ -264,17 +284,16 @@ public class SqlDataTypes {
     }
 
     public static String format(DataType type) {
-        return isDateOrTimeBased(type) ? "epoch_millis" : null;
+        return isDateOrTimeBased(type) ? "strict_date_optional_time_nanos" : null;
     }
 
     public static boolean isFromDocValuesOnly(DataType dataType) {
         return dataType == KEYWORD // because of ignore_above. Extracting this from _source wouldn't make sense
-                || dataType == DATE         // because of date formats
-                || dataType == DATETIME
-                || dataType == SCALED_FLOAT // because of scaling_factor
-                || dataType == CONSTANT_KEYWORD
-                || dataType == GEO_POINT
-                || dataType == SHAPE;
+            || dataType == DATE         // because of date formats
+            || dataType == DATETIME
+            || dataType == SCALED_FLOAT // because of scaling_factor
+            || dataType == GEO_POINT
+            || dataType == SHAPE;
     }
 
     public static boolean areCompatible(DataType left, DataType right) {
@@ -282,10 +301,12 @@ public class SqlDataTypes {
             return true;
         } else {
             return (left == NULL || right == NULL)
-                    || (DataTypes.isString(left) && DataTypes.isString(right))
-                    || (left.isNumeric() && right.isNumeric())
-                    || (isDateBased(left) && isDateBased(right))
-                    || (isInterval(left) && isInterval(right) && Intervals.compatibleInterval(left, right) != null);
+                || (DataTypes.isString(left) && DataTypes.isString(right))
+                || (left.isNumeric() && right.isNumeric())
+                || (isDateBased(left) && isDateBased(right))
+                || (isInterval(left) && isDateBased(right))
+                || (isDateBased(left) && isInterval(right))
+                || (isInterval(left) && isInterval(right) && Intervals.compatibleInterval(left, right) != null);
         }
     }
 
@@ -319,6 +340,9 @@ public class SqlDataTypes {
         if (dataType == LONG) {
             return JDBCType.BIGINT;
         }
+        if (dataType == UNSIGNED_LONG) {
+            return JDBCType.NUMERIC;
+        }
         if (dataType == DOUBLE) {
             return JDBCType.DOUBLE;
         }
@@ -337,13 +361,13 @@ public class SqlDataTypes {
         if (dataType == TEXT) {
             return JDBCType.VARCHAR;
         }
-        if (dataType == CONSTANT_KEYWORD) {
-            return JDBCType.VARCHAR;
-        }
-        if (dataType == DATETIME) {
+        if (isDateTime(dataType)) {
             return JDBCType.TIMESTAMP;
         }
         if (dataType == IP) {
+            return JDBCType.VARCHAR;
+        }
+        if (dataType == VERSION) {
             return JDBCType.VARCHAR;
         }
         if (dataType == BINARY) {
@@ -445,6 +469,9 @@ public class SqlDataTypes {
         if (dataType == LONG) {
             return 19;
         }
+        if (dataType == UNSIGNED_LONG) {
+            return 20;
+        }
         if (dataType == DOUBLE) {
             return 15;
         }
@@ -463,13 +490,13 @@ public class SqlDataTypes {
         if (dataType == TEXT) {
             return 32766;
         }
-        if (dataType == CONSTANT_KEYWORD) {
-            return 15;
-        }
-        if (dataType == DATETIME) {
-            return 3;
+        if (isDateTime(dataType)) {
+            return 9;
         }
         if (dataType == IP) {
+            return dataType.size();
+        }
+        if (dataType == VERSION) {
             return dataType.size();
         }
         if (dataType == BINARY) {
@@ -491,7 +518,7 @@ public class SqlDataTypes {
             return 3;
         }
         if (dataType == TIME) {
-            return 3;
+            return 9;
         }
 
         if (dataType == GEO_SHAPE) {
@@ -565,7 +592,7 @@ public class SqlDataTypes {
         if (dataType == INTEGER) {
             return 11;
         }
-        if (dataType == LONG) {
+        if (dataType == LONG || dataType == UNSIGNED_LONG) {
             return 20;
         }
         if (dataType == DOUBLE) {
@@ -586,13 +613,13 @@ public class SqlDataTypes {
         if (dataType == TEXT) {
             return dataType.size();
         }
-        if (dataType == CONSTANT_KEYWORD) {
-            return 32766;
-        }
-        if (dataType == DATETIME) {
-            return 29;
+        if (isDateTime(dataType)) {
+            return 34;
         }
         if (dataType == IP) {
+            return dataType.size();
+        }
+        if (dataType == VERSION) {
             return dataType.size();
         }
         if (dataType == BINARY) {
@@ -611,13 +638,13 @@ public class SqlDataTypes {
             return 29;
         }
         if (dataType == TIME) {
-            return 18;
+            return 24;
         }
         if (dataType == GEO_SHAPE) {
             return dataType.size();
         }
         if (dataType == GEO_POINT) {
-            //2 doubles + len("POINT( )")
+            // 2 doubles + len("POINT( )")
             return 25 * 2 + 8;
         }
         if (dataType == SHAPE) {
@@ -639,7 +666,7 @@ public class SqlDataTypes {
     // https://docs.microsoft.com/en-us/sql/relational-databases/native-client-odbc-date-time/metadata-catalog
     // https://github.com/elastic/elasticsearch/issues/30386
     public static Integer metaSqlDataType(DataType t) {
-        if (t == DATETIME) {
+        if (isDateTime(t)) {
             // ODBC SQL_DATETME
             return Integer.valueOf(9);
         }
@@ -650,7 +677,7 @@ public class SqlDataTypes {
     // https://github.com/elastic/elasticsearch/issues/30386
     // https://docs.microsoft.com/en-us/sql/odbc/reference/syntax/sqlgettypeinfo-function
     public static Integer metaSqlDateTimeSub(DataType t) {
-        if (t == DATETIME) {
+        if (isDateTime(t)) {
             // ODBC SQL_CODE_TIMESTAMP
             return Integer.valueOf(3);
         } else if (t == DATE) {
@@ -681,7 +708,7 @@ public class SqlDataTypes {
         if (t.isInteger()) {
             return Short.valueOf((short) 0);
         }
-        if (t == DATETIME || t == TIME || t.isRational()) {
+        if (isDateTime(t) || t == TIME || t.isRational()) {
             return Short.valueOf((short) defaultPrecision(t));
         }
         return null;
@@ -689,15 +716,15 @@ public class SqlDataTypes {
 
     // https://docs.microsoft.com/en-us/sql/odbc/reference/syntax/sqlgettypeinfo-function
     public static Integer metaSqlRadix(DataType t) {
-        // RADIX  - Determines how numbers returned by COLUMN_SIZE and DECIMAL_DIGITS should be interpreted.
+        // RADIX - Determines how numbers returned by COLUMN_SIZE and DECIMAL_DIGITS should be interpreted.
         // 10 means they represent the number of decimal digits allowed for the column.
         // 2 means they represent the number of bits allowed for the column.
         // null means radix is not applicable for the given type.
         return t.isInteger() ? Integer.valueOf(10) : (t.isRational() ? Integer.valueOf(2) : null);
     }
 
-    //https://docs.microsoft.com/en-us/sql/odbc/reference/syntax/sqlgettypeinfo-function#comments
-    //https://docs.microsoft.com/en-us/sql/odbc/reference/appendixes/column-size
+    // https://docs.microsoft.com/en-us/sql/odbc/reference/syntax/sqlgettypeinfo-function#comments
+    // https://docs.microsoft.com/en-us/sql/odbc/reference/appendixes/column-size
     public static Integer precision(DataType t) {
         if (t.isNumeric()) {
             return defaultPrecision(t);

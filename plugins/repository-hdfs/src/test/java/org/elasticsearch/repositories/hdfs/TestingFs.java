@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.repositories.hdfs;
@@ -24,17 +13,17 @@ import org.apache.hadoop.fs.DelegateToFileSystem;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.RawLocalFileSystem;
 import org.apache.hadoop.fs.permission.FsPermission;
-import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.tests.util.LuceneTestCase;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.spi.FileSystemProvider;
-import java.nio.file.Files;
-import java.nio.file.NoSuchFileException;
 
 /**
  * Extends LFS to improve some operations to keep the security permissions at
@@ -62,7 +51,7 @@ public class TestingFs extends DelegateToFileSystem {
 
             @Override
             public void setPermission(org.apache.hadoop.fs.Path path, FsPermission permission) {
-               // no execution, thank you very much!
+                // no execution, thank you very much!
             }
 
             // pretend we don't support symlinks (which causes hadoop to want to do crazy things),
@@ -112,6 +101,6 @@ public class TestingFs extends DelegateToFileSystem {
 
     @Override
     public void checkPath(org.apache.hadoop.fs.Path path) {
-      // we do evil stuff, we admit it.
+        // we do evil stuff, we admit it.
     }
 }

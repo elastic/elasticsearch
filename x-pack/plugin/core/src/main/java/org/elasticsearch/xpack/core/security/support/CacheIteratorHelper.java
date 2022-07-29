@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.security.support;
@@ -51,6 +52,19 @@ public class CacheIteratorHelper<K, V> {
             while (iterator.hasNext()) {
                 K key = iterator.next();
                 if (removeIf.test(key)) {
+                    iterator.remove();
+                }
+            }
+        }
+    }
+
+    public void removeValuesIf(Predicate<V> removeIf) {
+        // the cache cannot be modified while doing this operation per the terms of the cache iterator
+        try (ReleasableLock ignored = this.acquireForIterator()) {
+            Iterator<V> iterator = cache.values().iterator();
+            while (iterator.hasNext()) {
+                V value = iterator.next();
+                if (removeIf.test(value)) {
                     iterator.remove();
                 }
             }

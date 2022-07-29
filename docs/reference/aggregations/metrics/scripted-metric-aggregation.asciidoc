@@ -1,5 +1,8 @@
 [[search-aggregations-metrics-scripted-metric-aggregation]]
-=== Scripted Metric Aggregation
+=== Scripted metric aggregation
+++++
+<titleabbrev>Scripted metric</titleabbrev>
+++++
 
 A metric aggregation that executes using scripts to provide a metric output.
 

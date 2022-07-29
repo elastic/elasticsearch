@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.authc;
 
@@ -11,7 +12,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -62,7 +63,6 @@ public final class TokenMetadata extends AbstractNamedDiffable<ClusterState.Cust
         return TYPE;
     }
 
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // never render this to the user
@@ -74,7 +74,7 @@ public final class TokenMetadata extends AbstractNamedDiffable<ClusterState.Cust
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
-        TokenMetadata that = (TokenMetadata)o;
+        TokenMetadata that = (TokenMetadata) o;
         return keys.equals(that.keys) && Arrays.equals(currentKeyHash, that.currentKeyHash);
     }
 

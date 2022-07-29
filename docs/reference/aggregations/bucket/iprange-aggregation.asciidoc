@@ -1,5 +1,8 @@
 [[search-aggregations-bucket-iprange-aggregation]]
-=== IP Range Aggregation
+=== IP range aggregation
+++++
+<titleabbrev>IP range</titleabbrev>
+++++
 
 Just like the dedicated <<search-aggregations-bucket-daterange-aggregation,date>> range aggregation, there is also a dedicated range aggregation for IP typed fields:
 

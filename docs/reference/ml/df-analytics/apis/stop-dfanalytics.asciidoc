@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="platinum"]
 [[stop-dfanalytics]]
 = Stop {dfanalytics-jobs} API
 
@@ -10,7 +9,6 @@
 
 Stops one or more {dfanalytics-jobs}.
 
-experimental[]
 
 [[ml-stop-dfanalytics-request]]
 == {api-request-title}
@@ -24,12 +22,8 @@ experimental[]
 [[ml-stop-dfanalytics-prereq]]
 == {api-prereq-title}
 
-If the {es} {security-features} are enabled, you must have the following 
-built-in roles or equivalent privileges:
-
-* `machine_learning_admin`
-  
-For more information, see <<built-in-roles>> and {ml-docs-setup-privileges}.
+Requires the `manage_ml` cluster privilege. This privilege is included in the 
+`machine_learning_admin` built-in role.
 
 
 [[ml-stop-dfanalytics-desc]]
@@ -54,12 +48,12 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics-def
 == {api-query-parms-title}  
   
 `allow_no_match`::
-(Optional, boolean) 
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-match]
+(Optional, Boolean) 
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-match-dfa-jobs]
 
 
 `force`::
-  (Optional, boolean) If true, the {dfanalytics-job} is stopped forcefully.
+  (Optional, Boolean) If true, the {dfanalytics-job} is stopped forcefully.
   
 `timeout`::
 (Optional, <<time-units,time units>>) 

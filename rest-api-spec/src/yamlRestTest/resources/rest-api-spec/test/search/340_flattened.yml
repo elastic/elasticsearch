@@ -1,0 +1,242 @@
+setup:
+  - skip:
+      version: " - 7.12.99"
+      reason: "Flattened fields were moved from xpack to core in 7.13."
+
+---
+"Test exists query on flattened object field":
+  - do:
+      indices.create:
+        index:  flattened_test
+        body:
+          mappings:
+            properties:
+              flattened:
+                type: flattened
+  - do:
+      index:
+        index:  flattened_test
+        id:     "1"
+        body:
+          flattened:
+            key: some_value
+        refresh: true
+
+  - do:
+      search:
+        index: flattened_test
+        body:
+          query:
+            exists:
+              field: flattened
+
+  - match: { hits.total.value: 1 }
+
+  - do:
+      search:
+        index: flattened_test
+        body:
+          query:
+            exists:
+              field: flattened.key
+
+  - match: { hits.total.value: 1 }
+
+  - do:
+      search:
+        index: flattened_test
+        body:
+          query:
+            exists:
+              field: flattened.nonexistent_key
+
+  - match: { hits.total.value: 0 }
+
+---
+"Test query string query on flattened object field":
+  - do:
+      indices.create:
+        index:  test
+        body:
+          mappings:
+            properties:
+              headers:
+                type: flattened
+
+  - do:
+      index:
+        index:  test
+        id:     "1"
+        body:
+          headers:
+            content-type: application/javascript
+            origin: elastic.co
+        refresh: true
+
+  - do:
+      index:
+        index:  test
+        id:     "2"
+        body:
+          headers:
+            content-type: text/plain
+            origin: elastic.co
+        refresh: true
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            query_string:
+              query: "headers:text\\/plain"
+
+  - match: { hits.total.value: 1 }
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._id: "2" }
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            query_string:
+              query: "application\\/javascript AND headers.origin:elastic.co"
+
+  - match: { hits.total.value: 1 }
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._id: "1" }
+
+
+---
+"Test fields option on flattened object field":
+  - do:
+      indices.create:
+        index:  test
+        body:
+          mappings:
+            properties:
+              flattened:
+                type: flattened
+
+  - do:
+      index:
+        index:  test
+        id:     "1"
+        body:
+          flattened:
+            some_field: some_value
+        refresh: true
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: ["flattened"]
+
+  - match:  { hits.total.value: 1 }
+  - length: { hits.hits: 1 }
+  - length: { hits.hits.0.fields: 1 }
+  - match:  { hits.hits.0.fields.flattened: [ { "some_field": "some_value" } ] }
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "flat*" ]
+
+  - match:  { hits.total.value: 1 }
+  - length: { hits.hits: 1 }
+  - length: { hits.hits.0.fields: 1 }
+  - match:  { hits.hits.0.fields.flattened: [ { "some_field": "some_value" } ] }
+
+---
+"Test fields option on flattened object field with include_unmapped":
+  - do:
+      indices.create:
+        index:  test
+        body:
+          mappings:
+            properties:
+              flattened:
+                type: flattened
+
+  - do:
+      index:
+        index:  test
+        id:     "1"
+        body:
+          flattened:
+            some_field: some_value
+        refresh: true
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ { "field" : "flat*", "include_unmapped" : true } ]
+
+  - match:  { hits.total.value: 1 }
+  - length: { hits.hits: 1 }
+  - length: { hits.hits.0.fields: 1 }
+  - match:  { hits.hits.0.fields.flattened: [ { "some_field": "some_value" } ] }
+
+---
+"Test fetching flattened subfields via fields option":
+  - skip:
+      version: " - 7.12.99"
+      reason:  fetching flattened subfields introduced in 7.13.0
+  - do:
+      indices.create:
+        index:  test
+        body:
+          mappings:
+            properties:
+              flattened:
+                type: flattened
+
+  - do:
+      index:
+        index:  test
+        id:     "1"
+        body:
+          flattened:
+            some_field: some_value
+            some_fields:
+               - value1
+               - value2
+        refresh: true
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ { "field" : "flattened.some_field" } ]
+
+  - length: { hits.hits.0.fields: 1 }
+  - match:  { hits.hits.0.fields.flattened\.some_field: [ "some_value" ] }
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ { "field" : "flattened.some_fields" } ]
+
+  - length: { hits.hits.0.fields: 1 }
+  - match:  { hits.hits.0.fields.flattened\.some_fields: [ "value1", "value2" ] }
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ { "field" : "flattened.some*" } ]
+
+  - is_false: hits.hits.0.fields
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ { "field" : "flattened.non_existing_field" } ]
+
+  - is_false: hits.hits.0.fields

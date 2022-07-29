@@ -27,7 +27,7 @@ teardown:
       catch: request
       index:
         index: test
-        id: 1
+        id: "1"
         pipeline: "my_pipeline"
         body: {}
 
@@ -60,12 +60,12 @@ teardown:
   - do:
       index:
         index: test
-        id: 1
+        id: "1"
         pipeline: "my_pipeline"
         body: {}
 
   - do:
       get:
         index: test
-        id: 1
+        id: "1"
   - match: { _source.error_message: "fail_processor_ran" }

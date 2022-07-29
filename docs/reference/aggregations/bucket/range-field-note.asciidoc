@@ -6,7 +6,7 @@
 Since a range represents multiple values, running a bucket aggregation over a
 range field can result in the same document landing in multiple buckets. This
 can lead to surprising behavior, such as the sum of bucket counts being higher
-than the number of matched documents.  For example, consider the following
+than the number of matched documents. For example, consider the following
 index: 
 [source, console]
 --------------------------------------------------
@@ -184,7 +184,7 @@ calculated over the ranges of all matching documents.
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 Depending on the use case, a `CONTAINS` query could limit the documents to only
-those that fall entirely in the queried range.  In this example, the one
-document would not be included and the aggregation would be empty.  Filtering
+those that fall entirely in the queried range. In this example, the one
+document would not be included and the aggregation would be empty. Filtering
 the buckets after the aggregation is also an option, for use cases where the
 document should be counted but the out of bounds data can be safely ignored.

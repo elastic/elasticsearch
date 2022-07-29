@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.test;
@@ -49,9 +38,7 @@ public class NodeRoles {
     public static Settings onlyRoles(final Settings settings, final Set<DiscoveryNodeRole> roles) {
         return Settings.builder()
             .put(settings)
-            .putList(
-                NodeRoleSettings.NODE_ROLES_SETTING.getKey(),
-                roles.stream().map(DiscoveryNodeRole::roleName).collect(Collectors.toUnmodifiableList()))
+            .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), roles.stream().map(DiscoveryNodeRole::roleName).toList())
             .build();
     }
 
@@ -67,7 +54,7 @@ public class NodeRoles {
                 .stream()
                 .filter(Predicate.not(roles::contains))
                 .map(DiscoveryNodeRole::roleName)
-                .collect(Collectors.toUnmodifiableList())
+                .toList()
         );
         return builder.build();
     }
@@ -83,7 +70,7 @@ public class NodeRoles {
             Stream.concat(NodeRoleSettings.NODE_ROLES_SETTING.get(settings).stream(), roles.stream())
                 .map(DiscoveryNodeRole::roleName)
                 .distinct()
-                .collect(Collectors.toUnmodifiableList())
+                .toList()
         );
         return builder.build();
     }
@@ -117,7 +104,11 @@ public class NodeRoles {
     }
 
     public static Settings nonDataNode(final Settings settings) {
-        return removeRoles(settings, Set.of(DiscoveryNodeRole.DATA_ROLE));
+        final Set<DiscoveryNodeRole> dataRoles = DiscoveryNodeRole.roles()
+            .stream()
+            .filter(DiscoveryNodeRole::canContainData)
+            .collect(Collectors.toUnmodifiableSet());
+        return removeRoles(settings, dataRoles);
     }
 
     public static Settings ingestNode() {

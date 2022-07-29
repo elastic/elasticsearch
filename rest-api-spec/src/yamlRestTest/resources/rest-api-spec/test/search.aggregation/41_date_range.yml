@@ -1,0 +1,169 @@
+setup:
+  - do:
+      indices.create:
+          index: old_test
+          body:
+            settings:
+              number_of_replicas: 0
+            mappings:
+              properties:
+                date:
+                  type: date
+                  format: epoch_second
+
+  - do:
+      indices.create:
+          index: test
+          body:
+            settings:
+              number_of_replicas: 0
+            mappings:
+              properties:
+                date:
+                  type: date
+                  format: epoch_second
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+# March 8th 2020 was the start of daylight savings time that year
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body: 
+          - {"index": {}}
+          - { "date" : "2020-03-08T06:15:00Z" }
+          - {"index": {}}
+          - { "date" : "2020-03-08T07:15:00Z" }
+
+---
+"Date range":
+  - do:
+      bulk:
+        index: old_test
+        refresh: true
+        body: 
+          - {"index": {}}
+          - { "date" : 1000 }
+          - {"index": {}}
+          - { "date" : 2000 }
+          - {"index": {}}
+          - { "date" : 3000 }
+
+  - do:
+      search:
+        body:
+          size: 0
+          aggs: 
+            date_range: 
+              date_range: 
+                field: "date"
+                ranges: 
+                  - 
+                    from: 1000
+                    to: 3000
+                  - 
+                    from: 3000
+                    to: 4000
+
+
+  - match: { hits.total.value: 3 }
+  - match: { hits.total.relation: "eq" }
+  - length: { aggregations.date_range.buckets: 2 }
+  - match: { aggregations.date_range.buckets.0.doc_count: 2 }
+  - match: { aggregations.date_range.buckets.0.key: "1000-3000" }
+  - match: { aggregations.date_range.buckets.0.from: 1000000 }
+  - match: { aggregations.date_range.buckets.0.to: 3000000 }
+
+  - match: { aggregations.date_range.buckets.1.doc_count: 1 }
+  - match: { aggregations.date_range.buckets.1.key: "3000-4000" }
+  - match: { aggregations.date_range.buckets.1.from: 3000000 }
+  - match: { aggregations.date_range.buckets.1.to: 4000000 }
+
+---
+"Date Range Missing":
+  - do:
+      bulk:
+        index: old_test
+        refresh: true
+        body:
+          - {"index": {}}
+          - { "date" : "28800000000" }
+          - {"index": {}}
+          - { "date" : "315561600000" }
+          - {"index": {}}
+          - { "date" : "631180800000" }
+          - {"index": {}}
+          - { "date" : "10000" }
+          - {"index": {}}
+          - { "ip" : "192.168.0.1" }
+
+  - do:
+      search:
+        body:
+          aggs:
+            age_groups:
+              date_range:
+                field: date
+                missing: "0"
+                ranges:
+                - key: Generation Y
+                  from: '315561600000'
+                  to: '946713600000'
+                - key: Generation X
+                  from: "200000"
+                  to: '315561600000'
+                - key: Other
+                  to: "200000"
+
+  - match: { hits.total.value: 5 }
+  - match: { hits.total.relation: "eq" }
+  - length: { aggregations.age_groups.buckets: 3 }
+  - match: { aggregations.age_groups.buckets.0.key: "Other" }
+  - match: { aggregations.age_groups.buckets.0.doc_count: 2 }
+  - match: { aggregations.age_groups.buckets.1.key: "Generation X" }
+  - match: { aggregations.age_groups.buckets.1.doc_count: 1 }
+  - match: { aggregations.age_groups.buckets.2.key: "Generation Y" }
+  - match: { aggregations.age_groups.buckets.2.doc_count: 2 }
+
+
+---
+"Date range unmapped with children":
+  - skip:
+      version: " - 7.9.99"
+      reason: Fixed in 7.10.0
+
+  - do:
+      indices.create:
+          index: test_a_unmapped
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+  - do:
+      search:
+        index: test_a_unmapped
+        body:
+          size: 0
+          query:
+            terms:
+              animal: []
+          aggs:
+            date_range:
+              date_range:
+                field: date
+                ranges:
+                 - from: 2020-01-01T00:00:00Z
+              aggs:
+                sounds:
+                  cardinality:
+                    field: sound.keyword
+
+  - match: { hits.total.value: 0 }
+  - length: { aggregations.date_range.buckets: 1 }
+  - match: { aggregations.date_range.buckets.0.doc_count: 0 }
+  - match: { aggregations.date_range.buckets.0.key: "2020-01-01T00:00:00.000Z-*" }
+  - is_false: aggregations.date_range.buckets.0.to
+  - match: { aggregations.date_range.buckets.0.sounds.value: 0 }

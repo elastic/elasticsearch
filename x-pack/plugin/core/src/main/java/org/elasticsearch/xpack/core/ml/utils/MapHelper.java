@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.utils;
 
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.Nullable;
 
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Stack;
 
@@ -93,8 +94,7 @@ public final class MapHelper {
      * @return A fully collapsed map
      */
     public static Map<String, Object> dotCollapse(Map<String, Object> map, Collection<String> pathsToCollapse) {
-        // default load factor is 0.75 (3/4).
-        Map<String, Object> collapsed = new HashMap<>(((pathsToCollapse.size() * 4)/3) + 1);
+        Map<String, Object> collapsed = Maps.newMapWithExpectedSize(pathsToCollapse.size());
         for (String path : pathsToCollapse) {
             Object dug = dig(path, map);
             if (dug != null) {
@@ -112,14 +112,14 @@ public final class MapHelper {
             int startPos = potentialPath.pathPosition;
             Map<String, Object> map = potentialPath.map;
             String candidateKey = null;
-            while(endPos <= path.length) {
+            while (endPos <= path.length) {
                 candidateKey = mergePath(path, startPos, endPos);
                 Object next = map.get(candidateKey);
                 if (endPos == path.length && next != null) { // exit early, we reached the full path and found something
                     return next;
                 }
                 if (next instanceof Map<?, ?>) { // we found another map, continue exploring down this path
-                    pathStack.push(new PotentialPath((Map<String, Object>)next, endPos));
+                    pathStack.push(new PotentialPath((Map<String, Object>) next, endPos));
                 }
                 endPos++;
             }

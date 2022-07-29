@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.idp.saml.sp;
 
 import org.elasticsearch.xpack.idp.privileges.ServiceProviderPrivileges;
-import org.joda.time.ReadableDuration;
 import org.opensaml.security.x509.X509Credential;
 
 import java.net.URL;
+import java.time.Duration;
 import java.util.Set;
 
 /**
@@ -28,7 +29,7 @@ public interface SamlServiceProvider {
 
     URL getAssertionConsumerService();
 
-    ReadableDuration getAuthnExpiry();
+    Duration getAuthnExpiry();
 
     class AttributeNames {
         public final String principal;

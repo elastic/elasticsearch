@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
@@ -34,18 +35,17 @@ import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 public class DateTimeParseProcessor extends BinaryDateTimeProcessor {
 
     public enum Parser {
-        DATE_TIME(DataTypes.DATETIME, ZonedDateTime::from, LocalDateTime::from), 
+        DATE_TIME(DataTypes.DATETIME, ZonedDateTime::from, LocalDateTime::from),
         TIME(SqlDataTypes.TIME, OffsetTime::from, LocalTime::from),
-        DATE(SqlDataTypes.DATE, LocalDate::from, (TemporalAccessor ta) -> {throw new DateTimeException("InvalidDate");});
-        
+        DATE(SqlDataTypes.DATE, LocalDate::from, (TemporalAccessor ta) -> { throw new DateTimeException("InvalidDate"); });
+
         private final BiFunction<String, String, TemporalAccessor> parser;
-        
+
         private final String parseType;
 
         Parser(DataType parseType, TemporalQuery<?>... queries) {
             this.parseType = parseType.typeName();
-            this.parser = (timestampStr, pattern) -> DateTimeFormatter.ofPattern(pattern, Locale.ROOT)
-                    .parseBest(timestampStr, queries);
+            this.parser = (timestampStr, pattern) -> DateTimeFormatter.ofPattern(pattern, Locale.ROOT).parseBest(timestampStr, queries);
         }
 
         public Object parse(Object timestamp, Object pattern, ZoneId zoneId) {
@@ -80,7 +80,7 @@ public class DateTimeParseProcessor extends BinaryDateTimeProcessor {
             }
         }
     }
-    
+
     private final Parser parser;
 
     public static final String NAME = "dtparse";
@@ -94,7 +94,7 @@ public class DateTimeParseProcessor extends BinaryDateTimeProcessor {
         super(in);
         this.parser = in.readEnum(Parser.class);
     }
-    
+
     @Override
     public void doWrite(StreamOutput out) throws IOException {
         out.writeEnum(parser);
@@ -128,7 +128,7 @@ public class DateTimeParseProcessor extends BinaryDateTimeProcessor {
         DateTimeParseProcessor other = (DateTimeParseProcessor) obj;
         return super.equals(other) && Objects.equals(parser, other.parser);
     }
-    
+
     public Parser parser() {
         return parser;
     }

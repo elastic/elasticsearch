@@ -1,0 +1,33 @@
+{
+  "ml.delete_calendar_event":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-calendar-event.html",
+      "description":"Deletes scheduled events from a calendar."
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_ml/calendars/{calendar_id}/events/{event_id}",
+          "methods":[
+            "DELETE"
+          ],
+          "parts":{
+            "calendar_id":{
+              "type":"string",
+              "description":"The ID of the calendar to modify"
+            },
+            "event_id":{
+              "type":"string",
+              "description":"The ID of the event to remove from the calendar"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

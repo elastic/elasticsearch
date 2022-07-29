@@ -95,7 +95,7 @@ Either this parameter or `keep_words` must be specified.
 --
 
 `keep_words_case`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, lowercase all keep words. Defaults to `false`.
 
 [[analysis-keep-words-tokenfilter-customize]]

@@ -1,10 +1,14 @@
 [[search-aggregations-bucket-geotilegrid-aggregation]]
-=== GeoTile Grid Aggregation
+=== Geotile grid aggregation
+++++
+<titleabbrev>Geotile grid</titleabbrev>
+++++
 
-A multi-bucket aggregation that works on `geo_point` fields and groups points into
-buckets that represent cells in a grid. The resulting grid can be sparse and only
+A multi-bucket aggregation that groups <<geo-point,`geo_point`>> and
+<<geo-shape,`geo_shape`>> values into buckets that represent a grid.
+The resulting grid can be sparse and only
 contains cells that have matching data. Each cell corresponds to a
-https://en.wikipedia.org/wiki/Tiled_web_map[map tile] as used by many online map
+{wikipedia}/Tiled_web_map[map tile] as used by many online map
 sites. Each cell is labeled using a "{zoom}/{x}/{y}" format, where zoom is equal
 to the user-specified precision.
 
@@ -23,9 +27,9 @@ costly in terms of RAM and result sizes. Please see the example below on how
 to first filter the aggregation to a smaller geographic area before requesting
 high-levels of detail.
 
-The specified field must be of type `geo_point` (which can only be set
-explicitly in the mappings) and it can also hold an array of `geo_point`
-fields, in which case all points will be taken into account during aggregation.
+You can only use `geotile_grid` to aggregate an explicitly mapped `geo_point` or
+`geo_shape` field. If the `geo_point` field contains an array, `geotile_grid`
+aggregates all the array values.
 
 
 ==== Simple low-precision request
@@ -45,17 +49,17 @@ PUT /museums
 
 POST /museums/_bulk?refresh
 {"index":{"_id":1}}
-{"location": "52.374081,4.912350", "name": "NEMO Science Museum"}
+{"location": "POINT (4.912350 52.374081)", "name": "NEMO Science Museum"}
 {"index":{"_id":2}}
-{"location": "52.369219,4.901618", "name": "Museum Het Rembrandthuis"}
+{"location": "POINT (4.901618 52.369219)", "name": "Museum Het Rembrandthuis"}
 {"index":{"_id":3}}
-{"location": "52.371667,4.914722", "name": "Nederlands Scheepvaartmuseum"}
+{"location": "POINT (4.914722 52.371667)", "name": "Nederlands Scheepvaartmuseum"}
 {"index":{"_id":4}}
-{"location": "51.222900,4.405200", "name": "Letterenhuis"}
+{"location": "POINT (4.405200 51.222900)", "name": "Letterenhuis"}
 {"index":{"_id":5}}
-{"location": "48.861111,2.336389", "name": "Musée du Louvre"}
+{"location": "POINT (2.336389 48.861111)", "name": "Musée du Louvre"}
 {"index":{"_id":6}}
-{"location": "48.860000,2.327000", "name": "Musée d'Orsay"}
+{"location": "POINT (2.327000 48.860000)", "name": "Musée d'Orsay"}
 
 POST /museums/_search?size=0
 {
@@ -114,8 +118,8 @@ POST /museums/_search?size=0
       "filter": {
         "geo_bounding_box": {
           "location": {
-            "top_left": "52.4, 4.9",
-            "bottom_right": "52.3, 5.0"
+            "top_left": "POINT (4.9 52.4)",
+            "bottom_right": "POINT (5.0 52.3)"
           }
         }
       },
@@ -165,11 +169,11 @@ POST /museums/_search?size=0
 ==== Requests with additional bounding box filtering
 
 The `geotile_grid` aggregation supports an optional `bounds` parameter
-that restricts the points considered to those that fall within the
+that restricts the cells considered to those that intersects the
 bounds provided. The `bounds` parameter accepts the bounding box in
 all the same <<query-dsl-geo-bounding-box-query-accepted-formats,accepted formats>> of the
 bounds specified in the Geo Bounding Box Query. This bounding box can be used with or
-without an additional `geo_bounding_box` query filtering the points prior to aggregating.
+without an additional `geo_bounding_box` query for filtering the points prior to aggregating.
 It is an independent bounding box that can intersect with, be equal to, or be disjoint
 to any additional `geo_bounding_box` queries defined in the context of the aggregation.
 
@@ -183,8 +187,8 @@ POST /museums/_search?size=0
         "field": "location",
         "precision": 22,
         "bounds": {
-          "top_left": "52.4, 4.9",
-          "bottom_right": "52.3, 5.0"
+          "top_left": "POINT (4.9 52.4)",
+          "bottom_right": "POINT (5.0 52.3)"
         }
       }
     }

@@ -1,7 +1,8 @@
 [[search-aggregations-bucket-variablewidthhistogram-aggregation]]
-=== Variable Width Histogram Aggregation
-
-experimental::["We're evaluating the request and response format for this new aggregation.",https://github.com/elastic/elasticsearch/issues/58573]
+=== Variable width histogram aggregation
+++++
+<titleabbrev>Variable width histogram</titleabbrev>
+++++
 
 This is a multi-bucket aggregation similar to <<search-aggregations-bucket-histogram-aggregation>>.
 However, the width of each bucket is not specified. Rather, a target number of buckets is provided and bucket intervals
@@ -67,13 +68,13 @@ from all the existing ones. At most `shard_size` total buckets are created.
 
 In the reduce step, the coordinating node sorts the buckets from all shards by their centroids. Then, the two buckets
 with the nearest centroids are repeatedly merged until the target number of buckets is achieved.
-This merging procedure is a form of https://en.wikipedia.org/wiki/Hierarchical_clustering[agglomerative hierarchical clustering].
+This merging procedure is a form of {wikipedia}/Hierarchical_clustering[agglomerative hierarchical clustering].
 
 TIP: A shard can return fewer than `shard_size` buckets, but it cannot return more.
 
 ==== Shard size
 The `shard_size` parameter specifies the number of buckets that the coordinating node will request from each shard.
-A higher `shard_size` leads each shard to produce smaller buckets. This reduce the likelihood of buckets overlapping
+A higher `shard_size` leads each shard to produce smaller buckets. This reduces the likelihood of buckets overlapping
 after the reduction step. Increasing the `shard_size` will improve the accuracy of the histogram, but it will
 also make it more expensive to compute the final result because bigger priority queues will have to be managed on a
 shard level, and the data transfers between the nodes and the client will be larger.

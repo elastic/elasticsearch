@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.user;
 
@@ -14,9 +15,11 @@ public final class UsernamesField {
     public static final String SYSTEM_NAME = "_system";
     public static final String SYSTEM_ROLE = "_system";
     public static final String XPACK_SECURITY_NAME = "_xpack_security";
-    public static final String XPACK_SECURITY_ROLE = "superuser";
+    public static final String XPACK_SECURITY_ROLE = "_xpack_security";
+    public static final String SECURITY_PROFILE_NAME = "_security_profile";
+    public static final String SECURITY_PROFILE_ROLE = "_security_profile";
     public static final String XPACK_NAME = "_xpack";
-    public static final String XPACK_ROLE =  "_xpack";
+    public static final String XPACK_ROLE = "_xpack";
     public static final String LOGSTASH_NAME = "logstash_system";
     public static final String LOGSTASH_ROLE = "logstash_system";
     public static final String BEATS_NAME = "beats_system";

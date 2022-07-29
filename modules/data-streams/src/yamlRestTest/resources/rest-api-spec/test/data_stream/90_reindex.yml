@@ -1,0 +1,119 @@
+---
+setup:
+  - skip:
+      version: " - 7.8.99"
+      reason: "data streams only supported in 7.9+"
+      features: allowed_warnings
+
+  - do :
+      allowed_warnings:
+        - "index template [generic_logs_template] has index patterns [logs-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [generic_logs_template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: generic_logs_template
+        body:
+          index_patterns: logs-*
+          data_stream: {}
+
+---
+teardown:
+  - do:
+      indices.delete_data_stream:
+        name: '*'
+
+---
+"Reindex from data stream into another data stream":
+  - skip:
+      version: " - 7.8.99"
+      reason: "data streams available in 7.9+"
+      features: allowed_warnings
+
+  - do:
+      index:
+        index:  logs-foobar
+        refresh: true
+        body:
+          foo: bar
+          '@timestamp': '2020-12-12'
+
+  - do:
+      reindex:
+        refresh: true
+        body:
+          source:
+            index:   logs-foobar
+          dest:
+            index:   logs-barbaz
+            op_type: create
+
+  - do:
+      search:
+        index: logs-barbaz
+        body: { query: { match_all: {} } }
+  - length:   { hits.hits: 1  }
+  - match: { hits.hits.0._index: "/\\.ds-logs-barbaz-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000001/" }
+  - match: { hits.hits.0._source.foo: 'bar' }
+
+---
+"Reindex from index into data stream":
+  - skip:
+      version: " - 7.8.99"
+      reason: "data streams available in 7.9+"
+      features: allowed_warnings
+
+  - do:
+      index:
+        index: old-logs-index
+        refresh: true
+        body:
+          foo: bar
+          '@timestamp': '2020-12-12'
+
+  - do:
+      reindex:
+        refresh: true
+        body:
+          source:
+            index: old-logs-index
+          dest:
+            index: logs-foobar
+            op_type: create
+
+  - do:
+      search:
+        index: logs-foobar
+        body: { query: { match_all: {} } }
+  - length:   { hits.hits: 1  }
+  - match: { hits.hits.0._index: "/\\.ds-logs-foobar-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000001/" }
+  - match: { hits.hits.0._source.foo: 'bar' }
+
+---
+"Reindex from data stream into an index":
+  - skip:
+      version: " - 7.8.99"
+      reason: "data streams available in 7.9+"
+      features: allowed_warnings
+
+  - do:
+      index:
+        index:  logs-foobar
+        refresh: true
+        body:
+          foo: bar
+          '@timestamp': '2020-12-12'
+
+  - do:
+      reindex:
+        refresh: true
+        body:
+          source:
+            index: logs-foobar
+          dest:
+            index: my-index
+
+  - do:
+      search:
+        index: my-index
+        body: { query: { match_all: {} } }
+  - length:   { hits.hits: 1  }
+  - match: { hits.hits.0._index: my-index }
+  - match: { hits.hits.0._source.foo: 'bar' }

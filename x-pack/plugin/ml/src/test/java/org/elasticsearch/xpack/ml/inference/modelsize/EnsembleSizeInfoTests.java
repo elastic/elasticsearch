@@ -1,13 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ml.inference.modelsize;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.Ensemble;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.EnsembleTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference.EnsembleInferenceModel;
@@ -34,24 +35,24 @@ public class EnsembleSizeInfoTests extends SizeEstimatorTestCase<EnsembleSizeInf
     }
 
     static EnsembleSizeInfo translateToEstimate(EnsembleInferenceModel ensemble) {
-        TreeInferenceModel tree = (TreeInferenceModel)ensemble.getModels().get(0);
+        TreeInferenceModel tree = (TreeInferenceModel) ensemble.getModels().get(0);
         int numClasses = Arrays.stream(tree.getNodes())
             .filter(TreeInferenceModel.Node::isLeaf)
-            .map(n -> (TreeInferenceModel.LeafNode)n)
+            .map(n -> (TreeInferenceModel.LeafNode) n)
             .findFirst()
             .get()
-            .getLeafValue()
-            .length;
+            .getLeafValue().length;
         return new EnsembleSizeInfo(
             ensemble.getModels()
                 .stream()
-                .map(m -> TreeSizeInfoTests.translateToEstimate((TreeInferenceModel)m))
+                .map(m -> TreeSizeInfoTests.translateToEstimate((TreeInferenceModel) m))
                 .collect(Collectors.toList()),
             randomIntBetween(0, 10),
             Arrays.stream(ensemble.getFeatureNames()).map(String::length).collect(Collectors.toList()),
             ensemble.getOutputAggregator().expectedValueSize() == null ? 0 : ensemble.getOutputAggregator().expectedValueSize(),
             ensemble.getClassificationWeights() == null ? 0 : ensemble.getClassificationWeights().length,
-            numClasses);
+            numClasses
+        );
     }
 
     @Override

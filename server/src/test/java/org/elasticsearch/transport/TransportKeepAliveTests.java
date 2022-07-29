@@ -1,29 +1,18 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.transport;
 
 import org.elasticsearch.common.AsyncBiFunction;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 
@@ -33,9 +22,9 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Deque;
 
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
-import static org.mockito.Matchers.same;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -74,9 +63,7 @@ public class TransportKeepAliveTests extends ESTestCase {
 
     public void testRegisterNodeConnectionSchedulesKeepAlive() {
         TimeValue pingInterval = TimeValue.timeValueSeconds(randomLongBetween(1, 60));
-        ConnectionProfile connectionProfile = new ConnectionProfile.Builder(defaultProfile)
-            .setPingInterval(pingInterval)
-            .build();
+        ConnectionProfile connectionProfile = new ConnectionProfile.Builder(defaultProfile).setPingInterval(pingInterval).build();
 
         assertEquals(0, threadPool.scheduledTasks.size());
 
@@ -104,14 +91,10 @@ public class TransportKeepAliveTests extends ESTestCase {
 
     public void testRegisterMultipleKeepAliveIntervals() {
         TimeValue pingInterval1 = TimeValue.timeValueSeconds(randomLongBetween(1, 30));
-        ConnectionProfile connectionProfile1 = new ConnectionProfile.Builder(defaultProfile)
-            .setPingInterval(pingInterval1)
-            .build();
+        ConnectionProfile connectionProfile1 = new ConnectionProfile.Builder(defaultProfile).setPingInterval(pingInterval1).build();
 
         TimeValue pingInterval2 = TimeValue.timeValueSeconds(randomLongBetween(31, 60));
-        ConnectionProfile connectionProfile2 = new ConnectionProfile.Builder(defaultProfile)
-            .setPingInterval(pingInterval2)
-            .build();
+        ConnectionProfile connectionProfile2 = new ConnectionProfile.Builder(defaultProfile).setPingInterval(pingInterval2).build();
 
         assertEquals(0, threadPool.scheduledTasks.size());
 
@@ -139,9 +122,7 @@ public class TransportKeepAliveTests extends ESTestCase {
 
     public void testClosingChannelUnregistersItFromKeepAlive() {
         TimeValue pingInterval1 = TimeValue.timeValueSeconds(randomLongBetween(1, 30));
-        ConnectionProfile connectionProfile = new ConnectionProfile.Builder(defaultProfile)
-            .setPingInterval(pingInterval1)
-            .build();
+        ConnectionProfile connectionProfile = new ConnectionProfile.Builder(defaultProfile).setPingInterval(pingInterval1).build();
 
         TcpChannel channel1 = new FakeTcpChannel();
         TcpChannel channel2 = new FakeTcpChannel();
@@ -179,9 +160,7 @@ public class TransportKeepAliveTests extends ESTestCase {
 
     public void testOnlySendPingIfWeHaveNotWrittenAndReadSinceLastPing() {
         TimeValue pingInterval = TimeValue.timeValueSeconds(15);
-        ConnectionProfile connectionProfile = new ConnectionProfile.Builder(defaultProfile)
-            .setPingInterval(pingInterval)
-            .build();
+        ConnectionProfile connectionProfile = new ConnectionProfile.Builder(defaultProfile).setPingInterval(pingInterval).build();
 
         TcpChannel channel1 = new FakeTcpChannel();
         TcpChannel channel2 = new FakeTcpChannel();

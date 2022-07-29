@@ -1,10 +1,10 @@
 [[analysis-tokenizers]]
 == Tokenizer reference
 
-A _tokenizer_  receives a stream of characters, breaks it up into individual
+A _tokenizer_ receives a stream of characters, breaks it up into individual
 _tokens_ (usually individual words), and outputs a stream of _tokens_. For
 instance, a <<analysis-whitespace-tokenizer,`whitespace`>> tokenizer breaks
-text into tokens whenever it sees any whitespace.  It would convert the text
+text into tokens whenever it sees any whitespace. It would convert the text
 `"Quick brown fox!"` into the terms `[Quick, brown, fox!]`.
 
 The tokenizer is also responsible for recording the following:
@@ -90,7 +90,7 @@ text:
 <<analysis-keyword-tokenizer,Keyword Tokenizer>>::
 
 The `keyword` tokenizer is a ``noop'' tokenizer that accepts whatever text it
-is given and outputs the exact same text as a single term.  It can be combined
+is given and outputs the exact same text as a single term. It can be combined
 with token filters like <<analysis-lowercase-tokenfilter,`lowercase`>> to
 normalise the analysed terms.
 

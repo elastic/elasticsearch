@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.transport;
@@ -23,11 +12,13 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.LifecycleComponent;
+import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
+import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -39,6 +30,8 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.transport.BytesRefRecycler.NON_RECYCLING_INSTANCE;
+
 public interface Transport extends LifecycleComponent {
 
     /**
@@ -49,6 +42,8 @@ public interface Transport extends LifecycleComponent {
     }
 
     void setMessageListener(TransportMessageListener listener);
+
+    default void setSlowLogThreshold(TimeValue slowLogThreshold) {}
 
     default boolean isSecure() {
         return false;
@@ -87,10 +82,14 @@ public interface Transport extends LifecycleComponent {
 
     RequestHandlers getRequestHandlers();
 
+    default RecyclerBytesStreamOutput newNetworkBytesStream() {
+        return new RecyclerBytesStreamOutput(NON_RECYCLING_INSTANCE);
+    }
+
     /**
      * A unidirectional connection to a {@link DiscoveryNode}
      */
-    interface Connection extends Closeable {
+    interface Connection extends Closeable, RefCounted {
         /**
          * The node this connection is associated with
          */
@@ -104,8 +103,8 @@ public interface Transport extends LifecycleComponent {
          * @param options request options to apply
          * @throws NodeNotConnectedException if the given node is not connected
          */
-        void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options) throws
-            IOException, TransportException;
+        void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException,
+            TransportException;
 
         /**
          * The listener's {@link ActionListener#onResponse(Object)} method will be called when this
@@ -135,6 +134,17 @@ public interface Transport extends LifecycleComponent {
 
         @Override
         void close();
+
+        /**
+         * Called after this connection is removed from the transport service.
+         */
+        void onRemoved();
+
+        /**
+         * Similar to {@link #addCloseListener} except that these listeners are notified once the connection is removed from the transport
+         * service.
+         */
+        void addRemovedListener(ActionListener<Void> listener);
     }
 
     /**
@@ -172,8 +182,8 @@ public interface Transport extends LifecycleComponent {
      * This class is a registry that allows
      */
     final class ResponseHandlers {
-        private final ConcurrentMapLong<ResponseContext<? extends TransportResponse>> handlers = ConcurrentCollections
-            .newConcurrentMapLongWithAggressiveConcurrency();
+        private final Map<Long, ResponseContext<? extends TransportResponse>> handlers = ConcurrentCollections
+            .newConcurrentMapWithAggressiveConcurrency();
         private final AtomicLong requestIdGenerator = new AtomicLong();
 
         /**
@@ -233,8 +243,10 @@ public interface Transport extends LifecycleComponent {
          * sent request (before any processing or deserialization was done). Returns the appropriate response handler or null if not
          * found.
          */
-        public TransportResponseHandler<? extends TransportResponse> onResponseReceived(final long requestId,
-                                                                                        final TransportMessageListener listener) {
+        public TransportResponseHandler<? extends TransportResponse> onResponseReceived(
+            final long requestId,
+            final TransportMessageListener listener
+        ) {
             ResponseContext<? extends TransportResponse> context = handlers.remove(requestId);
             listener.onResponseReceived(requestId, context);
             if (context == null) {
@@ -257,7 +269,7 @@ public interface Transport extends LifecycleComponent {
         }
 
         // TODO: Only visible for testing. Perhaps move StubbableTransport from
-        //  org.elasticsearch.test.transport to org.elasticsearch.transport
+        // org.elasticsearch.test.transport to org.elasticsearch.transport
         public synchronized <Request extends TransportRequest> void forceRegister(RequestHandlerRegistry<Request> reg) {
             requestHandlers = Maps.copyMapWithAddedOrReplacedEntry(requestHandlers, reg.getAction(), reg);
         }

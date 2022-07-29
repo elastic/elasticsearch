@@ -1,100 +1,88 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.cluster.coordination;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 
 import java.util.List;
 
-public class NodeRemovalClusterStateTaskExecutor implements ClusterStateTaskExecutor<NodeRemovalClusterStateTaskExecutor.Task>,
-    ClusterStateTaskListener {
+public class NodeRemovalClusterStateTaskExecutor implements ClusterStateTaskExecutor<NodeRemovalClusterStateTaskExecutor.Task> {
+
+    private static final Logger logger = LogManager.getLogger(NodeRemovalClusterStateTaskExecutor.class);
 
     private final AllocationService allocationService;
-    private final Logger logger;
 
-    public static class Task {
+    public record Task(DiscoveryNode node, String reason, Runnable onClusterStateProcessed) implements ClusterStateTaskListener {
 
-        private final DiscoveryNode node;
-        private final String reason;
-
-        public Task(final DiscoveryNode node, final String reason) {
-            this.node = node;
-            this.reason = reason;
+        @Override
+        public void onFailure(final Exception e) {
+            logger.log(MasterService.isPublishFailureException(e) ? Level.DEBUG : Level.ERROR, "unexpected failure during [node-left]", e);
         }
 
-        public DiscoveryNode node() {
-            return node;
-        }
-
-        public String reason() {
-            return reason;
+        @Override
+        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+            assert false : "not called";
         }
 
         @Override
         public String toString() {
-            return node + " reason: " + reason;
+            final StringBuilder stringBuilder = new StringBuilder();
+            node.appendDescriptionWithoutAttributes(stringBuilder);
+            stringBuilder.append(" reason: ").append(reason);
+            return stringBuilder.toString();
         }
     }
 
-    public NodeRemovalClusterStateTaskExecutor(
-            final AllocationService allocationService,
-            final Logger logger) {
+    public NodeRemovalClusterStateTaskExecutor(AllocationService allocationService) {
         this.allocationService = allocationService;
-        this.logger = logger;
     }
 
     @Override
-    public ClusterTasksResult<Task> execute(final ClusterState currentState, final List<Task> tasks) throws Exception {
+    public ClusterState execute(ClusterState currentState, List<TaskContext<Task>> taskContexts) throws Exception {
         final DiscoveryNodes.Builder remainingNodesBuilder = DiscoveryNodes.builder(currentState.nodes());
         boolean removed = false;
-        for (final Task task : tasks) {
+        for (final var taskContext : taskContexts) {
+            final var task = taskContext.getTask();
             if (currentState.nodes().nodeExists(task.node())) {
                 remainingNodesBuilder.remove(task.node());
                 removed = true;
             } else {
                 logger.debug("node [{}] does not exist in cluster state, ignoring", task);
             }
+            taskContext.success(() -> task.onClusterStateProcessed.run());
         }
 
-        if (!removed) {
+        final ClusterState finalState;
+
+        if (removed) {
+            final ClusterState remainingNodesClusterState = remainingNodesClusterState(currentState, remainingNodesBuilder);
+            final ClusterState ptasksDisassociatedState = PersistentTasksCustomMetadata.disassociateDeadNodes(remainingNodesClusterState);
+            finalState = allocationService.disassociateDeadNodes(
+                ptasksDisassociatedState,
+                true,
+                describeTasks(taskContexts.stream().map(TaskContext::getTask).toList())
+            );
+        } else {
             // no nodes to remove, keep the current cluster state
-            return ClusterTasksResult.<Task>builder().successes(tasks).build(currentState);
+            finalState = currentState;
         }
 
-        final ClusterState remainingNodesClusterState = remainingNodesClusterState(currentState, remainingNodesBuilder);
-
-        return getTaskClusterTasksResult(currentState, tasks, remainingNodesClusterState);
-    }
-
-    protected ClusterTasksResult<Task> getTaskClusterTasksResult(ClusterState currentState, List<Task> tasks,
-                                                                 ClusterState remainingNodesClusterState) {
-        ClusterState ptasksDisassociatedState = PersistentTasksCustomMetadata.disassociateDeadNodes(remainingNodesClusterState);
-        final ClusterTasksResult.Builder<Task> resultBuilder = ClusterTasksResult.<Task>builder().successes(tasks);
-        return resultBuilder.build(allocationService.disassociateDeadNodes(ptasksDisassociatedState, true, describeTasks(tasks)));
+        return finalState;
     }
 
     // visible for testing
@@ -102,16 +90,6 @@ public class NodeRemovalClusterStateTaskExecutor implements ClusterStateTaskExec
     // rejoin or reroute is needed
     protected ClusterState remainingNodesClusterState(final ClusterState currentState, DiscoveryNodes.Builder remainingNodesBuilder) {
         return ClusterState.builder(currentState).nodes(remainingNodesBuilder).build();
-    }
-
-    @Override
-    public void onFailure(final String source, final Exception e) {
-        logger.error(() -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
-    }
-
-    @Override
-    public void onNoLongerMaster(String source) {
-        logger.debug("no longer master while processing node removal [{}]", source);
     }
 
 }

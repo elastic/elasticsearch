@@ -1,0 +1,33 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+// we do not want any of these dependencies on the compilation classpath
+// because they could then be used within Elasticsearch
+List<String> FORBIDDEN_DEPENDENCY_GROUPS = [
+  'com.google.guava'
+]
+
+Closure checkDeps = { Configuration configuration ->
+  configuration.resolutionStrategy.eachDependency {
+    if (FORBIDDEN_DEPENDENCY_GROUPS.contains(it.target.group)) {
+      throw new GradleException("Dependency '${it.target.group}:${it.target.name}' on configuration '${configuration.name}' is not allowed. " +
+        "If it is needed as a transitive dependency, try adding it to the runtime classpath")
+    }
+  }
+}
+
+subprojects {
+  if (project.path.startsWith(':test:fixtures:') || project.path.equals(':build-tools')) {
+    // fixtures are allowed to use whatever dependencies they want...
+    return
+  }
+  pluginManager.withPlugin('java') {
+    checkDeps(configurations.compileClasspath)
+    checkDeps(configurations.testCompileClasspath)
+  }
+}

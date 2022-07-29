@@ -1,45 +1,41 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.lookup;
 
+import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.MemoizedSupplier;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.xcontent.XContentType;
 
+import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
 
 public class SourceLookup implements Map<String, Object> {
 
     private LeafReader reader;
+    private CheckedBiConsumer<Integer, FieldsVisitor, IOException> fieldReader;
 
     private int docId = -1;
 
@@ -47,19 +43,25 @@ public class SourceLookup implements Map<String, Object> {
     private Map<String, Object> source;
     private XContentType sourceContentType;
 
-    public Map<String, Object> source() {
-        return source;
-    }
-
     public XContentType sourceContentType() {
         return sourceContentType;
     }
 
-    // Scripting requires this method to be public. Using source()
-    // is not possible because certain checks use source == null as
-    // as a determination if source is enabled/disabled, but it should
-    // never be a null Map for scripting even when disabled.
-    public Map<String, Object> loadSourceIfNeeded() {
+    public int docId() {
+        return docId;
+    }
+
+    /**
+     * Return the source as a map that will be unchanged when the lookup
+     * moves to a different document.
+     * <p>
+     * Important: This can lose precision on numbers with a decimal point. It
+     * converts numbers like {@code "n": 1234.567} to a {@code double} which
+     * only has 52 bits of precision in the mantissa. This will come up most
+     * frequently when folks write nanosecond precision dates as a decimal
+     * number.
+     */
+    public Map<String, Object> source() {
         if (source != null) {
             return source;
         }
@@ -71,7 +73,7 @@ public class SourceLookup implements Map<String, Object> {
         }
         try {
             FieldsVisitor sourceFieldVisitor = new FieldsVisitor(true);
-            reader.document(docId, sourceFieldVisitor);
+            fieldReader.accept(docId, sourceFieldVisitor);
             BytesReference source = sourceFieldVisitor.source();
             if (source == null) {
                 this.source = emptyMap();
@@ -87,20 +89,45 @@ public class SourceLookup implements Map<String, Object> {
         return this.source;
     }
 
-    public static Tuple<XContentType, Map<String, Object>> sourceAsMapAndType(BytesReference source) throws ElasticsearchParseException {
+    private static Tuple<XContentType, Map<String, Object>> sourceAsMapAndType(BytesReference source) throws ElasticsearchParseException {
         return XContentHelper.convertToMap(source, false);
     }
 
+    /**
+     * Get the source as a {@link Map} of java objects.
+     * <p>
+     * Important: This can lose precision on numbers with a decimal point. It
+     * converts numbers like {@code "n": 1234.567} to a {@code double} which
+     * only has 52 bits of precision in the mantissa. This will come up most
+     * frequently when folks write nanosecond precision dates as a decimal
+     * number.
+     */
     public static Map<String, Object> sourceAsMap(BytesReference source) throws ElasticsearchParseException {
         return sourceAsMapAndType(source).v2();
     }
 
     public void setSegmentAndDocument(LeafReaderContext context, int docId) {
+        // if we are called with the same document, don't invalidate source
         if (this.reader == context.reader() && this.docId == docId) {
-            // if we are called with the same document, don't invalidate source
             return;
         }
-        this.reader = context.reader();
+
+        // only reset reader and fieldReader when reader changes
+        if (this.reader != context.reader()) {
+            this.reader = context.reader();
+
+            // All the docs to fetch are adjacent but Lucene stored fields are optimized
+            // for random access and don't optimize for sequential access - except for merging.
+            // So we do a little hack here and pretend we're going to do merges in order to
+            // get better sequential access.
+            if (context.reader()instanceof SequentialStoredFieldsLeafReader lf) {
+                // Avoid eagerly loading the stored fields reader, since this can be expensive
+                Supplier<StoredFieldsReader> supplier = new MemoizedSupplier<>(lf::getSequentialStoredFieldsReader);
+                fieldReader = (d, v) -> supplier.get().visitDocument(d, v);
+            } else {
+                fieldReader = context.reader()::document;
+            }
+        }
         this.source = null;
         this.sourceAsBytes = null;
         this.docId = docId;
@@ -126,18 +153,50 @@ public class SourceLookup implements Map<String, Object> {
     }
 
     /**
+     * Checks if the source has been deserialized as a {@link Map} of java objects.
+     */
+    public boolean hasSourceAsMap() {
+        return source != null;
+    }
+
+    /**
      * Returns the values associated with the path. Those are "low" level values, and it can
      * handle path expression where an array/list is navigated within.
+     *
+     * This method will:
+     *
+     *  - not cache source if it's not already parsed
+     *  - will only extract the desired values from the compressed source instead of deserializing the whole object
+     *
+     * This is useful when the caller only wants a single value from source and does not care of source is fully parsed and cached
+     * for later use.
+     * @param path The path from which to extract the values from source
+     * @return The list of found values or an empty list if none are found
      */
-    public List<Object> extractRawValues(String path) {
-        return XContentMapValues.extractRawValues(path, loadSourceIfNeeded());
+    public List<Object> extractRawValuesWithoutCaching(String path) {
+        if (source != null) {
+            return XContentMapValues.extractRawValues(path, source);
+        }
+        if (sourceAsBytes != null) {
+            return XContentMapValues.extractRawValues(
+                path,
+                XContentHelper.convertToMap(sourceAsBytes, false, null, Set.of(path), null).v2()
+            );
+        }
+        try {
+            FieldsVisitor sourceFieldVisitor = new FieldsVisitor(true);
+            fieldReader.accept(docId, sourceFieldVisitor);
+            BytesReference source = sourceFieldVisitor.source();
+            return XContentMapValues.extractRawValues(path, XContentHelper.convertToMap(source, false, null, Set.of(path), null).v2());
+        } catch (Exception e) {
+            throw new ElasticsearchParseException("failed to parse / load source", e);
+        }
     }
 
     /**
      * For the provided path, return its value in the source.
      *
-     * Note that in contrast with {@link SourceLookup#extractRawValues}, array and object values
-     * can be returned.
+     * Both array and object values can be returned.
      *
      * @param path the value's path in the source.
      * @param nullValue a value to return if the path exists, but the value is 'null'. This helps
@@ -146,51 +205,51 @@ public class SourceLookup implements Map<String, Object> {
      * @return the value associated with the path in the source or 'null' if the path does not exist.
      */
     public Object extractValue(String path, @Nullable Object nullValue) {
-        return XContentMapValues.extractValue(path, loadSourceIfNeeded(), nullValue);
+        return XContentMapValues.extractValue(path, source(), nullValue);
     }
 
     public Object filter(FetchSourceContext context) {
-        return context.getFilter().apply(loadSourceIfNeeded());
+        return context.getFilter().apply(source());
     }
 
     @Override
     public Object get(Object key) {
-        return loadSourceIfNeeded().get(key);
+        return source().get(key);
     }
 
     @Override
     public int size() {
-        return loadSourceIfNeeded().size();
+        return source().size();
     }
 
     @Override
     public boolean isEmpty() {
-        return loadSourceIfNeeded().isEmpty();
+        return source().isEmpty();
     }
 
     @Override
     public boolean containsKey(Object key) {
-        return loadSourceIfNeeded().containsKey(key);
+        return source().containsKey(key);
     }
 
     @Override
     public boolean containsValue(Object value) {
-        return loadSourceIfNeeded().containsValue(value);
+        return source().containsValue(value);
     }
 
     @Override
     public Set<String> keySet() {
-        return loadSourceIfNeeded().keySet();
+        return source().keySet();
     }
 
     @Override
     public Collection<Object> values() {
-        return loadSourceIfNeeded().values();
+        return source().values();
     }
 
     @Override
     public Set<Map.Entry<String, Object>> entrySet() {
-        return loadSourceIfNeeded().entrySet();
+        return source().entrySet();
     }
 
     @Override

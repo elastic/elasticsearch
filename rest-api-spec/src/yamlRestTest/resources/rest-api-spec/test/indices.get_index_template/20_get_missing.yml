@@ -1,0 +1,46 @@
+setup:
+  - skip:
+      version: " - 7.7.99"
+      reason: "index template v2 API unavailable before 7.8"
+
+  - do:
+      indices.delete_index_template:
+        name:   '*'
+        ignore: 404
+
+---
+"Get missing template":
+  - skip:
+      version: " - 7.7.99"
+      reason: "index template v2 API unavailable before 7.8"
+
+  - do:
+      catch:  missing
+      indices.get_index_template:
+        name: nonexistent
+
+  - match: { error.reason: "index template matching [nonexistent] not found" }
+
+---
+"Get non-matching wildcard":
+  - skip:
+      version: " - 7.7.99"
+      reason: "index template v2 API unavailable before 7.8"
+
+  - do:
+      catch: missing
+      indices.get_index_template:
+        name: "non-matching-wildcard*"
+
+  - is_false: error
+  - is_true: index_templates
+
+---
+"Reject request containing comma":
+  - skip:
+      version: " - 7.15.99"
+      reason: "validation only added in 7.16.0"
+  - do:
+      catch:  bad_request
+      indices.get_index_template:
+        name: test1,test2

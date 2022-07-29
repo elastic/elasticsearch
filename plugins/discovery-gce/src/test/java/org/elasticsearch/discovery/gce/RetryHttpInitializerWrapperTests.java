@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.discovery.gce;
@@ -34,7 +23,8 @@ import com.google.api.client.testing.http.MockLowLevelHttpRequest;
 import com.google.api.client.testing.http.MockLowLevelHttpResponse;
 import com.google.api.client.testing.util.MockSleeper;
 import com.google.api.services.compute.Compute;
-import org.elasticsearch.common.unit.TimeValue;
+
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -94,20 +84,20 @@ public class RetryHttpInitializerWrapperTests extends ESTestCase {
     }
 
     public void testSimpleRetry() throws Exception {
-        FailThenSuccessBackoffTransport fakeTransport =
-                new FailThenSuccessBackoffTransport(HttpStatusCodes.STATUS_CODE_SERVER_ERROR, 3);
+        FailThenSuccessBackoffTransport fakeTransport = new FailThenSuccessBackoffTransport(HttpStatusCodes.STATUS_CODE_SERVER_ERROR, 3);
 
-        MockGoogleCredential credential = RetryHttpInitializerWrapper.newMockCredentialBuilder()
-                .build();
+        MockGoogleCredential credential = RetryHttpInitializerWrapper.newMockCredentialBuilder().build();
         MockSleeper mockSleeper = new MockSleeper();
 
-        RetryHttpInitializerWrapper retryHttpInitializerWrapper = new RetryHttpInitializerWrapper(credential, mockSleeper,
-            TimeValue.timeValueSeconds(5));
+        RetryHttpInitializerWrapper retryHttpInitializerWrapper = new RetryHttpInitializerWrapper(
+            credential,
+            mockSleeper,
+            TimeValue.timeValueSeconds(5)
+        );
 
-        Compute client = new Compute.Builder(fakeTransport, new JacksonFactory(), null)
-                .setHttpRequestInitializer(retryHttpInitializerWrapper)
-                .setApplicationName("test")
-                .build();
+        Compute client = new Compute.Builder(fakeTransport, new JacksonFactory(), null).setHttpRequestInitializer(
+            retryHttpInitializerWrapper
+        ).setApplicationName("test").build();
 
         HttpRequest request = client.getRequestFactory().buildRequest("Get", new GenericUrl("http://elasticsearch.com"), null);
         HttpResponse response = request.execute();
@@ -120,11 +110,12 @@ public class RetryHttpInitializerWrapperTests extends ESTestCase {
         TimeValue maxWaitTime = TimeValue.timeValueMillis(10);
         int maxRetryTimes = 50;
 
-        FailThenSuccessBackoffTransport fakeTransport =
-                new FailThenSuccessBackoffTransport(HttpStatusCodes.STATUS_CODE_SERVER_ERROR, maxRetryTimes);
+        FailThenSuccessBackoffTransport fakeTransport = new FailThenSuccessBackoffTransport(
+            HttpStatusCodes.STATUS_CODE_SERVER_ERROR,
+            maxRetryTimes
+        );
         JsonFactory jsonFactory = new JacksonFactory();
-        MockGoogleCredential credential = RetryHttpInitializerWrapper.newMockCredentialBuilder()
-                .build();
+        MockGoogleCredential credential = RetryHttpInitializerWrapper.newMockCredentialBuilder().build();
 
         MockSleeper oneTimeSleeper = new MockSleeper() {
             @Override
@@ -136,10 +127,9 @@ public class RetryHttpInitializerWrapperTests extends ESTestCase {
 
         RetryHttpInitializerWrapper retryHttpInitializerWrapper = new RetryHttpInitializerWrapper(credential, oneTimeSleeper, maxWaitTime);
 
-        Compute client = new Compute.Builder(fakeTransport, jsonFactory, null)
-                .setHttpRequestInitializer(retryHttpInitializerWrapper)
-                .setApplicationName("test")
-                .build();
+        Compute client = new Compute.Builder(fakeTransport, jsonFactory, null).setHttpRequestInitializer(retryHttpInitializerWrapper)
+            .setApplicationName("test")
+            .build();
 
         HttpRequest request1 = client.getRequestFactory().buildRequest("Get", new GenericUrl("http://elasticsearch.com"), null);
         try {
@@ -153,19 +143,23 @@ public class RetryHttpInitializerWrapperTests extends ESTestCase {
     }
 
     public void testIOExceptionRetry() throws Exception {
-        FailThenSuccessBackoffTransport fakeTransport =
-                new FailThenSuccessBackoffTransport(HttpStatusCodes.STATUS_CODE_SERVER_ERROR, 1, true);
+        FailThenSuccessBackoffTransport fakeTransport = new FailThenSuccessBackoffTransport(
+            HttpStatusCodes.STATUS_CODE_SERVER_ERROR,
+            1,
+            true
+        );
 
-        MockGoogleCredential credential = RetryHttpInitializerWrapper.newMockCredentialBuilder()
-                .build();
+        MockGoogleCredential credential = RetryHttpInitializerWrapper.newMockCredentialBuilder().build();
         MockSleeper mockSleeper = new MockSleeper();
-        RetryHttpInitializerWrapper retryHttpInitializerWrapper = new RetryHttpInitializerWrapper(credential, mockSleeper,
-            TimeValue.timeValueSeconds(30L));
+        RetryHttpInitializerWrapper retryHttpInitializerWrapper = new RetryHttpInitializerWrapper(
+            credential,
+            mockSleeper,
+            TimeValue.timeValueSeconds(30L)
+        );
 
-        Compute client = new Compute.Builder(fakeTransport, new JacksonFactory(), null)
-                .setHttpRequestInitializer(retryHttpInitializerWrapper)
-                .setApplicationName("test")
-                .build();
+        Compute client = new Compute.Builder(fakeTransport, new JacksonFactory(), null).setHttpRequestInitializer(
+            retryHttpInitializerWrapper
+        ).setApplicationName("test").build();
 
         HttpRequest request = client.getRequestFactory().buildRequest("Get", new GenericUrl("http://elasticsearch.com"), null);
         HttpResponse response = request.execute();

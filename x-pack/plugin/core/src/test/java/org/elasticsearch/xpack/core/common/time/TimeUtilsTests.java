@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.common.time;
 
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -88,23 +89,31 @@ public class TimeUtilsTests extends ESTestCase {
     }
 
     public void testCheckMultiple_GivenNonMultiple() {
-        expectThrows(IllegalArgumentException.class, () ->
-                TimeUtils.checkMultiple(TimeValue.timeValueMillis(500), TimeUnit.SECONDS, new ParseField("foo")));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> TimeUtils.checkMultiple(TimeValue.timeValueMillis(500), TimeUnit.SECONDS, new ParseField("foo"))
+        );
     }
 
     public void testCheckPositiveMultiple_GivenNegative() {
-        expectThrows(IllegalArgumentException.class, () ->
-                TimeUtils.checkPositiveMultiple(TimeValue.timeValueMillis(-1), TimeUnit.MILLISECONDS, new ParseField("foo")));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> TimeUtils.checkPositiveMultiple(TimeValue.timeValueMillis(-1), TimeUnit.MILLISECONDS, new ParseField("foo"))
+        );
     }
 
     public void testCheckPositiveMultiple_GivenZero() {
-        expectThrows(IllegalArgumentException.class, () ->
-                TimeUtils.checkPositiveMultiple(TimeValue.ZERO, TimeUnit.SECONDS, new ParseField("foo")));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> TimeUtils.checkPositiveMultiple(TimeValue.ZERO, TimeUnit.SECONDS, new ParseField("foo"))
+        );
     }
 
     public void testCheckPositiveMultiple_GivenPositiveNonMultiple() {
-        expectThrows(IllegalArgumentException.class, () ->
-                TimeUtils.checkPositiveMultiple(TimeValue.timeValueMillis(500), TimeUnit.SECONDS, new ParseField("foo")));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> TimeUtils.checkPositiveMultiple(TimeValue.timeValueMillis(500), TimeUnit.SECONDS, new ParseField("foo"))
+        );
     }
 
     public void testCheckPositiveMultiple_GivenPositiveMultiple() {
@@ -112,8 +121,10 @@ public class TimeUtilsTests extends ESTestCase {
     }
 
     public void testCheckNonNegativeMultiple_GivenNegative() {
-        expectThrows(IllegalArgumentException.class, () ->
-                TimeUtils.checkNonNegativeMultiple(TimeValue.timeValueMillis(-1), TimeUnit.MILLISECONDS, new ParseField("foo")));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> TimeUtils.checkNonNegativeMultiple(TimeValue.timeValueMillis(-1), TimeUnit.MILLISECONDS, new ParseField("foo"))
+        );
     }
 
     public void testCheckNonNegativeMultiple_GivenZero() {
@@ -121,8 +132,10 @@ public class TimeUtilsTests extends ESTestCase {
     }
 
     public void testCheckNonNegativeMultiple_GivenPositiveNonMultiple() {
-        expectThrows(IllegalArgumentException.class, () ->
-                TimeUtils.checkNonNegativeMultiple(TimeValue.timeValueMillis(500), TimeUnit.SECONDS, new ParseField("foo")));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> TimeUtils.checkNonNegativeMultiple(TimeValue.timeValueMillis(500), TimeUnit.SECONDS, new ParseField("foo"))
+        );
     }
 
     public void testCheckNonNegativeMultiple_GivenPositiveMultiple() {

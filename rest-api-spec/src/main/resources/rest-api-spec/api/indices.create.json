@@ -5,6 +5,11 @@
       "description":"Creates an index with optional settings and mappings."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
     "url":{
       "paths":[
         {

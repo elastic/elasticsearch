@@ -1,44 +1,34 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.indices.alias;
 
 import org.elasticsearch.ElasticsearchGenerationException;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 
 /**
  * Represents an alias, to be associated with an index
@@ -75,9 +65,7 @@ public class Alias implements Writeable, ToXContentFragment {
         indexRouting = in.readOptionalString();
         searchRouting = in.readOptionalString();
         writeIndex = in.readOptionalBoolean();
-        if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
-            isHidden = in.readOptionalBoolean();
-        }
+        isHidden = in.readOptionalBoolean();
     }
 
     public Alias(String name) {
@@ -89,6 +77,14 @@ public class Alias implements Writeable, ToXContentFragment {
      */
     public String name() {
         return name;
+    }
+
+    /**
+      Modify the alias name only
+     */
+    public Alias name(String name) {
+        this.name = name;
+        return this;
     }
 
     /**
@@ -219,9 +215,7 @@ public class Alias implements Writeable, ToXContentFragment {
         out.writeOptionalString(indexRouting);
         out.writeOptionalString(searchRouting);
         out.writeOptionalBoolean(writeIndex);
-        if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
-            out.writeOptionalBoolean(isHidden);
-        }
+        out.writeOptionalBoolean(isHidden);
     }
 
     /**
@@ -238,6 +232,18 @@ public class Alias implements Writeable, ToXContentFragment {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
+                // check if there are any unknown fields
+                Set<String> knownFieldNames = Set.of(
+                    FILTER.getPreferredName(),
+                    ROUTING.getPreferredName(),
+                    INDEX_ROUTING.getPreferredName(),
+                    SEARCH_ROUTING.getPreferredName(),
+                    IS_WRITE_INDEX.getPreferredName(),
+                    IS_HIDDEN.getPreferredName()
+                );
+                if (knownFieldNames.contains(currentFieldName) == false) {
+                    throw new IllegalArgumentException("Unknown field [" + currentFieldName + "] in alias [" + alias.name + "]");
+                }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (FILTER.match(currentFieldName, parser.getDeprecationHandler())) {
                     Map<String, Object> filter = parser.mapOrdered();
@@ -257,6 +263,8 @@ public class Alias implements Writeable, ToXContentFragment {
                 } else if (IS_HIDDEN.match(currentFieldName, parser.getDeprecationHandler())) {
                     alias.isHidden(parser.booleanValue());
                 }
+            } else {
+                throw new IllegalArgumentException("Unknown token [" + token + "] in alias [" + alias.name + "]");
             }
         }
         return alias;
@@ -283,7 +291,9 @@ public class Alias implements Writeable, ToXContentFragment {
             }
         }
 
-        builder.field(IS_WRITE_INDEX.getPreferredName(), writeIndex);
+        if (writeIndex != null) {
+            builder.field(IS_WRITE_INDEX.getPreferredName(), writeIndex);
+        }
 
         if (isHidden != null) {
             builder.field(IS_HIDDEN.getPreferredName(), isHidden);
@@ -305,9 +315,7 @@ public class Alias implements Writeable, ToXContentFragment {
 
         Alias alias = (Alias) o;
 
-        if (name != null ? !name.equals(alias.name) : alias.name != null) return false;
-
-        return true;
+        return Objects.equals(name, alias.name);
     }
 
     @Override

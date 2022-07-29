@@ -1,65 +1,50 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
 public class CopyToMapperIntegrationIT extends ESIntegTestCase {
     public void testDynamicTemplateCopyTo() throws Exception {
-        assertAcked(
-                client().admin().indices().prepareCreate("test-idx")
-                        .setMapping(createDynamicTemplateMapping())
-        );
+        assertAcked(client().admin().indices().prepareCreate("test-idx").setMapping(createDynamicTemplateMapping()));
 
         int recordCount = between(1, 200);
 
         for (int i = 0; i < recordCount * 2; i++) {
-            client().prepareIndex("test-idx").setId(Integer.toString(i))
-                    .setSource("test_field", "test " + i, "even", i % 2 == 0)
-                    .get();
+            client().prepareIndex("test-idx").setId(Integer.toString(i)).setSource("test_field", "test " + i, "even", i % 2 == 0).get();
         }
         client().admin().indices().prepareRefresh("test-idx").execute().actionGet();
 
         SubAggCollectionMode aggCollectionMode = randomFrom(SubAggCollectionMode.values());
 
         SearchResponse response = client().prepareSearch("test-idx")
-                .setQuery(QueryBuilders.termQuery("even", true))
-                .addAggregation(AggregationBuilders.terms("test").field("test_field").size(recordCount * 2)
-                        .collectMode(aggCollectionMode))
-                .addAggregation(AggregationBuilders.terms("test_raw").field("test_field_raw").size(recordCount * 2)
-                        .collectMode(aggCollectionMode))
-                .execute().actionGet();
+            .setQuery(QueryBuilders.termQuery("even", true))
+            .addAggregation(AggregationBuilders.terms("test").field("test_field").size(recordCount * 2).collectMode(aggCollectionMode))
+            .addAggregation(
+                AggregationBuilders.terms("test_raw").field("test_field_raw").size(recordCount * 2).collectMode(aggCollectionMode)
+            )
+            .execute()
+            .actionGet();
 
         assertThat(response.getHits().getTotalHits().value, equalTo((long) recordCount));
 
@@ -69,44 +54,54 @@ public class CopyToMapperIntegrationIT extends ESIntegTestCase {
     }
 
     public void testDynamicObjectCopyTo() throws Exception {
-        String mapping = Strings.toString(jsonBuilder().startObject().startObject("properties")
-            .startObject("foo")
+        String mapping = Strings.toString(
+            jsonBuilder().startObject()
+                .startObject("properties")
+                .startObject("foo")
                 .field("type", "text")
                 .field("copy_to", "root.top.child")
-            .endObject()
-            .endObject().endObject());
-        assertAcked(
-            client().admin().indices().prepareCreate("test-idx")
-                .setMapping(mapping)
+                .endObject()
+                .endObject()
+                .endObject()
         );
-        client().prepareIndex("test-idx").setId("1")
-            .setSource("foo", "bar")
-            .get();
+        assertAcked(client().admin().indices().prepareCreate("test-idx").setMapping(mapping));
+        client().prepareIndex("test-idx").setId("1").setSource("foo", "bar").get();
         client().admin().indices().prepareRefresh("test-idx").execute().actionGet();
-        SearchResponse response = client().prepareSearch("test-idx")
-            .setQuery(QueryBuilders.termQuery("root.top.child", "bar")).get();
+        SearchResponse response = client().prepareSearch("test-idx").setQuery(QueryBuilders.termQuery("root.top.child", "bar")).get();
         assertThat(response.getHits().getTotalHits().value, equalTo(1L));
     }
 
     private XContentBuilder createDynamicTemplateMapping() throws IOException {
-        return XContentFactory.jsonBuilder().startObject().startObject("_doc")
-                .startArray("dynamic_templates")
+        return XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("_doc")
+            .startArray("dynamic_templates")
 
-                .startObject().startObject("template_raw")
-                .field("match", "*_raw")
-                .field("match_mapping_type", "string")
-                .startObject("mapping").field("type", "keyword").endObject()
-                .endObject().endObject()
+            .startObject()
+            .startObject("template_raw")
+            .field("match", "*_raw")
+            .field("match_mapping_type", "string")
+            .startObject("mapping")
+            .field("type", "keyword")
+            .endObject()
+            .endObject()
+            .endObject()
 
-                .startObject().startObject("template_all")
-                .field("match", "*")
-                .field("match_mapping_type", "string")
-                .startObject("mapping").field("type", "text").field("fielddata", true)
-                .field("copy_to", "{name}_raw").endObject()
-                .endObject().endObject()
+            .startObject()
+            .startObject("template_all")
+            .field("match", "*")
+            .field("match_mapping_type", "string")
+            .startObject("mapping")
+            .field("type", "text")
+            .field("fielddata", true)
+            .field("copy_to", "{name}_raw")
+            .endObject()
+            .endObject()
+            .endObject()
 
-                .endArray()
-                .endObject().endObject();
+            .endArray()
+            .endObject()
+            .endObject();
     }
 
 }

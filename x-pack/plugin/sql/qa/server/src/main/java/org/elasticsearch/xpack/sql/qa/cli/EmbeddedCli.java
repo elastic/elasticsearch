@@ -1,17 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.qa.cli;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cli.MockTerminal;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.sql.cli.Cli;
 import org.elasticsearch.xpack.sql.cli.CliTerminal;
 import org.elasticsearch.xpack.sql.cli.JLineTerminal;
@@ -28,11 +30,13 @@ import java.io.PipedOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 
+import static org.apache.lucene.tests.util.LuceneTestCase.createTempDir;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.endsWith;
@@ -73,10 +77,6 @@ public class EmbeddedCli implements Closeable {
             false
         );
         cli = new Cli(cliTerminal) {
-            @Override
-            protected boolean addShutdownHook() {
-                return false;
-            }
         };
         out = new BufferedWriter(new OutputStreamWriter(outgoing, StandardCharsets.UTF_8));
         in = new BufferedReader(new InputStreamReader(incoming, StandardCharsets.UTF_8));
@@ -115,8 +115,8 @@ public class EmbeddedCli implements Closeable {
                  * trying to test our interaction with jLine which doesn't
                  * support Elasticsearch's Terminal abstraction.
                  */
-                Terminal terminal = new MockTerminal();
-                int exitCode = cli.main(args.toArray(new String[0]), terminal);
+                Terminal terminal = MockTerminal.create();
+                int exitCode = cli.main(args.toArray(new String[0]), terminal, new ProcessInfo(Map.of(), Map.of(), createTempDir()));
                 returnCode.set(exitCode);
                 logger.info("cli exited with code [{}]", exitCode);
             } catch (Exception e) {
@@ -159,7 +159,7 @@ public class EmbeddedCli implements Closeable {
 
             // Read until the first "good" line (skip the logo or read until an exception)
             boolean isLogoOrException = false;
-            while (!isLogoOrException) {
+            while (isLogoOrException == false) {
                 String line = readLine();
                 if ("SQL".equals(line.trim())) {
                     // it's almost the bottom of the logo, so read the next line (the version) and break out of the loop

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql.expression.literal.interval;
@@ -134,8 +135,13 @@ public class IntervalsTests extends ESTestCase {
 
         String value = format(Locale.ROOT, "%s%d %d:%d:%d%s", sign, randomDay, randomHour, randomMinute, randomSecond, millisString);
         TemporalAmount amount = parseInterval(EMPTY, value, INTERVAL_DAY_TO_SECOND);
-        assertEquals(maybeNegate(sign, Duration.ofDays(randomDay).plusHours(randomHour).plusMinutes(randomMinute)
-                .plusSeconds(randomSecond).plusMillis(randomMilli)), amount);
+        assertEquals(
+            maybeNegate(
+                sign,
+                Duration.ofDays(randomDay).plusHours(randomHour).plusMinutes(randomMinute).plusSeconds(randomSecond).plusMillis(randomMilli)
+            ),
+            amount
+        );
     }
 
     public void testHourToMinute() throws Exception {
@@ -157,8 +163,10 @@ public class IntervalsTests extends ESTestCase {
 
         String value = format(Locale.ROOT, "%s%d:%d:%d%s", sign, randomHour, randomMinute, randomSecond, millisString);
         TemporalAmount amount = parseInterval(EMPTY, value, INTERVAL_HOUR_TO_SECOND);
-        assertEquals(maybeNegate(sign,
-                Duration.ofHours(randomHour).plusMinutes(randomMinute).plusSeconds(randomSecond).plusMillis(randomMilli)), amount);
+        assertEquals(
+            maybeNegate(sign, Duration.ofHours(randomHour).plusMinutes(randomMinute).plusSeconds(randomSecond).plusMillis(randomMilli)),
+            amount
+        );
     }
 
     public void testMinuteToSecond() throws Exception {
@@ -174,15 +182,20 @@ public class IntervalsTests extends ESTestCase {
         assertEquals(maybeNegate(sign, Duration.ofMinutes(randomMinute).plusSeconds(randomSecond).plusMillis(randomMilli)), amount);
     }
 
-
     // validation
     public void testYearToMonthTooBig() throws Exception {
         int randomYear = randomNonNegativeInt();
         int randomTooBig = randomIntBetween(12, 9999);
         String value = format(Locale.ROOT, "%s%d-%d", sign, randomYear, randomTooBig);
         ParsingException pe = expectThrows(ParsingException.class, () -> parseInterval(EMPTY, value, INTERVAL_YEAR_TO_MONTH));
-        assertEquals("line -1:0: Invalid [INTERVAL YEAR TO MONTH] value [" + value + "]: [MONTH] unit has illegal value [" + randomTooBig
-                + "], expected a positive number up to [11]", pe.getMessage());
+        assertEquals(
+            "line -1:0: Invalid [INTERVAL YEAR TO MONTH] value ["
+                + value
+                + "]: [MONTH] unit has illegal value ["
+                + randomTooBig
+                + "], expected a positive number up to [11]",
+            pe.getMessage()
+        );
     }
 
     public void testMillisTooBig() throws Exception {
@@ -190,8 +203,14 @@ public class IntervalsTests extends ESTestCase {
         int millisTooLarge = 1234;
         String value = format(Locale.ROOT, "%s%d.%d", sign, randomSeconds, millisTooLarge);
         ParsingException pe = expectThrows(ParsingException.class, () -> parseInterval(EMPTY, value, INTERVAL_SECOND));
-        assertEquals("line -1:0: Invalid [INTERVAL SECOND] value [" + value + "]: [MILLISECOND] unit has illegal value [" + millisTooLarge
-                + "], expected a positive number up to [999]", pe.getMessage());
+        assertEquals(
+            "line -1:0: Invalid [INTERVAL SECOND] value ["
+                + value
+                + "]: [MILLISECOND] unit has illegal value ["
+                + millisTooLarge
+                + "], expected a positive number up to [999]",
+            pe.getMessage()
+        );
     }
 
     public void testDayToMinuteTooBig() throws Exception {
@@ -200,22 +219,32 @@ public class IntervalsTests extends ESTestCase {
         int randomMinute = randomInt(59);
         String value = format(Locale.ROOT, "%s%d %d:%d", sign, randomDay, randomHour, randomMinute);
         ParsingException pe = expectThrows(ParsingException.class, () -> parseInterval(EMPTY, value, INTERVAL_DAY_TO_MINUTE));
-        assertEquals("line -1:0: Invalid [INTERVAL DAY TO MINUTE] value [" + value + "]: [HOUR] unit has illegal value [" + randomHour
-                + "], expected a positive number up to [23]", pe.getMessage());
+        assertEquals(
+            "line -1:0: Invalid [INTERVAL DAY TO MINUTE] value ["
+                + value
+                + "]: [HOUR] unit has illegal value ["
+                + randomHour
+                + "], expected a positive number up to [23]",
+            pe.getMessage()
+        );
     }
 
     public void testIncompleteYearToMonthInterval() throws Exception {
         String value = "123-";
         ParsingException pe = expectThrows(ParsingException.class, () -> parseInterval(EMPTY, value, INTERVAL_YEAR_TO_MONTH));
-        assertEquals("line -1:0: Invalid [INTERVAL YEAR TO MONTH] value [123-]: incorrect format, expecting [numeric]-[numeric]",
-                pe.getMessage());
+        assertEquals(
+            "line -1:0: Invalid [INTERVAL YEAR TO MONTH] value [123-]: incorrect format, expecting [numeric]-[numeric]",
+            pe.getMessage()
+        );
     }
 
     public void testIncompleteDayToHourInterval() throws Exception {
         String value = "123 23:";
         ParsingException pe = expectThrows(ParsingException.class, () -> parseInterval(EMPTY, value, INTERVAL_DAY_TO_HOUR));
-        assertEquals("line -1:0: Invalid [INTERVAL DAY TO HOUR] value [123 23:]: unexpected trailing characters found [:]",
-                pe.getMessage());
+        assertEquals(
+            "line -1:0: Invalid [INTERVAL DAY TO HOUR] value [123 23:]: unexpected trailing characters found [:]",
+            pe.getMessage()
+        );
     }
 
     public void testExtraCharLeading() throws Exception {

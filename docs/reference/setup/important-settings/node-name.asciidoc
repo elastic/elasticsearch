@@ -1,11 +1,12 @@
-[[node.name]]
-=== `node.name`
+[[node-name]]
+[discrete]
+==== Node name setting
 
-Elasticsearch uses `node.name` as a human readable identifier for a
-particular instance of Elasticsearch so it is included in the response
-of many APIs. It defaults to the hostname that the machine has when
-Elasticsearch starts but can be configured explicitly in
-`elasticsearch.yml` as follows:
+{es} uses `node.name` as a human-readable identifier for a
+particular instance of {es}. This name is included in the response
+of many APIs. The node name defaults to the hostname of the machine when
+{es} starts, but can be configured explicitly in
+`elasticsearch.yml`:
 
 [source,yaml]
 --------------------------------------------------

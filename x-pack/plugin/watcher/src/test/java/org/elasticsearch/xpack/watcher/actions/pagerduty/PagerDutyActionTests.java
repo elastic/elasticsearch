@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.actions.pagerduty;
 
@@ -9,12 +10,11 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.watcher.actions.Action;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.execution.Wid;
@@ -38,7 +38,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.pagerDutyAction;
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.mockExecutionContextBuilder;
 import static org.hamcrest.Matchers.equalTo;
@@ -79,25 +79,23 @@ public class PagerDutyActionTests extends ESTestCase {
         Map<String, Object> metadata = MapBuilder.<String, Object>newMapBuilder().put("_key", "_val").map();
 
         ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
-        JodaCompatibleZonedDateTime jodaJavaNow = new JodaCompatibleZonedDateTime(now.toInstant(), ZoneOffset.UTC);
 
         Wid wid = new Wid(randomAlphaOfLength(5), now);
-        WatchExecutionContext ctx = mockExecutionContextBuilder(wid.watchId())
-                .wid(wid)
-                .payload(payload)
-                .time(wid.watchId(), now)
-                .metadata(metadata)
-                .buildMock();
+        WatchExecutionContext ctx = mockExecutionContextBuilder(wid.watchId()).wid(wid)
+            .payload(payload)
+            .time(wid.watchId(), now)
+            .metadata(metadata)
+            .buildMock();
 
         Map<String, Object> ctxModel = new HashMap<>();
         ctxModel.put("id", ctx.id().value());
         ctxModel.put("watch_id", wid.watchId());
         ctxModel.put("payload", data);
         ctxModel.put("metadata", metadata);
-        ctxModel.put("execution_time", jodaJavaNow);
+        ctxModel.put("execution_time", now);
         Map<String, Object> triggerModel = new HashMap<>();
-        triggerModel.put("triggered_time", jodaJavaNow);
-        triggerModel.put("scheduled_time", jodaJavaNow);
+        triggerModel.put("triggered_time", now);
+        triggerModel.put("scheduled_time", now);
         ctxModel.put("trigger", triggerModel);
         ctxModel.put("vars", Collections.emptyMap());
         Map<String, Object> expectedModel = new HashMap<>();
@@ -105,8 +103,17 @@ public class PagerDutyActionTests extends ESTestCase {
 
         when(templateEngine.render(description, expectedModel)).thenReturn(description.getTemplate());
 
-        IncidentEvent event = new IncidentEvent(description.getTemplate(), null, wid.watchId(), null, null, accountName, attachPayload,
-                null, null);
+        IncidentEvent event = new IncidentEvent(
+            description.getTemplate(),
+            null,
+            wid.watchId(),
+            null,
+            null,
+            accountName,
+            attachPayload,
+            null,
+            null
+        );
         PagerDutyAccount account = mock(PagerDutyAccount.class);
         when(account.getDefaults()).thenReturn(new IncidentEventDefaults(Settings.EMPTY));
         HttpResponse response = mock(HttpResponse.class);
@@ -175,9 +182,8 @@ public class PagerDutyActionTests extends ESTestCase {
         IncidentEventContext.Template[] contexts = null;
         if (randomBoolean()) {
             contexts = new IncidentEventContext.Template[] {
-                    IncidentEventContext.Template.link(new TextTemplate("_href"), new TextTemplate("_text")),
-                    IncidentEventContext.Template.image(new TextTemplate("_src"), new TextTemplate("_href"), new TextTemplate("_alt"))
-            };
+                IncidentEventContext.Template.link(new TextTemplate("_href"), new TextTemplate("_text")),
+                IncidentEventContext.Template.image(new TextTemplate("_src"), new TextTemplate("_href"), new TextTemplate("_alt")) };
             String fieldName = randomBoolean() ? "contexts" : "context";
             builder.array(fieldName, (Object) contexts);
         }
@@ -195,8 +201,22 @@ public class PagerDutyActionTests extends ESTestCase {
         assertThat(action.event.account, is(accountName));
         assertThat(action.event, notNullValue());
         assertThat(action.event, instanceOf(IncidentEvent.Template.class));
-        assertThat(action.event, is(new IncidentEvent.Template(description, eventType, incidentKey, client, clientUrl, accountName,
-                attachPayload, contexts, proxy)));
+        assertThat(
+            action.event,
+            is(
+                new IncidentEvent.Template(
+                    description,
+                    eventType,
+                    incidentKey,
+                    client,
+                    clientUrl,
+                    accountName,
+                    attachPayload,
+                    contexts,
+                    proxy
+                )
+            )
+        );
     }
 
     public void testParserSelfGenerated() throws Exception {
@@ -218,8 +238,9 @@ public class PagerDutyActionTests extends ESTestCase {
             event.addContext(IncidentEventContext.Template.link(new TextTemplate("_href"), new TextTemplate("_text")));
         }
         if (randomBoolean()) {
-            event.addContext(IncidentEventContext.Template.image(new TextTemplate("_src"), new TextTemplate("_href"),
-                    new TextTemplate("_alt")));
+            event.addContext(
+                IncidentEventContext.Template.image(new TextTemplate("_src"), new TextTemplate("_href"), new TextTemplate("_alt"))
+            );
         }
         if (randomBoolean()) {
             event.setEventType(new TextTemplate(randomAlphaOfLength(50)));

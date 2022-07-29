@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.qa.jdbc;
 
@@ -36,18 +37,6 @@ public abstract class JdbcErrorsTestCase extends JdbcIntegrationTestCase {
         try (Connection c = esJdbc()) {
             SQLException e = expectThrows(SQLException.class, () -> c.prepareStatement("SELECT abc FROM test").executeQuery());
             assertEquals("Found 1 problem\nline 1:17: Unknown index [test]", e.getMessage());
-        }
-    }
-
-    public void testSelectFromEmptyIndex() throws IOException, SQLException {
-        // Create an index without any types
-        Request request = new Request("PUT", "/test");
-        request.setJsonEntity("{}");
-        client().performRequest(request);
-
-        try (Connection c = esJdbc()) {
-            SQLException e = expectThrows(SQLException.class, () -> c.prepareStatement("SELECT * FROM test").executeQuery());
-            assertEquals("Found 1 problem\nline 1:8: Cannot determine columns for [*]", e.getMessage());
         }
     }
 
@@ -118,15 +107,7 @@ public abstract class JdbcErrorsTestCase extends JdbcIntegrationTestCase {
         index("test", body -> body.field("foo", 1));
         try (Connection c = esJdbc()) {
             SQLException e = expectThrows(SQLException.class, () -> c.prepareStatement("SELECT SCORE().bar FROM test").executeQuery());
-            assertThat(e.getMessage(), startsWith("line 1:15: extraneous input '.' expecting {<EOF>, ','"));
-        }
-    }
-
-    public void testSelectScoreInScalar() throws IOException, SQLException {
-        index("test", body -> body.field("foo", 1));
-        try (Connection c = esJdbc()) {
-            SQLException e = expectThrows(SQLException.class, () -> c.prepareStatement("SELECT SIN(SCORE()) FROM test").executeQuery());
-            assertThat(e.getMessage(), startsWith("Found 1 problem\nline 1:12: [SCORE()] cannot be an argument to a function"));
+            assertThat(e.getMessage(), startsWith("line 1:15: mismatched input '.' expecting {<EOF>, "));
         }
     }
 
@@ -137,7 +118,7 @@ public abstract class JdbcErrorsTestCase extends JdbcIntegrationTestCase {
                 SQLException.class,
                 () -> c.prepareStatement("SELECT max(a) max FROM test GROUP BY b ORDER BY max LIMIT 120000").executeQuery()
             );
-            assertEquals("The maximum LIMIT for aggregate sorting is [65535], received [120000]", e.getMessage());
+            assertEquals("The maximum LIMIT for aggregate sorting is [65536], received [120000]", e.getMessage());
         }
     }
 }

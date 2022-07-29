@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
@@ -34,16 +35,16 @@ public class CurrentDateTests extends AbstractNodeTestCase<CurrentDate, Expressi
     @Override
     protected CurrentDate mutate(CurrentDate instance) {
         ZonedDateTime now = instance.configuration().now();
-        ZoneId mutatedZoneId = randomValueOtherThanMany(o -> Objects.equals(now.getOffset(), o.getRules().getOffset(now.toInstant())),
-                () -> randomZone());
+        ZoneId mutatedZoneId = randomValueOtherThanMany(
+            o -> Objects.equals(now.getOffset(), o.getRules().getOffset(now.toInstant())),
+            () -> randomZone()
+        );
         return new CurrentDate(instance.source(), SqlTestUtils.randomConfiguration(mutatedZoneId));
     }
 
     @Override
-    public void testTransform() {
-    }
+    public void testTransform() {}
 
     @Override
-    public void testReplaceChildren() {
-    }
+    public void testReplaceChildren() {}
 }

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.indices.settings.put;
@@ -23,8 +12,8 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 
@@ -43,14 +32,19 @@ public class UpdateSettingsRequestSerializationTests extends AbstractWireSeriali
         UpdateSettingsRequest mutation = copyRequest(request);
         List<Runnable> mutators = new ArrayList<>();
         Supplier<TimeValue> timeValueSupplier = () -> TimeValue.parseTimeValue(ESTestCase.randomTimeValue(), "_setting");
-        mutators.add(() -> mutation
-                .masterNodeTimeout(randomValueOtherThan(request.masterNodeTimeout(), timeValueSupplier)));
+        mutators.add(() -> mutation.masterNodeTimeout(randomValueOtherThan(request.masterNodeTimeout(), timeValueSupplier)));
         mutators.add(() -> mutation.timeout(randomValueOtherThan(request.timeout(), timeValueSupplier)));
         mutators.add(() -> mutation.settings(mutateSettings(request.settings())));
         mutators.add(() -> mutation.indices(mutateIndices(request.indices())));
-        mutators.add(() -> mutation.indicesOptions(randomValueOtherThan(request.indicesOptions(),
-                () -> IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()))));
-        mutators.add(() -> mutation.setPreserveExisting(!request.isPreserveExisting()));
+        mutators.add(
+            () -> mutation.indicesOptions(
+                randomValueOtherThan(
+                    request.indicesOptions(),
+                    () -> IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean())
+                )
+            )
+        );
+        mutators.add(() -> mutation.setPreserveExisting(request.isPreserveExisting() == false));
         randomFrom(mutators).run();
         return mutation;
     }
@@ -67,8 +61,8 @@ public class UpdateSettingsRequestSerializationTests extends AbstractWireSeriali
 
     public static UpdateSettingsRequest createTestItem() {
         UpdateSettingsRequest request = randomBoolean()
-                ? new UpdateSettingsRequest(randomSettings(0, 2))
-                : new UpdateSettingsRequest(randomSettings(0, 2), randomIndicesNames(0, 2));
+            ? new UpdateSettingsRequest(randomSettings(0, 2))
+            : new UpdateSettingsRequest(randomSettings(0, 2), randomIndicesNames(0, 2));
         request.masterNodeTimeout(randomTimeValue());
         request.timeout(randomTimeValue());
         request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));

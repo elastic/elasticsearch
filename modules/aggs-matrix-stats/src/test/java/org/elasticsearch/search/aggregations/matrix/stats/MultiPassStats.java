@@ -1,22 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations.matrix.stats;
+
+import org.elasticsearch.common.util.Maps;
 
 import java.util.HashMap;
 import java.util.List;
@@ -35,8 +26,8 @@ class MultiPassStats {
     private Map<String, Double> variances = new HashMap<>();
     private Map<String, Double> skewness = new HashMap<>();
     private Map<String, Double> kurtosis = new HashMap<>();
-    private Map<String, HashMap<String, Double>> covariances = new HashMap<>();
-    private Map<String, HashMap<String, Double>> correlations = new HashMap<>();
+    private Map<String, Map<String, Double>> covariances = new HashMap<>();
+    private Map<String, Map<String, Double>> correlations = new HashMap<>();
 
     MultiPassStats(String fieldAName, String fieldBName) {
         this.fieldAKey = fieldAName;
@@ -89,12 +80,12 @@ class MultiPassStats {
         kurtosis.put(fieldBKey, kurtB / ((count - 1) * variances.get(fieldBKey) * variances.get(fieldBKey)));
 
         // compute covariance
-        final HashMap<String, Double> fieldACovar = new HashMap<>(2);
+        final Map<String, Double> fieldACovar = Maps.newMapWithExpectedSize(2);
         fieldACovar.put(fieldAKey, 1d);
         cVar /= count - 1;
         fieldACovar.put(fieldBKey, cVar);
         covariances.put(fieldAKey, fieldACovar);
-        final HashMap<String, Double> fieldBCovar = new HashMap<>(2);
+        final Map<String, Double> fieldBCovar = Maps.newMapWithExpectedSize(2);
         fieldBCovar.put(fieldAKey, cVar);
         fieldBCovar.put(fieldBKey, 1d);
         covariances.put(fieldBKey, fieldBCovar);
@@ -129,8 +120,8 @@ class MultiPassStats {
         assertTrue(nearlyEqual(kurtosis.get(fieldAKey), stats.getKurtosis(fieldAKey), 1e-4));
         assertTrue(nearlyEqual(kurtosis.get(fieldBKey), stats.getKurtosis(fieldBKey), 1e-4));
         // covariances
-        assertTrue(nearlyEqual(covariances.get(fieldAKey).get(fieldBKey),stats.getCovariance(fieldAKey, fieldBKey), 1e-7));
-        assertTrue(nearlyEqual(covariances.get(fieldBKey).get(fieldAKey),stats.getCovariance(fieldBKey, fieldAKey), 1e-7));
+        assertTrue(nearlyEqual(covariances.get(fieldAKey).get(fieldBKey), stats.getCovariance(fieldAKey, fieldBKey), 1e-7));
+        assertTrue(nearlyEqual(covariances.get(fieldBKey).get(fieldAKey), stats.getCovariance(fieldBKey, fieldAKey), 1e-7));
         // correlation
         assertTrue(nearlyEqual(correlations.get(fieldAKey).get(fieldBKey), stats.getCorrelation(fieldAKey, fieldBKey), 1e-7));
         assertTrue(nearlyEqual(correlations.get(fieldBKey).get(fieldAKey), stats.getCorrelation(fieldBKey, fieldAKey), 1e-7));
@@ -153,8 +144,8 @@ class MultiPassStats {
         assertTrue(nearlyEqual(kurtosis.get(fieldAKey), stats.getKurtosis(fieldAKey), 1e-4));
         assertTrue(nearlyEqual(kurtosis.get(fieldBKey), stats.getKurtosis(fieldBKey), 1e-4));
         // covariances
-        assertTrue(nearlyEqual(covariances.get(fieldAKey).get(fieldBKey),stats.getCovariance(fieldAKey, fieldBKey), 1e-7));
-        assertTrue(nearlyEqual(covariances.get(fieldBKey).get(fieldAKey),stats.getCovariance(fieldBKey, fieldAKey), 1e-7));
+        assertTrue(nearlyEqual(covariances.get(fieldAKey).get(fieldBKey), stats.getCovariance(fieldAKey, fieldBKey), 1e-7));
+        assertTrue(nearlyEqual(covariances.get(fieldBKey).get(fieldAKey), stats.getCovariance(fieldBKey, fieldAKey), 1e-7));
         // correlation
         assertTrue(nearlyEqual(correlations.get(fieldAKey).get(fieldBKey), stats.getCorrelation(fieldAKey, fieldBKey), 1e-7));
         assertTrue(nearlyEqual(correlations.get(fieldBKey).get(fieldAKey), stats.getCorrelation(fieldBKey, fieldAKey), 1e-7));

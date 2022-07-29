@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
@@ -30,8 +31,7 @@ public abstract class BinaryDateTimeProcessor extends BinaryProcessor {
     }
 
     @Override
-    protected void doWrite(StreamOutput out) throws IOException {
-    }
+    protected void doWrite(StreamOutput out) throws IOException {}
 
     ZoneId zoneId() {
         return zoneId;
@@ -56,8 +56,6 @@ public abstract class BinaryDateTimeProcessor extends BinaryProcessor {
         }
 
         BinaryDateTimeProcessor other = (BinaryDateTimeProcessor) obj;
-        return Objects.equals(left(), other.left())
-            && Objects.equals(right(), other.right())
-            && Objects.equals(zoneId(), other.zoneId());
+        return Objects.equals(left(), other.left()) && Objects.equals(right(), other.right()) && Objects.equals(zoneId(), other.zoneId());
     }
 }

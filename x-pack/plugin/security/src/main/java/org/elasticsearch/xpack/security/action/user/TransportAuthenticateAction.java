@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.action.user;
 
@@ -17,33 +18,44 @@ import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.user.SystemUser;
+import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
 
 public class TransportAuthenticateAction extends HandledTransportAction<AuthenticateRequest, AuthenticateResponse> {
 
     private final SecurityContext securityContext;
+    private final AnonymousUser anonymousUser;
 
     @Inject
-    public TransportAuthenticateAction(TransportService transportService, ActionFilters actionFilters, SecurityContext securityContext) {
+    public TransportAuthenticateAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        SecurityContext securityContext,
+        AnonymousUser anonymousUser
+    ) {
         super(AuthenticateAction.NAME, transportService, actionFilters, AuthenticateRequest::new);
         this.securityContext = securityContext;
+        this.anonymousUser = anonymousUser;
     }
 
     @Override
     protected void doExecute(Task task, AuthenticateRequest request, ActionListener<AuthenticateResponse> listener) {
         final Authentication authentication = securityContext.getAuthentication();
-        final User runAsUser = authentication == null ? null : authentication.getUser();
-        final User authUser = runAsUser == null ? null : runAsUser.authenticatedUser();
+        final User runAsUser, authUser;
+        if (authentication == null) {
+            runAsUser = authUser = null;
+        } else {
+            runAsUser = authentication.getEffectiveSubject().getUser();
+            authUser = authentication.getAuthenticatingSubject().getUser();
+        }
         if (authUser == null) {
             listener.onFailure(new ElasticsearchSecurityException("did not find an authenticated user"));
-        } else if (SystemUser.is(authUser) || XPackUser.is(authUser)) {
+        } else if (User.isInternal(authUser)) {
             listener.onFailure(new IllegalArgumentException("user [" + authUser.principal() + "] is internal"));
-        } else if (SystemUser.is(runAsUser) || XPackUser.is(runAsUser)) {
+        } else if (User.isInternal(runAsUser)) {
             listener.onFailure(new IllegalArgumentException("user [" + runAsUser.principal() + "] is internal"));
         } else {
-            listener.onResponse(new AuthenticateResponse(authentication));
+            listener.onResponse(new AuthenticateResponse(authentication.maybeAddAnonymousRoles(anonymousUser)));
         }
     }
 }

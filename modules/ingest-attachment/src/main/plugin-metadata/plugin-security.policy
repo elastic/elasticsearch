@@ -1,0 +1,22 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+// NOTE: when modifying this file, look at restrictions in TikaImpl too
+grant {
+  // needed to apply additional sandboxing to tika parsing
+  permission java.security.SecurityPermission "createAccessControlContext";
+
+  // TODO: fix POI XWPF to not do this: https://bz.apache.org/bugzilla/show_bug.cgi?id=58597
+  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+  // needed by xmlbeans, as part of POI for MS xml docs
+  permission java.lang.RuntimePermission "getClassLoader";
+  // ZipFile needs accessDeclaredMembers on Java 10
+  permission java.lang.RuntimePermission "accessDeclaredMembers";
+  // PDFBox checks for the existence of this class
+  permission java.lang.RuntimePermission "accessClassInPackage.sun.java2d.cmm.kcms";
+};

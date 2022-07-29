@@ -1,13 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
+ * Licensed to Elasticsearch B.V. under one or more contributor
  * license agreements. See the NOTICE file distributed with
  * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
+ * ownership. Elasticsearch B.V. licenses this file to you under
  * the Apache License, Version 2.0 (the "License"); you may
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -39,7 +39,7 @@ import static org.junit.Assert.fail;
 
 public class RequestTests extends RestClientTestCase {
     public void testConstructor() {
-        final String method = randomFrom(new String[] {"GET", "PUT", "POST", "HEAD", "DELETE"});
+        final String method = randomFrom(new String[] { "GET", "PUT", "POST", "HEAD", "DELETE" });
         final String endpoint = randomAsciiLettersOfLengthBetween(1, 10);
 
         try {
@@ -62,7 +62,7 @@ public class RequestTests extends RestClientTestCase {
     }
 
     public void testAddParameters() {
-        final String method = randomFrom(new String[] {"GET", "PUT", "POST", "HEAD", "DELETE"});
+        final String method = randomFrom(new String[] { "GET", "PUT", "POST", "HEAD", "DELETE" });
         final String endpoint = randomAsciiLettersOfLengthBetween(1, 10);
         int parametersCount = between(1, 3);
         final Map<String, String> parameters = new HashMap<>(parametersCount);
@@ -100,10 +100,11 @@ public class RequestTests extends RestClientTestCase {
     }
 
     public void testSetEntity() {
-        final String method = randomFrom(new String[] {"GET", "PUT", "POST", "HEAD", "DELETE"});
+        final String method = randomFrom(new String[] { "GET", "PUT", "POST", "HEAD", "DELETE" });
         final String endpoint = randomAsciiLettersOfLengthBetween(1, 10);
-        final HttpEntity entity =
-                randomBoolean() ? new StringEntity(randomAsciiLettersOfLengthBetween(1, 100), ContentType.TEXT_PLAIN) : null;
+        final HttpEntity entity = randomBoolean()
+            ? new StringEntity(randomAsciiLettersOfLengthBetween(1, 100), ContentType.TEXT_PLAIN)
+            : null;
 
         Request request = new Request(method, endpoint);
         request.setEntity(entity);
@@ -111,7 +112,7 @@ public class RequestTests extends RestClientTestCase {
     }
 
     public void testSetJsonEntity() throws IOException {
-        final String method = randomFrom(new String[] {"GET", "PUT", "POST", "HEAD", "DELETE"});
+        final String method = randomFrom(new String[] { "GET", "PUT", "POST", "HEAD", "DELETE" });
         final String endpoint = randomAsciiLettersOfLengthBetween(1, 10);
 
         Request request = new Request(method, endpoint);
@@ -126,7 +127,7 @@ public class RequestTests extends RestClientTestCase {
     }
 
     public void testSetOptions() {
-        final String method = randomFrom(new String[] {"GET", "PUT", "POST", "HEAD", "DELETE"});
+        final String method = randomFrom(new String[] { "GET", "PUT", "POST", "HEAD", "DELETE" });
         final String endpoint = randomAsciiLettersOfLengthBetween(1, 10);
         Request request = new Request(method, endpoint);
 
@@ -170,8 +171,9 @@ public class RequestTests extends RestClientTestCase {
 
     private static Request randomRequest() {
         Request request = new Request(
-            randomFrom(new String[] {"GET", "PUT", "DELETE", "POST", "HEAD", "OPTIONS"}),
-            randomAsciiAlphanumOfLength(5));
+            randomFrom(new String[] { "GET", "PUT", "DELETE", "POST", "HEAD", "OPTIONS" }),
+            randomAsciiAlphanumOfLength(5)
+        );
 
         int parameterCount = between(0, 5);
         for (int i = 0; i < parameterCount; i++) {
@@ -182,11 +184,14 @@ public class RequestTests extends RestClientTestCase {
             if (randomBoolean()) {
                 request.setJsonEntity(randomAsciiAlphanumOfLength(10));
             } else {
-                request.setEntity(randomFrom(new HttpEntity[] {
-                    new StringEntity(randomAsciiAlphanumOfLength(10), ContentType.APPLICATION_JSON),
-                    new NStringEntity(randomAsciiAlphanumOfLength(10), ContentType.APPLICATION_JSON),
-                    new ByteArrayEntity(randomBytesOfLength(40), ContentType.APPLICATION_JSON)
-                }));
+                request.setEntity(
+                    randomFrom(
+                        new HttpEntity[] {
+                            new StringEntity(randomAsciiAlphanumOfLength(10), ContentType.APPLICATION_JSON),
+                            new NStringEntity(randomAsciiAlphanumOfLength(10), ContentType.APPLICATION_JSON),
+                            new ByteArrayEntity(randomBytesOfLength(40), ContentType.APPLICATION_JSON) }
+                    )
+                );
             }
         }
 
@@ -217,19 +222,19 @@ public class RequestTests extends RestClientTestCase {
         Request mutant = copy(request);
         int mutationType = between(0, 2);
         switch (mutationType) {
-        case 0:
-            mutant.addParameter(randomAsciiAlphanumOfLength(mutant.getParameters().size() + 4), "extra");
-            return mutant;
-        case 1:
-            mutant.setJsonEntity("mutant"); // randomRequest can't produce this value
-            return mutant;
-        case 2:
-            RequestOptions.Builder options = mutant.getOptions().toBuilder();
-            options.addHeader("extra", "m");
-            mutant.setOptions(options);
-            return mutant;
-        default:
-            throw new UnsupportedOperationException("Unknown mutation type [" + mutationType + "]");
+            case 0:
+                mutant.addParameter(randomAsciiAlphanumOfLength(mutant.getParameters().size() + 4), "extra");
+                return mutant;
+            case 1:
+                mutant.setJsonEntity("mutant"); // randomRequest can't produce this value
+                return mutant;
+            case 2:
+                RequestOptions.Builder options = mutant.getOptions().toBuilder();
+                options.addHeader("extra", "m");
+                mutant.setOptions(options);
+                return mutant;
+            default:
+                throw new UnsupportedOperationException("Unknown mutation type [" + mutationType + "]");
         }
     }
 

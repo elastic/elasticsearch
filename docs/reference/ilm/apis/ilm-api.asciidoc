@@ -1,7 +1,7 @@
 [[index-lifecycle-management-api]]
-== {ilm-cap} API
+== {ilm-cap} APIs
 
-You use the following APIs to set up policies to automatically manage the index lifecycle. 
+You use the following APIs to set up policies to automatically manage the index lifecycle.
 For more information about {ilm} ({ilm-init}), see <<index-lifecycle-management>>.
 
 [discrete]
@@ -28,6 +28,7 @@ For more information about {ilm} ({ilm-init}), see <<index-lifecycle-management>
 * <<ilm-start,Start {ilm-init}>>
 * <<ilm-stop,Stop {ilm-init}>>
 * <<ilm-explain-lifecycle,Explain API>>
+* <<ilm-migrate-to-data-tiers,Migrate to data tiers routing API>>
 
 
 include::put-lifecycle.asciidoc[]
@@ -42,3 +43,4 @@ include::get-status.asciidoc[]
 include::explain.asciidoc[]
 include::start.asciidoc[]
 include::stop.asciidoc[]
+include::migrate-to-data-tiers.asciidoc[]

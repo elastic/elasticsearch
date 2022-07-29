@@ -1,37 +1,25 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.engine;
 
-import com.carrotsearch.hppc.ObjectIntHashMap;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexDeletionPolicy;
 import org.apache.lucene.index.SegmentInfos;
-import org.apache.lucene.store.Directory;
+import org.elasticsearch.common.lucene.FilterIndexCommit;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogDeletionPolicy;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -49,19 +37,23 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
     private final TranslogDeletionPolicy translogDeletionPolicy;
     private final SoftDeletesPolicy softDeletesPolicy;
     private final LongSupplier globalCheckpointSupplier;
-    private final ObjectIntHashMap<IndexCommit> snapshottedCommits; // Number of snapshots held against each commit point.
+    private final Map<IndexCommit, Integer> snapshottedCommits; // Number of snapshots held against each commit point.
     private volatile IndexCommit safeCommit; // the most recent safe commit point - its max_seqno at most the persisted global checkpoint.
     private volatile long maxSeqNoOfNextSafeCommit;
     private volatile IndexCommit lastCommit; // the most recent commit point
     private volatile SafeCommitInfo safeCommitInfo = SafeCommitInfo.EMPTY;
 
-    CombinedDeletionPolicy(Logger logger, TranslogDeletionPolicy translogDeletionPolicy,
-                           SoftDeletesPolicy softDeletesPolicy, LongSupplier globalCheckpointSupplier) {
+    CombinedDeletionPolicy(
+        Logger logger,
+        TranslogDeletionPolicy translogDeletionPolicy,
+        SoftDeletesPolicy softDeletesPolicy,
+        LongSupplier globalCheckpointSupplier
+    ) {
         this.logger = logger;
         this.translogDeletionPolicy = translogDeletionPolicy;
         this.softDeletesPolicy = softDeletesPolicy;
         this.globalCheckpointSupplier = globalCheckpointSupplier;
-        this.snapshottedCommits = new ObjectIntHashMap<>();
+        this.snapshottedCommits = new HashMap<>();
     }
 
     @Override
@@ -69,45 +61,61 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
         assert commits.isEmpty() == false : "index is opened, but we have no commits";
         onCommit(commits);
         if (safeCommit != commits.get(commits.size() - 1)) {
-            throw new IllegalStateException("Engine is opened, but the last commit isn't safe. Global checkpoint ["
-                + globalCheckpointSupplier.getAsLong() + "], seqNo is last commit ["
-                + SequenceNumbers.loadSeqNoInfoFromLuceneCommit(lastCommit.getUserData().entrySet()) + "], "
-                + "seqNos in safe commit [" + SequenceNumbers.loadSeqNoInfoFromLuceneCommit(safeCommit.getUserData().entrySet()) + "]");
+            throw new IllegalStateException(
+                "Engine is opened, but the last commit isn't safe. Global checkpoint ["
+                    + globalCheckpointSupplier.getAsLong()
+                    + "], seqNo is last commit ["
+                    + SequenceNumbers.loadSeqNoInfoFromLuceneCommit(lastCommit.getUserData().entrySet())
+                    + "], "
+                    + "seqNos in safe commit ["
+                    + SequenceNumbers.loadSeqNoInfoFromLuceneCommit(safeCommit.getUserData().entrySet())
+                    + "]"
+            );
         }
     }
 
     @Override
     public void onCommit(List<? extends IndexCommit> commits) throws IOException {
-        final IndexCommit safeCommit;
+        assert Thread.holdsLock(this) == false : "should not block concurrent acquire or release";
+        final int keptPosition = indexOfKeptCommits(commits, globalCheckpointSupplier.getAsLong());
+        final IndexCommit safeCommit = commits.get(keptPosition);
+        int totalDocsOfSafeCommit;
+        try {
+            totalDocsOfSafeCommit = getDocCountOfCommit(safeCommit);
+        } catch (IOException ex) {
+            logger.info("failed to get the total docs from the safe commit; use the total docs from the previous safe commit", ex);
+            totalDocsOfSafeCommit = safeCommitInfo.docCount;
+        }
         synchronized (this) {
-            final int keptPosition = indexOfKeptCommits(commits, globalCheckpointSupplier.getAsLong());
-            this.safeCommitInfo = SafeCommitInfo.EMPTY;
+            this.safeCommitInfo = new SafeCommitInfo(
+                Long.parseLong(safeCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)),
+                totalDocsOfSafeCommit
+            );
             this.lastCommit = commits.get(commits.size() - 1);
-            this.safeCommit = commits.get(keptPosition);
-            for (int i = 0; i < keptPosition; i++) {
-                if (snapshottedCommits.containsKey(commits.get(i)) == false) {
-                    deleteCommit(commits.get(i));
-                }
-            }
+            this.safeCommit = safeCommit;
             updateRetentionPolicy();
             if (keptPosition == commits.size() - 1) {
                 this.maxSeqNoOfNextSafeCommit = Long.MAX_VALUE;
             } else {
                 this.maxSeqNoOfNextSafeCommit = Long.parseLong(commits.get(keptPosition + 1).getUserData().get(SequenceNumbers.MAX_SEQ_NO));
             }
-            safeCommit = this.safeCommit;
+            for (int i = 0; i < keptPosition; i++) {
+                if (snapshottedCommits.containsKey(commits.get(i)) == false) {
+                    deleteCommit(commits.get(i));
+                }
+            }
         }
+        assert assertSafeCommitUnchanged(safeCommit);
+    }
 
-        assert Thread.holdsLock(this) == false : "should not block concurrent acquire or relesase";
-        safeCommitInfo = new SafeCommitInfo(Long.parseLong(
-            safeCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)), getDocCountOfCommit(safeCommit));
-
+    private boolean assertSafeCommitUnchanged(IndexCommit safeCommit) {
         // This is protected from concurrent calls by a lock on the IndexWriter, but this assertion makes sure that we notice if that ceases
         // to be true in future. It is not disastrous if safeCommitInfo refers to an older safeCommit, it just means that we might retain a
         // bit more history and do a few more ops-based recoveries than we would otherwise.
         final IndexCommit newSafeCommit = this.safeCommit;
         assert safeCommit == newSafeCommit
             : "onCommit called concurrently? " + safeCommit.getGeneration() + " vs " + newSafeCommit.getGeneration();
+        return true;
     }
 
     private void deleteCommit(IndexCommit commit) throws IOException {
@@ -145,7 +153,7 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
         assert safeCommit != null : "Safe commit is not initialized yet";
         assert lastCommit != null : "Last commit is not initialized yet";
         final IndexCommit snapshotting = acquiringSafeCommit ? safeCommit : lastCommit;
-        snapshottedCommits.addTo(snapshotting, 1); // increase refCount
+        snapshottedCommits.merge(snapshotting, 1, Integer::sum); // increase refCount
         return new SnapshotIndexCommit(snapshotting);
     }
 
@@ -155,16 +163,25 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
      * @return true if the snapshotting commit can be clean up.
      */
     synchronized boolean releaseCommit(final IndexCommit snapshotCommit) {
-        final IndexCommit releasingCommit = ((SnapshotIndexCommit) snapshotCommit).delegate;
-        assert snapshottedCommits.containsKey(releasingCommit) : "Release non-snapshotted commit;" +
-            "snapshotted commits [" + snapshottedCommits + "], releasing commit [" + releasingCommit + "]";
-        final int refCount = snapshottedCommits.addTo(releasingCommit, -1); // release refCount
-        assert refCount >= 0 : "Number of snapshots can not be negative [" + refCount + "]";
-        if (refCount == 0) {
-            snapshottedCommits.remove(releasingCommit);
-        }
+        final IndexCommit releasingCommit = ((SnapshotIndexCommit) snapshotCommit).getIndexCommit();
+        assert snapshottedCommits.containsKey(releasingCommit)
+            : "Release non-snapshotted commit;"
+                + "snapshotted commits ["
+                + snapshottedCommits
+                + "], releasing commit ["
+                + releasingCommit
+                + "]";
+        // release refCount
+        final Integer refCount = snapshottedCommits.compute(releasingCommit, (key, count) -> {
+            if (count == 1) {
+                return null;
+            }
+            return count - 1;
+        });
+
+        assert refCount == null || refCount > 0 : "Number of snapshots can not be negative [" + refCount + "]";
         // The commit can be clean up only if no pending snapshot and it is neither the safe commit nor last commit.
-        return refCount == 0 && releasingCommit.equals(safeCommit) == false && releasingCommit.equals(lastCommit) == false;
+        return refCount == null && releasingCommit.equals(safeCommit) == false && releasingCommit.equals(lastCommit) == false;
     }
 
     /**
@@ -233,56 +250,14 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
     /**
      * A wrapper of an index commit that prevents it from being deleted.
      */
-    private static class SnapshotIndexCommit extends IndexCommit {
-        private final IndexCommit delegate;
-
+    private static class SnapshotIndexCommit extends FilterIndexCommit {
         SnapshotIndexCommit(IndexCommit delegate) {
-            this.delegate = delegate;
-        }
-
-        @Override
-        public String getSegmentsFileName() {
-            return delegate.getSegmentsFileName();
-        }
-
-        @Override
-        public Collection<String> getFileNames() throws IOException {
-            return delegate.getFileNames();
-        }
-
-        @Override
-        public Directory getDirectory() {
-            return delegate.getDirectory();
+            super(delegate);
         }
 
         @Override
         public void delete() {
             throw new UnsupportedOperationException("A snapshot commit does not support deletion");
-        }
-
-        @Override
-        public boolean isDeleted() {
-            return delegate.isDeleted();
-        }
-
-        @Override
-        public int getSegmentCount() {
-            return delegate.getSegmentCount();
-        }
-
-        @Override
-        public long getGeneration() {
-            return delegate.getGeneration();
-        }
-
-        @Override
-        public Map<String, String> getUserData() throws IOException {
-            return delegate.getUserData();
-        }
-
-        @Override
-        public String toString() {
-            return "SnapshotIndexCommit{" + delegate + "}";
         }
     }
 }

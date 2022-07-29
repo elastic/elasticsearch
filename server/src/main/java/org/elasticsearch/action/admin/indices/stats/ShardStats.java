@@ -1,49 +1,42 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.indices.stats;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.seqno.RetentionLeaseStats;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.ShardPath;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class ShardStats implements Writeable, ToXContentFragment {
 
-    private ShardRouting shardRouting;
-    private CommonStats commonStats;
+    private static final Version DEDUPLICATE_SHARD_PATH_VERSION = Version.V_8_4_0;
+
+    private final ShardRouting shardRouting;
+    private final CommonStats commonStats;
     @Nullable
-    private CommitStats commitStats;
+    private final CommitStats commitStats;
     @Nullable
-    private SeqNoStats seqNoStats;
+    private final SeqNoStats seqNoStats;
 
     @Nullable
-    private RetentionLeaseStats retentionLeaseStats;
+    private final RetentionLeaseStats retentionLeaseStats;
 
     /**
      * Gets the current retention lease stats.
@@ -54,28 +47,33 @@ public class ShardStats implements Writeable, ToXContentFragment {
         return retentionLeaseStats;
     }
 
-    private String dataPath;
-    private String statePath;
-    private boolean isCustomDataPath;
+    private final String dataPath;
+    private final String statePath;
+    private final boolean isCustomDataPath;
 
     public ShardStats(StreamInput in) throws IOException {
         shardRouting = new ShardRouting(in);
         commonStats = new CommonStats(in);
         commitStats = CommitStats.readOptionalCommitStatsFrom(in);
         statePath = in.readString();
-        dataPath = in.readString();
+        if (in.getVersion().onOrAfter(DEDUPLICATE_SHARD_PATH_VERSION)) {
+            dataPath = Objects.requireNonNullElse(in.readOptionalString(), this.statePath);
+        } else {
+            dataPath = in.readString();
+        }
         isCustomDataPath = in.readBoolean();
         seqNoStats = in.readOptionalWriteable(SeqNoStats::new);
         retentionLeaseStats = in.readOptionalWriteable(RetentionLeaseStats::new);
     }
 
     public ShardStats(
-            final ShardRouting routing,
-            final ShardPath shardPath,
-            final CommonStats commonStats,
-            final CommitStats commitStats,
-            final SeqNoStats seqNoStats,
-            final RetentionLeaseStats retentionLeaseStats) {
+        final ShardRouting routing,
+        final ShardPath shardPath,
+        final CommonStats commonStats,
+        final CommitStats commitStats,
+        final SeqNoStats seqNoStats,
+        final RetentionLeaseStats retentionLeaseStats
+    ) {
         this.shardRouting = routing;
         this.dataPath = shardPath.getRootDataPath().toString();
         this.statePath = shardPath.getRootStatePath().toString();
@@ -125,7 +123,11 @@ public class ShardStats implements Writeable, ToXContentFragment {
         commonStats.writeTo(out);
         out.writeOptionalWriteable(commitStats);
         out.writeString(statePath);
-        out.writeString(dataPath);
+        if (out.getVersion().onOrAfter(DEDUPLICATE_SHARD_PATH_VERSION)) {
+            out.writeOptionalString(statePath.equals(dataPath) ? null : dataPath);
+        } else {
+            out.writeString(dataPath);
+        }
         out.writeBoolean(isCustomDataPath);
         out.writeOptionalWriteable(seqNoStats);
         out.writeOptionalWriteable(retentionLeaseStats);
@@ -134,11 +136,11 @@ public class ShardStats implements Writeable, ToXContentFragment {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.ROUTING)
-                .field(Fields.STATE, shardRouting.state())
-                .field(Fields.PRIMARY, shardRouting.primary())
-                .field(Fields.NODE, shardRouting.currentNodeId())
-                .field(Fields.RELOCATING_NODE, shardRouting.relocatingNodeId())
-                .endObject();
+            .field(Fields.STATE, shardRouting.state())
+            .field(Fields.PRIMARY, shardRouting.primary())
+            .field(Fields.NODE, shardRouting.currentNodeId())
+            .field(Fields.RELOCATING_NODE, shardRouting.relocatingNodeId())
+            .endObject();
 
         commonStats.toXContent(builder, params);
         if (commitStats != null) {

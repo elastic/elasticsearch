@@ -1,0 +1,56 @@
+---
+"Flush stats":
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 1
+            index.translog.flush_threshold_size: 160b
+  - do:
+      indices.flush:
+        index: test
+  - do:
+      indices.stats: { index: test }
+  - match: { indices.test.primaries.flush.periodic: 0 }
+  - match: { indices.test.primaries.flush.total:    1 }
+  - do:
+      index:
+        index: test
+        id:    "1"
+        body:  { "message": "a long message to make a periodic flush happen after this index operation" }
+  - do:
+      indices.stats: { index: test }
+  # periodic flush is async
+  - gte: { indices.test.primaries.flush.periodic: 0 }
+  - gte: { indices.test.primaries.flush.total:    1 }
+
+---
+"Flush parameters validation":
+  - skip:
+      version: " - 7.1.99"
+      reason: flush parameters validation is introduced in 7.2.0
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 1
+  - do:
+      catch:  /action_request_validation_exception.+ wait_if_ongoing must be true for a force flush/
+      indices.flush:
+        index: test
+        force: true
+        wait_if_ongoing: false
+  - do:
+      indices.stats: { index: test }
+  - match: { indices.test.primaries.flush.total:    0 }
+  - do:
+      indices.flush:
+        index: test
+        force: true
+        wait_if_ongoing: true
+  - do:
+      indices.stats: { index: test }
+  - match: { indices.test.primaries.flush.total:    1 }

@@ -1,0 +1,199 @@
+---
+"Put index template":
+  - skip:
+      version: " - 7.7.99"
+      reason: "index template v2 API unavailable before 7.8"
+      features: allowed_warnings
+
+  - do:
+      allowed_warnings:
+        - "index template [test] has index patterns [test-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [test] will take precedence during new index creation"
+      indices.put_index_template:
+        name: test
+        body:
+          index_patterns: test-*
+          template:
+            settings:
+              number_of_shards:   1
+              number_of_replicas: 0
+            mappings:
+              properties:
+                field:
+                  type: keyword
+
+  - do:
+      indices.get_index_template:
+        name: test
+
+  - match: {index_templates.0.name: "test"}
+  - match: {index_templates.0.index_template.index_patterns: ["test-*"]}
+  - match: {index_templates.0.index_template.template.settings.index: {number_of_shards: '1', number_of_replicas: '0'}}
+  - match: {index_templates.0.index_template.template.mappings: {properties: {field: {type: keyword}}}}
+
+---
+"Put multiple index templates":
+  - skip:
+      version: " - 7.7.99"
+      reason: "index template v2 API unavailable before 7.8"
+      features: allowed_warnings
+
+  - do:
+      allowed_warnings:
+        - "index template [test] has index patterns [test-*, test2-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [test] will take precedence during new index creation"
+      indices.put_index_template:
+        name: test
+        body:
+          index_patterns: [test-*, test2-*]
+          template:
+            settings:
+              number_of_shards:   1
+              number_of_replicas: 0
+            mappings:
+              properties:
+                field:
+                  type: text
+            aliases:
+              test_alias: {}
+              test_blias: { routing: b }
+              test_clias: { filter: { term: { user: kimchy }}}
+
+  - do:
+      indices.get_index_template:
+        name: test
+
+  - match: {index_templates.0.index_template.index_patterns: ["test-*", "test2-*"]}
+  - match: {index_templates.0.index_template.template.settings.index: {number_of_shards: '1', number_of_replicas: '0'}}
+  - match: {index_templates.0.index_template.template.mappings: {properties: {field: {type: text}}}}
+  - length: {index_templates.0.index_template.template.aliases: 3}
+  - is_true: index_templates.0.index_template.template.aliases.test_alias
+  - match: {index_templates.0.index_template.template.aliases.test_blias.index_routing: "b" }
+  - match: {index_templates.0.index_template.template.aliases.test_blias.search_routing: "b" }
+  - match: {index_templates.0.index_template.template.aliases.test_clias.filter.term.user: "kimchy" }
+
+---
+"Put index template with 'create' flag":
+  - skip:
+      version: " - 7.7.99"
+      reason: "index template v2 API unavailable before 7.8"
+      features: allowed_warnings
+
+  - do:
+      allowed_warnings:
+        - "index template [test2] has index patterns [test-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [test2] will take precedence during new index creation"
+      indices.put_index_template:
+        name: test2
+        body:
+          index_patterns: test-*
+          template:
+            settings:
+              number_of_shards:   1
+              number_of_replicas: 0
+
+  - do:
+      indices.get_index_template:
+        name: test2
+
+  - match: {index_templates.0.index_template.index_patterns: ["test-*"]}
+  - match: {index_templates.0.index_template.template.settings.index: {number_of_shards: '1', number_of_replicas: '0'}}
+
+  - do:
+      catch: bad_request
+      indices.put_index_template:
+        name: test2
+        create: true
+        body:
+          index_patterns: test-*
+          template:
+            settings:
+              number_of_shards:   1
+              number_of_replicas: 0
+
+---
+"Put index template without index_patterns":
+  - skip:
+      version: " - 7.7.99"
+      reason: "index template v2 API unavailable before 7.8"
+
+  - do:
+      catch: bad_request
+      indices.put_index_template:
+        name: test
+        body: {}
+
+---
+"Delete multiple templates":
+  - skip:
+      version: " - 7.99.99"
+      reason: "not yet backported"
+      features: allowed_warnings
+
+  - do:
+      allowed_warnings:
+        - "index template [foo] has index patterns [foo-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [foo] will take precedence during new index creation"
+      indices.put_index_template:
+        name: foo
+        body:
+          index_patterns: foo-*
+          template:
+            settings:
+              number_of_shards:   1
+              number_of_replicas: 0
+
+  - do:
+      allowed_warnings:
+        - "index template [bar] has index patterns [bar-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [bar] will take precedence during new index creation"
+      indices.put_index_template:
+        name: bar
+        body:
+          index_patterns: bar-*
+          template:
+            settings:
+              number_of_shards:   1
+              number_of_replicas: 0
+
+  - do:
+      allowed_warnings:
+        - "index template [baz] has index patterns [baz-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [baz] will take precedence during new index creation"
+      indices.put_index_template:
+        name: baz
+        body:
+          index_patterns: baz-*
+          template:
+            settings:
+              number_of_shards:   1
+              number_of_replicas: 0
+
+  - do:
+      indices.get_index_template:
+        name: 'bar'
+  - match: {index_templates.0.name: "bar"}
+
+  - do:
+      indices.get_index_template:
+        name: 'baz'
+  - match: {index_templates.0.name: "baz"}
+
+  - do:
+      indices.get_index_template:
+        name: 'foo'
+  - match: {index_templates.0.name: "foo"}
+
+  - do:
+      indices.delete_index_template:
+        name: foo,bar
+
+  - do:
+      catch: missing
+      indices.get_index_template:
+        name: foo
+
+  - do:
+      catch: missing
+      indices.get_index_template:
+        name: bar
+
+  - do:
+      indices.get_index_template:
+        name: baz
+
+  - match: {index_templates.0.name: baz}

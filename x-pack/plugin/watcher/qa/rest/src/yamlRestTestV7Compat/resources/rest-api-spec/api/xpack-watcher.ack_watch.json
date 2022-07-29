@@ -1,0 +1,55 @@
+{
+  "xpack-watcher.ack_watch":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api-ack-watch.html",
+      "description":"Acknowledges a watch, manually throttling the execution of the watch's actions."
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/vnd.elasticsearch+json;compatible-with=7"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_xpack/watcher/watch/{watch_id}/_ack",
+          "methods":[
+            "PUT",
+            "POST"
+          ],
+          "parts":{
+            "watch_id":{
+              "type":"string",
+              "description":"Watch ID"
+            }
+          },
+          "deprecated":{
+            "version":"7.0.0",
+            "description":"all _xpack prefix have been deprecated"
+          }
+        },
+        {
+          "path":"/_xpack/watcher/watch/{watch_id}/_ack/{action_id}",
+          "methods":[
+            "PUT",
+            "POST"
+          ],
+          "parts":{
+            "watch_id":{
+              "type":"string",
+              "description":"Watch ID"
+            },
+            "action_id":{
+              "type":"list",
+              "description":"A comma-separated list of the action ids to be acked"
+            }
+          },
+          "deprecated":{
+            "version":"7.0.0",
+            "description":"all _xpack prefix have been deprecated"
+          }
+        }
+      ]
+    }
+  }
+}

@@ -1,18 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.inference.preprocessing;
 
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -21,7 +23,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-
 
 /**
  * PreProcessor for frequency encoding a set of categorical values for a given field.
@@ -36,30 +37,38 @@ public class FrequencyEncoding implements LenientlyParsedPreProcessor, StrictlyP
     public static final ParseField FREQUENCY_MAP = new ParseField("frequency_map");
     public static final ParseField CUSTOM = new ParseField("custom");
 
-    public static final ConstructingObjectParser<FrequencyEncoding, Void> STRICT_PARSER = createParser(false);
-    public static final ConstructingObjectParser<FrequencyEncoding, Void> LENIENT_PARSER = createParser(true);
+    private static final ConstructingObjectParser<FrequencyEncoding, PreProcessorParseContext> STRICT_PARSER = createParser(false);
+    private static final ConstructingObjectParser<FrequencyEncoding, PreProcessorParseContext> LENIENT_PARSER = createParser(true);
 
     @SuppressWarnings("unchecked")
-    private static ConstructingObjectParser<FrequencyEncoding, Void> createParser(boolean lenient) {
-        ConstructingObjectParser<FrequencyEncoding, Void> parser = new ConstructingObjectParser<>(
+    private static ConstructingObjectParser<FrequencyEncoding, PreProcessorParseContext> createParser(boolean lenient) {
+        ConstructingObjectParser<FrequencyEncoding, PreProcessorParseContext> parser = new ConstructingObjectParser<>(
             NAME.getPreferredName(),
             lenient,
-            a -> new FrequencyEncoding((String)a[0], (String)a[1], (Map<String, Double>)a[2], (Boolean)a[3]));
+            (a, c) -> new FrequencyEncoding(
+                (String) a[0],
+                (String) a[1],
+                (Map<String, Double>) a[2],
+                a[3] == null ? c.isCustomByDefault() : (Boolean) a[3]
+            )
+        );
         parser.declareString(ConstructingObjectParser.constructorArg(), FIELD);
         parser.declareString(ConstructingObjectParser.constructorArg(), FEATURE_NAME);
-        parser.declareObject(ConstructingObjectParser.constructorArg(),
+        parser.declareObject(
+            ConstructingObjectParser.constructorArg(),
             (p, c) -> p.map(HashMap::new, XContentParser::doubleValue),
-            FREQUENCY_MAP);
+            FREQUENCY_MAP
+        );
         parser.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), CUSTOM);
         return parser;
     }
 
-    public static FrequencyEncoding fromXContentStrict(XContentParser parser) {
-        return STRICT_PARSER.apply(parser, null);
+    public static FrequencyEncoding fromXContentStrict(XContentParser parser, PreProcessorParseContext context) {
+        return STRICT_PARSER.apply(parser, context == null ? PreProcessorParseContext.DEFAULT : context);
     }
 
-    public static FrequencyEncoding fromXContentLenient(XContentParser parser) {
-        return LENIENT_PARSER.apply(parser, null);
+    public static FrequencyEncoding fromXContentLenient(XContentParser parser, PreProcessorParseContext context) {
+        return LENIENT_PARSER.apply(parser, context == null ? PreProcessorParseContext.DEFAULT : context);
     }
 
     private final String field;
@@ -110,6 +119,11 @@ public class FrequencyEncoding implements LenientlyParsedPreProcessor, StrictlyP
     @Override
     public boolean isCustom() {
         return custom;
+    }
+
+    @Override
+    public String getOutputFieldType(String outputField) {
+        return NumberFieldMapper.NumberType.DOUBLE.typeName();
     }
 
     @Override

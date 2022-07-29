@@ -61,7 +61,7 @@ PUT /index/_mapping
 
 TF/IDF based similarity that has built-in tf normalization and
 is supposed to work better for short fields (like names). See
-{wikipedia}i/Okapi_BM25[Okapi_BM25] for more details.
+{wikipedia}/Okapi_BM25[Okapi_BM25] for more details.
 This similarity has the following options:
 
 [horizontal]

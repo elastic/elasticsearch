@@ -1,5 +1,3 @@
-[role="xpack"]
-[testenv="gold+"]
 [[certgen]]
 == elasticsearch-certgen
 
@@ -55,6 +53,7 @@ signed certificates must be in PEM format to work with the {stack}
 {security-features}.
 
 [discrete]
+[[certgen-parameters]]
 === Parameters
 
 `--cert <cert_file>`:: Specifies to generate new instance certificates and keys

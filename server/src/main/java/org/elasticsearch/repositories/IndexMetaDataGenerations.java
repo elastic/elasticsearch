@@ -1,33 +1,26 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.repositories;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.snapshots.SnapshotId;
 
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -53,8 +46,8 @@ public final class IndexMetaDataGenerations {
     final Map<String, String> identifiers;
 
     IndexMetaDataGenerations(Map<SnapshotId, Map<IndexId, String>> lookup, Map<String, String> identifiers) {
-        assert identifiers.keySet().equals(lookup.values().stream().flatMap(m -> m.values().stream()).collect(Collectors.toSet())) :
-            "identifier mappings " + identifiers + " don't track the same blob ids as the lookup map " + lookup;
+        assert identifiers.keySet().equals(lookup.values().stream().flatMap(m -> m.values().stream()).collect(Collectors.toSet()))
+            : "identifier mappings " + identifiers + " don't track the same blob ids as the lookup map " + lookup;
         assert lookup.values().stream().noneMatch(Map::isEmpty) : "Lookup contained empty map [" + lookup + "]";
         this.lookup = Map.copyOf(lookup);
         this.identifiers = Map.copyOf(identifiers);
@@ -87,12 +80,21 @@ public final class IndexMetaDataGenerations {
      * @return blob id for the given index metadata
      */
     public String indexMetaBlobId(SnapshotId snapshotId, IndexId indexId) {
-        final String identifier = lookup.getOrDefault(snapshotId, Collections.emptyMap()).get(indexId);
+        final String identifier = snapshotIndexMetadataIdentifier(snapshotId, indexId);
         if (identifier == null) {
             return snapshotId.getUUID();
         } else {
             return identifiers.get(identifier);
         }
+    }
+
+    /**
+     * Gets the {@link org.elasticsearch.cluster.metadata.IndexMetadata} identifier for the given snapshot
+     * if the snapshot contains the referenced index, otherwise it returns {@code null}.
+     */
+    @Nullable
+    public String snapshotIndexMetadataIdentifier(SnapshotId snapshotId, IndexId indexId) {
+        return lookup.getOrDefault(snapshotId, Collections.emptyMap()).get(indexId);
     }
 
     /**
@@ -103,23 +105,27 @@ public final class IndexMetaDataGenerations {
      * @param newIdentifiers new mappings of index metadata identifier to blob id
      * @return instance with added snapshot
      */
-    public IndexMetaDataGenerations withAddedSnapshot(SnapshotId snapshotId, Map<IndexId, String> newLookup,
-                                                      Map<String, String> newIdentifiers) {
+    public IndexMetaDataGenerations withAddedSnapshot(
+        SnapshotId snapshotId,
+        Map<IndexId, String> newLookup,
+        Map<String, String> newIdentifiers
+    ) {
         final Map<SnapshotId, Map<IndexId, String>> updatedIndexMetaLookup = new HashMap<>(this.lookup);
         final Map<String, String> updatedIndexMetaIdentifiers = new HashMap<>(identifiers);
         updatedIndexMetaIdentifiers.putAll(newIdentifiers);
-        updatedIndexMetaLookup.compute(snapshotId, (snId, lookup) -> {
-            if (lookup == null) {
-                if (newLookup.isEmpty()) {
-                    return null;
-                }
-                return Map.copyOf(newLookup);
-            } else {
-                final Map<IndexId, String> updated = new HashMap<>(lookup);
-                updated.putAll(newLookup);
-                return Map.copyOf(updated);
+        if (newLookup.isEmpty() == false) {
+            final Map<String, String> identifierDeduplicator = Maps.newMapWithExpectedSize(this.identifiers.size());
+            for (String identifier : identifiers.keySet()) {
+                identifierDeduplicator.put(identifier, identifier);
             }
-        });
+            final Map<IndexId, String> fixedLookup = Maps.newMapWithExpectedSize(newLookup.size());
+            for (Map.Entry<IndexId, String> entry : newLookup.entrySet()) {
+                final String generation = entry.getValue();
+                fixedLookup.put(entry.getKey(), identifierDeduplicator.getOrDefault(generation, generation));
+            }
+            final Map<IndexId, String> existing = updatedIndexMetaLookup.put(snapshotId, Map.copyOf(fixedLookup));
+            assert existing == null : "unexpected existing index generation mappings " + existing;
+        }
         return new IndexMetaDataGenerations(updatedIndexMetaLookup, updatedIndexMetaIdentifiers);
     }
 
@@ -130,12 +136,20 @@ public final class IndexMetaDataGenerations {
      * @return new instance without the given snapshot
      */
     public IndexMetaDataGenerations withRemovedSnapshots(Collection<SnapshotId> snapshotIds) {
-        final Map<SnapshotId, Map<IndexId, String>> updatedIndexMetaLookup = new HashMap<>(lookup);
-        updatedIndexMetaLookup.keySet().removeAll(snapshotIds);
-        final Map<String, String> updatedIndexMetaIdentifiers = new HashMap<>(identifiers);
-        updatedIndexMetaIdentifiers.keySet().removeIf(
-            k -> updatedIndexMetaLookup.values().stream().noneMatch(identifiers -> identifiers.containsValue(k)));
-        return new IndexMetaDataGenerations(updatedIndexMetaLookup, updatedIndexMetaIdentifiers);
+        final var snapshotIdsSet = new HashSet<>(snapshotIds);
+        final Map<SnapshotId, Map<IndexId, String>> retainedIndexMetaLookup = Maps.newMapWithExpectedSize(lookup.size());
+        final Set<String> retainedBlobUUIDs = Sets.newHashSetWithExpectedSize(identifiers.size());
+        for (Map.Entry<SnapshotId, Map<IndexId, String>> e : lookup.entrySet()) {
+            if (snapshotIdsSet.contains(e.getKey()) == false) {
+                retainedIndexMetaLookup.put(e.getKey(), e.getValue());
+                retainedBlobUUIDs.addAll(e.getValue().values());
+            }
+        }
+        final Map<String, String> retainedIndexMetaIdentifiers = identifiers.entrySet()
+            .stream()
+            .filter(e -> retainedBlobUUIDs.contains(e.getKey()))
+            .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
+        return new IndexMetaDataGenerations(retainedIndexMetaLookup, retainedIndexMetaIdentifiers);
     }
 
     @Override
@@ -169,9 +183,14 @@ public final class IndexMetaDataGenerations {
      * @return identifier string
      */
     public static String buildUniqueIdentifier(IndexMetadata indexMetaData) {
-        return indexMetaData.getIndexUUID() +
-                "-" + indexMetaData.getSettings().get(IndexMetadata.SETTING_HISTORY_UUID, IndexMetadata.INDEX_UUID_NA_VALUE) +
-                "-" + indexMetaData.getSettingsVersion() + "-" + indexMetaData.getMappingVersion() +
-                "-" + indexMetaData.getAliasesVersion();
+        return indexMetaData.getIndexUUID()
+            + "-"
+            + indexMetaData.getSettings().get(IndexMetadata.SETTING_HISTORY_UUID, IndexMetadata.INDEX_UUID_NA_VALUE)
+            + "-"
+            + indexMetaData.getSettingsVersion()
+            + "-"
+            + indexMetaData.getMappingVersion()
+            + "-"
+            + indexMetaData.getAliasesVersion();
     }
 }

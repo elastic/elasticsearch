@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.action;
 
@@ -16,6 +17,7 @@ import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 
 import java.io.IOException;
 
+import static org.elasticsearch.core.Strings.format;
 
 public class GetFiltersAction extends ActionType<GetFiltersAction.Response> {
 
@@ -39,6 +41,11 @@ public class GetFiltersAction extends ActionType<GetFiltersAction.Response> {
 
         public Request(StreamInput in) throws IOException {
             super(in);
+        }
+
+        @Override
+        public String getCancelableTaskDescription() {
+            return format("get_filters[%s]", getResourceId());
         }
 
         @Override
@@ -73,4 +80,3 @@ public class GetFiltersAction extends ActionType<GetFiltersAction.Response> {
     }
 
 }
-

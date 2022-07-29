@@ -2,11 +2,6 @@
 [[watcher-getting-started]]
 == Getting started with {watcher}
 
-TIP: To complete these steps, you must obtain a license that includes the
-{alert-features}. For more information about Elastic license levels, see 
-https://www.elastic.co/subscriptions and
-{kibana-ref}/managing-licenses.html[License management].
-
 [[watch-log-data]]
 To set up a watch to start sending alerts:
 
@@ -103,7 +98,7 @@ PUT _watcher/watch/log_error_watch
     }
   },
   "condition" : {
-    "compare" : { "ctx.payload.hits.total.value" : { "gt" : 0 }} <1>
+    "compare" : { "ctx.payload.hits.total" : { "gt" : 0 }} <1>
   }
 }
 --------------------------------------------------
@@ -180,12 +175,12 @@ PUT _watcher/watch/log_error_watch
     }
   },
   "condition" : {
-    "compare" : { "ctx.payload.hits.total.value" : { "gt" : 0 }}
+    "compare" : { "ctx.payload.hits.total" : { "gt" : 0 }}
   },
   "actions" : {
     "log_error" : {
       "logging" : {
-        "text" : "Found {{ctx.payload.hits.total.value}} errors in the logs"
+        "text" : "Found {{ctx.payload.hits.total}} errors in the logs"
       }
     }
   }

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.analysis.common;
@@ -38,13 +27,16 @@ public class KeepTypesFilterFactoryTests extends ESTokenStreamTestCase {
     private static final String BASE_SETTING = "index.analysis.filter.keep_numbers";
 
     public void testKeepTypesInclude() throws IOException {
-        Settings.Builder settingsBuilder = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                .put(BASE_SETTING + ".type", "keep_types")
-                .putList(BASE_SETTING + "." + KeepTypesFilterFactory.KEEP_TYPES_KEY, new String[] { "<NUM>", "<SOMETHINGELSE>" });
+        Settings.Builder settingsBuilder = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .put(BASE_SETTING + ".type", "keep_types")
+            .putList(BASE_SETTING + "." + KeepTypesFilterFactory.KEEP_TYPES_KEY, new String[] { "<NUM>", "<SOMETHINGELSE>" });
         // either use default mode or set "include" mode explicitly
         if (random().nextBoolean()) {
-            settingsBuilder.put(BASE_SETTING + "." + KeepTypesFilterFactory.KEEP_TYPES_MODE_KEY,
-                    KeepTypesFilterFactory.KeepTypesMode.INCLUDE);
+            settingsBuilder.put(
+                BASE_SETTING + "." + KeepTypesFilterFactory.KEEP_TYPES_MODE_KEY,
+                KeepTypesFilterFactory.KeepTypesMode.INCLUDE
+            );
         }
         Settings settings = settingsBuilder.build();
         ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisPlugin());
@@ -58,10 +50,12 @@ public class KeepTypesFilterFactoryTests extends ESTokenStreamTestCase {
     }
 
     public void testKeepTypesExclude() throws IOException {
-        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                .put(BASE_SETTING + ".type", "keep_types")
-                .putList(BASE_SETTING + "." + KeepTypesFilterFactory.KEEP_TYPES_KEY, new String[] { "<NUM>", "<SOMETHINGELSE>" })
-                .put(BASE_SETTING + "." + KeepTypesFilterFactory.KEEP_TYPES_MODE_KEY, KeepTypesFilterFactory.KeepTypesMode.EXCLUDE).build();
+        Settings settings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .put(BASE_SETTING + ".type", "keep_types")
+            .putList(BASE_SETTING + "." + KeepTypesFilterFactory.KEEP_TYPES_KEY, new String[] { "<NUM>", "<SOMETHINGELSE>" })
+            .put(BASE_SETTING + "." + KeepTypesFilterFactory.KEEP_TYPES_MODE_KEY, KeepTypesFilterFactory.KeepTypesMode.EXCLUDE)
+            .build();
         ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisPlugin());
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("keep_numbers");
         assertThat(tokenFilter, instanceOf(KeepTypesFilterFactory.class));
@@ -73,12 +67,16 @@ public class KeepTypesFilterFactoryTests extends ESTokenStreamTestCase {
     }
 
     public void testKeepTypesException() throws IOException {
-        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                .put(BASE_SETTING + ".type", "keep_types")
-                .putList(BASE_SETTING + "." + KeepTypesFilterFactory.KEEP_TYPES_KEY, new String[] { "<NUM>", "<SOMETHINGELSE>" })
-                .put(BASE_SETTING + "." + KeepTypesFilterFactory.KEEP_TYPES_MODE_KEY, "bad_parameter").build();
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
-                () -> AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisPlugin()));
+        Settings settings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .put(BASE_SETTING + ".type", "keep_types")
+            .putList(BASE_SETTING + "." + KeepTypesFilterFactory.KEEP_TYPES_KEY, new String[] { "<NUM>", "<SOMETHINGELSE>" })
+            .put(BASE_SETTING + "." + KeepTypesFilterFactory.KEEP_TYPES_MODE_KEY, "bad_parameter")
+            .build();
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisPlugin())
+        );
         assertEquals("`keep_types` tokenfilter mode can only be [include] or [exclude] but was [bad_parameter].", ex.getMessage());
     }
 }

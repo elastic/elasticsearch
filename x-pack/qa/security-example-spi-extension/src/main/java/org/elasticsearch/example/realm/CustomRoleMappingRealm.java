@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.example.realm;
 
@@ -55,7 +56,7 @@ public class CustomRoleMappingRealm extends Realm implements CachingRealm {
     }
 
     @Override
-    public void authenticate(AuthenticationToken authToken, ActionListener<AuthenticationResult> listener) {
+    public void authenticate(AuthenticationToken authToken, ActionListener<AuthenticationResult<User>> listener) {
         listener.onResponse(AuthenticationResult.notHandled());
     }
 
@@ -67,10 +68,10 @@ public class CustomRoleMappingRealm extends Realm implements CachingRealm {
             return;
         }
         if (USERNAME.equals(username)) {
-            buildUser(username, ActionListener.wrap(
-                u -> listener.onResponse(cache.computeIfAbsent(username, k -> u)),
-                listener::onFailure
-            ));
+            buildUser(
+                username,
+                ActionListener.wrap(u -> listener.onResponse(cache.computeIfAbsent(username, k -> u)), listener::onFailure)
+            );
         } else {
             listener.onResponse(null);
         }
@@ -78,10 +79,10 @@ public class CustomRoleMappingRealm extends Realm implements CachingRealm {
 
     private void buildUser(String username, ActionListener<User> listener) {
         final UserRoleMapper.UserData data = new UserRoleMapper.UserData(username, null, List.of(USER_GROUP), Map.of(), super.config);
-        roleMapper.resolveRoles(data, ActionListener.wrap(
-            roles -> listener.onResponse(new User(username, roles.toArray(String[]::new))),
-            listener::onFailure
-        ));
+        roleMapper.resolveRoles(
+            data,
+            ActionListener.wrap(roles -> listener.onResponse(new User(username, roles.toArray(String[]::new))), listener::onFailure)
+        );
     }
 
     @Override

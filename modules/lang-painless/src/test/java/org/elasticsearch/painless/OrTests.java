@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.painless;
@@ -54,21 +43,13 @@ public class OrTests extends ScriptTestCase {
     }
 
     public void testIllegal() throws Exception {
-        expectScriptThrows(ClassCastException.class, () -> {
-            exec("float x = (float)4; int y = 1; return x | y");
-        });
-        expectScriptThrows(ClassCastException.class, () -> {
-            exec("double x = (double)4; int y = 1; return x | y");
-        });
+        expectScriptThrows(ClassCastException.class, () -> { exec("float x = (float)4; int y = 1; return x | y"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("double x = (double)4; int y = 1; return x | y"); });
     }
 
     public void testDef() {
-        expectScriptThrows(ClassCastException.class, () -> {
-            exec("def x = (float)4; def y = (byte)1; return x | y");
-        });
-        expectScriptThrows(ClassCastException.class, () -> {
-            exec("def x = (double)4; def y = (byte)1; return x | y");
-        });
+        expectScriptThrows(ClassCastException.class, () -> { exec("def x = (float)4; def y = (byte)1; return x | y"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("def x = (double)4; def y = (byte)1; return x | y"); });
         assertEquals(5, exec("def x = (byte)4; def y = (byte)1; return x | y"));
         assertEquals(5, exec("def x = (short)4; def y = (byte)1; return x | y"));
         assertEquals(5, exec("def x = (char)4; def y = (byte)1; return x | y"));
@@ -105,19 +86,15 @@ public class OrTests extends ScriptTestCase {
         assertEquals(5, exec("def x = (int)4; def y = (int)1; return x | y"));
         assertEquals(5L, exec("def x = (long)4; def y = (long)1; return x | y"));
 
-        assertEquals(true,  exec("def x = true;  def y = true; return x | y"));
-        assertEquals(true,  exec("def x = true;  def y = false; return x | y"));
-        assertEquals(true,  exec("def x = false; def y = true; return x | y"));
+        assertEquals(true, exec("def x = true;  def y = true; return x | y"));
+        assertEquals(true, exec("def x = true;  def y = false; return x | y"));
+        assertEquals(true, exec("def x = false; def y = true; return x | y"));
         assertEquals(false, exec("def x = false; def y = false; return x | y"));
     }
 
     public void testDefTypedLHS() {
-        expectScriptThrows(ClassCastException.class, () -> {
-            exec("float x = (float)4; def y = (byte)1; return x | y");
-        });
-        expectScriptThrows(ClassCastException.class, () -> {
-            exec("double x = (double)4; def y = (byte)1; return x | y");
-        });
+        expectScriptThrows(ClassCastException.class, () -> { exec("float x = (float)4; def y = (byte)1; return x | y"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("double x = (double)4; def y = (byte)1; return x | y"); });
         assertEquals(5, exec("byte x = (byte)4; def y = (byte)1; return x | y"));
         assertEquals(5, exec("short x = (short)4; def y = (byte)1; return x | y"));
         assertEquals(5, exec("char x = (char)4; def y = (byte)1; return x | y"));
@@ -154,19 +131,15 @@ public class OrTests extends ScriptTestCase {
         assertEquals(5, exec("int x = (int)4; def y = (int)1; return x | y"));
         assertEquals(5L, exec("long x = (long)4; def y = (long)1; return x | y"));
 
-        assertEquals(true,  exec("boolean x = true;  def y = true; return x | y"));
-        assertEquals(true,  exec("boolean x = true;  def y = false; return x | y"));
-        assertEquals(true,  exec("boolean x = false; def y = true; return x | y"));
+        assertEquals(true, exec("boolean x = true;  def y = true; return x | y"));
+        assertEquals(true, exec("boolean x = true;  def y = false; return x | y"));
+        assertEquals(true, exec("boolean x = false; def y = true; return x | y"));
         assertEquals(false, exec("boolean x = false; def y = false; return x | y"));
     }
 
     public void testDefTypedRHS() {
-        expectScriptThrows(ClassCastException.class, () -> {
-            exec("def x = (float)4; byte y = (byte)1; return x | y");
-        });
-        expectScriptThrows(ClassCastException.class, () -> {
-            exec("def x = (double)4; byte y = (byte)1; return x | y");
-        });
+        expectScriptThrows(ClassCastException.class, () -> { exec("def x = (float)4; byte y = (byte)1; return x | y"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("def x = (double)4; byte y = (byte)1; return x | y"); });
         assertEquals(5, exec("def x = (byte)4; byte y = (byte)1; return x | y"));
         assertEquals(5, exec("def x = (short)4; byte y = (byte)1; return x | y"));
         assertEquals(5, exec("def x = (char)4; byte y = (byte)1; return x | y"));
@@ -203,9 +176,9 @@ public class OrTests extends ScriptTestCase {
         assertEquals(5, exec("def x = (int)4; int y = (int)1; return x | y"));
         assertEquals(5L, exec("def x = (long)4; long y = (long)1; return x | y"));
 
-        assertEquals(true,  exec("def x = true;  boolean y = true; return x | y"));
-        assertEquals(true,  exec("def x = true;  boolean y = false; return x | y"));
-        assertEquals(true,  exec("def x = false; boolean y = true; return x | y"));
+        assertEquals(true, exec("def x = true;  boolean y = true; return x | y"));
+        assertEquals(true, exec("def x = true;  boolean y = false; return x | y"));
+        assertEquals(true, exec("def x = false; boolean y = true; return x | y"));
         assertEquals(false, exec("def x = false; boolean y = false; return x | y"));
     }
 
@@ -233,18 +206,10 @@ public class OrTests extends ScriptTestCase {
     }
 
     public void testBogusCompoundAssignment() {
-        expectScriptThrows(ClassCastException.class, () -> {
-            exec("float x = 4; int y = 1; x |= y");
-        });
-        expectScriptThrows(ClassCastException.class, () -> {
-            exec("double x = 4; int y = 1; x |= y");
-        });
-        expectScriptThrows(ClassCastException.class, () -> {
-            exec("int x = 4; float y = 1; x |= y");
-        });
-        expectScriptThrows(ClassCastException.class, () -> {
-            exec("int x = 4; double y = 1; x |= y");
-        });
+        expectScriptThrows(ClassCastException.class, () -> { exec("float x = 4; int y = 1; x |= y"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("double x = 4; int y = 1; x |= y"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("int x = 4; float y = 1; x |= y"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("int x = 4; double y = 1; x |= y"); });
     }
 
     public void testDefCompoundAssignment() {
@@ -271,17 +236,9 @@ public class OrTests extends ScriptTestCase {
     }
 
     public void testDefBogusCompoundAssignment() {
-        expectScriptThrows(ClassCastException.class, () -> {
-            exec("def x = 4F; int y = 1; x |= y");
-        });
-        expectScriptThrows(ClassCastException.class, () -> {
-            exec("def x = 4D; int y = 1; x |= y");
-        });
-        expectScriptThrows(ClassCastException.class, () -> {
-            exec("def x = 4; float y = 1; x |= y");
-        });
-        expectScriptThrows(ClassCastException.class, () -> {
-            exec("def x = 4; double y = 1; x |= y");
-        });
+        expectScriptThrows(ClassCastException.class, () -> { exec("def x = 4F; int y = 1; x |= y"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("def x = 4D; int y = 1; x |= y"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("def x = 4; float y = 1; x |= y"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("def x = 4; double y = 1; x |= y"); });
     }
 }

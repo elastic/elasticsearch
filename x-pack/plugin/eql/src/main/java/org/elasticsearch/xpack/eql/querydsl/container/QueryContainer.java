@@ -1,18 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.eql.querydsl.container;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
 import org.elasticsearch.xpack.eql.execution.search.Limit;
 import org.elasticsearch.xpack.eql.execution.search.SourceGenerator;
+import org.elasticsearch.xpack.eql.expression.OptionalMissingAttribute;
 import org.elasticsearch.xpack.ql.execution.search.FieldExtraction;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.AttributeMap;
@@ -52,13 +54,15 @@ public class QueryContainer {
         this(null, emptyList(), AttributeMap.emptyAttributeMap(), emptyMap(), false, false, null);
     }
 
-    private QueryContainer(Query query,
-                           List<Tuple<FieldExtraction, String>> fields,
-                           AttributeMap<Expression> attributes,
-                           Map<String, Sort> sort,
-                           boolean trackHits,
-                           boolean includeFrozen,
-                           Limit limit) {
+    private QueryContainer(
+        Query query,
+        List<Tuple<FieldExtraction, String>> fields,
+        AttributeMap<Expression> attributes,
+        Map<String, Sort> sort,
+        boolean trackHits,
+        boolean includeFrozen,
+        Limit limit
+    ) {
         this.query = query;
         this.fields = fields;
         this.sort = sort;
@@ -111,12 +115,15 @@ public class QueryContainer {
         // resolve it Expression
         Expression expression = attributes.getOrDefault(attr, attr);
 
-        if (expression instanceof FieldAttribute) {
-            FieldAttribute fa = (FieldAttribute) expression;
+        if (expression instanceof FieldAttribute fa) {
             if (fa.isNested()) {
                 throw new UnsupportedOperationException("Nested not yet supported");
             }
             return new Tuple<>(this, extractorRegistry.fieldExtraction(expression));
+        }
+
+        if (expression instanceof OptionalMissingAttribute) {
+            return new Tuple<>(this, new ComputedRef(new ConstantInput(expression.source(), expression, null)));
         }
 
         if (expression.foldable()) {
@@ -157,18 +164,18 @@ public class QueryContainer {
 
         QueryContainer other = (QueryContainer) obj;
         return Objects.equals(query, other.query)
-                && Objects.equals(attributes, other.attributes)
-                && Objects.equals(fields, other.fields)
-                && trackHits == other.trackHits
-                && includeFrozen == other.includeFrozen
-                && Objects.equals(limit, other.limit);
+            && Objects.equals(attributes, other.attributes)
+            && Objects.equals(fields, other.fields)
+            && trackHits == other.trackHits
+            && includeFrozen == other.includeFrozen
+            && Objects.equals(limit, other.limit);
     }
 
     @Override
     public String toString() {
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             builder.humanReadable(true).prettyPrint();
-            SourceGenerator.sourceBuilder(this, null).toXContent(builder, ToXContent.EMPTY_PARAMS);
+            SourceGenerator.sourceBuilder(this, null, null, null).toXContent(builder, ToXContent.EMPTY_PARAMS);
             return Strings.toString(builder);
         } catch (IOException e) {
             throw new EqlIllegalArgumentException("error rendering", e);

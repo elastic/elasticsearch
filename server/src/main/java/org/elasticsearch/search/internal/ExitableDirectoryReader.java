@@ -1,35 +1,27 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.internal;
 
+import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.PointValues;
+import org.apache.lucene.index.QueryTimeout;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.suggest.document.CompletionTerms;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
+import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 
 import java.io.IOException;
 
@@ -76,10 +68,11 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
     public CacheHelper getReaderCacheHelper() {
         return in.getReaderCacheHelper();
     }
+
     /**
      * Wraps a {@link FilterLeafReader} with a {@link QueryCancellation}.
      */
-    static class ExitableLeafReader extends FilterLeafReader {
+    static class ExitableLeafReader extends SequentialStoredFieldsLeafReader {
 
         private final QueryCancellation queryCancellation;
 
@@ -106,8 +99,9 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
             // If we have a suggest CompletionQuery then the CompletionWeight#bulkScorer() will check that
             // the terms are instanceof CompletionTerms (not generic FilterTerms) and will throw an exception
             // if that's not the case.
-            return (queryCancellation.isEnabled() && terms instanceof CompletionTerms == false) ?
-                    new ExitableTerms(terms, queryCancellation) : terms;
+            return (queryCancellation.isEnabled() && terms instanceof CompletionTerms == false)
+                ? new ExitableTerms(terms, queryCancellation)
+                : terms;
         }
 
         @Override
@@ -118,6 +112,11 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         @Override
         public CacheHelper getReaderCacheHelper() {
             return in.getReaderCacheHelper();
+        }
+
+        @Override
+        protected StoredFieldsReader doGetSequentialStoredFieldsReader(StoredFieldsReader reader) {
+            return reader;
         }
     }
 
@@ -189,15 +188,9 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         }
 
         @Override
-        public void intersect(IntersectVisitor visitor) throws IOException {
+        public PointTree getPointTree() throws IOException {
             queryCancellation.checkCancelled();
-            in.intersect(new ExitableIntersectVisitor(visitor, queryCancellation));
-        }
-
-        @Override
-        public long estimatePointCount(IntersectVisitor visitor) {
-            queryCancellation.checkCancelled();
-            return in.estimatePointCount(visitor);
+            return new ExitablePointTree(in, in.getPointTree(), queryCancellation);
         }
 
         @Override
@@ -243,17 +236,102 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         }
     }
 
-    private static class ExitableIntersectVisitor implements PointValues.IntersectVisitor {
+    private static class ExitablePointTree implements PointValues.PointTree {
 
-        private static final int MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK = (1 << 13) - 1; // 8191
-
-        private final PointValues.IntersectVisitor in;
+        private final PointValues pointValues;
+        private final PointValues.PointTree in;
+        private final ExitableIntersectVisitor exitableIntersectVisitor;
         private final QueryCancellation queryCancellation;
         private int calls;
 
-        private ExitableIntersectVisitor(PointValues.IntersectVisitor in, QueryCancellation queryCancellation) {
+        private ExitablePointTree(PointValues pointValues, PointValues.PointTree in, QueryCancellation queryCancellation) {
+            this.pointValues = pointValues;
             this.in = in;
             this.queryCancellation = queryCancellation;
+            this.exitableIntersectVisitor = new ExitableIntersectVisitor(queryCancellation);
+        }
+
+        /**
+         * Throws {@link org.apache.lucene.index.ExitableDirectoryReader.ExitingReaderException}
+         * if {@link QueryTimeout#shouldExit()} returns true, or
+         * if {@link Thread#interrupted()} returns true.
+         */
+        private void checkAndThrowWithSampling() {
+            if ((calls++ & ExitableIntersectVisitor.MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK) == 0) {
+                queryCancellation.checkCancelled();
+            }
+        }
+
+        @Override
+        public PointValues.PointTree clone() {
+            queryCancellation.checkCancelled();
+            return new ExitablePointTree(pointValues, in.clone(), queryCancellation);
+        }
+
+        @Override
+        public boolean moveToChild() throws IOException {
+            checkAndThrowWithSampling();
+            return in.moveToChild();
+        }
+
+        @Override
+        public boolean moveToSibling() throws IOException {
+            checkAndThrowWithSampling();
+            return in.moveToSibling();
+        }
+
+        @Override
+        public boolean moveToParent() throws IOException {
+            checkAndThrowWithSampling();
+            return in.moveToParent();
+        }
+
+        @Override
+        public byte[] getMinPackedValue() {
+            checkAndThrowWithSampling();
+            return in.getMinPackedValue();
+        }
+
+        @Override
+        public byte[] getMaxPackedValue() {
+            checkAndThrowWithSampling();
+            return in.getMaxPackedValue();
+        }
+
+        @Override
+        public long size() {
+            queryCancellation.checkCancelled();
+            return in.size();
+        }
+
+        @Override
+        public void visitDocIDs(PointValues.IntersectVisitor visitor) throws IOException {
+            queryCancellation.checkCancelled();
+            in.visitDocIDs(visitor);
+        }
+
+        @Override
+        public void visitDocValues(PointValues.IntersectVisitor visitor) throws IOException {
+            queryCancellation.checkCancelled();
+            exitableIntersectVisitor.setIntersectVisitor(visitor);
+            in.visitDocValues(exitableIntersectVisitor);
+        }
+    }
+
+    private static class ExitableIntersectVisitor implements PointValues.IntersectVisitor {
+
+        static final int MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK = (1 << 13) - 1; // 8191
+
+        private final QueryCancellation queryCancellation;
+        private PointValues.IntersectVisitor in;
+        private int calls;
+
+        private ExitableIntersectVisitor(QueryCancellation queryCancellation) {
+            this.queryCancellation = queryCancellation;
+        }
+
+        private void setIntersectVisitor(PointValues.IntersectVisitor in) {
+            this.in = in;
         }
 
         private void checkAndThrowWithSampling() {

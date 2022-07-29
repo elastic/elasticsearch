@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.indices.cluster;
@@ -26,10 +15,10 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -39,6 +28,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer.ResyncTask;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndex;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices;
@@ -145,12 +135,19 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
 
                         if (shard.routingEntry().primary() && shard.routingEntry().active()) {
                             IndexShardRoutingTable shardRoutingTable = state.routingTable().shardRoutingTable(shard.shardId());
-                            Set<String> inSyncIds = state.metadata().index(shard.shardId().getIndex())
+                            Set<String> inSyncIds = state.metadata()
+                                .index(shard.shardId().getIndex())
                                 .inSyncAllocationIds(shard.shardId().id());
-                            assertThat(shard.routingEntry() + " isn't updated with in-sync aIDs", shard.inSyncAllocationIds,
-                                equalTo(inSyncIds));
-                            assertThat(shard.routingEntry() + " isn't updated with routing table", shard.routingTable,
-                                equalTo(shardRoutingTable));
+                            assertThat(
+                                shard.routingEntry() + " isn't updated with in-sync aIDs",
+                                shard.inSyncAllocationIds,
+                                equalTo(inSyncIds)
+                            );
+                            assertThat(
+                                shard.routingEntry() + " isn't updated with routing table",
+                                shard.routingTable,
+                                equalTo(shardRoutingTable)
+                            );
                         }
                     }
                 }
@@ -159,11 +156,12 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
 
         // all other shards / indices have been cleaned up
         for (AllocatedIndex<? extends Shard> indexService : indicesService) {
+            final Index index = indexService.getIndexSettings().getIndex();
             if (state.blocks().disableStatePersistence()) {
-                fail("Index service " + indexService.index() + " should be removed from indicesService due to disabled state persistence");
+                fail("Index service " + index + " should be removed from indicesService due to disabled state persistence");
             }
 
-            assertTrue(state.metadata().getIndexSafe(indexService.index()) != null);
+            assertTrue(state.metadata().getIndexSafe(index) != null);
 
             boolean shardsFound = false;
             for (Shard shard : indexService) {
@@ -181,7 +179,7 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
             if (shardsFound == false) {
                 // check if we have shards of that index in failedShardsCache
                 // if yes, we might not have cleaned the index as failedShardsCache can be populated by another thread
-                assertFalse(failedShardsCache.keySet().stream().noneMatch(shardId -> shardId.getIndex().equals(indexService.index())));
+                assertFalse(failedShardsCache.keySet().stream().noneMatch(shardId -> shardId.getIndex().equals(index)));
             }
 
         }
@@ -195,9 +193,10 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
 
         @Override
         public synchronized MockIndexService createIndex(
-                IndexMetadata indexMetadata,
-                List<IndexEventListener> buildInIndexListener,
-                boolean writeDanglingIndices) throws IOException {
+            IndexMetadata indexMetadata,
+            List<IndexEventListener> buildInIndexListener,
+            boolean writeDanglingIndices
+        ) throws IOException {
             MockIndexService indexService = new MockIndexService(new IndexSettings(indexMetadata, Settings.EMPTY));
             indices = Maps.copyMapWithAddedEntry(indices, indexMetadata.getIndexUUID(), indexService);
             return indexService;
@@ -230,15 +229,16 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
 
         @Override
         public MockIndexShard createShard(
-                final ShardRouting shardRouting,
-                final PeerRecoveryTargetService recoveryTargetService,
-                final PeerRecoveryTargetService.RecoveryListener recoveryListener,
-                final RepositoriesService repositoriesService,
-                final Consumer<IndexShard.ShardFailure> onShardFailure,
-                final Consumer<ShardId> globalCheckpointSyncer,
-                final RetentionLeaseSyncer retentionLeaseSyncer,
-                final DiscoveryNode targetNode,
-                final DiscoveryNode sourceNode) throws IOException {
+            final ShardRouting shardRouting,
+            final PeerRecoveryTargetService recoveryTargetService,
+            final PeerRecoveryTargetService.RecoveryListener recoveryListener,
+            final RepositoriesService repositoriesService,
+            final Consumer<IndexShard.ShardFailure> onShardFailure,
+            final Consumer<ShardId> globalCheckpointSyncer,
+            final RetentionLeaseSyncer retentionLeaseSyncer,
+            final DiscoveryNode targetNode,
+            final DiscoveryNode sourceNode
+        ) throws IOException {
             failRandomly();
             RecoveryState recoveryState = new RecoveryState(shardRouting, targetNode, sourceNode);
             MockIndexService indexService = indexService(recoveryState.getShardId().getIndex());
@@ -281,15 +281,14 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
         }
 
         @Override
-        public boolean updateMapping(final IndexMetadata currentIndexMetadata, final IndexMetadata newIndexMetadata) throws IOException {
+        public void updateMapping(final IndexMetadata currentIndexMetadata, final IndexMetadata newIndexMetadata) throws IOException {
             failRandomly();
-            return false;
         }
 
         @Override
         public void updateMetadata(final IndexMetadata currentIndexMetadata, final IndexMetadata newIndexMetadata) {
             indexSettings.updateIndexMetadata(newIndexMetadata);
-            for (MockIndexShard shard: shards.values()) {
+            for (MockIndexShard shard : shards.values()) {
                 shard.updateTerm(newIndexMetadata.primaryTerm(shard.shardId().id()));
             }
         }
@@ -321,11 +320,6 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
         public Iterator<MockIndexShard> iterator() {
             return shards.values().iterator();
         }
-
-        @Override
-        public Index index() {
-            return indexSettings.getIndex();
-        }
     }
 
     /**
@@ -354,18 +348,22 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
         }
 
         @Override
-        public void updateShardState(ShardRouting shardRouting,
-                                     long newPrimaryTerm,
-                                     BiConsumer<IndexShard, ActionListener<ResyncTask>> primaryReplicaSyncer,
-                                     long applyingClusterStateVersion,
-                                     Set<String> inSyncAllocationIds,
-                                     IndexShardRoutingTable routingTable) throws IOException {
+        public void updateShardState(
+            ShardRouting shardRouting,
+            long newPrimaryTerm,
+            BiConsumer<IndexShard, ActionListener<ResyncTask>> primaryReplicaSyncer,
+            long applyingClusterStateVersion,
+            Set<String> inSyncAllocationIds,
+            IndexShardRoutingTable routingTable
+        ) throws IOException {
             failRandomly();
             assertThat(this.shardId(), equalTo(shardRouting.shardId()));
             assertTrue("current: " + this.shardRouting + ", got: " + shardRouting, this.shardRouting.isSameAllocation(shardRouting));
             if (this.shardRouting.active()) {
-                assertTrue("an active shard must stay active, current: " + this.shardRouting + ", got: " + shardRouting,
-                    shardRouting.active());
+                assertTrue(
+                    "an active shard must stay active, current: " + this.shardRouting + ", got: " + shardRouting,
+                    shardRouting.active()
+                );
             }
             if (this.shardRouting.primary()) {
                 assertTrue("a primary shard can't be demoted", shardRouting.primary());
@@ -375,8 +373,10 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
             } else if (shardRouting.primary()) {
                 // note: it's ok for a replica in post recovery to be started and promoted at once
                 // this can happen when the primary failed after we sent the start shard message
-                assertTrue("a replica can only be promoted when active. current: " + this.shardRouting + " new: " + shardRouting,
-                    shardRouting.active());
+                assertTrue(
+                    "a replica can only be promoted when active. current: " + this.shardRouting + " new: " + shardRouting,
+                    shardRouting.active()
+                );
             }
             this.shardRouting = shardRouting;
             if (shardRouting.primary()) {
@@ -407,5 +407,11 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
             }
             this.term = newTerm;
         }
+
+        @Override
+        public ShardLongFieldRange getTimestampRange() {
+            return ShardLongFieldRange.EMPTY;
+        }
+
     }
 }

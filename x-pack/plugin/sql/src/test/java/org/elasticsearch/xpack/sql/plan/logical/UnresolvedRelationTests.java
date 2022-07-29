@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.plan.logical;
 
@@ -25,28 +26,37 @@ public class UnresolvedRelationTests extends ESTestCase {
         String unresolvedMessage = randomAlphaOfLength(5);
         UnresolvedRelation relation = new UnresolvedRelation(source, table, alias, randomBoolean(), unresolvedMessage);
         List<Function<UnresolvedRelation, UnresolvedRelation>> mutators = new ArrayList<>();
-        mutators.add(r -> new UnresolvedRelation(
-            r.source(),
-            new TableIdentifier(r.source(), r.table().cluster(), r.table().index() + "m"),
-            r.alias(),
-            r.frozen(),
-            r.unresolvedMessage()));
-        mutators.add(r -> new UnresolvedRelation(
-            r.source(),
-            r.table(),
-            randomValueOtherThanMany(
-                a -> Objects.equals(a, r.alias()),
-                () -> randomBoolean() ? null : randomAlphaOfLength(5)),
-            r.frozen(),
-            r.unresolvedMessage()));
-        mutators.add(r -> new UnresolvedRelation(
-            r.source(),
-            r.table(),
-            r.alias(),
-            r.frozen(),
-            randomValueOtherThan(r.unresolvedMessage(), () -> randomAlphaOfLength(5))));
-        checkEqualsAndHashCode(relation,
+        mutators.add(
+            r -> new UnresolvedRelation(
+                r.source(),
+                new TableIdentifier(r.source(), r.table().cluster(), r.table().index() + "m"),
+                r.alias(),
+                r.frozen(),
+                r.unresolvedMessage()
+            )
+        );
+        mutators.add(
+            r -> new UnresolvedRelation(
+                r.source(),
+                r.table(),
+                randomValueOtherThanMany(a -> Objects.equals(a, r.alias()), () -> randomBoolean() ? null : randomAlphaOfLength(5)),
+                r.frozen(),
+                r.unresolvedMessage()
+            )
+        );
+        mutators.add(
+            r -> new UnresolvedRelation(
+                r.source(),
+                r.table(),
+                r.alias(),
+                r.frozen(),
+                randomValueOtherThan(r.unresolvedMessage(), () -> randomAlphaOfLength(5))
+            )
+        );
+        checkEqualsAndHashCode(
+            relation,
             r -> new UnresolvedRelation(r.source(), r.table(), r.alias(), r.frozen(), r.unresolvedMessage()),
-            r -> randomFrom(mutators).apply(r));
+            r -> randomFrom(mutators).apply(r)
+        );
     }
 }

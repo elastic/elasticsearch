@@ -1,0 +1,115 @@
+---
+setup:
+  # Lock to one shard so the tests don't sometimes try to collect from an empty
+  # index. If they do they'll use the GlobalOrdinals collector regardless of the
+  # optimization setting. That's fine - but it causes the test to fail so we
+  # need to dodge that case.
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body: |
+          { "index": {} }
+          { "str": "sheep" }
+          { "index": {} }
+          { "str": "sheep" }
+          { "index": {} }
+          { "str": "cow" }
+          { "index": {} }
+          { "str": "pig" }
+
+---
+teardown:
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            search.aggs.rewrite_to_filter_by_filter: null
+
+---
+disable optimization:
+  - skip:
+      version: " - 7.13.1"
+      reason: setting to disable optimization added in 7.13.2
+
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            search.aggs.rewrite_to_filter_by_filter: false
+
+
+  - do:
+      search:
+        index: test
+        body:
+          profile: true
+          size: 0
+          aggs:
+            str_terms:
+              terms:
+                field: str.keyword
+  - match: { aggregations.str_terms.buckets.0.key: sheep }
+  - match: { aggregations.str_terms.buckets.1.key: cow }
+  - match: { aggregations.str_terms.buckets.2.key: pig }
+  - match: { profile.shards.0.aggregations.0.type: /GlobalOrdinalsStringTermsAggregator.*/ } # Either the standard or low cardinality impl are fine
+  - match: { profile.shards.0.aggregations.0.description: str_terms }
+
+---
+enable optimization:
+  - skip:
+      version: " - 7.13.1"
+      reason: setting to disable optimization added in 7.13.2
+
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            search.aggs.rewrite_to_filter_by_filter: true
+
+  - do:
+      search:
+        index: test
+        body:
+          profile: true
+          size: 0
+          aggs:
+            str_terms:
+              terms:
+                field: str.keyword
+  - match: { aggregations.str_terms.buckets.0.key: sheep }
+  - match: { aggregations.str_terms.buckets.1.key: cow }
+  - match: { aggregations.str_terms.buckets.2.key: pig }
+  - match: { profile.shards.0.aggregations.0.type: /StringTermsAggregatorFromFilters/ }
+  - match: { profile.shards.0.aggregations.0.description: str_terms }
+
+---
+enabled by default:
+  - skip:
+      version: " - 7.13.1"
+      reason: setting to disable optimization added in 7.13.2
+
+  - do:
+      search:
+        index: test
+        body:
+          profile: true
+          size: 0
+          aggs:
+            str_terms:
+              terms:
+                field: str.keyword
+  - match: { aggregations.str_terms.buckets.0.key: sheep }
+  - match: { aggregations.str_terms.buckets.1.key: cow }
+  - match: { aggregations.str_terms.buckets.2.key: pig }
+  - match: { profile.shards.0.aggregations.0.type: /StringTermsAggregatorFromFilters/ }
+  - match: { profile.shards.0.aggregations.0.description: str_terms }

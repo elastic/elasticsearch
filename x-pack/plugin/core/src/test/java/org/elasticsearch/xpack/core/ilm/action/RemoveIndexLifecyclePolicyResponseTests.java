@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.ilm.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ilm.action.RemoveIndexLifecyclePolicyAction.Response;
 
 import java.io.IOException;
@@ -32,8 +33,10 @@ public class RemoveIndexLifecyclePolicyResponseTests extends AbstractSerializing
 
     @Override
     protected Response mutateInstance(Response instance) throws IOException {
-        List<String> failedIndices = randomValueOtherThan(instance.getFailedIndexes(),
-                () -> Arrays.asList(generateRandomStringArray(20, 20, false)));
+        List<String> failedIndices = randomValueOtherThan(
+            instance.getFailedIndexes(),
+            () -> Arrays.asList(generateRandomStringArray(20, 20, false))
+        );
         return new Response(failedIndices);
     }
 

@@ -292,7 +292,7 @@ header because the client will automatically set that from the `HttpEntity`
 attached to the request.
 
 You can set the `NodeSelector` which controls which nodes will receive
-requests. `NodeSelector.NOT_MASTER_ONLY` is a good choice.
+requests. `NodeSelector.SKIP_DEDICATED_MASTERS` is a good choice.
 
 You can also customize the response consumer used to buffer the asynchronous
 responses. The default consumer will buffer up to 100MB of response on the

@@ -1,49 +1,36 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.metadata;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -75,10 +62,14 @@ public class TemplateUpgradeService implements ClusterStateListener {
 
     final AtomicInteger upgradesInProgress = new AtomicInteger();
 
-    private ImmutableOpenMap<String, IndexTemplateMetadata> lastTemplateMetadata;
+    private Map<String, IndexTemplateMetadata> lastTemplateMetadata;
 
-    public TemplateUpgradeService(Client client, ClusterService clusterService, ThreadPool threadPool,
-                                  Collection<UnaryOperator<Map<String, IndexTemplateMetadata>>> indexTemplateMetadataUpgraders) {
+    public TemplateUpgradeService(
+        Client client,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        Collection<UnaryOperator<Map<String, IndexTemplateMetadata>>> indexTemplateMetadataUpgraders
+    ) {
         this.client = client;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
@@ -89,12 +80,17 @@ public class TemplateUpgradeService implements ClusterStateListener {
             }
             return upgradedTemplates;
         };
-        clusterService.addListener(this);
+        if (DiscoveryNode.isMasterNode(clusterService.getSettings())) {
+            clusterService.addListener(this);
+        }
     }
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         ClusterState state = event.state();
+        if (state.nodes().isLocalNodeElectedMaster() == false) {
+            return;
+        }
         if (state.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
             // wait until the gateway has recovered from disk, otherwise we think may not have the index templates,
             // while they actually do exist
@@ -106,7 +102,7 @@ public class TemplateUpgradeService implements ClusterStateListener {
             return;
         }
 
-        ImmutableOpenMap<String, IndexTemplateMetadata> templates = state.getMetadata().getTemplates();
+        Map<String, IndexTemplateMetadata> templates = state.getMetadata().getTemplates();
 
         if (templates == lastTemplateMetadata) {
             // we already checked these sets of templates - no reason to check it again
@@ -115,18 +111,16 @@ public class TemplateUpgradeService implements ClusterStateListener {
             return;
         }
 
-        if (state.nodes().isLocalNodeElectedMaster() == false) {
-            return;
-        }
-
         lastTemplateMetadata = templates;
         Optional<Tuple<Map<String, BytesReference>, Set<String>>> changes = calculateTemplateChanges(templates);
         if (changes.isPresent()) {
             if (upgradesInProgress.compareAndSet(0, changes.get().v1().size() + changes.get().v2().size() + 1)) {
-                logger.info("Starting template upgrade to version {}, {} templates will be updated and {} will be removed",
+                logger.info(
+                    "Starting template upgrade to version {}, {} templates will be updated and {} will be removed",
                     Version.CURRENT,
                     changes.get().v1().size(),
-                    changes.get().v2().size());
+                    changes.get().v2().size()
+                );
 
                 assert threadPool.getThreadContext().isSystemContext();
                 threadPool.generic().execute(() -> upgradeTemplates(changes.get().v1(), changes.get().v2()));
@@ -141,8 +135,7 @@ public class TemplateUpgradeService implements ClusterStateListener {
         }
 
         for (Map.Entry<String, BytesReference> change : changes.entrySet()) {
-            PutIndexTemplateRequest request =
-                new PutIndexTemplateRequest(change.getKey()).source(change.getValue(), XContentType.JSON);
+            PutIndexTemplateRequest request = new PutIndexTemplateRequest(change.getKey()).source(change.getValue(), XContentType.JSON);
             request.masterNodeTimeout(TimeValue.timeValueMinutes(1));
             client.admin().indices().putTemplate(request, new ActionListener<AcknowledgedResponse>() {
                 @Override
@@ -157,7 +150,7 @@ public class TemplateUpgradeService implements ClusterStateListener {
                 @Override
                 public void onFailure(Exception e) {
                     anyUpgradeFailed.set(true);
-                    logger.warn(new ParameterizedMessage("Error updating template [{}]", change.getKey()), e);
+                    logger.warn(() -> "Error updating template [" + change.getKey() + "]", e);
                     tryFinishUpgrade(anyUpgradeFailed);
                 }
             });
@@ -182,7 +175,7 @@ public class TemplateUpgradeService implements ClusterStateListener {
                     if (e instanceof IndexTemplateMissingException == false) {
                         // we might attempt to delete the same template from different nodes - so that's ok if template doesn't exist
                         // otherwise we need to warn
-                        logger.warn(new ParameterizedMessage("Error deleting template [{}]", template), e);
+                        logger.warn(() -> "Error deleting template [" + template + "]", e);
                     }
                     tryFinishUpgrade(anyUpgradeFailed);
                 }
@@ -203,8 +196,7 @@ public class TemplateUpgradeService implements ClusterStateListener {
                 // Check upgraders are satisfied after the update completed. If they still
                 // report that changes are required, this might indicate a bug or that something
                 // else tinkering with the templates during the upgrade.
-                final ImmutableOpenMap<String, IndexTemplateMetadata> upgradedTemplates =
-                        clusterService.state().getMetadata().getTemplates();
+                final Map<String, IndexTemplateMetadata> upgradedTemplates = clusterService.state().getMetadata().getTemplates();
                 final boolean changesRequired = calculateTemplateChanges(upgradedTemplates).isPresent();
                 if (changesRequired) {
                     logger.warn("Templates are still reported as out of date after the upgrade. The template upgrade will be retried.");
@@ -216,12 +208,11 @@ public class TemplateUpgradeService implements ClusterStateListener {
         }
     }
 
-    Optional<Tuple<Map<String, BytesReference>, Set<String>>> calculateTemplateChanges(
-        ImmutableOpenMap<String, IndexTemplateMetadata> templates) {
+    Optional<Tuple<Map<String, BytesReference>, Set<String>>> calculateTemplateChanges(Map<String, IndexTemplateMetadata> templates) {
         // collect current templates
         Map<String, IndexTemplateMetadata> existingMap = new HashMap<>();
-        for (ObjectObjectCursor<String, IndexTemplateMetadata> customCursor : templates) {
-            existingMap.put(customCursor.key, customCursor.value);
+        for (Map.Entry<String, IndexTemplateMetadata> customCursor : templates.entrySet()) {
+            existingMap.put(customCursor.getKey(), customCursor.getValue());
         }
         // upgrade global custom meta data
         Map<String, IndexTemplateMetadata> upgradedMap = indexTemplateMetadataUpgraders.apply(existingMap);
@@ -246,7 +237,7 @@ public class TemplateUpgradeService implements ClusterStateListener {
 
     private static final ToXContent.Params PARAMS = new ToXContent.MapParams(singletonMap("reduce_mappings", "true"));
 
-    private BytesReference toBytesReference(IndexTemplateMetadata templateMetadata) {
+    private static BytesReference toBytesReference(IndexTemplateMetadata templateMetadata) {
         try {
             return XContentHelper.toXContent((builder, params) -> {
                 IndexTemplateMetadata.Builder.toInnerXContentWithTypes(templateMetadata, builder, params);

@@ -1,0 +1,67 @@
+# Apache License, Version 2.0
+# ===========================
+#
+# Copyright 2009 Google Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+## Custom parser being added to support device types
+
+os_parsers:
+  #  Robot
+  - regex: 'Bot|bot|spider|Spider|Crawler|crawler|AppEngine-Google'
+    replacement: 'Robot'
+  #  Desktop OS, Most Common
+  - regex: '^(Windows$|Windows NT$|Mac OS X|Linux$|Chrome OS|Fedora$|Ubuntu$)'
+    replacement: 'Desktop'
+  #  Phone OS
+  - regex: '^(Android$|iOS|Windows Phone|Firefox OS|BlackBerry OS|KaiOS|Sailfish$|Maemo)'
+    replacement: 'Phone'
+  #  Desktop OS, Not Common
+  - regex: '^(Windows XP|Windows 7|Windows 10|FreeBSD|OpenBSD|Arch Linux|Solaris|NetBSD|SUSE|SunOS|BeOS\/Haiku)'
+    replacement: 'Desktop'
+  - regex: 'Tablet|BlackBerry Tablet OS|iPad|FireOS|Crosswalk'
+    replacement: 'Tablet'
+
+browser_parsers:
+  #  Robot
+  - regex: 'Bot|bot|spider|Spider|Crawler|crawler|AppEngine-Google'
+    replacement: 'Robot'
+  #  Desktop Browsers
+  - regex: '^(Chrome$|Chromium$|Edge$|Firefox$|IE$|Maxthon$|Opera$|Safari$|SeaMonkey$|Vivaldi$|Yandex Browser$)'
+    replacement: 'Desktop'
+  #  Phone Browsers, Most Common
+  - regex: '^(Chrome Mobile$|Chrome Mobile iOS|Firefox Mobile|Firefox iOS|Edge Mobile|Android|Facebook|Instagram|IE Mobile)'
+    replacement: 'Phone'
+  #  Phone Browsers, Not Common
+  - regex: '^(BlackBerry WebKit|OktaMobile|Sailfish Browser|Amazon Silk|Pinterest|Flipboard)'
+    replacement: 'Phone'
+  - regex: 'Tablet|BlackBerry Tablet OS|iPad|FireOS|Crosswalk'
+    replacement: 'Tablet'
+
+device_parsers:
+  - regex: 'Tablet|BlackBerry Tablet OS|iPad|FireOS|Crosswalk|Kindle'
+    replacement: 'Tablet'
+    # Samsung tablets
+  - regex: 'SM-T\d+|SM-P\d+|GT-P\d+'
+    replacement: 'Tablet'
+    # other tablets
+  - regex: 'Asus Nexus \d+|Lenovo TB'
+    replacement: 'Tablet'
+
+agent_string_parsers:
+  - regex: 'Synthetic|Scanner|Crawler|Site24x7|PagePeeker|SpeedCurve|RuxitSynthetic|Google Web Preview|Synthetic|SiteChecker|Parser'
+    replacement: 'Robot'
+  - regex: 'Tablet'
+    replacement: 'Tablet'
+

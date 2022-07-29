@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.trigger.schedule.engine;
 
@@ -83,7 +84,7 @@ public class TickerScheduleEngineTests extends ESTestCase {
             public void accept(Iterable<TriggerEvent> events) {
                 for (TriggerEvent event : events) {
                     int index = Integer.parseInt(event.jobName());
-                    if (!bits.get(index)) {
+                    if (bits.get(index) == false) {
                         logger.info("job [{}] first fire", index);
                         bits.set(index);
                         firstLatch.countDown();
@@ -97,12 +98,12 @@ public class TickerScheduleEngineTests extends ESTestCase {
 
         engine.start(watches);
         advanceClockIfNeeded(clock.instant().plusMillis(1100).atZone(ZoneOffset.UTC));
-        if (!firstLatch.await(3 * count, TimeUnit.SECONDS)) {
+        if (firstLatch.await(3 * count, TimeUnit.SECONDS) == false) {
             fail("waiting too long for all watches to be triggered");
         }
 
         advanceClockIfNeeded(clock.instant().plusMillis(1100).atZone(ZoneOffset.UTC));
-        if (!secondLatch.await(3 * count, TimeUnit.SECONDS)) {
+        if (secondLatch.await(3 * count, TimeUnit.SECONDS) == false) {
             fail("waiting too long for all watches to be triggered");
         }
         engine.stop();
@@ -125,20 +126,19 @@ public class TickerScheduleEngineTests extends ESTestCase {
         });
 
         int randomMinute = randomIntBetween(0, 59);
-        ZonedDateTime testNowTime = clock.instant().atZone(ZoneOffset.UTC)
+        ZonedDateTime testNowTime = clock.instant()
+            .atZone(ZoneOffset.UTC)
             .with(ChronoField.MINUTE_OF_HOUR, randomMinute)
             .with(ChronoField.SECOND_OF_MINUTE, 59);
 
         ZonedDateTime scheduledTime = testNowTime.plusSeconds(2);
-        logger.info("Setting current time to [{}], job execution time [{}]", testNowTime,
-                scheduledTime);
+        logger.info("Setting current time to [{}], job execution time [{}]", testNowTime, scheduledTime);
 
         clock.setTime(testNowTime);
-        engine.add(createWatch(name, daily().at(scheduledTime.getHour(),
-                scheduledTime.getMinute()).build()));
+        engine.add(createWatch(name, daily().at(scheduledTime.getHour(), scheduledTime.getMinute()).build()));
         advanceClockIfNeeded(scheduledTime);
 
-        if (!latch.await(5, TimeUnit.SECONDS)) {
+        if (latch.await(5, TimeUnit.SECONDS) == false) {
             fail("waiting too long for all watches to be triggered");
         }
     }
@@ -162,20 +162,20 @@ public class TickerScheduleEngineTests extends ESTestCase {
         int randomHour = randomIntBetween(0, 23);
         int randomMinute = randomIntBetween(0, 59);
 
-        ZonedDateTime testNowTime = clock.instant().atZone(ZoneOffset.UTC)
-            .with(ChronoField.HOUR_OF_DAY, randomHour).with(ChronoField.MINUTE_OF_HOUR, randomMinute)
+        ZonedDateTime testNowTime = clock.instant()
+            .atZone(ZoneOffset.UTC)
+            .with(ChronoField.HOUR_OF_DAY, randomHour)
+            .with(ChronoField.MINUTE_OF_HOUR, randomMinute)
             .with(ChronoField.SECOND_OF_MINUTE, 59);
 
         ZonedDateTime scheduledTime = testNowTime.plusSeconds(2);
-        logger.info("Setting current time to [{}], job execution time [{}]", testNowTime,
-                scheduledTime);
+        logger.info("Setting current time to [{}], job execution time [{}]", testNowTime, scheduledTime);
 
         clock.setTime(testNowTime);
-        engine.add(createWatch(name, daily().at(scheduledTime.getHour(),
-                scheduledTime.getMinute()).build()));
+        engine.add(createWatch(name, daily().at(scheduledTime.getHour(), scheduledTime.getMinute()).build()));
         advanceClockIfNeeded(scheduledTime);
 
-        if (!latch.await(5, TimeUnit.SECONDS)) {
+        if (latch.await(5, TimeUnit.SECONDS) == false) {
             fail("waiting too long for all watches to be triggered");
         }
     }
@@ -199,28 +199,32 @@ public class TickerScheduleEngineTests extends ESTestCase {
         int randomMinute = randomIntBetween(0, 59);
         int randomDay = randomIntBetween(1, 7);
 
-        ZonedDateTime testNowTime = clock.instant().atZone(ZoneOffset.UTC)
-                .with(ChronoField.DAY_OF_WEEK, randomDay)
-                .with(ChronoField.HOUR_OF_DAY, randomHour)
-                .with(ChronoField.MINUTE_OF_HOUR, randomMinute)
-                .with(ChronoField.SECOND_OF_MINUTE, 59);
+        ZonedDateTime testNowTime = clock.instant()
+            .atZone(ZoneOffset.UTC)
+            .with(ChronoField.DAY_OF_WEEK, randomDay)
+            .with(ChronoField.HOUR_OF_DAY, randomHour)
+            .with(ChronoField.MINUTE_OF_HOUR, randomMinute)
+            .with(ChronoField.SECOND_OF_MINUTE, 59);
 
         ZonedDateTime scheduledTime = testNowTime.plusSeconds(2);
 
-        logger.info("Setting current time to [{}], job execution time [{}]", testNowTime,
-                scheduledTime);
+        logger.info("Setting current time to [{}], job execution time [{}]", testNowTime, scheduledTime);
         clock.setTime(testNowTime);
 
         // fun part here (aka WTF): DayOfWeek with Joda is MON-SUN, starting at 1
-        //                          DayOfWeek with Watcher is SUN-SAT, starting at 1
+        // DayOfWeek with Watcher is SUN-SAT, starting at 1
         int watcherDay = (scheduledTime.getDayOfWeek().getValue() % 7) + 1;
-        engine.add(createWatch(name, weekly().time(WeekTimes.builder()
-                .on(DayOfWeek.resolve(watcherDay))
-                .at(scheduledTime.getHour(), scheduledTime.getMinute()).build())
-                .build()));
+        engine.add(
+            createWatch(
+                name,
+                weekly().time(
+                    WeekTimes.builder().on(DayOfWeek.resolve(watcherDay)).at(scheduledTime.getHour(), scheduledTime.getMinute()).build()
+                ).build()
+            )
+        );
         advanceClockIfNeeded(scheduledTime);
 
-        if (!latch.await(5, TimeUnit.SECONDS)) {
+        if (latch.await(5, TimeUnit.SECONDS) == false) {
             fail("waiting too long for all watches to be triggered");
         }
     }
@@ -250,12 +254,12 @@ public class TickerScheduleEngineTests extends ESTestCase {
         }
 
         advanceClockIfNeeded(clock.instant().plusMillis(1100).atZone(ZoneOffset.UTC));
-        if (!firstLatch.await(3, TimeUnit.SECONDS)) {
+        if (firstLatch.await(3, TimeUnit.SECONDS) == false) {
             fail("waiting too long for all watches to be triggered");
         }
 
         advanceClockIfNeeded(clock.instant().plusMillis(1100).atZone(ZoneOffset.UTC));
-        if (!secondLatch.await(3, TimeUnit.SECONDS)) {
+        if (secondLatch.await(3, TimeUnit.SECONDS) == false) {
             fail("waiting too long for all watches to be triggered");
         }
 
@@ -280,8 +284,18 @@ public class TickerScheduleEngineTests extends ESTestCase {
     }
 
     private Watch createWatch(String name, Schedule schedule) {
-        return new Watch(name, new ScheduleTrigger(schedule), new ExecutableNoneInput(),
-                InternalAlwaysCondition.INSTANCE, null, null,
-                Collections.emptyList(), null, null, SequenceNumbers.UNASSIGNED_SEQ_NO, SequenceNumbers.UNASSIGNED_PRIMARY_TERM);
+        return new Watch(
+            name,
+            new ScheduleTrigger(schedule),
+            new ExecutableNoneInput(),
+            InternalAlwaysCondition.INSTANCE,
+            null,
+            null,
+            Collections.emptyList(),
+            null,
+            null,
+            SequenceNumbers.UNASSIGNED_SEQ_NO,
+            SequenceNumbers.UNASSIGNED_PRIMARY_TERM
+        );
     }
 }

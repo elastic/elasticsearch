@@ -1,11 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.process;
 
 import com.carrotsearch.randomizedtesting.annotations.Timeout;
+
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.search.SearchRequest;
@@ -31,8 +34,8 @@ import java.util.function.Function;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -47,17 +50,15 @@ import static org.mockito.Mockito.when;
  */
 public class IndexingStateProcessorTests extends ESTestCase {
 
-    private static final String STATE_SAMPLE = ""
-            + "        \n"
-            + "{\"index\": {\"_index\": \"test\", \"_id\": \"1\"}}\n"
-            + "{ \"field\" : \"value1\" }\n"
-            + "\0"
-            + "{\"index\": {\"_index\": \"test\", \"_id\": \"2\"}}\n"
-            + "{ \"field\" : \"value2\" }\n"
-            + "\0"
-            + "{\"index\": {\"_index\": \"test\", \"_id\": \"3\"}}\n"
-            + "{ \"field\" : \"value3\" }\n"
-            + "\0";
+    private static final String STATE_SAMPLE = """
+               \s
+        {"index": {"_index": "test", "_id": "1"}}
+        { "field" : "value1" }
+        \0{"index": {"_index": "test", "_id": "2"}}
+        { "field" : "value2" }
+        \0{"index": {"_index": "test", "_id": "3"}}
+        { "field" : "value3" }
+        \0""";
 
     private static final String JOB_ID = "state-processor-test-job";
 
@@ -85,8 +86,12 @@ public class IndexingStateProcessorTests extends ESTestCase {
     }
 
     public void testExtractDocId() throws IOException {
-        assertThat(IndexingStateProcessor.extractDocId("{ \"index\": {\"_index\": \"test\", \"_id\": \"1\" } }\n"), equalTo("1"));
-        assertThat(IndexingStateProcessor.extractDocId("{ \"index\": {\"_id\": \"2\" } }\n"), equalTo("2"));
+        assertThat(IndexingStateProcessor.extractDocId("""
+            { "index": {"_index": "test", "_id": "1" } }
+            """), equalTo("1"));
+        assertThat(IndexingStateProcessor.extractDocId("""
+            { "index": {"_id": "2" } }
+            """), equalTo("2"));
     }
 
     private void testStateRead(SearchHits searchHits, String expectedIndexOrAlias) throws IOException {
@@ -104,16 +109,24 @@ public class IndexingStateProcessorTests extends ESTestCase {
         assertEquals(threeStates[2], capturedBytes.get(2).utf8ToString());
         verify(resultsPersisterService, times(3)).searchWithRetry(any(SearchRequest.class), any(), any(), any());
         verify(resultsPersisterService, times(3)).bulkIndexWithRetry(any(BulkRequest.class), any(), any(), any());
+        ArgumentCaptor<BulkRequest> bulkRequestArgumentCaptor = ArgumentCaptor.forClass(BulkRequest.class);
+        verify(resultsPersisterService, times(3)).bulkIndexWithRetry(bulkRequestArgumentCaptor.capture(), any(), any(), any());
+        for (BulkRequest bulkRequest : bulkRequestArgumentCaptor.getAllValues()) {
+            for (DocWriteRequest<?> request : bulkRequest.requests()) {
+                assertThat(request.isRequireAlias(), equalTo(".ml-state-write".equals(expectedIndexOrAlias)));
+            }
+        }
     }
 
     public void testStateRead_StateDocumentCreated() throws IOException {
-        testStateRead(SearchHits.empty(), ".ml-state-write");
+        testStateRead(SearchHits.EMPTY_WITH_TOTAL_HITS, ".ml-state-write");
     }
 
     public void testStateRead_StateDocumentUpdated() throws IOException {
         testStateRead(
-            new SearchHits(new SearchHit[]{ SearchHit.createFromMap(Map.of("_index", ".ml-state-dummy")) }, null, 0.0f),
-            ".ml-state-dummy");
+            new SearchHits(new SearchHit[] { SearchHit.createFromMap(Map.of("_index", ".ml-state-dummy")) }, null, 0.0f),
+            ".ml-state-dummy"
+        );
     }
 
     public void testStateReadGivenConsecutiveZeroBytes() throws IOException {
@@ -168,7 +181,7 @@ public class IndexingStateProcessorTests extends ESTestCase {
      */
     @Timeout(millis = 10 * 1000)
     public void testLargeStateRead() throws Exception {
-        when(searchResponse.getHits()).thenReturn(SearchHits.empty());
+        when(searchResponse.getHits()).thenReturn(SearchHits.EMPTY_WITH_TOTAL_HITS);
 
         StringBuilder builder = new StringBuilder(NUM_LARGE_DOCS * (LARGE_DOC_SIZE + 10)); // 10 for header and separators
         for (int docNum = 1; docNum <= NUM_LARGE_DOCS; ++docNum) {
@@ -184,5 +197,12 @@ public class IndexingStateProcessorTests extends ESTestCase {
         verify(stateProcessor, times(NUM_LARGE_DOCS)).persist(eq(".ml-state-write"), any());
         verify(resultsPersisterService, times(NUM_LARGE_DOCS)).searchWithRetry(any(SearchRequest.class), any(), any(), any());
         verify(resultsPersisterService, times(NUM_LARGE_DOCS)).bulkIndexWithRetry(any(BulkRequest.class), any(), any(), any());
+        ArgumentCaptor<BulkRequest> bulkRequestArgumentCaptor = ArgumentCaptor.forClass(BulkRequest.class);
+        verify(resultsPersisterService, times(NUM_LARGE_DOCS)).bulkIndexWithRetry(bulkRequestArgumentCaptor.capture(), any(), any(), any());
+        for (BulkRequest bulkRequest : bulkRequestArgumentCaptor.getAllValues()) {
+            for (DocWriteRequest<?> request : bulkRequest.requests()) {
+                assertTrue(request.isRequireAlias());
+            }
+        }
     }
 }

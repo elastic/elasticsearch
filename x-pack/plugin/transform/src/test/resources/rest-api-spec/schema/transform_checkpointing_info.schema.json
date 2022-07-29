@@ -1,0 +1,34 @@
+{
+  "definitions": {},
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/elastic/elasticsearch/master/x-pack/plugin/core/src/test/resources/rest-api-spec/schema/transform_checkpointing_info.schema.json",
+  "description": "schema definition for a single transform stats",
+  "additionalProperties": false,
+  "title": "Root",
+  "type": "object",
+  "required": [
+    "last"
+  ],
+  "properties": {
+    "last": {
+      "type": "object",
+      "description": "information about the last checkpoint"
+    },
+    "next": {
+      "type": "object",
+      "description": "information about the next checkpoint"
+    },
+    "operations_behind": {
+      "type": "integer",
+      "description": "The number of operations that have occurred on the source index but have not been applied to the destination index yet."
+    },
+    "changes_last_detected_at": {
+      "type": "integer",
+      "description": "The timestamp when changes were last detected in the source indices."
+    },
+    "last_search_time": {
+      "type": "integer",
+      "description": "The timestamp of the last search in the source indices. This field is only shown if the transform is running. "
+    }
+  }
+}

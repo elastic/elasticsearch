@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.enrich.action;
 
@@ -11,8 +12,8 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 
 import java.io.IOException;
@@ -86,8 +87,10 @@ public class GetEnrichPolicyAction extends ActionType<GetEnrichPolicyAction.Resp
         public Response(Map<String, EnrichPolicy> policies) {
             Objects.requireNonNull(policies, "policies cannot be null");
             // use a treemap to guarantee ordering in the set, then transform it to the list of named policies
-            this.policies = new TreeMap<>(policies).entrySet().stream()
-                .map(entry -> new EnrichPolicy.NamedPolicy(entry.getKey(), entry.getValue())).collect(Collectors.toList());
+            this.policies = new TreeMap<>(policies).entrySet()
+                .stream()
+                .map(entry -> new EnrichPolicy.NamedPolicy(entry.getKey(), entry.getValue()))
+                .collect(Collectors.toList());
         }
 
         public Response(StreamInput in) throws IOException {

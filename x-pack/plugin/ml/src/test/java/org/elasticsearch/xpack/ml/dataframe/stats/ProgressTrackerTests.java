@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ml.dataframe.stats;
@@ -11,7 +12,9 @@ import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.contains;
@@ -42,8 +45,10 @@ public class ProgressTrackerTests extends ESTestCase {
         List<PhaseProgress> phases = progressTracker.report();
 
         assertThat(phases.size(), equalTo(6));
-        assertThat(phases.stream().map(PhaseProgress::getPhase).collect(Collectors.toList()),
-            contains("reindexing", "loading_data", "a", "b", "c", "writing_results"));
+        assertThat(
+            phases.stream().map(PhaseProgress::getPhase).collect(Collectors.toList()),
+            contains("reindexing", "loading_data", "a", "b", "c", "writing_results")
+        );
         assertThat(phases.stream().map(PhaseProgress::getProgressPercent).allMatch(p -> p == 0), is(true));
     }
 
@@ -53,8 +58,10 @@ public class ProgressTrackerTests extends ESTestCase {
         List<PhaseProgress> phaseProgresses = progressTracker.report();
 
         assertThat(phaseProgresses.size(), equalTo(5));
-        assertThat(phaseProgresses.stream().map(PhaseProgress::getPhase).collect(Collectors.toList()),
-            contains("reindexing", "loading_data", "a", "b", "writing_results"));
+        assertThat(
+            phaseProgresses.stream().map(PhaseProgress::getPhase).collect(Collectors.toList()),
+            contains("reindexing", "loading_data", "a", "b", "writing_results")
+        );
     }
 
     public void testFromZeroes_GivenAnalysisWithInference() {
@@ -63,8 +70,10 @@ public class ProgressTrackerTests extends ESTestCase {
         List<PhaseProgress> phaseProgresses = progressTracker.report();
 
         assertThat(phaseProgresses.size(), equalTo(6));
-        assertThat(phaseProgresses.stream().map(PhaseProgress::getPhase).collect(Collectors.toList()),
-            contains("reindexing", "loading_data", "a", "b", "writing_results", "inference"));
+        assertThat(
+            phaseProgresses.stream().map(PhaseProgress::getPhase).collect(Collectors.toList()),
+            contains("reindexing", "loading_data", "a", "b", "writing_results", "inference")
+        );
     }
 
     public void testUpdates() {
@@ -81,8 +90,10 @@ public class ProgressTrackerTests extends ESTestCase {
         List<PhaseProgress> phases = progressTracker.report();
 
         assertThat(phases.size(), equalTo(4));
-        assertThat(phases.stream().map(PhaseProgress::getPhase).collect(Collectors.toList()),
-            contains("reindexing", "loading_data", "foo", "writing_results"));
+        assertThat(
+            phases.stream().map(PhaseProgress::getPhase).collect(Collectors.toList()),
+            contains("reindexing", "loading_data", "foo", "writing_results")
+        );
         assertThat(phases.get(0).getProgressPercent(), equalTo(1));
         assertThat(phases.get(1).getProgressPercent(), equalTo(2));
         assertThat(phases.get(2).getProgressPercent(), equalTo(3));
@@ -96,8 +107,10 @@ public class ProgressTrackerTests extends ESTestCase {
         List<PhaseProgress> phases = progressTracker.report();
 
         assertThat(phases.size(), equalTo(4));
-        assertThat(phases.stream().map(PhaseProgress::getPhase).collect(Collectors.toList()),
-            contains("reindexing", "loading_data", "foo", "writing_results"));
+        assertThat(
+            phases.stream().map(PhaseProgress::getPhase).collect(Collectors.toList()),
+            contains("reindexing", "loading_data", "foo", "writing_results")
+        );
     }
 
     public void testUpdateReindexingProgress_GivenLowerValueThanCurrentProgress() {
@@ -146,6 +159,85 @@ public class ProgressTrackerTests extends ESTestCase {
 
         progressTracker.updatePhase(new PhaseProgress("foo", 40));
         assertThat(getProgressForPhase(progressTracker, "foo"), equalTo(41));
+    }
+
+    public void testResetForInference_GivenInference() {
+        ProgressTracker progressTracker = ProgressTracker.fromZeroes(Arrays.asList("a", "b"), true);
+        progressTracker.updateReindexingProgress(10);
+        progressTracker.updateLoadingDataProgress(20);
+        progressTracker.updatePhase(new PhaseProgress("a", 30));
+        progressTracker.updatePhase(new PhaseProgress("b", 40));
+        progressTracker.updateWritingResultsProgress(50);
+        progressTracker.updateInferenceProgress(60);
+
+        progressTracker.resetForInference();
+
+        List<PhaseProgress> progress = progressTracker.report();
+        assertThat(
+            progress,
+            contains(
+                new PhaseProgress(ProgressTracker.REINDEXING, 100),
+                new PhaseProgress(ProgressTracker.LOADING_DATA, 100),
+                new PhaseProgress("a", 100),
+                new PhaseProgress("b", 100),
+                new PhaseProgress(ProgressTracker.WRITING_RESULTS, 100),
+                new PhaseProgress(ProgressTracker.INFERENCE, 0)
+            )
+        );
+    }
+
+    public void testResetForInference_GivenNoInference() {
+        ProgressTracker progressTracker = ProgressTracker.fromZeroes(Arrays.asList("a", "b"), false);
+        progressTracker.updateReindexingProgress(10);
+        progressTracker.updateLoadingDataProgress(20);
+        progressTracker.updatePhase(new PhaseProgress("a", 30));
+        progressTracker.updatePhase(new PhaseProgress("b", 40));
+        progressTracker.updateWritingResultsProgress(50);
+
+        progressTracker.resetForInference();
+
+        List<PhaseProgress> progress = progressTracker.report();
+        assertThat(
+            progress,
+            contains(
+                new PhaseProgress(ProgressTracker.REINDEXING, 100),
+                new PhaseProgress(ProgressTracker.LOADING_DATA, 100),
+                new PhaseProgress("a", 100),
+                new PhaseProgress("b", 100),
+                new PhaseProgress(ProgressTracker.WRITING_RESULTS, 100)
+            )
+        );
+    }
+
+    public void testAreAllPhasesExceptInferenceComplete_GivenComplete() {
+        ProgressTracker progressTracker = ProgressTracker.fromZeroes(Collections.singletonList("a"), true);
+        progressTracker.updateReindexingProgress(100);
+        progressTracker.updateLoadingDataProgress(100);
+        progressTracker.updatePhase(new PhaseProgress("a", 100));
+        progressTracker.updateWritingResultsProgress(100);
+        progressTracker.updateInferenceProgress(50);
+
+        assertThat(progressTracker.areAllPhasesExceptInferenceComplete(), is(true));
+    }
+
+    public void testAreAllPhasesExceptInferenceComplete_GivenNotComplete() {
+        Map<String, Integer> phasePerProgress = new LinkedHashMap<>();
+        phasePerProgress.put(ProgressTracker.REINDEXING, 100);
+        phasePerProgress.put(ProgressTracker.LOADING_DATA, 100);
+        phasePerProgress.put("a", 100);
+        phasePerProgress.put(ProgressTracker.WRITING_RESULTS, 100);
+        String nonCompletePhase = randomFrom(phasePerProgress.keySet());
+        phasePerProgress.put(ProgressTracker.INFERENCE, 50);
+        phasePerProgress.put(nonCompletePhase, randomIntBetween(0, 99));
+
+        ProgressTracker progressTracker = new ProgressTracker(
+            phasePerProgress.entrySet()
+                .stream()
+                .map(entry -> new PhaseProgress(entry.getKey(), entry.getValue()))
+                .collect(Collectors.toList())
+        );
+
+        assertThat(progressTracker.areAllPhasesExceptInferenceComplete(), is(false));
     }
 
     private static int getProgressForPhase(ProgressTracker progressTracker, String phase) {

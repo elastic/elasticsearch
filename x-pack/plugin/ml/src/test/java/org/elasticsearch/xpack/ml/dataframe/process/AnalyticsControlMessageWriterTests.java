@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.dataframe.process;
 
@@ -38,7 +39,7 @@ public class AnalyticsControlMessageWriterTests extends ESTestCase {
         inOrder.verify(lengthEncodedWriter).writeField("$");
 
         StringBuilder spaces = new StringBuilder();
-        IntStream.rangeClosed(1, 8192).forEach(i -> spaces.append(' '));
+        IntStream.rangeClosed(1, 2048).forEach(i -> spaces.append(' '));
         inOrder.verify(lengthEncodedWriter).writeNumFields(4);
         inOrder.verify(lengthEncodedWriter, times(3)).writeField("");
         inOrder.verify(lengthEncodedWriter).writeField(spaces.toString());

@@ -1,35 +1,35 @@
 Kerberos is used to protect services and uses a ticket-based authentication
 protocol to authenticate users.
-You can configure {es} to use the Kerberos V5 authentication protocol, which is 
+You can configure {es} to use the Kerberos V5 authentication protocol, which is
 an industry standard protocol, to authenticate users.
 In this scenario, clients must present Kerberos tickets for authentication.
 
 In Kerberos, users authenticate with an authentication service and later
 with a ticket granting service to generate a TGT (ticket-granting ticket).
 This ticket is then presented to the service for authentication.
-Refer to your Kerberos installation documentation for more information about 
-obtaining TGT. {es} clients must first obtain a TGT then initiate the process of 
+Refer to your Kerberos installation documentation for more information about
+obtaining TGT. {es} clients must first obtain a TGT then initiate the process of
 authenticating with {es}.
 
 [[kerberos-realm-prereq]]
 ===== Before you begin
 
-. Deploy Kerberos. 
+. Deploy Kerberos.
 +
 --
 You must have the Kerberos infrastructure set up in your environment.
 
-NOTE: Kerberos requires a lot of external services to function properly, such as 
-time synchronization between all machines and working forward and reverse DNS 
+NOTE: Kerberos requires a lot of external services to function properly, such as
+time synchronization between all machines and working forward and reverse DNS
 mappings in your domain. Refer to your Kerberos documentation for more details.
 
-These instructions do not cover setting up and configuring your Kerberos 
-deployment. Where examples are provided, they pertain to an MIT Kerberos V5 
-deployment. For more information, see 
+These instructions do not cover setting up and configuring your Kerberos
+deployment. Where examples are provided, they pertain to an MIT Kerberos V5
+deployment. For more information, see
 http://web.mit.edu/kerberos/www/index.html[MIT Kerberos documentation]
 --
 
-. Configure Java GSS. 
+. Configure Java GSS.
 +
 --
 
@@ -39,10 +39,10 @@ To support Kerberos authentication, {es} needs the following files:
 * `krb5.conf`, a Kerberos configuration file
 *  A `keytab` file that contains credentials for the {es} service principal
 
-The configuration requirements depend on your Kerberos setup. Refer to your 
+The configuration requirements depend on your Kerberos setup. Refer to your
 Kerberos documentation to configure the `krb5.conf` file.
 
-For more information on Java GSS, see 
+For more information on Java GSS, see
 https://docs.oracle.com/javase/10/security/kerberos-requirements1.htm[Java GSS Kerberos requirements]
 --
 
@@ -51,7 +51,7 @@ https://docs.oracle.com/javase/10/security/kerberos-requirements1.htm[Java GSS K
 --
 If your {es} cluster is operating in production mode, you must configure the
 HTTP interface to use SSL/TLS before you can enable Kerberos authentication. For
-more information, see <<tls-http>>.
+more information, see <<encrypt-http-communication>>.
 
 This step is necessary to support Kerberos authentication via {kib}.
 It is not required for Kerberos authentication directly against the {es} Rest API.
@@ -79,22 +79,22 @@ It is not required for Kerberos authentication directly against the {es} Rest AP
 
 To configure a Kerberos realm in {es}:
 
-. Configure the JVM to find the Kerberos configuration file. 
+. Configure the JVM to find the Kerberos configuration file.
 +
 --
-{es} uses Java GSS and JAAS Krb5LoginModule to support Kerberos authentication 
-using a Simple and Protected GSSAPI Negotiation Mechanism (SPNEGO) mechanism. 
-The Kerberos configuration file (`krb5.conf`) provides information such as the 
-default realm, the Key Distribution Center (KDC), and other configuration details 
-required for Kerberos authentication. When the JVM needs some configuration 
-properties, it tries to find those values by locating and loading this file. The 
-JVM system property to configure the file path is `java.security.krb5.conf`. To 
-configure JVM system properties see <<jvm-options>>. 
-If this system property is not specified, Java tries to locate the file based on 
+{es} uses Java GSS and JAAS Krb5LoginModule to support Kerberos authentication
+using a Simple and Protected GSSAPI Negotiation Mechanism (SPNEGO) mechanism.
+The Kerberos configuration file (`krb5.conf`) provides information such as the
+default realm, the Key Distribution Center (KDC), and other configuration details
+required for Kerberos authentication. When the JVM needs some configuration
+properties, it tries to find those values by locating and loading this file. The
+JVM system property to configure the file path is `java.security.krb5.conf`. To
+configure JVM system properties see <<jvm-options>>.
+If this system property is not specified, Java tries to locate the file based on
 the conventions.
 
 TIP: It is recommended that this system property be configured for {es}.
-The method for setting this property depends on your Kerberos infrastructure. 
+The method for setting this property depends on your Kerberos infrastructure.
 Refer to your Kerberos documentation for more details.
 
 For more information, see http://web.mit.edu/kerberos/krb5-latest/doc/admin/conf_files/krb5_conf.html[krb5.conf]
@@ -104,11 +104,11 @@ For more information, see http://web.mit.edu/kerberos/krb5-latest/doc/admin/conf
 . Create a keytab for the {es} node.
 +
 --
-A keytab is a file that stores pairs of principals and encryption keys. {es} 
-uses the keys from the keytab to decrypt the tickets presented by the user. You 
-must create a keytab for {es} by using the tools provided by your Kerberos 
-implementation. For example, some tools that create keytabs are `ktpass.exe` on 
-Windows and `kadmin` for MIT Kerberos. 
+A keytab is a file that stores pairs of principals and encryption keys. {es}
+uses the keys from the keytab to decrypt the tickets presented by the user. You
+must create a keytab for {es} by using the tools provided by your Kerberos
+implementation. For example, some tools that create keytabs are `ktpass.exe` on
+Windows and `kadmin` for MIT Kerberos.
 --
 
 . Put the keytab file in the {es} configuration directory.
@@ -117,8 +117,8 @@ Windows and `kadmin` for MIT Kerberos.
 Make sure that this keytab file has read permissions. This file contains
 credentials, therefore you must take appropriate measures to protect it.
 
-IMPORTANT: {es} uses Kerberos on the HTTP network layer, therefore there must be 
-a keytab file for the HTTP service principal on every {es} node. The service 
+IMPORTANT: {es} uses Kerberos on the HTTP network layer, therefore there must be
+a keytab file for the HTTP service principal on every {es} node. The service
 principal name must have the format `HTTP/es.domain.local@ES.DOMAIN.LOCAL`.
 The keytab files are unique for each node since they include the hostname.
 An {es} node can act as any principal a client requests as long as that
@@ -126,18 +126,18 @@ principal and its credentials are found in the configured keytab.
 
 --
 
-. Create a Kerberos realm. 
+. Create a Kerberos realm.
 +
 --
 
-To enable Kerberos authentication in {es}, you must add a Kerberos realm in the 
+To enable Kerberos authentication in {es}, you must add a Kerberos realm in the
 realm chain.
 
 NOTE: You can configure only one Kerberos realm on {es} nodes.
 
 To configure a Kerberos realm, there are a few mandatory realm settings and
 other optional settings that you need to configure in the `elasticsearch.yml`
-configuration file. Add a realm configuration under the 
+configuration file. Add a realm configuration under the
 `xpack.security.authc.realms.kerberos` namespace.
 
 The most common configuration for a Kerberos realm is as follows:
@@ -150,10 +150,10 @@ xpack.security.authc.realms.kerberos.kerb1:
   remove_realm_name: false
 ------------------------------------------------------------
 
-The `username` is extracted from the ticket presented by user and usually has 
-the format `username@REALM`. This `username` is used for mapping 
-roles to the user. If realm setting `remove_realm_name` is 
-set to `true`, the realm part (`@REALM`) is removed. The resulting `username` 
+The `username` is extracted from the ticket presented by user and usually has
+the format `username@REALM`. This `username` is used for mapping
+roles to the user. If realm setting `remove_realm_name` is
+set to `true`, the realm part (`@REALM`) is removed. The resulting `username`
 is used for role mapping.
 
 For detailed information of available realm settings,
@@ -172,7 +172,7 @@ configure these role mappings by using the
 <<security-api-put-role-mapping,create or update role mappings API>>. You
 identify users by their `username` field.
 
-The following example uses the role mapping API to map `user@REALM` to the roles 
+The following example uses the role mapping API to map `user@REALM` to the roles
 `monitoring` and `user`:
 
 [source,console]
@@ -187,8 +187,8 @@ POST /_security/role_mapping/kerbrolemapping
 }
 --------------------------------------------------
 
-In case you want to support Kerberos cross realm authentication you may 
-need to map roles based on the Kerberos realm name. For such scenarios 
+In case you want to support Kerberos cross realm authentication you may
+need to map roles based on the Kerberos realm name. For such scenarios
 following are the additional user metadata available for role mapping:
 - `kerberos_realm` will be set to Kerberos realm name.
 - `kerberos_user_principal_name` will be set to user principal name from the Kerberos ticket.

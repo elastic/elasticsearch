@@ -1,23 +1,24 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.dataframe.stats.outlierdetection;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 public class Parameters implements Writeable, ToXContentObject {
 
@@ -33,16 +34,11 @@ public class Parameters implements Writeable, ToXContentObject {
     }
 
     private static ConstructingObjectParser<Parameters, Void> createParser(boolean ignoreUnknownFields) {
-        ConstructingObjectParser<Parameters, Void> parser = new ConstructingObjectParser<>("outlier_detection_parameters",
+        ConstructingObjectParser<Parameters, Void> parser = new ConstructingObjectParser<>(
+            "outlier_detection_parameters",
             ignoreUnknownFields,
-            a -> new Parameters(
-                (int) a[0],
-                (String) a[1],
-                (boolean) a[2],
-                (double) a[3],
-                (double) a[4],
-                (boolean) a[5]
-            ));
+            a -> new Parameters((int) a[0], (String) a[1], (boolean) a[2], (double) a[3], (double) a[4], (boolean) a[5])
+        );
 
         parser.declareInt(constructorArg(), N_NEIGHBORS);
         parser.declareString(constructorArg(), METHOD);
@@ -61,8 +57,14 @@ public class Parameters implements Writeable, ToXContentObject {
     private final double outlierFraction;
     private final boolean standardizationEnabled;
 
-    public Parameters(int nNeighbors, String method, boolean computeFeatureInfluence, double featureInfluenceThreshold,
-                      double outlierFraction, boolean standardizationEnabled) {
+    public Parameters(
+        int nNeighbors,
+        String method,
+        boolean computeFeatureInfluence,
+        double featureInfluenceThreshold,
+        double outlierFraction,
+        boolean standardizationEnabled
+    ) {
         this.nNeighbors = nNeighbors;
         this.method = method;
         this.computeFeatureInfluence = computeFeatureInfluence;
@@ -119,7 +121,13 @@ public class Parameters implements Writeable, ToXContentObject {
 
     @Override
     public int hashCode() {
-        return Objects.hash(nNeighbors, method, computeFeatureInfluence, featureInfluenceThreshold, outlierFraction,
-            standardizationEnabled);
+        return Objects.hash(
+            nNeighbors,
+            method,
+            computeFeatureInfluence,
+            featureInfluenceThreshold,
+            outlierFraction,
+            standardizationEnabled
+        );
     }
 }

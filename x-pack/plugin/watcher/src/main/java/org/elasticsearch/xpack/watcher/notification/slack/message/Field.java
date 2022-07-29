@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.notification.slack.message;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
 
@@ -37,7 +38,7 @@ class Field implements MessageElement {
         Field field = (Field) o;
 
         if (isShort != field.isShort) return false;
-        if (!title.equals(field.title)) return false;
+        if (title.equals(field.title) == false) return false;
         return value.equals(field.value);
     }
 
@@ -49,10 +50,10 @@ class Field implements MessageElement {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return builder.startObject()
-                .field(XField.TITLE.getPreferredName(), title)
-                .field(XField.VALUE.getPreferredName(), value)
-                .field(XField.SHORT.getPreferredName(), isShort)
-                .endObject();
+            .field(XField.TITLE.getPreferredName(), title)
+            .field(XField.VALUE.getPreferredName(), value)
+            .field(XField.SHORT.getPreferredName(), isShort)
+            .endObject();
     }
 
     static class Template implements ToXContentObject {
@@ -67,8 +68,11 @@ class Field implements MessageElement {
             this.isShort = isShort;
         }
 
-        public Field render(TextTemplateEngine engine, Map<String, Object> model,
-                            SlackMessageDefaults.AttachmentDefaults.FieldDefaults defaults) {
+        public Field render(
+            TextTemplateEngine engine,
+            Map<String, Object> model,
+            SlackMessageDefaults.AttachmentDefaults.FieldDefaults defaults
+        ) {
             String title = this.title != null ? engine.render(this.title, model) : defaults.title;
             String value = this.value != null ? engine.render(this.value, model) : defaults.value;
             Boolean isShort = this.isShort != null ? this.isShort : defaults.isShort;
@@ -83,7 +87,7 @@ class Field implements MessageElement {
             Template template = (Template) o;
 
             if (isShort != template.isShort) return false;
-            if (!title.equals(template.title)) return false;
+            if (title.equals(template.title) == false) return false;
             return value.equals(template.value);
         }
 
@@ -98,10 +102,10 @@ class Field implements MessageElement {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             return builder.startObject()
-                    .field(XField.TITLE.getPreferredName(), title)
-                    .field(XField.VALUE.getPreferredName(), value)
-                    .field(XField.SHORT.getPreferredName(), isShort)
-                    .endObject();
+                .field(XField.TITLE.getPreferredName(), title)
+                .field(XField.VALUE.getPreferredName(), value)
+                .field(XField.SHORT.getPreferredName(), isShort)
+                .endObject();
         }
 
         public static Template parse(XContentParser parser) throws IOException {
@@ -119,36 +123,51 @@ class Field implements MessageElement {
                     try {
                         title = TextTemplate.parse(parser);
                     } catch (ElasticsearchParseException pe) {
-                        throw new ElasticsearchParseException("could not parse message attachment field. failed to parse [{}] field", pe,
-                                XField.TITLE);
+                        throw new ElasticsearchParseException(
+                            "could not parse message attachment field. failed to parse [{}] field",
+                            pe,
+                            XField.TITLE
+                        );
                     }
                 } else if (XField.VALUE.match(currentFieldName, parser.getDeprecationHandler())) {
                     try {
                         value = TextTemplate.parse(parser);
                     } catch (ElasticsearchParseException pe) {
-                        throw new ElasticsearchParseException("could not parse message attachment field. failed to parse [{}] field", pe,
-                                XField.VALUE);
+                        throw new ElasticsearchParseException(
+                            "could not parse message attachment field. failed to parse [{}] field",
+                            pe,
+                            XField.VALUE
+                        );
                     }
                 } else if (XField.SHORT.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (token == XContentParser.Token.VALUE_BOOLEAN) {
                         isShort = parser.booleanValue();
                     } else {
-                        throw new ElasticsearchParseException("could not parse message attachment field. expected a boolean value for " +
-                                "[{}] field, but found [{}]", XField.SHORT, token);
+                        throw new ElasticsearchParseException(
+                            "could not parse message attachment field. expected a boolean value for " + "[{}] field, but found [{}]",
+                            XField.SHORT,
+                            token
+                        );
                     }
                 } else {
-                    throw new ElasticsearchParseException("could not parse message attachment field. unexpected field [{}]",
-                            currentFieldName);
+                    throw new ElasticsearchParseException(
+                        "could not parse message attachment field. unexpected field [{}]",
+                        currentFieldName
+                    );
                 }
             }
 
             if (title == null) {
-                throw new ElasticsearchParseException("could not parse message attachment field. missing required [{}] field",
-                        XField.TITLE);
+                throw new ElasticsearchParseException(
+                    "could not parse message attachment field. missing required [{}] field",
+                    XField.TITLE
+                );
             }
             if (value == null) {
-                throw new ElasticsearchParseException("could not parse message attachment field. missing required [{}] field",
-                        XField.VALUE);
+                throw new ElasticsearchParseException(
+                    "could not parse message attachment field. missing required [{}] field",
+                    XField.VALUE
+                );
             }
             return new Template(title, value, isShort);
         }

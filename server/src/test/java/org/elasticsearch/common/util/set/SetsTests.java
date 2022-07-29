@@ -1,29 +1,19 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.util.set;
 
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.function.BiFunction;
@@ -34,6 +24,7 @@ import java.util.stream.IntStream;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class SetsTests extends ESTestCase {
 
@@ -50,13 +41,16 @@ public class SetsTests extends ESTestCase {
 
     public void testUnmodifiableSortedDifference() {
         runSortedDifferenceTest(
-                // assert the resulting difference us unmodifiable
-                Sets::unmodifiableSortedDifference, set -> expectThrows(UnsupportedOperationException.class, () -> set.add(randomInt())));
+            // assert the resulting difference us unmodifiable
+            Sets::unmodifiableSortedDifference,
+            set -> expectThrows(UnsupportedOperationException.class, () -> set.add(randomInt()))
+        );
     }
 
     private void runSortedDifferenceTest(
         final BiFunction<Set<Integer>, Set<Integer>, SortedSet<Integer>> sortedDifference,
-        final Consumer<Set<Integer>> asserter) {
+        final Consumer<Set<Integer>> asserter
+    ) {
         final int endExclusive = randomIntBetween(0, 256);
         final Tuple<Set<Integer>, Set<Integer>> sets = randomSets(endExclusive);
         final SortedSet<Integer> difference = sortedDifference.apply(sets.v1(), sets.v2());
@@ -78,10 +72,26 @@ public class SetsTests extends ESTestCase {
         final Tuple<Set<Integer>, Set<Integer>> sets = randomSets(endExclusive);
         final Set<Integer> intersection = Sets.intersection(sets.v1(), sets.v2());
         final Set<Integer> expectedIntersection = IntStream.range(0, endExclusive)
-                .boxed()
-                .filter(i -> (sets.v1().contains(i) && sets.v2().contains(i)))
-                .collect(Collectors.toSet());
+            .boxed()
+            .filter(i -> (sets.v1().contains(i) && sets.v2().contains(i)))
+            .collect(Collectors.toSet());
         assertThat(intersection, containsInAnyOrder(expectedIntersection.toArray(new Integer[0])));
+    }
+
+    public void testNewHashSetWithExpectedSize() {
+        assertEquals(HashSet.class, Sets.newHashSetWithExpectedSize(randomIntBetween(0, 1_000_000)).getClass());
+    }
+
+    public void testNewLinkedHashSetWithExpectedSize() {
+        assertEquals(LinkedHashSet.class, Sets.newLinkedHashSetWithExpectedSize(randomIntBetween(0, 1_000_000)).getClass());
+    }
+
+    public void testCapacityIsEnoughForSetToNotBeResized() {
+        for (int i = 0; i < 1000; i++) {
+            int size = randomIntBetween(0, 1_000_000);
+            int capacity = Sets.capacity(size);
+            assertThat(size, lessThanOrEqualTo((int) (capacity * 0.75f)));
+        }
     }
 
     /**
@@ -91,10 +101,9 @@ public class SetsTests extends ESTestCase {
      * @param sets         a pair of sets with elements from {@code [0, endExclusive)}
      * @param difference   the difference between the two sets
      */
-    private void assertDifference(
-            final int endExclusive, final Tuple<Set<Integer>, Set<Integer>> sets, final Set<Integer> difference) {
+    private void assertDifference(final int endExclusive, final Tuple<Set<Integer>, Set<Integer>> sets, final Set<Integer> difference) {
         for (int i = 0; i < endExclusive; i++) {
-            assertThat(difference.contains(i), equalTo(sets.v1().contains(i) && !sets.v2().contains(i)));
+            assertThat(difference.contains(i), equalTo(sets.v1().contains(i) && sets.v2().contains(i) == false));
         }
     }
 

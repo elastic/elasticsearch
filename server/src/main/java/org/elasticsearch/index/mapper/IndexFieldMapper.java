@@ -1,34 +1,28 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.index.fielddata.FieldData;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.lookup.SourceLookup;
 
-import java.io.IOException;
 import java.util.Collections;
-
+import java.util.List;
 
 public class IndexFieldMapper extends MetadataFieldMapper {
 
@@ -36,7 +30,9 @@ public class IndexFieldMapper extends MetadataFieldMapper {
 
     public static final String CONTENT_TYPE = "_index";
 
-    public static final TypeParser PARSER = new FixedTypeParser(c -> new IndexFieldMapper());
+    private static final IndexFieldMapper INSTANCE = new IndexFieldMapper();
+
+    public static final TypeParser PARSER = new FixedTypeParser(c -> INSTANCE);
 
     static final class IndexFieldType extends ConstantFieldType {
 
@@ -52,20 +48,50 @@ public class IndexFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        protected boolean matches(String pattern, QueryShardContext context) {
+        protected boolean matches(String pattern, boolean caseInsensitive, SearchExecutionContext context) {
+            if (caseInsensitive) {
+                // Thankfully, all index names are lower-cased so we don't have to pass a case_insensitive mode flag
+                // down to all the index name-matching logic. We just lower-case the search string
+                pattern = Strings.toLowercaseAscii(pattern);
+            }
             return context.indexMatches(pattern);
         }
 
         @Override
-        public Query existsQuery(QueryShardContext context) {
+        public Query existsQuery(SearchExecutionContext context) {
             return new MatchAllDocsQuery();
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName) {
-            return new ConstantIndexFieldData.Builder(mapperService -> fullyQualifiedIndexName, name(), CoreValuesSourceType.BYTES);
+        public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
+            return new ConstantIndexFieldData.Builder(
+                fieldDataContext.fullyQualifiedIndexName(),
+                name(),
+                CoreValuesSourceType.KEYWORD,
+                (dv, n) -> new DelegateDocValuesField(
+                    new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(FieldData.toString(dv))),
+                    n
+                )
+            );
         }
 
+        @Override
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+            return new ValueFetcher() {
+
+                private final List<Object> indexName = List.of(context.getFullyQualifiedIndex().getName());
+
+                @Override
+                public List<Object> fetchValues(SourceLookup lookup, List<Object> ignoredValues) {
+                    return indexName;
+                }
+            };
+        }
+
+        @Override
+        public boolean eagerGlobalOrdinals() {
+            return false;
+        }
     }
 
     public IndexFieldMapper() {
@@ -73,14 +99,7 @@ public class IndexFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public void preParse(ParseContext context) throws IOException {}
-
-    @Override
-    protected void parseCreateField(ParseContext context) throws IOException {}
-
-    @Override
     protected String contentType() {
         return CONTENT_TYPE;
     }
-
 }

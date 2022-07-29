@@ -1,13 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
+ * Licensed to Elasticsearch B.V. under one or more contributor
  * license agreements. See the NOTICE file distributed with
  * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
+ * ownership. Elasticsearch B.V. licenses this file to you under
  * the Apache License, Version 2.0 (the "License"); you may
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -58,8 +58,10 @@ final class DeadHostState implements Comparable<DeadHostState> {
      * @param previousDeadHostState the previous state of the host which allows us to increase the wait till the next retry attempt
      */
     DeadHostState(DeadHostState previousDeadHostState) {
-        long timeoutNanos = (long)Math.min(MIN_CONNECTION_TIMEOUT_NANOS * 2 * Math.pow(2, previousDeadHostState.failedAttempts * 0.5 - 1),
-                MAX_CONNECTION_TIMEOUT_NANOS);
+        long timeoutNanos = (long) Math.min(
+            MIN_CONNECTION_TIMEOUT_NANOS * 2 * Math.pow(2, previousDeadHostState.failedAttempts * 0.5 - 1),
+            MAX_CONNECTION_TIMEOUT_NANOS
+        );
         this.deadUntilNanos = previousDeadHostState.timeSupplier.get() + timeoutNanos;
         this.failedAttempts = previousDeadHostState.failedAttempts + 1;
         this.timeSupplier = previousDeadHostState.timeSupplier;
@@ -89,18 +91,22 @@ final class DeadHostState implements Comparable<DeadHostState> {
     @Override
     public int compareTo(DeadHostState other) {
         if (timeSupplier != other.timeSupplier) {
-            throw new IllegalArgumentException("can't compare DeadHostStates holding different time suppliers as they may " +
-                "be based on different clocks");
+            throw new IllegalArgumentException(
+                "can't compare DeadHostStates holding different time suppliers as they may " + "be based on different clocks"
+            );
         }
         return Long.compare(deadUntilNanos, other.deadUntilNanos);
     }
 
     @Override
     public String toString() {
-        return "DeadHostState{" +
-                "failedAttempts=" + failedAttempts +
-                ", deadUntilNanos=" + deadUntilNanos +
-                ", timeSupplier=" + timeSupplier +
-                '}';
+        return "DeadHostState{"
+            + "failedAttempts="
+            + failedAttempts
+            + ", deadUntilNanos="
+            + deadUntilNanos
+            + ", timeSupplier="
+            + timeSupplier
+            + '}';
     }
 }

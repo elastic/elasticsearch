@@ -1,0 +1,17 @@
+
+import org.elasticsearch.gradle.internal.info.BuildParams
+
+subprojects {
+  apply plugin: 'elasticsearch.base-internal-es-plugin'
+  apply plugin: 'elasticsearch.internal-yaml-rest-test'
+
+  esplugin {
+    name it.name
+    licenseFile rootProject.file('licenses/SSPL-1.0+ELASTIC-LICENSE-2.0.txt')
+    noticeFile rootProject.file('NOTICE.txt')
+  }
+
+  tasks.named('yamlRestTest').configure {
+    it.onlyIf { BuildParams.isSnapshotBuild() }
+  }
+}

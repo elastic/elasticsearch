@@ -1,10 +1,6 @@
 [role="xpack"]
-[testenv="platinum"]
 [[graph-explore-api]]
 == Graph explore API
-++++
-<titleabbrev>Graph explore</titleabbrev>
-++++
 
 The graph explore API enables you to extract and summarize information about
 the documents and terms in an {es} data stream or index.
@@ -17,6 +13,10 @@ see {kibana-ref}/graph-getting-started.html[Getting Started with Graph].
 For additional information about working with the explore API, see the Graph
 {kibana-ref}/graph-troubleshooting.html[Troubleshooting] and
 {kibana-ref}/graph-limitations.html[Limitations] topics.
+
+NOTE: The graph explore API is enabled by default. To disable access to the
+graph explore API and the Kibana {kibana-ref}/graph-getting-started.html[Graph
+UI], add `xpack.graph.enabled: false` to `elasticsearch.yml`.
 
 [discrete]
 === Request
@@ -84,7 +84,7 @@ graph as vertices. For example:
 field::: Identifies a field in the documents of interest.
 include::: Identifies the terms of interest that form the starting points
 from which you want to spider out. You do not have to specify a seed query
-if you specify an include clause. The include clause implicitly querys for
+if you specify an include clause. The include clause implicitly queries for
 documents that contain any of the listed terms listed.
 In addition to specifying a simple array of strings, you can also pass
 objects with `term` and `boost` values to boost matches on particular terms.

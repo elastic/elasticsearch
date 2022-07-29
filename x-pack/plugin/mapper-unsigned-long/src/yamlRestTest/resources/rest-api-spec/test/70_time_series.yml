@@ -1,0 +1,168 @@
+setup:
+  - skip:
+      version: " - 8.0.99"
+      reason: _tsid introduced in 8.1.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [metricset]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              metricset:
+                type: keyword
+                time_series_dimension: true
+              ul:
+                type: unsigned_long
+                time_series_dimension: true
+
+  - do:
+      bulk:
+        refresh: true
+        index: test
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:24.467Z", "metricset": "aa", "voltage": 7.2, "ul": 9223372036854775807}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:34.467Z", "metricset": "aa", "voltage": 7.6, "ul": 9223372036854775807}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:44.467Z", "metricset": "aa", "voltage": 7.1, "ul": 18446744073709551614}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:54.467Z", "metricset": "aa", "voltage": 7.3, "ul": 18446744073709551615}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:24.467Z", "metricset": "aa", "voltage": 3.2, "ul": 9223372036854775808}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:34.467Z", "metricset": "aa", "voltage": 3.6, "ul": 9223372036854775808}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:44.467Z", "metricset": "aa", "voltage": 3.1, "ul": 9223372036854775808}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:54.467Z", "metricset": "aa", "voltage": 3.3, "ul": 9223372036854775807}'
+
+---
+fetch the _tsid:
+  - skip:
+      version: " - 8.0.99"
+      reason: _tsid support introduced in 8.1.0
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [_tsid, metricset, ul]
+          query:
+            query_string:
+              query: '+@timestamp:"2021-04-28T18:35:24.467Z" +metricset:aa'
+          sort:   [ _tsid ]
+
+  - match: {hits.total.value: 2}
+  - match: {hits.hits.0.fields._tsid: [{metricset: aa, ul: 9223372036854775808}]}
+  - match: {hits.hits.0.fields.metricset: [aa]}
+  - match: {hits.hits.0.fields.ul: [9223372036854775808]}
+  - match: {hits.hits.1.fields._tsid: [{metricset: aa, ul: 9223372036854775807}]}
+  - match: {hits.hits.1.fields.metricset: [aa]}
+  - match: {hits.hits.1.fields.ul: [9223372036854775807]}
+
+---
+# Sort order is of unsigned_long fields is not the one we would expect.
+# This is caused by the encoding of unsigned_long as a signed long before
+# being serialized in _tsid
+aggregate the _tsid:
+  - skip:
+      version: " - 8.0.99"
+      reason: _tsid support introduced in 8.1.0
+
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            tsids:
+              terms:
+                field: _tsid
+                order:
+                  _key: asc
+
+  - match: {hits.total.value: 8}
+  - match: {aggregations.tsids.buckets.0.key: {metricset: aa, ul: 9223372036854775808}}
+  - match: {aggregations.tsids.buckets.0.doc_count: 3}
+  - match: {aggregations.tsids.buckets.1.key: {metricset: aa, ul: 18446744073709551614}}
+  - match: {aggregations.tsids.buckets.1.doc_count: 1}
+  - match: {aggregations.tsids.buckets.2.key: {metricset: aa, ul: 18446744073709551615}}
+  - match: {aggregations.tsids.buckets.2.doc_count: 1 }
+  - match: {aggregations.tsids.buckets.3.key: {metricset: aa, ul: 9223372036854775807}}
+  - match: {aggregations.tsids.buckets.3.doc_count: 3}
+
+---
+# Sort order is of unsigned_long fields is not the one we would expect.
+# This is caused by the encoding of unsigned_long as a signed long before
+# being serialized in _tsid
+sort by tsid:
+  - skip:
+      version: " - 8.0.99"
+      reason: _tsid support introduced in 8.1.0
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ _tsid ]
+          sort:   [ _tsid ]
+
+  - match: {hits.total.value: 8 }
+  - match: {hits.hits.0.fields._tsid: [{metricset: aa, ul: 9223372036854775808}]}
+  - match: {hits.hits.1.fields._tsid: [{metricset: aa, ul: 9223372036854775808}]}
+  - match: {hits.hits.2.fields._tsid: [{metricset: aa, ul: 9223372036854775808}]}
+  - match: {hits.hits.3.fields._tsid: [{metricset: aa, ul: 18446744073709551614}]}
+  - match: {hits.hits.4.fields._tsid: [{metricset: aa, ul: 18446744073709551615}]}
+  - match: {hits.hits.5.fields._tsid: [{metricset: aa, ul: 9223372036854775807}]}
+  - match: {hits.hits.6.fields._tsid: [{metricset: aa, ul: 9223372036854775807}]}
+  - match: {hits.hits.7.fields._tsid: [{metricset: aa, ul: 9223372036854775807}]}
+
+---
+composite aggregation on tsid:
+  - skip:
+      version: " - 8.0.99"
+      reason: _tsid introduced in 8.1.0
+
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggregations:
+            tsids:
+              composite:
+                sources: [
+                    "tsid": {
+                      "terms": {
+                        "field": "_tsid"
+                      }
+                    }
+                ]
+
+  - match:  { hits.total.value: 8 }
+  - length: { aggregations.tsids.buckets: 4 }
+  - match:  { aggregations.tsids.buckets.0.key.tsid.ul: 9223372036854775808 }
+  - match:  { aggregations.tsids.buckets.0.key.tsid.metricset: "aa" }
+  - match:  { aggregations.tsids.buckets.0.doc_count: 3 }
+  - match:  { aggregations.tsids.buckets.1.key.tsid.ul: 18446744073709551614 }
+  - match:  { aggregations.tsids.buckets.1.key.tsid.metricset: "aa" }
+  - match:  { aggregations.tsids.buckets.1.doc_count: 1 }
+  - match:  { aggregations.tsids.buckets.2.key.tsid.ul: 18446744073709551615 }
+  - match:  { aggregations.tsids.buckets.2.key.tsid.metricset: "aa" }
+  - match:  { aggregations.tsids.buckets.2.doc_count: 1 }
+  - match:  { aggregations.tsids.buckets.3.key.tsid.ul: 9223372036854775807 }
+  - match:  { aggregations.tsids.buckets.3.key.tsid.metricset: "aa" }
+  - match:  { aggregations.tsids.buckets.3.doc_count: 3 }
+  - match:  { aggregations.tsids.after_key.tsid.ul: 9223372036854775807 }
+  - match:  { aggregations.tsids.after_key.tsid.metricset: "aa" }

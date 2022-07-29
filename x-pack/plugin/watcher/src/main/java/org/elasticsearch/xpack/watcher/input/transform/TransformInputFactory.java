@@ -1,12 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.input.transform;
 
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.transform.ExecutableTransform;
 import org.elasticsearch.xpack.core.watcher.transform.Transform;
 import org.elasticsearch.xpack.core.watcher.transform.TransformFactory;
@@ -40,7 +41,7 @@ public final class TransformInputFactory extends InputFactory<TransformInput, Tr
 
     @Override
     public TransformInput parseInput(String watchId, XContentParser parser) throws IOException {
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
         Transform transform = transformRegistry.parse(watchId, parser).transform();
         return new TransformInput(transform);
     }
@@ -48,8 +49,9 @@ public final class TransformInputFactory extends InputFactory<TransformInput, Tr
     @Override
     public ExecutableTransformInput createExecutable(TransformInput input) {
         Transform transform = input.getTransform();
-        TransformFactory factory = transformRegistry.factory(transform.type());
-        ExecutableTransform executableTransform = factory.createExecutable(transform);
+        @SuppressWarnings("unchecked")
+        TransformFactory<Transform, ?, ?> factory = (TransformFactory<Transform, ?, ?>) transformRegistry.factory(transform.type());
+        ExecutableTransform<?, ?> executableTransform = factory.createExecutable(transform);
         return new ExecutableTransformInput(input, executableTransform);
     }
 }

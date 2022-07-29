@@ -1,0 +1,34 @@
+{
+  "definitions": {},
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/elastic/elasticsearch/master/x-pack/plugin/core/src/test/resources/rest-api-spec/schema/transform_stats.schema.json",
+  "description": "schema definition for a single transform stats",
+  "additionalProperties": false,
+  "title": "Root",
+  "type": "object",
+  "required": [
+    "checkpoint"
+  ],
+  "properties": {
+    "checkpoint": {
+      "type": "integer",
+      "description": "The sequence number for the checkpoint."
+    },
+    "position": {
+      "type": "object",
+      "description": "Object that stores the internal state, e.g. the after_key in the composite aggregation."
+    },
+    "checkpoint_progress": {
+      "type": "object",
+      "description": "progress information"
+    },
+    "timestamp_millis": {
+      "type": "integer",
+      "description": "timestamp of the creation of the checkpoint"
+    },
+    "time_upper_bound_millis": {
+      "type": "integer",
+      "description": "timestamp of the timestamp "
+    }
+  }
+}

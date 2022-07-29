@@ -1,14 +1,14 @@
 [discrete]
 [[api-java-put-watch]]
-=== Put watch API
+=== Create or update watch API
 
-The put watch API either registers a new watch in {watcher} or update an
-existing one. Once registered, a new document will be added to the `.watches`
-index, representing the watch, and the watch trigger will immediately be
-registered with the relevant trigger engine (typically the scheduler, for the
+The create or update watch API either registers a new watch in {watcher} or
+update an existing one. Once registered, a new document will be added to the
+`.watches` index, representing the watch, and the watch trigger will immediately
+be registered with the relevant trigger engine (typically the scheduler, for the
 `schedule` trigger).
 
-IMPORTANT:  Putting a watch must be done via this API only. Do not put a watch
+IMPORTANT:  Putting a watch must be done via this API only. Do not add a watch
             directly to the `.watches` index using Elasticsearch's Index API.
             When the {es} {security-features} are enabled, make sure no `write`
             privileges are granted to anyone over the `.watches` index.
@@ -46,7 +46,7 @@ SearchInput input = new SearchInput(new WatcherSearchTemplateRequest(new String[
 watchSourceBuilder.input(input);
 
 // Set the condition
-watchSourceBuilder.condition(new ScriptCondition(new Script("ctx.payload.hits.total.value > 1")));
+watchSourceBuilder.condition(new ScriptCondition(new Script("ctx.payload.hits.total > 1")));
 
 // Create the email template to use for the action
 EmailTemplate.Builder emailBuilder = EmailTemplate.builder();
@@ -78,7 +78,7 @@ PutWatchResponse putWatchResponse2 = watcherClient.preparePutWatch("my-watch")
                                 .filter(rangeQuery("date").gt("{{ctx.trigger.scheduled_time}}"))
                                 .filter(rangeQuery("date").lt("{{ctx.execution_time}}"))
                         ).buildAsBytes())))
-                .condition(compareCondition("ctx.payload.hits.total.value", CompareCondition.Op.GT, 1L))
+                .condition(compareCondition("ctx.payload.hits.total", CompareCondition.Op.GT, 1L))
                 .addAction("email_someone", emailAction(EmailTemplate.builder()
                         .to("someone@domain.host.com")
                         .subject("404 recently encountered"))))

@@ -1,0 +1,201 @@
+setup:
+
+  - skip:
+      version: " - 7.6.99"
+      reason: "constant_keyword was added in 7.7"
+
+  - do:
+      indices.create:
+        index:  test1
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              foo:
+                type: constant_keyword
+                value: bar
+
+  - do:
+      indices.create:
+        index:  test2
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              foo:
+                type: constant_keyword
+                value: baz
+
+  - do:
+      index:
+        index: test1
+        id:    "1"
+        body:  {}
+
+  - do:
+      index:
+        index: test1
+        id:    "2"
+        body:  { "foo": "bar" }
+
+  - do:
+      index:
+        index: test2
+        id:    "1"
+        body:  {}
+
+  - do:
+      indices.refresh: {}
+
+---
+"Exist query":
+
+  - do:
+      search:
+        index: test*
+        body:
+          size: 0
+          query:
+            exists:
+              field: foo
+
+  - match: { "hits.total.value": 3 }
+
+
+---
+"Term query":
+
+  - do:
+      search:
+        index: test*
+        pre_filter_shard_size: 1
+        body:
+          size: 0
+          query:
+            term:
+              foo: bar
+
+  - match: { "hits.total.value": 2 }
+  - match: { _shards.skipped : 1}
+
+  - do:
+      search:
+        index: test*
+        pre_filter_shard_size: 1
+        body:
+          size: 0
+          query:
+            term:
+              foo: baz
+
+  - match: { "hits.total.value": 1 }
+  - match: { _shards.skipped : 1}
+
+---
+"Terms query":
+
+  - do:
+      search:
+        index: test*
+        pre_filter_shard_size: 1
+        body:
+          size: 0
+          query:
+            terms:
+              foo: [bar, quux]
+
+  - match: { "hits.total.value": 2 }
+  - match: { _shards.skipped : 1}
+
+---
+"Prefix query":
+
+  - do:
+      search:
+        index: test*
+        body:
+          size: 0
+          query:
+            prefix:
+              foo: ba
+
+  - match: { "hits.total.value": 3 }
+
+  - do:
+      search:
+        index: test*
+        pre_filter_shard_size: 1
+        body:
+          size: 0
+          query:
+            prefix:
+              foo: baz
+
+  - match: { "hits.total.value": 1 }
+  - match: { _shards.skipped : 1}
+
+---
+"Wildcard query":
+
+  - do:
+      search:
+        index: test*
+        pre_filter_shard_size: 1
+        body:
+          size: 0
+          query:
+            wildcard:
+              foo: "*r*"
+
+  - match: { "hits.total.value": 2 }
+  - match: { _shards.skipped : 1}
+
+---
+"Terms agg":
+
+  - do:
+      search:
+        index: test*
+        body:
+          size: 0
+          aggs:
+            foo_terms:
+              terms:
+                field: foo
+
+  - match: { aggregations.foo_terms.buckets.0.key: "bar" }
+  - match: { aggregations.foo_terms.buckets.0.doc_count: 2 }
+  - match: { aggregations.foo_terms.buckets.1.key: "baz" }
+  - match: { aggregations.foo_terms.buckets.1.doc_count: 1 }
+  - length: { aggregations.foo_terms.buckets: 2 }
+
+---
+"Sort":
+
+  - do:
+      search:
+        index: test*
+        body:
+          sort: [ { foo: asc } ]
+
+  - match: { "hits.total.value": 3 }
+  - match: {hits.hits.0._index: test1 }
+  - match: {hits.hits.1._index: test1 }
+  - match: {hits.hits.2._index: test2 }
+
+---
+"Field retrieval":
+
+  - do:
+      search:
+        index: test*
+        body:
+          fields: [ foo ]
+          sort: [ { _index: asc } ]
+
+  - match: { "hits.total.value": 3 }
+  - match: {hits.hits.0.fields.foo.0: bar }
+  - match: {hits.hits.1.fields.foo.0: bar }
+  - match: {hits.hits.2.fields.foo.0: baz }

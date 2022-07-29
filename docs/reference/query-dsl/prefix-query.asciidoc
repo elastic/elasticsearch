@@ -41,6 +41,11 @@ provided `<field>`.
 (Optional, string) Method used to rewrite the query. For valid values and more
 information, see the <<query-dsl-multi-term-rewrite, `rewrite` parameter>>.
 
+`case_insensitive` added:[7.10.0] ::
+(Optional, Boolean) Allows ASCII case insensitive matching of the
+value with the indexed field values when set to true. Default is false which means
+the case sensitivity of matching depends on the underlying field's mapping.
+
 [[prefix-query-notes]]
 ==== Notes
 
@@ -62,9 +67,9 @@ GET /_search
 [[prefix-query-index-prefixes]]
 ===== Speed up prefix queries
 You can speed up prefix queries using the <<index-prefixes,`index_prefixes`>>
-mapping parameter. If enabled, {es} indexes prefixes between 2 and 5
-characters in a separate field. This lets {es} run prefix queries more
-efficiently at the cost of a larger index.
+mapping parameter. If enabled, {es} indexes prefixes in a separate field,
+according to the configuration settings. This lets {es} run prefix queries
+more efficiently at the cost of a larger index.
 
 [[prefix-query-allow-expensive-queries]]
 ===== Allow expensive queries

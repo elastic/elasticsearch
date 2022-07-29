@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.cluster.routing.allocation.decider;
@@ -28,31 +17,28 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 
 import java.util.Collection;
-import java.util.Collections;
 
 /**
- * A composite {@link AllocationDecider} combining the "decision" of multiple
- * {@link AllocationDecider} implementations into a single allocation decision.
+ * Combines the decision of multiple {@link AllocationDecider} implementations into a single allocation decision.
  */
-public class AllocationDeciders extends AllocationDecider {
+public class AllocationDeciders {
 
     private static final Logger logger = LogManager.getLogger(AllocationDeciders.class);
 
-    private final Collection<AllocationDecider> allocations;
+    private final AllocationDecider[] allocations;
 
     public AllocationDeciders(Collection<AllocationDecider> allocations) {
-        this.allocations = Collections.unmodifiableCollection(allocations);
+        this.allocations = allocations.toArray(AllocationDecider[]::new);
     }
 
-    @Override
     public Decision canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
         Decision.Multi ret = new Decision.Multi();
         for (AllocationDecider allocationDecider : allocations) {
             Decision decision = allocationDecider.canRebalance(shardRouting, allocation);
             // short track if a NO is returned.
-            if (decision == Decision.NO) {
-                if (!allocation.debugDecision()) {
-                    return decision;
+            if (decision.type() == Decision.Type.NO) {
+                if (allocation.debugDecision() == false) {
+                    return Decision.NO;
                 } else {
                     ret.add(decision);
                 }
@@ -63,7 +49,6 @@ public class AllocationDeciders extends AllocationDecider {
         return ret;
     }
 
-    @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         if (allocation.shouldIgnoreShardForNode(shardRouting.shardId(), node.nodeId())) {
             return Decision.NO;
@@ -72,14 +57,18 @@ public class AllocationDeciders extends AllocationDecider {
         for (AllocationDecider allocationDecider : allocations) {
             Decision decision = allocationDecider.canAllocate(shardRouting, node, allocation);
             // short track if a NO is returned.
-            if (decision == Decision.NO) {
+            if (decision.type() == Decision.Type.NO) {
                 if (logger.isTraceEnabled()) {
-                    logger.trace("Can not allocate [{}] on node [{}] due to [{}]",
-                        shardRouting, node.node(), allocationDecider.getClass().getSimpleName());
+                    logger.trace(
+                        "Can not allocate [{}] on node [{}] due to [{}]",
+                        shardRouting,
+                        node.node(),
+                        allocationDecider.getClass().getSimpleName()
+                    );
                 }
                 // short circuit only if debugging is not enabled
-                if (!allocation.debugDecision()) {
-                    return decision;
+                if (allocation.debugDecision() == false) {
+                    return Decision.NO;
                 } else {
                     ret.add(decision);
                 }
@@ -90,7 +79,6 @@ public class AllocationDeciders extends AllocationDecider {
         return ret;
     }
 
-    @Override
     public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         if (allocation.shouldIgnoreShardForNode(shardRouting.shardId(), node.nodeId())) {
             if (logger.isTraceEnabled()) {
@@ -98,36 +86,55 @@ public class AllocationDeciders extends AllocationDecider {
             }
             return Decision.NO;
         }
-        Decision.Multi ret = new Decision.Multi();
-        for (AllocationDecider allocationDecider : allocations) {
-            Decision decision = allocationDecider.canRemain(shardRouting, node, allocation);
-            // short track if a NO is returned.
-            if (decision == Decision.NO) {
-                if (logger.isTraceEnabled()) {
-                    logger.trace("Shard [{}] can not remain on node [{}] due to [{}]",
-                        shardRouting, node.nodeId(), allocationDecider.getClass().getSimpleName());
-                }
-                if (!allocation.debugDecision()) {
-                    return decision;
-                } else {
+        final IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(shardRouting.index());
+        if (allocation.debugDecision()) {
+            Decision.Multi ret = new Decision.Multi();
+            for (AllocationDecider allocationDecider : allocations) {
+                Decision decision = allocationDecider.canRemain(indexMetadata, shardRouting, node, allocation);
+                // short track if a NO is returned.
+                if (decision.type() == Decision.Type.NO) {
+                    maybeTraceLogNoDecision(shardRouting, node, allocationDecider);
                     ret.add(decision);
+                } else {
+                    addDecision(ret, decision, allocation);
                 }
-            } else {
-                addDecision(ret, decision, allocation);
             }
+            return ret;
+        } else {
+            // tighter loop if debug information is not collected: don't collect yes decisions + break out right away on NO
+            Decision ret = Decision.YES;
+            for (AllocationDecider allocationDecider : allocations) {
+                switch (allocationDecider.canRemain(indexMetadata, shardRouting, node, allocation).type()) {
+                    case NO -> {
+                        maybeTraceLogNoDecision(shardRouting, node, allocationDecider);
+                        return Decision.NO;
+                    }
+                    case THROTTLE -> ret = Decision.THROTTLE;
+                }
+            }
+            return ret;
         }
-        return ret;
     }
 
-    @Override
+    private void maybeTraceLogNoDecision(ShardRouting shardRouting, RoutingNode node, AllocationDecider allocationDecider) {
+        if (logger.isTraceEnabled()) {
+            logger.trace(
+                "Shard [{}] can not remain on node [{}] due to [{}]",
+                shardRouting,
+                node.nodeId(),
+                allocationDecider.getClass().getSimpleName()
+            );
+        }
+    }
+
     public Decision canAllocate(IndexMetadata indexMetadata, RoutingNode node, RoutingAllocation allocation) {
         Decision.Multi ret = new Decision.Multi();
         for (AllocationDecider allocationDecider : allocations) {
             Decision decision = allocationDecider.canAllocate(indexMetadata, node, allocation);
             // short track if a NO is returned.
-            if (decision == Decision.NO) {
-                if (!allocation.debugDecision()) {
-                    return decision;
+            if (decision.type() == Decision.Type.NO) {
+                if (allocation.debugDecision() == false) {
+                    return Decision.NO;
                 } else {
                     ret.add(decision);
                 }
@@ -138,15 +145,14 @@ public class AllocationDeciders extends AllocationDecider {
         return ret;
     }
 
-    @Override
     public Decision shouldAutoExpandToNode(IndexMetadata indexMetadata, DiscoveryNode node, RoutingAllocation allocation) {
         Decision.Multi ret = new Decision.Multi();
         for (AllocationDecider allocationDecider : allocations) {
             Decision decision = allocationDecider.shouldAutoExpandToNode(indexMetadata, node, allocation);
             // short track if a NO is returned.
-            if (decision == Decision.NO) {
-                if (!allocation.debugDecision()) {
-                    return decision;
+            if (decision.type() == Decision.Type.NO) {
+                if (allocation.debugDecision() == false) {
+                    return Decision.NO;
                 } else {
                     ret.add(decision);
                 }
@@ -157,15 +163,14 @@ public class AllocationDeciders extends AllocationDecider {
         return ret;
     }
 
-    @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingAllocation allocation) {
         Decision.Multi ret = new Decision.Multi();
         for (AllocationDecider allocationDecider : allocations) {
             Decision decision = allocationDecider.canAllocate(shardRouting, allocation);
             // short track if a NO is returned.
-            if (decision == Decision.NO) {
-                if (!allocation.debugDecision()) {
-                    return decision;
+            if (decision.type() == Decision.Type.NO) {
+                if (allocation.debugDecision() == false) {
+                    return Decision.NO;
                 } else {
                     ret.add(decision);
                 }
@@ -176,15 +181,14 @@ public class AllocationDeciders extends AllocationDecider {
         return ret;
     }
 
-    @Override
     public Decision canRebalance(RoutingAllocation allocation) {
         Decision.Multi ret = new Decision.Multi();
         for (AllocationDecider allocationDecider : allocations) {
             Decision decision = allocationDecider.canRebalance(allocation);
             // short track if a NO is returned.
-            if (decision == Decision.NO) {
-                if (!allocation.debugDecision()) {
-                    return decision;
+            if (decision.type() == Decision.Type.NO) {
+                if (allocation.debugDecision() == false) {
+                    return Decision.NO;
                 } else {
                     ret.add(decision);
                 }
@@ -195,7 +199,6 @@ public class AllocationDeciders extends AllocationDecider {
         return ret;
     }
 
-    @Override
     public Decision canForceAllocatePrimary(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         assert shardRouting.primary() : "must not call canForceAllocatePrimary on a non-primary shard routing " + shardRouting;
 
@@ -206,13 +209,17 @@ public class AllocationDeciders extends AllocationDecider {
         for (AllocationDecider decider : allocations) {
             Decision decision = decider.canForceAllocatePrimary(shardRouting, node, allocation);
             // short track if a NO is returned.
-            if (decision == Decision.NO) {
+            if (decision.type() == Decision.Type.NO) {
                 if (logger.isTraceEnabled()) {
-                    logger.trace("Shard [{}] can not be forcefully allocated to node [{}] due to [{}].",
-                        shardRouting.shardId(), node.nodeId(), decider.getClass().getSimpleName());
+                    logger.trace(
+                        "Shard [{}] can not be forcefully allocated to node [{}] due to [{}].",
+                        shardRouting.shardId(),
+                        node.nodeId(),
+                        decider.getClass().getSimpleName()
+                    );
                 }
-                if (!allocation.debugDecision()) {
-                    return decision;
+                if (allocation.debugDecision() == false) {
+                    return Decision.NO;
                 } else {
                     ret.add(decision);
                 }
@@ -223,7 +230,46 @@ public class AllocationDeciders extends AllocationDecider {
         return ret;
     }
 
-    private void addDecision(Decision.Multi ret, Decision decision, RoutingAllocation allocation) {
+    public Decision canForceAllocateDuringReplace(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+        Decision.Multi ret = new Decision.Multi();
+        for (AllocationDecider allocationDecider : allocations) {
+            Decision decision = allocationDecider.canForceAllocateDuringReplace(shardRouting, node, allocation);
+            // short track if a NO is returned.
+            if (decision.type() == Decision.Type.NO) {
+                if (allocation.debugDecision() == false) {
+                    return Decision.NO;
+                } else {
+                    ret.add(decision);
+                }
+            } else {
+                addDecision(ret, decision, allocation);
+            }
+        }
+        return ret;
+    }
+
+    public Decision canAllocateReplicaWhenThereIsRetentionLease(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+        if (allocation.shouldIgnoreShardForNode(shardRouting.shardId(), node.nodeId())) {
+            return Decision.NO;
+        }
+        Decision.Multi ret = new Decision.Multi();
+        for (AllocationDecider allocationDecider : allocations) {
+            Decision decision = allocationDecider.canAllocateReplicaWhenThereIsRetentionLease(shardRouting, node, allocation);
+            // short track if a NO is returned.
+            if (decision.type() == Decision.Type.NO) {
+                if (allocation.debugDecision() == false) {
+                    return Decision.NO;
+                } else {
+                    ret.add(decision);
+                }
+            } else {
+                addDecision(ret, decision, allocation);
+            }
+        }
+        return ret;
+    }
+
+    private static void addDecision(Decision.Multi ret, Decision decision, RoutingAllocation allocation) {
         // We never add ALWAYS decisions and only add YES decisions when requested by debug mode (since Multi default is YES).
         if (decision != Decision.ALWAYS
             && (allocation.getDebugMode() == RoutingAllocation.DebugMode.ON || decision.type() != Decision.Type.YES)) {

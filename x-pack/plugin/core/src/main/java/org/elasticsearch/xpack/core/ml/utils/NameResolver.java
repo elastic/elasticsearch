@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.utils;
 
@@ -59,10 +60,10 @@ public abstract class NameResolver {
             for (String token : tokens) {
                 if (Regex.isSimpleMatchPattern(token)) {
                     List<String> expanded = keys().stream()
-                            .filter(key -> Regex.simpleMatch(token, key))
-                            .map(this::lookup)
-                            .flatMap(List::stream)
-                            .collect(Collectors.toList());
+                        .filter(key -> Regex.simpleMatch(token, key))
+                        .map(this::lookup)
+                        .flatMap(List::stream)
+                        .collect(Collectors.toList());
                     if (expanded.isEmpty() && allowNoMatch == false) {
                         throw notFoundExceptionSupplier.apply(token);
                     }

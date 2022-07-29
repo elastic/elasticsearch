@@ -1,51 +1,49 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.cluster.metadata;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
+import org.elasticsearch.action.admin.indices.rollover.MetadataRolloverService;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.ActiveShardsObserver;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ObjectPath;
-import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.indices.SystemDataStreamDescriptor;
+import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 public class MetadataCreateDataStreamService {
 
@@ -55,108 +53,234 @@ public class MetadataCreateDataStreamService {
     private final ActiveShardsObserver activeShardsObserver;
     private final MetadataCreateIndexService metadataCreateIndexService;
 
-    public MetadataCreateDataStreamService(ThreadPool threadPool,
-                                           ClusterService clusterService,
-                                           MetadataCreateIndexService metadataCreateIndexService) {
+    public MetadataCreateDataStreamService(
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        MetadataCreateIndexService metadataCreateIndexService
+    ) {
         this.clusterService = clusterService;
         this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
         this.metadataCreateIndexService = metadataCreateIndexService;
     }
 
-    public void createDataStream(CreateDataStreamClusterStateUpdateRequest request,
-                                 ActionListener<AcknowledgedResponse> finalListener) {
+    public void createDataStream(CreateDataStreamClusterStateUpdateRequest request, ActionListener<AcknowledgedResponse> finalListener) {
         AtomicReference<String> firstBackingIndexRef = new AtomicReference<>();
-        ActionListener<ClusterStateUpdateResponse> listener = ActionListener.wrap(
-            response -> {
-                if (response.isAcknowledged()) {
-                    String firstBackingIndexName = firstBackingIndexRef.get();
-                    assert firstBackingIndexName != null;
-                    activeShardsObserver.waitForActiveShards(
-                        new String[]{firstBackingIndexName},
-                        ActiveShardCount.DEFAULT,
-                        request.masterNodeTimeout(),
-                        shardsAcked -> {
-                            finalListener.onResponse(new AcknowledgedResponse(true));
-                        },
-                        finalListener::onFailure);
-                } else {
-                    finalListener.onResponse(new AcknowledgedResponse(false));
-                }
-            },
-            finalListener::onFailure
-        );
-        clusterService.submitStateUpdateTask("create-data-stream [" + request.name + "]",
-            new AckedClusterStateUpdateTask<>(Priority.HIGH, request, listener) {
+        ActionListener<AcknowledgedResponse> listener = ActionListener.wrap(response -> {
+            if (response.isAcknowledged()) {
+                String firstBackingIndexName = firstBackingIndexRef.get();
+                assert firstBackingIndexName != null;
+                activeShardsObserver.waitForActiveShards(
+                    new String[] { firstBackingIndexName },
+                    ActiveShardCount.DEFAULT,
+                    request.masterNodeTimeout(),
+                    shardsAcked -> finalListener.onResponse(AcknowledgedResponse.TRUE),
+                    finalListener::onFailure
+                );
+            } else {
+                finalListener.onResponse(AcknowledgedResponse.FALSE);
+            }
+        }, finalListener::onFailure);
+        submitUnbatchedTask("create-data-stream [" + request.name + "]", new AckedClusterStateUpdateTask(Priority.HIGH, request, listener) {
+            @Override
+            public ClusterState execute(ClusterState currentState) throws Exception {
+                ClusterState clusterState = createDataStream(metadataCreateIndexService, currentState, request);
+                firstBackingIndexRef.set(clusterState.metadata().dataStreams().get(request.name).getIndices().get(0).getName());
+                return clusterState;
+            }
+        });
+    }
 
-                @Override
-                public ClusterState execute(ClusterState currentState) throws Exception {
-                    ClusterState clusterState = createDataStream(metadataCreateIndexService, currentState, request);
-                    firstBackingIndexRef.set(clusterState.metadata().dataStreams().get(request.name).getIndices().get(0).getName());
-                    return clusterState;
-                }
-
-                @Override
-                protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
-                    return new ClusterStateUpdateResponse(acknowledged);
-                }
-            });
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
     public ClusterState createDataStream(CreateDataStreamClusterStateUpdateRequest request, ClusterState current) throws Exception {
         return createDataStream(metadataCreateIndexService, current, request);
     }
 
-    public static final class CreateDataStreamClusterStateUpdateRequest extends ClusterStateUpdateRequest {
+    public static final class CreateDataStreamClusterStateUpdateRequest extends ClusterStateUpdateRequest<
+        CreateDataStreamClusterStateUpdateRequest> {
 
+        private final boolean performReroute;
         private final String name;
+        private final long startTime;
+        private final SystemDataStreamDescriptor descriptor;
 
-        public CreateDataStreamClusterStateUpdateRequest(String name,
-                                                         TimeValue masterNodeTimeout,
-                                                         TimeValue timeout) {
+        public CreateDataStreamClusterStateUpdateRequest(String name) {
+            this(name, System.currentTimeMillis(), null, TimeValue.ZERO, TimeValue.ZERO, true);
+        }
+
+        public CreateDataStreamClusterStateUpdateRequest(
+            String name,
+            SystemDataStreamDescriptor systemDataStreamDescriptor,
+            TimeValue masterNodeTimeout,
+            TimeValue timeout,
+            boolean performReroute
+        ) {
+            this(name, System.currentTimeMillis(), systemDataStreamDescriptor, masterNodeTimeout, timeout, performReroute);
+        }
+
+        public CreateDataStreamClusterStateUpdateRequest(
+            String name,
+            long startTime,
+            SystemDataStreamDescriptor systemDataStreamDescriptor,
+            TimeValue masterNodeTimeout,
+            TimeValue timeout,
+            boolean performReroute
+        ) {
             this.name = name;
+            this.startTime = startTime;
+            this.descriptor = systemDataStreamDescriptor;
+            this.performReroute = performReroute;
             masterNodeTimeout(masterNodeTimeout);
             ackTimeout(timeout);
         }
+
+        public boolean isSystem() {
+            return descriptor != null;
+        }
+
+        public boolean performReroute() {
+            return performReroute;
+        }
+
+        public SystemDataStreamDescriptor getSystemDataStreamDescriptor() {
+            return descriptor;
+        }
     }
 
-    static ClusterState createDataStream(MetadataCreateIndexService metadataCreateIndexService,
-                                         ClusterState currentState,
-                                         CreateDataStreamClusterStateUpdateRequest request)
-        throws Exception {
-        if (currentState.nodes().getMinNodeVersion().before(Version.V_7_9_0)) {
-            throw new IllegalStateException("data streams require minimum node version of " + Version.V_7_9_0);
+    static ClusterState createDataStream(
+        MetadataCreateIndexService metadataCreateIndexService,
+        ClusterState currentState,
+        CreateDataStreamClusterStateUpdateRequest request
+    ) throws Exception {
+        return createDataStream(metadataCreateIndexService, currentState, request, List.of(), null);
+    }
+
+    /**
+     * Creates a data stream with the specified request, backing indices and write index.
+     *
+     * @param metadataCreateIndexService Used if a new write index must be created
+     * @param currentState               Cluster state
+     * @param request                    The create data stream request
+     * @param backingIndices             List of backing indices. May be empty
+     * @param writeIndex                 Write index for the data stream. If null, a new write index will be created.
+     * @return                           Cluster state containing the new data stream
+     */
+    static ClusterState createDataStream(
+        MetadataCreateIndexService metadataCreateIndexService,
+        ClusterState currentState,
+        CreateDataStreamClusterStateUpdateRequest request,
+        List<IndexMetadata> backingIndices,
+        IndexMetadata writeIndex
+    ) throws Exception {
+        String dataStreamName = request.name;
+        SystemDataStreamDescriptor systemDataStreamDescriptor = request.getSystemDataStreamDescriptor();
+        boolean isSystemDataStreamName = metadataCreateIndexService.getSystemIndices().isSystemDataStream(request.name);
+        assert (isSystemDataStreamName && systemDataStreamDescriptor != null)
+            || (isSystemDataStreamName == false && systemDataStreamDescriptor == null)
+            : "dataStream [" + request.name + "] is system but no system descriptor was provided!";
+
+        Objects.requireNonNull(metadataCreateIndexService);
+        Objects.requireNonNull(currentState);
+        Objects.requireNonNull(backingIndices);
+        if (currentState.metadata().dataStreams().containsKey(dataStreamName)) {
+            throw new ResourceAlreadyExistsException("data_stream [" + dataStreamName + "] already exists");
         }
-        if (currentState.metadata().dataStreams().containsKey(request.name)) {
-            throw new ResourceAlreadyExistsException("data_stream [" + request.name + "] already exists");
+
+        MetadataCreateIndexService.validateIndexOrAliasName(
+            dataStreamName,
+            (s1, s2) -> new IllegalArgumentException("data_stream [" + s1 + "] " + s2)
+        );
+
+        if (dataStreamName.toLowerCase(Locale.ROOT).equals(dataStreamName) == false) {
+            throw new IllegalArgumentException("data_stream [" + dataStreamName + "] must be lowercase");
+        }
+        if (dataStreamName.startsWith(DataStream.BACKING_INDEX_PREFIX)) {
+            throw new IllegalArgumentException(
+                "data_stream [" + dataStreamName + "] must not start with '" + DataStream.BACKING_INDEX_PREFIX + "'"
+            );
         }
 
-        MetadataCreateIndexService.validateIndexOrAliasName(request.name,
-            (s1, s2) -> new IllegalArgumentException("data_stream [" + s1 + "] " + s2));
+        final var metadata = currentState.metadata();
+        final boolean isSystem = systemDataStreamDescriptor != null;
+        final ComposableIndexTemplate template = isSystem
+            ? systemDataStreamDescriptor.getComposableIndexTemplate()
+            : lookupTemplateForDataStream(dataStreamName, currentState.metadata());
 
-        if (request.name.toLowerCase(Locale.ROOT).equals(request.name) == false) {
-            throw new IllegalArgumentException("data_stream [" + request.name + "] must be lowercase");
+        if (writeIndex == null) {
+            String firstBackingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1, request.startTime);
+            CreateIndexClusterStateUpdateRequest createIndexRequest = new CreateIndexClusterStateUpdateRequest(
+                "initialize_data_stream",
+                firstBackingIndexName,
+                firstBackingIndexName
+            ).dataStreamName(dataStreamName)
+                .systemDataStreamDescriptor(systemDataStreamDescriptor)
+                .nameResolvedInstant(request.startTime)
+                .performReroute(request.performReroute())
+                .setMatchingTemplate(template);
+
+            if (isSystem) {
+                createIndexRequest.settings(SystemIndexDescriptor.DEFAULT_SETTINGS);
+            } else {
+                createIndexRequest.settings(MetadataRolloverService.HIDDEN_INDEX_SETTINGS);
+            }
+
+            try {
+                currentState = metadataCreateIndexService.applyCreateIndexRequest(currentState, createIndexRequest, false);
+            } catch (ResourceAlreadyExistsException e) {
+                // Rethrow as ElasticsearchStatusException, so that bulk transport action doesn't ignore it during
+                // auto index/data stream creation.
+                // (otherwise bulk execution fails later, because data stream will also not have been created)
+                throw new ElasticsearchStatusException(
+                    "data stream could not be created because backing index [{}] already exists",
+                    RestStatus.BAD_REQUEST,
+                    e,
+                    firstBackingIndexName
+                );
+            }
+            writeIndex = currentState.metadata().index(firstBackingIndexName);
         }
-        if (request.name.startsWith(".")) {
-            throw new IllegalArgumentException("data_stream [" + request.name + "] must not start with '.'");
-        }
+        assert writeIndex != null;
+        assert writeIndex.mapping() != null : "no mapping found for backing index [" + writeIndex.getIndex().getName() + "]";
 
-        ComposableIndexTemplate template = lookupTemplateForDataStream(request.name, currentState.metadata());
-
-        String firstBackingIndexName = DataStream.getDefaultBackingIndexName(request.name, 1);
-        CreateIndexClusterStateUpdateRequest createIndexRequest =
-            new CreateIndexClusterStateUpdateRequest("initialize_data_stream", firstBackingIndexName, firstBackingIndexName)
-                .dataStreamName(request.name)
-                .settings(Settings.builder().put("index.hidden", true).build());
-        currentState = metadataCreateIndexService.applyCreateIndexRequest(currentState, createIndexRequest, false);
-        IndexMetadata firstBackingIndex = currentState.metadata().index(firstBackingIndexName);
-        assert firstBackingIndex != null;
-        assert firstBackingIndex.mapping() != null : "no mapping found for backing index [" + firstBackingIndexName + "]";
-
-        String fieldName = template.getDataStreamTemplate().getTimestampField();
-        DataStream.TimestampField timestampField = new DataStream.TimestampField(fieldName);
-        DataStream newDataStream = new DataStream(request.name, timestampField, List.of(firstBackingIndex.getIndex()));
+        List<Index> dsBackingIndices = backingIndices.stream()
+            .map(IndexMetadata::getIndex)
+            .collect(Collectors.toCollection(ArrayList::new));
+        dsBackingIndices.add(writeIndex.getIndex());
+        boolean hidden = isSystem || template.getDataStreamTemplate().isHidden();
+        final IndexMode indexMode = metadata.isTimeSeriesTemplate(template) ? IndexMode.TIME_SERIES : null;
+        DataStream newDataStream = new DataStream(
+            dataStreamName,
+            dsBackingIndices,
+            1L,
+            template.metadata() != null ? Map.copyOf(template.metadata()) : null,
+            hidden,
+            false,
+            isSystem,
+            template.getDataStreamTemplate().isAllowCustomRouting(),
+            indexMode
+        );
         Metadata.Builder builder = Metadata.builder(currentState.metadata()).put(newDataStream);
-        logger.info("adding data stream [{}]", request.name);
+
+        List<String> aliases = new ArrayList<>();
+        var resolvedAliases = MetadataIndexTemplateService.resolveAliases(currentState.metadata(), template);
+        for (var resolvedAliasMap : resolvedAliases) {
+            for (var alias : resolvedAliasMap.values()) {
+                aliases.add(alias.getAlias());
+                builder.put(alias.getAlias(), dataStreamName, alias.writeIndex(), alias.filter() == null ? null : alias.filter().string());
+            }
+        }
+
+        logger.info(
+            "adding data stream [{}] with write index [{}], backing indices [{}], and aliases [{}]",
+            dataStreamName,
+            writeIndex.getIndex().getName(),
+            Strings.arrayToCommaDelimitedString(backingIndices.stream().map(i -> i.getIndex().getName()).toArray()),
+            Strings.collectionToCommaDelimitedString(aliases)
+        );
+
         return ClusterState.builder(currentState).metadata(builder).build();
     }
 
@@ -167,28 +291,23 @@ public class MetadataCreateDataStreamService {
         }
         ComposableIndexTemplate composableIndexTemplate = metadata.templatesV2().get(v2Template);
         if (composableIndexTemplate.getDataStreamTemplate() == null) {
-            throw new IllegalArgumentException("matching index template [" + v2Template + "] for data stream [" + dataStreamName  +
-                "] has no data stream template");
+            throw new IllegalArgumentException(
+                "matching index template [" + v2Template + "] for data stream [" + dataStreamName + "] has no data stream template"
+            );
         }
         return composableIndexTemplate;
     }
 
-    public static void validateTimestampFieldMapping(String timestampFieldName, MapperService mapperService) throws IOException {
-        MetadataFieldMapper fieldMapper =
-            (MetadataFieldMapper) mapperService.documentMapper().mappers().getMapper("_data_stream_timestamp");
-        assert fieldMapper != null : "[_data_stream_timestamp] meta field mapper must exist";
-
-        Map<String, Object> parsedTemplateMapping =
-            MapperService.parseMapping(NamedXContentRegistry.EMPTY, mapperService.documentMapper().mappingSource().string());
-        Boolean enabled = ObjectPath.eval("_doc._data_stream_timestamp.enabled", parsedTemplateMapping);
+    public static void validateTimestampFieldMapping(MappingLookup mappingLookup) throws IOException {
+        MetadataFieldMapper fieldMapper = (MetadataFieldMapper) mappingLookup.getMapper(DataStreamTimestampFieldMapper.NAME);
+        assert fieldMapper != null : DataStreamTimestampFieldMapper.NAME + " meta field mapper must exist";
         // Sanity check: if this fails then somehow the mapping for _data_stream_timestamp has been overwritten and
         // that would be a bug.
-        if (enabled == null || enabled == false) {
-            throw new IllegalStateException("[_data_stream_timestamp] meta field has been disabled");
+        if (mappingLookup.isDataStreamTimestampFieldEnabled() == false) {
+            throw new IllegalStateException("[" + DataStreamTimestampFieldMapper.NAME + "] meta field has been disabled");
         }
-
         // Sanity check (this validation logic should already have been executed when merging mappings):
-        fieldMapper.validate(mapperService.documentMapper().mappers());
+        fieldMapper.validate(mappingLookup);
     }
 
 }

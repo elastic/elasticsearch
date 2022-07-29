@@ -1,16 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.inference.results;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.LinkedHashMap;
@@ -23,6 +23,10 @@ public class WarningInferenceResults implements InferenceResults {
     public static final ParseField WARNING = new ParseField("warning");
 
     private final String warning;
+
+    public WarningInferenceResults(String warning, Object... args) {
+        this(LoggerMessageFormat.format(warning, args));
+    }
 
     public WarningInferenceResults(String warning) {
         this.warning = warning;
@@ -43,8 +47,12 @@ public class WarningInferenceResults implements InferenceResults {
 
     @Override
     public boolean equals(Object object) {
-        if (object == this) { return true; }
-        if (object == null || getClass() != object.getClass()) { return false; }
+        if (object == this) {
+            return true;
+        }
+        if (object == null || getClass() != object.getClass()) {
+            return false;
+        }
         WarningInferenceResults that = (WarningInferenceResults) object;
         return Objects.equals(warning, that.warning);
     }
@@ -55,10 +63,8 @@ public class WarningInferenceResults implements InferenceResults {
     }
 
     @Override
-    public void writeResult(IngestDocument document, String parentResultField) {
-        ExceptionsHelper.requireNonNull(document, "document");
-        ExceptionsHelper.requireNonNull(parentResultField, "resultField");
-        document.setFieldValue(parentResultField, asMap());
+    public String getResultsField() {
+        return NAME;
     }
 
     @Override

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ccr.action;
 
@@ -11,9 +12,9 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata.AutoFollowPattern;
 import org.elasticsearch.xpack.core.ccr.action.DeleteAutoFollowPatternAction.Request;
-import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -38,8 +39,10 @@ public class TransportDeleteAutoFollowPatternActionTests extends ESTestCase {
                 new AutoFollowPattern(
                     "eu_cluster",
                     existingPatterns,
+                    Collections.emptyList(),
                     null,
-                    Settings.EMPTY, true,
+                    Settings.EMPTY,
+                    true,
                     null,
                     null,
                     null,
@@ -66,6 +69,7 @@ public class TransportDeleteAutoFollowPatternActionTests extends ESTestCase {
                 new AutoFollowPattern(
                     "asia_cluster",
                     existingPatterns,
+                    Collections.emptyList(),
                     null,
                     Settings.EMPTY,
                     true,
@@ -88,8 +92,13 @@ public class TransportDeleteAutoFollowPatternActionTests extends ESTestCase {
             existingHeaders.put("name2", Collections.singletonMap("key", "val"));
         }
         ClusterState clusterState = ClusterState.builder(new ClusterName("us_cluster"))
-            .metadata(Metadata.builder().putCustom(AutoFollowMetadata.TYPE,
-                new AutoFollowMetadata(existingAutoFollowPatterns, existingAlreadyFollowedIndexUUIDS, existingHeaders)))
+            .metadata(
+                Metadata.builder()
+                    .putCustom(
+                        AutoFollowMetadata.TYPE,
+                        new AutoFollowMetadata(existingAutoFollowPatterns, existingAlreadyFollowedIndexUUIDS, existingHeaders)
+                    )
+            )
             .build();
 
         Request request = new Request("name1");
@@ -117,6 +126,7 @@ public class TransportDeleteAutoFollowPatternActionTests extends ESTestCase {
                 new AutoFollowPattern(
                     "eu_cluster",
                     existingPatterns,
+                    Collections.emptyList(),
                     null,
                     Settings.EMPTY,
                     true,
@@ -135,24 +145,31 @@ public class TransportDeleteAutoFollowPatternActionTests extends ESTestCase {
             existingHeaders.put("key", Collections.singletonMap("key", "val"));
         }
         ClusterState clusterState = ClusterState.builder(new ClusterName("us_cluster"))
-            .metadata(Metadata.builder().putCustom(AutoFollowMetadata.TYPE,
-                new AutoFollowMetadata(existingAutoFollowPatterns, existingAlreadyFollowedIndexUUIDS, existingHeaders)))
+            .metadata(
+                Metadata.builder()
+                    .putCustom(
+                        AutoFollowMetadata.TYPE,
+                        new AutoFollowMetadata(existingAutoFollowPatterns, existingAlreadyFollowedIndexUUIDS, existingHeaders)
+                    )
+            )
             .build();
 
         Request request = new Request("name2");
-        Exception e = expectThrows(ResourceNotFoundException.class,
-            () -> TransportDeleteAutoFollowPatternAction.innerDelete(request, clusterState));
+        Exception e = expectThrows(
+            ResourceNotFoundException.class,
+            () -> TransportDeleteAutoFollowPatternAction.innerDelete(request, clusterState)
+        );
         assertThat(e.getMessage(), equalTo("auto-follow pattern [name2] is missing"));
     }
 
     public void testInnerDeleteNoAutoFollowMetadata() {
-        ClusterState clusterState = ClusterState.builder(new ClusterName("us_cluster"))
-            .metadata(Metadata.builder())
-            .build();
+        ClusterState clusterState = ClusterState.builder(new ClusterName("us_cluster")).metadata(Metadata.builder()).build();
 
         Request request = new Request("name1");
-        Exception e = expectThrows(ResourceNotFoundException.class,
-            () -> TransportDeleteAutoFollowPatternAction.innerDelete(request, clusterState));
+        Exception e = expectThrows(
+            ResourceNotFoundException.class,
+            () -> TransportDeleteAutoFollowPatternAction.innerDelete(request, clusterState)
+        );
         assertThat(e.getMessage(), equalTo("auto-follow pattern [name1] is missing"));
     }
 

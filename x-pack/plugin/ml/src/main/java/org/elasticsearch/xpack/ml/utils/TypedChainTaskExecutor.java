@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.utils;
 
@@ -22,7 +23,7 @@ import java.util.function.Predicate;
  */
 public class TypedChainTaskExecutor<T> {
 
-    public interface ChainTask <T> {
+    public interface ChainTask<T> {
         void run(ActionListener<T> listener);
     }
 
@@ -46,9 +47,11 @@ public class TypedChainTaskExecutor<T> {
      *                                     {@code true} means that no more tasks should execute and the listener::onFailure should be
      *                                     called.
      */
-    public TypedChainTaskExecutor(ExecutorService executorService,
-                                  Predicate<T> continuationPredicate,
-                                  Predicate<Exception> failureShortCircuitPredicate) {
+    public TypedChainTaskExecutor(
+        ExecutorService executorService,
+        Predicate<T> continuationPredicate,
+        Predicate<Exception> failureShortCircuitPredicate
+    ) {
         this.executorService = Objects.requireNonNull(executorService);
         this.continuationPredicate = continuationPredicate;
         this.failureShortCircuitPredicate = failureShortCircuitPredicate;
@@ -65,7 +68,7 @@ public class TypedChainTaskExecutor<T> {
             if (tasks.isEmpty()) {
                 // noinspection Java9CollectionFactory (because the list can contain null entries)
                 listener.onResponse(Collections.unmodifiableList(new ArrayList<>(collectedResponses)));
-               return;
+                return;
             }
             ChainTask<T> task = tasks.pop();
             executorService.execute(new AbstractRunnable() {

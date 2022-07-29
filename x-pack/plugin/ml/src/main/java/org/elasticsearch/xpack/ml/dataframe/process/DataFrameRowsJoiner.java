@@ -1,18 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.dataframe.process;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -47,8 +47,13 @@ class DataFrameRowsJoiner implements AutoCloseable {
     private volatile String failure;
     private volatile boolean isCancelled;
 
-    DataFrameRowsJoiner(String analyticsId, Settings settings, TaskId parentTaskId, DataFrameDataExtractor dataExtractor,
-                        ResultsPersisterService resultsPersisterService) {
+    DataFrameRowsJoiner(
+        String analyticsId,
+        Settings settings,
+        TaskId parentTaskId,
+        DataFrameDataExtractor dataExtractor,
+        ResultsPersisterService resultsPersisterService
+    ) {
         this.analyticsId = Objects.requireNonNull(analyticsId);
         this.settings = Objects.requireNonNull(settings);
         this.parentTaskId = Objects.requireNonNull(parentTaskId);
@@ -73,7 +78,7 @@ class DataFrameRowsJoiner implements AutoCloseable {
         try {
             addResultAndJoinIfEndOfBatch(rowResults);
         } catch (Exception e) {
-            LOGGER.error(new ParameterizedMessage("[{}] Failed to join results ", analyticsId), e);
+            LOGGER.error(() -> "[" + analyticsId + "] Failed to join results ", e);
             failure = "[" + analyticsId + "] Failed to join results: " + e.getMessage();
         }
     }
@@ -109,7 +114,8 @@ class DataFrameRowsJoiner implements AutoCloseable {
             bulkRequest,
             analyticsId,
             () -> isCancelled == false,
-            errorMsg -> {});
+            retryMessage -> {}
+        );
     }
 
     private void checkChecksumsMatch(DataFrameDataExtractor.Row row, RowResults result) {
@@ -138,13 +144,13 @@ class DataFrameRowsJoiner implements AutoCloseable {
         try {
             joinCurrentResults();
         } catch (Exception e) {
-            LOGGER.error(new ParameterizedMessage("[{}] Failed to join results", analyticsId), e);
+            LOGGER.error(() -> "[" + analyticsId + "] Failed to join results", e);
             failure = "[" + analyticsId + "] Failed to join results: " + e.getMessage();
         } finally {
             try {
                 consumeDataExtractor();
             } catch (Exception e) {
-                LOGGER.error(new ParameterizedMessage("[{}] Failed to consume data extractor", analyticsId), e);
+                LOGGER.error(() -> "[" + analyticsId + "] Failed to consume data extractor", e);
             }
         }
     }

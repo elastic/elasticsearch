@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.common.lucene.uid;
 
@@ -30,6 +19,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
@@ -67,7 +57,7 @@ public class VersionsTests extends ESTestCase {
         assertThat(loadDocIdAndVersion(directoryReader, new Term(IdFieldMapper.NAME, "1"), randomBoolean()), nullValue());
 
         Document doc = new Document();
-        doc.add(new Field(IdFieldMapper.NAME, "1", IdFieldMapper.Defaults.FIELD_TYPE));
+        doc.add(new Field(IdFieldMapper.NAME, "1", ProvidedIdFieldMapper.Defaults.FIELD_TYPE));
         doc.add(new NumericDocValuesField(VersionFieldMapper.NAME, 1));
         doc.add(new NumericDocValuesField(SeqNoFieldMapper.NAME, randomNonNegativeLong()));
         doc.add(new NumericDocValuesField(SeqNoFieldMapper.PRIMARY_TERM_NAME, randomLongBetween(1, Long.MAX_VALUE)));
@@ -76,7 +66,7 @@ public class VersionsTests extends ESTestCase {
         assertThat(loadDocIdAndVersion(directoryReader, new Term(IdFieldMapper.NAME, "1"), randomBoolean()).version, equalTo(1L));
 
         doc = new Document();
-        Field uid = new Field(IdFieldMapper.NAME, "1", IdFieldMapper.Defaults.FIELD_TYPE);
+        Field uid = new Field(IdFieldMapper.NAME, "1", ProvidedIdFieldMapper.Defaults.FIELD_TYPE);
         Field version = new NumericDocValuesField(VersionFieldMapper.NAME, 2);
         doc.add(uid);
         doc.add(version);
@@ -114,12 +104,12 @@ public class VersionsTests extends ESTestCase {
         for (int i = 0; i < 4; ++i) {
             // Nested
             Document doc = new Document();
-            doc.add(new Field(IdFieldMapper.NAME, "1", IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
+            doc.add(new Field(IdFieldMapper.NAME, "1", ProvidedIdFieldMapper.Defaults.NESTED_FIELD_TYPE));
             docs.add(doc);
         }
         // Root
         Document doc = new Document();
-        doc.add(new Field(IdFieldMapper.NAME, "1", IdFieldMapper.Defaults.FIELD_TYPE));
+        doc.add(new Field(IdFieldMapper.NAME, "1", ProvidedIdFieldMapper.Defaults.FIELD_TYPE));
         NumericDocValuesField version = new NumericDocValuesField(VersionFieldMapper.NAME, 5L);
         doc.add(version);
         doc.add(new NumericDocValuesField(SeqNoFieldMapper.NAME, randomNonNegativeLong()));
@@ -152,7 +142,7 @@ public class VersionsTests extends ESTestCase {
         Directory dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
         Document doc = new Document();
-        doc.add(new Field(IdFieldMapper.NAME, "6", IdFieldMapper.Defaults.FIELD_TYPE));
+        doc.add(new Field(IdFieldMapper.NAME, "6", ProvidedIdFieldMapper.Defaults.FIELD_TYPE));
         doc.add(new NumericDocValuesField(VersionFieldMapper.NAME, 87));
         doc.add(new NumericDocValuesField(SeqNoFieldMapper.NAME, randomNonNegativeLong()));
         doc.add(new NumericDocValuesField(SeqNoFieldMapper.PRIMARY_TERM_NAME, randomLongBetween(1, Long.MAX_VALUE)));
@@ -160,10 +150,10 @@ public class VersionsTests extends ESTestCase {
         DirectoryReader reader = DirectoryReader.open(writer);
         // should increase cache size by 1
         assertEquals(87, loadDocIdAndVersion(reader, new Term(IdFieldMapper.NAME, "6"), randomBoolean()).version);
-        assertEquals(size+1, VersionsAndSeqNoResolver.lookupStates.size());
+        assertEquals(size + 1, VersionsAndSeqNoResolver.lookupStates.size());
         // should be cache hit
         assertEquals(87, loadDocIdAndVersion(reader, new Term(IdFieldMapper.NAME, "6"), randomBoolean()).version);
-        assertEquals(size+1, VersionsAndSeqNoResolver.lookupStates.size());
+        assertEquals(size + 1, VersionsAndSeqNoResolver.lookupStates.size());
 
         reader.close();
         writer.close();
@@ -179,19 +169,19 @@ public class VersionsTests extends ESTestCase {
         Directory dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
         Document doc = new Document();
-        doc.add(new Field(IdFieldMapper.NAME, "6", IdFieldMapper.Defaults.FIELD_TYPE));
+        doc.add(new Field(IdFieldMapper.NAME, "6", ProvidedIdFieldMapper.Defaults.FIELD_TYPE));
         doc.add(new NumericDocValuesField(VersionFieldMapper.NAME, 87));
         doc.add(new NumericDocValuesField(SeqNoFieldMapper.NAME, randomNonNegativeLong()));
         doc.add(new NumericDocValuesField(SeqNoFieldMapper.PRIMARY_TERM_NAME, randomLongBetween(1, Long.MAX_VALUE)));
         writer.addDocument(doc);
         DirectoryReader reader = DirectoryReader.open(writer);
         assertEquals(87, loadDocIdAndVersion(reader, new Term(IdFieldMapper.NAME, "6"), randomBoolean()).version);
-        assertEquals(size+1, VersionsAndSeqNoResolver.lookupStates.size());
+        assertEquals(size + 1, VersionsAndSeqNoResolver.lookupStates.size());
         // now wrap the reader
         DirectoryReader wrapped = ElasticsearchDirectoryReader.wrap(reader, new ShardId("bogus", "_na_", 5));
         assertEquals(87, loadDocIdAndVersion(wrapped, new Term(IdFieldMapper.NAME, "6"), randomBoolean()).version);
         // same size map: core cache key is shared
-        assertEquals(size+1, VersionsAndSeqNoResolver.lookupStates.size());
+        assertEquals(size + 1, VersionsAndSeqNoResolver.lookupStates.size());
 
         reader.close();
         writer.close();
@@ -203,7 +193,14 @@ public class VersionsTests extends ESTestCase {
     public void testLuceneVersionOnUnknownVersions() {
         // between two known versions, should use the lucene version of the previous version
         Version version = VersionUtils.getPreviousVersion(Version.CURRENT);
-        assertEquals(Version.fromId(version.id + 100).luceneVersion, version.luceneVersion);
+        final Version nextVersion = Version.fromId(version.id + 100);
+        if (Version.getDeclaredVersions(Version.class).contains(nextVersion) == false) {
+            // the version is not known, we make an assumption the Lucene version stays the same
+            assertEquals(nextVersion.luceneVersion, version.luceneVersion);
+        } else {
+            // the version is known, the most we can assert is that the Lucene version is not earlier
+            assertTrue(nextVersion.luceneVersion.onOrAfter(version.luceneVersion));
+        }
 
         // too old version, major should be the oldest supported lucene version minus 1
         version = Version.fromString("5.2.1");

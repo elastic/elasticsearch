@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.dataframe.stats;
 
@@ -12,7 +13,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Collectors;
 
 /**
  * Tracks progress of a data frame analytics job.
@@ -54,6 +54,9 @@ public class ProgressTracker {
         assert progressPercentPerPhase.containsKey(REINDEXING);
         assert progressPercentPerPhase.containsKey(LOADING_DATA);
         assert progressPercentPerPhase.containsKey(WRITING_RESULTS);
+        // If there is inference it should be the last phase otherwise there
+        // are assumptions that do not hold.
+        assert progressPercentPerPhase.containsKey(INFERENCE) == false || INFERENCE.equals(phasesInOrder[phasesInOrder.length - 1]);
     }
 
     public void updateReindexingProgress(int progressPercent) {
@@ -96,9 +99,33 @@ public class ProgressTracker {
         progressPercentPerPhase.computeIfPresent(phase, (k, v) -> Math.max(v, progress));
     }
 
+    /**
+     * Resets progress to reflect all phases are complete except for inference
+     * which is set to zero.
+     */
+    public void resetForInference() {
+        for (Map.Entry<String, Integer> phaseProgress : progressPercentPerPhase.entrySet()) {
+            if (phaseProgress.getKey().equals(INFERENCE)) {
+                progressPercentPerPhase.put(phaseProgress.getKey(), 0);
+            } else {
+                progressPercentPerPhase.put(phaseProgress.getKey(), 100);
+            }
+        }
+    }
+
+    /**
+     * Returns whether all phases before inference are complete
+     */
+    public boolean areAllPhasesExceptInferenceComplete() {
+        for (Map.Entry<String, Integer> phaseProgress : progressPercentPerPhase.entrySet()) {
+            if (phaseProgress.getKey().equals(INFERENCE) == false && phaseProgress.getValue() < 100) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     public List<PhaseProgress> report() {
-        return Arrays.stream(phasesInOrder)
-            .map(phase -> new PhaseProgress(phase, progressPercentPerPhase.get(phase)))
-            .collect(Collectors.toUnmodifiableList());
+        return Arrays.stream(phasesInOrder).map(phase -> new PhaseProgress(phase, progressPercentPerPhase.get(phase))).toList();
     }
 }

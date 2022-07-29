@@ -1,0 +1,54 @@
+apply plugin: 'elasticsearch.java'
+apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.internal-testclusters'
+
+import org.elasticsearch.gradle.testclusters.RunTask
+import org.elasticsearch.gradle.internal.info.BuildParams
+
+dependencies {
+  javaRestTestImplementation project(':test:framework')
+  javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
+  javaRestTestImplementation project(xpackModule('ql:test-fixtures'))
+  javaRestTestImplementation project(":client:rest-high-level")
+  javaRestTestImplementation 'io.ous:jtoml:2.0.0'
+}
+
+File serviceAccountFile = providers.environmentVariable('eql_test_credentials_file')
+  .orElse(providers.systemProperty('eql.test.credentials.file').forUseAtConfigurationTime())
+  .map { s -> new File(s)}
+  .getOrNull()
+
+Boolean preserveData = providers.systemProperty('eql.test.preserve.data')
+  .map { s -> Boolean.parseBoolean(s) }
+  .getOrElse(false)
+
+testClusters.configureEach {
+    if (serviceAccountFile) {
+      keystore 'gcs.client.eql_test.credentials_file', serviceAccountFile
+    }
+    if (preserveData) {
+      preserveDataDir = true
+    }
+    testDistribution = 'DEFAULT'
+    setting 'xpack.license.self_generated.type', 'basic'
+    jvmArgs '-Xms4g', '-Xmx4g'
+    setting 'xpack.security.enabled', 'true'
+    user username: 'admin', password: 'admin-password', role: 'superuser'
+}
+
+def runTaskCluster = testClusters.register('runTask') {
+    jvmArgs '-Xms8g', '-Xmx8g'
+}
+
+tasks.named('javaRestTest').configure {
+  onlyIf { serviceAccountFile && BuildParams.inFipsJvm == false }
+
+  testLogging {
+    showStandardStreams = true
+  }
+}
+
+tasks.register("runEqlCorrectnessNode", RunTask) {
+  useCluster runTaskCluster
+  description = 'Runs elasticsearch in the foreground with gcs plugin and keystore credentials'
+}

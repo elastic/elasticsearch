@@ -1,11 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 
 /**
@@ -18,4 +20,14 @@ public abstract class ClusterStateActionStep extends Step {
     }
 
     public abstract ClusterState performAction(Index index, ClusterState clusterState);
+
+    /**
+     * Returns a tuple of index name to step key for an index *other* than the
+     * index ILM is currently processing. This is used when a new index is
+     * spawned by ILM and its initial action needs to be to invoked in the event
+     * that it is an {@link AsyncActionStep}.
+     */
+    public Tuple<String, StepKey> indexForAsyncInvocation() {
+        return null;
+    }
 }

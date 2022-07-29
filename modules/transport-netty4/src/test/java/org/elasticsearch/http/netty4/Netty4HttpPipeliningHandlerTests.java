@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.http.netty4;
@@ -28,11 +17,10 @@ import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.QueryStringDecoder;
+
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.http.HttpPipelinedRequest;
-import org.elasticsearch.http.HttpPipelinedResponse;
 import org.elasticsearch.http.HttpResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -75,11 +63,11 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
     }
 
     private void shutdownExecutorService() throws InterruptedException {
-        if (!handlerService.isShutdown()) {
+        if (handlerService.isShutdown() == false) {
             handlerService.shutdown();
             handlerService.awaitTermination(10, TimeUnit.SECONDS);
         }
-        if (!eventLoopService.isShutdown()) {
+        if (eventLoopService.isShutdown() == false) {
             eventLoopService.shutdown();
             eventLoopService.awaitTermination(10, TimeUnit.SECONDS);
         }
@@ -87,8 +75,7 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
 
     public void testThatPipeliningWorksWithFastSerializedRequests() throws InterruptedException {
         final int numberOfRequests = randomIntBetween(2, 128);
-        final EmbeddedChannel embeddedChannel = new EmbeddedChannel(new Netty4HttpPipeliningHandler(logger, numberOfRequests),
-            new WorkEmulatorHandler());
+        final EmbeddedChannel embeddedChannel = makeEmbeddedChannelWithSimulatedWork(numberOfRequests);
 
         for (int i = 0; i < numberOfRequests; i++) {
             embeddedChannel.writeInbound(createHttpRequest("/" + String.valueOf(i)));
@@ -112,10 +99,18 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
         assertTrue(embeddedChannel.isOpen());
     }
 
+    private EmbeddedChannel makeEmbeddedChannelWithSimulatedWork(int numberOfRequests) {
+        return new EmbeddedChannel(new Netty4HttpPipeliningHandler(logger, numberOfRequests, null) {
+            @Override
+            protected void handlePipelinedRequest(ChannelHandlerContext ctx, Netty4HttpRequest pipelinedRequest) {
+                ctx.fireChannelRead(pipelinedRequest);
+            }
+        }, new WorkEmulatorHandler());
+    }
+
     public void testThatPipeliningWorksWhenSlowRequestsInDifferentOrder() throws InterruptedException {
         final int numberOfRequests = randomIntBetween(2, 128);
-        final EmbeddedChannel embeddedChannel = new EmbeddedChannel(new Netty4HttpPipeliningHandler(logger, numberOfRequests),
-            new WorkEmulatorHandler());
+        final EmbeddedChannel embeddedChannel = makeEmbeddedChannelWithSimulatedWork(numberOfRequests);
 
         for (int i = 0; i < numberOfRequests; i++) {
             embeddedChannel.writeInbound(createHttpRequest("/" + String.valueOf(i)));
@@ -144,8 +139,7 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
 
     public void testThatPipeliningClosesConnectionWithTooManyEvents() throws InterruptedException {
         final int numberOfRequests = randomIntBetween(2, 128);
-        final EmbeddedChannel embeddedChannel = new EmbeddedChannel(new Netty4HttpPipeliningHandler(logger, numberOfRequests),
-            new WorkEmulatorHandler());
+        final EmbeddedChannel embeddedChannel = makeEmbeddedChannelWithSimulatedWork(numberOfRequests);
 
         for (int i = 0; i < 1 + numberOfRequests + 1; i++) {
             embeddedChannel.writeInbound(createHttpRequest("/" + Integer.toString(i)));
@@ -172,15 +166,14 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
 
     public void testPipeliningRequestsAreReleased() throws InterruptedException {
         final int numberOfRequests = 10;
-        final EmbeddedChannel embeddedChannel =
-            new EmbeddedChannel(new Netty4HttpPipeliningHandler(logger, numberOfRequests + 1));
+        final EmbeddedChannel embeddedChannel = new EmbeddedChannel(new Netty4HttpPipeliningHandler(logger, numberOfRequests + 1, null));
 
         for (int i = 0; i < numberOfRequests; i++) {
             embeddedChannel.writeInbound(createHttpRequest("/" + i));
         }
 
-        HttpPipelinedRequest inbound;
-        ArrayList<HttpPipelinedRequest> requests = new ArrayList<>();
+        Netty4HttpRequest inbound;
+        ArrayList<Netty4HttpRequest> requests = new ArrayList<>();
         while ((inbound = embeddedChannel.readInbound()) != null) {
             requests.add(inbound);
         }
@@ -189,8 +182,8 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
         for (int i = 1; i < requests.size(); ++i) {
             ChannelPromise promise = embeddedChannel.newPromise();
             promises.add(promise);
-            HttpPipelinedRequest pipelinedRequest = requests.get(i);
-            HttpPipelinedResponse resp = pipelinedRequest.createResponse(RestStatus.OK, BytesArray.EMPTY);
+            Netty4HttpRequest pipelinedRequest = requests.get(i);
+            Netty4HttpResponse resp = pipelinedRequest.createResponse(RestStatus.OK, BytesArray.EMPTY);
             embeddedChannel.writeAndFlush(resp, promise);
         }
 
@@ -204,7 +197,6 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
         }
     }
 
-
     private void assertReadHttpMessageHasContent(EmbeddedChannel embeddedChannel, String expectedContent) {
         FullHttpResponse response = (FullHttpResponse) embeddedChannel.outboundMessages().poll();
         assertNotNull("Expected response to exist, maybe you did not wait long enough?", response);
@@ -213,20 +205,19 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
         assertThat(data, is(expectedContent));
     }
 
-    private Netty4HttpRequest createHttpRequest(String uri) {
-        return new Netty4HttpRequest(new DefaultFullHttpRequest(HTTP_1_1, HttpMethod.GET, uri));
+    private DefaultFullHttpRequest createHttpRequest(String uri) {
+        return new DefaultFullHttpRequest(HTTP_1_1, HttpMethod.GET, uri);
     }
 
-    private class WorkEmulatorHandler extends SimpleChannelInboundHandler<HttpPipelinedRequest> {
+    private class WorkEmulatorHandler extends SimpleChannelInboundHandler<Netty4HttpRequest> {
 
         @Override
-        protected void channelRead0(final ChannelHandlerContext ctx, HttpPipelinedRequest pipelinedRequest) {
-            final org.elasticsearch.http.HttpRequest request = pipelinedRequest.getDelegateRequest();
+        protected void channelRead0(final ChannelHandlerContext ctx, Netty4HttpRequest request) {
             final QueryStringDecoder decoder = new QueryStringDecoder(request.uri());
 
             final String uri = decoder.path().replace("/", "");
             final BytesReference content = new BytesArray(uri.getBytes(StandardCharsets.UTF_8));
-            HttpResponse httpResponse = pipelinedRequest.createResponse(RestStatus.OK, content);
+            HttpResponse httpResponse = request.createResponse(RestStatus.OK, content);
             httpResponse.addHeader(CONTENT_LENGTH.toString(), Integer.toString(content.length()));
 
             final CountDownLatch waitingLatch = new CountDownLatch(1);

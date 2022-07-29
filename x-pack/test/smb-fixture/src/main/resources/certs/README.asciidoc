@@ -1,0 +1,47 @@
+= Key material details
+This document details the steps used to create the certificate and key files in this directory.
+
+== Instructions on generating certificates
+
+The certificates in this directory have been generated using elasticsearch-certutil (8.0.0 SNAPSHOT)
+
+=== Generate certificates for the Samba server
+
+These keys and certificates are copied by installsmb.sh for the Samba server to use for TLS. See `../provision/installsmb.sh`
+
+[source,shell]
+-----------------------------------------------------------------------------------------------------------
+elasticsearch-certutil ca --pem --out=${PWD}/samba-ca.zip
+
+unzip samba-ca.zip
+mv ca/ca.crt ./ca.pem
+mv ca/ca.key ./ca.key
+
+rm samba-ca.zip
+rm -r ca
+-----------------------------------------------------------------------------------------------------------
+
+[source,shell]
+-----------------------------------------------------------------------------------------------------------
+elasticsearch-certutil cert  --pem --ca-cert ${PWD}/ca.pem --ca-key ${PWD}/ca.key \
+   --dns localhost --ip 127.0.0.1,0:0:0:0:0:0:0:1 --name samba4 --out ${PWD}/samba4.zip
+
+unzip samba4.zip
+mv samba4/samba4.crt ./cert.pem
+mv samba4/samba4.key ./key.pem
+
+rm samba4.zip
+rm -r samba4
+-----------------------------------------------------------------------------------------------------------
+
+
+== Ensure that all tests are aware of the certificate and keys
+
+[source,shell]
+-----------------------------------------------------------------------------------------------------------
+cp ./ca.pem ../../../../../../../x-pack/plugin/security/src/test/resources/org/elasticsearch/xpack/security/authc/ldap/support/smb_ca.crt
+cp ./cert.pem ../../../../../../../x-pack/plugin/security/src/test/resources/org/elasticsearch/xpack/security/authc/ldap/support/smb_cert.crt
+cp ./cert.pem ../../../../../../../x-pack/plugin/core/src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/samba4.crt
+
+keytool -keystore ../../../../../../../x-pack/plugin/security/src/test/resources/org/elasticsearch/xpack/security/authc/ldap/support/ADtrust.jks -storepass changeit -delete -noprompt -alias smb_ca
+keytool -keystore ../../../../../../../x-pack/plugin/security/src/test/resources/org/elasticsearch/xpack/security/authc/ldap/support/ADtrust.jks -storepass changeit -importcert -file ca.pem -alias smb_ca -noprompt

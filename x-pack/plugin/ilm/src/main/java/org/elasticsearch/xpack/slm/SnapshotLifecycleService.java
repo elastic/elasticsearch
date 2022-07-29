@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.slm;
@@ -11,10 +12,14 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.scheduler.CronSchedule;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
@@ -50,10 +55,12 @@ public class SnapshotLifecycleService implements Closeable, ClusterStateListener
     private final AtomicBoolean running = new AtomicBoolean(true);
     private volatile boolean isMaster = false;
 
-    public SnapshotLifecycleService(Settings settings,
-                                    Supplier<SnapshotLifecycleTask> taskSupplier,
-                                    ClusterService clusterService,
-                                    Clock clock) {
+    public SnapshotLifecycleService(
+        Settings settings,
+        Supplier<SnapshotLifecycleTask> taskSupplier,
+        ClusterService clusterService,
+        Clock clock
+    ) {
         this.scheduler = new SchedulerEngine(settings, clock);
         this.clusterService = clusterService;
         this.snapshotTask = taskSupplier.get();
@@ -90,7 +97,7 @@ public class SnapshotLifecycleService implements Closeable, ClusterStateListener
                     cancelSnapshotJobs();
                 }
                 if (slmStopping(state)) {
-                    submitOperationModeUpdate(OperationMode.STOPPED);
+                    submitUnbatchedTask("slm_operation_mode_update[stopped]", OperationModeUpdateTask.slmMode(OperationMode.STOPPED));
                 }
                 return;
             }
@@ -98,6 +105,11 @@ public class SnapshotLifecycleService implements Closeable, ClusterStateListener
             scheduleSnapshotJobs(state);
             cleanupDeletedPolicies(state);
         }
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
     // Only used for testing
@@ -125,10 +137,6 @@ public class SnapshotLifecycleService implements Closeable, ClusterStateListener
             .orElse(false);
     }
 
-    public void submitOperationModeUpdate(OperationMode mode) {
-        clusterService.submitStateUpdateTask("slm_operation_mode_update", OperationModeUpdateTask.slmMode(mode));
-    }
-
     /**
      * Schedule all non-scheduled snapshot jobs contained in the cluster state
      */
@@ -143,14 +151,14 @@ public class SnapshotLifecycleService implements Closeable, ClusterStateListener
         SnapshotLifecycleMetadata snapMeta = state.metadata().custom(SnapshotLifecycleMetadata.TYPE);
         if (snapMeta != null) {
             // Retrieve all of the expected policy job ids from the policies in the metadata
-            final Set<String> policyJobIds = snapMeta.getSnapshotConfigurations().values().stream()
+            final Set<String> policyJobIds = snapMeta.getSnapshotConfigurations()
+                .values()
+                .stream()
                 .map(SnapshotLifecycleService::getJobId)
                 .collect(Collectors.toSet());
 
             // Cancel all jobs that are *NOT* in the scheduled tasks map
-            scheduledTasks.keySet().stream()
-                .filter(jobId -> policyJobIds.contains(jobId) == false)
-                .forEach(this::cancelScheduledSnapshot);
+            scheduledTasks.keySet().stream().filter(jobId -> policyJobIds.contains(jobId) == false).forEach(this::cancelScheduledSnapshot);
         }
     }
 
@@ -168,7 +176,8 @@ public class SnapshotLifecycleService implements Closeable, ClusterStateListener
         final Pattern existingJobPattern = Pattern.compile(snapshotLifecyclePolicy.getPolicy().getId() + JOB_PATTERN_SUFFIX);
 
         // Find and cancel any existing jobs for this policy
-        final boolean existingJobsFoundAndCancelled = scheduledTasks.keySet().stream()
+        final boolean existingJobsFoundAndCancelled = scheduledTasks.keySet()
+            .stream()
             // Find all jobs matching the `jobid-\d+` pattern
             .filter(jId -> existingJobPattern.matcher(jId).matches())
             // Filter out a job that has not been changed (matches the id exactly meaning the version is the same)
@@ -187,8 +196,10 @@ public class SnapshotLifecycleService implements Closeable, ClusterStateListener
         // is identical to an existing job (meaning the version has not changed) then this does
         // not reschedule it.
         scheduledTasks.computeIfAbsent(jobId, id -> {
-            final SchedulerEngine.Job job = new SchedulerEngine.Job(jobId,
-                new CronSchedule(snapshotLifecyclePolicy.getPolicy().getSchedule()));
+            final SchedulerEngine.Job job = new SchedulerEngine.Job(
+                jobId,
+                new CronSchedule(snapshotLifecyclePolicy.getPolicy().getSchedule())
+            );
             if (existingJobsFoundAndCancelled) {
                 logger.info("rescheduling updated snapshot lifecycle job [{}]", jobId);
             } else {
@@ -229,9 +240,29 @@ public class SnapshotLifecycleService implements Closeable, ClusterStateListener
      * @throws IllegalArgumentException if the repository does not exist
      */
     public static void validateRepositoryExists(final String repository, final ClusterState state) {
-        Optional.ofNullable((RepositoriesMetadata) state.metadata().custom(RepositoriesMetadata.TYPE))
-            .map(repoMeta -> repoMeta.repository(repository))
-            .orElseThrow(() -> new IllegalArgumentException("no such repository [" + repository + "]"));
+        if (state.metadata().custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY).repository(repository) == null) {
+            throw new IllegalArgumentException("no such repository [" + repository + "]");
+        }
+    }
+
+    /**
+     * Validates that the interval between snapshots is not smaller than the minimum interval
+     * (see {@link LifecycleSettings#SLM_MINIMUM_INTERVAL_SETTING})
+     * @throws IllegalArgumentException if the interval is less than the minimum
+     */
+    public static void validateMinimumInterval(final SnapshotLifecyclePolicy lifecycle, final ClusterState state) {
+        TimeValue minimum = LifecycleSettings.SLM_MINIMUM_INTERVAL_SETTING.get(state.metadata().settings());
+        TimeValue next = lifecycle.calculateNextInterval();
+        if (next.duration() > 0 && minimum.duration() > 0 && next.millis() < minimum.millis()) {
+            throw new IllegalArgumentException(
+                "invalid schedule ["
+                    + lifecycle.getSchedule()
+                    + "]: "
+                    + "schedule would be too frequent, executing more than every ["
+                    + minimum.getStringRep()
+                    + "]"
+            );
+        }
     }
 
     @Override

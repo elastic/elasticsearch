@@ -1,0 +1,28 @@
+{
+  "security.saml_logout":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-saml-logout.html",
+      "description":"Invalidates an access token and a refresh token that were generated via the SAML Authenticate API"
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_security/saml/logout",
+          "methods":[
+            "POST"
+          ]
+        }
+      ]
+    },
+    "body":{
+      "description":"The tokens to invalidate",
+      "required":true
+    }
+  }
+}

@@ -1,0 +1,242 @@
+// Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+// or more contributor license agreements. Licensed under the Elastic License
+// 2.0; you may not use this file except in compliance with the Elastic License
+// 2.0.
+
+//
+// Query translator tests. Format:
+//
+// <name>[-Ignore]
+// <sql-query-line1>
+// [<sql-query-line2>
+// ...
+// <sql-query-line-n];
+// [<matcher-1> <expectation-1>EOL
+// <matcher-2> <expectation-2>EOL
+// ...
+// ]
+// ;
+//
+// Notes:
+//   - The SQL query could span multiple lines and should be terminated with semicolon (;)
+//   - The currently supported matchers: `CONTAINS` (the default one), `REGEX`
+//   - To ignore a test, add the -Ignore to the end of the name
+//   - Matchers can be skipped, if you just want to test that a query is optimized/plan without errors
+//   - Do not use whitespaces in the relevant parts of the query itself, as they will be removed.
+//     For example to match: '"params":{"v0":"point","v1":"point( 10 20 )"}
+//     you should use: "point(1020)" instead of "point( 10 20 )", otherwise the assertion will fail.
+
+// Subqueries
+/////////////
+SubqueryBasicSelect
+SELECT int FROM
+    (SELECT int FROM test);
+;
+
+SubquerySelectOnFieldAlias
+SELECT i FROM
+    (SELECT int AS i FROM test);
+;
+
+SubqueryGroupByNoAlias
+SELECT int FROM
+    (SELECT int FROM test)
+GROUP BY int;
+;
+
+SubqueryGroupByOnFieldAlias
+SELECT i FROM
+    (SELECT int AS i FROM test)
+GROUP BY i;
+;
+
+SubqueryFilterOrderByAlias
+SELECT i FROM
+    (SELECT int AS i FROM test)
+WHERE i IS NOT NULL
+ORDER BY i;
+;
+
+SubqueryGroupByFilterAndOrderByByAlias
+SELECT i FROM
+    (SELECT int AS i FROM test)
+WHERE i IS NOT NULL
+GROUP BY i
+ORDER BY i;
+;
+
+SubqueryFilterByAlias
+SELECT i FROM
+    (SELECT int AS i FROM test)
+WHERE i > 10;
+;
+
+SubqueryOrderByAlias
+SELECT i FROM
+    (SELECT int AS i FROM test)
+ORDER BY i;
+;
+
+SubqueryWithAliasBasicSelect
+SELECT int FROM
+    (SELECT int FROM test) AS s;
+;
+
+SubqueryWithAliasBasicQualifiedSelect
+SELECT s.int FROM
+    (SELECT int FROM test) AS s;
+;
+
+SubqueryWithAliasSelectOnFieldAlias
+SELECT i FROM
+    (SELECT int AS i FROM test) AS s;
+;
+
+SubqueryWithAliasQualifiedSelectOnFieldAlias
+SELECT s.i FROM
+    (SELECT int AS i FROM test) AS s;
+;
+
+SubqueryWithAliasGroupBy
+SELECT i FROM
+    (SELECT int AS i FROM test) AS s
+GROUP BY s.i;
+;
+
+SubqueryWithAliasFilterByAlias
+SELECT i FROM
+    (SELECT int AS i FROM test) AS s
+WHERE s.i > 10;
+;
+
+SubqueryWithAliasOrderByAlias
+SELECT i FROM
+    (SELECT int AS i FROM test) AS s
+ORDER BY s.i > 10;
+;
+
+MultiLevelSubqueriesOrderByByAlias1
+SELECT i AS j FROM
+    (SELECT int AS i FROM test)
+ORDER BY j;
+;
+
+MultiLevelSubqueriesOrderByByAlias2
+SELECT j AS k FROM
+    (SELECT i AS j FROM
+        (SELECT int AS i FROM test)
+    )
+ORDER BY k;
+;
+
+SubqueryGroupByOrderByAliasedExpression
+SELECT int_group AS g, min_date AS d FROM (
+   SELECT int % 2 AS int_group, MIN(date) AS min_date
+   FROM test WHERE date > '1970-01-01'::datetime
+   GROUP BY int_group
+)
+ORDER BY d DESC;
+;
+
+SubqueryGroupByOrderByAliasedAggFunction
+SELECT int_group AS g, min_date AS d FROM (
+    SELECT int % 2 AS int_group, MIN(date) AS min_date
+    FROM test WHERE date > '1970-01-01'::datetime
+    GROUP BY int_group
+)
+ORDER BY g DESC;
+;
+
+MultiLevelSubquerySelectStar
+SELECT * FROM (
+    SELECT * FROM (
+        SELECT * FROM test
+    )
+);
+;
+
+MultiLevelSubquerySelectStarWithAliases
+SELECT * FROM (
+    SELECT * FROM (
+        SELECT * FROM test
+    ) b
+) c;
+;
+
+MultiLevelSubqueryGroupBy1
+SELECT i AS j FROM (
+    SELECT int AS i FROM test
+)
+GROUP BY j;
+;
+
+MultiLevelSubqueryGroupBy2
+SELECT j AS k FROM (
+    SELECT i AS j FROM (
+        SELECT int AS i FROM test
+    )
+) GROUP BY k;
+;
+
+MultiLevelAliasedSubqueryGroupBy1
+SELECT int FROM (
+    SELECT int FROM (
+        SELECT int FROM test GROUP BY int
+    ) AS subq1
+) AS subq2;
+;
+
+MultiLevelAliasedSubqueryGroupBy2
+SELECT int FROM (
+    SELECT int FROM (
+        SELECT int FROM test
+    GROUP BY int) AS subq1
+) AS subq2;
+;
+
+MultiLevelAliasedSubqueryGroupBy3
+SELECT * FROM (
+    SELECT int FROM (
+        SELECT * FROM (
+            SELECT int FROM test
+        GROUP BY int) AS subq1
+    ) AS subq2
+)AS subq3;
+;
+
+MultiLevelAliasedSubqueryGroupBy4
+SELECT subq3.int FROM (
+    SELECT int FROM (
+        SELECT subq1.int FROM (
+            SELECT int FROM test
+        GROUP BY int) AS subq1
+    ) AS subq2
+)AS subq3;
+;
+
+MultiLevelAliasedSubqueryGroupBy5
+SELECT subq3.int FROM (
+    SELECT subq2.i AS int FROM (
+        SELECT subq1.int AS i FROM (
+            SELECT int FROM test
+        GROUP BY int) AS subq1
+    ) AS subq2
+)AS subq3;
+;
+
+SubqueryGroupByFilterAndOrderByByRealiased
+SELECT g as h FROM (
+    SELECT date AS f, int AS g FROM test
+) WHERE h IS NOT NULL
+GROUP BY h
+ORDER BY h ASC;
+;
+
+FilterAfterGroupBy
+SELECT j AS k FROM (
+    SELECT i AS j FROM (
+        SELECT int AS i FROM test
+    )
+    GROUP BY j
+) WHERE j < 5;
+;

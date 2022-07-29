@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.enrich;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 
 import java.util.List;
@@ -106,7 +107,10 @@ public class EnrichStoreCrudTests extends AbstractEnrichTestCase {
                 IllegalArgumentException.class,
                 () -> saveEnrichPolicy("name", invalidPolicy, clusterService)
             );
-            assertThat(error.getMessage(), equalTo("unsupported policy type [unsupported_type], supported types are [match, geo_match]"));
+            assertThat(
+                error.getMessage(),
+                equalTo("unsupported policy type [unsupported_type], supported types are [match, geo_match, range]")
+            );
         }
     }
 

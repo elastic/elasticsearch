@@ -1,11 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.actions.throttler;
 
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.actions.ActionStatus;
 import org.elasticsearch.xpack.core.watcher.actions.throttler.PeriodThrottler;
@@ -34,8 +35,9 @@ public class PeriodThrottlerTests extends ESTestCase {
         WatchExecutionContext ctx = mockExecutionContext("_name", Payload.EMPTY);
         ActionStatus actionStatus = mock(ActionStatus.class);
         ZonedDateTime now = Clock.systemUTC().instant().atZone(ZoneOffset.UTC);
-        when(actionStatus.lastSuccessfulExecution())
-                .thenReturn(ActionStatus.Execution.successful(now.minusSeconds((int) period.seconds() - 1)));
+        when(actionStatus.lastSuccessfulExecution()).thenReturn(
+            ActionStatus.Execution.successful(now.minusSeconds((int) period.seconds() - 1))
+        );
         WatchStatus status = mock(WatchStatus.class);
         when(status.actionStatus("_action")).thenReturn(actionStatus);
         when(ctx.watch().status()).thenReturn(status);
@@ -55,8 +57,9 @@ public class PeriodThrottlerTests extends ESTestCase {
         WatchExecutionContext ctx = mockExecutionContext("_name", Payload.EMPTY);
         ActionStatus actionStatus = mock(ActionStatus.class);
         ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
-        when(actionStatus.lastSuccessfulExecution())
-                .thenReturn(ActionStatus.Execution.successful(now.minusSeconds((int) period.seconds() + 1)));
+        when(actionStatus.lastSuccessfulExecution()).thenReturn(
+            ActionStatus.Execution.successful(now.minusSeconds((int) period.seconds() + 1))
+        );
         WatchStatus status = mock(WatchStatus.class);
         when(status.actionStatus("_action")).thenReturn(actionStatus);
         when(ctx.watch().status()).thenReturn(status);

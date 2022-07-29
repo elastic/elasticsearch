@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.gateway;
 
@@ -43,13 +32,23 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class AsyncShardFetchTests extends ESTestCase {
-    private final DiscoveryNode node1 = new DiscoveryNode("node1", buildNewFakeTransportAddress(), Collections.emptyMap(),
-            Collections.singleton(DiscoveryNodeRole.DATA_ROLE), Version.CURRENT);
+    private final DiscoveryNode node1 = new DiscoveryNode(
+        "node1",
+        buildNewFakeTransportAddress(),
+        Collections.emptyMap(),
+        Collections.singleton(DiscoveryNodeRole.DATA_ROLE),
+        Version.CURRENT
+    );
     private final Response response1 = new Response(node1);
     private final Response response1_2 = new Response(node1);
     private final Throwable failure1 = new Throwable("simulated failure 1");
-    private final DiscoveryNode node2 = new DiscoveryNode("node2", buildNewFakeTransportAddress(), Collections.emptyMap(),
-            Collections.singleton(DiscoveryNodeRole.DATA_ROLE), Version.CURRENT);
+    private final DiscoveryNode node2 = new DiscoveryNode(
+        "node2",
+        buildNewFakeTransportAddress(),
+        Collections.emptyMap(),
+        Collections.singleton(DiscoveryNodeRole.DATA_ROLE),
+        Version.CURRENT
+    );
     private final Response response2 = new Response(node2);
     private final Throwable failure2 = new Throwable("simulate failure 2");
 
@@ -177,8 +176,11 @@ public class AsyncShardFetchTests extends ESTestCase {
         assertThat(test.reroute.get(), equalTo(0));
 
         // handle a failure with incorrect round id, wait on reroute incrementing
-        test.processAsyncFetch(Collections.emptyList(), Collections.singletonList(
-            new FailedNodeException(node1.getId(), "dummy failure", failure1)), 0);
+        test.processAsyncFetch(
+            Collections.emptyList(),
+            Collections.singletonList(new FailedNodeException(node1.getId(), "dummy failure", failure1)),
+            0
+        );
         assertThat(fetchData.hasData(), equalTo(false));
         assertThat(test.reroute.get(), equalTo(1));
 
@@ -413,8 +415,11 @@ public class AsyncShardFetchTests extends ESTestCase {
                             assert entry != null;
                             entry.executeLatch.await();
                             if (entry.failure != null) {
-                                processAsyncFetch(null,
-                                    Collections.singletonList(new FailedNodeException(nodeId, "unexpected", entry.failure)), fetchingRound);
+                                processAsyncFetch(
+                                    null,
+                                    Collections.singletonList(new FailedNodeException(nodeId, "unexpected", entry.failure)),
+                                    fetchingRound
+                                );
                             } else {
                                 processAsyncFetch(Collections.singletonList(entry.response), null, fetchingRound);
                             }
@@ -430,7 +435,6 @@ public class AsyncShardFetchTests extends ESTestCase {
             }
         }
     }
-
 
     static class Response extends BaseNodeResponse {
 

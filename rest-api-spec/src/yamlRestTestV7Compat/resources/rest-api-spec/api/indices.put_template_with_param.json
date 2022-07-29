@@ -1,0 +1,54 @@
+{
+  "indices.put_template_with_param":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-templates.html",
+      "description":"Creates or updates an index template."
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/vnd.elasticsearch+json;compatible-with=7"],
+      "content_type": ["application/vnd.elasticsearch+json;compatible-with=7"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_template/{name}",
+          "methods":[
+            "PUT",
+            "POST"
+          ],
+          "parts":{
+            "name":{
+              "type":"string",
+              "description":"The name of the template"
+            }
+          }
+        }
+      ]
+    },
+    "params":{
+      "template":{
+        "type":"string",
+        "description":"The indices that this template should apply to, replaced by index_patterns within the template definition."
+      },
+      "order":{
+        "type":"number",
+        "description":"The order for this template when merging multiple matching ones (higher numbers are merged later, overriding the lower numbers)"
+      },
+      "create":{
+        "type":"boolean",
+        "description":"Whether the index template should only be added if new or can also replace an existing one",
+        "default":false
+      },
+      "master_timeout":{
+        "type":"time",
+        "description":"Specify timeout for connection to master"
+      }
+    },
+    "body":{
+      "description":"The template definition",
+      "required":true
+    }
+  }
+}

@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.actions.webhook;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.actions.Action;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequest;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
@@ -60,8 +61,13 @@ public class WebhookAction implements Action {
             HttpRequestTemplate request = HttpRequestTemplate.Parser.parse(parser);
             return new WebhookAction(request);
         } catch (ElasticsearchParseException pe) {
-            throw new ElasticsearchParseException("could not parse [{}] action [{}/{}]. failed parsing http request template", pe, TYPE,
-                    watchId, actionId);
+            throw new ElasticsearchParseException(
+                "could not parse [{}] action [{}/{}]. failed parsing http request template",
+                pe,
+                TYPE,
+                watchId,
+                actionId
+            );
         }
     }
 
@@ -93,9 +99,9 @@ public class WebhookAction implements Action {
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
                 return builder.startObject(type)
-                        .field(Field.REQUEST.getPreferredName(), request, params)
-                        .field(Field.RESPONSE.getPreferredName(), response, params)
-                        .endObject();
+                    .field(Field.REQUEST.getPreferredName(), request, params)
+                    .field(Field.RESPONSE.getPreferredName(), response, params)
+                    .endObject();
             }
         }
 
@@ -126,9 +132,9 @@ public class WebhookAction implements Action {
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
                 super.toXContent(builder, params);
                 return builder.startObject(type)
-                        .field(Field.REQUEST.getPreferredName(), request, params)
-                        .field(Field.RESPONSE.getPreferredName(), response, params)
-                        .endObject();
+                    .field(Field.REQUEST.getPreferredName(), request, params)
+                    .field(Field.RESPONSE.getPreferredName(), response, params)
+                    .endObject();
             }
         }
 
@@ -147,9 +153,7 @@ public class WebhookAction implements Action {
 
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                return builder.startObject(type)
-                        .field(Field.REQUEST.getPreferredName(), request, params)
-                        .endObject();
+                return builder.startObject(type).field(Field.REQUEST.getPreferredName(), request, params).endObject();
             }
         }
 

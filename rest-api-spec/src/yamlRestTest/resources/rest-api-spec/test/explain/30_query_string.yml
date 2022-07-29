@@ -1,0 +1,65 @@
+---
+"explain with query_string parameters":
+
+
+  - do:
+      indices.create:
+          index:  test
+          body:
+            mappings:
+              properties:
+                number:
+                  type: integer
+
+  - do:
+      index:
+          index:  test
+          id:     "1"
+          body:   { field: foo bar}
+
+  - do:
+      indices.refresh:
+        index: [test]
+
+  - do:
+      explain:
+        index:  test
+        id:     "1"
+        q: bar
+        df: field
+
+  - is_true: matched
+
+  - do:
+      explain:
+        index:  test
+        id:     "1"
+        q: field:foo field:xyz
+
+  - is_true: matched
+
+  - do:
+      explain:
+        index:  test
+        id:     "1"
+        q: field:foo field:xyz
+        default_operator: AND
+
+  - is_false: matched
+
+  - do:
+      explain:
+        index:  test
+        id:     "1"
+        q: field:BA*
+
+  - is_true: matched
+
+  - do:
+      explain:
+        index:  test
+        id:     "1"
+        q: number:foo
+        lenient: true
+
+  - is_false: matched

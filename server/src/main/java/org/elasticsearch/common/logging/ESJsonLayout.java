@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.logging;
@@ -77,14 +66,14 @@ public class ESJsonLayout extends AbstractStringLayout {
 
     protected ESJsonLayout(String typeName, Charset charset, String[] overrideFields) {
         super(charset);
-        this.esmessagefields = String.join(",",overrideFields);
+        this.esmessagefields = String.join(",", overrideFields);
         this.patternLayout = PatternLayout.newBuilder()
-                                          .withPattern(pattern(typeName, overrideFields))
-                                          .withAlwaysWriteExceptions(false)
-                                          .build();
+            .withPattern(pattern(typeName, overrideFields))
+            .withAlwaysWriteExceptions(false)
+            .build();
     }
 
-    private String pattern(String type, String[] esmessagefields) {
+    private static String pattern(String type, String[] esmessagefields) {
         if (Strings.isEmpty(type)) {
             throw new IllegalArgumentException("layout parameter 'type_name' cannot be empty");
         }
@@ -97,7 +86,6 @@ public class ESJsonLayout extends AbstractStringLayout {
         map.put("node.name", inQuotes("%node_name"));
         map.put("message", inQuotes("%notEmpty{%enc{%marker}{JSON} }%enc{%.-10000m}{JSON}"));
 
-
         // esmessagefields are treated as potentially overriding
         for (String key : esmessagefields) {
             map.remove(key);
@@ -106,8 +94,7 @@ public class ESJsonLayout extends AbstractStringLayout {
         return createPattern(map, Set.of(esmessagefields));
     }
 
-
-    private String createPattern(Map<String, Object> map, Set<String> esmessagefields) {
+    private static String createPattern(Map<String, Object> map, Set<String> esmessagefields) {
         StringBuilder sb = new StringBuilder();
         sb.append("{");
         String separator = "";
@@ -130,27 +117,25 @@ public class ESJsonLayout extends AbstractStringLayout {
         return sb.toString();
     }
 
-    private void appendField(StringBuilder sb, Map.Entry<String, Object> entry) {
+    private static void appendField(StringBuilder sb, Map.Entry<String, Object> entry) {
         sb.append(jsonKey(entry.getKey()));
         sb.append(entry.getValue().toString());
     }
 
-    private String notEmpty(String value) {
+    private static String notEmpty(String value) {
         return "%notEmpty{" + value + "}";
     }
 
-    private CharSequence jsonKey(String s) {
+    private static CharSequence jsonKey(String s) {
         return inQuotes(s) + ": ";
     }
 
-    private String inQuotes(String s) {
+    private static String inQuotes(String s) {
         return "\"" + s + "\"";
     }
 
     @PluginFactory
-    public static ESJsonLayout createLayout(String type,
-                                            Charset charset,
-                                            String[] overrideFields) {
+    public static ESJsonLayout createLayout(String type, Charset charset, String[] overrideFields) {
         return new ESJsonLayout(type, charset, overrideFields);
     }
 
@@ -159,7 +144,8 @@ public class ESJsonLayout extends AbstractStringLayout {
     }
 
     public static class Builder<B extends ESJsonLayout.Builder<B>> extends AbstractStringLayout.Builder<B>
-        implements org.apache.logging.log4j.core.util.Builder<ESJsonLayout> {
+        implements
+            org.apache.logging.log4j.core.util.Builder<ESJsonLayout> {
 
         @PluginAttribute("type_name")
         String type;
@@ -176,7 +162,7 @@ public class ESJsonLayout extends AbstractStringLayout {
 
         @Override
         public ESJsonLayout build() {
-            String[] split = Strings.isNullOrEmpty(overrideFields) ? new String[]{} : overrideFields.split(",");
+            String[] split = Strings.isNullOrEmpty(overrideFields) ? new String[] {} : overrideFields.split(",");
             return ESJsonLayout.createLayout(type, charset, split);
         }
 

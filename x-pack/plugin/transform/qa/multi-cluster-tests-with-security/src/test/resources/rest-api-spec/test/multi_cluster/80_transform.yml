@@ -1,0 +1,381 @@
+---
+setup:
+  - skip:
+      features: headers
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+  - do:
+      security.put_user:
+        username: "joe"
+        body:  >
+          {
+            "password": "transform-password",
+            "roles" : [  "transform_admin", "x_cluster_role" ]
+          }
+  - do:
+      security.put_user:
+        username: "bob"
+        body:  >
+          {
+            "password": "transform-password",
+            "roles" : [ "transform_admin", "x_cluster_role_only_dest" ]
+          }
+  - do:
+      security.put_role:
+        name: "x_cluster_role"
+        # gh#72715: the my_remote_cluster privileges should not be needed
+        body:  >
+          {
+            "cluster": [],
+            "indices": [
+              {
+                "names": ["test_index"],
+                "privileges": ["read", "view_index_metadata"]
+              },
+              {
+                "names": ["simple-remote-transform*", "simple-local-remote-transform"],
+                "privileges": ["create_index", "index", "read"]
+              },
+              {
+                "names": ["my_remote_cluster:remote_test_i*", "my_remote_cluster:aliased_test_index"],
+                "privileges": ["read", "view_index_metadata"]
+              }
+            ]
+          }
+
+  - do:
+      security.put_role:
+        name: "x_cluster_role_only_dest"
+        body:  >
+          {
+            "cluster": [],
+            "indices": [
+              {
+                "names": ["simple-remote-transform*", "simple-local-remote-transform"],
+                "privileges": ["create_index", "index", "read"]
+              }
+            ]
+          }
+---
+teardown:
+  - do:
+      security.delete_user:
+        username: "joe"
+        ignore: 404
+  - do:
+      security.delete_user:
+        username: "bob"
+        ignore: 404
+
+---
+"Batch transform from remote cluster":
+  - do:
+      headers: { Authorization: "Basic am9lOnRyYW5zZm9ybS1wYXNzd29yZA==" }
+      transform.put_transform:
+        transform_id: "simple-remote-transform"
+        body: >
+          {
+            "source": { "index": "my_remote_cluster:remote_test_index" },
+            "dest": { "index": "simple-remote-transform" },
+            "pivot": {
+              "group_by": { "user": {"terms": {"field": "user"}}},
+              "aggs": {"avg_stars": {"avg": {"field": "stars"}}}
+            }
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      headers: { Authorization: "Basic am9lOnRyYW5zZm9ybS1wYXNzd29yZA==" }
+      transform.start_transform:
+        transform_id: "simple-remote-transform"
+  - match: { acknowledged: true }
+
+  - do:
+      transform.get_transform_stats:
+        transform_id: "simple-remote-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "simple-remote-transform" }
+  - match: { transforms.0.state: "/started|indexing|stopping|stopped/" }
+
+  - do:
+      headers: { Authorization: "Basic am9lOnRyYW5zZm9ybS1wYXNzd29yZA==" }
+      transform.stop_transform:
+        transform_id: "simple-remote-transform"
+        wait_for_completion: true
+        wait_for_checkpoint: true
+  - match: { acknowledged: true }
+
+  - do:
+      headers: { Authorization: "Basic am9lOnRyYW5zZm9ybS1wYXNzd29yZA==" }
+      transform.get_transform_stats:
+        transform_id: "simple-remote-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "simple-remote-transform" }
+  - match: { transforms.0.state: "stopped" }
+  - match: { transforms.0.checkpointing.last.checkpoint: 1 }
+
+  - do:
+      headers: { Authorization: "Basic am9lOnRyYW5zZm9ybS1wYXNzd29yZA==" }
+      search:
+        rest_total_hits_as_int: true
+        index: simple-remote-transform
+        sort: user
+
+  - match: { hits.total: 3 }
+  - match: { hits.hits.0._index: simple-remote-transform }
+  - match: { hits.hits.0._source.avg_stars: 3.6 }
+  - match: { hits.hits.0._source.user: a }
+  - match: { hits.hits.1._source.avg_stars: 2.0 }
+  - match: { hits.hits.1._source.user: b }
+
+  - do:
+      headers: { Authorization: "Basic am9lOnRyYW5zZm9ybS1wYXNzd29yZA==" }
+      transform.update_transform:
+        transform_id: "simple-remote-transform"
+        body: >
+          {
+            "source": { "index": ["my_remote_cluster:remote_test_index*"] }
+          }
+  - do:
+      headers: { Authorization: "Basic am9lOnRyYW5zZm9ybS1wYXNzd29yZA==" }
+      transform.get_transform_stats:
+        transform_id: "simple-remote-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "simple-remote-transform" }
+  - match: { transforms.0.state: "stopped" }
+  # the source now includes test_index_2, which has 2 more docs
+  # note that test_index_3 fits the wildcard pattern, but is not authorized, this test should not return a count of 4 as this would mean broken access control
+  - match: { transforms.0.checkpointing.operations_behind: 2 }
+
+  - do:
+      headers: { Authorization: "Basic am9lOnRyYW5zZm9ybS1wYXNzd29yZA==" }  # This is joe
+      transform.preview_transform:
+        transform_id: "simple-remote-transform"
+
+  - do:
+      catch: /Cannot preview transform \[simple-remote-transform\] because user bob lacks the required permissions \[my_remote_cluster:remote_test_index\*:\[read, view_index_metadata\], simple-remote-transform:\[\]\]/
+      headers: { Authorization: "Basic Ym9iOnRyYW5zZm9ybS1wYXNzd29yZA==" }  # This is bob
+      transform.preview_transform:
+        transform_id: "simple-remote-transform"
+
+---
+"Batch transform preview from remote cluster":
+  - do:
+      headers: { Authorization: "Basic am9lOnRyYW5zZm9ybS1wYXNzd29yZA==" }
+      transform.preview_transform:
+        body:  >
+          {
+            "source": {
+              "index": "my_remote_cluster:remote_test_index",
+              "runtime_mappings" : {
+                "user-upper": {
+                  "type": "keyword",
+                  "script": "emit(doc['user'].value.toUpperCase())"
+                }
+              }
+            },
+            "pivot": {
+              "group_by": { "user": {"terms": {"field": "user-upper"}}},
+              "aggs": {
+                "avg_stars": {"avg": {"field": "stars"}},
+                "max_stars": {"max": {"field": "stars"}}
+              }
+            }
+          }
+  - length: { $body: 2 }
+  - length: { preview: 3 }
+  - match: { preview.0.user: A }
+  - match: { preview.0.avg_stars: 3.6 }
+  - match: { preview.1.user: B }
+  - match: { preview.1.avg_stars: 2.0 }
+  - match: { preview.2.user: C }
+  - match: { preview.2.avg_stars: 4.0 }
+  - match: { generated_dest_index.mappings.properties.user.type: "keyword" }
+  - match: { generated_dest_index.mappings.properties.avg_stars.type: "double" }
+  - match: { generated_dest_index.mappings.properties.max_stars.type: "integer" }
+
+---
+"Batch transform from local and remote cluster":
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            index:
+              number_of_shards: 3
+              number_of_replicas: 0
+          aliases:
+            test_alias: {}
+          mappings:
+            properties:
+              time:
+                type: date
+              user:
+                type: keyword
+              stars:
+                type: integer
+              coolness:
+                type: integer
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+            - '{"index": {"_index": "test_index"}}'
+            - '{"user": "a", "stars": 3, "date" : "2018-11-29T12:12:12.123456789Z"}'
+            - '{"index": {"_index": "test_index"}}'
+            - '{"user": "c", "stars": 5, "date" : "2018-11-29T12:14:12.123456789Z"}'
+            - '{"index": {"_index": "test_index"}}'
+            - '{"user": "d", "stars": 5, "date" : "2018-11-29T12:16:12.123456789Z"}'
+            - '{"index": {"_index": "test_index"}}'
+            - '{"user": "e", "stars": 2, "date" : "2018-11-29T12:17:12.123456789Z"}'
+            - '{"index": {"_index": "test_index"}}'
+            - '{"user": "b", "stars": 3, "date" : "2018-11-29T12:22:12.123456789Z"}'
+            - '{"index": {"_index": "test_index"}}'
+            - '{"user": "c", "stars": 5, "date" : "2018-11-29T12:23:12.123456789Z"}'
+            - '{"index": {"_index": "test_index"}}'
+            - '{"user": "d", "stars": 1, "date" : "2018-11-29T12:32:12.123456789Z"}'
+            - '{"index": {"_index": "test_index"}}'
+            - '{"user": "e", "stars": 3, "date" : "2018-11-29T12:34:12.123456789Z"}'
+            - '{"index": {"_index": "test_index"}}'
+            - '{"user": "c", "stars": 4, "date" : "2018-11-29T12:35:12.123456789Z"}'
+
+  - do:
+      headers: { Authorization: "Basic am9lOnRyYW5zZm9ybS1wYXNzd29yZA==" }
+      transform.put_transform:
+        transform_id: "simple-local-remote-transform"
+        body: >
+          {
+            "source": { "index": ["test_index", "my_remote_cluster:remote_test_index"] },
+            "dest": { "index": "simple-local-remote-transform" },
+            "pivot": {
+              "group_by": { "user": {"terms": {"field": "user"}}},
+              "aggs": {
+                "avg_stars": {"avg": {"field": "stars"}},
+                "count": {"value_count": {"field": "user"}}
+              }
+            }
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      headers: { Authorization: "Basic am9lOnRyYW5zZm9ybS1wYXNzd29yZA==" }
+      transform.start_transform:
+        transform_id: "simple-local-remote-transform"
+  - match: { acknowledged: true }
+
+  - do:
+      transform.get_transform_stats:
+        transform_id: "simple-local-remote-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "simple-local-remote-transform" }
+  - match: { transforms.0.state: "/started|indexing|stopping|stopped/" }
+
+  - do:
+      headers: { Authorization: "Basic am9lOnRyYW5zZm9ybS1wYXNzd29yZA==" }
+      transform.stop_transform:
+        transform_id: "simple-local-remote-transform"
+        wait_for_completion: true
+        wait_for_checkpoint: true
+  - match: { acknowledged: true }
+
+  - do:
+      headers: { Authorization: "Basic am9lOnRyYW5zZm9ybS1wYXNzd29yZA==" }
+      transform.get_transform_stats:
+        transform_id: "simple-local-remote-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "simple-local-remote-transform" }
+  - match: { transforms.0.state: "stopped" }
+  - match: { transforms.0.checkpointing.last.checkpoint: 1 }
+
+  - do:
+      headers: { Authorization: "Basic am9lOnRyYW5zZm9ybS1wYXNzd29yZA==" }
+      search:
+        rest_total_hits_as_int: true
+        index: simple-local-remote-transform
+        sort: user
+
+  - match: { hits.total: 5 }
+  - match: { hits.hits.0._index: simple-local-remote-transform }
+  - match: { hits.hits.0._source.avg_stars: 3.5 }
+  - match: { hits.hits.0._source.count: 6 }
+  - match: { hits.hits.0._source.user: a }
+  - match: { hits.hits.1._source.avg_stars: 2.25 }
+  - match: { hits.hits.1._source.user: b }
+  - match: { hits.hits.3._source.count: 2 }
+  - match: { hits.hits.3._source.user: d }
+
+---
+"Batch transform from remote cluster when the user is not authorized":
+  - do:
+      catch: /Cannot create transform \[simple-remote-transform\] because user bob lacks the required permissions \[my_remote_cluster:remote_test_index:\[read, view_index_metadata\], simple-remote-transform:\[\]\]/
+      headers: { Authorization: "Basic Ym9iOnRyYW5zZm9ybS1wYXNzd29yZA==" }  # This is bob
+      transform.put_transform:
+        transform_id: "simple-remote-transform"
+        body: >
+          {
+            "source": { "index": "my_remote_cluster:remote_test_index" },
+            "dest": { "index": "simple-remote-transform" },
+            "pivot": {
+              "group_by": { "user": {"terms": {"field": "user"}}},
+              "aggs": { "avg_stars": {"avg": {"field": "stars"}}}
+            }
+          }
+
+---
+"Batch transform update from remote cluster when the user is not authorized":
+  - do:
+      headers: { Authorization: "Basic am9lOnRyYW5zZm9ybS1wYXNzd29yZA==" }  # This is joe
+      transform.put_transform:
+        transform_id: "simple-remote-transform-2"
+        body: >
+          {
+            "source": { "index": "my_remote_cluster:remote_test_index" },
+            "dest": { "index": "simple-remote-transform-2" },
+            "pivot": {
+              "group_by": { "user": {"terms": {"field": "user"}}},
+              "aggs": { "avg_stars": {"avg": {"field": "stars"}}}
+            }
+          }
+  - match: { acknowledged: true }
+  - do:
+      catch: /Cannot update transform \[simple-remote-transform-2\] because user bob lacks the required permissions \[my_remote_cluster:remote_test_index:\[read, view_index_metadata\], simple-remote-transform-2:\[\]\]/
+      headers: { Authorization: "Basic Ym9iOnRyYW5zZm9ybS1wYXNzd29yZA==" }  # This is bob
+      transform.update_transform:
+        transform_id: "simple-remote-transform-2"
+        body: >
+          {
+            "source": { "index": "my_remote_cluster:remote_test_index" },
+            "dest": { "index": "simple-remote-transform-2" }
+          }
+
+---
+"Batch transform preview from remote cluster when the user is not authorized":
+  - do:
+      catch: /Cannot preview transform \[transform-preview\] because user bob lacks the required permissions \[my_remote_cluster:remote_test_index:\[read, view_index_metadata\], simple-remote-transform-2:\[\]\]/
+      headers: { Authorization: "Basic Ym9iOnRyYW5zZm9ybS1wYXNzd29yZA==" }  # This is bob
+      transform.preview_transform:
+        body: >
+          {
+            "source": { "index": "my_remote_cluster:remote_test_index" },
+            "dest": { "index": "simple-remote-transform-2" },
+            "pivot": {
+              "group_by": { "user": {"terms": {"field": "user"}}},
+              "aggs": { "avg_stars": {"avg": {"field": "stars"}}}
+            }
+          }
+  - do:
+      catch: /Cannot preview transform \[transform-preview\] because user bob lacks the required permissions \[my_remote_cluster:test_index:\[read, view_index_metadata\]\]/
+      headers: { Authorization: "Basic Ym9iOnRyYW5zZm9ybS1wYXNzd29yZA==" }  # This is bob
+      transform.preview_transform:
+        body: >
+          {
+            "source": { "index": "my_remote_cluster:test_index" },
+            "pivot": {
+              "group_by": { "user": {"terms": {"field": "user"}}},
+              "aggs": { "avg_stars": {"avg": {"field": "stars"}}}
+            }
+          }

@@ -1,11 +1,7 @@
 [role="xpack"]
-[testenv="gold"]
 [[watcher-troubleshooting]]
 == Troubleshooting {watcher}
 [subs="attributes"]
-++++
-<titleabbrev>Troubleshooting</titleabbrev>
-++++
 
 [discrete]
 === Dynamic mapping error when trying to add a watch
@@ -18,7 +14,7 @@ do that by submitting the following request:
 --------------------------------------------------
 GET .watches/_mapping
 --------------------------------------------------
-// TEST[setup:my_active_watch]
+// TEST[skip:deprecation warning]
 
 If the index mappings are missing, follow these steps to restore the correct
 mappings:
@@ -33,7 +29,7 @@ mappings:
 --------------------------------------------------
 DELETE .watches
 --------------------------------------------------
-// TEST[skip:index deletion]
+// TEST[skip:index deletion and deprecation warning]
 --
 . Disable direct access to the `.watches` index:
 .. Stop the Elasticsearch node.

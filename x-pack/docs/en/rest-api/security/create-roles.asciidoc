@@ -45,7 +45,7 @@ and pertain to adding a role:
 `application` (required)::: (string) The name of the application to which this entry applies
 `privileges`::: (list) A list of strings, where each element is the name of an application
 privilege or action.
-`resources`::: (list) A list resources to which the privileges are applied. 
+`resources`::: (list) A list resources to which the privileges are applied.
 
 `cluster`:: (list) A list of cluster privileges. These privileges define the
 cluster level actions that users with this role are able to execute.
@@ -56,7 +56,7 @@ is currently limited to the management of application privileges.
 This field is optional.
 
 `indices`:: (list) A list of indices permissions entries.
-`field_security`::: (list) The document fields that the owners of the role have
+`field_security`::: (object) The document fields that the owners of the role have
 read access to. For more information, see
 <<field-and-document-access-control>>.
 `names` (required)::: (list) A list of indices (or index name patterns) to which the

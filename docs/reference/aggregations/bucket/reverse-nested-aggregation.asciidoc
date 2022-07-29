@@ -1,5 +1,8 @@
 [[search-aggregations-bucket-reverse-nested-aggregation]]
-=== Reverse nested Aggregation
+=== Reverse nested aggregation
+++++
+<titleabbrev>Reverse nested</titleabbrev>
+++++
 
 A special single bucket aggregation that enables aggregating on parent docs from nested documents. Effectively this
 aggregation can break out of the nested block structure and link to other nested structures or the root document,

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.support;
 
@@ -9,8 +10,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
@@ -33,8 +34,10 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.test.SecurityIntegTestCase.getFastStoredHashAlgoForTests;
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
@@ -65,7 +68,11 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
     }
 
     public void testCacheSettings() {
-        String cachingHashAlgo = randomFrom(Hasher.getAvailableAlgoCacheHash());
+        List<String> availableCacheAlgos = Hasher.getAvailableAlgoCacheHash();
+        if (inFipsJvm()) {
+            availableCacheAlgos = availableCacheAlgos.stream().filter(name -> (name.startsWith("pbkdf2"))).collect(Collectors.toList());
+        }
+        String cachingHashAlgo = randomFrom(availableCacheAlgos);
         int maxUsers = randomIntBetween(10, 100);
         TimeValue ttl = TimeValue.timeValueMinutes(randomIntBetween(10, 20));
         final RealmConfig.RealmIdentifier identifier = new RealmConfig.RealmIdentifier("caching", "test_realm");
@@ -77,12 +84,16 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
             .put(getFullSettingKey(identifier, RealmSettings.ORDER_SETTING), 0)
             .build();
 
-        RealmConfig config = new RealmConfig(identifier, settings,
-                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY));
+        RealmConfig config = new RealmConfig(
+            identifier,
+            settings,
+            TestEnvironment.newEnvironment(globalSettings),
+            new ThreadContext(Settings.EMPTY)
+        );
         CachingUsernamePasswordRealm realm = new CachingUsernamePasswordRealm(config, threadPool) {
             @Override
-            protected void doAuthenticate(UsernamePasswordToken token, ActionListener<AuthenticationResult> listener) {
-                listener.onResponse(AuthenticationResult.success(new User("username", new String[]{"r1", "r2", "r3"})));
+            protected void doAuthenticate(UsernamePasswordToken token, ActionListener<AuthenticationResult<User>> listener) {
+                listener.onResponse(AuthenticationResult.success(new User("username", new String[] { "r1", "r2", "r3" })));
             }
 
             @Override
@@ -96,17 +107,21 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
     public void testCacheSizeWhenCacheDisabled() {
         final RealmConfig.RealmIdentifier identifier = new RealmConfig.RealmIdentifier("caching", "test_realm");
         final Settings settings = Settings.builder()
-                .put(globalSettings)
-                .put(getFullSettingKey(identifier, CachingUsernamePasswordRealmSettings.CACHE_TTL_SETTING), -1)
-                .put(getFullSettingKey(identifier, RealmSettings.ORDER_SETTING), 0)
-                .build();
+            .put(globalSettings)
+            .put(getFullSettingKey(identifier, CachingUsernamePasswordRealmSettings.CACHE_TTL_SETTING), -1)
+            .put(getFullSettingKey(identifier, RealmSettings.ORDER_SETTING), 0)
+            .build();
 
-        final RealmConfig config =
-                new RealmConfig(identifier, settings, TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY));
+        final RealmConfig config = new RealmConfig(
+            identifier,
+            settings,
+            TestEnvironment.newEnvironment(globalSettings),
+            new ThreadContext(Settings.EMPTY)
+        );
         final CachingUsernamePasswordRealm realm = new CachingUsernamePasswordRealm(config, threadPool) {
             @Override
-            protected void doAuthenticate(UsernamePasswordToken token, ActionListener<AuthenticationResult> listener) {
-                listener.onResponse(AuthenticationResult.success(new User("username", new String[]{"r1", "r2", "r3"})));
+            protected void doAuthenticate(UsernamePasswordToken token, ActionListener<AuthenticationResult<User>> listener) {
+                listener.onResponse(AuthenticationResult.success(new User("username", new String[] { "r1", "r2", "r3" })));
             }
 
             @Override
@@ -120,7 +135,7 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
     public void testAuthCache() {
         AlwaysAuthenticateCachingRealm realm = new AlwaysAuthenticateCachingRealm(globalSettings, threadPool);
         SecureString pass = new SecureString("pass");
-        PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+        PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
         realm.authenticate(new UsernamePasswordToken("a", pass), future);
         future.actionGet();
         assertThat(realm.getCacheSize(), equalTo(1));
@@ -190,11 +205,11 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         assertThat(lookedUp.roles(), arrayContaining("lookupRole1", "lookupRole2"));
 
         // now authenticate
-        PlainActionFuture<AuthenticationResult> authFuture = new PlainActionFuture<>();
+        PlainActionFuture<AuthenticationResult<User>> authFuture = new PlainActionFuture<>();
         realm.authenticate(new UsernamePasswordToken("a", new SecureString("pass")), authFuture);
-        AuthenticationResult authResult = authFuture.actionGet();
+        AuthenticationResult<User> authResult = authFuture.actionGet();
         assertThat(authResult.getStatus(), is(AuthenticationResult.Status.SUCCESS));
-        User user = authResult.getUser();
+        User user = authResult.getValue();
         assertThat(realm.lookupInvocationCounter.intValue(), is(1));
         assertThat(realm.authInvocationCounter.intValue(), is(1));
         assertThat(user.roles(), arrayContaining("testRole1", "testRole2"));
@@ -205,11 +220,11 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         realm.authenticate(new UsernamePasswordToken("b", new SecureString("pass")), authFuture);
         authResult = authFuture.actionGet();
         assertThat(authResult.getStatus(), is(AuthenticationResult.Status.SUCCESS));
-        user = authResult.getUser();
+        user = authResult.getValue();
         assertThat(realm.lookupInvocationCounter.intValue(), is(1));
         assertThat(realm.authInvocationCounter.intValue(), is(2));
         assertThat(user.roles(), arrayContaining("testRole1", "testRole2"));
-        //now lookup b
+        // now lookup b
         lookupFuture = new PlainActionFuture<>();
         realm.lookupUser("b", lookupFuture);
         lookedUp = lookupFuture.actionGet();
@@ -225,7 +240,7 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         SecureString pass1 = new SecureString("pass");
         SecureString pass2 = new SecureString("password");
 
-        PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+        PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
         realm.authenticate(new UsernamePasswordToken(user, pass1), future);
         future.actionGet();
         future = new PlainActionFuture<>();
@@ -251,9 +266,9 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         String user = "testUser";
         SecureString password = new SecureString("password");
 
-        PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+        PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
         realm.authenticate(new UsernamePasswordToken(user, password), future);
-        assertThat(future.actionGet().getUser().enabled(), equalTo(false));
+        assertThat(future.actionGet().getValue().enabled(), equalTo(false));
 
         assertThat(realm.authInvocationCounter.intValue(), is(1));
 
@@ -261,14 +276,14 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         future = new PlainActionFuture<>();
         realm.authenticate(new UsernamePasswordToken(user, password), future);
         future.actionGet();
-        assertThat(future.actionGet().getUser().enabled(), equalTo(true));
+        assertThat(future.actionGet().getValue().enabled(), equalTo(true));
 
         assertThat(realm.authInvocationCounter.intValue(), is(2));
 
         future = new PlainActionFuture<>();
         realm.authenticate(new UsernamePasswordToken(user, password), future);
         future.actionGet();
-        assertThat(future.actionGet().getUser().enabled(), equalTo(true));
+        assertThat(future.actionGet().getValue().enabled(), equalTo(true));
 
         assertThat(realm.authInvocationCounter.intValue(), is(2));
     }
@@ -277,20 +292,24 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         TimeValue ttl = TimeValue.timeValueNanos(randomIntBetween(10, 100));
         final RealmConfig.RealmIdentifier identifier = new RealmConfig.RealmIdentifier("caching", "test_cache_ttl");
         Settings settings = Settings.builder()
-                .put(globalSettings)
-                .put(getFullSettingKey(identifier, CachingUsernamePasswordRealmSettings.CACHE_TTL_SETTING), ttl)
-                .put(getFullSettingKey(identifier, RealmSettings.ORDER_SETTING), 0)
-                .build();
-        RealmConfig config = new RealmConfig(identifier, settings,
-                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY));
+            .put(globalSettings)
+            .put(getFullSettingKey(identifier, CachingUsernamePasswordRealmSettings.CACHE_TTL_SETTING), ttl)
+            .put(getFullSettingKey(identifier, RealmSettings.ORDER_SETTING), 0)
+            .build();
+        RealmConfig config = new RealmConfig(
+            identifier,
+            settings,
+            TestEnvironment.newEnvironment(globalSettings),
+            new ThreadContext(Settings.EMPTY)
+        );
         AlwaysAuthenticateCachingRealm realm = new AlwaysAuthenticateCachingRealm(config, threadPool);
 
         final UsernamePasswordToken authToken = new UsernamePasswordToken("the-user", new SecureString("the-password"));
 
         // authenticate
-        PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+        PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
         realm.authenticate(authToken, future);
-        final User user1 = future.actionGet().getUser();
+        final User user1 = future.actionGet().getValue();
         assertThat(user1.roles(), arrayContaining("testRole1", "testRole2"));
         assertThat(realm.authInvocationCounter.intValue(), is(1));
 
@@ -299,7 +318,7 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         // authenticate
         future = new PlainActionFuture<>();
         realm.authenticate(authToken, future);
-        final User user2 = future.actionGet().getUser();
+        final User user2 = future.actionGet().getValue();
         assertThat(user2.roles(), arrayContaining("testRole1", "testRole2"));
         assertThat(user2, not(sameInstance(user1)));
         assertThat(realm.authInvocationCounter.intValue(), is(2));
@@ -309,21 +328,25 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         TimeValue ttl = TimeValue.timeValueMillis(250);
         final RealmConfig.RealmIdentifier identifier = new RealmConfig.RealmIdentifier("caching", "test_cache_ttl");
         Settings settings = Settings.builder()
-                .put(globalSettings)
-                .put(getFullSettingKey(identifier, CachingUsernamePasswordRealmSettings.CACHE_TTL_SETTING), ttl)
-                .put(getFullSettingKey(identifier, RealmSettings.ORDER_SETTING), 0)
-                .build();
-        RealmConfig config = new RealmConfig(identifier, settings,
-                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY));
+            .put(globalSettings)
+            .put(getFullSettingKey(identifier, CachingUsernamePasswordRealmSettings.CACHE_TTL_SETTING), ttl)
+            .put(getFullSettingKey(identifier, RealmSettings.ORDER_SETTING), 0)
+            .build();
+        RealmConfig config = new RealmConfig(
+            identifier,
+            settings,
+            TestEnvironment.newEnvironment(globalSettings),
+            new ThreadContext(Settings.EMPTY)
+        );
         AlwaysAuthenticateCachingRealm realm = new AlwaysAuthenticateCachingRealm(config, threadPool);
 
         final UsernamePasswordToken authToken = new UsernamePasswordToken("the-user", new SecureString("the-password"));
-        PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+        PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
 
         // authenticate
         realm.authenticate(authToken, future);
         final long start = System.currentTimeMillis();
-        final User user1 = future.actionGet().getUser();
+        final User user1 = future.actionGet().getValue();
         assertThat(realm.authInvocationCounter.intValue(), is(1));
 
         // After 100 ms (from the original start time), authenticate (read from cache). We don't care about the result
@@ -342,7 +365,7 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         sleepUntil(start + 300);
         future = new PlainActionFuture<>();
         realm.authenticate(authToken, future);
-        final User user2 = future.actionGet().getUser();
+        final User user2 = future.actionGet().getValue();
         assertThat(user2, not(sameInstance(user1)));
         // Due to slow VMs etc, the cache might have expired more than once during the test, but we can accept that.
         // We have other tests that verify caching works - this test just checks that it expires even when there are repeated reads.
@@ -358,9 +381,9 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
 
     public void testAuthenticateContract() {
         Realm realm = new FailingAuthenticationRealm(globalSettings, threadPool);
-        PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+        PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
         realm.authenticate(new UsernamePasswordToken("user", new SecureString("pass")), future);
-        User user = future.actionGet().getUser();
+        User user = future.actionGet().getValue();
         assertThat(user, nullValue());
 
         realm = new ThrowingAuthenticationRealm(globalSettings, threadPool);
@@ -386,50 +409,51 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
 
     public void testReturnDifferentObjectFromCache() {
         final AtomicReference<User> userArg = new AtomicReference<>();
-        final AtomicReference<AuthenticationResult> result = new AtomicReference<>();
+        final AtomicReference<AuthenticationResult<User>> result = new AtomicReference<>();
         Realm realm = new AlwaysAuthenticateCachingRealm(globalSettings, threadPool) {
             @Override
-            protected void handleCachedAuthentication(User user, ActionListener<AuthenticationResult> listener) {
+            protected void handleCachedAuthentication(User user, ActionListener<AuthenticationResult<User>> listener) {
                 userArg.set(user);
                 listener.onResponse(result.get());
             }
         };
-        PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+        PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
         realm.authenticate(new UsernamePasswordToken("user", new SecureString("pass")), future);
-        final AuthenticationResult result1 = future.actionGet();
+        final AuthenticationResult<User> result1 = future.actionGet();
         assertThat(result1, notNullValue());
-        assertThat(result1.getUser(), notNullValue());
-        assertThat(result1.getUser().principal(), equalTo("user"));
+        assertThat(result1.getValue(), notNullValue());
+        assertThat(result1.getValue().principal(), equalTo("user"));
 
-        final AuthenticationResult result2 = AuthenticationResult.success(new User("user"));
+        final AuthenticationResult<User> result2 = AuthenticationResult.success(new User("user"));
         result.set(result2);
 
         future = new PlainActionFuture<>();
         realm.authenticate(new UsernamePasswordToken("user", new SecureString("pass")), future);
-        final AuthenticationResult result3 = future.actionGet();
+        final AuthenticationResult<User> result3 = future.actionGet();
         assertThat(result3, sameInstance(result2));
-        assertThat(userArg.get(), sameInstance(result1.getUser()));
+        assertThat(userArg.get(), sameInstance(result1.getValue()));
     }
 
     public void testSingleAuthPerUserLimit() throws Exception {
         final String username = "username";
         final SecureString password = SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
         final AtomicInteger authCounter = new AtomicInteger(0);
-        final Hasher pwdHasher = Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt", "bcrypt9"));
+        final Hasher pwdHasher = getFastStoredHashAlgoForTests();
         final String passwordHash = new String(pwdHasher.hash(password));
         final RealmConfig.RealmIdentifier realmIdentifier = new RealmConfig.RealmIdentifier("caching", "test_realm");
         RealmConfig config = new RealmConfig(
             realmIdentifier,
-            Settings.builder().put(globalSettings)
-                .put(getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), 0).build(),
-            TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY));
+            Settings.builder().put(globalSettings).put(getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), 0).build(),
+            TestEnvironment.newEnvironment(globalSettings),
+            new ThreadContext(Settings.EMPTY)
+        );
         final CachingUsernamePasswordRealm realm = new CachingUsernamePasswordRealm(config, threadPool) {
             @Override
-            protected void doAuthenticate(UsernamePasswordToken token, ActionListener<AuthenticationResult> listener) {
+            protected void doAuthenticate(UsernamePasswordToken token, ActionListener<AuthenticationResult<User>> listener) {
                 authCounter.incrementAndGet();
                 // do something slow
                 if (pwdHasher.verify(token.credentials(), passwordHash.toCharArray())) {
-                    listener.onResponse(AuthenticationResult.success(new User(username, new String[]{"r1", "r2", "r3"})));
+                    listener.onResponse(AuthenticationResult.success(new User(username, new String[] { "r1", "r2", "r3" })));
                 } else {
                     listener.onFailure(new IllegalStateException("password auth should never fail"));
                 }
@@ -485,19 +509,20 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         final String username = "username";
         final SecureString password = SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
         final AtomicInteger authCounter = new AtomicInteger(0);
-        final Hasher pwdHasher = Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt", "bcrypt9"));
+        final Hasher pwdHasher = getFastStoredHashAlgoForTests();
         final String passwordHash = new String(pwdHasher.hash(password));
         final RealmConfig.RealmIdentifier realmIdentifier = new RealmConfig.RealmIdentifier("caching", "test_realm");
         RealmConfig config = new RealmConfig(
             realmIdentifier,
-            Settings.builder().put(globalSettings)
-                .put(getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), 0).build(),
-            TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY));
+            Settings.builder().put(globalSettings).put(getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), 0).build(),
+            TestEnvironment.newEnvironment(globalSettings),
+            new ThreadContext(Settings.EMPTY)
+        );
 
         final int numberOfProcessors = Runtime.getRuntime().availableProcessors();
         final int numberOfThreads = scaledRandomIntBetween((numberOfProcessors + 1) / 2, numberOfProcessors * 3);
         List<Thread> threads = new ArrayList<>(numberOfThreads);
-        final SecureString credsToUse = new SecureString(randomAlphaOfLength(12).toCharArray());
+        final SecureString credsToUse = new SecureString(randomAlphaOfLength(14).toCharArray());
 
         // we use a bunch of different latches here, the first `latch` is used to ensure all threads have been started
         // before they start to execute. The `authWaitLatch` is there to ensure we have all threads waiting on the
@@ -508,7 +533,7 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         final CountDownLatch completedLatch = new CountDownLatch(numberOfThreads);
         final CachingUsernamePasswordRealm realm = new CachingUsernamePasswordRealm(config, threadPool) {
             @Override
-            protected void doAuthenticate(UsernamePasswordToken token, ActionListener<AuthenticationResult> listener) {
+            protected void doAuthenticate(UsernamePasswordToken token, ActionListener<AuthenticationResult<User>> listener) {
                 authCounter.incrementAndGet();
                 authWaitLatch.countDown();
                 try {
@@ -572,19 +597,21 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         final String username = "username";
         final SecureString password = SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
         final SecureString randomPassword = new SecureString(randomAlphaOfLength(password.length()).toCharArray());
-        final Hasher localHasher = Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt", "bcrypt9"));
+        final Hasher localHasher = getFastStoredHashAlgoForTests();
         final String passwordHash = new String(localHasher.hash(password));
         final RealmConfig.RealmIdentifier realmIdentifier = new RealmConfig.RealmIdentifier("caching", "test_realm");
-        RealmConfig config = new RealmConfig(realmIdentifier,
-                Settings.builder().put(globalSettings)
-                    .put(getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), 0).build(),
-                TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY));
+        RealmConfig config = new RealmConfig(
+            realmIdentifier,
+            Settings.builder().put(globalSettings).put(getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), 0).build(),
+            TestEnvironment.newEnvironment(globalSettings),
+            new ThreadContext(Settings.EMPTY)
+        );
         final CachingUsernamePasswordRealm realm = new CachingUsernamePasswordRealm(config, threadPool) {
             @Override
-            protected void doAuthenticate(UsernamePasswordToken token, ActionListener<AuthenticationResult> listener) {
+            protected void doAuthenticate(UsernamePasswordToken token, ActionListener<AuthenticationResult<User>> listener) {
                 // do something slow
                 if (localHasher.verify(token.credentials(), passwordHash.toCharArray())) {
-                    listener.onResponse(AuthenticationResult.success(new User(username, new String[]{"r1", "r2", "r3"})));
+                    listener.onResponse(AuthenticationResult.success(new User(username, new String[] { "r1", "r2", "r3" })));
                 } else {
                     listener.onResponse(AuthenticationResult.unsuccessful("Incorrect password", null));
                 }
@@ -646,20 +673,22 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         final AtomicInteger lookupCounter = new AtomicInteger(0);
 
         final RealmConfig.RealmIdentifier realmIdentifier = new RealmConfig.RealmIdentifier("caching", "test_realm");
-        RealmConfig config = new RealmConfig(realmIdentifier,
-            Settings.builder().put(globalSettings)
-                .put(getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), 0).build(),
-            TestEnvironment.newEnvironment(globalSettings), new ThreadContext(Settings.EMPTY));
+        RealmConfig config = new RealmConfig(
+            realmIdentifier,
+            Settings.builder().put(globalSettings).put(getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), 0).build(),
+            TestEnvironment.newEnvironment(globalSettings),
+            new ThreadContext(Settings.EMPTY)
+        );
         final CachingUsernamePasswordRealm realm = new CachingUsernamePasswordRealm(config, threadPool) {
             @Override
-            protected void doAuthenticate(UsernamePasswordToken token, ActionListener<AuthenticationResult> listener) {
+            protected void doAuthenticate(UsernamePasswordToken token, ActionListener<AuthenticationResult<User>> listener) {
                 listener.onFailure(new UnsupportedOperationException("authenticate should not be called!"));
             }
 
             @Override
             protected void doLookupUser(String username, ActionListener<User> listener) {
                 lookupCounter.incrementAndGet();
-                listener.onResponse(new User(username, new String[]{"r1", "r2", "r3"}));
+                listener.onResponse(new User(username, new String[] { "r1", "r2", "r3" }));
             }
         };
 
@@ -721,9 +750,9 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         assertThat(realm.token(threadContext), nullValue());
         assertThat(realm.supports(token), equalTo(false));
 
-        PlainActionFuture<AuthenticationResult> authFuture = new PlainActionFuture<>();
+        PlainActionFuture<AuthenticationResult<User>> authFuture = new PlainActionFuture<>();
         realm.authenticate(token, authFuture);
-        final AuthenticationResult authResult = authFuture.get();
+        final AuthenticationResult<User> authResult = authFuture.get();
         assertThat(authResult.isAuthenticated(), equalTo(false));
         assertThat(authResult.getStatus(), equalTo(AuthenticationResult.Status.CONTINUE));
 
@@ -737,20 +766,22 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
     static class FailingAuthenticationRealm extends CachingUsernamePasswordRealm {
 
         FailingAuthenticationRealm(Settings global, ThreadPool threadPool) {
-            super(new RealmConfig(
-                new RealmConfig.RealmIdentifier("caching", "failing-test"),
-                Settings.builder()
-                    .put(global)
-                    .put(getFullSettingKey(
-                        new RealmConfig.RealmIdentifier("caching", "failing-test"),
-                        RealmSettings.ORDER_SETTING), 0)
-                    .build(),
-                TestEnvironment.newEnvironment(global),
-                threadPool.getThreadContext()), threadPool);
+            super(
+                new RealmConfig(
+                    new RealmConfig.RealmIdentifier("caching", "failing-test"),
+                    Settings.builder()
+                        .put(global)
+                        .put(getFullSettingKey(new RealmConfig.RealmIdentifier("caching", "failing-test"), RealmSettings.ORDER_SETTING), 0)
+                        .build(),
+                    TestEnvironment.newEnvironment(global),
+                    threadPool.getThreadContext()
+                ),
+                threadPool
+            );
         }
 
         @Override
-        protected void doAuthenticate(UsernamePasswordToken token, ActionListener<AuthenticationResult> listener) {
+        protected void doAuthenticate(UsernamePasswordToken token, ActionListener<AuthenticationResult<User>> listener) {
             listener.onResponse(AuthenticationResult.notHandled());
         }
 
@@ -763,18 +794,22 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
     static class ThrowingAuthenticationRealm extends CachingUsernamePasswordRealm {
 
         ThrowingAuthenticationRealm(Settings globalSettings, ThreadPool threadPool) {
-            super(new RealmConfig(
-                new RealmConfig.RealmIdentifier("caching", "throwing-test"),
-                Settings.builder()
-                    .put(globalSettings)
-                    .put(getFullSettingKey(new RealmConfig.RealmIdentifier("caching", "throwing-test"), RealmSettings.ORDER_SETTING), 0)
-                    .build(),
-                TestEnvironment.newEnvironment(globalSettings),
-                threadPool.getThreadContext()), threadPool);
+            super(
+                new RealmConfig(
+                    new RealmConfig.RealmIdentifier("caching", "throwing-test"),
+                    Settings.builder()
+                        .put(globalSettings)
+                        .put(getFullSettingKey(new RealmConfig.RealmIdentifier("caching", "throwing-test"), RealmSettings.ORDER_SETTING), 0)
+                        .build(),
+                    TestEnvironment.newEnvironment(globalSettings),
+                    threadPool.getThreadContext()
+                ),
+                threadPool
+            );
         }
 
         @Override
-        protected void doAuthenticate(UsernamePasswordToken token, ActionListener<AuthenticationResult> listener) {
+        protected void doAuthenticate(UsernamePasswordToken token, ActionListener<AuthenticationResult<User>> listener) {
             listener.onFailure(new RuntimeException("whatever exception"));
         }
 
@@ -792,14 +827,18 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         private boolean usersEnabled = true;
 
         AlwaysAuthenticateCachingRealm(Settings globalSettings, ThreadPool threadPool) {
-            this(new RealmConfig(
-                new RealmConfig.RealmIdentifier("caching", "always-test"),
-                Settings.builder()
-                    .put(globalSettings)
-                    .put(getFullSettingKey(new RealmConfig.RealmIdentifier("caching", "always-test"), RealmSettings.ORDER_SETTING), 0)
-                    .build(),
-                TestEnvironment.newEnvironment(globalSettings),
-                threadPool.getThreadContext()), threadPool);
+            this(
+                new RealmConfig(
+                    new RealmConfig.RealmIdentifier("caching", "always-test"),
+                    Settings.builder()
+                        .put(globalSettings)
+                        .put(getFullSettingKey(new RealmConfig.RealmIdentifier("caching", "always-test"), RealmSettings.ORDER_SETTING), 0)
+                        .build(),
+                    TestEnvironment.newEnvironment(globalSettings),
+                    threadPool.getThreadContext()
+                ),
+                threadPool
+            );
         }
 
         AlwaysAuthenticateCachingRealm(RealmConfig config, ThreadPool threadPool) {
@@ -811,16 +850,16 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         }
 
         @Override
-        protected void doAuthenticate(UsernamePasswordToken token, ActionListener<AuthenticationResult> listener) {
+        protected void doAuthenticate(UsernamePasswordToken token, ActionListener<AuthenticationResult<User>> listener) {
             authInvocationCounter.incrementAndGet();
-            final User user = new User(token.principal(), new String[]{"testRole1", "testRole2"}, null, null, emptyMap(), usersEnabled);
+            final User user = new User(token.principal(), new String[] { "testRole1", "testRole2" }, null, null, emptyMap(), usersEnabled);
             listener.onResponse(AuthenticationResult.success(user));
         }
 
         @Override
         protected void doLookupUser(String username, ActionListener<User> listener) {
             lookupInvocationCounter.incrementAndGet();
-            listener.onResponse(new User(username, new String[]{"lookupRole1", "lookupRole2"}));
+            listener.onResponse(new User(username, new String[] { "lookupRole1", "lookupRole2" }));
         }
     }
 }

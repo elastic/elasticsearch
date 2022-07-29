@@ -1,0 +1,29 @@
+{
+  "ccr.follow_info":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ccr-get-follow-info.html",
+      "description": "Retrieves information about all follower indices, including parameters and status for each follower index"
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/{index}/_ccr/info",
+          "methods":[
+            "GET"
+          ],
+          "parts":{
+            "index":{
+              "type":"list",
+              "description":"A comma-separated list of index patterns; use `_all` to perform the operation on all indices"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

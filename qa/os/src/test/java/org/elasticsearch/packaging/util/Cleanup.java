@@ -1,23 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.packaging.util;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -33,6 +25,8 @@ import static org.elasticsearch.packaging.util.Platforms.isDPKG;
 import static org.elasticsearch.packaging.util.Platforms.isRPM;
 
 public class Cleanup {
+
+    protected static final Logger logger = LogManager.getLogger(Cleanup.class);
 
     private static final List<String> ELASTICSEARCH_FILES_LINUX = Arrays.asList(
         "/usr/share/elasticsearch",
@@ -61,16 +55,14 @@ public class Cleanup {
             sh.runIgnoreExitCode("ps aux | grep -i 'org.elasticsearch.bootstrap.Elasticsearch' | awk {'print $2'} | xargs kill -9");
         });
 
-        Platforms.onWindows(
-            () -> {
-                // the view of processes returned by Get-Process doesn't expose command line arguments, so we use WMI here
-                sh.runIgnoreExitCode(
-                    "Get-WmiObject Win32_Process | "
-                        + "Where-Object { $_.CommandLine -Match 'org.elasticsearch.bootstrap.Elasticsearch' } | "
-                        + "ForEach-Object { $_.Terminate() }"
-                );
-            }
-        );
+        Platforms.onWindows(() -> {
+            // the view of processes returned by Get-Process doesn't expose command line arguments, so we use WMI here
+            sh.runIgnoreExitCode(
+                "Get-WmiObject Win32_Process | "
+                    + "Where-Object { $_.CommandLine -Match 'org.elasticsearch.bootstrap.Elasticsearch' } | "
+                    + "ForEach-Object { $_.Terminate() }"
+            );
+        });
 
         Platforms.onLinux(Cleanup::purgePackagesLinux);
 
@@ -80,9 +72,9 @@ public class Cleanup {
             sh.runIgnoreExitCode("groupdel elasticsearch");
         });
         // when we run es as a role user on windows, add the equivalent here
-
         // delete files that may still exist
-        lsGlob(getRootTempDir(), "elasticsearch*").forEach(FileUtils::rm);
+
+        lsGlob(getRootTempDir(), "elasticsearch*").forEach(Platforms.WINDOWS ? FileUtils::rmWithRetries : FileUtils::rm);
         final List<String> filesToDelete = Platforms.WINDOWS ? ELASTICSEARCH_FILES_WINDOWS : ELASTICSEARCH_FILES_LINUX;
         // windows needs leniency due to asinine releasing of file locking async from a process exiting
         Consumer<? super Path> rm = Platforms.WINDOWS ? FileUtils::rmWithRetries : FileUtils::rm;

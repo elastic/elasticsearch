@@ -1,15 +1,12 @@
 /*
- /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.qa.jdbc;
 
-import com.carrotsearch.hppc.IntObjectHashMap;
-
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.StandardValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
@@ -18,6 +15,8 @@ import org.elasticsearch.xpack.sql.proto.StringUtils;
 import org.relique.jdbc.csv.CsvResultSet;
 
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.sql.Date;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
@@ -27,8 +26,10 @@ import java.text.ParseException;
 import java.time.temporal.TemporalAmount;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.TimeZone;
 
 import static java.lang.String.format;
@@ -55,9 +56,7 @@ import static org.junit.Assert.fail;
 public class JdbcAssert {
     private static final Calendar UTC_CALENDAR = Calendar.getInstance(TimeZone.getTimeZone("UTC"), Locale.ROOT);
 
-    private static final IntObjectHashMap<EsType> SQL_TO_TYPE = new IntObjectHashMap<>();
-
-    private static final WellKnownText WKT = new WellKnownText(true, new StandardValidator(true));
+    private static final Map<Integer, EsType> SQL_TO_TYPE = new HashMap<>();
 
     static {
         for (EsType type : EsType.values()) {
@@ -148,7 +147,7 @@ public class JdbcAssert {
             String expectedName = expectedMeta.getColumnName(column);
             String actualName = actualMeta.getColumnName(column);
 
-            if (!expectedName.equals(actualName)) {
+            if (expectedName.equals(actualName) == false) {
                 // to help debugging, indicate the previous column (which also happened to match and thus was correct)
                 String expectedSet = expectedName;
                 String actualSet = actualName;
@@ -163,6 +162,7 @@ public class JdbcAssert {
             // use the type not the name (timestamp with timezone returns spaces for example)
             int expectedType = typeOf(expectedMeta.getColumnType(column), lenientDataType);
             int actualType = typeOf(actualMeta.getColumnType(column), lenientDataType);
+            String actualTypeName = actualMeta.getColumnTypeName(column);
 
             // since H2 cannot use a fixed timezone, the data is stored in UTC (and thus with timezone)
             if (expectedType == Types.TIMESTAMP_WITH_TIMEZONE) {
@@ -186,6 +186,11 @@ public class JdbcAssert {
             // csv doesn't support NULL type so skip type checking
             if (actualType == Types.NULL && expected instanceof CsvResultSet) {
                 expectedType = Types.NULL;
+            }
+
+            // csv and h2 both map values larger than Long.MAX_VALUE to Decimal types
+            if (expectedType == Types.DECIMAL && actualTypeName.compareTo(EsType.UNSIGNED_LONG.getName()) == 0) {
+                expectedType = EsType.UNSIGNED_LONG.getVendorTypeNumber();
             }
 
             // when lenient is used, an int is equivalent to a short, etc...
@@ -249,24 +254,15 @@ public class JdbcAssert {
                         String columnClassName = metaData.getColumnClassName(column);
 
                         // fix for CSV which returns the shortName not fully-qualified name
-                        if (columnClassName != null && !columnClassName.contains(".")) {
-                            switch (columnClassName) {
-                                case "Date":
-                                    columnClassName = "java.sql.Date";
-                                    break;
-                                case "Time":
-                                    columnClassName = "java.sql.Time";
-                                    break;
-                                case "Timestamp":
-                                    columnClassName = "java.sql.Timestamp";
-                                    break;
-                                case "Int":
-                                    columnClassName = "java.lang.Integer";
-                                    break;
-                                default:
-                                    columnClassName = "java.lang." + columnClassName;
-                                    break;
-                            }
+                        if (columnClassName != null && columnClassName.contains(".") == false) {
+                            columnClassName = switch (columnClassName) {
+                                case "Date" -> "java.sql.Date";
+                                case "Time" -> "java.sql.Time";
+                                case "Timestamp" -> "java.sql.Timestamp";
+                                case "Int" -> "java.lang.Integer";
+                                case "BigDecimal" -> "java.math.BigDecimal";
+                                default -> "java.lang." + columnClassName;
+                            };
                         }
 
                         if (columnClassName != null) {
@@ -311,20 +307,19 @@ public class JdbcAssert {
                     } else if (type == Types.FLOAT) {
                         assertEquals(msg, (float) expectedObject, (float) actualObject, lenientFloatingNumbers ? 1f : 0.0f);
                     } else if (type == Types.OTHER) {
-                        if (actualObject instanceof Geometry) {
-                            // We need to convert the expected object to libs/geo Geometry for comparision
-                            try {
-                                expectedObject = WKT.fromWKT(expectedObject.toString());
-                            } catch (IOException | ParseException ex) {
-                                fail(ex.getMessage());
+                        // check geo case
+                        if (actual.getMetaData().getColumnType(column) == EsType.GEO_SHAPE.getVendorTypeNumber()) {
+                            // parse strings into actual objects
+                            actualObject = fromWkt(actualObject.toString());
+                            expectedObject = fromWkt(expectedObject.toString());
+
+                            if (actualObject instanceof Point) {
+                                // geo points are loaded form doc values where they are stored as long-encoded values leading
+                                // to lose in precision
+                                assertThat(expectedObject, instanceOf(Point.class));
+                                assertEquals(((Point) expectedObject).getY(), ((Point) actualObject).getY(), 0.000001d);
+                                assertEquals(((Point) expectedObject).getX(), ((Point) actualObject).getX(), 0.000001d);
                             }
-                        }
-                        if (actualObject instanceof Point) {
-                            // geo points are loaded form doc values where they are stored as long-encoded values leading
-                            // to lose in precision
-                            assertThat(expectedObject, instanceOf(Point.class));
-                            assertEquals(((Point) expectedObject).getY(), ((Point) actualObject).getY(), 0.000001d);
-                            assertEquals(((Point) expectedObject).getX(), ((Point) actualObject).getX(), 0.000001d);
                         } else {
                             assertEquals(msg, expectedObject, actualObject);
                         }
@@ -332,6 +327,10 @@ public class JdbcAssert {
                     // intervals
                     else if (type == Types.VARCHAR && actualObject instanceof TemporalAmount) {
                         assertEquals(msg, expectedObject, StringUtils.toString(actualObject));
+                    }
+                    // unsigned_long
+                    else if (expectedObject instanceof BigDecimal && actualObject instanceof BigInteger) {
+                        assertEquals(expectedObject, new BigDecimal((BigInteger) actualObject));
                     }
                     // finally the actual comparison
                     else {
@@ -349,6 +348,16 @@ public class JdbcAssert {
 
         if (actual.next()) {
             fail("Elasticsearch [" + actual + "] still has data after [" + count + "] entries:\n" + resultSetCurrentData(actual));
+        }
+    }
+
+    private static Object fromWkt(String source) {
+        try {
+            return WellKnownText.fromWKT(StandardValidator.instance(true), true, source);
+        } catch (IOException | ParseException ex) {
+            fail(ex.getMessage());
+            // won't execute
+            return null;
         }
     }
 

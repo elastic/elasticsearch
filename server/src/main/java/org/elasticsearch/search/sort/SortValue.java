@@ -1,30 +1,21 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.sort;
 
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -34,10 +25,15 @@ import java.util.List;
  * A {@link Comparable}, {@link DocValueFormat} aware wrapper around a sort value.
  */
 public abstract class SortValue implements NamedWriteable, Comparable<SortValue> {
+    private static final SortValue EMPTY_SORT_VALUE = new EmptySortValue();
+
     /**
      * Get a {@linkplain SortValue} for a double.
      */
     public static SortValue from(double d) {
+        if (Double.isNaN(d)) {
+            return new EmptySortValue();
+        }
         return new DoubleSortValue(d);
     }
 
@@ -49,12 +45,30 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
     }
 
     /**
+     * Get a {@linkplain SortValue} for bytes. Callers should be sure that they
+     * have a {@link BytesRef#deepCopyOf} of any mutable references.
+     */
+    public static SortValue from(BytesRef bytes) {
+        return new BytesSortValue(bytes);
+    }
+
+    /**
+     * Get a {@linkplain SortValue} for data which cannot be sorted.
+     */
+    public static SortValue empty() {
+        return EMPTY_SORT_VALUE;
+    }
+
+    /**
      * Get the list of {@linkplain NamedWriteable}s that this class needs.
      */
     public static List<NamedWriteableRegistry.Entry> namedWriteables() {
         return Arrays.asList(
-                new NamedWriteableRegistry.Entry(SortValue.class, DoubleSortValue.NAME, DoubleSortValue::new),
-                new NamedWriteableRegistry.Entry(SortValue.class, LongSortValue.NAME, LongSortValue::new));
+            new NamedWriteableRegistry.Entry(SortValue.class, DoubleSortValue.NAME, DoubleSortValue::new),
+            new NamedWriteableRegistry.Entry(SortValue.class, LongSortValue.NAME, LongSortValue::new),
+            new NamedWriteableRegistry.Entry(SortValue.class, BytesSortValue.NAME, BytesSortValue::new),
+            new NamedWriteableRegistry.Entry(SortValue.class, EmptySortValue.NAME, EmptySortValue::new)
+        );
     }
 
     private SortValue() {
@@ -63,16 +77,8 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
 
     @Override
     public final int compareTo(SortValue other) {
-        /*
-         * It might make sense to try and compare doubles to longs
-         * *carefully* to get a real sort. but it might not. For now
-         * we sort all doubles before all longs. 
-         */
-        int typeCompare = getWriteableName().compareTo(other.getWriteableName());
-        if (typeCompare != 0) {
-            return typeCompare;
-        }
-        return compareToSameType(other);
+        int typeComparison = typeComparisonKey() - other.typeComparisonKey();
+        return typeComparison == 0 ? compareToSameType(other) : typeComparison;
     }
 
     /**
@@ -117,13 +123,19 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
     @Override
     public abstract String toString();
 
+    // Force implementations to override typeComparisonKey and associate each subclass with an integer key
+    protected abstract int typeComparisonKey();
+
     /**
-     * Return this {@linkplain SortValue} as a boxed {@linkplain Number}.
+     * Return this {@linkplain SortValue} as a boxed {@linkplain Number}
+     * or {@link Double#NaN} if it isn't a number. Or if it is actually
+     * {@link Double#NaN}.
      */
     public abstract Number numberValue();
 
     private static class DoubleSortValue extends SortValue {
         public static final String NAME = "double";
+        private static final int SORT_VALUE = -2;
 
         private final double key;
 
@@ -186,6 +198,11 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
         }
 
         @Override
+        public int typeComparisonKey() {
+            return SORT_VALUE;
+        }
+
+        @Override
         public Number numberValue() {
             return key;
         }
@@ -193,6 +210,7 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
 
     private static class LongSortValue extends SortValue {
         public static final String NAME = "long";
+        private static final int SORT_VALUE = -1;
 
         private final long key;
 
@@ -200,7 +218,7 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
             this.key = key;
         }
 
-        LongSortValue(StreamInput in) throws IOException {
+        private LongSortValue(StreamInput in) throws IOException {
             key = in.readLong();
         }
 
@@ -255,8 +273,159 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
         }
 
         @Override
+        public int typeComparisonKey() {
+            return SORT_VALUE;
+        }
+
+        @Override
         public Number numberValue() {
             return key;
+        }
+    }
+
+    private static class BytesSortValue extends SortValue {
+        public static final String NAME = "bytes";
+        private static final int SORT_VALUE = -3;
+
+        private final BytesRef key;
+
+        BytesSortValue(BytesRef key) {
+            this.key = key;
+        }
+
+        private BytesSortValue(StreamInput in) throws IOException {
+            key = in.readBytesRef();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            if (out.getVersion().before(Version.V_7_11_0)) {
+                throw new IllegalArgumentException(
+                    "versions of Elasticsearch before 7.11.0 can't handle non-numeric sort values and attempted to send to ["
+                        + out.getVersion()
+                        + "]"
+                );
+            }
+            out.writeBytesRef(key);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return NAME;
+        }
+
+        @Override
+        public Object getKey() {
+            return key;
+        }
+
+        @Override
+        public String format(DocValueFormat format) {
+            return format.format(key).toString();
+        }
+
+        @Override
+        protected XContentBuilder rawToXContent(XContentBuilder builder) throws IOException {
+            return builder.value(key.utf8ToString());
+        }
+
+        @Override
+        protected int compareToSameType(SortValue obj) {
+            BytesSortValue other = (BytesSortValue) obj;
+            return key.compareTo(other.key);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == null || false == getClass().equals(obj.getClass())) {
+                return false;
+            }
+            BytesSortValue other = (BytesSortValue) obj;
+            return key.equals(other.key);
+        }
+
+        @Override
+        public int hashCode() {
+            return key.hashCode();
+        }
+
+        @Override
+        public String toString() {
+            return key.toString();
+        }
+
+        @Override
+        public int typeComparisonKey() {
+            return SORT_VALUE;
+        }
+
+        @Override
+        public Number numberValue() {
+            return Double.NaN;
+        }
+    }
+
+    private static class EmptySortValue extends SortValue {
+
+        public static final String NAME = "empty";
+        private static final String EMPTY_STRING = "";
+        private int sortValue = 0;
+
+        private EmptySortValue() {}
+
+        private EmptySortValue(StreamInput ignoredIn) {}
+
+        @Override
+        public String getWriteableName() {
+            return NAME;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {}
+
+        @Override
+        public Object getKey() {
+            return EMPTY_STRING;
+        }
+
+        @Override
+        public String format(DocValueFormat format) {
+            return EMPTY_STRING;
+        }
+
+        @Override
+        protected XContentBuilder rawToXContent(XContentBuilder builder) throws IOException {
+            return builder;
+        }
+
+        @Override
+        protected int compareToSameType(SortValue obj) {
+            return 0;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            return obj != null && false != getClass().equals(obj.getClass());
+        }
+
+        @Override
+        public int hashCode() {
+            return 0;
+        }
+
+        @Override
+        public String toString() {
+            return EMPTY_STRING;
+        }
+
+        @Override
+        public int typeComparisonKey() {
+            return sortValue;
+        }
+
+        @Override
+        public Number numberValue() {
+            return null;
         }
     }
 }

@@ -1,8 +1,11 @@
 [role="xpack"]
 [[actions-jira]]
-=== Jira action
+=== {watcher} Jira action
+++++
+<titleabbrev>Jira action</titleabbrev>
+++++
 
-Use the `jira` action to create issues in  https://www.atlassian.com/software/jira[Atlassian's Jira Software].
+Use the `jira` action to create issues in https://www.atlassian.com/software/jira[Atlassian's Jira Software].
 To create issues you need to <<configuring-jira, configure at least one Jira account>> in `elasticsearch.yml`.
 
 [[configuring-jira-actions]]
@@ -28,8 +31,8 @@ The following snippet shows a simple jira action definition:
           "issuetype" : {
             "name": "Bug" <3>
           },
-          "summary" : "Encountered {{ctx.payload.hits.total.value}} errors in the last 5 minutes", <4>
-          "description" : "Encountered {{ctx.payload.hits.total.value}} errors in the last 5 minutes (facepalm)", <5>
+          "summary" : "Encountered {{ctx.payload.hits.total}} errors in the last 5 minutes", <4>
+          "description" : "Encountered {{ctx.payload.hits.total}} errors in the last 5 minutes (facepalm)", <5>
           "labels" : ["auto"], <6>
           "priority" : {
             "name" : "High" <7>

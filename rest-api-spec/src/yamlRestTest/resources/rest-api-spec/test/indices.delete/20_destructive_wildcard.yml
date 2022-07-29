@@ -1,0 +1,22 @@
+---
+setup:
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            action.destructive_requires_name: "true"
+        flat_settings: true
+---
+teardown:
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            action.destructive_requires_name: "false"
+        flat_settings: true
+---
+"Delete nonexistent concrete index with wildcard expansion disallowed":
+  - do:
+      indices.delete:
+        index: index3
+        ignore_unavailable: true

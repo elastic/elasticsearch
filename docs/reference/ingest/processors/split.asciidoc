@@ -1,5 +1,9 @@
 [[split-processor]]
-=== Split Processor
+=== Split processor
+++++
+<titleabbrev>Split</titleabbrev>
+++++
+
 Splits a field into an array using a separator character. Only works on string fields.
 
 [[split-options]]

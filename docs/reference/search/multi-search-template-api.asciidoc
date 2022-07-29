@@ -1,0 +1,163 @@
+[[multi-search-template]]
+=== Multi search template API
+++++
+<titleabbrev>Multi search template</titleabbrev>
+++++
+
+Runs multiple <<run-multiple-templated-searches,templated searches>> with a single
+request.
+
+////
+[source,console]
+----
+PUT _scripts/my-search-template
+{
+  "script": {
+    "lang": "mustache",
+    "source": {
+      "query": {
+        "match": {
+          "message": "{{query_string}}"
+        }
+      },
+      "from": "{{from}}",
+      "size": "{{size}}"
+    },
+    "params": {
+      "query_string": "My query string"
+    }
+  }
+}
+
+PUT my-index/_doc/1?refresh
+{
+  "message": "hello world"
+}
+----
+// TESTSETUP
+////
+
+[source,console]
+----
+GET my-index/_msearch/template
+{ }
+{ "id": "my-search-template", "params": { "query_string": "hello world", "from": 0, "size": 10 }}
+{ }
+{ "id": "my-other-search-template", "params": { "query_type": "match_all" }}
+----
+// TEST[s/my-other-search-template/my-search-template/]
+
+[[multi-search-template-api-request]]
+==== {api-request-title}
+
+`GET <target>/_msearch/template`
+
+`GET _msearch/template`
+
+`POST <target>/_msearch/template`
+
+`POST _msearch/template`
+
+[[multi-search-template-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `read`
+<<privileges-list-indices,index privilege>> for the target data stream, index,
+or alias. For cross-cluster search, see <<remote-clusters-security>>.
+
+[[multi-search-template-api-path-params]]
+==== {api-path-parms-title}
+
+`<target>`::
+(Optional, string) Comma-separated list of data streams, indices, and aliases to
+search. Supports wildcards (`*`). To search all data streams and indices, omit
+this parameter or use `*`.
+
+[[multi-search-template-api-query-params]]
+==== {api-query-parms-title}
+
+`ccs_minimize_roundtrips`::
+(Optional, Boolean) If `true`, network round-trips are minimized for
+cross-cluster search requests. Defaults to `true`.
+
+`max_concurrent_searches`::
+(Optional, integer) Maximum number of concurrent searches the API can run.
+Defaults to +max(1, (# of <<data-node,data nodes>> *
+min(<<search-threadpool,search thread pool size>>, 10)))+.
+
+`rest_total_hits_as_int`::
+(Optional, Boolean) If `true`, the response returns `hits.total` as an integer.
+If false, it returns `hits.total` as an object. Defaults to `false`.
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=search_type]
+
+`typed_keys`::
+(Optional, Boolean) If `true`, the response prefixes aggregation and suggester
+names with their respective types. Defaults to `false`.
+
+[role="child_attributes"]
+[[multi-search-template-api-request-body]]
+==== {api-request-body-title}
+
+The request body must be newline-delimited JSON (NDJSON) in the following
+format:
+
+[source,js]
+----
+<header>\n
+<body>\n
+<header>\n
+<body>\n
+----
+// NOTCONSOLE
+
+Each `<header>` and `<body>` pair represents a search request.
+
+The `<header>` supports the same parameters as the <<search-multi-search,multi
+search API>>'s `<header>`. The `<body>` supports the same parameters as the
+<<search-search-api-request-body,search template API>>'s request body.
+
+include::multi-search.asciidoc[tag=header-params]
+
+`<body>`::
+(Request, object) Parameters for the search.
++
+=====
+include::search-template-api.asciidoc[tag=body-params]
+=====
+
+[[multi-search-template-api-response-codes]]
+==== {api-response-codes-title}
+
+The API returns a `400` status code only if the request itself fails. If one or
+more searches in the request fail, the API returns a `200` status code with an
+`error` object for each failed search in the response.
+
+[[multi-search-template-api-response-body]]
+==== {api-response-body-title}
+
+`responses`::
+(array of objects) Results for each search, returned in the order submitted.
+Each object uses the same properties as the <<search-search,search API>>'s
+response.
++
+If a search fails, the response includes an `error` object containing an error
+message.
+
+[[multi-search-template-api-curl-requests]]
+==== curl requests
+
+If a providing text file or text input to `curl`, use the `--data-binary` flag
+instead of `-d` to preserve newlines.
+
+[source,sh]
+----
+$ cat requests
+{ "index": "my-index" }
+{ "id": "my-search-template", "params": { "query_string": "hello world", "from": 0, "size": 10 }}
+{ "index": "my-other-index" }
+{ "id": "my-other-search-template", "params": { "query_type": "match_all" }}
+
+$ curl -H "Content-Type: application/x-ndjson" -XGET localhost:9200/_msearch/template --data-binary "@requests"; echo
+----
+// NOTCONSOLE

@@ -1,13 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ccr.action.repositories;
 
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -39,18 +40,33 @@ public class PutCcrRestoreSessionAction extends ActionType<PutCcrRestoreSessionA
         super(NAME, PutCcrRestoreSessionResponse::new);
     }
 
-    public static class TransportPutCcrRestoreSessionAction
-        extends TransportSingleShardAction<PutCcrRestoreSessionRequest, PutCcrRestoreSessionResponse> {
+    public static class TransportPutCcrRestoreSessionAction extends TransportSingleShardAction<
+        PutCcrRestoreSessionRequest,
+        PutCcrRestoreSessionResponse> {
 
         private final IndicesService indicesService;
         private final CcrRestoreSourceService ccrRestoreService;
 
         @Inject
-        public TransportPutCcrRestoreSessionAction(ThreadPool threadPool, ClusterService clusterService, ActionFilters actionFilters,
-                                                   IndexNameExpressionResolver resolver, TransportService transportService,
-                                                   IndicesService indicesService, CcrRestoreSourceService ccrRestoreService) {
-            super(NAME, threadPool, clusterService, transportService, actionFilters, resolver, PutCcrRestoreSessionRequest::new,
-                ThreadPool.Names.GENERIC);
+        public TransportPutCcrRestoreSessionAction(
+            ThreadPool threadPool,
+            ClusterService clusterService,
+            ActionFilters actionFilters,
+            IndexNameExpressionResolver resolver,
+            TransportService transportService,
+            IndicesService indicesService,
+            CcrRestoreSourceService ccrRestoreService
+        ) {
+            super(
+                NAME,
+                threadPool,
+                clusterService,
+                transportService,
+                actionFilters,
+                resolver,
+                PutCcrRestoreSessionRequest::new,
+                ThreadPool.Names.GENERIC
+            );
             this.indicesService = indicesService;
             this.ccrRestoreService = ccrRestoreService;
         }
@@ -83,7 +99,6 @@ public class PutCcrRestoreSessionAction extends ActionType<PutCcrRestoreSessionA
         }
     }
 
-
     public static class PutCcrRestoreSessionResponse extends ActionResponse {
 
         private DiscoveryNode node;
@@ -99,7 +114,7 @@ public class PutCcrRestoreSessionAction extends ActionType<PutCcrRestoreSessionA
         PutCcrRestoreSessionResponse(StreamInput in) throws IOException {
             super(in);
             node = new DiscoveryNode(in);
-            storeFileMetadata = new Store.MetadataSnapshot(in);
+            storeFileMetadata = Store.MetadataSnapshot.readFrom(in);
             mappingVersion = in.readVLong();
         }
 

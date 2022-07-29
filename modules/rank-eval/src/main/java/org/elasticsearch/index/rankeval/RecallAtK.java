@@ -1,31 +1,20 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.rankeval;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
@@ -34,9 +23,9 @@ import java.util.OptionalInt;
 
 import javax.naming.directory.SearchResult;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.index.rankeval.EvaluationMetric.joinHitsWithRatings;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Metric implementing Recall@K
@@ -90,7 +79,8 @@ public class RecallAtK implements EvaluationMetric {
         Integer k = (Integer) args[1];
         return new RecallAtK(
             relevantRatingThreshold == null ? DEFAULT_RELEVANT_RATING_THRESHOLD : relevantRatingThreshold,
-            k == null ? DEFAULT_K : k);
+            k == null ? DEFAULT_K : k
+        );
     });
 
     static {
@@ -154,8 +144,7 @@ public class RecallAtK implements EvaluationMetric {
      * @return recall at k for above {@link SearchResult} list.
      **/
     @Override
-    public EvalQueryQuality evaluate(String taskId, SearchHit[] hits,
-                                     List<RatedDocument> ratedDocs) {
+    public EvalQueryQuality evaluate(String taskId, SearchHit[] hits, List<RatedDocument> ratedDocs) {
 
         List<RatedSearchHit> ratedSearchHits = joinHitsWithRatings(hits, ratedDocs);
 
@@ -169,7 +158,7 @@ public class RecallAtK implements EvaluationMetric {
 
         int relevant = 0;
         for (RatedDocument rd : ratedDocs) {
-            if(isRelevant(rd.getRating())) {
+            if (isRelevant(rd.getRating())) {
                 relevant++;
             }
         }
@@ -194,8 +183,7 @@ public class RecallAtK implements EvaluationMetric {
             return false;
         }
         RecallAtK other = (RecallAtK) obj;
-        return Objects.equals(relevantRatingThreshold, other.relevantRatingThreshold)
-            && Objects.equals(k, other.k);
+        return Objects.equals(relevantRatingThreshold, other.relevantRatingThreshold) && Objects.equals(k, other.k);
     }
 
     @Override
@@ -220,8 +208,11 @@ public class RecallAtK implements EvaluationMetric {
             this.relevant = in.readVLong();
         }
 
-        private static final ConstructingObjectParser<Detail, Void> PARSER =
-            new ConstructingObjectParser<>(NAME, true, args -> new Detail((Integer) args[0], (Integer) args[1]));
+        private static final ConstructingObjectParser<Detail, Void> PARSER = new ConstructingObjectParser<>(
+            NAME,
+            true,
+            args -> new Detail((Integer) args[0], (Integer) args[1])
+        );
 
         static {
             PARSER.declareInt(constructorArg(), RELEVANT_DOCS_RETRIEVED_FIELD);
@@ -239,8 +230,7 @@ public class RecallAtK implements EvaluationMetric {
         }
 
         @Override
-        public XContentBuilder innerToXContent(XContentBuilder builder, Params params)
-            throws IOException {
+        public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(RELEVANT_DOCS_RETRIEVED_FIELD.getPreferredName(), relevantRetrieved);
             builder.field(RELEVANT_DOCS_FIELD.getPreferredName(), relevant);
             return builder;
@@ -268,8 +258,7 @@ public class RecallAtK implements EvaluationMetric {
                 return false;
             }
             RecallAtK.Detail other = (RecallAtK.Detail) obj;
-            return Objects.equals(relevantRetrieved, other.relevantRetrieved)
-                && Objects.equals(relevant, other.relevant);
+            return Objects.equals(relevantRetrieved, other.relevantRetrieved) && Objects.equals(relevant, other.relevant);
         }
 
         @Override

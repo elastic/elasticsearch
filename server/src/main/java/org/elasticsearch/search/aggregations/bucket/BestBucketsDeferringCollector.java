@@ -1,27 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
@@ -31,17 +20,18 @@ import org.apache.lucene.util.packed.PackedInts;
 import org.apache.lucene.util.packed.PackedLongValues;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongHash;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.MultiBucketCollector;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.LongUnaryOperator;
 
 /**
  * A specialization of {@link DeferringBucketCollector} that collects all
@@ -51,35 +41,36 @@ import java.util.Objects;
  */
 public class BestBucketsDeferringCollector extends DeferringBucketCollector {
     static class Entry {
-        final LeafReaderContext context;
+        final AggregationExecutionContext aggCtx;
         final PackedLongValues docDeltas;
         final PackedLongValues buckets;
 
-        Entry(LeafReaderContext context, PackedLongValues docDeltas, PackedLongValues buckets) {
-            this.context = Objects.requireNonNull(context);
+        Entry(AggregationExecutionContext aggCtx, PackedLongValues docDeltas, PackedLongValues buckets) {
+            this.aggCtx = Objects.requireNonNull(aggCtx);
             this.docDeltas = Objects.requireNonNull(docDeltas);
             this.buckets = Objects.requireNonNull(buckets);
         }
     }
 
-    protected List<Entry> entries = new ArrayList<>();
-    protected BucketCollector collector;
-    protected final SearchContext searchContext;
-    protected final boolean isGlobal;
-    protected LeafReaderContext context;
-    protected PackedLongValues.Builder docDeltasBuilder;
-    protected PackedLongValues.Builder bucketsBuilder;
-    protected long maxBucket = -1;
-    protected boolean finished = false;
-    protected LongHash selectedBuckets;
+    private final Query topLevelQuery;
+    private final IndexSearcher searcher;
+    private final boolean isGlobal;
+
+    private List<Entry> entries = new ArrayList<>();
+    private BucketCollector collector;
+    private AggregationExecutionContext aggCtx;
+    private PackedLongValues.Builder docDeltasBuilder;
+    private PackedLongValues.Builder bucketsBuilder;
+    private LongHash selectedBuckets;
+    private boolean finished = false;
 
     /**
      * Sole constructor.
-     * @param context The search context
      * @param isGlobal Whether this collector visits all documents (global context)
      */
-    public BestBucketsDeferringCollector(SearchContext context, boolean isGlobal) {
-        this.searchContext = context;
+    public BestBucketsDeferringCollector(Query topLevelQuery, IndexSearcher searcher, boolean isGlobal) {
+        this.topLevelQuery = topLevelQuery;
+        this.searcher = searcher;
         this.isGlobal = isGlobal;
     }
 
@@ -94,39 +85,47 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
     /** Set the deferred collectors. */
     @Override
     public void setDeferredCollector(Iterable<BucketCollector> deferredCollectors) {
-        this.collector = MultiBucketCollector.wrap(deferredCollectors);
+        this.collector = MultiBucketCollector.wrap(true, deferredCollectors);
     }
 
+    /**
+     * Button up the builders for the current leaf.
+     */
     private void finishLeaf() {
-        if (context != null) {
+        if (aggCtx != null) {
             assert docDeltasBuilder != null && bucketsBuilder != null;
-            entries.add(new Entry(context, docDeltasBuilder.build(), bucketsBuilder.build()));
+            assert docDeltasBuilder.size() > 0;
+            entries.add(new Entry(aggCtx, docDeltasBuilder.build(), bucketsBuilder.build()));
+            clearLeaf();
         }
     }
 
-    @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx) throws IOException {
-        finishLeaf();
-
-        context = null;
-        // allocates the builder lazily in case this segment doesn't contain any match
+    /**
+     * Clear the status for the current leaf.
+     */
+    private void clearLeaf() {
+        aggCtx = null;
         docDeltasBuilder = null;
         bucketsBuilder = null;
+    }
+
+    @Override
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext context) throws IOException {
+        finishLeaf();
 
         return new LeafBucketCollector() {
             int lastDoc = 0;
 
             @Override
-            public void collect(int doc, long bucket) throws IOException {
-                if (context == null) {
-                    context = ctx;
+            public void collect(int doc, long bucket) {
+                if (aggCtx == null) {
+                    aggCtx = context;
                     docDeltasBuilder = PackedLongValues.packedBuilder(PackedInts.DEFAULT);
                     bucketsBuilder = PackedLongValues.packedBuilder(PackedInts.DEFAULT);
                 }
                 docDeltasBuilder.add(doc - lastDoc);
                 bucketsBuilder.add(bucket);
                 lastDoc = doc;
-                maxBucket = Math.max(maxBucket, bucket);
             }
         };
     }
@@ -162,17 +161,17 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
         boolean needsScores = scoreMode().needsScores();
         Weight weight = null;
         if (needsScores) {
-            Query query = isGlobal ? new MatchAllDocsQuery() : searchContext.query();
-            weight = searchContext.searcher().createWeight(searchContext.searcher().rewrite(query), ScoreMode.COMPLETE, 1f);
+            Query query = isGlobal ? new MatchAllDocsQuery() : topLevelQuery;
+            weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE, 1f);
         }
 
         for (Entry entry : entries) {
             assert entry.docDeltas.size() > 0 : "segment should have at least one document to replay, got 0";
             try {
-                final LeafBucketCollector leafCollector = collector.getLeafCollector(entry.context);
+                final LeafBucketCollector leafCollector = collector.getLeafCollector(entry.aggCtx);
                 DocIdSetIterator scoreIt = null;
                 if (needsScores) {
-                    Scorer scorer = weight.scorer(entry.context);
+                    Scorer scorer = weight.scorer(entry.aggCtx.getLeafReaderContext());
                     // We don't need to check if the scorer is null
                     // since we are sure that there are documents to replay (entry.docDeltas it not empty).
                     scoreIt = scorer.iterator();
@@ -210,7 +209,6 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
      */
     @Override
     public Aggregator wrap(final Aggregator in) {
-
         return new WrappedAggregator(in) {
             @Override
             public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
@@ -229,4 +227,87 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
         };
     }
 
+    /**
+     * Merge or prune the selected buckets.
+     * <p>
+     * This process rebuilds some packed structures and is O(number_of_collected_docs) so
+     * do your best to skip calling it unless you need it.
+     *
+     * @param howToRewrite a unary operator which maps a bucket's ordinal to the ordinal it has
+     *   after this process. If a bucket's ordinal is mapped to -1 then the bucket is removed entirely.
+     */
+    public void rewriteBuckets(LongUnaryOperator howToRewrite) {
+        List<Entry> newEntries = new ArrayList<>(entries.size());
+        for (Entry sourceEntry : entries) {
+            PackedLongValues.Builder newBuckets = PackedLongValues.packedBuilder(PackedInts.DEFAULT);
+            PackedLongValues.Builder newDocDeltas = PackedLongValues.packedBuilder(PackedInts.DEFAULT);
+            PackedLongValues.Iterator docDeltasItr = sourceEntry.docDeltas.iterator();
+
+            long lastGoodDelta = 0;
+            for (PackedLongValues.Iterator itr = sourceEntry.buckets.iterator(); itr.hasNext();) {
+                long bucket = itr.next();
+                assert docDeltasItr.hasNext();
+                long delta = docDeltasItr.next();
+
+                // Only merge in the ordinal if it hasn't been "removed", signified with -1
+                long ordinal = howToRewrite.applyAsLong(bucket);
+
+                if (ordinal != -1) {
+                    newBuckets.add(ordinal);
+                    newDocDeltas.add(delta + lastGoodDelta);
+                    lastGoodDelta = 0;
+                } else {
+                    // we are skipping this ordinal, which means we need to accumulate the
+                    // doc delta's since the last "good" delta
+                    lastGoodDelta += delta;
+                }
+            }
+            // Only create an entry if this segment has buckets after merging
+            if (newBuckets.size() > 0) {
+                assert newDocDeltas.size() > 0 : "docDeltas was empty but we had buckets";
+                newEntries.add(new Entry(sourceEntry.aggCtx, newDocDeltas.build(), newBuckets.build()));
+            }
+        }
+        entries = newEntries;
+
+        // if there are buckets that have been collected in the current segment
+        // we need to update the bucket ordinals there too
+        if (bucketsBuilder != null && bucketsBuilder.size() > 0) {
+            PackedLongValues currentBuckets = bucketsBuilder.build();
+            PackedLongValues.Builder newBuckets = PackedLongValues.packedBuilder(PackedInts.DEFAULT);
+            PackedLongValues.Builder newDocDeltas = PackedLongValues.packedBuilder(PackedInts.DEFAULT);
+
+            // The current segment's deltas aren't built yet, so build to a temp object
+            PackedLongValues currentDeltas = docDeltasBuilder.build();
+            PackedLongValues.Iterator docDeltasItr = currentDeltas.iterator();
+
+            long lastGoodDelta = 0;
+            for (PackedLongValues.Iterator itr = currentBuckets.iterator(); itr.hasNext();) {
+                long bucket = itr.next();
+                assert docDeltasItr.hasNext();
+                long delta = docDeltasItr.next();
+                long ordinal = howToRewrite.applyAsLong(bucket);
+
+                // Only merge in the ordinal if it hasn't been "removed", signified with -1
+                if (ordinal != -1) {
+                    newBuckets.add(ordinal);
+                    newDocDeltas.add(delta + lastGoodDelta);
+                    lastGoodDelta = 0;
+                } else {
+                    // we are skipping this ordinal, which means we need to accumulate the
+                    // doc delta's since the last "good" delta.
+                    // The first is skipped because the original deltas are stored as offsets from first doc,
+                    // not offsets from 0
+                    lastGoodDelta += delta;
+                }
+            }
+            if (newDocDeltas.size() == 0) {
+                // We've decided not to keep *anything* in the current leaf so we should just pitch our state.
+                clearLeaf();
+            } else {
+                docDeltasBuilder = newDocDeltas;
+                bucketsBuilder = newBuckets;
+            }
+        }
+    }
 }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.notification.pagerduty;
 
@@ -23,16 +24,23 @@ import java.util.List;
  */
 public class PagerDutyService extends NotificationService<PagerDutyAccount> {
 
-    private static final Setting<String> SETTING_DEFAULT_ACCOUNT =
-            Setting.simpleString("xpack.notification.pagerduty.default_account", Property.Dynamic, Property.NodeScope);
+    private static final Setting<String> SETTING_DEFAULT_ACCOUNT = Setting.simpleString(
+        "xpack.notification.pagerduty.default_account",
+        Property.Dynamic,
+        Property.NodeScope
+    );
 
-    private static final Setting.AffixSetting<SecureString> SETTING_SECURE_SERVICE_API_KEY =
-            Setting.affixKeySetting("xpack.notification.pagerduty.account.", "secure_service_api_key",
-                    (key) -> SecureSetting.secureString(key, null));
+    private static final Setting.AffixSetting<SecureString> SETTING_SECURE_SERVICE_API_KEY = Setting.affixKeySetting(
+        "xpack.notification.pagerduty.account.",
+        "secure_service_api_key",
+        (key) -> SecureSetting.secureString(key, null)
+    );
 
-    private static final Setting.AffixSetting<Settings> SETTING_DEFAULTS =
-            Setting.affixKeySetting("xpack.notification.pagerduty.account.", "event_defaults",
-                    (key) -> Setting.groupSetting(key + ".", Property.Dynamic, Property.NodeScope));
+    private static final Setting.AffixSetting<Settings> SETTING_DEFAULTS = Setting.affixKeySetting(
+        "xpack.notification.pagerduty.account.",
+        "event_defaults",
+        (key) -> Setting.groupSetting(key + ".", Property.Dynamic, Property.NodeScope)
+    );
 
     private final HttpClient httpClient;
 

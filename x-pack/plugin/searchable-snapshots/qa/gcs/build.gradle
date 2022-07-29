@@ -1,5 +1,5 @@
-import org.elasticsearch.gradle.info.BuildParams
-import org.elasticsearch.gradle.MavenFilteringHack
+import org.apache.tools.ant.filters.ReplaceTokens
+import org.elasticsearch.gradle.internal.info.BuildParams
 
 import java.nio.file.Files
 import java.security.KeyPair
@@ -7,22 +7,18 @@ import java.security.KeyPairGenerator
 
 import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.rest-resources'
 
 final Project fixture = project(':test:fixtures:gcs-fixture')
-final Project repositoryPlugin = project(':plugins:repository-gcs')
 
 dependencies {
-  testImplementation project(path: xpackModule('searchable-snapshots'), configuration: 'testArtifacts')
-  testImplementation repositoryPlugin
+  javaRestTestImplementation(testArtifact(project(xpackModule('searchable-snapshots'))))
 }
 
 restResources {
   restApi {
-    includeCore 'indices', 'search', 'bulk', 'snapshot', 'nodes', '_common'
-    includeXpack 'searchable_snapshots'
+    include 'indices', 'search', 'bulk', 'snapshot', 'nodes', '_common', 'searchable_snapshots'
   }
 }
 
@@ -48,7 +44,7 @@ if (!gcsServiceAccount && !gcsBucket && !gcsBasePath) {
 tasks.register("createServiceAccountFile") {
   doLast {
     KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA")
-    keyPairGenerator.initialize(1024)
+    keyPairGenerator.initialize(2048)
     KeyPair keyPair = keyPairGenerator.generateKeyPair()
     String encodedKey = Base64.getEncoder().encodeToString(keyPair.private.getEncoded())
 
@@ -76,9 +72,9 @@ Map<String, Object> expansions = [
   'base_path': gcsBasePath + "_integration_tests"
 ]
 
-processTestResources {
+tasks.named("processTestResources").configure {
   inputs.properties(expansions)
-  MavenFilteringHack.filter(it, expansions)
+  filter("tokens" : expansions, ReplaceTokens.class)
 }
 
 if (useFixture) {
@@ -86,23 +82,20 @@ if (useFixture) {
   testFixtures.useFixture(fixture.path, 'gcs-fixture-other')
 }
 
-integTest {
-  dependsOn repositoryPlugin.bundlePlugin
+tasks.named("javaRestTest").configure {
   systemProperty 'test.gcs.bucket', gcsBucket
   nonInputProperties.systemProperty 'test.gcs.base_path', gcsBasePath + "_searchable_snapshots_tests" + BuildParams.testSeed
+
+  if (useFixture) {
+    dependsOn "createServiceAccountFile"
+  }
 }
 
-testClusters.integTest {
+testClusters.matching { it.name == "javaRestTest" }.configureEach {
   testDistribution = 'DEFAULT'
-  plugin repositoryPlugin.bundlePlugin.archiveFile
-
-  if (BuildParams.isSnapshotBuild() == false) {
-    systemProperty 'es.searchable_snapshots_feature_enabled', 'true'
-  }
 
   keystore 'gcs.client.searchable_snapshots.credentials_file', serviceAccountFile, IGNORE_VALUE
   if (useFixture) {
-    tasks.integTest.dependsOn createServiceAccountFile
     /* Use a closure on the string to delay evaluation until tests are executed */
     setting 'gcs.client.searchable_snapshots.endpoint', { "${-> fixtureAddress('gcs-fixture-other')}" }, IGNORE_VALUE
     setting 'gcs.client.searchable_snapshots.token_uri', { "${-> fixtureAddress('gcs-fixture-other')}/o/oauth2/token" }, IGNORE_VALUE
@@ -111,8 +104,15 @@ testClusters.integTest {
   }
 
   setting 'xpack.license.self_generated.type', 'trial'
+
+  setting 'xpack.searchable.snapshot.shared_cache.size', '16MB'
+  setting 'xpack.searchable.snapshot.shared_cache.region_size', '256KB'
+  setting 'xpack.searchable_snapshots.cache_fetch_async_thread_pool.keep_alive', '0ms'
+
+  setting 'xpack.security.enabled', 'false'
 }
 
+
 tasks.register("gcsThirdPartyTest")  {
-  dependsOn "integTest"
+  dependsOn "javaRestTest"
 }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.security.action.privilege;
@@ -23,7 +24,9 @@ public class DeletePrivilegesRequestTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
         final DeletePrivilegesRequest original = new DeletePrivilegesRequest(
-            randomAlphaOfLengthBetween(3, 8), generateRandomStringArray(5, randomIntBetween(3, 8), false, false));
+            randomAlphaOfLengthBetween(3, 8),
+            generateRandomStringArray(5, randomIntBetween(3, 8), false, false)
+        );
         original.setRefreshPolicy(randomFrom(WriteRequest.RefreshPolicy.values()));
 
         final BytesStreamOutput output = new BytesStreamOutput();
@@ -40,14 +43,14 @@ public class DeletePrivilegesRequestTests extends ESTestCase {
         assertValidationFailure(new DeletePrivilegesRequest("", null), "application name", "privileges");
         assertValidationFailure(new DeletePrivilegesRequest(null, new String[0]), "application name", "privileges");
         assertValidationFailure(new DeletePrivilegesRequest("", new String[0]), "application name", "privileges");
-        assertValidationFailure(new DeletePrivilegesRequest(null, new String[]{"all"}), "application name");
-        assertValidationFailure(new DeletePrivilegesRequest("", new String[]{"all"}), "application name");
+        assertValidationFailure(new DeletePrivilegesRequest(null, new String[] { "all" }), "application name");
+        assertValidationFailure(new DeletePrivilegesRequest("", new String[] { "all" }), "application name");
         assertValidationFailure(new DeletePrivilegesRequest("app", null), "privileges");
         assertValidationFailure(new DeletePrivilegesRequest("app", new String[0]), "privileges");
-        assertValidationFailure(new DeletePrivilegesRequest("app", new String[]{""}), "privileges");
+        assertValidationFailure(new DeletePrivilegesRequest("app", new String[] { "" }), "privileges");
 
-        assertThat(new DeletePrivilegesRequest("app", new String[]{"all"}).validate(), nullValue());
-        assertThat(new DeletePrivilegesRequest("app", new String[]{"all", "some"}).validate(), nullValue());
+        assertThat(new DeletePrivilegesRequest("app", new String[] { "all" }).validate(), nullValue());
+        assertThat(new DeletePrivilegesRequest("app", new String[] { "all", "some" }).validate(), nullValue());
     }
 
     private void assertValidationFailure(DeletePrivilegesRequest request, String... messages) {

@@ -1,11 +1,11 @@
 [[modules-scripting-painless-dispatch]]
 === How painless dispatches functions
 
-Painless uses receiver, name, and https://en.wikipedia.org/wiki/Arity[arity]
+Painless uses receiver, name, and {wikipedia}/Arity[arity]
 for method dispatch. For example, `s.foo(a, b)` is resolved by first getting
 the class of `s` and then looking up the method `foo` with two parameters. This
 is different from Groovy which uses the
-https://en.wikipedia.org/wiki/Multiple_dispatch[runtime types] of the
+{wikipedia}/Multiple_dispatch[runtime types] of the
 parameters and Java which uses the compile time types of the parameters.
 
 The consequence of this that Painless doesn't support overloaded methods like

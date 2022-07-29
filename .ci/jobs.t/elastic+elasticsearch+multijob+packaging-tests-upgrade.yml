@@ -1,0 +1,32 @@
+---
+- job:
+    name: elastic+elasticsearch+%BRANCH%+multijob+packaging-tests-upgrade
+    display-name: "elastic / elasticsearch # %BRANCH% - packaging upgrade tests"
+    description: "Testing of the Elasticsearch %BRANCH% branch packaging test upgrade support matrix.\n"
+    project-type: matrix
+    node: master
+    child-workspace: "/dev/shm/elastic+elasticsearch+%BRANCH%+multijob+packaging-tests-upgrade"
+    scm:
+      - git:
+          wipe-workspace: false
+    axes:
+      - axis:
+          type: label-expression
+          name: os
+          values:
+            - rocky-linux-8-packaging
+            - ubuntu-20.04-packaging
+      - axis:
+          type: yaml
+          filename: ".ci/bwcVersions"
+          name: BWC_VERSION
+    builders:
+      - inject:
+          properties-file: '.ci/java-versions.properties'
+          properties-content: |
+            JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA
+            RUNTIME_JAVA_HOME=$HOME/.java/$ES_RUNTIME_JAVA
+            JAVA16_HOME=$HOME/.java/openjdk16
+      - shell: |
+          #!/usr/local/bin/runbld --redirect-stderr
+          ./.ci/scripts/packaging-test.sh --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/ -Dbwc.checkout.align=true destructiveDistroUpgradeTest.v$BWC_VERSION

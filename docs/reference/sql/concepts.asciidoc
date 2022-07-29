@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[sql-concepts]]
 == Conventions and Terminology
 
@@ -9,7 +8,7 @@ NOTE: This documentation while trying to be complete, does assume the reader has
 
 As a general rule, {es-sql} as the name indicates provides a SQL interface to {es}. As such, it follows the SQL terminology and conventions first, whenever possible. However the backing engine itself is {es} for which {es-sql} was purposely created hence why features or concepts that are not available, or cannot be mapped correctly, in SQL appear
 in {es-sql}.
-Last but not least, {es-sql} tries to obey the https://en.wikipedia.org/wiki/Principle_of_least_astonishment[principle of least surprise], though as all things in the world, everything is relative.
+Last but not least, {es-sql} tries to obey the {wikipedia}/Principle_of_least_astonishment[principle of least surprise], though as all things in the world, everything is relative.
 
 === Mapping concepts across SQL and {es}
 
@@ -49,7 +48,7 @@ In practice this means that while in SQL one can potentially have multiple catal
 
 |`cluster`
 |`cluster` (federated)
-|Traditionally in SQL, _cluster_ refers to a single RDMBS instance which contains a number of ++catalog++s or ++database++s (see above). The same word can be reused inside {es} as well however its semantic clarified a bit.
+|Traditionally in SQL, _cluster_ refers to a single RDBMS instance which contains a number of ++catalog++s or ++database++s (see above). The same word can be reused inside {es} as well however its semantic clarified a bit.
 
 While RDBMS tend to have only one running instance, on a single machine (_not_ distributed), {es} goes the opposite way and by default, is distributed and multi-instance.
 

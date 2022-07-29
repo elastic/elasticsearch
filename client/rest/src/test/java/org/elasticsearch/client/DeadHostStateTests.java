@@ -1,13 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
+ * Licensed to Elasticsearch B.V. under one or more contributor
  * license agreements. See the NOTICE file distributed with
  * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
+ * ownership. Elasticsearch B.V. licenses this file to you under
  * the Apache License, Version 2.0 (the "License"); you may
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -33,7 +33,7 @@ import static org.junit.Assert.fail;
 
 public class DeadHostStateTests extends RestClientTestCase {
 
-    private static long[] EXPECTED_TIMEOUTS_SECONDS = new long[]{60, 84, 120, 169, 240, 339, 480, 678, 960, 1357, 1800};
+    private static long[] EXPECTED_TIMEOUTS_SECONDS = new long[] { 60, 84, 120, 169, 240, 339, 480, 678, 960, 1357, 1800 };
 
     public void testInitialDeadHostStateDefaultTimeSupplier() {
         DeadHostState deadHostState = new DeadHostState(DeadHostState.DEFAULT_TIME_SUPPLIER);
@@ -75,12 +75,13 @@ public class DeadHostStateTests extends RestClientTestCase {
 
     public void testCompareToDifferingTimeSupplier() {
         try {
-            new DeadHostState(DeadHostState.DEFAULT_TIME_SUPPLIER).compareTo(
-                    new DeadHostState(() -> 0L));
+            new DeadHostState(DeadHostState.DEFAULT_TIME_SUPPLIER).compareTo(new DeadHostState(() -> 0L));
             fail("expected failure");
         } catch (IllegalArgumentException e) {
-            assertEquals("can't compare DeadHostStates holding different time suppliers as they may " +
-            "be based on different clocks", e.getMessage());
+            assertEquals(
+                "can't compare DeadHostStates holding different time suppliers as they may " + "be based on different clocks",
+                e.getMessage()
+            );
         }
     }
 
@@ -112,12 +113,14 @@ public class DeadHostStateTests extends RestClientTestCase {
             assertThat(TimeUnit.NANOSECONDS.toSeconds(previous.getDeadUntilNanos()), equalTo(expectedTimeoutsSecond));
             previous = new DeadHostState(previous);
         }
-        //check that from here on the timeout does not increase
+        // check that from here on the timeout does not increase
         int iters = randomIntBetween(5, 30);
         for (int i = 0; i < iters; i++) {
             DeadHostState deadHostState = new DeadHostState(previous);
-            assertThat(TimeUnit.NANOSECONDS.toSeconds(deadHostState.getDeadUntilNanos()),
-                    equalTo(EXPECTED_TIMEOUTS_SECONDS[EXPECTED_TIMEOUTS_SECONDS.length - 1]));
+            assertThat(
+                TimeUnit.NANOSECONDS.toSeconds(deadHostState.getDeadUntilNanos()),
+                equalTo(EXPECTED_TIMEOUTS_SECONDS[EXPECTED_TIMEOUTS_SECONDS.length - 1])
+            );
             previous = deadHostState;
         }
     }

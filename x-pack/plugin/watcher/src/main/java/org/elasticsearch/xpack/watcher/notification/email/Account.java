@@ -1,20 +1,30 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.notification.email;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.watcher.crypto.CryptoService;
+
+import java.security.AccessController;
+import java.security.PrivilegedAction;
+import java.security.PrivilegedActionException;
+import java.security.PrivilegedExceptionAction;
+import java.util.Objects;
+import java.util.Properties;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.activation.CommandMap;
 import javax.activation.MailcapCommandMap;
@@ -25,13 +35,6 @@ import javax.mail.internet.InternetAddress;
 import javax.mail.internet.MimeMessage;
 import javax.net.SocketFactory;
 import javax.net.ssl.SSLSocketFactory;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
-import java.util.Properties;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.watcher.WatcherField.EMAIL_NOTIFICATION_SSL_PREFIX;
 
@@ -62,10 +65,10 @@ public class Account {
     public static void init() {}
 
     static final Settings DEFAULT_SMTP_TIMEOUT_SETTINGS = Settings.builder()
-            .put("connection_timeout", TimeValue.timeValueMinutes(2))
-            .put("write_timeout", TimeValue.timeValueMinutes(2))
-            .put("timeout", TimeValue.timeValueMinutes(2))
-            .build();
+        .put("connection_timeout", TimeValue.timeValueMinutes(2))
+        .put("write_timeout", TimeValue.timeValueMinutes(2))
+        .put("timeout", TimeValue.timeValueMinutes(2))
+        .build();
 
     private final Config config;
     private final CryptoService cryptoService;
@@ -136,8 +139,9 @@ public class Account {
                 // unprivileged code such as scripts do not have SpecialPermission
                 sm.checkPermission(new SpecialPermission());
             }
-            contextClassLoader = AccessController.doPrivileged((PrivilegedAction<ClassLoader>) () ->
-                    Thread.currentThread().getContextClassLoader());
+            contextClassLoader = AccessController.doPrivileged(
+                (PrivilegedAction<ClassLoader>) () -> Thread.currentThread().getContextClassLoader()
+            );
             // if we cannot get the context class loader, changing does not make sense, as we run into the danger of not being able to
             // change it back
             if (contextClassLoader != null) {
@@ -200,14 +204,19 @@ public class Account {
                 throw new SettingsException(msg);
             }
             if (sslSocketFactory != null) {
-                String sslKeys = smtp.properties.keySet().stream()
+                String sslKeys = smtp.properties.keySet()
+                    .stream()
                     .map(String::valueOf)
                     .filter(key -> key.startsWith("mail.smtp.ssl."))
                     .collect(Collectors.joining(","));
                 if (sslKeys.isEmpty() == false) {
-                    logger.warn("The SMTP SSL settings [{}] that are configured for Account [{}]" +
-                            " will be ignored due to the notification SSL settings in [{}]",
-                        sslKeys, name, EMAIL_NOTIFICATION_SSL_PREFIX);
+                    logger.warn(
+                        "The SMTP SSL settings [{}] that are configured for Account [{}]"
+                            + " will be ignored due to the notification SSL settings in [{}]",
+                        sslKeys,
+                        name,
+                        EMAIL_NOTIFICATION_SSL_PREFIX
+                    );
                 }
                 smtp.setSocketFactory(sslSocketFactory);
             }
@@ -231,7 +240,7 @@ public class Account {
                 port = settings.getAsInt("port", settings.getAsInt("localport", settings.getAsInt("local_port", 25)));
                 user = settings.get("user", settings.get("from", null));
                 password = getSecureSetting(settings, SECURE_PASSWORD_SETTING);
-                //password = passStr != null ? passStr.toCharArray() : null;
+                // password = passStr != null ? passStr.toCharArray() : null;
                 properties = loadSmtpProperties(settings);
             }
 
@@ -357,20 +366,20 @@ public class Account {
 
             @Override
             public boolean equals(Object o) {
-                if (this == o) return true;
-                if (o == null || getClass() != o.getClass()) return false;
-
+                if (this == o) {
+                    return true;
+                }
+                if (o == null || getClass() != o.getClass()) {
+                    return false;
+                }
                 EmailDefaults that = (EmailDefaults) o;
-
-                if (bcc != null ? !bcc.equals(that.bcc) : that.bcc != null) return false;
-                if (cc != null ? !cc.equals(that.cc) : that.cc != null) return false;
-                if (from != null ? !from.equals(that.from) : that.from != null) return false;
-                if (priority != that.priority) return false;
-                if (replyTo != null ? !replyTo.equals(that.replyTo) : that.replyTo != null) return false;
-                if (subject != null ? !subject.equals(that.subject) : that.subject != null) return false;
-                if (to != null ? !to.equals(that.to) : that.to != null) return false;
-
-                return true;
+                return Objects.equals(bcc, that.bcc)
+                    && Objects.equals(cc, that.cc)
+                    && Objects.equals(from, that.from)
+                    && priority == that.priority
+                    && Objects.equals(replyTo, that.replyTo)
+                    && Objects.equals(subject, that.subject)
+                    && Objects.equals(to, that.to);
             }
 
             @Override

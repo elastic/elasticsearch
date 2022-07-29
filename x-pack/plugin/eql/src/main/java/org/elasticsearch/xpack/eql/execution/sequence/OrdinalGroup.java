@@ -1,101 +1,89 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.execution.sequence;
 
-import org.elasticsearch.common.collect.Tuple;
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.eql.execution.search.Ordinal;
 
 import java.util.Iterator;
 import java.util.LinkedList;
-import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
-/** List of in-flight ordinals for a given key. For fast lookup, typically associated with a stage. */
-abstract class OrdinalGroup<E> implements Iterable<Ordinal> {
+/**
+ * List of in-flight ordinals for a given key. For fast lookup, typically associated with a stage.
+ * this class expects the insertion to be ordered
+ */
+abstract class OrdinalGroup<E> implements Iterable<Ordinal>, Accountable {
 
-    private final SequenceKey key;
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(OrdinalGroup.class);
+
     private final Function<E, Ordinal> extractor;
 
     // NB: since the size varies significantly, use a LinkedList
     // Considering the order it might make sense to use a B-Tree+ for faster lookups which should work well with
     // timestamp compression (whose range is known for the current frame).
-    private final List<E> elements = new LinkedList<>();
-
-    /**
-     * index in the list used for resetting the insertion point
-     * it gets reset when dealing with descending queries since the data inserted is ascending in a page
-     * but descending compared to the previous stages.
-     */
-    private int insertPosition = 0;
-
-    private int hashCode = 0;
+    private final LinkedList<E> elements = new LinkedList<>();
 
     private Ordinal start, stop;
 
-    protected OrdinalGroup(SequenceKey key, Function<E, Ordinal> extractor) {
-        this.key = key;
-        hashCode = key.hashCode();
-
+    protected OrdinalGroup(Function<E, Ordinal> extractor) {
         this.extractor = extractor;
     }
 
-    SequenceKey key() {
-        return key;
-    }
-
     void add(E element) {
-        hashCode = 31 * hashCode + Objects.hashCode(element);
-
         Ordinal ordinal = extractor.apply(element);
-        if (start == null) {
+        if (start == null || start.compareTo(ordinal) > 0) {
             start = ordinal;
-        } else if (stop == null) {
-            stop = ordinal;
-        } else {
-            if (start.compareTo(ordinal) > 0) {
-                start = ordinal;
-            }
-            if (stop.compareTo(ordinal) < 0) {
-                stop = ordinal;
-            }
         }
-        // add element at the current position
-        elements.add(insertPosition++, element);
-    }
-
-    void resetInsertPosition() {
-        insertPosition = 0;
+        if (stop == null || stop.compareTo(ordinal) < 0) {
+            stop = ordinal;
+        }
+        elements.add(element);
     }
 
     /**
-     * Returns the latest element from the group that has its timestamp
+     * Returns the latest element from the group that has its ordinal
      * less than the given argument alongside its position in the list.
      * The element and everything before it is removed.
      */
     E trimBefore(Ordinal ordinal) {
+        return trimBefore(ordinal, true);
+    }
+
+    /**
+     * Returns the latest element from the group that has its ordinal
+     * less than the given argument alongside its position in the list.
+     * Everything before the found element is removed. The element is kept.
+     */
+    E trimBeforeLast(Ordinal ordinal) {
+        return trimBefore(ordinal, false);
+    }
+
+    private E trimBefore(Ordinal ordinal, boolean removeMatch) {
         Tuple<E, Integer> match = findBefore(ordinal);
 
         // trim
         if (match != null) {
-            int pos = match.v2() + 1;
-            elements.subList(0, pos).clear();
-
-            // update insert position
-            insertPosition = insertPosition - pos;
-            if (insertPosition < 0) {
-                insertPosition = 0;
+            int pos = match.v2();
+            if (removeMatch) {
+                pos = pos + 1;
             }
+            elements.subList(0, pos).clear();
 
             // update min time
             if (elements.isEmpty() == false) {
-                start = extractor.apply(elements.get(0));
+                start = extractor.apply(elements.peekFirst());
+                stop = extractor.apply(elements.peekLast());
             } else {
                 start = null;
                 stop = null;
@@ -148,10 +136,15 @@ abstract class OrdinalGroup<E> implements Iterable<Ordinal> {
     }
 
     @Override
-    public int hashCode() {
-        return key.hashCode();
+    public long ramBytesUsed() {
+        return SHALLOW_SIZE + RamUsageEstimator.sizeOfCollection(elements);
     }
-    
+
+    @Override
+    public int hashCode() {
+        return elements.hashCode();
+    }
+
     @Override
     public boolean equals(Object obj) {
         if (this == obj) {
@@ -163,12 +156,11 @@ abstract class OrdinalGroup<E> implements Iterable<Ordinal> {
         }
 
         OrdinalGroup<?> other = (OrdinalGroup<?>) obj;
-        return Objects.equals(key, other.key)
-                && Objects.equals(hashCode, other.hashCode);
+        return Objects.equals(elements, other.elements);
     }
 
     @Override
     public String toString() {
-        return format(null, "[{}][{}-{}]({} seqs)", key, start, stop, elements.size());
+        return format(null, "[{}-{}]({} seqs)", start, stop, elements.size());
     }
 }

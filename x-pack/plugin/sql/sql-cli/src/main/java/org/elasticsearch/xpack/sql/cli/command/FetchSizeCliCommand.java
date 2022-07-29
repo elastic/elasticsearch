@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.cli.command;
 
@@ -22,7 +23,7 @@ public class FetchSizeCliCommand extends AbstractCliCommand {
     @Override
     protected boolean doHandle(CliTerminal terminal, CliSession cliSession, Matcher m, String line) {
         try {
-            cliSession.setFetchSize(Integer.parseInt(m.group(1)));
+            cliSession.cfg().setFetchSize(Integer.parseInt(m.group(1)));
         } catch (NumberFormatException e) {
             terminal.line().error("Invalid fetch size [").param(m.group(1)).error("]").end();
             return true;
@@ -30,7 +31,7 @@ public class FetchSizeCliCommand extends AbstractCliCommand {
             terminal.line().error("Invalid fetch size [").param(m.group(1)).error("]. " + e.getMessage()).end();
             return true;
         }
-        terminal.line().text("fetch size set to ").em(Integer.toString(cliSession.getFetchSize())).end();
+        terminal.line().text("fetch size set to ").em(Integer.toString(cliSession.cfg().getFetchSize())).end();
         return true;
     }
 }

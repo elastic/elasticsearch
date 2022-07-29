@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
@@ -19,12 +20,10 @@ public class TestLifecycleType implements LifecycleType {
 
     public static final String TYPE = "test";
 
-    private TestLifecycleType() {
-    }
+    private TestLifecycleType() {}
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-    }
+    public void writeTo(StreamOutput out) throws IOException {}
 
     @Override
     public String getWriteableName() {
@@ -74,12 +73,14 @@ public class TestLifecycleType implements LifecycleType {
 
     @Override
     public String getNextActionName(String currentActionName, Phase phase) {
-        List<String> orderedActionNames = getOrderedActions(phase).stream().map(LifecycleAction::getWriteableName)
-                .collect(Collectors.toList());
+        List<String> orderedActionNames = getOrderedActions(phase).stream()
+            .map(LifecycleAction::getWriteableName)
+            .collect(Collectors.toList());
         int index = orderedActionNames.indexOf(currentActionName);
         if (index < 0) {
-            throw new IllegalArgumentException("[" + currentActionName + "] is not a valid action for phase [" + phase.getName()
-                    + "] in lifecycle type [" + TYPE + "]");
+            throw new IllegalArgumentException(
+                "[" + currentActionName + "] is not a valid action for phase [" + phase.getName() + "] in lifecycle type [" + TYPE + "]"
+            );
         } else if (index == orderedActionNames.size() - 1) {
             return null;
         } else {

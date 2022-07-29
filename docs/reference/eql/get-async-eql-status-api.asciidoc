@@ -1,0 +1,119 @@
+[role="xpack"]
+
+[[get-async-eql-status-api]]
+=== Get async EQL status API
+++++
+<titleabbrev>Get async EQL search status</titleabbrev>
+++++
+Returns the current status for an <<eql-search-async,async EQL search>> or
+a <<eql-search-store-sync-eql-search,stored synchronous EQL search>>
+without returning results. This is a more lightweight API than
+<<get-async-eql-search-api,get async EQL search API>> as it doesn't return
+search results, and reports only the status.
+
+If the {es} {security-features} are enabled, the access to the get async
+eql status API is restricted to the <<built-in-roles, monitoring_user role>>.
+
+[source,console]
+----
+GET /_eql/search/status/FkpMRkJGS1gzVDRlM3g4ZzMyRGlLbkEaTXlJZHdNT09TU2VTZVBoNDM3cFZMUToxMDM=
+----
+// TEST[skip: no access to search ID]
+
+[[get-async-eql-status-api-request]]
+==== {api-request-title}
+
+`GET /_eql/search/status/<search_id>`
+
+
+[[get-async-eql-status-api-path-params]]
+==== {api-path-parms-title}
+
+`<search_id>`::
+(Required, string)
+Identifier for the search.
++
+A search ID is provided in the <<eql-search-api,EQL search API>>'s response for
+an <<eql-search-async,async search>>. A search ID is also provided if the
+request's <<eql-search-api-keep-on-completion,`keep_on_completion`>> parameter
+is `true`.
+
+[role="child_attributes"]
+[[get-async-eql-status-api-response-body]]
+==== {api-response-body-title}
+
+`id`::
+(string)
+Identifier for the search.
+
+`is_running`::
+(boolean)
+If `true`, the search request is still executing.
+If `false`, the search is completed.
+
+`is_partial`::
+(boolean)
+If `true`, the response does not contain complete search results.
+This could be because either the search is still running
+(`is_running` status is `false`), or because it is already completed
+(`is_running` status is `true`)  and results are partial due to
+failures or timeouts.
+
+`start_time_in_millis`::
+(Long)
+For a running search shows a timestamp when the eql search
+started, in milliseconds since the Unix epoch.
+
+`expiration_time_in_millis`::
+(long)
+Shows a timestamp when the eql search will be expired, in milliseconds
+since the Unix epoch. When this time is reached, the search and its results
+are deleted, even if the search is still ongoing.
+
+`completion_status`::
+(Integer)
+For a completed search shows the http status code of the completed
+search.
+
+
+[[eql-status-api-example]]
+==== {api-examples-title}
+
+[source,console]
+----
+GET /_eql/search/status/FmNJRUZ1YWZCU3dHY1BIOUhaenVSRkEaaXFlZ3h4c1RTWFNocDdnY2FSaERnUTozNDE=?keep_alive=5d
+----
+// TEST[skip: no access to search ID]
+
+If the search is still running, the status response has the following form:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "id" : "FmNJRUZ1YWZCU3dHY1BIOUhaenVSRkEaaXFlZ3h4c1RTWFNocDdnY2FSaERnUTozNDE=",
+  "is_running" : true,
+  "is_partial" : true,
+  "start_time_in_millis" : 1611690235000,
+  "expiration_time_in_millis" : 1611690295000
+
+}
+--------------------------------------------------
+// TEST[skip: no access to search ID]
+
+If the search is completed the status response doesn't have
+`start_time_in_millis`, but has an additional `completion_status`
+field that shows the status code of the completed eql search:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "id" : "FmNJRUZ1YWZCU3dHY1BIOUhaenVSRkEaaXFlZ3h4c1RTWFNocDdnY2FSaERnUTozNDE=",
+  "is_running" : false,
+  "is_partial" : false,
+  "expiration_time_in_millis" : 1611690295000,
+  "completion_status" : 200 <1>
+}
+--------------------------------------------------
+// TEST[skip: no access to search ID]
+
+<1> Indicates that the eql search was successfully completed

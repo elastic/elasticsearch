@@ -1,0 +1,84 @@
+setup:
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              location:
+                type: geo_point
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"location": {"lat" : 40.7128, "lon" : -74.0060}, "name": "New York", "population": 8623000}'
+          - '{"index": {}}'
+          - '{"location": {"lat" : 34.0522, "lon" : -118.2437}, "name": "Los Angeles", "population": 4000000}'
+          - '{"index": {}}'
+          - '{"location": {"lat" : 41.8781, "lon" : -87.6298}, "name": "Chicago", "population": 2716000}'
+
+---
+"basic":
+  - do:
+      search:
+        body:
+          size: 0
+          aggs:
+            distance:
+              geo_distance:
+                field: location
+                origin: "POINT (-78.6382 35.7796)"
+                ranges:
+                  - to: 1000000
+                  - from: 1000000
+                    to: 5000000
+                  - from: 5000000
+  - match: { hits.total.value: 3 }
+  - length: { aggregations.distance.buckets: 3 }
+  - match: { aggregations.distance.buckets.0.key: "*-1000000.0" }
+  - match: { aggregations.distance.buckets.0.doc_count: 1 }
+  - match: { aggregations.distance.buckets.1.key: "1000000.0-5000000.0" }
+  - match: { aggregations.distance.buckets.1.doc_count: 2 }
+  - match: { aggregations.distance.buckets.2.key: "5000000.0-*" }
+  - match: { aggregations.distance.buckets.2.doc_count: 0 }
+
+---
+"avg_bucket":
+  - skip:
+      version: " - 7.7.99"
+      reason: Fixed in 7.8.0
+  - do:
+      search:
+        body:
+          size: 0
+          aggs:
+            distance:
+              geo_distance:
+                field: location
+                origin: "POINT (-78.6382 35.7796)"
+                ranges:
+                  - to: 1000000
+                  - from: 1000000
+                    to: 5000000
+                  - from: 5000000
+              aggs:
+                total_population:
+                  sum:
+                    field: population
+            avg_total_population:
+              avg_bucket:
+                buckets_path: distance.total_population
+  - match: { hits.total.value: 3 }
+  - length: { aggregations.distance.buckets: 3 }
+  - match: { aggregations.distance.buckets.0.key: "*-1000000.0" }
+  - match: { aggregations.distance.buckets.0.doc_count: 1 }
+  - match: { aggregations.distance.buckets.0.total_population.value: 8623000.0 }
+  - match: { aggregations.distance.buckets.1.key: "1000000.0-5000000.0" }
+  - match: { aggregations.distance.buckets.1.doc_count: 2 }
+  - match: { aggregations.distance.buckets.1.total_population.value: 6716000.0 }
+  - match: { aggregations.distance.buckets.2.key: "5000000.0-*" }
+  - match: { aggregations.distance.buckets.2.doc_count: 0 }
+  - match: { aggregations.distance.buckets.2.total_population.value: 0 }
+  - match: { aggregations.avg_total_population.value: 7669500.0 }

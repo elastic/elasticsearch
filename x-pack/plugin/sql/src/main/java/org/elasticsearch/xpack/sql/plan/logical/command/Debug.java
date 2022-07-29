@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.plan.logical.command;
 
@@ -34,11 +35,13 @@ import static org.elasticsearch.action.ActionListener.wrap;
 public class Debug extends Command {
 
     public enum Type {
-        ANALYZED, OPTIMIZED;
+        ANALYZED,
+        OPTIMIZED;
     }
 
     public enum Format {
-        TEXT, GRAPHVIZ
+        TEXT,
+        GRAPHVIZ
     }
 
     private final LogicalPlan plan;
@@ -77,15 +80,12 @@ public class Debug extends Command {
     @Override
     public void execute(SqlSession session, ActionListener<Page> listener) {
         switch (type) {
-            case ANALYZED:
-                session.debugAnalyzedPlan(plan, wrap(i -> handleInfo(i, listener), listener::onFailure));
-                break;
-            case OPTIMIZED:
-                session.analyzedPlan(plan, true,
-                        wrap(analyzedPlan -> handleInfo(session.optimizer().debugOptimize(analyzedPlan), listener), listener::onFailure));
-                break;
-            default:
-                break;
+            case ANALYZED -> session.debugAnalyzedPlan(plan, wrap(i -> handleInfo(i, listener), listener::onFailure));
+            case OPTIMIZED -> session.analyzedPlan(
+                plan,
+                true,
+                wrap(analyzedPlan -> handleInfo(session.optimizer().debugOptimize(analyzedPlan), listener), listener::onFailure)
+            );
         }
     }
 

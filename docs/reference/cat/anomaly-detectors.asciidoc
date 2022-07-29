@@ -1,10 +1,17 @@
 [role="xpack"]
-[testenv="platinum"]
 [[cat-anomaly-detectors]]
 === cat anomaly detectors API
 ++++
 <titleabbrev>cat anomaly detectors</titleabbrev>
 ++++
+
+[IMPORTANT]
+====
+cat APIs are only intended for human consumption using the command line or {kib} 
+console. They are _not_ intended for use by applications. For application 
+consumption, use the 
+<<ml-get-job-stats,get anomaly detection job statistics API>>.
+====
 
 Returns configuration and usage information about {anomaly-jobs}.
 
@@ -26,9 +33,10 @@ Returns configuration and usage information about {anomaly-jobs}.
 [[cat-anomaly-detectors-desc]]
 ==== {api-description-title}
 
-See {ml-docs}/ml-jobs.html[{anomaly-jobs-cap}].
-
 NOTE: This API returns a maximum of 10,000 jobs.
+
+For more information about {anomaly-detect}, see
+{ml-docs}/ml-ad-finding-anomalies.html[Finding anomalies].
 
 [[cat-anomaly-detectors-path-params]]
 ==== {api-path-parms-title}
@@ -41,8 +49,8 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 ==== {api-query-parms-title}
 
 `allow_no_match`::
-(Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-jobs]
+(Optional, Boolean)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-match-jobs]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bytes]
 
@@ -268,7 +276,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
 [source,console]
 --------------------------------------------------
-GET _cat/ml/anomaly_detectors?h=id,s,dpr,mb&v
+GET _cat/ml/anomaly_detectors?h=id,s,dpr,mb&v=true
 --------------------------------------------------
 // TEST[skip:kibana sample data]
 

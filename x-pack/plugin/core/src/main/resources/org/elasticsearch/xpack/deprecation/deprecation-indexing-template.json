@@ -1,0 +1,17 @@
+{
+  "index_patterns": [".logs-deprecation.*"],
+  "priority": 1000,
+  "data_stream": {
+    "hidden": true
+  },
+  "composed_of": [
+    ".deprecation-indexing-mappings",
+    ".deprecation-indexing-settings"
+  ],
+  "allow_auto_create": true,
+  "_meta": {
+    "description": "default template for Stack deprecation logs index template installed by x-pack",
+    "managed": true
+  },
+  "version": ${xpack.deprecation.indexing.template.version}
+}

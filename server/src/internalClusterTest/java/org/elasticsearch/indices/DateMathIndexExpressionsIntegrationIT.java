@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.indices;
@@ -31,9 +20,9 @@ import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
 
 import java.time.ZoneOffset;
@@ -63,8 +52,10 @@ public class DateMathIndexExpressionsIntegrationIT extends ESIntegTestCase {
      * the day did not change during the test run.
      */
     public <Q extends ActionRequest, R extends ActionResponse> R dateSensitiveGet(ActionRequestBuilder<Q, R> builder) {
-        Runnable dayChangeAssumption = () -> assumeTrue("day changed between requests",
-            ZonedDateTime.now(ZoneOffset.UTC).getDayOfYear() == now.getDayOfYear());
+        Runnable dayChangeAssumption = () -> assumeTrue(
+            "day changed between requests",
+            ZonedDateTime.now(ZoneOffset.UTC).getDayOfYear() == now.getDayOfYear()
+        );
         R response;
         try {
             response = builder.get();
@@ -87,7 +78,6 @@ public class DateMathIndexExpressionsIntegrationIT extends ESIntegTestCase {
         assertEquals(index1, getSettingsResponse.getSetting(index1, IndexMetadata.SETTING_INDEX_PROVIDED_NAME));
         assertEquals(index2, getSettingsResponse.getSetting(index2, IndexMetadata.SETTING_INDEX_PROVIDED_NAME));
         assertEquals(index3, getSettingsResponse.getSetting(index3, IndexMetadata.SETTING_INDEX_PROVIDED_NAME));
-
 
         String dateMathExp1 = "<.marvel-{now/d}>";
         String dateMathExp2 = "<.marvel-{now/d-1d}>";
@@ -113,10 +103,9 @@ public class DateMathIndexExpressionsIntegrationIT extends ESIntegTestCase {
         assertThat(getResponse.isExists(), is(true));
         assertThat(getResponse.getId(), equalTo("3"));
 
-        MultiGetResponse mgetResponse = dateSensitiveGet(client().prepareMultiGet()
-            .add(dateMathExp1, "1")
-            .add(dateMathExp2, "2")
-            .add(dateMathExp3, "3"));
+        MultiGetResponse mgetResponse = dateSensitiveGet(
+            client().prepareMultiGet().add(dateMathExp1, "1").add(dateMathExp2, "2").add(dateMathExp3, "3")
+        );
         assertThat(mgetResponse.getResponses()[0].getResponse().isExists(), is(true));
         assertThat(mgetResponse.getResponses()[0].getResponse().getId(), equalTo("1"));
         assertThat(mgetResponse.getResponses()[1].getResponse().isExists(), is(true));
@@ -124,8 +113,9 @@ public class DateMathIndexExpressionsIntegrationIT extends ESIntegTestCase {
         assertThat(mgetResponse.getResponses()[2].getResponse().isExists(), is(true));
         assertThat(mgetResponse.getResponses()[2].getResponse().getId(), equalTo("3"));
 
-        IndicesStatsResponse indicesStatsResponse =
-            dateSensitiveGet(client().admin().indices().prepareStats(dateMathExp1, dateMathExp2, dateMathExp3));
+        IndicesStatsResponse indicesStatsResponse = dateSensitiveGet(
+            client().admin().indices().prepareStats(dateMathExp1, dateMathExp2, dateMathExp3)
+        );
         assertThat(indicesStatsResponse.getIndex(index1), notNullValue());
         assertThat(indicesStatsResponse.getIndex(index2), notNullValue());
         assertThat(indicesStatsResponse.getIndex(index3), notNullValue());
@@ -160,8 +150,9 @@ public class DateMathIndexExpressionsIntegrationIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 3);
         assertSearchHits(searchResponse, "1", "2", "3");
 
-        IndicesStatsResponse indicesStatsResponse =
-            dateSensitiveGet(client().admin().indices().prepareStats(dateMathExp1, dateMathExp2, dateMathExp3));
+        IndicesStatsResponse indicesStatsResponse = dateSensitiveGet(
+            client().admin().indices().prepareStats(dateMathExp1, dateMathExp2, dateMathExp3)
+        );
         assertThat(indicesStatsResponse.getIndex(index1), notNullValue());
         assertThat(indicesStatsResponse.getIndex(index2), notNullValue());
         assertThat(indicesStatsResponse.getIndex(index3), notNullValue());

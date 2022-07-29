@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.notification.email.attachment;
 
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.watcher.common.http.HttpProxy;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.watcher.common.http.BasicAuth;
+import org.elasticsearch.xpack.watcher.common.http.HttpProxy;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -32,8 +33,15 @@ public class ReportingAttachment implements EmailAttachmentParser.EmailAttachmen
     private final Integer retries;
     private final HttpProxy proxy;
 
-    ReportingAttachment(String id, String url, boolean inline, @Nullable TimeValue interval, @Nullable Integer retries,
-                        @Nullable BasicAuth auth, @Nullable HttpProxy proxy) {
+    ReportingAttachment(
+        String id,
+        String url,
+        boolean inline,
+        @Nullable TimeValue interval,
+        @Nullable Integer retries,
+        @Nullable BasicAuth auth,
+        @Nullable HttpProxy proxy
+    ) {
         this.id = id;
         this.url = url;
         this.retries = retries;
@@ -83,15 +91,14 @@ public class ReportingAttachment implements EmailAttachmentParser.EmailAttachmen
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(id).startObject(ReportingAttachmentParser.TYPE)
-                .field(URL.getPreferredName(), url);
+        builder.startObject(id).startObject(ReportingAttachmentParser.TYPE).field(URL.getPreferredName(), url);
 
         if (retries != null) {
             builder.field(RETRIES.getPreferredName(), retries);
         }
 
         if (interval != null) {
-            builder.field(INTERVAL.getPreferredName(), interval);
+            builder.field(INTERVAL.getPreferredName(), interval.getStringRep());
         }
 
         if (inline) {
@@ -117,10 +124,13 @@ public class ReportingAttachment implements EmailAttachmentParser.EmailAttachmen
         if (o == null || getClass() != o.getClass()) return false;
 
         ReportingAttachment otherAttachment = (ReportingAttachment) o;
-        return Objects.equals(id, otherAttachment.id) && Objects.equals(url, otherAttachment.url) &&
-               Objects.equals(interval, otherAttachment.interval) && Objects.equals(inline, otherAttachment.inline) &&
-               Objects.equals(retries, otherAttachment.retries) && Objects.equals(auth, otherAttachment.auth) &&
-               Objects.equals(proxy, otherAttachment.proxy);
+        return Objects.equals(id, otherAttachment.id)
+            && Objects.equals(url, otherAttachment.url)
+            && Objects.equals(interval, otherAttachment.interval)
+            && Objects.equals(inline, otherAttachment.inline)
+            && Objects.equals(retries, otherAttachment.retries)
+            && Objects.equals(auth, otherAttachment.auth)
+            && Objects.equals(proxy, otherAttachment.proxy);
     }
 
     @Override

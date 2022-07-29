@@ -1,0 +1,57 @@
+{
+  "ml.stop_datafeed":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-stop-datafeed.html",
+      "description":"Stops one or more datafeeds."
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_ml/datafeeds/{datafeed_id}/_stop",
+          "methods":[
+            "POST"
+          ],
+          "parts":{
+            "datafeed_id":{
+              "type":"string",
+              "description":"The ID of the datafeed to stop"
+            }
+          }
+        }
+      ]
+    },
+    "params":{
+      "allow_no_match":{
+        "type":"boolean",
+        "required":false,
+        "description":"Whether to ignore if a wildcard expression matches no datafeeds. (This includes `_all` string or when no datafeeds have been specified)"
+      },
+      "allow_no_datafeeds":{
+        "type":"boolean",
+        "required":false,
+        "description":"Whether to ignore if a wildcard expression matches no datafeeds. (This includes `_all` string or when no datafeeds have been specified)",
+        "deprecated":true
+      },
+      "force":{
+        "type":"boolean",
+        "required":false,
+        "description":"True if the datafeed should be forcefully stopped."
+      },
+      "timeout":{
+        "type":"time",
+        "required":false,
+        "description":"Controls the time to wait until a datafeed has stopped. Default to 20 seconds"
+      }
+    },
+    "body":{
+      "description":"The URL params optionally sent in the body",
+      "required":false
+    }
+  }
+}

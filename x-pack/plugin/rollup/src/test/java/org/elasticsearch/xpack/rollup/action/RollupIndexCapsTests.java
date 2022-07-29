@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.rollup.action;
 
@@ -35,9 +36,10 @@ public class RollupIndexCapsTests extends ESTestCase {
         RollupIndexCaps caps = new RollupIndexCaps(ESTestCase.randomAlphaOfLength(10), jobs);
         assertTrue(caps.hasCaps());
 
-        List<String> jobCaps = caps.getJobCapsByIndexPattern(Metadata.ALL).stream()
-                .map(RollupJobCaps::getJobID)
-                .collect(Collectors.toList());
+        List<String> jobCaps = caps.getJobCapsByIndexPattern(Metadata.ALL)
+            .stream()
+            .map(RollupJobCaps::getJobID)
+            .collect(Collectors.toList());
         assertThat(jobCaps.size(), equalTo(2));
         assertTrue(jobCaps.contains("foo"));
         assertTrue(jobCaps.contains("bar"));
@@ -50,9 +52,10 @@ public class RollupIndexCapsTests extends ESTestCase {
         RollupIndexCaps caps = new RollupIndexCaps(ESTestCase.randomAlphaOfLength(10), jobs);
         assertTrue(caps.hasCaps());
 
-        List<String> jobCaps = caps.getJobCapsByIndexPattern("foo_index_pattern").stream()
-                .map(RollupJobCaps::getJobID)
-                .collect(Collectors.toList());
+        List<String> jobCaps = caps.getJobCapsByIndexPattern("foo_index_pattern")
+            .stream()
+            .map(RollupJobCaps::getJobID)
+            .collect(Collectors.toList());
         assertThat(jobCaps.size(), equalTo(1));
         assertTrue(jobCaps.contains("foo"));
         assertFalse(jobCaps.contains("bar"));

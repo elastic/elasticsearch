@@ -1,23 +1,16 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.indices.stats;
+
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.core.Nullable;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -31,11 +24,23 @@ public class IndexStats implements Iterable<IndexShardStats> {
 
     private final String uuid;
 
+    private final ClusterHealthStatus health;
+
+    private final IndexMetadata.State state;
+
     private final ShardStats shards[];
 
-    public IndexStats(String index, String uuid, ShardStats[] shards) {
+    public IndexStats(
+        String index,
+        String uuid,
+        @Nullable ClusterHealthStatus health,
+        @Nullable IndexMetadata.State state,
+        ShardStats[] shards
+    ) {
         this.index = index;
         this.uuid = uuid;
+        this.health = health;
+        this.state = state;
         this.shards = shards;
     }
 
@@ -45,6 +50,14 @@ public class IndexStats implements Iterable<IndexShardStats> {
 
     public String getUuid() {
         return uuid;
+    }
+
+    public ClusterHealthStatus getHealth() {
+        return health;
+    }
+
+    public IndexMetadata.State getState() {
+        return state;
     }
 
     public ShardStats[] getShards() {
@@ -59,17 +72,18 @@ public class IndexStats implements Iterable<IndexShardStats> {
         }
         Map<Integer, List<ShardStats>> tmpIndexShards = new HashMap<>();
         for (ShardStats shard : shards) {
-            List<ShardStats> lst = tmpIndexShards.get(shard.getShardRouting().id());
-            if (lst == null) {
-                lst = new ArrayList<>();
-                tmpIndexShards.put(shard.getShardRouting().id(), lst);
-            }
+            List<ShardStats> lst = tmpIndexShards.computeIfAbsent(shard.getShardRouting().id(), ignored -> new ArrayList<>());
             lst.add(shard);
         }
         indexShards = new HashMap<>();
         for (Map.Entry<Integer, List<ShardStats>> entry : tmpIndexShards.entrySet()) {
-            indexShards.put(entry.getKey(), new IndexShardStats(entry.getValue().get(0).getShardRouting().shardId(),
-                entry.getValue().toArray(new ShardStats[entry.getValue().size()])));
+            indexShards.put(
+                entry.getKey(),
+                new IndexShardStats(
+                    entry.getValue().get(0).getShardRouting().shardId(),
+                    entry.getValue().toArray(new ShardStats[entry.getValue().size()])
+                )
+            );
         }
         return indexShards;
     }
@@ -112,11 +126,15 @@ public class IndexStats implements Iterable<IndexShardStats> {
     public static class IndexStatsBuilder {
         private final String indexName;
         private final String uuid;
+        private final ClusterHealthStatus health;
+        private final IndexMetadata.State state;
         private final List<ShardStats> shards = new ArrayList<>();
 
-        public IndexStatsBuilder(String indexName, String uuid) {
+        public IndexStatsBuilder(String indexName, String uuid, @Nullable ClusterHealthStatus health, @Nullable IndexMetadata.State state) {
             this.indexName = indexName;
             this.uuid = uuid;
+            this.health = health;
+            this.state = state;
         }
 
         public IndexStatsBuilder add(ShardStats shardStats) {
@@ -125,7 +143,7 @@ public class IndexStats implements Iterable<IndexShardStats> {
         }
 
         public IndexStats build() {
-            return new IndexStats(indexName, uuid, shards.toArray(new ShardStats[shards.size()]));
+            return new IndexStats(indexName, uuid, health, state, shards.toArray(new ShardStats[shards.size()]));
         }
     }
 }

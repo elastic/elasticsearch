@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.support;
 
@@ -212,49 +213,52 @@ public class NoOpLogger implements Logger {
 
     @Override
     public void debug(
-            Marker marker,
-            String message,
-            Object p0,
-            Object p1,
-            Object p2,
-            Object p3,
-            Object p4,
-            Object p5,
-            Object p6,
-            Object p7) {
+        Marker marker,
+        String message,
+        Object p0,
+        Object p1,
+        Object p2,
+        Object p3,
+        Object p4,
+        Object p5,
+        Object p6,
+        Object p7
+    ) {
 
     }
 
     @Override
     public void debug(
-            Marker marker,
-            String message,
-            Object p0,
-            Object p1,
-            Object p2,
-            Object p3,
-            Object p4,
-            Object p5,
-            Object p6,
-            Object p7,
-            Object p8) {
+        Marker marker,
+        String message,
+        Object p0,
+        Object p1,
+        Object p2,
+        Object p3,
+        Object p4,
+        Object p5,
+        Object p6,
+        Object p7,
+        Object p8
+    ) {
 
     }
 
     @Override
     public void debug(
-            Marker marker,
-            String message,
-            Object p0,
-            Object p1,
-            Object p2,
-            Object p3,
-            Object p4,
-            Object p5,
-            Object p6,
-            Object p7,
-            Object p8,
-            Object p9) {
+        Marker marker,
+        String message,
+        Object p0,
+        Object p1,
+        Object p2,
+        Object p3,
+        Object p4,
+        Object p5,
+        Object p6,
+        Object p7,
+        Object p8,
+        Object p9
+    ) {
 
     }
 
@@ -305,17 +309,18 @@ public class NoOpLogger implements Logger {
 
     @Override
     public void debug(
-            String message,
-            Object p0,
-            Object p1,
-            Object p2,
-            Object p3,
-            Object p4,
-            Object p5,
-            Object p6,
-            Object p7,
-            Object p8,
-            Object p9) {
+        String message,
+        Object p0,
+        Object p1,
+        Object p2,
+        Object p3,
+        Object p4,
+        Object p5,
+        Object p6,
+        Object p7,
+        Object p8,
+        Object p9
+    ) {
 
     }
 
@@ -506,49 +511,52 @@ public class NoOpLogger implements Logger {
 
     @Override
     public void error(
-            Marker marker,
-            String message,
-            Object p0,
-            Object p1,
-            Object p2,
-            Object p3,
-            Object p4,
-            Object p5,
-            Object p6,
-            Object p7) {
+        Marker marker,
+        String message,
+        Object p0,
+        Object p1,
+        Object p2,
+        Object p3,
+        Object p4,
+        Object p5,
+        Object p6,
+        Object p7
+    ) {
 
     }
 
     @Override
     public void error(
-            Marker marker,
-            String message,
-            Object p0,
-            Object p1,
-            Object p2,
-            Object p3,
-            Object p4,
-            Object p5,
-            Object p6,
-            Object p7,
-            Object p8) {
+        Marker marker,
+        String message,
+        Object p0,
+        Object p1,
+        Object p2,
+        Object p3,
+        Object p4,
+        Object p5,
+        Object p6,
+        Object p7,
+        Object p8
+    ) {
 
     }
 
     @Override
     public void error(
-            Marker marker,
-            String message,
-            Object p0,
-            Object p1,
-            Object p2,
-            Object p3,
-            Object p4,
-            Object p5,
-            Object p6,
-            Object p7,
-            Object p8,
-            Object p9) {
+        Marker marker,
+        String message,
+        Object p0,
+        Object p1,
+        Object p2,
+        Object p3,
+        Object p4,
+        Object p5,
+        Object p6,
+        Object p7,
+        Object p8,
+        Object p9
+    ) {
 
     }
 
@@ -599,17 +607,18 @@ public class NoOpLogger implements Logger {
 
     @Override
     public void error(
-            String message,
-            Object p0,
-            Object p1,
-            Object p2,
-            Object p3,
-            Object p4,
-            Object p5,
-            Object p6,
-            Object p7,
-            Object p8,
-            Object p9) {
+        String message,
+        Object p0,
+        Object p1,
+        Object p2,
+        Object p3,
+        Object p4,
+        Object p5,
+        Object p6,
+        Object p7,
+        Object p8,
+        Object p9
+    ) {
 
     }
 
@@ -800,49 +809,52 @@ public class NoOpLogger implements Logger {
 
     @Override
     public void fatal(
-            Marker marker,
-            String message,
-            Object p0,
-            Object p1,
-            Object p2,
-            Object p3,
-            Object p4,
-            Object p5,
-            Object p6,
-            Object p7) {
+        Marker marker,
+        String message,
+        Object p0,
+        Object p1,
+        Object p2,
+        Object p3,
+        Object p4,
+        Object p5,
+        Object p6,
+        Object p7
+    ) {
 
     }
 
     @Override
     public void fatal(
-            Marker marker,
-            String message,
-            Object p0,
-            Object p1,
-            Object p2,
-            Object p3,
-            Object p4,
-            Object p5,
-            Object p6,
-            Object p7,
-            Object p8) {
+        Marker marker,
+        String message,
+        Object p0,
+        Object p1,
+        Object p2,
+        Object p3,
+        Object p4,
+        Object p5,
+        Object p6,
+        Object p7,
+        Object p8
+    ) {
 
     }
 
     @Override
     public void fatal(
-            Marker marker,
-            String message,
-            Object p0,
-            Object p1,
-            Object p2,
-            Object p3,
-            Object p4,
-            Object p5,
-            Object p6,
-            Object p7,
-            Object p8,
-            Object p9) {
+        Marker marker,
+        String message,
+        Object p0,
+        Object p1,
+        Object p2,
+        Object p3,
+        Object p4,
+        Object p5,
+        Object p6,
+        Object p7,
+        Object p8,
+        Object p9
+    ) {
 
     }
 
@@ -893,17 +905,18 @@ public class NoOpLogger implements Logger {
 
     @Override
     public void fatal(
-            String message,
-            Object p0,
-            Object p1,
-            Object p2,
-            Object p3,
-            Object p4,
-            Object p5,
-            Object p6,
-            Object p7,
-            Object p8,
-            Object p9) {
+        String message,
+        Object p0,
+        Object p1,
+        Object p2,
+        Object p3,
+        Object p4,
+        Object p5,
+        Object p6,
+        Object p7,
+        Object p8,
+        Object p9
+    ) {
 
     }
 
@@ -1099,49 +1112,52 @@ public class NoOpLogger implements Logger {
 
     @Override
     public void info(
-            Marker marker,
-            String message,
-            Object p0,
-            Object p1,
-            Object p2,
-            Object p3,
-            Object p4,
-            Object p5,
-            Object p6,
-            Object p7) {
+        Marker marker,
+        String message,
+        Object p0,
+        Object p1,
+        Object p2,
+        Object p3,
+        Object p4,
+        Object p5,
+        Object p6,
+        Object p7
+    ) {
 
     }
 
     @Override
     public void info(
-            Marker marker,
-            String message,
-            Object p0,
-            Object p1,
-            Object p2,
-            Object p3,
-            Object p4,
-            Object p5,
-            Object p6,
-            Object p7,
-            Object p8) {
+        Marker marker,
+        String message,
+        Object p0,
+        Object p1,
+        Object p2,
+        Object p3,
+        Object p4,
+        Object p5,
+        Object p6,
+        Object p7,
+        Object p8
+    ) {
 
     }
 
     @Override
     public void info(
-            Marker marker,
-            String message,
-            Object p0,
-            Object p1,
-            Object p2,
-            Object p3,
-            Object p4,
-            Object p5,
-            Object p6,
-            Object p7,
-            Object p8,
-            Object p9) {
+        Marker marker,
+        String message,
+        Object p0,
+        Object p1,
+        Object p2,
+        Object p3,
+        Object p4,
+        Object p5,
+        Object p6,
+        Object p7,
+        Object p8,
+        Object p9
+    ) {
 
     }
 
@@ -1192,17 +1208,18 @@ public class NoOpLogger implements Logger {
 
     @Override
     public void info(
-            String message,
-            Object p0,
-            Object p1,
-            Object p2,
-            Object p3,
-            Object p4,
-            Object p5,
-            Object p6,
-            Object p7,
-            Object p8,
-            Object p9) {
+        String message,
+        Object p0,
+        Object p1,
+        Object p2,
+        Object p3,
+        Object p4,
+        Object p5,
+        Object p6,
+        Object p7,
+        Object p8,
+        Object p9
+    ) {
 
     }
 
@@ -1448,67 +1465,71 @@ public class NoOpLogger implements Logger {
 
     @Override
     public void log(
-            Level level,
-            Marker marker,
-            String message,
-            Object p0,
-            Object p1,
-            Object p2,
-            Object p3,
-            Object p4,
-            Object p5,
-            Object p6) {
+        Level level,
+        Marker marker,
+        String message,
+        Object p0,
+        Object p1,
+        Object p2,
+        Object p3,
+        Object p4,
+        Object p5,
+        Object p6
+    ) {
 
     }
 
     @Override
     public void log(
-            Level level,
-            Marker marker,
-            String message,
-            Object p0,
-            Object p1,
-            Object p2,
-            Object p3,
-            Object p4,
-            Object p5,
-            Object p6,
-            Object p7) {
+        Level level,
+        Marker marker,
+        String message,
+        Object p0,
+        Object p1,
+        Object p2,
+        Object p3,
+        Object p4,
+        Object p5,
+        Object p6,
+        Object p7
+    ) {
 
     }
 
     @Override
     public void log(
-            Level level,
-            Marker marker,
-            String message,
-            Object p0,
-            Object p1,
-            Object p2,
-            Object p3,
-            Object p4,
-            Object p5,
-            Object p6,
-            Object p7,
-            Object p8) {
+        Level level,
+        Marker marker,
+        String message,
+        Object p0,
+        Object p1,
+        Object p2,
+        Object p3,
+        Object p4,
+        Object p5,
+        Object p6,
+        Object p7,
+        Object p8
+    ) {
 
     }
 
     @Override
     public void log(
-            Level level,
-            Marker marker,
-            String message,
-            Object p0,
-            Object p1,
-            Object p2,
-            Object p3,
-            Object p4,
-            Object p5,
-            Object p6,
-            Object p7,
-            Object p8,
-            Object p9) {
+        Level level,
+        Marker marker,
+        String message,
+        Object p0,
+        Object p1,
+        Object p2,
+        Object p3,
+        Object p4,
+        Object p5,
+        Object p6,
+        Object p7,
+        Object p8,
+        Object p9
+    ) {
 
     }
 
@@ -1554,34 +1575,36 @@ public class NoOpLogger implements Logger {
 
     @Override
     public void log(
-            Level level,
-            String message,
-            Object p0,
-            Object p1,
-            Object p2,
-            Object p3,
-            Object p4,
-            Object p5,
-            Object p6,
-            Object p7,
-            Object p8) {
+        Level level,
+        String message,
+        Object p0,
+        Object p1,
+        Object p2,
+        Object p3,
+        Object p4,
+        Object p5,
+        Object p6,
+        Object p7,
+        Object p8
+    ) {
 
     }
 
     @Override
     public void log(
-            Level level,
-            String message,
-            Object p0,
-            Object p1,
-            Object p2,
-            Object p3,
-            Object p4,
-            Object p5,
-            Object p6,
-            Object p7,
-            Object p8,
-            Object p9) {
+        Level level,
+        String message,
+        Object p0,
+        Object p1,
+        Object p2,
+        Object p3,
+        Object p4,
+        Object p5,
+        Object p6,
+        Object p7,
+        Object p8,
+        Object p9
+    ) {
 
     }
 
@@ -1782,49 +1805,52 @@ public class NoOpLogger implements Logger {
 
     @Override
     public void trace(
-            Marker marker,
-            String message,
-            Object p0,
-            Object p1,
-            Object p2,
-            Object p3,
-            Object p4,
-            Object p5,
-            Object p6,
-            Object p7) {
+        Marker marker,
+        String message,
+        Object p0,
+        Object p1,
+        Object p2,
+        Object p3,
+        Object p4,
+        Object p5,
+        Object p6,
+        Object p7
+    ) {
 
     }
 
     @Override
     public void trace(
-            Marker marker,
-            String message,
-            Object p0,
-            Object p1,
-            Object p2,
-            Object p3,
-            Object p4,
-            Object p5,
-            Object p6,
-            Object p7,
-            Object p8) {
+        Marker marker,
+        String message,
+        Object p0,
+        Object p1,
+        Object p2,
+        Object p3,
+        Object p4,
+        Object p5,
+        Object p6,
+        Object p7,
+        Object p8
+    ) {
 
     }
 
     @Override
     public void trace(
-            Marker marker,
-            String message,
-            Object p0,
-            Object p1,
-            Object p2,
-            Object p3,
-            Object p4,
-            Object p5,
-            Object p6,
-            Object p7,
-            Object p8,
-            Object p9) {
+        Marker marker,
+        String message,
+        Object p0,
+        Object p1,
+        Object p2,
+        Object p3,
+        Object p4,
+        Object p5,
+        Object p6,
+        Object p7,
+        Object p8,
+        Object p9
+    ) {
 
     }
 
@@ -1875,17 +1901,18 @@ public class NoOpLogger implements Logger {
 
     @Override
     public void trace(
-            String message,
-            Object p0,
-            Object p1,
-            Object p2,
-            Object p3,
-            Object p4,
-            Object p5,
-            Object p6,
-            Object p7,
-            Object p8,
-            Object p9) {
+        String message,
+        Object p0,
+        Object p1,
+        Object p2,
+        Object p3,
+        Object p4,
+        Object p5,
+        Object p6,
+        Object p7,
+        Object p8,
+        Object p9
+    ) {
 
     }
 
@@ -2121,49 +2148,52 @@ public class NoOpLogger implements Logger {
 
     @Override
     public void warn(
-            Marker marker,
-            String message,
-            Object p0,
-            Object p1,
-            Object p2,
-            Object p3,
-            Object p4,
-            Object p5,
-            Object p6,
-            Object p7) {
+        Marker marker,
+        String message,
+        Object p0,
+        Object p1,
+        Object p2,
+        Object p3,
+        Object p4,
+        Object p5,
+        Object p6,
+        Object p7
+    ) {
 
     }
 
     @Override
     public void warn(
-            Marker marker,
-            String message,
-            Object p0,
-            Object p1,
-            Object p2,
-            Object p3,
-            Object p4,
-            Object p5,
-            Object p6,
-            Object p7,
-            Object p8) {
+        Marker marker,
+        String message,
+        Object p0,
+        Object p1,
+        Object p2,
+        Object p3,
+        Object p4,
+        Object p5,
+        Object p6,
+        Object p7,
+        Object p8
+    ) {
 
     }
 
     @Override
     public void warn(
-            Marker marker,
-            String message,
-            Object p0,
-            Object p1,
-            Object p2,
-            Object p3,
-            Object p4,
-            Object p5,
-            Object p6,
-            Object p7,
-            Object p8,
-            Object p9) {
+        Marker marker,
+        String message,
+        Object p0,
+        Object p1,
+        Object p2,
+        Object p3,
+        Object p4,
+        Object p5,
+        Object p6,
+        Object p7,
+        Object p8,
+        Object p9
+    ) {
 
     }
 
@@ -2214,17 +2244,18 @@ public class NoOpLogger implements Logger {
 
     @Override
     public void warn(
-            String message,
-            Object p0,
-            Object p1,
-            Object p2,
-            Object p3,
-            Object p4,
-            Object p5,
-            Object p6,
-            Object p7,
-            Object p8,
-            Object p9) {
+        String message,
+        Object p0,
+        Object p1,
+        Object p2,
+        Object p3,
+        Object p4,
+        Object p5,
+        Object p6,
+        Object p7,
+        Object p8,
+        Object p9
+    ) {
 
     }
 

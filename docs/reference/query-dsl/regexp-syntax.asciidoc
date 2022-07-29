@@ -1,7 +1,7 @@
 [[regexp-syntax]]
 == Regular expression syntax
 
-A https://en.wikipedia.org/wiki/Regular_expression[regular expression] is a way to
+A {wikipedia}/Regular_expression[regular expression] is a way to
 match patterns in data using placeholder characters, called operators.
 
 {es} supports regular expressions in the following queries:
@@ -44,7 +44,7 @@ backslash or surround it with double quotes. For example:
 === Standard operators
 
 Lucene's regular expression engine does not use the
-https://en.wikipedia.org/wiki/Perl_Compatible_Regular_Expressions[Perl
+{wikipedia}/Perl_Compatible_Regular_Expressions[Perl
 Compatible Regular Expressions (PCRE)] library, but it does support the
 following standard operators.
 
@@ -168,6 +168,9 @@ of `COMPLEMENT|INTERVAL` enables the `COMPLEMENT` and `INTERVAL` operators.
 `ALL` (Default)::
 Enables all optional operators.
 
+`""` (empty string)::
+Alias for the `ALL` value.
+
 `COMPLEMENT`::
 +
 --
@@ -176,6 +179,21 @@ pattern. For example:
 
 ....
 a~bc   # matches 'adc' and 'aec' but not 'abc'
+....
+--
+
+`EMPTY`::
++
+--
+Enables the `#` (empty language) operator. The `#` operator doesn't match any
+string, not even an empty string.
+
+If you create regular expressions by programmatically combining values, you can
+pass `#` to specify "no string." This lets you avoid accidentally matching empty
+strings or other unwanted strings. For example:
+
+....
+#|abc  # matches 'abc' but nothing else, not even an empty string
 ....
 --
 
@@ -215,6 +233,9 @@ You can combine the `@` operator with `&` and `~` operators to create an
 @&~(abc.+)  # matches everything except terms beginning with 'abc'
 ....
 --
+
+`NONE`::
+Disables all optional operators.
 
 [discrete]
 [[regexp-unsupported-operators]]

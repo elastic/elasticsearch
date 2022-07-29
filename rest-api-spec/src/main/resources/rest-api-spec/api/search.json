@@ -5,6 +5,11 @@
       "description":"Returns results matching a query."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
     "url":{
       "paths":[
         {
@@ -71,6 +76,12 @@
       "from":{
         "type":"number",
         "description":"Starting offset (default: 0)"
+      },
+      "force_synthetic_source": {
+        "type": "boolean",
+        "description": "Should this request force synthetic _source? Use this to test if the mapping supports synthetic _source and to get a sense of the worst case performance. Fetches with this enabled will be slower the enabling synthetic source natively in the index.",
+        "visibility": "feature_flag",
+        "feature_flag": "es.index_mode_feature_flag_registered"
       },
       "ignore_unavailable":{
         "type":"boolean",
@@ -225,6 +236,10 @@
         "type":"boolean",
         "description":"Indicates whether hits.total should be rendered as an integer or an object in the rest search response",
         "default":false
+      },
+      "min_compatible_shard_node":{
+        "type":"string",
+        "description":"The minimum compatible version that all shards involved in search should have for this request to be successful"
       }
     },
     "body":{

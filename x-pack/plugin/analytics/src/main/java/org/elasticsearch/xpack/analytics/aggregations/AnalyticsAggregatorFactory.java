@@ -1,26 +1,30 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.analytics.aggregations;
 
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregatorSupplier;
+import org.elasticsearch.search.aggregations.bucket.range.RangeAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.MetricAggregatorSupplier;
+import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.PercentileRanksAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.PercentilesAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.PercentilesAggregatorSupplier;
 import org.elasticsearch.search.aggregations.metrics.PercentilesConfig;
 import org.elasticsearch.search.aggregations.metrics.PercentilesMethod;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.xpack.analytics.aggregations.bucket.histogram.HistoBackedHistogramAggregator;
+import org.elasticsearch.xpack.analytics.aggregations.bucket.range.HistoBackedRangeAggregator;
 import org.elasticsearch.xpack.analytics.aggregations.metrics.HistoBackedAvgAggregator;
 import org.elasticsearch.xpack.analytics.aggregations.metrics.HistoBackedHDRPercentileRanksAggregator;
 import org.elasticsearch.xpack.analytics.aggregations.metrics.HistoBackedHDRPercentilesAggregator;
+import org.elasticsearch.xpack.analytics.aggregations.metrics.HistoBackedMaxAggregator;
+import org.elasticsearch.xpack.analytics.aggregations.metrics.HistoBackedMinAggregator;
 import org.elasticsearch.xpack.analytics.aggregations.metrics.HistoBackedSumAggregator;
 import org.elasticsearch.xpack.analytics.aggregations.metrics.HistoBackedTDigestPercentileRanksAggregator;
 import org.elasticsearch.xpack.analytics.aggregations.metrics.HistoBackedTDigestPercentilesAggregator;
@@ -30,74 +34,130 @@ import org.elasticsearch.xpack.analytics.aggregations.support.AnalyticsValuesSou
 public class AnalyticsAggregatorFactory {
 
     public static void registerPercentilesAggregator(ValuesSourceRegistry.Builder builder) {
-        builder.register(PercentilesAggregationBuilder.NAME,
+        builder.register(
+            PercentilesAggregationBuilder.REGISTRY_KEY,
             AnalyticsValuesSourceType.HISTOGRAM,
-            (PercentilesAggregatorSupplier) (name, valuesSource, context, parent, percents, percentilesConfig, keyed,
-                                             formatter, metadata) -> {
-
+            (name, valuesSource, context, parent, percents, percentilesConfig, keyed, formatter, metadata) -> {
                 if (percentilesConfig.getMethod().equals(PercentilesMethod.TDIGEST)) {
-                    double compression = ((PercentilesConfig.TDigest)percentilesConfig).getCompression();
-                    return new HistoBackedTDigestPercentilesAggregator(name, valuesSource, context, parent,
-                        percents, compression, keyed, formatter, metadata);
+                    double compression = ((PercentilesConfig.TDigest) percentilesConfig).getCompression();
+                    return new HistoBackedTDigestPercentilesAggregator(
+                        name,
+                        valuesSource,
+                        context,
+                        parent,
+                        percents,
+                        compression,
+                        keyed,
+                        formatter,
+                        metadata
+                    );
 
                 } else if (percentilesConfig.getMethod().equals(PercentilesMethod.HDR)) {
-                    int numSigFig = ((PercentilesConfig.Hdr)percentilesConfig).getNumberOfSignificantValueDigits();
-                    return new HistoBackedHDRPercentilesAggregator(name, valuesSource, context, parent,
-                        percents, numSigFig, keyed, formatter, metadata);
+                    int numSigFig = ((PercentilesConfig.Hdr) percentilesConfig).getNumberOfSignificantValueDigits();
+                    return new HistoBackedHDRPercentilesAggregator(
+                        name,
+                        valuesSource,
+                        context,
+                        parent,
+                        percents,
+                        numSigFig,
+                        keyed,
+                        formatter,
+                        metadata
+                    );
                 }
 
-                throw new IllegalArgumentException("Percentiles algorithm: [" + percentilesConfig.getMethod().toString() + "] " +
-                    "is not compatible with Histogram field");
-            });
-    }
-
-    public static void registerPercentileRanksAggregator(ValuesSourceRegistry.Builder builder) {
-        builder.register(PercentileRanksAggregationBuilder.NAME,
-            AnalyticsValuesSourceType.HISTOGRAM,
-            (PercentilesAggregatorSupplier) (name, valuesSource, context, parent, percents, percentilesConfig, keyed,
-                                                      formatter, metadata) -> {
-
-                if (percentilesConfig.getMethod().equals(PercentilesMethod.TDIGEST)) {
-                    double compression = ((PercentilesConfig.TDigest)percentilesConfig).getCompression();
-                    return new HistoBackedTDigestPercentileRanksAggregator(name, valuesSource, context, parent,
-                        percents, compression, keyed, formatter, metadata);
-
-                } else if (percentilesConfig.getMethod().equals(PercentilesMethod.HDR)) {
-                    int numSigFig = ((PercentilesConfig.Hdr)percentilesConfig).getNumberOfSignificantValueDigits();
-                    return new HistoBackedHDRPercentileRanksAggregator(name, valuesSource, context, parent,
-                        percents, numSigFig, keyed, formatter, metadata);
-                }
-
-                throw new IllegalArgumentException("Percentiles algorithm: [" + percentilesConfig.getMethod().toString() + "] " +
-                    "is not compatible with Histogram field");
-            });
-    }
-
-    public static void registerHistoBackedSumAggregator(ValuesSourceRegistry.Builder builder) {
-        builder.register(SumAggregationBuilder.NAME,
-            AnalyticsValuesSourceType.HISTOGRAM,
-            (MetricAggregatorSupplier) HistoBackedSumAggregator::new
+                throw new IllegalArgumentException(
+                    "Percentiles algorithm: [" + percentilesConfig.getMethod().toString() + "] " + "is not compatible with Histogram field"
+                );
+            },
+            true
         );
     }
 
-    public static void registerHistoBackedValueCountAggregator(ValuesSourceRegistry.Builder builder) {
-        builder.register(ValueCountAggregationBuilder.NAME,
+    public static void registerPercentileRanksAggregator(ValuesSourceRegistry.Builder builder) {
+        builder.register(
+            PercentileRanksAggregationBuilder.REGISTRY_KEY,
             AnalyticsValuesSourceType.HISTOGRAM,
-            (MetricAggregatorSupplier) HistoBackedValueCountAggregator::new
+            (name, valuesSource, context, parent, percents, percentilesConfig, keyed, formatter, metadata) -> {
+                if (percentilesConfig.getMethod().equals(PercentilesMethod.TDIGEST)) {
+                    double compression = ((PercentilesConfig.TDigest) percentilesConfig).getCompression();
+                    return new HistoBackedTDigestPercentileRanksAggregator(
+                        name,
+                        valuesSource,
+                        context,
+                        parent,
+                        percents,
+                        compression,
+                        keyed,
+                        formatter,
+                        metadata
+                    );
+
+                } else if (percentilesConfig.getMethod().equals(PercentilesMethod.HDR)) {
+                    int numSigFig = ((PercentilesConfig.Hdr) percentilesConfig).getNumberOfSignificantValueDigits();
+                    return new HistoBackedHDRPercentileRanksAggregator(
+                        name,
+                        valuesSource,
+                        context,
+                        parent,
+                        percents,
+                        numSigFig,
+                        keyed,
+                        formatter,
+                        metadata
+                    );
+                }
+
+                throw new IllegalArgumentException(
+                    "Percentiles algorithm: [" + percentilesConfig.getMethod().toString() + "] " + "is not compatible with Histogram field"
+                );
+            },
+            true
+        );
+    }
+
+    public static void registerHistoBackedSumAggregator(ValuesSourceRegistry.Builder builder) {
+        builder.register(SumAggregationBuilder.REGISTRY_KEY, AnalyticsValuesSourceType.HISTOGRAM, HistoBackedSumAggregator::new, true);
+    }
+
+    public static void registerHistoBackedValueCountAggregator(ValuesSourceRegistry.Builder builder) {
+        builder.register(
+            ValueCountAggregationBuilder.REGISTRY_KEY,
+            AnalyticsValuesSourceType.HISTOGRAM,
+            HistoBackedValueCountAggregator::new,
+            true
         );
     }
 
     public static void registerHistoBackedAverageAggregator(ValuesSourceRegistry.Builder builder) {
-        builder.register(AvgAggregationBuilder.NAME,
-            AnalyticsValuesSourceType.HISTOGRAM,
-            (MetricAggregatorSupplier) HistoBackedAvgAggregator::new
-        );
+        builder.register(AvgAggregationBuilder.REGISTRY_KEY, AnalyticsValuesSourceType.HISTOGRAM, HistoBackedAvgAggregator::new, true);
     }
 
     public static void registerHistoBackedHistogramAggregator(ValuesSourceRegistry.Builder builder) {
-        builder.register(HistogramAggregationBuilder.NAME,
+        builder.register(
+            HistogramAggregationBuilder.REGISTRY_KEY,
             AnalyticsValuesSourceType.HISTOGRAM,
-            (HistogramAggregatorSupplier) HistoBackedHistogramAggregator::new
+            HistoBackedHistogramAggregator::new,
+            true
         );
     }
+
+    public static void registerHistoBackedMinggregator(ValuesSourceRegistry.Builder builder) {
+        builder.register(MinAggregationBuilder.REGISTRY_KEY, AnalyticsValuesSourceType.HISTOGRAM, HistoBackedMinAggregator::new, true);
+    }
+
+    public static void registerHistoBackedMaxggregator(ValuesSourceRegistry.Builder builder) {
+        builder.register(MaxAggregationBuilder.REGISTRY_KEY, AnalyticsValuesSourceType.HISTOGRAM, HistoBackedMaxAggregator::new, true);
+    }
+
+    public static void registerHistoBackedRangeAggregator(ValuesSourceRegistry.Builder builder) {
+        builder.register(
+            RangeAggregationBuilder.REGISTRY_KEY,
+            AnalyticsValuesSourceType.HISTOGRAM,
+            HistoBackedRangeAggregator::build,
+            true
+        );
+    }
+
 }

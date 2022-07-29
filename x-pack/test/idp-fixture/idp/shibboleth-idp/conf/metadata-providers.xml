@@ -59,9 +59,11 @@
     responsibility to ensure that the contents on disk are trustworthy.
     -->
     
-    <!--
-    <MetadataProvider id="LocalMetadata"  xsi:type="FilesystemMetadataProvider" metadataFile="PATH_TO_YOUR_METADATA"/>
-    -->
+    <!-- One metadada file per realm that we use in our elasticsearch/x-pack/qa/saml-idp-tests/build.gradle -->
+    <MetadataProvider id="LocalMetadata"  xsi:type="FilesystemMetadataProvider" metadataFile="%{idp.home}/metadata/sp-metadata.xml"/>
+    <MetadataProvider id="LocalMetadata2"  xsi:type="FilesystemMetadataProvider" metadataFile="%{idp.home}/metadata/sp-metadata2.xml"/>
+    <MetadataProvider id="LocalMetadata3"  xsi:type="FilesystemMetadataProvider" metadataFile="%{idp.home}/metadata/sp-metadata3.xml"/>
+
 
 
     <!--

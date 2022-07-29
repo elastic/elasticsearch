@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.action.user;
 
@@ -11,8 +12,8 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.xpack.core.security.support.NativeRealmValidationUtil;
 import org.elasticsearch.xpack.core.security.support.Validation.Error;
-import org.elasticsearch.xpack.core.security.support.Validation.Users;
 
 import java.io.IOException;
 
@@ -39,7 +40,7 @@ public class SetEnabledRequest extends ActionRequest implements UserRequest, Wri
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        Error error = Users.validateUsername(username, true, Settings.EMPTY);
+        Error error = NativeRealmValidationUtil.validateUsername(username, true, Settings.EMPTY);
         if (error != null) {
             validationException = addValidationError(error.toString(), validationException);
         }

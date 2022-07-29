@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.action.index;
 
@@ -23,23 +12,38 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
+import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -72,7 +76,7 @@ public class IndexRequestTests extends ESTestCase {
     public void testCreateOperationRejectsVersions() {
         Set<VersionType> allButInternalSet = new HashSet<>(Arrays.asList(VersionType.values()));
         allButInternalSet.remove(VersionType.INTERNAL);
-        VersionType[] allButInternal = allButInternalSet.toArray(new VersionType[]{});
+        VersionType[] allButInternal = allButInternalSet.toArray(new VersionType[] {});
         IndexRequest request = new IndexRequest("index").id("1");
         request.opType(IndexRequest.OpType.CREATE);
         request.versionType(randomFrom(allButInternal));
@@ -85,24 +89,23 @@ public class IndexRequestTests extends ESTestCase {
 
     public void testIndexingRejectsLongIds() {
         String id = randomAlphaOfLength(511);
-        IndexRequest request = new IndexRequest("index").id( id);
+        IndexRequest request = new IndexRequest("index").id(id);
         request.source("{}", XContentType.JSON);
         ActionRequestValidationException validate = request.validate();
         assertNull(validate);
 
         id = randomAlphaOfLength(512);
-        request = new IndexRequest("index").id( id);
+        request = new IndexRequest("index").id(id);
         request.source("{}", XContentType.JSON);
         validate = request.validate();
         assertNull(validate);
 
         id = randomAlphaOfLength(513);
-        request = new IndexRequest("index").id( id);
+        request = new IndexRequest("index").id(id);
         request.source("{}", XContentType.JSON);
         validate = request.validate();
         assertThat(validate, notNullValue());
-        assertThat(validate.getMessage(),
-                containsString("id [" + id + "] is too long, must be no longer than 512 bytes but was: 513"));
+        assertThat(validate.getMessage(), containsString("id [" + id + "] is too long, must be no longer than 512 bytes but was: 513"));
     }
 
     public void testWaitForActiveShards() {
@@ -114,13 +117,10 @@ public class IndexRequestTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> request.waitForActiveShards(ActiveShardCount.from(randomIntBetween(-10, -1))));
     }
 
-    public void testAutoGenIdTimestampIsSet() {
+    public void testAutoGenerateId() {
         IndexRequest request = new IndexRequest("index");
-        request.process(Version.CURRENT, null, "index");
+        request.autoGenerateId();
         assertTrue("expected > 0 but got: " + request.getAutoGeneratedTimestamp(), request.getAutoGeneratedTimestamp() > 0);
-        request = new IndexRequest("index").id("1");
-        request.process(Version.CURRENT, null, "index");
-        assertEquals(IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, request.getAutoGeneratedTimestamp());
     }
 
     public void testIndexResponse() {
@@ -145,18 +145,32 @@ public class IndexRequestTests extends ESTestCase {
         assertEquals(total, indexResponse.getShardInfo().getTotal());
         assertEquals(successful, indexResponse.getShardInfo().getSuccessful());
         assertEquals(forcedRefresh, indexResponse.forcedRefresh());
-        assertEquals("IndexResponse[index=" + shardId.getIndexName() + ",id="+ id +
-                ",version=" + version + ",result=" + (created ? "created" : "updated") +
-                ",seqNo=" + SequenceNumbers.UNASSIGNED_SEQ_NO +
-                ",primaryTerm=" + 0 +
-                ",shards={\"total\":" + total + ",\"successful\":" + successful + ",\"failed\":0}]",
-                indexResponse.toString());
+        assertEquals(
+            """
+                IndexResponse[index=%s,id=%s,version=%s,result=%s,seqNo=%s,primaryTerm=%s,shards=\
+                {"total":%s,"successful":%s,"failed":0}]\
+                """.formatted(
+                shardId.getIndexName(),
+                id,
+                version,
+                created ? "created" : "updated",
+                SequenceNumbers.UNASSIGNED_SEQ_NO,
+                0,
+                total,
+                successful
+            ),
+            indexResponse.toString()
+        );
     }
 
     public void testIndexRequestXContentSerialization() throws IOException {
         IndexRequest indexRequest = new IndexRequest("foo").id("1");
         boolean isRequireAlias = randomBoolean();
+        Map<String, String> dynamicTemplates = IntStream.range(0, randomIntBetween(0, 10))
+            .boxed()
+            .collect(Collectors.toMap(n -> "field-" + n, n -> "name-" + n));
         indexRequest.source("{}", XContentType.JSON);
+        indexRequest.setDynamicTemplates(dynamicTemplates);
         indexRequest.setRequireAlias(isRequireAlias);
         assertEquals(XContentType.JSON, indexRequest.getContentType());
 
@@ -167,6 +181,7 @@ public class IndexRequestTests extends ESTestCase {
         assertEquals(XContentType.JSON, serialized.getContentType());
         assertEquals(new BytesArray("{}"), serialized.source());
         assertEquals(isRequireAlias, serialized.isRequireAlias());
+        assertThat(serialized.getDynamicTemplates(), equalTo(dynamicTemplates));
     }
 
     // reindex makes use of index requests without a source so this needs to be handled
@@ -185,18 +200,75 @@ public class IndexRequestTests extends ESTestCase {
         }
     }
 
-    public void testToStringSizeLimit() throws UnsupportedEncodingException {
+    public void testSerializeDynamicTemplates() throws Exception {
+        IndexRequest indexRequest = new IndexRequest("foo").id("1");
+        indexRequest.source("{}", XContentType.JSON);
+        // Empty dynamic templates
+        {
+            if (randomBoolean()) {
+                indexRequest.setDynamicTemplates(Map.of());
+            }
+            Version ver = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
+            BytesStreamOutput out = new BytesStreamOutput();
+            out.setVersion(ver);
+            indexRequest.writeTo(out);
+            StreamInput in = StreamInput.wrap(out.bytes().toBytesRef().bytes);
+            in.setVersion(ver);
+            IndexRequest serialized = new IndexRequest(in);
+            assertThat(serialized.getDynamicTemplates(), anEmptyMap());
+        }
+        // old version
+        {
+            Map<String, String> dynamicTemplates = IntStream.range(0, randomIntBetween(1, 10))
+                .boxed()
+                .collect(Collectors.toMap(n -> "field-" + n, n -> "name-" + n));
+            indexRequest.setDynamicTemplates(dynamicTemplates);
+            Version ver = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, VersionUtils.getPreviousVersion(Version.V_7_13_0));
+            BytesStreamOutput out = new BytesStreamOutput();
+            out.setVersion(ver);
+            IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () -> indexRequest.writeTo(out));
+            assertThat(
+                error.getMessage(),
+                equalTo("[dynamic_templates] parameter requires all nodes on " + Version.V_7_13_0 + " or later")
+            );
+        }
+        // new version
+        {
+            Map<String, String> dynamicTemplates = IntStream.range(0, randomIntBetween(0, 10))
+                .boxed()
+                .collect(Collectors.toMap(n -> "field-" + n, n -> "name-" + n));
+            indexRequest.setDynamicTemplates(dynamicTemplates);
+            Version ver = VersionUtils.randomVersionBetween(random(), Version.V_7_13_0, Version.CURRENT);
+            BytesStreamOutput out = new BytesStreamOutput();
+            out.setVersion(ver);
+            indexRequest.writeTo(out);
+            StreamInput in = StreamInput.wrap(out.bytes().toBytesRef().bytes);
+            in.setVersion(ver);
+            IndexRequest serialized = new IndexRequest(in);
+            assertThat(serialized.getDynamicTemplates(), equalTo(dynamicTemplates));
+        }
+    }
+
+    public void testToStringSizeLimit() {
         IndexRequest request = new IndexRequest("index");
 
         String source = "{\"name\":\"value\"}";
         request.source(source, XContentType.JSON);
         assertEquals("index {[index][null], source[" + source + "]}", request.toString());
 
-        source = "{\"name\":\"" + randomUnicodeOfLength(IndexRequest.MAX_SOURCE_LENGTH_IN_TOSTRING) + "\"}";
+        source = """
+            {"name":"%s"}
+            """.formatted(randomUnicodeOfLength(IndexRequest.MAX_SOURCE_LENGTH_IN_TOSTRING));
         request.source(source, XContentType.JSON);
-        int actualBytes = source.getBytes("UTF-8").length;
-        assertEquals("index {[index][null], source[n/a, actual length: [" + new ByteSizeValue(actualBytes).toString() +
-                "], max length: " + new ByteSizeValue(IndexRequest.MAX_SOURCE_LENGTH_IN_TOSTRING).toString() + "]}", request.toString());
+        int actualBytes = source.getBytes(StandardCharsets.UTF_8).length;
+        assertEquals(
+            "index {[index][null], source[n/a, actual length: ["
+                + new ByteSizeValue(actualBytes).toString()
+                + "], max length: "
+                + new ByteSizeValue(IndexRequest.MAX_SOURCE_LENGTH_IN_TOSTRING).toString()
+                + "]}",
+            request.toString()
+        );
     }
 
     public void testRejectsEmptyStringPipeline() {
@@ -205,7 +277,168 @@ public class IndexRequestTests extends ESTestCase {
         request.setPipeline("");
         ActionRequestValidationException validate = request.validate();
         assertThat(validate, notNullValue());
-        assertThat(validate.getMessage(),
-            containsString("pipeline cannot be an empty string"));
+        assertThat(validate.getMessage(), containsString("pipeline cannot be an empty string"));
+    }
+
+    public void testGetConcreteWriteIndex() {
+        Instant currentTime = ZonedDateTime.of(2022, 12, 12, 6, 0, 0, 0, ZoneOffset.UTC).toInstant();
+        Instant start1 = currentTime.minus(6, ChronoUnit.HOURS);
+        Instant end1 = currentTime.minus(2, ChronoUnit.HOURS);
+        Instant start2 = currentTime.minus(2, ChronoUnit.HOURS);
+        Instant end2 = currentTime.plus(2, ChronoUnit.HOURS);
+
+        String tsdbDataStream = "logs_my-app_prod";
+        var clusterState = DataStreamTestHelper.getClusterStateWithDataStream(
+            tsdbDataStream,
+            List.of(Tuple.tuple(start1, end1), Tuple.tuple(start2, end2))
+        );
+        var metadata = clusterState.getMetadata();
+
+        String source = """
+            {
+                "@timestamp": $time
+            }""";
+        {
+            // Not a create request => resolve to the latest backing index
+            IndexRequest request = new IndexRequest(tsdbDataStream);
+            request.source(renderSource(source, start1), XContentType.JSON);
+
+            var result = request.getConcreteWriteIndex(metadata.getIndicesLookup().get(tsdbDataStream), metadata);
+            assertThat(result, equalTo(metadata.dataStreams().get(tsdbDataStream).getIndices().get(1)));
+        }
+        {
+            // Target is a regular index => resolve to this index only
+            String indexName = metadata.getIndices().keySet().iterator().next();
+            IndexRequest request = new IndexRequest(indexName);
+            request.source(renderSource(source, randomFrom(start1, end1, start2, end2)), XContentType.JSON);
+
+            var result = request.getConcreteWriteIndex(metadata.getIndicesLookup().get(indexName), metadata);
+            assertThat(result.getName(), equalTo(indexName));
+        }
+        {
+            String regularDataStream = "logs_another-app_prod";
+            var backingIndex1 = DataStreamTestHelper.createBackingIndex(regularDataStream, 1).build();
+            var backingIndex2 = DataStreamTestHelper.createBackingIndex(regularDataStream, 2).build();
+            var metadata2 = Metadata.builder(metadata)
+                .put(backingIndex1, true)
+                .put(backingIndex2, true)
+                .put(
+                    DataStreamTestHelper.newInstance(
+                        regularDataStream,
+                        List.of(backingIndex1.getIndex(), backingIndex2.getIndex()),
+                        2,
+                        null
+                    )
+                )
+                .build();
+            // Target is a regular data stream => always resolve to the latest backing index
+            IndexRequest request = new IndexRequest(regularDataStream);
+            request.source(renderSource(source, randomFrom(start1, end1, start2, end2)), XContentType.JSON);
+
+            var result = request.getConcreteWriteIndex(metadata2.getIndicesLookup().get(regularDataStream), metadata2);
+            assertThat(result.getName(), equalTo(backingIndex2.getIndex().getName()));
+        }
+        {
+            // provided timestamp resolves to the first backing index
+            IndexRequest request = new IndexRequest(tsdbDataStream);
+            request.opType(DocWriteRequest.OpType.CREATE);
+            request.source(renderSource(source, start1), XContentType.JSON);
+
+            var result = request.getConcreteWriteIndex(metadata.getIndicesLookup().get(tsdbDataStream), metadata);
+            assertThat(result, equalTo(metadata.dataStreams().get(tsdbDataStream).getIndices().get(0)));
+        }
+        {
+            // provided timestamp as millis since epoch resolves to the first backing index
+            IndexRequest request = new IndexRequest(tsdbDataStream);
+            request.opType(DocWriteRequest.OpType.CREATE);
+            request.source(source.replace("$time", "" + start1.toEpochMilli()), XContentType.JSON);
+
+            var result = request.getConcreteWriteIndex(metadata.getIndicesLookup().get(tsdbDataStream), metadata);
+            assertThat(result, equalTo(metadata.dataStreams().get(tsdbDataStream).getIndices().get(0)));
+        }
+        {
+            IndexRequest request = new IndexRequest(tsdbDataStream);
+            request.opType(DocWriteRequest.OpType.CREATE);
+            request.source(
+                source.replace("$time", "\"" + DateFormatter.forPattern(FormatNames.STRICT_DATE.getName()).format(start1) + "\""),
+                XContentType.JSON
+            );
+
+            var result = request.getConcreteWriteIndex(metadata.getIndicesLookup().get(tsdbDataStream), metadata);
+            assertThat(result, equalTo(metadata.dataStreams().get(tsdbDataStream).getIndices().get(0)));
+        }
+        {
+            // provided timestamp resolves to the latest backing index
+            IndexRequest request = new IndexRequest(tsdbDataStream);
+            request.opType(DocWriteRequest.OpType.CREATE);
+            request.source(renderSource(source, start2), XContentType.JSON);
+
+            var result = request.getConcreteWriteIndex(metadata.getIndicesLookup().get(tsdbDataStream), metadata);
+            assertThat(result, equalTo(metadata.dataStreams().get(tsdbDataStream).getIndices().get(1)));
+        }
+        {
+            // provided timestamp resolves to no index => fail with an exception
+            IndexRequest request = new IndexRequest(tsdbDataStream);
+            request.opType(DocWriteRequest.OpType.CREATE);
+            request.source(renderSource(source, end2), XContentType.JSON);
+
+            var e = expectThrows(
+                IllegalArgumentException.class,
+                () -> request.getConcreteWriteIndex(metadata.getIndicesLookup().get(tsdbDataStream), metadata)
+            );
+            assertThat(
+                e.getMessage(),
+                equalTo(
+                    "the document timestamp [$time] is outside of ranges of currently writable indices [[$start1,$end1][$start2,$end2]]"
+                        .replace("$time", formatInstant(end2))
+                        .replace("$start1", formatInstant(start1))
+                        .replace("$end1", formatInstant(end1))
+                        .replace("$start2", formatInstant(start2))
+                        .replace("$end2", formatInstant(end2))
+                )
+            );
+        }
+
+        {
+            // no @timestamp field
+            IndexRequest request = new IndexRequest(tsdbDataStream);
+            request.opType(DocWriteRequest.OpType.CREATE);
+            request.source(Map.of("foo", randomAlphaOfLength(5)), XContentType.JSON);
+            var e = expectThrows(
+                IllegalArgumentException.class,
+                () -> request.getConcreteWriteIndex(metadata.getIndicesLookup().get(tsdbDataStream), metadata)
+            );
+            assertThat(
+                e.getMessage(),
+                equalTo(
+                    "Error extracting data stream timestamp field: "
+                        + "Failed to parse object: expecting token of type [START_OBJECT] but found [null]"
+                )
+            );
+        }
+
+        {
+            // set error format timestamp
+            IndexRequest request = new IndexRequest(tsdbDataStream);
+            request.opType(DocWriteRequest.OpType.CREATE);
+            request.source(Map.of("foo", randomAlphaOfLength(5)), XContentType.JSON);
+            request.setRawTimestamp(10.0d);
+            var e = expectThrows(
+                IllegalArgumentException.class,
+                () -> request.getConcreteWriteIndex(metadata.getIndicesLookup().get(tsdbDataStream), metadata)
+            );
+            assertThat(
+                e.getMessage(),
+                equalTo("Error get data stream timestamp field: timestamp [10.0] type [class java.lang.Double] error")
+            );
+        }
+    }
+
+    static String renderSource(String sourceTemplate, Instant instant) {
+        return sourceTemplate.replace("$time", "\"" + formatInstant(instant) + "\"");
+    }
+
+    static String formatInstant(Instant instant) {
+        return DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName()).format(instant);
     }
 }

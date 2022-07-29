@@ -1,0 +1,141 @@
+---
+
+setup:
+  - skip:
+      features: headers
+
+  - do:
+      cluster.health:
+          wait_for_status: yellow
+
+  - do:
+      security.put_role:
+        name: "alias_write_manage_role"
+        body:  >
+            {
+              "indices": [
+                { "names": ["write_manage_alias"], "privileges": ["write", "manage"] }
+              ]
+            }
+
+  - do:
+      security.put_user:
+        username: "test_user"
+        body:  >
+          {
+            "password" : "x-pack-test-password",
+            "roles" : [ "alias_write_manage_role" ],
+            "full_name" : "user with privileges to write, manage via alias"
+          }
+
+  - do:
+      indices.create:
+        index: logs-000001
+        body:
+          settings:
+            index:
+              number_of_shards:   1
+              number_of_replicas: 0
+
+  - do:
+      indices.put_alias:
+        index: logs-000001
+        name: write_manage_alias
+
+---
+teardown:
+  - do:
+      security.delete_user:
+        username: "test_user"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "alias_write_role"
+        ignore: 404
+
+  - do:
+      indices.delete_alias:
+        index: "logs-000001"
+        name: [ "write_manage_alias" ]
+        ignore: 404
+
+  - do:
+      indices.delete:
+        index: [ "logs-000001" ]
+        ignore: 404
+
+---
+"Test rollover, index via write alias of index":
+
+  # index using alias
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      create:
+        id: "1"
+        index: write_manage_alias
+        body: >
+          {
+            "name" : "doc1"
+          }
+
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      create:
+        id: "2"
+        index: write_manage_alias
+        body: >
+          {
+            "name" : "doc2"
+          }
+
+  - do:
+      indices.refresh:
+        index: "write_manage_alias"
+
+  # rollover using alias
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      indices.rollover:
+        alias: "write_manage_alias"
+        wait_for_active_shards: 1
+        body:
+          conditions:
+            max_docs: 1
+
+  - match: { old_index: logs-000001 }
+  - match: { new_index: logs-000002 }
+  - match: { rolled_over: true }
+  - match: { dry_run: false }
+  - match: { conditions: { "[max_docs: 1]": true } }
+
+  # ensure new index is created
+  - do:
+      indices.exists:
+        index: logs-000002
+
+  - is_true: ''
+
+  # index using alias
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      create:
+        id: "3"
+        index: write_manage_alias
+        body: >
+          {
+            "name" : "doc3"
+          }
+
+  - do:
+      indices.refresh:
+        index: write_manage_alias
+
+  # check alias points to the new index and the doc was indexed
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: write_manage_alias
+
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._index: "logs-000002"}

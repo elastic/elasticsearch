@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.notification.jira;
 
@@ -25,28 +26,41 @@ import java.util.List;
  */
 public class JiraService extends NotificationService<JiraAccount> {
 
-    private static final Setting<String> SETTING_DEFAULT_ACCOUNT =
-            Setting.simpleString("xpack.notification.jira.default_account", Property.Dynamic, Property.NodeScope);
+    private static final Setting<String> SETTING_DEFAULT_ACCOUNT = Setting.simpleString(
+        "xpack.notification.jira.default_account",
+        Property.Dynamic,
+        Property.NodeScope
+    );
 
-    private static final Setting.AffixSetting<Boolean> SETTING_ALLOW_HTTP =
-            Setting.affixKeySetting("xpack.notification.jira.account.", "allow_http",
-                    (key) -> Setting.boolSetting(key, false, Property.Dynamic, Property.NodeScope));
+    private static final Setting.AffixSetting<Boolean> SETTING_ALLOW_HTTP = Setting.affixKeySetting(
+        "xpack.notification.jira.account.",
+        "allow_http",
+        (key) -> Setting.boolSetting(key, false, Property.Dynamic, Property.NodeScope)
+    );
 
-    private static final Setting.AffixSetting<SecureString> SETTING_SECURE_USER =
-            Setting.affixKeySetting("xpack.notification.jira.account.", "secure_user",
-                    (key) -> SecureSetting.secureString(key, null));
+    private static final Setting.AffixSetting<SecureString> SETTING_SECURE_USER = Setting.affixKeySetting(
+        "xpack.notification.jira.account.",
+        "secure_user",
+        (key) -> SecureSetting.secureString(key, null)
+    );
 
-    private static final Setting.AffixSetting<SecureString> SETTING_SECURE_URL =
-            Setting.affixKeySetting("xpack.notification.jira.account.", "secure_url",
-                    (key) -> SecureSetting.secureString(key, null));
+    private static final Setting.AffixSetting<SecureString> SETTING_SECURE_URL = Setting.affixKeySetting(
+        "xpack.notification.jira.account.",
+        "secure_url",
+        (key) -> SecureSetting.secureString(key, null)
+    );
 
-    private static final Setting.AffixSetting<SecureString> SETTING_SECURE_PASSWORD =
-            Setting.affixKeySetting("xpack.notification.jira.account.", "secure_password",
-                    (key) -> SecureSetting.secureString(key, null));
+    private static final Setting.AffixSetting<SecureString> SETTING_SECURE_PASSWORD = Setting.affixKeySetting(
+        "xpack.notification.jira.account.",
+        "secure_password",
+        (key) -> SecureSetting.secureString(key, null)
+    );
 
-    private static final Setting.AffixSetting<Settings> SETTING_DEFAULTS =
-            Setting.affixKeySetting("xpack.notification.jira.account.", "issue_defaults",
-                    (key) -> Setting.groupSetting(key + ".", Property.Dynamic, Property.NodeScope));
+    private static final Setting.AffixSetting<Settings> SETTING_DEFAULTS = Setting.affixKeySetting(
+        "xpack.notification.jira.account.",
+        "issue_defaults",
+        (key) -> Setting.groupSetting(key + ".", Property.Dynamic, Property.NodeScope)
+    );
 
     private final HttpClient httpClient;
 

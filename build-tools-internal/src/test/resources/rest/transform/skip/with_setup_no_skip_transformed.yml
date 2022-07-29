@@ -1,0 +1,16 @@
+---
+setup:
+  - skip:
+      version: "all"
+      reason: "my reason"
+  - do:
+      some.setup:
+        index: blah
+---
+"Test with setup but no skip (and by inference no features)":
+  - do:
+      something:
+        id: "something"
+  - match: { acknowledged: true }
+
+

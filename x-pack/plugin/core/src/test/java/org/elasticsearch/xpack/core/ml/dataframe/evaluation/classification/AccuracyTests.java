@@ -1,17 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationFields;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationParameters;
-import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Accuracy.PerClassResult;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Accuracy.Result;
 
 import java.io.IOException;
@@ -31,6 +32,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class AccuracyTests extends AbstractSerializingTestCase<Accuracy> {
 
     private static final EvaluationParameters EVALUATION_PARAMETERS = new EvaluationParameters(100);
+    private static final EvaluationFields EVALUATION_FIELDS = new EvaluationFields("foo", "bar", null, null, null, true);
 
     @Override
     protected Accuracy doParseInstance(XContentParser parser) throws IOException {
@@ -57,75 +59,118 @@ public class AccuracyTests extends AbstractSerializingTestCase<Accuracy> {
     }
 
     public void testProcess() {
-        Aggregations aggs = new Aggregations(List.of(
-            mockTerms(
-                "accuracy_" + MulticlassConfusionMatrix.STEP_1_AGGREGATE_BY_ACTUAL_CLASS,
-                List.of(
-                    mockTermsBucket("dog", new Aggregations(List.of())),
-                    mockTermsBucket("cat", new Aggregations(List.of()))),
-                100L),
-            mockCardinality("accuracy_" + MulticlassConfusionMatrix.STEP_1_CARDINALITY_OF_ACTUAL_CLASS, 1000L),
-            mockFilters(
-                "accuracy_" + MulticlassConfusionMatrix.STEP_2_AGGREGATE_BY_ACTUAL_CLASS,
-                List.of(
-                    mockFiltersBucket(
-                        "dog",
-                        30,
-                        new Aggregations(List.of(mockFilters(
-                            "accuracy_" + MulticlassConfusionMatrix.STEP_2_AGGREGATE_BY_PREDICTED_CLASS,
-                            List.of(mockFiltersBucket("cat", 10L), mockFiltersBucket("dog", 20L), mockFiltersBucket("_other_", 0L)))))),
-                    mockFiltersBucket(
-                        "cat",
-                        70,
-                        new Aggregations(List.of(mockFilters(
-                            "accuracy_" + MulticlassConfusionMatrix.STEP_2_AGGREGATE_BY_PREDICTED_CLASS,
-                            List.of(mockFiltersBucket("cat", 30L), mockFiltersBucket("dog", 40L), mockFiltersBucket("_other_", 0L)))))))),
-            mockSingleValue(Accuracy.OVERALL_ACCURACY_AGG_NAME, 0.5)));
+        Aggregations aggs = new Aggregations(
+            List.of(
+                mockTerms(
+                    "accuracy_" + MulticlassConfusionMatrix.STEP_1_AGGREGATE_BY_ACTUAL_CLASS,
+                    List.of(mockTermsBucket("dog", new Aggregations(List.of())), mockTermsBucket("cat", new Aggregations(List.of()))),
+                    100L
+                ),
+                mockCardinality("accuracy_" + MulticlassConfusionMatrix.STEP_1_CARDINALITY_OF_ACTUAL_CLASS, 1000L),
+                mockFilters(
+                    "accuracy_" + MulticlassConfusionMatrix.STEP_2_AGGREGATE_BY_ACTUAL_CLASS,
+                    List.of(
+                        mockFiltersBucket(
+                            "dog",
+                            30,
+                            new Aggregations(
+                                List.of(
+                                    mockFilters(
+                                        "accuracy_" + MulticlassConfusionMatrix.STEP_2_AGGREGATE_BY_PREDICTED_CLASS,
+                                        List.of(
+                                            mockFiltersBucket("cat", 10L),
+                                            mockFiltersBucket("dog", 20L),
+                                            mockFiltersBucket("_other_", 0L)
+                                        )
+                                    )
+                                )
+                            )
+                        ),
+                        mockFiltersBucket(
+                            "cat",
+                            70,
+                            new Aggregations(
+                                List.of(
+                                    mockFilters(
+                                        "accuracy_" + MulticlassConfusionMatrix.STEP_2_AGGREGATE_BY_PREDICTED_CLASS,
+                                        List.of(
+                                            mockFiltersBucket("cat", 30L),
+                                            mockFiltersBucket("dog", 40L),
+                                            mockFiltersBucket("_other_", 0L)
+                                        )
+                                    )
+                                )
+                            )
+                        )
+                    )
+                ),
+                mockSingleValue(Accuracy.OVERALL_ACCURACY_AGG_NAME, 0.5)
+            )
+        );
 
         Accuracy accuracy = new Accuracy();
         accuracy.process(aggs);
 
-        assertThat(accuracy.aggs(EVALUATION_PARAMETERS, "act", "pred"), isTuple(empty(), empty()));
+        assertThat(accuracy.aggs(EVALUATION_PARAMETERS, EVALUATION_FIELDS), isTuple(empty(), empty()));
 
         Result result = accuracy.getResult().get();
         assertThat(result.getMetricName(), equalTo(Accuracy.NAME.getPreferredName()));
-        assertThat(
-            result.getClasses(),
-            equalTo(
-                List.of(
-                    new PerClassResult("dog", 0.5),
-                    new PerClassResult("cat", 0.5))));
+        assertThat(result.getClasses(), equalTo(List.of(new PerClassSingleValue("dog", 0.5), new PerClassSingleValue("cat", 0.5))));
         assertThat(result.getOverallAccuracy(), equalTo(0.5));
     }
 
     public void testProcess_GivenCardinalityTooHigh() {
-        Aggregations aggs = new Aggregations(List.of(
-            mockTerms(
-                "accuracy_" + MulticlassConfusionMatrix.STEP_1_AGGREGATE_BY_ACTUAL_CLASS,
-                List.of(
-                    mockTermsBucket("dog", new Aggregations(List.of())),
-                    mockTermsBucket("cat", new Aggregations(List.of()))),
-                100L),
-            mockCardinality("accuracy_" + MulticlassConfusionMatrix.STEP_1_CARDINALITY_OF_ACTUAL_CLASS, 1001L),
-            mockFilters(
-                "accuracy_" + MulticlassConfusionMatrix.STEP_2_AGGREGATE_BY_ACTUAL_CLASS,
-                List.of(
-                    mockFiltersBucket(
-                        "dog",
-                        30,
-                        new Aggregations(List.of(mockFilters(
-                            "accuracy_" + MulticlassConfusionMatrix.STEP_2_AGGREGATE_BY_PREDICTED_CLASS,
-                            List.of(mockFiltersBucket("cat", 10L), mockFiltersBucket("dog", 20L), mockFiltersBucket("_other_", 0L)))))),
-                    mockFiltersBucket(
-                        "cat",
-                        70,
-                        new Aggregations(List.of(mockFilters(
-                            "accuracy_" + MulticlassConfusionMatrix.STEP_2_AGGREGATE_BY_PREDICTED_CLASS,
-                            List.of(mockFiltersBucket("cat", 30L), mockFiltersBucket("dog", 40L), mockFiltersBucket("_other_", 0L)))))))),
-            mockSingleValue(Accuracy.OVERALL_ACCURACY_AGG_NAME, 0.5)));
+        Aggregations aggs = new Aggregations(
+            List.of(
+                mockTerms(
+                    "accuracy_" + MulticlassConfusionMatrix.STEP_1_AGGREGATE_BY_ACTUAL_CLASS,
+                    List.of(mockTermsBucket("dog", new Aggregations(List.of())), mockTermsBucket("cat", new Aggregations(List.of()))),
+                    100L
+                ),
+                mockCardinality("accuracy_" + MulticlassConfusionMatrix.STEP_1_CARDINALITY_OF_ACTUAL_CLASS, 1001L),
+                mockFilters(
+                    "accuracy_" + MulticlassConfusionMatrix.STEP_2_AGGREGATE_BY_ACTUAL_CLASS,
+                    List.of(
+                        mockFiltersBucket(
+                            "dog",
+                            30,
+                            new Aggregations(
+                                List.of(
+                                    mockFilters(
+                                        "accuracy_" + MulticlassConfusionMatrix.STEP_2_AGGREGATE_BY_PREDICTED_CLASS,
+                                        List.of(
+                                            mockFiltersBucket("cat", 10L),
+                                            mockFiltersBucket("dog", 20L),
+                                            mockFiltersBucket("_other_", 0L)
+                                        )
+                                    )
+                                )
+                            )
+                        ),
+                        mockFiltersBucket(
+                            "cat",
+                            70,
+                            new Aggregations(
+                                List.of(
+                                    mockFilters(
+                                        "accuracy_" + MulticlassConfusionMatrix.STEP_2_AGGREGATE_BY_PREDICTED_CLASS,
+                                        List.of(
+                                            mockFiltersBucket("cat", 30L),
+                                            mockFiltersBucket("dog", 40L),
+                                            mockFiltersBucket("_other_", 0L)
+                                        )
+                                    )
+                                )
+                            )
+                        )
+                    )
+                ),
+                mockSingleValue(Accuracy.OVERALL_ACCURACY_AGG_NAME, 0.5)
+            )
+        );
 
         Accuracy accuracy = new Accuracy();
-        accuracy.aggs(EVALUATION_PARAMETERS, "foo", "bar");
+        accuracy.aggs(EVALUATION_PARAMETERS, EVALUATION_FIELDS);
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> accuracy.process(aggs));
         assertThat(e.getMessage(), containsString("Cardinality of field [foo] is too high"));
     }
@@ -135,27 +180,47 @@ public class AccuracyTests extends AbstractSerializingTestCase<Accuracy> {
             Accuracy.computePerClassAccuracy(
                 new MulticlassConfusionMatrix.Result(
                     List.of(
-                        new MulticlassConfusionMatrix.ActualClass("A", 14, List.of(
-                            new MulticlassConfusionMatrix.PredictedClass("A", 1),
-                            new MulticlassConfusionMatrix.PredictedClass("B", 6),
-                            new MulticlassConfusionMatrix.PredictedClass("C", 4)
-                        ), 3L),
-                        new MulticlassConfusionMatrix.ActualClass("B", 20, List.of(
-                            new MulticlassConfusionMatrix.PredictedClass("A", 5),
-                            new MulticlassConfusionMatrix.PredictedClass("B", 3),
-                            new MulticlassConfusionMatrix.PredictedClass("C", 9)
-                        ), 3L),
-                        new MulticlassConfusionMatrix.ActualClass("C", 17, List.of(
-                            new MulticlassConfusionMatrix.PredictedClass("A", 8),
-                            new MulticlassConfusionMatrix.PredictedClass("B", 2),
-                            new MulticlassConfusionMatrix.PredictedClass("C", 7)
-                        ), 0L)),
-                    0)),
+                        new MulticlassConfusionMatrix.ActualClass(
+                            "A",
+                            14,
+                            List.of(
+                                new MulticlassConfusionMatrix.PredictedClass("A", 1),
+                                new MulticlassConfusionMatrix.PredictedClass("B", 6),
+                                new MulticlassConfusionMatrix.PredictedClass("C", 4)
+                            ),
+                            3L
+                        ),
+                        new MulticlassConfusionMatrix.ActualClass(
+                            "B",
+                            20,
+                            List.of(
+                                new MulticlassConfusionMatrix.PredictedClass("A", 5),
+                                new MulticlassConfusionMatrix.PredictedClass("B", 3),
+                                new MulticlassConfusionMatrix.PredictedClass("C", 9)
+                            ),
+                            3L
+                        ),
+                        new MulticlassConfusionMatrix.ActualClass(
+                            "C",
+                            17,
+                            List.of(
+                                new MulticlassConfusionMatrix.PredictedClass("A", 8),
+                                new MulticlassConfusionMatrix.PredictedClass("B", 2),
+                                new MulticlassConfusionMatrix.PredictedClass("C", 7)
+                            ),
+                            0L
+                        )
+                    ),
+                    0
+                )
+            ),
             equalTo(
                 List.of(
-                    new Accuracy.PerClassResult("A", 25.0 / 51),  // 13 false positives, 13 false negatives
-                    new Accuracy.PerClassResult("B", 26.0 / 51),  //  8 false positives, 17 false negatives
-                    new Accuracy.PerClassResult("C", 28.0 / 51))) // 13 false positives, 10 false negatives
+                    new PerClassSingleValue("A", 25.0 / 51),  // 13 false positives, 13 false negatives
+                    new PerClassSingleValue("B", 26.0 / 51),  // 8 false positives, 17 false negatives
+                    new PerClassSingleValue("C", 28.0 / 51)
+                )
+            ) // 13 false positives, 10 false negatives
         );
     }
 

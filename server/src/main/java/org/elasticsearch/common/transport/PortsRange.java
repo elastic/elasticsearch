@@ -1,27 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.transport;
 
-
-import com.carrotsearch.hppc.IntArrayList;
-
+import java.util.ArrayList;
+import java.util.List;
 import java.util.StringTokenizer;
 
 public class PortsRange {
@@ -37,21 +25,18 @@ public class PortsRange {
     }
 
     public int[] ports() throws NumberFormatException {
-        final IntArrayList ports = new IntArrayList();
-        iterate(new PortCallback() {
-            @Override
-            public boolean onPortNumber(int portNumber) {
-                ports.add(portNumber);
-                return false;
-            }
+        final List<Integer> ports = new ArrayList<>();
+        iterate(portNumber -> {
+            ports.add(portNumber);
+            return false;
         });
-        return ports.toArray();
+        return ports.stream().mapToInt(Integer::intValue).toArray();
     }
 
     public boolean iterate(PortCallback callback) throws NumberFormatException {
         StringTokenizer st = new StringTokenizer(portRange, ",");
         boolean success = false;
-        while (st.hasMoreTokens() && !success) {
+        while (st.hasMoreTokens() && success == false) {
             String portToken = st.nextToken().trim();
             int index = portToken.indexOf('-');
             if (index == -1) {
@@ -83,8 +68,6 @@ public class PortsRange {
 
     @Override
     public String toString() {
-        return "PortsRange{" +
-            "portRange='" + portRange + '\'' +
-            '}';
+        return "PortsRange{" + "portRange='" + portRange + '\'' + '}';
     }
 }

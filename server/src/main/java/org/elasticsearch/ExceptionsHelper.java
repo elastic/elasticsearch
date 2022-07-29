@@ -1,35 +1,24 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch;
 
-import com.fasterxml.jackson.core.JsonParseException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.elasticsearch.action.ShardOperationFailedException;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.XContentParseException;
 
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -72,7 +61,7 @@ public final class ExceptionsHelper {
                 return ((ElasticsearchException) t).status();
             } else if (t instanceof IllegalArgumentException) {
                 return RestStatus.BAD_REQUEST;
-            } else if (t instanceof JsonParseException) {
+            } else if (t instanceof XContentParseException) {
                 return RestStatus.BAD_REQUEST;
             } else if (t instanceof EsRejectedExecutionException) {
                 return RestStatus.TOO_MANY_REQUESTS;
@@ -150,8 +139,11 @@ public final class ExceptionsHelper {
         return first;
     }
 
-    private static final List<Class<? extends IOException>> CORRUPTION_EXCEPTIONS =
-        List.of(CorruptIndexException.class, IndexFormatTooOldException.class, IndexFormatTooNewException.class);
+    private static final List<Class<? extends IOException>> CORRUPTION_EXCEPTIONS = List.of(
+        CorruptIndexException.class,
+        IndexFormatTooOldException.class,
+        IndexFormatTooNewException.class
+    );
 
     /**
      * Looks at the given Throwable's and its cause(s) as well as any suppressed exceptions on the Throwable as well as its causes
@@ -263,13 +255,9 @@ public final class ExceptionsHelper {
             try {
                 // try to log the current stack trace
                 final String formatted = ExceptionsHelper.formatStackTrace(Thread.currentThread().getStackTrace());
-                logger.error("fatal error\n{}", formatted);
+                logger.error("fatal error {}: {}\n{}", error.getClass().getCanonicalName(), error.getMessage(), formatted);
             } finally {
-                new Thread(
-                        () -> {
-                            throw error;
-                        })
-                        .start();
+                new Thread(() -> { throw error; }).start();
             }
         });
     }
@@ -297,9 +285,9 @@ public final class ExceptionsHelper {
 
         GroupBy(ShardOperationFailedException failure) {
             Throwable cause = failure.getCause();
-            //the index name from the failure contains the cluster alias when using CCS. Ideally failures should be grouped by
-            //index name and cluster alias. That's why the failure index name has the precedence over the one coming from the cause,
-            //which does not include the cluster alias.
+            // the index name from the failure contains the cluster alias when using CCS. Ideally failures should be grouped by
+            // index name and cluster alias. That's why the failure index name has the precedence over the one coming from the cause,
+            // which does not include the cluster alias.
             String indexName = failure.index();
             if (indexName == null) {
                 if (cause instanceof ElasticsearchException) {
@@ -323,9 +311,9 @@ public final class ExceptionsHelper {
                 return false;
             }
             GroupBy groupBy = (GroupBy) o;
-            return Objects.equals(reason, groupBy.reason) &&
-                Objects.equals(index, groupBy.index) &&
-                Objects.equals(causeType, groupBy.causeType);
+            return Objects.equals(reason, groupBy.reason)
+                && Objects.equals(index, groupBy.index)
+                && Objects.equals(causeType, groupBy.causeType);
         }
 
         @Override

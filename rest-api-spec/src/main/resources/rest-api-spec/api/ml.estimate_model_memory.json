@@ -1,0 +1,29 @@
+{
+  "ml.estimate_model_memory":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-apis.html",
+      "description":"Estimates the model memory"
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_ml/anomaly_detectors/_estimate_model_memory",
+          "methods":[
+            "POST"
+          ]
+        }
+      ]
+    },
+    "params":{},
+    "body":{
+      "description":"The analysis config, plus cardinality estimates for fields it references",
+      "required":true
+    }
+  }
+}

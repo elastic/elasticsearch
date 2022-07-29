@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.persistence;
 
@@ -131,16 +132,14 @@ public final class BucketsQueryBuilder {
             rfb.timeRange(Result.TIMESTAMP.getPreferredName(), timestamp);
         } else {
             rfb.timeRange(Result.TIMESTAMP.getPreferredName(), start, end)
-                    .score(Bucket.ANOMALY_SCORE.getPreferredName(), anomalyScoreFilter)
-                    .interim(includeInterim);
+                .score(Bucket.ANOMALY_SCORE.getPreferredName(), anomalyScoreFilter)
+                .interim(includeInterim);
         }
 
-        SortBuilder<?> sortBuilder = new FieldSortBuilder(sortField)
-                .order(sortDescending ? SortOrder.DESC : SortOrder.ASC);
+        SortBuilder<?> sortBuilder = new FieldSortBuilder(sortField).order(sortDescending ? SortOrder.DESC : SortOrder.ASC);
 
-        QueryBuilder boolQuery = new BoolQueryBuilder()
-                .filter(rfb.build())
-                .filter(QueryBuilders.termQuery(Result.RESULT_TYPE.getPreferredName(), Bucket.RESULT_TYPE_VALUE));
+        QueryBuilder boolQuery = new BoolQueryBuilder().filter(rfb.build())
+            .filter(QueryBuilders.termQuery(Result.RESULT_TYPE.getPreferredName(), Bucket.RESULT_TYPE_VALUE));
 
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
         searchSourceBuilder.sort(sortBuilder);

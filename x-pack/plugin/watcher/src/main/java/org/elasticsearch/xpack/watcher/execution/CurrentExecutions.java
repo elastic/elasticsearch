@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.watcher.execution;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.watcher.WatcherState;
 
 import java.util.Iterator;
@@ -42,8 +43,11 @@ public final class CurrentExecutions implements Iterable<ExecutionService.WatchE
         try {
             if (seal.get() != null) {
                 // We shouldn't get here, because, ExecutionService#started should have been set to false
-                throw illegalState("could not register execution [{}]. current executions are sealed and forbid registrations of " +
-                        "additional executions.", id);
+                throw illegalState(
+                    "could not register execution [{}]. current executions are sealed and forbid registrations of "
+                        + "additional executions.",
+                    id
+                );
             }
             return currentExecutions.putIfAbsent(id, execution) != null;
         } finally {
@@ -88,7 +92,7 @@ public final class CurrentExecutions implements Iterable<ExecutionService.WatchE
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } finally {
-            //fully stop Watcher after all executions are finished
+            // fully stop Watcher after all executions are finished
             stoppedListener.run();
             lock.unlock();
         }

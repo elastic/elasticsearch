@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket;
@@ -35,28 +24,28 @@ public class IpRangeTests extends BaseAggregationTestCase<IpRangeAggregationBuil
                 key = randomAlphaOfLengthBetween(1, 20);
             }
             switch (randomInt(3)) {
-            case 0:
-                boolean v4 = randomBoolean();
-                int prefixLength;
-                if (v4) {
-                    prefixLength = randomInt(32);
-                } else {
-                    prefixLength = randomInt(128);
-                }
-                factory.addMaskRange(key, NetworkAddress.format(randomIp(v4)) + "/" + prefixLength);
-                break;
-            case 1:
-                factory.addUnboundedFrom(key, NetworkAddress.format(randomIp(randomBoolean())));
-                break;
-            case 2:
-                factory.addUnboundedTo(key, NetworkAddress.format(randomIp(randomBoolean())));
-                break;
-            case 3:
-                v4 = randomBoolean();
-                factory.addRange(key, NetworkAddress.format(randomIp(v4)), NetworkAddress.format(randomIp(v4)));
-                break;
-            default:
-                fail();
+                case 0:
+                    boolean v4 = randomBoolean();
+                    int prefixLength;
+                    if (v4) {
+                        prefixLength = randomInt(32);
+                    } else {
+                        prefixLength = randomInt(128);
+                    }
+                    factory.addMaskRange(key, NetworkAddress.format(randomIp(v4)) + "/" + prefixLength);
+                    break;
+                case 1:
+                    factory.addUnboundedFrom(key, NetworkAddress.format(randomIp(randomBoolean())));
+                    break;
+                case 2:
+                    factory.addUnboundedTo(key, NetworkAddress.format(randomIp(randomBoolean())));
+                    break;
+                case 3:
+                    v4 = randomBoolean();
+                    factory.addRange(key, NetworkAddress.format(randomIp(v4)), NetworkAddress.format(randomIp(v4)));
+                    break;
+                default:
+                    fail();
             }
         }
         factory.field(IP_FIELD_NAME);

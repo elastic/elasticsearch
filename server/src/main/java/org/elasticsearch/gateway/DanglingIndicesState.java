@@ -1,25 +1,13 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.gateway;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
@@ -27,11 +15,11 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
 
 import java.io.IOException;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -63,10 +51,10 @@ public class DanglingIndicesState {
     public Map<Index, IndexMetadata> getDanglingIndices() {
         final Metadata metadata = this.clusterService.state().metadata();
 
-        final Set<String> excludeIndexPathIds = new HashSet<>(metadata.indices().size());
+        final Set<String> excludeIndexPathIds = Sets.newHashSetWithExpectedSize(metadata.indices().size());
 
-        for (ObjectCursor<IndexMetadata> cursor : metadata.indices().values()) {
-            excludeIndexPathIds.add(cursor.value.getIndex().getUUID());
+        for (IndexMetadata indexMetadata : metadata.indices().values()) {
+            excludeIndexPathIds.add(indexMetadata.getIndex().getUUID());
         }
 
         try {
@@ -94,14 +82,14 @@ public class DanglingIndicesState {
      * Importing dangling indices with aliases is dangerous, it could for instance result in inability to write to an existing alias if it
      * previously had only one index with any is_write_index indication.
      */
-    private IndexMetadata stripAliases(IndexMetadata indexMetadata) {
+    private static IndexMetadata stripAliases(IndexMetadata indexMetadata) {
         if (indexMetadata.getAliases().isEmpty()) {
             return indexMetadata;
         } else {
             logger.info(
                 "[{}] stripping aliases: {} from index before importing",
                 indexMetadata.getIndex(),
-                indexMetadata.getAliases().keys()
+                indexMetadata.getAliases().keySet()
             );
             return IndexMetadata.builder(indexMetadata).removeAllAliases().build();
         }

@@ -1,0 +1,13 @@
+---
+setup:
+  - skip:
+      features: warnings
+---
+"Test warnings":
+  - do:
+      warnings:
+        - "a"
+      something:
+        id: "something"
+  - match: { acknowledged: true }
+

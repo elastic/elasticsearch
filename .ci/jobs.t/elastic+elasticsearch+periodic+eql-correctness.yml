@@ -1,0 +1,23 @@
+---
+- job:
+    name: elastic+elasticsearch+%BRANCH%+periodic+eql-correctness
+    workspace: /dev/shm/elastic+elasticsearch+%BRANCH%+periodic+eql-correctness
+    display-name: "elastic / elasticsearch # %BRANCH% - eql correctness tests"
+    description: "Testing of Elasticsearch %BRANCH% EQL.\n"
+    builders:
+      - inject:
+          properties-file: '.ci/java-versions.properties'
+          properties-content: |
+            JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA
+            RUNTIME_JAVA_HOME=$HOME/.java/$ES_RUNTIME_JAVA
+      - shell: |
+          #!/usr/local/bin/runbld --redirect-stderr
+          set +x
+          VAULT_TOKEN=$(vault write -field=token auth/approle/login role_id=$VAULT_ROLE_ID secret_id=$VAULT_SECRET_ID)
+          export VAULT_TOKEN
+          export eql_test_credentials_file="$(pwd)/x-pack/plugin/eql/qa/correctness/credentials.gcs.json"
+          vault read -field=credentials.gcs.json secret/elasticsearch-ci/eql_test_credentials > ${eql_test_credentials_file}
+          unset VAULT_TOKEN
+          set -x
+
+          $WORKSPACE/.ci/scripts/run-gradle.sh :x-pack:plugin:eql:qa:correctness:check

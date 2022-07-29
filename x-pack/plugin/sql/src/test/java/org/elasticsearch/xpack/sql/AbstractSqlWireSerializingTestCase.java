@@ -1,13 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireTestCase;
@@ -22,14 +22,12 @@ public abstract class AbstractSqlWireSerializingTestCase<T extends Writeable> ex
 
     @Override
     protected T copyInstance(T instance, Version version) throws IOException {
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
-            ZoneId zoneId = instanceZoneId(instance);
-            SqlStreamOutput out = new SqlStreamOutput(version, zoneId);
-            instance.writeTo(out);
-            out.close();
-            try (SqlStreamInput in = new SqlStreamInput(out.streamAsString(), getNamedWriteableRegistry(), version)) {
-                return instanceReader().read(in);
-            }
+        ZoneId zoneId = instanceZoneId(instance);
+        SqlStreamOutput out = SqlStreamOutput.create(version, zoneId);
+        instance.writeTo(out);
+        out.close();
+        try (SqlStreamInput in = SqlStreamInput.fromString(out.streamAsString(), getNamedWriteableRegistry(), version)) {
+            return instanceReader().read(in);
         }
     }
 

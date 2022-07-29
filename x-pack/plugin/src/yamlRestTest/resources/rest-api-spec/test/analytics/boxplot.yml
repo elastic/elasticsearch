@@ -1,0 +1,113 @@
+setup:
+  - skip:
+      features: headers
+  - do:
+      indices.create:
+        index: latency
+        body:
+          mappings:
+            properties:
+              load_time:
+                type: double
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      bulk:
+        refresh: true
+        body:
+          - index:
+              _index: "latency"
+          - load_time: 2
+
+          - index:
+              _index: "latency"
+          - load_time: 3
+
+          - index:
+              _index: "latency"
+          - load_time: 5
+
+          - index:
+              _index: "latency"
+          - load_time: 10
+
+          - index:
+              _index: "latency"
+          - load_time: 15
+
+          - index:
+              _index: "latency"
+          - { }
+
+---
+"Basic Search":
+
+  - do:
+      search:
+        index: "latency"
+        body:
+          size: 0
+          aggs:
+            plot:
+              boxplot:
+                field: "load_time"
+
+  - match: { aggregations.plot.min: 2.0 }
+  - match: { aggregations.plot.max: 15.0 }
+  - match: { aggregations.plot.q1: 2.75 }
+  - match: { aggregations.plot.q2: 5.0 }
+  - match: { aggregations.plot.q3: 11.25 }
+
+---
+"Search With Runtime Field":
+
+  - do:
+      search:
+        index: "latency"
+        body:
+          query:
+            exists:
+              field: load_time
+          runtime_mappings:
+            load_time_adjusted:
+              type: long
+              script:
+                source: "emit((long)((doc['load_time'].value == 10 ? 1000 : doc['load_time'].value) * params.multiplier))"
+                params:
+                  multiplier: 10
+          size: 0
+          aggs:
+            plot:
+              boxplot:
+                field: "load_time_adjusted"
+
+  - match: { aggregations.plot.min: 20.0 }
+  - match: { aggregations.plot.max: 10000.0 }
+  - match: { aggregations.plot.q1: 27.5 }
+  - match: { aggregations.plot.q2: 50.0 }
+  - match: { aggregations.plot.q3: 2612.5 }
+  - match: { aggregations.plot.lower: 20.0 }
+  - match: { aggregations.plot.upper: 150.0 }
+
+---
+"Search With Missing":
+
+  - do:
+      search:
+        index: "latency"
+        body:
+          size: 0
+          aggs:
+            plot:
+              boxplot:
+                field: "load_time"
+                missing: 10000
+
+  - match: { aggregations.plot.min: 2.0 }
+  - match: { aggregations.plot.max: 10000.0 }
+  - match: { aggregations.plot.q1: 3 }
+  - match: { aggregations.plot.q2: 7.5 }
+  - match: { aggregations.plot.q3: 15.0 }
+  - match: { aggregations.plot.lower: 2.0 }
+  - match: { aggregations.plot.upper: 15.0 }

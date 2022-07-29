@@ -1,27 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.indices.readonly;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DestructiveOperations;
@@ -33,13 +21,12 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 
 /**
@@ -58,25 +45,28 @@ public class TransportAddIndexBlockAction extends TransportMasterNodeAction<AddI
     private final DestructiveOperations destructiveOperations;
 
     @Inject
-    public TransportAddIndexBlockAction(TransportService transportService, ClusterService clusterService,
-                                        ThreadPool threadPool, MetadataIndexStateService indexStateService,
-                                        ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                        DestructiveOperations destructiveOperations) {
-        super(AddIndexBlockAction.NAME, transportService, clusterService, threadPool, actionFilters, AddIndexBlockRequest::new,
-            indexNameExpressionResolver);
+    public TransportAddIndexBlockAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        MetadataIndexStateService indexStateService,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        DestructiveOperations destructiveOperations
+    ) {
+        super(
+            AddIndexBlockAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            AddIndexBlockRequest::new,
+            indexNameExpressionResolver,
+            AddIndexBlockResponse::new,
+            ThreadPool.Names.SAME
+        );
         this.indexStateService = indexStateService;
         this.destructiveOperations = destructiveOperations;
-    }
-
-    @Override
-    protected String executor() {
-        // no need to use a thread pool, we go async right away
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected AddIndexBlockResponse read(StreamInput in) throws IOException {
-        return new AddIndexBlockResponse(in);
     }
 
     @Override
@@ -87,32 +77,33 @@ public class TransportAddIndexBlockAction extends TransportMasterNodeAction<AddI
 
     @Override
     protected ClusterBlockException checkBlock(AddIndexBlockRequest request, ClusterState state) {
-        if (request.getBlock().getBlock().levels().contains(ClusterBlockLevel.METADATA_WRITE) &&
-            state.blocks().global(ClusterBlockLevel.METADATA_WRITE).isEmpty())  {
+        if (request.getBlock().getBlock().levels().contains(ClusterBlockLevel.METADATA_WRITE)
+            && state.blocks().global(ClusterBlockLevel.METADATA_WRITE).isEmpty()) {
             return null;
         }
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE,
-            indexNameExpressionResolver.concreteIndexNames(state, request));
+        return state.blocks()
+            .indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, indexNameExpressionResolver.concreteIndexNames(state, request));
     }
 
     @Override
-    protected void masterOperation(final Task task,
-                                   final AddIndexBlockRequest request,
-                                   final ClusterState state,
-                                   final ActionListener<AddIndexBlockResponse> listener) throws Exception {
+    protected void masterOperation(
+        final Task task,
+        final AddIndexBlockRequest request,
+        final ClusterState state,
+        final ActionListener<AddIndexBlockResponse> listener
+    ) throws Exception {
         final Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
         if (concreteIndices == null || concreteIndices.length == 0) {
             listener.onResponse(new AddIndexBlockResponse(true, false, Collections.emptyList()));
             return;
         }
 
-        final AddIndexBlockClusterStateUpdateRequest addBlockRequest = new AddIndexBlockClusterStateUpdateRequest(request.getBlock(),
-            task.getId())
-            .ackTimeout(request.timeout())
-            .masterNodeTimeout(request.masterNodeTimeout())
-            .indices(concreteIndices);
-        indexStateService.addIndexBlock(addBlockRequest, ActionListener.delegateResponse(listener, (delegatedListener, t) -> {
-            logger.debug(() -> new ParameterizedMessage("failed to mark indices as readonly [{}]", (Object) concreteIndices), t);
+        final AddIndexBlockClusterStateUpdateRequest addBlockRequest = new AddIndexBlockClusterStateUpdateRequest(
+            request.getBlock(),
+            task.getId()
+        ).ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout()).indices(concreteIndices);
+        indexStateService.addIndexBlock(addBlockRequest, listener.delegateResponse((delegatedListener, t) -> {
+            logger.debug(() -> "failed to mark indices as readonly [" + Arrays.toString(concreteIndices) + "]", t);
             delegatedListener.onFailure(t);
         }));
     }

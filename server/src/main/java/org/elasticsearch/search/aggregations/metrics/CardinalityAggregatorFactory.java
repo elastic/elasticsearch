@@ -1,84 +1,211 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
-import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
-class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
+public class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
+
+    public enum ExecutionMode {
+        GLOBAL_ORDINALS(false) {
+            @Override
+            public boolean useGlobalOrdinals(AggregationContext context, ValuesSource.Bytes.WithOrdinals source, int precision) {
+                return true;
+            }
+
+            @Override
+            public boolean useSegmentOrdinals(long maxOrd, int precision) {
+                return false;
+            }
+        },
+        SEGMENT_ORDINALS(false) {
+            @Override
+            public boolean useGlobalOrdinals(AggregationContext context, ValuesSource.Bytes.WithOrdinals source, int precision) {
+                return false;
+            }
+
+            @Override
+            public boolean useSegmentOrdinals(long maxOrd, int precision) {
+                return true;
+            }
+        },
+        DIRECT(false) {
+            @Override
+            public boolean useGlobalOrdinals(AggregationContext context, ValuesSource.Bytes.WithOrdinals source, int precision) {
+                return false;
+            }
+
+            @Override
+            public boolean useSegmentOrdinals(long maxOrd, int precision) {
+                return false;
+            }
+        },
+        SAVE_MEMORY_HEURISTIC(true) {
+            @Override
+            public boolean useGlobalOrdinals(AggregationContext context, ValuesSource.Bytes.WithOrdinals source, int precision)
+                throws IOException {
+                return useGlobalOrds(context, source, precision);
+            }
+
+            @Override
+            public boolean useSegmentOrdinals(long maxOrd, int precision) {
+                final long ordinalsMemoryUsage = CardinalityAggregator.OrdinalsCollector.memoryOverhead(maxOrd);
+                final long countsMemoryUsage = HyperLogLogPlusPlus.memoryUsage(precision);
+                // only use ordinals if they don't increase memory usage by more than 25%
+                if (ordinalsMemoryUsage < countsMemoryUsage / 4) {
+                    return true;
+                }
+                return false;
+            }
+        },
+        SAVE_TIME_HEURISTIC(true) {
+            @Override
+            public boolean useGlobalOrdinals(AggregationContext context, ValuesSource.Bytes.WithOrdinals source, int precision)
+                throws IOException {
+                return useGlobalOrds(context, source, precision);
+            }
+
+            @Override
+            public boolean useSegmentOrdinals(long maxOrd, int precision) {
+                // Using segment ordinals is much faster than using the direct collector, even when it uses more memory
+                return true;
+            }
+        };
+
+        public static ExecutionMode fromString(String value) {
+            if (value == null) {
+                return null;
+            }
+            try {
+                return ExecutionMode.valueOf(value.toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException(
+                    "Invalid execution mode for cardinality aggregation.  Got ["
+                        + value
+                        + "]"
+                        + "expected one of [global_ordinal, segment_ordinal, direct]"
+                );
+            }
+        }
+
+        boolean isHeuristicBased;
+
+        ExecutionMode(boolean isHeuristicBased) {
+            this.isHeuristicBased = isHeuristicBased;
+        }
+
+        public boolean isHeuristicBased() {
+            return isHeuristicBased;
+        }
+
+        public abstract boolean useGlobalOrdinals(AggregationContext context, ValuesSource.Bytes.WithOrdinals source, int precision)
+            throws IOException;
+
+        public abstract boolean useSegmentOrdinals(long maxOrd, int precision);
+    }
 
     private final Long precisionThreshold;
+    private final CardinalityAggregatorSupplier aggregatorSupplier;
+    private final ExecutionMode executionMode;
 
-    CardinalityAggregatorFactory(String name, ValuesSourceConfig config,
-                                    Long precisionThreshold,
-                                    QueryShardContext queryShardContext,
-                                    AggregatorFactory parent,
-                                    AggregatorFactories.Builder subFactoriesBuilder,
-                                    Map<String, Object> metadata) throws IOException {
-        super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
+    CardinalityAggregatorFactory(
+        String name,
+        ValuesSourceConfig config,
+        Long precisionThreshold,
+        String executionHint,
+        AggregationContext context,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder,
+        Map<String, Object> metadata,
+        CardinalityAggregatorSupplier aggregatorSupplier
+    ) throws IOException {
+        super(name, config, context, parent, subFactoriesBuilder, metadata);
+
+        this.aggregatorSupplier = aggregatorSupplier;
         this.precisionThreshold = precisionThreshold;
+        // For BWC reasons, the parameter is nullable.
+        this.executionMode = executionHint == null ? ExecutionMode.SAVE_TIME_HEURISTIC : ExecutionMode.fromString(executionHint);
     }
 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
-        builder.register(CardinalityAggregationBuilder.NAME, CoreValuesSourceType.ALL_CORE,
-            (CardinalityAggregatorSupplier) CardinalityAggregator::new);
+        builder.register(
+            CardinalityAggregationBuilder.REGISTRY_KEY,
+            CoreValuesSourceType.ALL_CORE,
+            (name, valuesSourceConfig, precision, executionMode, context, parent, metadata) -> {
+                // check global ords
+                if (valuesSourceConfig.hasValues()) {
+                    if (valuesSourceConfig.getValuesSource()instanceof final ValuesSource.Bytes.WithOrdinals source) {
+                        if (executionMode.useGlobalOrdinals(context, source, precision)) {
+                            final long maxOrd = source.globalMaxOrd(context.searcher());
+                            return new GlobalOrdCardinalityAggregator(
+                                name,
+                                source,
+                                precision,
+                                Math.toIntExact(maxOrd),
+                                context,
+                                parent,
+                                metadata
+                            );
+                        }
+                    }
+                }
+                // fallback in the default aggregator
+                return new CardinalityAggregator(name, valuesSourceConfig, precision, executionMode, context, parent, metadata);
+            },
+            true
+        );
     }
 
-    @Override
-    protected Aggregator createUnmapped(SearchContext searchContext,
-                                            Aggregator parent,
-                                            Map<String, Object> metadata) throws IOException {
-        return new CardinalityAggregator(name, config, precision(), searchContext, parent, metadata);
-    }
-
-    @Override
-    protected Aggregator doCreateInternal(SearchContext searchContext,
-                                          Aggregator parent,
-                                          CardinalityUpperBound cardinality,
-                                          Map<String, Object> metadata) throws IOException {
-        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config,
-            CardinalityAggregationBuilder.NAME);
-        if (aggregatorSupplier instanceof CardinalityAggregatorSupplier == false) {
-            throw new AggregationExecutionException("Registry miss-match - expected CardinalityAggregatorSupplier, found [" +
-                aggregatorSupplier.getClass().toString() + "]");
+    private static boolean useGlobalOrds(AggregationContext context, ValuesSource.Bytes.WithOrdinals source, int precision)
+        throws IOException {
+        final List<LeafReaderContext> leaves = context.searcher().getIndexReader().leaves();
+        // we compute the total number of terms across all segments
+        long total = 0;
+        for (LeafReaderContext leaf : leaves) {
+            total += source.ordinalsValues(leaf).getValueCount();
         }
-        CardinalityAggregatorSupplier cardinalityAggregatorSupplier = (CardinalityAggregatorSupplier) aggregatorSupplier;
-        return cardinalityAggregatorSupplier.build(name, config, precision(), searchContext, parent, metadata);
+        final long countsMemoryUsage = HyperLogLogPlusPlus.memoryUsage(precision);
+        // we assume there are 25% of repeated values when there is more than one leaf
+        final long ordinalsMemoryUsage = leaves.size() == 1 ? total * 4L : total * 3L;
+        // we do not consider the size if the bitSet, I think at most they can be ~1MB per bucket
+        return ordinalsMemoryUsage < countsMemoryUsage;
+    }
+
+    @Override
+    protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
+        return new CardinalityAggregator(name, config, precision(), null, context, parent, metadata);
+    }
+
+    @Override
+    protected Aggregator doCreateInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
+        throws IOException {
+        return aggregatorSupplier.build(name, config, precision(), executionMode, context, parent, metadata);
     }
 
     private int precision() {
         return precisionThreshold == null
-                ? HyperLogLogPlusPlus.DEFAULT_PRECISION
-                : HyperLogLogPlusPlus.precisionFromThreshold(precisionThreshold);
+            ? HyperLogLogPlusPlus.DEFAULT_PRECISION
+            : HyperLogLogPlusPlus.precisionFromThreshold(precisionThreshold);
     }
 }

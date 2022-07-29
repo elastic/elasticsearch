@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.sql.qa;
@@ -12,12 +13,12 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.cbor.CborXContent;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.common.xcontent.smile.SmileXContent;
-import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.cbor.CborXContent;
+import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.smile.SmileXContent;
+import org.elasticsearch.xcontent.yaml.YamlXContent;
 import org.elasticsearch.xpack.sql.proto.Mode;
 
 import java.io.IOException;
@@ -28,8 +29,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.ql.util.NumericUtils.UNSIGNED_LONG_MAX;
+import static org.elasticsearch.xpack.sql.proto.CoreProtocol.SQL_QUERY_REST_ENDPOINT;
 import static org.elasticsearch.xpack.sql.proto.Mode.CLI;
-import static org.elasticsearch.xpack.sql.proto.Protocol.SQL_QUERY_REST_ENDPOINT;
 import static org.elasticsearch.xpack.sql.proto.RequestInfo.CLIENT_IDS;
 import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.query;
 
@@ -53,6 +55,7 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
         assertQuery("SELECT -2123", "-2123", "integer", -2123, 11);
         assertQuery("SELECT 1234567890123", "1234567890123", "long", 1234567890123L, 20);
         assertQuery("SELECT -1234567890123", "-1234567890123", "long", -1234567890123L, 20);
+        assertQuery("SELECT 18446744073709551615", "18446744073709551615", "unsigned_long", UNSIGNED_LONG_MAX, 20);
         assertQuery("SELECT 1234567890123.34", "1234567890123.34", "double", 1234567890123.34, 25);
         assertQuery("SELECT -1234567890123.34", "-1234567890123.34", "double", -1234567890123.34, 25);
         assertQuery("SELECT CAST(1234.34 AS REAL)", "CAST(1234.34 AS REAL)", "float", 1234.34f, 15);
@@ -71,35 +74,35 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
             "CAST('2019-01-14T12:29:25.000Z' AS DATETIME)",
             "datetime",
             "2019-01-14T12:29:25.000Z",
-            29
+            34
         );
         assertQuery(
             "SELECT CAST(-26853765751000 AS DATETIME)",
             "CAST(-26853765751000 AS DATETIME)",
             "datetime",
             "1119-01-15T12:37:29.000Z",
-            29
+            34
         );
         assertQuery(
             "SELECT CAST(CAST('-26853765751000' AS BIGINT) AS DATETIME)",
             "CAST(CAST('-26853765751000' AS BIGINT) AS DATETIME)",
             "datetime",
             "1119-01-15T12:37:29.000Z",
-            29
+            34
         );
 
         assertQuery("SELECT CAST('2019-01-14' AS DATE)", "CAST('2019-01-14' AS DATE)", "date", "2019-01-14T00:00:00.000Z", 29);
         assertQuery("SELECT CAST(-26853765751000 AS DATE)", "CAST(-26853765751000 AS DATE)", "date", "1119-01-15T00:00:00.000Z", 29);
 
-        assertQuery("SELECT CAST('12:29:25.123Z' AS TIME)", "CAST('12:29:25.123Z' AS TIME)", "time", "12:29:25.123Z", 18);
+        assertQuery("SELECT CAST('12:29:25.123Z' AS TIME)", "CAST('12:29:25.123Z' AS TIME)", "time", "12:29:25.123Z", 24);
         assertQuery(
             "SELECT CAST('12:29:25.123456789+05:00' AS TIME)",
             "CAST('12:29:25.123456789+05:00' AS TIME)",
             "time",
             "12:29:25.123+05:00",
-            18
+            24
         );
-        assertQuery("SELECT CAST(-26853765751000 AS TIME)", "CAST(-26853765751000 AS TIME)", "time", "12:37:29.000Z", 18);
+        assertQuery("SELECT CAST(-26853765751000 AS TIME)", "CAST(-26853765751000 AS TIME)", "time", "12:37:29.000Z", 24);
     }
 
     public void testIPs() throws IOException {
@@ -111,6 +114,11 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
             "2001:0db8:0000:0000:0000:ff00:0042:8329",
             45
         );
+    }
+
+    public void testVersionFields() throws IOException {
+        assertQuery("SELECT CAST('1.2.3' AS VERSION)", "CAST('1.2.3' AS VERSION)", "version", "1.2.3", 2147483647);
+        assertQuery("SELECT CAST('bad' AS VERSION)", "CAST('bad' AS VERSION)", "version", "bad", 2147483647);
     }
 
     public void testDateTimeIntervals() throws IOException {
@@ -288,7 +296,8 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
     private Map<String, Object> runSql(Mode mode, String sql, boolean columnar) throws IOException {
         Request request = new Request("POST", SQL_QUERY_REST_ENDPOINT);
         String requestContent = query(sql).mode(mode).toString();
-        String format = randomFrom(XContentType.values()).name().toLowerCase(Locale.ROOT);
+        String format = randomFrom(XContentType.JSON, XContentType.SMILE, XContentType.CBOR, XContentType.YAML).name()
+            .toLowerCase(Locale.ROOT);
 
         // add a client_id to the request
         if (randomBoolean()) {
@@ -302,7 +311,7 @@ public abstract class SqlProtocolTestCase extends ESRestTestCase {
         if (randomBoolean()) {
             request.addParameter("pretty", "true");
         }
-        if (!"json".equals(format) || randomBoolean()) {
+        if ("json".equals(format) == false || randomBoolean()) {
             // since we default to JSON if a format is not specified, randomize setting it or not, explicitly;
             // for any other format, just set the format explicitly
             request.addParameter("format", format);

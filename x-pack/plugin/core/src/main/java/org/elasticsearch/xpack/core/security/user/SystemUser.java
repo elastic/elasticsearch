@@ -1,10 +1,12 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.user;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.core.security.authz.privilege.SystemPrivilege;
 
 import java.util.function.Predicate;
@@ -22,7 +24,11 @@ public class SystemUser extends User {
     private static final Predicate<String> PREDICATE = SystemPrivilege.INSTANCE.predicate();
 
     private SystemUser() {
-        super(NAME, ROLE_NAME);
+        super(NAME, Strings.EMPTY_ARRAY);
+        // the following traits, and especially the run-as one, go with all the internal users
+        // TODO abstract in a base `InternalUser` class
+        assert enabled();
+        assert roles() != null && roles().length == 0;
     }
 
     @Override
@@ -37,10 +43,6 @@ public class SystemUser extends User {
 
     public static boolean is(User user) {
         return INSTANCE.equals(user);
-    }
-
-    public static boolean is(String principal) {
-        return NAME.equals(principal);
     }
 
     public static boolean isAuthorized(String action) {

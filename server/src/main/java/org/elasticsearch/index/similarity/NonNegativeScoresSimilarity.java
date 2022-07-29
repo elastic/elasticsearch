@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.similarity;
@@ -43,8 +32,9 @@ public final class NonNegativeScoresSimilarity extends Similarity {
         } else if ("false".equals(enforcePositiveScores)) {
             ENFORCE_POSITIVE_SCORES = false;
         } else {
-            throw new IllegalArgumentException(ES_ENFORCE_POSITIVE_SCORES + " may only be unset or set to [false], but got [" +
-                    enforcePositiveScores + "]");
+            throw new IllegalArgumentException(
+                ES_ENFORCE_POSITIVE_SCORES + " may only be unset or set to [false], but got [" + enforcePositiveScores + "]"
+            );
         }
     }
 
@@ -73,8 +63,10 @@ public final class NonNegativeScoresSimilarity extends Similarity {
                 float score = inScorer.score(freq, norm);
                 if (score < 0f) {
                     if (ENFORCE_POSITIVE_SCORES) {
-                        throw new IllegalArgumentException("Similarities must not produce negative scores, but got:\n" +
-                                inScorer.explain(Explanation.match(freq, "term frequency"), norm));
+                        throw new IllegalArgumentException(
+                            "Similarities must not produce negative scores, but got:\n"
+                                + inScorer.explain(Explanation.match(freq, "term frequency"), norm)
+                        );
                     } else {
                         return 0f;
                     }
@@ -86,8 +78,7 @@ public final class NonNegativeScoresSimilarity extends Similarity {
             public Explanation explain(Explanation freq, long norm) {
                 Explanation expl = inScorer.explain(freq, norm);
                 if (expl.isMatch() && expl.getValue().floatValue() < 0) {
-                    expl = Explanation.match(0f, "max of:",
-                            expl, Explanation.match(0f, "Minimum allowed score"));
+                    expl = Explanation.match(0f, "max of:", expl, Explanation.match(0f, "Minimum allowed score"));
                 }
                 return expl;
             }

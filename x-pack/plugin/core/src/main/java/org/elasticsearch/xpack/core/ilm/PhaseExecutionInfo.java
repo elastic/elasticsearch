@@ -1,20 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -30,8 +31,10 @@ public class PhaseExecutionInfo implements ToXContentObject, Writeable {
     private static final ParseField MODIFIED_DATE_IN_MILLIS_FIELD = new ParseField("modified_date_in_millis");
 
     private static final ConstructingObjectParser<PhaseExecutionInfo, String> PARSER = new ConstructingObjectParser<>(
-        "phase_execution_info", false,
-        (a, name) -> new PhaseExecutionInfo((String) a[0], (Phase) a[1], (long) a[2], (long) a[3]));
+        "phase_execution_info",
+        false,
+        (a, name) -> new PhaseExecutionInfo((String) a[0], (Phase) a[1], (long) a[2], (long) a[3])
+    );
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), POLICY_NAME_FIELD);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), Phase::parse, PHASE_DEFINITION_FIELD);
@@ -108,10 +111,10 @@ public class PhaseExecutionInfo implements ToXContentObject, Writeable {
             return false;
         }
         PhaseExecutionInfo other = (PhaseExecutionInfo) obj;
-        return Objects.equals(policyName, other.policyName) &&
-            Objects.equals(phase, other.phase) &&
-            Objects.equals(version, other.version) &&
-            Objects.equals(modifiedDate, other.modifiedDate);
+        return Objects.equals(policyName, other.policyName)
+            && Objects.equals(phase, other.phase)
+            && Objects.equals(version, other.version)
+            && Objects.equals(modifiedDate, other.modifiedDate);
     }
 
     @Override

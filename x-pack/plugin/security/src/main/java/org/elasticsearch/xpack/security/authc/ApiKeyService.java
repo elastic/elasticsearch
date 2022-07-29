@@ -395,10 +395,10 @@ public class ApiKeyService {
     ) {
         logger.trace("Found [{}] API keys of [{}] requested for update", targetVersionedDocs.size(), request.getIds().size());
         assert targetVersionedDocs.size() <= request.getIds().size()
-            : "more docs were found for update than were requested. requested: "
-                + request.getIds().size()
-                + " found: "
-                + targetVersionedDocs.size();
+            : "more docs were found for update than were requested. found: "
+                + targetVersionedDocs.size()
+                + " requested: "
+                + request.getIds().size();
 
         final BulkUpdateApiKeyResponse.Builder responseBuilder = BulkUpdateApiKeyResponse.builder();
         final BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();

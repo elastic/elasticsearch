@@ -6,6 +6,5 @@ issues: []
 deprecation:
   title: Deprecate network plugins
   area: Infra/Plugins
-  details: Please describe the details of this change for the release notes. You can
-    use asciidoc.
-  impact: Please describe the impact of this change to users
+  details: Plugins extending NetworkPlugin are deprecated.
+  impact: Users should discontinue using plugins which extend NetworkPlugin.

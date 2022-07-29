@@ -616,7 +616,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                 throw new IllegalArgumentException("failed to find mapper for [" + fieldName + "] for geo distance based sort");
             }
         }
-        return context.getForField(fieldType);
+        return context.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
     }
 
     private Nested nested(SearchExecutionContext context) throws IOException {

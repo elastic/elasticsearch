@@ -93,7 +93,7 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
                 } else {
                     throw new IllegalArgumentException("Malformed search template");
                 }
-                RestSearchAction.checkRestTotalHits(restRequest, searchRequest);
+                RestSearchAction.validateSearchRequest(restRequest, searchRequest);
             }
         );
         return multiRequest;

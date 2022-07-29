@@ -18,30 +18,14 @@
           ]
         },
         {
-          "path":"/_internal/_health/{component}",
+          "path":"/_internal/_health/{feature}",
           "methods":[
             "GET"
           ],
           "parts":{
-            "component":{
-              "type":"string",
-              "description":"A component of the cluster, as returned by the top-level health API"
-            }
-          }
-        },
-        {
-          "path":"/_internal/_health/{component}/{feature}",
-          "methods":[
-            "GET"
-          ],
-          "parts":{
-            "component":{
-              "type":"string",
-              "description":"A component of the cluster, as returned by the top-level health API"
-            },
             "feature":{
               "type":"string",
-              "description":"A feature of a component of the cluster, as returned by the top-level health API"
+              "description":"A feature of the cluster, as returned by the top-level health API"
             }
           }
         }

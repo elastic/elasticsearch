@@ -554,26 +554,19 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
-        return new DateRangeAggregationBuilder("_name")
-            .field(fieldName)
-            .addRange("2015-01-01", "2015-12-31");
+        return new DateRangeAggregationBuilder("_name").field(fieldName).addRange("2015-01-01", "2015-12-31");
     }
 
     @Override
     protected ScriptService getMockScriptService() {
-        final Map<String, Function<Map<String, Object>, Object>> scripts = Map.of(
-            VALUE_SCRIPT_NAME, vars -> {
-                Number value = (Number) vars.get("_value");
-                return Instant.ofEpochMilli(value.longValue()).atZone(ZoneOffset.UTC).plusMonths(1).toInstant().toEpochMilli();
-            },
-            FIELD_SCRIPT_NAME, vars -> {
-                String fieldName = (String) vars.get("field");
-                LeafDocLookup lookup = (LeafDocLookup) vars.get("doc");
-                return lookup.get(fieldName).stream()
-                    .map(value -> ((ZonedDateTime) value).plusMonths(1).toInstant().toEpochMilli())
-                    .toList();
-            }
-        );
+        final Map<String, Function<Map<String, Object>, Object>> scripts = Map.of(VALUE_SCRIPT_NAME, vars -> {
+            Number value = (Number) vars.get("_value");
+            return Instant.ofEpochMilli(value.longValue()).atZone(ZoneOffset.UTC).plusMonths(1).toInstant().toEpochMilli();
+        }, FIELD_SCRIPT_NAME, vars -> {
+            String fieldName = (String) vars.get("field");
+            LeafDocLookup lookup = (LeafDocLookup) vars.get("doc");
+            return lookup.get(fieldName).stream().map(value -> ((ZonedDateTime) value).plusMonths(1).toInstant().toEpochMilli()).toList();
+        });
         final MockScriptEngine engine = new MockScriptEngine(MockScriptEngine.NAME, scripts, emptyMap());
         final Map<String, ScriptEngine> engines = Map.of(engine.getType(), engine);
         return new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS, () -> 0);

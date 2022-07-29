@@ -87,7 +87,7 @@ Once your changes and tests are ready to submit for review:
 
 3. Rebase your changes
 
-    Update your local repository with the most recent code from the main Elasticsearch repository, and rebase your branch on top of the latest master branch. We prefer your initial changes to be squashed into a single commit. Later, if we ask you to make changes, add them as separate commits.  This makes them easier to review.  As a final step before merging we will either ask you to squash all commits yourself or we'll do it for you.
+    Update your local repository with the most recent code from the main Elasticsearch repository, and rebase your branch on top of the latest main branch. We prefer your initial changes to be squashed into a single commit. Later, if we ask you to make changes, add them as separate commits.  This makes them easier to review.  As a final step before merging we will either ask you to squash all commits yourself or we'll do it for you.
 
 
 4. Submit a pull request
@@ -100,8 +100,8 @@ Please adhere to the general guideline that you should never force push
 to a publicly shared branch. Once you have opened your pull request, you
 should consider your branch publicly shared. Instead of force pushing
 you can just add incremental commits; this is generally easier on your
-reviewers. If you need to pick up changes from master, you can merge
-master into your branch. A reviewer might ask you to rebase a
+reviewers. If you need to pick up changes from main, you can merge
+main into your branch. A reviewer might ask you to rebase a
 long-running pull request in which case force pushing is okay for that
 request. Note that squashing at the end of the review process should
 also not be done, that can be done when the pull request is [integrated
@@ -129,7 +129,7 @@ script on Windows in the root of the repository. The examples below show the
 usage on Unix.
 
 We support development in IntelliJ versions IntelliJ 2020.1 and
-onwards and Eclipse 2021-12 and onwards.
+onwards.
 
 [Docker](https://docs.docker.com/install/) is required for building some Elasticsearch artifacts and executing certain test suites. You can run Elasticsearch without building all the artifacts with:
 
@@ -180,13 +180,12 @@ action is required.
 
 #### Formatting
 
-We are in the process of migrating towards automatic formatting Java file
-using [spotless], backed by the Eclipse formatter. **We strongly recommend
-installing using the [Eclipse Code Formatter] plugin** so that you can
-apply the correct formatting directly in IntelliJ.  The configuration for
-the plugin is held in `.idea/eclipseCodeFormatter.xml` and should be
-automatically applied, but manual instructions are below in case you you
-need them.
+Elasticsearch code is automatically formatted with [spotless], backed by the
+Eclipse formatter. You can do the same in IntelliJ with the
+[Eclipse Code Formatter] so that you can apply the correct formatting directly in
+your IDE.  The configuration for the plugin is held in
+`.idea/eclipseCodeFormatter.xml` and should be automatically applied, but manual
+instructions are below in case you need them.
 
    1. Open **Preferences > Other Settings > Eclipse Code Formatter**
    2. Click "Use the Eclipse Code Formatter"
@@ -202,60 +201,6 @@ Alternative manual steps for IntelliJ.
    2. Gear icon > Import Scheme > Eclipse XML Profile
    3. Navigate to the file `build-conventions/formatterConfig.xml`
    4. Click "OK"
-
-Note that only some sub-projects in the Elasticsearch project are currently
-fully-formatted. You can see a list of project that **are not**
-automatically formatted in
-[FormattingPrecommitPlugin.java](build-conventions/src/main/java/org/elasticsearch/gradle/internal/conventions/precommit/FormattingPrecommitPlugin.java).
-
-### Importing the project into Eclipse
-
-Elasticsearch builds using Gradle and Java 17. You'll need to point
-[eclipse.ini](https://wiki.eclipse.org/Eclipse.ini)'s `-vm` to Java 17.
-
- - Select **File > Import...**
- - Select **Existing Gradle Project**
- - Select **Next** then **Next** again
- - Set the **Project root directory** to the root of your elasticsearch clone
- - Click **Finish**
-
-This will spin for a long, long time but you'll see many errors about circular
-dependencies. Fix them:
-
- - Select **Window > Preferences**
- - Select **Java > Compiler > Building**
- - Look under **Build Path Problems**
- - Set **Circular dependencies** to **Warning**
- - Apply that and let the build spin away for a while
-
-Next you'll want to import our auto-formatter:
-
- - Select **Window > Preferences**
- - Select **Java > Code Style > Formatter**
- - Click **Import**
- - Import the file at **build-conventions/formatterConfig.xml**
- - Make sure it is the **Active profile**
-
-Finally, set up import order:
-
- - Select **Window > Preferences**
- - Select **Java > Code Style > Organize Imports**
- - Click **Import...**
- - Import the file at **build-conventions/elastic.importorder**
- - Set the **Number of imports needed for `.*`** to ***9999***
- - Set the **Number of static imports needed for `.*`** to ***9999*** as well
- - Apply that
-
-IMPORTANT: There is an option in **Gradle** for **Automatic Project Synchronization**.
-           As convenient as it'd be for the projects to always be perfect this
-           tends to add many many seconds to every branch change. Instead, you
-           should manually right click on a project and
-           **Gradle > Refresh Gradle Project** if the configuration is out of
-           date.
-
-As we add more subprojects you might have to re-import the gradle project (the
-first step) again. There is no need to blow away the existing projects before
-doing that.
 
 ### REST Endpoint Conventions
 
@@ -321,7 +266,7 @@ IntelliJ IDEs can
 the same settings file, and / or use the [Eclipse Code Formatter] plugin.
 
 You can also tell Spotless to [format a specific
-file](https://github.com/diffplug/spotless/tree/master/plugin-gradle#can-i-apply-spotless-to-specific-files)
+file](https://github.com/diffplug/spotless/tree/main/plugin-gradle#can-i-apply-spotless-to-specific-files)
 from the command line.
 
 ### Javadoc
@@ -505,14 +450,15 @@ causes and their causes, as well as any suppressed exceptions and so on:
     logger.debug("operation failed", exception);
 
 If you wish to use placeholders and an exception at the same time, construct a
-`ParameterizedMessage`:
+`Supplier<String>` and use `org.elasticsearch.core.Strings.format`
+- note java.util.Formatter syntax
 
-    logger.debug(new ParameterizedMessage("failed at offset [{}]", offset), exception);
+    logger.debug(() -> Strings.format("failed at offset [%s]", offset), exception);
 
-You can also use a `Supplier<ParameterizedMessage>` to avoid constructing
+You can also use a `java.util.Supplier<String>` to avoid constructing
 expensive messages that will usually be discarded:
 
-    logger.debug(() -> new ParameterizedMessage("rarely seen output [{}]", expensiveMethod()));
+    logger.debug(() -> "rarely seen output [" + expensiveMethod() + "]");
 
 Logging is an important behaviour of the system and sometimes deserves its own
 unit tests, especially if there is complex logic for computing what is logged
@@ -658,7 +604,7 @@ threshold has been breached:
 
     logger.warn(
         "flood stage disk watermark [{}] exceeded on {}, all indices on this node will be marked read-only",
-        diskThresholdSettings.describeFloodStageThreshold(),
+        diskThresholdSettings.describeFloodStageThreshold(total, false),
         usage
     );
 
@@ -705,7 +651,7 @@ which it will not recover. For instance, the `FsHealthService` uses `ERROR`
 logs to record that the data path failed some basic health checks and hence the
 node cannot continue to operate as a member of the cluster:
 
-    logger.error(new ParameterizedMessage("health check of [{}] failed", path), ex);
+    logger.error(() -> "health check of [" + path + "] failed", ex);
 
 Errors like this should be very rare. When in doubt, prefer `WARN` to `ERROR`.
 
@@ -750,7 +696,28 @@ If your changes affect only the documentation, run:
     ./gradlew -p docs check
 
 For more information about testing code examples in the documentation, see
-https://github.com/elastic/elasticsearch/blob/master/docs/README.asciidoc
+https://github.com/elastic/elasticsearch/blob/main/docs/README.asciidoc
+
+### Only running failed tests
+
+When you open your pull-request it may be approved for review. If so, the full
+test suite is run within Elasticsearch's CI environment. If a test fails,
+you can see how to run that particular test by searching for the `REPRODUCE`
+string in the CI's console output.
+
+Elasticsearch's testing suite takes advantage of randomized testing. Consequently,
+a test that passes locally, may actually fail later due to random settings
+or data input. To make tests repeatable, a `REPRODUCE` line in CI will also include
+the `-Dtests.seed` parameter.
+
+When running locally, gradle does its best to take advantage of cached results.
+So, if the code is unchanged, running the same test with the same `-Dtests.seed`
+repeatedly may not actually run the test if it has passed with that seed
+ in the previous execution. A way around this is to pass a separate parameter
+to adjust the command options seen by gradle.
+A simple option may be to add the parameter `-Dtests.timestamp=$(date +%s)`
+which will give the current time stamp as a parameter, thus making the parameters
+sent to gradle unique and bypassing the cache.
 
 ### Project layout
 
@@ -964,4 +931,4 @@ repeating in this section because it has come up in this context.
 [Checkstyle]: https://plugins.jetbrains.com/plugin/1065-checkstyle-idea
 [spotless]: https://github.com/diffplug/spotless
 [Eclipse Code Formatter]: https://plugins.jetbrains.com/plugin/6546-eclipse-code-formatter
-[Spotless Gradle]: https://github.com/diffplug/spotless/tree/master/plugin-gradle
+[Spotless Gradle]: https://github.com/diffplug/spotless/tree/main/plugin-gradle

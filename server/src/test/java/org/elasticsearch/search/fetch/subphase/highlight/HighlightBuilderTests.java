@@ -17,6 +17,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -48,7 +49,6 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -764,7 +764,7 @@ public class HighlightBuilderTests extends ESTestCase {
      */
     private static String[] randomStringArray(int minSize, int maxSize) {
         int size = randomIntBetween(minSize, maxSize);
-        Set<String> randomStrings = new HashSet<>(size);
+        Set<String> randomStrings = Sets.newHashSetWithExpectedSize(size);
         for (int f = 0; f < size; f++) {
             randomStrings.add(randomAlphaOfLengthBetween(3, 10));
         }

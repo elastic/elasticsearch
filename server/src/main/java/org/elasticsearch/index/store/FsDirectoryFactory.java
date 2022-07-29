@@ -21,7 +21,7 @@ import org.apache.lucene.store.NativeFSLockFactory;
 import org.apache.lucene.store.SimpleFSLockFactory;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardPath;
@@ -130,7 +130,7 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
             IOUtils.close(super::close, delegate);
         }
 
-        boolean useDelegate(String name, IOContext ioContext) {
+        static boolean useDelegate(String name, IOContext ioContext) {
             if (ioContext == Store.READONCE_CHECKSUM) {
                 // If we're just reading the footer for the checksum then mmap() isn't really necessary, and it's desperately inefficient
                 // if pre-loading is enabled on this file.

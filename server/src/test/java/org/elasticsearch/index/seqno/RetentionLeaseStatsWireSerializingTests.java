@@ -12,8 +12,8 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 
 public class RetentionLeaseStatsWireSerializingTests extends AbstractWireSerializingTestCase<RetentionLeaseStats> {
 
@@ -22,7 +22,7 @@ public class RetentionLeaseStatsWireSerializingTests extends AbstractWireSeriali
         final long primaryTerm = randomNonNegativeLong();
         final long version = randomNonNegativeLong();
         final int length = randomIntBetween(0, 8);
-        final Collection<RetentionLease> leases;
+        final List<RetentionLease> leases;
         if (length == 0) {
             leases = Collections.emptyList();
         } else {

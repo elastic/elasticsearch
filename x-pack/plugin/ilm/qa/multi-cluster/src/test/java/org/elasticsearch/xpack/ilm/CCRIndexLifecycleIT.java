@@ -112,7 +112,7 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
         String indexName = "unfollow-test-index";
         if ("leader".equals(targetCluster)) {
             Settings indexSettings = Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 0).build();
-            createIndex(indexName, indexSettings);
+            createIndex(adminClient(), indexName, indexSettings);
             ensureGreen(indexName);
         } else if ("follow".equals(targetCluster)) {
             createNewSingletonPolicy("unfollow-only", "hot", UnfollowAction.INSTANCE, TimeValue.ZERO);

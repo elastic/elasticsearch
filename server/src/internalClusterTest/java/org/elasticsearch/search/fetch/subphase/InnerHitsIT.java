@@ -509,7 +509,7 @@ public class InnerHitsIT extends ESIntegTestCase {
                         new InnerHitBuilder("remark")
                     ),
                     ScoreMode.Avg
-                ).innerHit(new InnerHitBuilder().setFetchSourceContext(new FetchSourceContext(false)))
+                ).innerHit(new InnerHitBuilder().setFetchSourceContext(FetchSourceContext.DO_NOT_FETCH_SOURCE))
             )
             .get();
         assertNoFailures(response);
@@ -610,7 +610,7 @@ public class InnerHitsIT extends ESIntegTestCase {
         SearchResponse resp1 = client().prepareSearch("articles")
             .setQuery(
                 nestedQuery("comments.messages", matchQuery("comments.messages.message", "fox"), ScoreMode.Avg).innerHit(
-                    new InnerHitBuilder().setFetchSourceContext(new FetchSourceContext(true))
+                    new InnerHitBuilder().setFetchSourceContext(FetchSourceContext.FETCH_SOURCE)
                 )
             )
             .get();
@@ -626,7 +626,7 @@ public class InnerHitsIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch("articles")
             .setQuery(
                 nestedQuery("comments.messages", matchQuery("comments.messages.message", "fox"), ScoreMode.Avg).innerHit(
-                    new InnerHitBuilder().setFetchSourceContext(new FetchSourceContext(false))
+                    new InnerHitBuilder().setFetchSourceContext(FetchSourceContext.DO_NOT_FETCH_SOURCE)
                 )
             )
             .get();
@@ -648,7 +648,7 @@ public class InnerHitsIT extends ESIntegTestCase {
         response = client().prepareSearch("articles")
             .setQuery(
                 nestedQuery("comments.messages", matchQuery("comments.messages.message", "bear"), ScoreMode.Avg).innerHit(
-                    new InnerHitBuilder().setFetchSourceContext(new FetchSourceContext(false))
+                    new InnerHitBuilder().setFetchSourceContext(FetchSourceContext.DO_NOT_FETCH_SOURCE)
                 )
             )
             .get();
@@ -683,7 +683,7 @@ public class InnerHitsIT extends ESIntegTestCase {
         response = client().prepareSearch("articles")
             .setQuery(
                 nestedQuery("comments.messages", matchQuery("comments.messages.message", "fox"), ScoreMode.Avg).innerHit(
-                    new InnerHitBuilder().setFetchSourceContext(new FetchSourceContext(false))
+                    new InnerHitBuilder().setFetchSourceContext(FetchSourceContext.DO_NOT_FETCH_SOURCE)
                 )
             )
             .get();
@@ -851,7 +851,7 @@ public class InnerHitsIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch()
             .setQuery(
                 nestedQuery("comments", matchQuery("comments.message", "fox"), ScoreMode.None).innerHit(
-                    new InnerHitBuilder().setFetchSourceContext(new FetchSourceContext(true, new String[] { "comments.message" }, null))
+                    new InnerHitBuilder().setFetchSourceContext(FetchSourceContext.of(true, new String[] { "comments.message" }, null))
                 )
             )
             .get();
@@ -894,7 +894,7 @@ public class InnerHitsIT extends ESIntegTestCase {
             .setQuery(
                 nestedQuery("comments", matchQuery("comments.message", "away"), ScoreMode.None).innerHit(
                     new InnerHitBuilder().setFetchSourceContext(
-                        new FetchSourceContext(true, new String[] { "comments.missing_field" }, null)
+                        FetchSourceContext.of(true, new String[] { "comments.missing_field" }, null)
                     )
                 )
             )

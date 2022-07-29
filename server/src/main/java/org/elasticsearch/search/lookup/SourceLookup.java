@@ -162,16 +162,8 @@ public class SourceLookup implements Map<String, Object> {
     /**
      * Returns the values associated with the path. Those are "low" level values, and it can
      * handle path expression where an array/list is navigated within.
-     */
-    public List<Object> extractRawValues(String path) {
-        return XContentMapValues.extractRawValues(path, source());
-    }
-
-    /**
-     * Returns the values associated with the path. Those are "low" level values, and it can
-     * handle path expression where an array/list is navigated within.
      *
-     * The major difference with {@link SourceLookup#extractRawValues(String)} is that this version will:
+     * This method will:
      *
      *  - not cache source if it's not already parsed
      *  - will only extract the desired values from the compressed source instead of deserializing the whole object
@@ -204,8 +196,7 @@ public class SourceLookup implements Map<String, Object> {
     /**
      * For the provided path, return its value in the source.
      *
-     * Note that in contrast with {@link SourceLookup#extractRawValues}, array and object values
-     * can be returned.
+     * Both array and object values can be returned.
      *
      * @param path the value's path in the source.
      * @param nullValue a value to return if the path exists, but the value is 'null'. This helps

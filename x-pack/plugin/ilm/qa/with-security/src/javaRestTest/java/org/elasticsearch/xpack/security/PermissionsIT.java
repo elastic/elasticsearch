@@ -18,8 +18,6 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
-import org.elasticsearch.client.slm.SnapshotLifecyclePolicy;
-import org.elasticsearch.client.slm.SnapshotRetentionConfiguration;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -41,6 +39,8 @@ import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
+import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
+import org.elasticsearch.xpack.core.slm.SnapshotRetentionConfiguration;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -275,7 +275,12 @@ public class PermissionsIT extends ESRestTestCase {
          * - Create role with just write and manage privileges on alias
          * - Create user and assign newly created role.
          */
-        createNewSingletonPolicy(adminClient(), "foo-policy", "hot", new RolloverAction(null, null, null, 2L, null));
+        createNewSingletonPolicy(
+            adminClient(),
+            "foo-policy",
+            "hot",
+            new RolloverAction(null, null, null, 2L, null, null, null, null, null, null)
+        );
         createIndexTemplate("foo-template", "foo-logs-*", "foo_alias", "foo-policy");
         createIndexAsAdmin("foo-logs-000001", "foo_alias", randomBoolean());
         createRole("foo_alias_role", "foo_alias");
@@ -283,7 +288,7 @@ public class PermissionsIT extends ESRestTestCase {
 
         // test_user: index docs using alias in the newly created index
         indexDocs("test_user", "x-pack-test-password", "foo_alias", 2);
-        refresh("foo_alias");
+        refresh(adminClient(), "foo_alias");
 
         // wait so the ILM policy triggers rollover action, verify that the new index exists
         assertBusy(() -> {
@@ -294,7 +299,7 @@ public class PermissionsIT extends ESRestTestCase {
 
         // test_user: index docs using alias, now should be able write to new index
         indexDocs("test_user", "x-pack-test-password", "foo_alias", 1);
-        refresh("foo_alias");
+        refresh(adminClient(), "foo_alias");
 
         // verify that the doc has been indexed into new write index
         assertBusy(() -> {
@@ -391,11 +396,6 @@ public class PermissionsIT extends ESRestTestCase {
                 assertOK(userClient.performRequest(request));
             }
         }
-    }
-
-    private void refresh(String index) throws IOException {
-        Request request = new Request("POST", "/" + index + "/_refresh");
-        assertOK(adminClient().performRequest(request));
     }
 
 }

@@ -99,6 +99,7 @@ public class ChangelogEntry {
 
     public void setHighlight(Highlight highlight) {
         this.highlight = highlight;
+        if (this.highlight != null) this.highlight.pr = this.pr;
     }
 
     public Breaking getBreaking() {
@@ -160,6 +161,7 @@ public class ChangelogEntry {
         private boolean notable;
         private String title;
         private String body;
+        private Integer pr;
 
         public boolean isNotable() {
             return notable;
@@ -187,6 +189,10 @@ public class ChangelogEntry {
 
         public String getAnchor() {
             return generatedAnchor(this.title);
+        }
+
+        public Integer getPr() {
+            return pr;
         }
 
         @Override

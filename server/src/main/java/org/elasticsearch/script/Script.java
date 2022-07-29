@@ -178,7 +178,7 @@ public final class Script implements ToXContentObject, Writeable {
         /**
          * Helper method to throw an exception if more than one type of {@link Script} is specified.
          */
-        private void throwOnlyOneOfType() {
+        private static void throwOnlyOneOfType() {
             throw new IllegalArgumentException(
                 "must only use one of ["
                     + ScriptType.INLINE.getParseField().getPreferredName()

@@ -64,6 +64,7 @@ public abstract class CompositeFieldScript extends AbstractFieldScript {
     protected final void emit(String field, Object value) {
         // fields will be emitted without the prefix, yet they will be looked up using their full name, hence we store the full name
         List<Object> values = this.fieldValues.computeIfAbsent(fieldName + "." + field, s -> new ArrayList<>());
+        checkMaxSize(values.size());
         values.add(value);
     }
 

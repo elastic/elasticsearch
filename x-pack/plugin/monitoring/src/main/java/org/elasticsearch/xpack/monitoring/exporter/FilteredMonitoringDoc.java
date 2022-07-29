@@ -31,7 +31,7 @@ public abstract class FilteredMonitoringDoc extends MonitoringDoc {
     /**
      * List of common XContent fields that exist in all monitoring documents
      */
-    static final Set<String> COMMON_XCONTENT_FILTERS = Sets.newHashSet("cluster_uuid", "timestamp", "interval_ms", "type", "source_node");
+    static final Set<String> COMMON_XCONTENT_FILTERS = Set.of("cluster_uuid", "timestamp", "interval_ms", "type", "source_node");
 
     private final Set<String> filters;
 

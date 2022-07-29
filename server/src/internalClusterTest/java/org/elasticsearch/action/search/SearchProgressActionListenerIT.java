@@ -32,7 +32,6 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
@@ -192,6 +191,6 @@ public class SearchProgressActionListenerIT extends ESSingleNodeTestCase {
         }
         client.admin().indices().prepareRefresh("index-*").get();
         ClusterSearchShardsResponse resp = client.admin().cluster().prepareSearchShards("index-*").get();
-        return Arrays.stream(resp.getGroups()).map(e -> new SearchShard(null, e.getShardId())).sorted().collect(Collectors.toList());
+        return Arrays.stream(resp.getGroups()).map(e -> new SearchShard(null, e.getShardId())).sorted().toList();
     }
 }

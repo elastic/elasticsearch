@@ -58,7 +58,7 @@ public class CharGroupTokenizerFactory extends AbstractTokenizerFactory {
         }
     }
 
-    private char parseEscapedChar(final String s) {
+    private static char parseEscapedChar(final String s) {
         int len = s.length();
         char c = s.charAt(0);
         if (c == '\\') {

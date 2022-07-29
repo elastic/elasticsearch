@@ -1,5 +1,0 @@
-pr: 83099
-summary: Improve support for joda datetime to java datetime in Painless
-area: Infra/Scripting
-type: enhancement
-issues: []

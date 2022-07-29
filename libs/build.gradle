@@ -22,8 +22,10 @@ configure(subprojects - project('elasticsearch-log4j')) {
       dependencies.matching { it instanceof ProjectDependency }.all { ProjectDependency dep ->
         Project depProject = dep.dependencyProject
         if (depProject != null
+          && false == depProject.path.equals(':libs:elasticsearch-x-content')
           && false == depProject.path.equals(':libs:elasticsearch-core')
-          && depProject.path.startsWith(':libs')) {
+          && depProject.path.startsWith(':libs')
+          && depProject.name.startsWith('elasticsearch-')) {
           throw new InvalidUserDataException("projects in :libs "
             + "may not depend on other projects libs except "
             + ":libs:elasticsearch-core but "

@@ -60,6 +60,11 @@ teardown:
         uid: "$profile_uid"
         body: >
           {
+            "labels": {
+              "kibana": {
+                "spaces": "demo"
+              }
+            },
             "data": {
               "app1": {
                 "theme": "default"
@@ -103,6 +108,7 @@ teardown:
   - length: { $body: 1 }
   - is_true: "$profile_uid"
   - set: { $profile_uid: profile }
+  - match: { $profile.labels: { "kibana": { "spaces": "demo" } } }
   - match: { $profile.data: { "app1": { "theme": "default" }, "app2": { "theme": "dark"} } }
 
   # Attempting to get a non-existing profile leads to 404
@@ -112,3 +118,75 @@ teardown:
         uid: no_such_profile_uid
 
   - length: { $body: 0 }
+
+
+---
+"Test enable disable user profile":
+  - do:
+      security.activate_user_profile:
+        body: >
+          {
+            "grant_type": "password",
+            "username": "joe",
+            "password" : "s3krit-password"
+          }
+  - set: { uid: profile_uid }
+
+  # enabled right after activation
+  - do:
+      security.get_user_profile:
+        uid: "$profile_uid"
+  - set: { $profile_uid: profile }
+  - is_true: "$profile.enabled"
+
+  # disable the profile
+  - do:
+      security.disable_user_profile:
+        uid: "$profile_uid"
+
+  - do:
+      security.get_user_profile:
+        uid: "$profile_uid"
+  - set: { $profile_uid: profile }
+  - is_false: "$profile.enabled"
+
+  # enable again
+  - do:
+      security.enable_user_profile:
+        uid: "$profile_uid"
+
+  - do:
+      security.get_user_profile:
+        uid: "$profile_uid"
+  - set: { $profile_uid: profile }
+  - is_true: "$profile.enabled"
+
+---
+"Test suggest user profile":
+  - do:
+      security.activate_user_profile:
+        body: >
+          {
+            "grant_type": "password",
+            "username": "joe",
+            "password" : "s3krit-password"
+          }
+  - set: { uid: profile_uid }
+
+  - do:
+      security.suggest_user_profiles:
+        body: >
+          {
+            "name": "joe",
+            "size": 5,
+            "hint": {
+              "uids": ["u_79HkWkwmnBH5gqFKwoxggWPjEBOur1zLPXQPEl1VBW0_0"],
+              "labels": {
+                "direction": ["north", "east"]
+              }
+            }
+          }
+
+  # None of the hints matches. But name match is sufficient
+  - length: { profiles: 1 }
+  - match: { "profiles.0.uid": "$profile_uid" }

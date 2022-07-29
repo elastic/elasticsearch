@@ -17,6 +17,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.VersionType;
@@ -399,7 +400,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
             return null;
         }
         String username = extractString(remote, "username");
-        String password = extractString(remote, "password");
+        SecureString password = extractSecureString(remote, "password");
         String hostInRequest = requireNonNull(extractString(remote, "host"), "[host] must be specified to reindex from a remote cluster");
         URI uri;
         try {
@@ -451,8 +452,19 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         if (value == null) {
             return null;
         }
-        if (value instanceof String) {
-            return (String) value;
+        if (value instanceof String str) {
+            return str;
+        }
+        throw new IllegalArgumentException("Expected [" + name + "] to be a string but was [" + value + "]");
+    }
+
+    private static SecureString extractSecureString(Map<String, Object> source, String name) {
+        Object value = source.remove(name);
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof String str) {
+            return new SecureString(str.toCharArray());
         }
         throw new IllegalArgumentException("Expected [" + name + "] to be a string but was [" + value + "]");
     }

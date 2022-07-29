@@ -18,6 +18,8 @@ import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues.DoublesSupplier;
@@ -39,10 +41,9 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.field.DelegateDocValuesField;
-import org.elasticsearch.script.field.DocValuesField;
+import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -58,13 +59,11 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.EnumSet;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
@@ -178,8 +177,8 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected List<Parameter<?>> getParameters() {
-            return List.of(ignoreMalformed, metrics, defaultMetric, meta, timeSeriesMetric);
+        protected Parameter<?>[] getParameters() {
+            return new Parameter<?>[] { ignoreMalformed, metrics, defaultMetric, meta, timeSeriesMetric };
         }
 
         public Builder metric(MetricType metric) {
@@ -391,7 +390,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+        public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             return (cache, breakerService) -> new IndexAggregateDoubleMetricFieldData(
                 name(),
                 AggregateMetricsValuesSourceType.AGGREGATE_METRIC
@@ -436,7 +435,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                         }
 
                         @Override
-                        public DocValuesField<?> getScriptField(String name) {
+                        public DocValuesScriptFieldFactory getScriptFieldFactory(String name) {
                             // getAggregateMetricValues returns all metric as doubles, including `value_count`
                             return new DelegateDocValuesField(
                                 new ScriptDocValues.Doubles(new DoublesSupplier(getAggregateMetricValues(defaultMetric))),
@@ -647,7 +646,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                     subParser.close();
                 }
                 // If ignoreMalformed == true, clear all parsed fields
-                Set<String> ignoreFieldNames = new HashSet<>(metricFieldMappers.size());
+                Set<String> ignoreFieldNames = Sets.newHashSetWithExpectedSize(metricFieldMappers.size());
                 for (NumberFieldMapper m : metricFieldMappers.values()) {
                     context.addIgnoredField(m.fieldType().name());
                     ignoreFieldNames.add(m.fieldType().name());

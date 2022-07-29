@@ -106,7 +106,8 @@ public abstract class GeoGridTilerTestCase extends ESTestCase {
             int precision = randomIntBetween(0, 3);
             Geometry geometry = GeometryNormalizer.apply(Orientation.CCW, randomValueOtherThanMany(g -> {
                 try {
-                    GeometryNormalizer.apply(Orientation.CCW, g);
+                    // make sure is a valid shape
+                    new GeoShapeIndexer(Orientation.CCW, "test").indexShape(g);
                     return false;
                 } catch (Exception e) {
                     return true;

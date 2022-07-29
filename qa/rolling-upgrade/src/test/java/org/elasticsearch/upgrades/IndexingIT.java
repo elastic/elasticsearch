@@ -247,7 +247,7 @@ public class IndexingIT extends AbstractRollingTestCase {
     }
 
     public void testTsdb() throws IOException {
-        assumeTrue("sort by _tsid added in 8.1.0", UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_1_0));
+        assumeTrue("indexing time series indices changed in 8.2.0", UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_2_0));
 
         StringBuilder bulk = new StringBuilder();
         switch (CLUSTER_TYPE) {
@@ -357,6 +357,76 @@ public class IndexingIT extends AbstractRollingTestCase {
             entityAsMap(client().performRequest(request)),
             matchesMap().extraOk()
                 .entry("aggregations", matchesMap().entry("tsids", matchesMap().extraOk().entry("buckets", tsidsExpected)))
+        );
+    }
+
+    public void testSyntheticSource() throws IOException {
+        assumeTrue("added in 8.4.0", UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_4_0));
+
+        switch (CLUSTER_TYPE) {
+            case OLD -> {
+                Request createIndex = new Request("PUT", "/synthetic");
+                XContentBuilder indexSpec = XContentBuilder.builder(XContentType.JSON.xContent()).startObject();
+                indexSpec.startObject("mappings");
+                {
+                    indexSpec.startObject("_source").field("mode", "synthetic").endObject();
+                    indexSpec.startObject("properties").startObject("kwd").field("type", "keyword").endObject().endObject();
+                }
+                indexSpec.endObject();
+                createIndex.setJsonEntity(Strings.toString(indexSpec.endObject()));
+                client().performRequest(createIndex);
+                bulk("synthetic", """
+                    {"index": {"_index": "synthetic", "_id": "old"}}
+                    {"kwd": "old", "int": -12}
+                    """);
+                break;
+            }
+            case MIXED -> {
+                if (FIRST_MIXED_ROUND) {
+                    bulk("synthetic", """
+                        {"index": {"_index": "synthetic", "_id": "mixed_1"}}
+                        {"kwd": "mixed_1", "int": 22}
+                        """);
+                } else {
+                    bulk("synthetic", """
+                        {"index": {"_index": "synthetic", "_id": "mixed_2"}}
+                        {"kwd": "mixed_2", "int": 33}
+                        """);
+                }
+                break;
+            }
+            case UPGRADED -> {
+                bulk("synthetic", """
+                    {"index": {"_index": "synthetic", "_id": "new"}}
+                    {"kwd": "new", "int": 21341325}
+                    """);
+            }
+        }
+
+        assertMap(
+            entityAsMap(client().performRequest(new Request("GET", "/synthetic/_doc/old"))),
+            matchesMap().extraOk().entry("_source", matchesMap().entry("kwd", "old").entry("int", -12))
+        );
+        if (CLUSTER_TYPE == ClusterType.OLD) {
+            return;
+        }
+        assertMap(
+            entityAsMap(client().performRequest(new Request("GET", "/synthetic/_doc/mixed_1"))),
+            matchesMap().extraOk().entry("_source", matchesMap().entry("kwd", "mixed_1").entry("int", 22))
+        );
+        if (CLUSTER_TYPE == ClusterType.MIXED && FIRST_MIXED_ROUND) {
+            return;
+        }
+        assertMap(
+            entityAsMap(client().performRequest(new Request("GET", "/synthetic/_doc/mixed_2"))),
+            matchesMap().extraOk().entry("_source", matchesMap().entry("kwd", "mixed_2").entry("int", 33))
+        );
+        if (CLUSTER_TYPE == ClusterType.MIXED) {
+            return;
+        }
+        assertMap(
+            entityAsMap(client().performRequest(new Request("GET", "/synthetic/_doc/new"))),
+            matchesMap().extraOk().entry("_source", matchesMap().entry("kwd", "new").entry("int", 21341325))
         );
     }
 

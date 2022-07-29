@@ -17,7 +17,7 @@ import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.script.field.DelegateDocValuesField;
-import org.elasticsearch.script.field.DocValuesField;
+import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -45,7 +45,7 @@ public class BinaryDVLeafFieldData implements LeafFieldData {
     }
 
     @Override
-    public DocValuesField<?> getScriptField(String name) {
+    public DocValuesScriptFieldFactory getScriptFieldFactory(String name) {
         return new DelegateDocValuesField(new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(getBytesValues())), name);
     }
 

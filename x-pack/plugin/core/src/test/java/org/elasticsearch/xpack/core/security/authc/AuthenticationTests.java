@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.security.authc;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -19,33 +18,18 @@ import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
-import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
-import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
-import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSettings;
-import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
-import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings;
-import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
-import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
-import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.hasEntry;
@@ -59,14 +43,23 @@ public class AuthenticationTests extends ESTestCase {
     public void testWillGetLookedUpByWhenItExists() {
         final RealmRef authenticatedBy = new RealmRef("auth_by", "auth_by_type", "node");
         final RealmRef lookedUpBy = new RealmRef("lookup_by", "lookup_by_type", "node");
-        final Authentication authentication = new Authentication(new User("user"), authenticatedBy, lookedUpBy);
+        final Authentication authentication = AuthenticationTestHelper.builder()
+            .user(new User("not-user"))
+            .realmRef(authenticatedBy)
+            .runAs()
+            .user(new User("user"))
+            .realmRef(lookedUpBy)
+            .build();
 
         assertEquals(lookedUpBy, authentication.getSourceRealm());
     }
 
     public void testWillGetAuthenticateByWhenLookupIsNull() {
         final RealmRef authenticatedBy = new RealmRef("auth_by", "auth_by_type", "node");
-        final Authentication authentication = new Authentication(new User("user"), authenticatedBy, null);
+        final Authentication authentication = AuthenticationTestHelper.builder()
+            .user(new User("user"))
+            .realmRef(authenticatedBy)
+            .build(false);
 
         assertEquals(authenticatedBy, authentication.getSourceRealm());
     }
@@ -225,38 +218,22 @@ public class AuthenticationTests extends ESTestCase {
     }
 
     public void testIsServiceAccount() {
-        final User user = new User(
-            randomAlphaOfLengthBetween(3, 8),
-            randomArray(0, 3, String[]::new, () -> randomAlphaOfLengthBetween(3, 8))
-        );
-        final Authentication.RealmRef authRealm;
-        final boolean authRealmIsForServiceAccount = randomBoolean();
-        if (authRealmIsForServiceAccount) {
-            authRealm = new Authentication.RealmRef(
-                ServiceAccountSettings.REALM_NAME,
-                ServiceAccountSettings.REALM_TYPE,
-                randomAlphaOfLengthBetween(3, 8)
-            );
+        final boolean isServiceAccount = randomBoolean();
+        final Authentication authentication;
+        if (isServiceAccount) {
+            authentication = AuthenticationTestHelper.builder().serviceAccount().build();
         } else {
-            authRealm = new Authentication.RealmRef(
-                randomAlphaOfLengthBetween(3, 8),
-                randomAlphaOfLengthBetween(3, 8),
-                randomAlphaOfLengthBetween(3, 8)
+            authentication = randomValueOtherThanMany(
+                authc -> "_service_account".equals(authc.getAuthenticatedBy().getName()),
+                () -> AuthenticationTestHelper.builder().build()
             );
         }
-        final Authentication.RealmRef lookupRealm = randomFrom(
-            new Authentication.RealmRef(
-                randomAlphaOfLengthBetween(3, 8),
-                randomAlphaOfLengthBetween(3, 8),
-                randomAlphaOfLengthBetween(3, 8)
-            ),
-            null
-        );
-        final Authentication authentication = new Authentication(user, authRealm, lookupRealm);
 
-        if (authRealmIsForServiceAccount) {
+        if (isServiceAccount) {
+            assertThat(authentication.isServiceAccount(), is(true));
             assertThat(authentication.isAuthenticatedWithServiceAccount(), is(true));
         } else {
+            assertThat(authentication.isServiceAccount(), is(false));
             assertThat(authentication.isAuthenticatedWithServiceAccount(), is(false));
         }
     }
@@ -442,6 +419,38 @@ public class AuthenticationTests extends ESTestCase {
         }
     }
 
+    public void testSupportsRunAs() {
+        final Settings.Builder settingsBuilder = Settings.builder();
+        if (randomBoolean()) {
+            settingsBuilder.putList(AnonymousUser.ROLES_SETTING.getKey(), randomList(1, 3, () -> randomAlphaOfLengthBetween(3, 8)));
+        }
+        final AnonymousUser anonymousUser = new AnonymousUser(settingsBuilder.build());
+
+        // Both realm authentication and a token for it can run-as
+        assertThat(AuthenticationTestHelper.builder().realm().build(false).supportsRunAs(anonymousUser), is(true));
+        assertThat(AuthenticationTestHelper.builder().realm().build(false).token().supportsRunAs(anonymousUser), is(true));
+        // but not when it is already a run-as
+        assertThat(AuthenticationTestHelper.builder().realm().build(true).supportsRunAs(anonymousUser), is(false));
+        assertThat(AuthenticationTestHelper.builder().realm().build(true).token().supportsRunAs(anonymousUser), is(false));
+
+        // API Key or its token both can run-as
+        assertThat(AuthenticationTestHelper.builder().apiKey().build(false).supportsRunAs(anonymousUser), is(true));
+        assertThat(AuthenticationTestHelper.builder().apiKey().build(false).token().supportsRunAs(anonymousUser), is(true));
+        // But not when it already run-as another user
+        assertThat(AuthenticationTestHelper.builder().apiKey().runAs().build().supportsRunAs(anonymousUser), is(false));
+
+        // Service account cannot run-as
+        assertThat(AuthenticationTestHelper.builder().serviceAccount().build().supportsRunAs(anonymousUser), is(false));
+
+        // Neither internal user nor its token can run-as
+        assertThat(AuthenticationTestHelper.builder().internal().build().supportsRunAs(anonymousUser), is(false));
+        assertThat(AuthenticationTestHelper.builder().internal().build().token().supportsRunAs(anonymousUser), is(false));
+
+        // Neither anonymous user nor its token can run-as
+        assertThat(AuthenticationTestHelper.builder().anonymous(anonymousUser).build().supportsRunAs(anonymousUser), is(false));
+        assertThat(AuthenticationTestHelper.builder().anonymous(anonymousUser).build().token().supportsRunAs(anonymousUser), is(false));
+    }
+
     private void assertCanAccessResources(Authentication authentication0, Authentication authentication1) {
         assertTrue(authentication0.canAccessResourcesOf(authentication1));
         assertTrue(authentication1.canAccessResourcesOf(authentication0));
@@ -487,70 +496,6 @@ public class AuthenticationTests extends ESTestCase {
         assertFalse(authentication1.canAccessResourcesOf(authentication0));
     }
 
-    public static User randomUser() {
-        return new User(randomAlphaOfLengthBetween(3, 8), randomArray(1, 3, String[]::new, () -> randomAlphaOfLengthBetween(3, 8)));
-    }
-
-    public static RealmRef randomRealmRef(boolean underDomain) {
-        return randomRealmRef(underDomain, true);
-    }
-
-    private static Supplier<String> randomRealmTypeSupplier(boolean includeInternal) {
-        final Supplier<String> randomAllRealmTypeSupplier = () -> randomFrom(
-            "reserved",
-            FileRealmSettings.TYPE,
-            NativeRealmSettings.TYPE,
-            LdapRealmSettings.AD_TYPE,
-            LdapRealmSettings.LDAP_TYPE,
-            JwtRealmSettings.TYPE,
-            OpenIdConnectRealmSettings.TYPE,
-            SamlRealmSettings.TYPE,
-            KerberosRealmSettings.TYPE,
-            randomAlphaOfLengthBetween(3, 8)
-        );
-        if (includeInternal) {
-            return randomAllRealmTypeSupplier;
-        } else {
-            return () -> randomValueOtherThanMany(
-                value -> value.equals(FileRealmSettings.TYPE) || value.equals(NativeRealmSettings.TYPE) || value.equals("reserved"),
-                randomAllRealmTypeSupplier
-            );
-        }
-    }
-
-    public static RealmDomain randomDomain(boolean includeInternal) {
-        final Supplier<String> randomRealmTypeSupplier = randomRealmTypeSupplier(includeInternal);
-        final Set<RealmConfig.RealmIdentifier> domainRealms = new HashSet<>(
-            Arrays.asList(
-                randomArray(
-                    1,
-                    4,
-                    RealmConfig.RealmIdentifier[]::new,
-                    () -> new RealmConfig.RealmIdentifier(
-                        randomRealmTypeSupplier.get(),
-                        randomAlphaOfLengthBetween(3, 8).toLowerCase(Locale.ROOT)
-                    )
-                )
-            )
-        );
-        return new RealmDomain(randomAlphaOfLengthBetween(3, 8), domainRealms);
-    }
-
-    public static RealmRef randomRealmRef(boolean underDomain, boolean includeInternal) {
-        if (underDomain) {
-            RealmDomain domain = randomDomain(includeInternal);
-            RealmConfig.RealmIdentifier realmIdentifier = randomFrom(domain.realms());
-            return new RealmRef(realmIdentifier.getName(), realmIdentifier.getType(), randomAlphaOfLengthBetween(3, 8), domain);
-        } else {
-            return new RealmRef(
-                randomAlphaOfLengthBetween(3, 8),
-                randomRealmTypeSupplier(includeInternal).get(),
-                randomAlphaOfLengthBetween(3, 8),
-                null
-            );
-        }
-    }
-
     private RealmRef mutateRealm(RealmRef original, String name, String type) {
         return new RealmRef(
             name == null ? original.getName() : name,
@@ -559,7 +504,31 @@ public class AuthenticationTests extends ESTestCase {
         );
     }
 
+    public static User randomUser() {
+        return AuthenticationTestHelper.randomUser();
+    }
+
+    public static RealmRef randomRealmRef(boolean underDomain) {
+        return AuthenticationTestHelper.randomRealmRef(underDomain);
+    }
+
+    public static RealmDomain randomDomain(boolean includeInternal) {
+        return AuthenticationTestHelper.randomDomain(includeInternal);
+    }
+
+    public static RealmRef randomRealmRef(boolean underDomain, boolean includeInternal) {
+        return AuthenticationTestHelper.randomRealmRef(underDomain, includeInternal);
+    }
+
+    /**
+     * Randomly create an authentication that has either realm or token authentication type.
+     * The authentication can have any version from 7.0.0 to current and random metadata.
+     */
     public static Authentication randomAuthentication(User user, RealmRef realmRef) {
+        return randomAuthentication(user, realmRef, randomBoolean());
+    }
+
+    public static Authentication randomAuthentication(User user, RealmRef realmRef, boolean isRunAs) {
         if (user == null) {
             user = randomUser();
         }
@@ -567,10 +536,6 @@ public class AuthenticationTests extends ESTestCase {
             realmRef = randomRealmRef(false);
         }
         final Version version = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.CURRENT);
-        final AuthenticationType authenticationType = randomValueOtherThan(
-            AuthenticationType.API_KEY,
-            () -> randomFrom(AuthenticationType.values())
-        );
         final Map<String, Object> metadata;
         if (randomBoolean()) {
             metadata = Map.of(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8));
@@ -579,18 +544,7 @@ public class AuthenticationTests extends ESTestCase {
                 .distinct()
                 .collect(Collectors.toMap(s -> s, s -> randomAlphaOfLengthBetween(3, 8)));
         }
-        if (randomBoolean()) { // run-as
-            return new Authentication(
-                new User(user.principal(), user.roles(), randomUser()),
-                randomRealmRef(false),
-                realmRef,
-                version,
-                authenticationType,
-                metadata
-            );
-        } else {
-            return new Authentication(user, realmRef, null, version, authenticationType, metadata);
-        }
+        return AuthenticationTestHelper.builder().user(user).realmRef(realmRef).version(version).metadata(metadata).build(isRunAs);
     }
 
     public static Authentication randomApiKeyAuthentication(User user, String apiKeyId) {
@@ -598,51 +552,51 @@ public class AuthenticationTests extends ESTestCase {
     }
 
     public static Authentication randomApiKeyAuthentication(User user, String apiKeyId, Version version) {
-        final HashMap<String, Object> metadata = new HashMap<>();
-        metadata.put(AuthenticationField.API_KEY_ID_KEY, apiKeyId);
-        metadata.put(AuthenticationField.API_KEY_NAME_KEY, randomBoolean() ? null : randomAlphaOfLengthBetween(1, 16));
-        metadata.put(AuthenticationField.API_KEY_CREATOR_REALM_NAME, AuthenticationField.API_KEY_CREATOR_REALM_NAME);
-        metadata.put(AuthenticationField.API_KEY_CREATOR_REALM_TYPE, AuthenticationField.API_KEY_CREATOR_REALM_TYPE);
-        metadata.put(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY, new BytesArray("{}"));
-        metadata.put(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, new BytesArray("""
-            {"x":{"cluster":["all"],"indices":[{"names":["index*"],"privileges":["all"]}]}}"""));
-        return Authentication.newApiKeyAuthentication(AuthenticationResult.success(user, metadata), randomAlphaOfLengthBetween(3, 8))
-            .maybeRewriteForOlderVersion(version);
+        return randomApiKeyAuthentication(
+            user,
+            apiKeyId,
+            AuthenticationField.API_KEY_CREATOR_REALM_NAME,
+            AuthenticationField.API_KEY_CREATOR_REALM_TYPE,
+            version
+        );
+    }
+
+    public static Authentication randomApiKeyAuthentication(
+        User user,
+        String apiKeyId,
+        String creatorRealmName,
+        String creatorRealmType,
+        Version version
+    ) {
+        return AuthenticationTestHelper.builder()
+            .apiKey(apiKeyId)
+            .user(user)
+            .version(version)
+            .metadata(
+                Map.of(
+                    AuthenticationField.API_KEY_CREATOR_REALM_NAME,
+                    creatorRealmName,
+                    AuthenticationField.API_KEY_CREATOR_REALM_TYPE,
+                    creatorRealmType
+                )
+            )
+            .build();
     }
 
     public static Authentication randomServiceAccountAuthentication() {
-        return Authentication.newServiceAccountAuthentication(
-            new User(randomAlphaOfLengthBetween(3, 8) + "/" + randomAlphaOfLengthBetween(3, 8)),
-            randomAlphaOfLengthBetween(3, 8),
-            Map.of(
-                "_token_name",
-                randomAlphaOfLength(8),
-                "_token_source",
-                randomFrom(TokenInfo.TokenSource.values()).name().toLowerCase(Locale.ROOT)
-            )
-        );
+        return AuthenticationTestHelper.builder().serviceAccount().build();
     }
 
     public static Authentication randomRealmAuthentication(boolean underDomain) {
-        return Authentication.newRealmAuthentication(randomUser(), randomRealmRef(underDomain));
+        return AuthenticationTestHelper.builder().realm(underDomain).build(false);
     }
 
     public static Authentication randomInternalAuthentication() {
-        String nodeName = randomAlphaOfLengthBetween(3, 8);
-        return randomFrom(
-            Authentication.newInternalAuthentication(
-                randomFrom(SystemUser.INSTANCE, XPackUser.INSTANCE, XPackSecurityUser.INSTANCE, AsyncSearchUser.INSTANCE),
-                Version.CURRENT,
-                nodeName
-            ),
-            Authentication.newInternalFallbackAuthentication(SystemUser.INSTANCE, nodeName)
-        );
+        return AuthenticationTestHelper.builder().internal().build();
     }
 
     public static Authentication randomAnonymousAuthentication() {
-        Settings settings = Settings.builder().put(AnonymousUser.ROLES_SETTING.getKey(), "anon_role").build();
-        String nodeName = randomAlphaOfLengthBetween(3, 8);
-        return Authentication.newAnonymousAuthentication(new AnonymousUser(settings), nodeName);
+        return AuthenticationTestHelper.builder().anonymous().build();
     }
 
     private boolean realmIsSingleton(RealmRef realmRef) {

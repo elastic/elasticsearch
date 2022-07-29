@@ -7,12 +7,15 @@
 
 package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 
+import org.apache.lucene.geo.GeoEncodingUtils;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.Geohash;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashBoundedPredicate;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoRelation;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
+import org.elasticsearch.xpack.spatial.index.query.GeoGridQueryBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -85,7 +88,7 @@ public class GeoHashTilerTests extends GeoGridTilerTestCase {
         GeoShapeValues.BoundingBox bounds = geoValue.boundingBox();
         if (bounds.minX() == bounds.maxX() && bounds.minY() == bounds.maxY()) {
             String hash = Geohash.stringEncode(bounds.minX(), bounds.minY(), precision);
-            if (hashIntersectsBounds(hash, bbox) && geoValue.relate(Geohash.toBoundingBox(hash)) != GeoRelation.QUERY_DISJOINT) {
+            if (hashIntersectsBounds(hash, bbox) && intersects(hash, geoValue)) {
                 return 1;
             }
             return 0;
@@ -101,8 +104,7 @@ public class GeoHashTilerTests extends GeoGridTilerTestCase {
             if (hashIntersectsBounds(hashes[i], bbox) == false) {
                 continue;
             }
-            GeoRelation relation = geoValue.relate(Geohash.toBoundingBox(hashes[i]));
-            if (relation != GeoRelation.QUERY_DISJOINT) {
+            if (intersects(hashes[i], geoValue)) {
                 if (hashes[i].length() == finalPrecision) {
                     count++;
                 } else {
@@ -113,20 +115,22 @@ public class GeoHashTilerTests extends GeoGridTilerTestCase {
         return count;
     }
 
+    private boolean intersects(String hash, GeoShapeValues.GeoShapeValue geoValue) throws IOException {
+        final Rectangle r = GeoGridQueryBuilder.getQueryHash(hash);
+        return geoValue.relate(
+            GeoEncodingUtils.encodeLongitude(r.getMinLon()),
+            GeoEncodingUtils.encodeLongitude(r.getMaxLon()),
+            GeoEncodingUtils.encodeLatitude(r.getMinLat()),
+            GeoEncodingUtils.encodeLatitude(r.getMaxLat())
+        ) != GeoRelation.QUERY_DISJOINT;
+    }
+
     private boolean hashIntersectsBounds(String hash, GeoBoundingBox bbox) {
         if (bbox == null) {
             return true;
         }
-        final Rectangle rectangle = Geohash.toBoundingBox(hash);
-        // touching hashes are excluded
-        if (bbox.top() > rectangle.getMinY() && bbox.bottom() < rectangle.getMaxY()) {
-            if (bbox.left() > bbox.right()) {
-                return bbox.left() < rectangle.getMaxX() || bbox.right() > rectangle.getMinX();
-            } else {
-                return bbox.left() < rectangle.getMaxX() && bbox.right() > rectangle.getMinX();
-            }
-        }
-        return false;
+        GeoHashBoundedPredicate predicate = new GeoHashBoundedPredicate(hash.length(), bbox);
+        return predicate.validHash(hash);
     }
 
     public void testGeoHash() throws Exception {

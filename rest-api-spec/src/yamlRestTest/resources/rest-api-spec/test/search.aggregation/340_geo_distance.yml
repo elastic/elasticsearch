@@ -29,7 +29,7 @@ setup:
             distance:
               geo_distance:
                 field: location
-                origin: "35.7796, -78.6382"
+                origin: "POINT (-78.6382 35.7796)"
                 ranges:
                   - to: 1000000
                   - from: 1000000
@@ -57,7 +57,7 @@ setup:
             distance:
               geo_distance:
                 field: location
-                origin: "35.7796, -78.6382"
+                origin: "POINT (-78.6382 35.7796)"
                 ranges:
                   - to: 1000000
                   - from: 1000000

@@ -8,6 +8,7 @@
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.apache.lucene.util.PriorityQueue;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -34,7 +35,6 @@ import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 /**
  * Implementation of {@link Histogram}.
@@ -166,10 +166,7 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
         }
 
         void writeTo(StreamOutput out) throws IOException {
-            out.writeVInt(roundingInfos.length);
-            for (RoundingInfo roundingInfo : roundingInfos) {
-                roundingInfo.writeTo(out);
-            }
+            out.writeArray(roundingInfos);
             out.writeVInt(roundingIdx);
             emptySubAggregations.writeTo(out);
         }
@@ -226,7 +223,11 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
         format = in.readNamedWriteable(DocValueFormat.class);
         buckets = in.readList(stream -> new Bucket(stream, format));
         this.targetBuckets = in.readVInt();
-        bucketInnerInterval = 1; // Calculated on merge.
+        if (in.getVersion().onOrAfter(Version.V_8_3_0)) {
+            bucketInnerInterval = in.readVLong();
+        } else {
+            bucketInnerInterval = 1; // Calculated on merge.
+        }
     }
 
     @Override
@@ -235,13 +236,19 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
         out.writeNamedWriteable(format);
         out.writeList(buckets);
         out.writeVInt(targetBuckets);
+        if (out.getVersion().onOrAfter(Version.V_8_3_0)) {
+            out.writeVLong(bucketInnerInterval);
+        }
+    }
+
+    long getBucketInnerInterval() {
+        return bucketInnerInterval;
     }
 
     public DateHistogramInterval getInterval() {
-
         RoundingInfo roundingInfo = this.bucketInfo.roundingInfos[this.bucketInfo.roundingIdx];
         String unitAbbreviation = roundingInfo.unitAbbreviation;
-        return new DateHistogramInterval(Long.toString(bucketInnerInterval) + unitAbbreviation);
+        return new DateHistogramInterval(bucketInnerInterval + unitAbbreviation);
     }
 
     @Override
@@ -551,7 +558,7 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
     public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
         return new InternalAutoDateHistogram(
             getName(),
-            buckets.stream().map(b -> b.finalizeSampling(samplingContext)).collect(Collectors.toList()),
+            buckets.stream().map(b -> b.finalizeSampling(samplingContext)).toList(),
             targetBuckets,
             bucketInfo,
             format,
@@ -654,11 +661,14 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
         if (super.equals(obj) == false) return false;
 
         InternalAutoDateHistogram that = (InternalAutoDateHistogram) obj;
-        return Objects.equals(buckets, that.buckets) && Objects.equals(format, that.format) && Objects.equals(bucketInfo, that.bucketInfo);
+        return Objects.equals(buckets, that.buckets)
+            && Objects.equals(format, that.format)
+            && Objects.equals(bucketInfo, that.bucketInfo)
+            && bucketInnerInterval == that.bucketInnerInterval;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), buckets, format, bucketInfo);
+        return Objects.hash(super.hashCode(), buckets, format, bucketInfo, bucketInnerInterval);
     }
 }

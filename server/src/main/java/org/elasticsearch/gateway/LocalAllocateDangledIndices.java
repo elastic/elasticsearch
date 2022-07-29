@@ -10,12 +10,10 @@ package org.elasticsearch.gateway;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -45,6 +43,7 @@ import java.util.Arrays;
 import java.util.Collection;
 
 import static org.elasticsearch.cluster.metadata.MetadataIndexStateService.isIndexVerifiedBeforeClosed;
+import static org.elasticsearch.core.Strings.format;
 
 public class LocalAllocateDangledIndices {
 
@@ -106,7 +105,7 @@ public class LocalAllocateDangledIndices {
                 indexNames[i] = request.indices[i].getIndex().getName();
             }
             final String source = "allocation dangled indices " + Arrays.toString(indexNames);
-            clusterService.submitStateUpdateTask(source, new ClusterStateUpdateTask() {
+            submitUnbatchedTask(source, new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     if (currentState.blocks().disableStatePersistence()) {
@@ -179,8 +178,8 @@ public class LocalAllocateDangledIndices {
                         } catch (Exception ex) {
                             // upgrade failed - adding index as closed
                             logger.warn(
-                                () -> new ParameterizedMessage(
-                                    "found dangled index [{}] on node [{}]. This index cannot be "
+                                () -> format(
+                                    "found dangled index [%s] on node [%s]. This index cannot be "
                                         + "upgraded to the latest version, adding as closed",
                                     indexMetadata.getIndex(),
                                     request.fromNode
@@ -220,7 +219,7 @@ public class LocalAllocateDangledIndices {
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.error(() -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
+                    logger.error(() -> "unexpected failure during [" + source + "]", e);
                     try {
                         channel.sendResponse(e);
                     } catch (Exception inner) {
@@ -237,13 +236,13 @@ public class LocalAllocateDangledIndices {
                         logger.warn("failed send response for allocating dangled", e);
                     }
                 }
-            }, newExecutor());
+            });
         }
     }
 
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
-    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
-        return ClusterStateTaskExecutor.unbatched();
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
     public static class AllocateDangledRequest extends TransportRequest {

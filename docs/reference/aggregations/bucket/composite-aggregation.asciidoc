@@ -502,8 +502,8 @@ GET /_search
                 "field": "location",
                 "precision": 22,
                 "bounds": {
-                  "top_left": "52.4, 4.9",
-                  "bottom_right": "52.3, 5.0"
+                  "top_left": "POINT (4.9 52.4)",
+                  "bottom_right": "POINT (5.0 52.3)"
                 }
               }
             }
@@ -736,7 +736,7 @@ GET /_search
 
 NOTE: The `after_key` is *usually* the key to the last bucket returned in
 the response, but that isn't guaranteed. Always use the returned `after_key` instead
-of derriving it from the buckets.
+of deriving it from the buckets.
 
 ==== Early termination
 

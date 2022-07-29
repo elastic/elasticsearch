@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.support.nodes;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
@@ -261,6 +260,11 @@ public abstract class TransportNodesAction<
                             public void handleException(TransportException exp) {
                                 onFailure(idx, node.getId(), exp);
                             }
+
+                            @Override
+                            public String toString() {
+                                return "AsyncActionNodeResponseHandler{node=" + node + ", action=" + AsyncAction.this + '}';
+                            }
                         }
                     );
                 } catch (Exception e) {
@@ -281,7 +285,7 @@ public abstract class TransportNodesAction<
         }
 
         private void onFailure(int idx, String nodeId, Throwable t) {
-            logger.debug(new ParameterizedMessage("failed to execute on node [{}]", nodeId), t);
+            logger.debug(() -> "failed to execute on node [" + nodeId + "]", t);
             if (nodeResponseTracker.trackResponseAndCheckIfLast(idx, new FailedNodeException(nodeId, "Failed node [" + nodeId + "]", t))) {
                 finishHim();
             }
@@ -312,6 +316,11 @@ public abstract class TransportNodesAction<
             } catch (TaskCancelledException e) {
                 nodeResponseTracker.discardIntermediateResponses(e);
             }
+        }
+
+        @Override
+        public String toString() {
+            return "AsyncAction{request=" + request + ", listener=" + listener + '}';
         }
     }
 

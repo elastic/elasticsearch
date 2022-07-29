@@ -408,10 +408,11 @@ http://www.geojson.org[GeoJSON]
 `wkt`:::
 {wikipedia}/Well-known_text_representation_of_geometry[Well Known Text]
 
-`mvt(<zoom>/<x>/<y>@<extent>)` or `mvt(<zoom>/<x>/<y>)`:::
+`mvt(<spec>)`:::
 Binary
 https://docs.mapbox.com/vector-tiles/specification[Mapbox vector tile]. The API
 returns the tile as a base64-encoded string.
+The `<spec>` has the format `<zoom>/<x>/<y>` with two optional suffixes: `@<extent>` and/or `:<buffer>`. For example, `2/0/1` or `2/0/1@4096:5`.
 +
 .`mvt` parameters
 [%collapsible%open]
@@ -428,6 +429,10 @@ returns the tile as a base64-encoded string.
 `<extent>`::
 (Optional, integer) Size, in pixels, of a side of the tile. Vector tiles are
 square with equal sides. Defaults to `4096`.
+
+`<buffer>`::
+(Optional, integer) Size, in pixels, of a clipping buffer outside the tile.
+This allows renderers to avoid outline artifacts from geometries that extend past the extent of the tile. Defaults to `5`.
 ========
 --
 // end::fields-param-props[]
@@ -473,6 +478,40 @@ are supported.
 +
 A boost value greater than `1.0` increases the score. A boost value between
 `0` and `1.0` decreases the score.
+====
+
+experimental::[]
+[[search-api-knn]]
+`knn`::
+(Optional, object) Defines the <<approximate-knn, approximate kNN search>> to
+run.
++
+.Properties of `knn` object
+[%collapsible%open]
+====
+`field`::
+(Required, string) The name of the vector field to search against. Must be a
+<<index-vectors-knn-search, `dense_vector` field with indexing enabled>>.
+
+`query_vector`::
+(Required, array of floats) Query vector. Must have the same number of
+dimensions as the vector field you are searching against.
+
+`k`::
+(Required, integer) Number of nearest neighbors to return as top hits. This
+value must be less than `num_candidates`.
+
+`num_candidates`::
+(Required, integer) The number of nearest neighbor candidates to consider per
+shard. Cannot exceed 10,000. {es} collects `num_candidates` results from each
+shard, then merges them to find the top `k` results. Increasing
+`num_candidates` tends to improve the accuracy of the final `k` results.
+
+`filter`::
+(Optional, <<query-dsl,Query DSL object>>) Query to filter the documents that
+can match. The kNN search will return the top `k` documents that also match
+this filter. The value can be a single query or a list of queries. If `filter`
+is not provided, all documents are allowed to match.
 ====
 
 [[search-api-min-score]]

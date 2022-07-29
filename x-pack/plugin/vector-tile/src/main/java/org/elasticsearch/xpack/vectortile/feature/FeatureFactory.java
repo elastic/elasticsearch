@@ -13,6 +13,8 @@ import com.wdtinc.mapbox_vector_tile.adapt.jts.JtsAdapter;
 import com.wdtinc.mapbox_vector_tile.adapt.jts.UserDataIgnoreConverter;
 import com.wdtinc.mapbox_vector_tile.build.MvtLayerProps;
 
+import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.SimpleFeatureFactory;
 import org.elasticsearch.common.geo.SphericalMercatorUtils;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
@@ -37,6 +39,7 @@ import org.locationtech.jts.geom.LineString;
 import org.locationtech.jts.geom.TopologyException;
 import org.locationtech.jts.simplify.TopologyPreservingSimplifier;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -56,25 +59,59 @@ public class FeatureFactory {
     private final CoordinateSequenceFilter sequenceFilter;
     // pixel precision of the tile in the mercator projection.
     private final double pixelPrecision;
-    // size of the buffer in pixels for the clip envelope. we choose a values that makes sure
-    // we have values outside the tile for polygon crossing the tile so the outline of the
-    // tile is not part of the final result.
-    // TODO: consider exposing this parameter so users have control of the buffer's size.
-    private static final int BUFFER_SIZE_PIXELS = 5;
+    // optimization for points and rectangles
+    private final SimpleFeatureFactory simpleFeatureFactory;
 
-    public FeatureFactory(int z, int x, int y, int extent) {
+    /**
+     * The vector-tile feature factory will produce tiles as features based on the tile specification.
+     * @param z - zoom level
+     * @param x - x position of the tile at that zoom
+     * @param y - y position of the tile at that zoom
+     * @param extent - the full extent of entire area in pixels
+     * @param padPixels - a buffer around each tile in pixels
+     * The parameter padPixels is the size of the buffer in pixels for the clip envelope.
+     * We choose a value that ensures we have values outside the tile for polygons crossing
+     * the tile so the outline of the tile is not part of the final result. The default
+     * value is set in SimpleVectorTileFormatter.DEFAULT_BUFFER_PIXELS (currently 5 pixels).
+     */
+    public FeatureFactory(int z, int x, int y, int extent, int padPixels) {
         this.pixelPrecision = 2 * SphericalMercatorUtils.MERCATOR_BOUNDS / ((1L << z) * extent);
         final Rectangle r = SphericalMercatorUtils.recToSphericalMercator(GeoTileUtils.toBoundingBox(x, y, z));
         final Envelope tileEnvelope = new Envelope(r.getMinX(), r.getMaxX(), r.getMinY(), r.getMaxY());
         final Envelope clipEnvelope = new Envelope(tileEnvelope);
         // expand enough the clip envelope to prevent visual artefacts
-        clipEnvelope.expandBy(BUFFER_SIZE_PIXELS * this.pixelPrecision, BUFFER_SIZE_PIXELS * this.pixelPrecision);
+        clipEnvelope.expandBy(padPixels * this.pixelPrecision, padPixels * this.pixelPrecision);
         final GeometryFactory geomFactory = new GeometryFactory();
         this.builder = new JTSGeometryBuilder(geomFactory);
         this.clipTile = geomFactory.toGeometry(clipEnvelope);
         this.sequenceFilter = new MvtCoordinateSequenceFilter(tileEnvelope, extent);
+        this.simpleFeatureFactory = new SimpleFeatureFactory(z, x, y, extent);
     }
 
+    /**
+     * Returns a {@code byte[]} containing the mvt representation of the provided point
+     */
+    public byte[] point(double lon, double lat) throws IOException {
+        return simpleFeatureFactory.point(lon, lat);
+    }
+
+    /**
+     * Returns a {@code byte[]} containing the mvt representation of the provided rectangle
+     */
+    public byte[] box(double minLon, double maxLon, double minLat, double maxLat) throws IOException {
+        return simpleFeatureFactory.box(minLon, maxLon, minLat, maxLat);
+    }
+
+    /**
+     * Returns a {@code byte[]} containing the mvt representation of the provided points
+     */
+    public byte[] points(List<GeoPoint> multiPoint) {
+        return simpleFeatureFactory.points(multiPoint);
+    }
+
+    /**
+     * Returns a List {@code byte[]} containing the mvt representation of the provided geometry
+     */
     public List<byte[]> getFeatures(Geometry geometry) {
         // Get geometry in spherical mercator
         final org.locationtech.jts.geom.Geometry jtsGeometry = geometry.visit(builder);
@@ -88,7 +125,7 @@ public class FeatureFactory {
         // convert coordinates to MVT geometry
         convertToMvtGeometry(flatGeometries, sequenceFilter);
         // MVT geometry to MVT feature
-        final List<VectorTile.Tile.Feature> features = JtsAdapter.toFeatures(flatGeometries, layerProps, userDataIgnoreConverter);
+        final List<VectorTile.Tile.Feature> features = PatchedJtsAdapter.toFeatures(flatGeometries, layerProps, userDataIgnoreConverter);
         final List<byte[]> byteFeatures = new ArrayList<>(features.size());
         features.forEach(f -> byteFeatures.add(f.toByteArray()));
         return byteFeatures;

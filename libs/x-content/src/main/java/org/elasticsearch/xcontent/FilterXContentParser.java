@@ -24,6 +24,8 @@ import java.util.function.Supplier;
  */
 public abstract class FilterXContentParser implements XContentParser {
 
+    protected FilterXContentParser() {}
+
     protected abstract XContentParser delegate();
 
     @Override

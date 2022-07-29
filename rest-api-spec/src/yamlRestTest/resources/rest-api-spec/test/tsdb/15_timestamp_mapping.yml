@@ -2,8 +2,8 @@
 ---
 date:
   - skip:
-      version: " - 8.0.99"
-      reason: introduced in 8.1.0
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
 
   - do:
       indices.create:
@@ -51,8 +51,8 @@ date:
 ---
 date_nanos:
   - skip:
-      version: " - 8.0.99"
-      reason: introduced in 8.1.0
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
 
   - do:
       indices.create:
@@ -100,8 +100,8 @@ date_nanos:
 ---
 automatically add with date:
   - skip:
-      version: " - 8.0.99"
-      reason: introduced in 8.1.0
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
 
   - do:
       indices.create:
@@ -248,8 +248,8 @@ reject bad timestamp meta field:
 ---
 write without timestamp:
   - skip:
-      version: " - 8.0.99"
-      reason: introduced in 8.1.0
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
 
   - do:
       indices.create:
@@ -288,8 +288,8 @@ write without timestamp:
 ---
 explicitly enable timestamp meta field:
   - skip:
-      version: " - 8.0.99"
-      reason: introduced in 8.1.0
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
 
   - do:
       indices.create:

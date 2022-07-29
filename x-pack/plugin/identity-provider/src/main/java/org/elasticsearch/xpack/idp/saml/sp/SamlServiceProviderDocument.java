@@ -41,7 +41,6 @@ import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.function.BiConsumer;
-import java.util.stream.Collectors;
 
 /**
  * This class models the storage of a {@link SamlServiceProvider} as an Elasticsearch document.
@@ -171,14 +170,14 @@ public class SamlServiceProviderDocument implements ToXContentObject, Writeable 
                 } catch (CertificateEncodingException e) {
                     throw new ElasticsearchException("Cannot read certificate", e);
                 }
-            }).map(Base64.getEncoder()::encodeToString).collect(Collectors.toUnmodifiableList());
+            }).map(Base64.getEncoder()::encodeToString).toList();
         }
 
         private List<X509Certificate> decodeCertificates(List<String> encodedCertificates) {
             if (encodedCertificates == null || encodedCertificates.isEmpty()) {
                 return List.of();
             }
-            return encodedCertificates.stream().map(this::decodeCertificate).collect(Collectors.toUnmodifiableList());
+            return encodedCertificates.stream().map(this::decodeCertificate).toList();
         }
 
         private X509Certificate decodeCertificate(String base64Cert) {

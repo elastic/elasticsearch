@@ -17,7 +17,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexAbstraction.Type;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
@@ -44,7 +43,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -196,7 +194,7 @@ public class IndexNameExpressionResolver {
             .filter(Objects::nonNull)
             .filter(ia -> ia.getType() == IndexAbstraction.Type.DATA_STREAM)
             .map(IndexAbstraction::getName)
-            .collect(Collectors.toList());
+            .toList();
     }
 
     /**
@@ -365,7 +363,7 @@ public class IndexNameExpressionResolver {
         }
 
         boolean excludedDataStreams = false;
-        final Set<Index> concreteIndices = new LinkedHashSet<>(expressions.size());
+        final Set<Index> concreteIndices = Sets.newLinkedHashSetWithExpectedSize(expressions.size());
         final SortedMap<String, IndexAbstraction> indicesLookup = context.state.metadata().getIndicesLookup();
         for (String expression : expressions) {
             IndexAbstraction indexAbstraction = indicesLookup.get(expression);
@@ -489,10 +487,10 @@ public class IndexNameExpressionResolver {
             );
         }
         if (resolvedSystemDataStreams.isEmpty() == false) {
-            throw systemIndices.dataStreamAccessException(threadContext, resolvedSystemDataStreams);
+            throw SystemIndices.dataStreamAccessException(threadContext, resolvedSystemDataStreams);
         }
         if (resolvedNetNewSystemIndices.isEmpty() == false) {
-            throw systemIndices.netNewSystemIndexAccessException(threadContext, resolvedNetNewSystemIndices);
+            throw SystemIndices.netNewSystemIndexAccessException(threadContext, resolvedNetNewSystemIndices);
         }
     }
 
@@ -735,7 +733,7 @@ public class IndexNameExpressionResolver {
                 .map(DataStreamAlias::getName)
                 .toArray(String[]::new);
         } else {
-            final ImmutableOpenMap<String, AliasMetadata> indexAliases = indexMetadata.getAliases();
+            final Map<String, AliasMetadata> indexAliases = indexMetadata.getAliases();
             final AliasMetadata[] aliasCandidates;
             if (iterateIndexAliases(indexAliases.size(), resolvedExpressions.size())) {
                 // faster to iterate indexAliases
@@ -766,7 +764,7 @@ public class IndexNameExpressionResolver {
             if (aliases == null) {
                 return null;
             }
-            return aliases.toArray(new String[aliases.size()]);
+            return aliases.toArray(Strings.EMPTY_ARRAY);
         }
     }
 
@@ -827,20 +825,7 @@ public class IndexNameExpressionResolver {
                             }
                         } else {
                             // Non-routing alias
-                            if (norouting.contains(concreteIndex) == false) {
-                                norouting.add(concreteIndex);
-                                if (paramRouting != null) {
-                                    Set<String> r = new HashSet<>(paramRouting);
-                                    if (routings == null) {
-                                        routings = new HashMap<>();
-                                    }
-                                    routings.put(concreteIndex, r);
-                                } else {
-                                    if (routings != null) {
-                                        routings.remove(concreteIndex);
-                                    }
-                                }
-                            }
+                            routings = collectRoutings(routings, paramRouting, norouting, concreteIndex);
                         }
                     }
                 }
@@ -852,43 +837,37 @@ public class IndexNameExpressionResolver {
                 if (dataStream.getIndices() != null) {
                     for (Index index : dataStream.getIndices()) {
                         String concreteIndex = index.getName();
-                        if (norouting.contains(concreteIndex) == false) {
-                            norouting.add(concreteIndex);
-                            if (paramRouting != null) {
-                                Set<String> r = new HashSet<>(paramRouting);
-                                if (routings == null) {
-                                    routings = new HashMap<>();
-                                }
-                                routings.put(concreteIndex, r);
-                            } else {
-                                if (routings != null) {
-                                    routings.remove(concreteIndex);
-                                }
-                            }
-                        }
+                        routings = collectRoutings(routings, paramRouting, norouting, concreteIndex);
                     }
                 }
             } else {
                 // Index
-                if (norouting.contains(expression) == false) {
-                    norouting.add(expression);
-                    if (paramRouting != null) {
-                        Set<String> r = new HashSet<>(paramRouting);
-                        if (routings == null) {
-                            routings = new HashMap<>();
-                        }
-                        routings.put(expression, r);
-                    } else {
-                        if (routings != null) {
-                            routings.remove(expression);
-                        }
-                    }
-                }
+                routings = collectRoutings(routings, paramRouting, norouting, expression);
             }
 
         }
         if (routings == null || routings.isEmpty()) {
             return null;
+        }
+        return routings;
+    }
+
+    @Nullable
+    private static Map<String, Set<String>> collectRoutings(
+        @Nullable Map<String, Set<String>> routings,
+        @Nullable Set<String> paramRouting,
+        Set<String> noRouting,
+        String concreteIndex
+    ) {
+        if (noRouting.add(concreteIndex)) {
+            if (paramRouting != null) {
+                if (routings == null) {
+                    routings = new HashMap<>();
+                }
+                routings.put(concreteIndex, new HashSet<>(paramRouting));
+            } else if (routings != null) {
+                routings.remove(concreteIndex);
+            }
         }
         return routings;
     }
@@ -932,7 +911,7 @@ public class IndexNameExpressionResolver {
     }
 
     public SystemIndexAccessLevel getSystemIndexAccessLevel() {
-        final SystemIndexAccessLevel accessLevel = systemIndices.getSystemIndexAccessLevel(threadContext);
+        final SystemIndexAccessLevel accessLevel = SystemIndices.getSystemIndexAccessLevel(threadContext);
         assert accessLevel != SystemIndexAccessLevel.BACKWARDS_COMPATIBLE_ONLY
             : "BACKWARDS_COMPATIBLE_ONLY access level should never be used automatically, it should only be used in known special cases";
         return accessLevel;

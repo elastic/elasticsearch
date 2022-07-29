@@ -42,7 +42,6 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.SendRequestTransportException;
 import org.elasticsearch.transport.Transport;
@@ -192,7 +191,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
                                 .values()
                                 .stream()
                                 .filter(t -> t.getParentTaskId() != null && t.getDescription().equals(req.taskDescription()))
-                                .collect(Collectors.toList());
+                                .toList();
                             assertThat(childTasks, hasSize(1));
                             CancellableTask childTask = (CancellableTask) childTasks.get(0);
                             assertTrue(childTask.isCancelled());
@@ -294,7 +293,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
         client(nodeWithRootTask).execute(TransportTestAction.ACTION, rootRequest);
         allowPartialRequest(rootRequest);
         try {
-            internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeWithRootTask));
+            internalCluster().stopNode(nodeWithRootTask);
             assertBusy(() -> {
                 for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
                     for (CancellableTask task : transportService.getTaskManager().getCancellableTasks().values()) {
@@ -336,7 +335,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
                                 .values()
                                 .stream()
                                 .filter(t -> t.getParentTaskId() != null && t.getDescription().equals(req.taskDescription()))
-                                .collect(Collectors.toList());
+                                .toList();
                             assertThat(childTasks, hasSize(1));
                             CancellableTask childTask = (CancellableTask) childTasks.get(0);
                             assertTrue(childTask.isCancelled());
@@ -385,7 +384,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
             List<TaskInfo> tasks = listTasksResponse.getTasks()
                 .stream()
                 .filter(t -> t.description().equals(request.taskDescription()))
-                .collect(Collectors.toList());
+                .toList();
             assertThat(tasks, hasSize(1));
             taskId.set(tasks.get(0).taskId());
         });

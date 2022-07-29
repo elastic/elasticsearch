@@ -19,7 +19,6 @@ import java.util.Collection;
 import java.util.Enumeration;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 import javax.net.ssl.X509ExtendedTrustManager;
 
@@ -73,7 +72,7 @@ public final class StoreTrustConfig implements SslTrustConfig {
             } else {
                 return null;
             }
-        }).filter(Objects::nonNull).collect(Collectors.toUnmodifiableList());
+        }).filter(Objects::nonNull).toList();
     }
 
     @Override
@@ -124,7 +123,7 @@ public final class StoreTrustConfig implements SslTrustConfig {
     /**
      * Verifies that the keystore contains at least 1 trusted certificate entry.
      */
-    private void checkTrustStore(KeyStore store, Path path) throws GeneralSecurityException {
+    private static void checkTrustStore(KeyStore store, Path path) throws GeneralSecurityException {
         Enumeration<String> aliases = store.aliases();
         while (aliases.hasMoreElements()) {
             String alias = aliases.nextElement();

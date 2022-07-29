@@ -48,8 +48,8 @@ public class DedicatedFrozenNodeAllocationDecider extends AllocationDecider {
     }
 
     @Override
-    public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        return canAllocateToNode(allocation.metadata().getIndexSafe(shardRouting.index()), node.node());
+    public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+        return canAllocateToNode(indexMetadata, node.node());
     }
 
     @Override
@@ -62,7 +62,7 @@ public class DedicatedFrozenNodeAllocationDecider extends AllocationDecider {
         return canAllocateToNode(indexMetadata, node);
     }
 
-    private Decision canAllocateToNode(IndexMetadata indexMetadata, DiscoveryNode discoveryNode) {
+    private static Decision canAllocateToNode(IndexMetadata indexMetadata, DiscoveryNode discoveryNode) {
 
         boolean hasDataFrozenRole = false;
         boolean hasOtherDataRole = false;

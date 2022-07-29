@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
@@ -20,9 +17,12 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
+import org.elasticsearch.test.XContentTestUtils;
+import org.elasticsearch.test.XContentTestUtils.JsonMapView;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.cluster.action.MigrateToDataTiersResponse;
 import org.elasticsearch.xpack.core.ilm.AllocateAction;
@@ -140,7 +140,12 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
 
         // let's also have a policy that doesn't need migrating
         String rolloverOnlyPolicyName = "rollover-policy";
-        createNewSingletonPolicy(client(), rolloverOnlyPolicyName, "hot", new RolloverAction(null, null, null, 1L, null));
+        createNewSingletonPolicy(
+            client(),
+            rolloverOnlyPolicyName,
+            "hot",
+            new RolloverAction(null, null, null, 1L, null, null, null, null, null, null)
+        );
 
         String rolloverIndexPrefix = "rolloverpolicytest_index";
         for (int i = 1; i <= 2; i++) {
@@ -186,6 +191,9 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
             """.formatted(templateName));
         Response migrateDeploymentResponse = client().performRequest(migrateRequest);
         assertOK(migrateDeploymentResponse);
+
+        // the index was assigned after the migration
+        ensureGreen("indexwithdatawarmrouting");
 
         Map<String, Object> migrateResponseAsMap = responseAsMap(migrateDeploymentResponse);
         assertThat(
@@ -248,10 +256,9 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
         // ENFORCE_DEFAULT_TIER_PREFERENCE is not mentioned (and defaults to true)
         Request getSettingsRequest = new Request("GET", "_cluster/settings?include_defaults");
         Response getSettingsResponse = client().performRequest(getSettingsRequest);
-        ObjectMapper mapper = new ObjectMapper();
-        JsonNode json = mapper.readTree(getSettingsResponse.getEntity().getContent());
-        assertTrue(json.at("/persistent/cluster/routing/allocation/enforce_default_tier_preference").isMissingNode());
-        assertTrue(json.at("/defaults/cluster/routing/allocation/enforce_default_tier_preference").asBoolean());
+        JsonMapView json = XContentTestUtils.createJsonMapView(getSettingsResponse.getEntity().getContent());
+        assertThat(json.get("persistent.cluster.routing.allocation.enforce_default_tier_preference"), nullValue());
+        assertTrue(Booleans.parseBoolean(json.get("defaults.cluster.routing.allocation.enforce_default_tier_preference")));
     }
 
     @SuppressWarnings("unchecked")

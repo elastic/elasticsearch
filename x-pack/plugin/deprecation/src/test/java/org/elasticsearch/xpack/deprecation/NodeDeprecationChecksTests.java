@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.deprecation;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.cluster.ClusterName;
@@ -79,6 +76,56 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         assertThat(issue.getUrl(), equalTo("https://removed-setting.example.com"));
     }
 
+    public void testMultipleDataPaths() {
+        final Settings settings = Settings.builder().putList("path.data", Arrays.asList("d1", "d2")).build();
+        final XPackLicenseState licenseState = new XPackLicenseState(() -> 0);
+        final DeprecationIssue issue = NodeDeprecationChecks.checkMultipleDataPaths(settings, null, null, licenseState);
+        assertThat(issue, not(nullValue()));
+        assertThat(issue.getLevel(), equalTo(DeprecationIssue.Level.WARNING));
+        assertThat(issue.getMessage(), equalTo("Specifying multiple data paths is deprecated"));
+        assertThat(
+            issue.getDetails(),
+            equalTo(
+                "The [path.data] setting contains a list of paths. Specify a single path as a string. Use RAID or other system level "
+                    + "features to utilize multiple disks. If multiple data paths are configured, the node will fail to start in 8.0. "
+            )
+        );
+        String url = "https://ela.st/es-deprecation-7-multiple-paths";
+        assertThat(issue.getUrl(), equalTo(url));
+    }
+
+    public void testNoMultipleDataPaths() {
+        Settings settings = Settings.builder().put("path.data", "data").build();
+        final XPackLicenseState licenseState = new XPackLicenseState(() -> 0);
+        final DeprecationIssue issue = NodeDeprecationChecks.checkMultipleDataPaths(settings, null, null, licenseState);
+        assertThat(issue, nullValue());
+    }
+
+    public void testDataPathsList() {
+        final Settings settings = Settings.builder().putList("path.data", "d1").build();
+        final XPackLicenseState licenseState = new XPackLicenseState(() -> 0);
+        final DeprecationIssue issue = NodeDeprecationChecks.checkDataPathsList(settings, null, null, licenseState);
+        assertThat(issue, not(nullValue()));
+        assertThat(issue.getLevel(), equalTo(DeprecationIssue.Level.WARNING));
+        assertThat(issue.getMessage(), equalTo("Multiple data paths are not supported"));
+        assertThat(
+            issue.getDetails(),
+            equalTo(
+                "The [path.data] setting contains a list of paths. Specify a single path as a string. Use RAID or other system level "
+                    + "features to utilize multiple disks. If multiple data paths are configured, the node will fail to start in 8.0. "
+            )
+        );
+        String url = "https://ela.st/es-deprecation-7-multiple-paths";
+        assertThat(issue.getUrl(), equalTo(url));
+    }
+
+    public void testNoDataPathsListDefault() {
+        final Settings settings = Settings.builder().build();
+        final XPackLicenseState licenseState = new XPackLicenseState(() -> 0);
+        final DeprecationIssue issue = NodeDeprecationChecks.checkDataPathsList(settings, null, null, licenseState);
+        assertThat(issue, nullValue());
+    }
+
     public void testSharedDataPathSetting() {
         Settings settings = Settings.builder()
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
@@ -95,7 +142,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             issues,
             contains(
                 new DeprecationIssue(
-                    DeprecationIssue.Level.CRITICAL,
+                    DeprecationIssue.Level.WARNING,
                     "setting [path.shared_data] is deprecated and will be removed in a future version",
                     expectedUrl,
                     "Found shared data path configured. Discontinue use of this setting.",
@@ -743,7 +790,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         );
     }
 
-    public void testDynamicSettings() throws JsonProcessingException {
+    public void testDynamicSettings() {
         String concreteSettingKey = "xpack.monitoring.exporters." + randomAlphaOfLength(10) + ".use_ingest";
         Settings clusterSettings = Settings.builder().put(concreteSettingKey, randomBoolean()).build();
         Settings nodettings = Settings.builder().build();
@@ -774,15 +821,6 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             meta
         );
         assertThat(issues, hasItem(expected));
-    }
-
-    @SuppressWarnings("unchecked")
-    private Map<String, Object> buildMetaObjectForRemovableSettings(String... settingNames) throws JsonProcessingException {
-        String settingNamesString = Arrays.stream(settingNames)
-            .map(settingName -> "\"" + settingName + "\"")
-            .collect(Collectors.joining(","));
-        String metaString = "{\"actions\": [{\"action_type\": \"remove_settings\", \"objects\":[" + settingNamesString + "]}]}";
-        return new ObjectMapper().readValue(metaString, Map.class);
     }
 
     public void testCheckNodeAttrData() {

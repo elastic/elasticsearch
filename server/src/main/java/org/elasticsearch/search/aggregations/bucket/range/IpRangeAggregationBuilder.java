@@ -13,6 +13,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.script.Script;
@@ -100,7 +101,7 @@ public final class IpRangeAggregationBuilder extends ValuesSourceAggregationBuil
         }
     }
 
-    public static class Range implements ToXContentObject {
+    public static class Range implements ToXContentObject, Writeable {
 
         private final String key;
         private final String from;
@@ -155,7 +156,8 @@ public final class IpRangeAggregationBuilder extends ValuesSourceAggregationBuil
             this.to = in.readOptionalString();
         }
 
-        void writeTo(StreamOutput out) throws IOException {
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
             out.writeOptionalString(key);
             out.writeOptionalString(from);
             out.writeOptionalString(to);
@@ -354,10 +356,7 @@ public final class IpRangeAggregationBuilder extends ValuesSourceAggregationBuil
 
     @Override
     protected void innerWriteTo(StreamOutput out) throws IOException {
-        out.writeVInt(ranges.size());
-        for (Range range : ranges) {
-            range.writeTo(out);
-        }
+        out.writeCollection(ranges);
         out.writeBoolean(keyed);
     }
 

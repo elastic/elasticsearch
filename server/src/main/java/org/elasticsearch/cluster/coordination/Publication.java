@@ -11,7 +11,6 @@ package org.elasticsearch.cluster.coordination;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
@@ -87,7 +86,7 @@ public abstract class Publication {
         return publicationTargets.stream()
             .filter(PublicationTarget::isSuccessfullyCompleted)
             .map(PublicationTarget::getDiscoveryNode)
-            .collect(Collectors.toList());
+            .toList();
     }
 
     public boolean isCommitted() {
@@ -368,15 +367,24 @@ public abstract class Publication {
 
             @Override
             public void onFailure(Exception e) {
-                assert e instanceof TransportException;
-                final TransportException exp = (TransportException) e;
-                logger.debug(() -> new ParameterizedMessage("PublishResponseHandler: [{}] failed", discoveryNode), exp);
-                assert ((TransportException) e).getRootCause() instanceof Exception;
-                setFailed((Exception) exp.getRootCause());
+                logger.debug(() -> "PublishResponseHandler: [" + discoveryNode + "] failed", e);
+                setFailed(getRootCause(e));
                 onPossibleCommitFailure();
                 assert publicationCompletedIffAllTargetsInactiveOrCancelled();
             }
 
+        }
+
+        private Exception getRootCause(Exception e) {
+            if (e instanceof final TransportException transportException) {
+                if (transportException.getRootCause()instanceof final Exception rootCause) {
+                    return rootCause;
+                } else {
+                    assert false : e;
+                    logger.error(() -> "PublishResponseHandler: [" + discoveryNode + "] failed", e);
+                }
+            }
+            return e;
         }
 
         private class ApplyCommitResponseHandler implements ActionListener<TransportResponse.Empty> {
@@ -396,7 +404,7 @@ public abstract class Publication {
             public void onFailure(Exception e) {
                 assert e instanceof TransportException;
                 final TransportException exp = (TransportException) e;
-                logger.debug(() -> new ParameterizedMessage("ApplyCommitResponseHandler: [{}] failed", discoveryNode), exp);
+                logger.debug(() -> "ApplyCommitResponseHandler: [" + discoveryNode + "] failed", exp);
                 assert ((TransportException) e).getRootCause() instanceof Exception;
                 setFailed((Exception) exp.getRootCause());
                 onPossibleCompletion();

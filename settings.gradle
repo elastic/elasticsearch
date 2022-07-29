@@ -6,7 +6,7 @@ pluginManagement {
 }
 
 plugins {
-  id "com.gradle.enterprise" version "3.7.1"
+  id "com.gradle.enterprise" version "3.8.1"
 }
 
 includeBuild "build-conventions"
@@ -14,6 +14,14 @@ includeBuild "build-tools"
 includeBuild "build-tools-internal"
 
 rootProject.name = "elasticsearch"
+
+dependencyResolutionManagement {
+  versionCatalogs {
+    buildLibs {
+      from(files("gradle/build.versions.toml"))
+    }
+  }
+}
 
 List projects = [
   'rest-api-spec',
@@ -53,7 +61,9 @@ List projects = [
   'distribution:bwc:minor',
   'distribution:bwc:staged',
   'distribution:tools:java-version-checker',
-  'distribution:tools:launchers',
+  'distribution:tools:cli-launcher',
+  'distribution:tools:server-cli',
+  'distribution:tools:windows-service-cli',
   'distribution:tools:plugin-cli',
   'distribution:tools:keystore-cli',
   'distribution:tools:geoip-cli',
@@ -72,7 +82,9 @@ List projects = [
   'test:fixtures:geoip-fixture',
   'test:fixtures:url-fixture',
   'test:fixtures:nginx-fixture',
-  'test:logger-usage'
+  'test:logger-usage',
+  'test:yaml-rest-runner',
+  'test:x-content'
 ]
 
 /**
@@ -109,6 +121,9 @@ include projects.toArray(new String[0])
 
 project(":libs").children.each { libsProject ->
   libsProject.name = "elasticsearch-${libsProject.name}"
+  libsProject.children.each { lp ->
+    lp.name = lp.name  // for :libs:elasticsearch-x-content:impl
+  }
 }
 
 project(":test:external-modules").children.each { testProject ->

@@ -8,99 +8,31 @@
 
 package org.elasticsearch.xcontent.smile;
 
-import com.fasterxml.jackson.core.JsonEncoding;
-import com.fasterxml.jackson.core.JsonGenerator;
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.dataformat.smile.SmileConstants;
-import com.fasterxml.jackson.dataformat.smile.SmileFactory;
-import com.fasterxml.jackson.dataformat.smile.SmileGenerator;
-
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentGenerator;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.spi.XContentProvider;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.io.Reader;
-import java.util.Set;
 
 /**
- * A Smile based content implementation using Jackson.
+ * Smile based XContent.
  */
-public class SmileXContent implements XContent {
+public final class SmileXContent {
 
-    public static XContentBuilder contentBuilder() throws IOException {
-        return XContentBuilder.builder(smileXContent);
-    }
-
-    static final SmileFactory smileFactory;
-    public static final SmileXContent smileXContent;
-
-    static {
-        smileFactory = new SmileFactory();
-        // for now, this is an overhead, might make sense for web sockets
-        smileFactory.configure(SmileGenerator.Feature.ENCODE_BINARY_AS_7BIT, false);
-        smileFactory.configure(SmileFactory.Feature.FAIL_ON_SYMBOL_HASH_OVERFLOW, false); // this trips on many mappings now...
-        // Do not automatically close unclosed objects/arrays in com.fasterxml.jackson.dataformat.smile.SmileGenerator#close() method
-        smileFactory.configure(JsonGenerator.Feature.AUTO_CLOSE_JSON_CONTENT, false);
-        smileFactory.configure(JsonParser.Feature.STRICT_DUPLICATE_DETECTION, true);
-        smileXContent = new SmileXContent();
-    }
+    private static final XContentProvider.FormatProvider provider = XContentProvider.provider().getSmileXContent();
 
     private SmileXContent() {}
 
-    @Override
-    public XContentType type() {
-        return XContentType.SMILE;
+    /**
+     * Returns an {@link XContentBuilder} for building Smile XContent.
+     */
+    public static XContentBuilder contentBuilder() throws IOException {
+        return provider.getContentBuilder();
     }
 
-    @Override
-    public byte streamSeparator() {
-        return (byte) 0xFF;
-    }
+    /**
+     * A Smile based XContent.
+     */
+    public static final XContent smileXContent = provider.XContent();
 
-    @Override
-    public boolean detectContent(byte[] bytes, int offset, int length) {
-        return length > 2
-            && bytes[offset] == SmileConstants.HEADER_BYTE_1
-            && bytes[offset + 1] == SmileConstants.HEADER_BYTE_2
-            && bytes[offset + 2] == SmileConstants.HEADER_BYTE_3;
-    }
-
-    @Override
-    public boolean detectContent(CharSequence chars) {
-        return chars.length() > 2
-            && chars.charAt(0) == SmileConstants.HEADER_BYTE_1
-            && chars.charAt(1) == SmileConstants.HEADER_BYTE_2
-            && chars.charAt(2) == SmileConstants.HEADER_BYTE_3;
-    }
-
-    @Override
-    public XContentGenerator createGenerator(OutputStream os, Set<String> includes, Set<String> excludes) throws IOException {
-        return new SmileXContentGenerator(smileFactory.createGenerator(os, JsonEncoding.UTF8), os, includes, excludes);
-    }
-
-    @Override
-    public XContentParser createParser(XContentParserConfiguration config, String content) throws IOException {
-        return new SmileXContentParser(config, smileFactory.createParser(content));
-    }
-
-    @Override
-    public XContentParser createParser(XContentParserConfiguration config, InputStream is) throws IOException {
-        return new SmileXContentParser(config, smileFactory.createParser(is));
-    }
-
-    @Override
-    public XContentParser createParser(XContentParserConfiguration config, byte[] data, int offset, int length) throws IOException {
-        return new SmileXContentParser(config, smileFactory.createParser(data, offset, length));
-    }
-
-    @Override
-    public XContentParser createParser(XContentParserConfiguration config, Reader reader) throws IOException {
-        return new SmileXContentParser(config, smileFactory.createParser(reader));
-    }
 }

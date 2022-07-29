@@ -18,7 +18,7 @@ and/or the bucket at which the largest change in the distribution of values, if 
 
 `buckets_path`::
 (Required, string)
-Path to the buckets that contain one set of values in which to detect a change point. There must be at least 21 bucketed
+Path to the buckets that contain one set of values in which to detect a change point. There must be at least 22 bucketed
 values. Fewer than 1,000 is preferred.
 For syntax, see <<buckets-path-syntax>>.
 

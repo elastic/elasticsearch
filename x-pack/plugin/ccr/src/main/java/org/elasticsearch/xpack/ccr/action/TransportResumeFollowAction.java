@@ -175,7 +175,9 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
         ActionListener<AcknowledgedResponse> listener
     ) throws IOException {
 
-        MapperService mapperService = followIndexMetadata != null ? indicesService.createIndexMapperService(followIndexMetadata) : null;
+        MapperService mapperService = followIndexMetadata != null
+            ? indicesService.createIndexMapperServiceForValidation(followIndexMetadata)
+            : null;
         validate(request, leaderIndexMetadata, followIndexMetadata, leaderIndexHistoryUUIDs, mapperService);
         final int numShards = followIndexMetadata.getNumberOfShards();
         final ResponseHandler handler = new ResponseHandler(numShards, listener);

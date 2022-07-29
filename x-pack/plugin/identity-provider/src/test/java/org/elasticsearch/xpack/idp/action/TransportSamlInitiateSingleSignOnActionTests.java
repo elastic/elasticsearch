@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.idp.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -20,7 +19,7 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.support.SecondaryAuthentication;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.idp.privileges.ServiceProviderPrivileges;
@@ -42,7 +41,6 @@ import java.net.URL;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.CoreMatchers.containsString;
@@ -147,29 +145,30 @@ public class TransportSamlInitiateSingleSignOnActionTests extends IdpSamlTestCas
         final ActionFilters actionFilters = mock(ActionFilters.class);
         final Environment env = TestEnvironment.newEnvironment(settings);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
-        new Authentication(
-            new User("saml_service_account", "saml_service_role"),
-            new Authentication.RealmRef("default_native", "native", "node_name"),
-            new Authentication.RealmRef("default_native", "native", "node_name")
-        ).writeToContext(threadContext);
+        AuthenticationTestHelper.builder()
+            .user(new User("not-saml_service_account", "not-saml_service_role"))
+            .realmRef(new Authentication.RealmRef("default_native", "native", "node_name"))
+            .runAs()
+            .user(new User("saml_service_account", "saml_service_role"))
+            .realmRef(new Authentication.RealmRef("default_native", "native", "node_name"))
+            .build()
+            .writeToContext(threadContext);
         if (withSecondaryAuth) {
             new SecondaryAuthentication(
                 securityContext,
-                new Authentication(
-                    new User(
-                        "saml_enduser",
-                        new String[] { "saml_enduser_role" },
-                        "Saml Enduser",
-                        "samlenduser@elastic.co",
-                        new HashMap<>(),
-                        true
-                    ),
-                    new Authentication.RealmRef("_es_api_key", "_es_api_key", "node_name"),
-                    new Authentication.RealmRef("_es_api_key", "_es_api_key", "node_name"),
-                    Version.CURRENT,
-                    Authentication.AuthenticationType.API_KEY,
-                    Map.of(AuthenticationField.API_KEY_ID_KEY, randomAlphaOfLength(20))
-                )
+                AuthenticationTestHelper.builder()
+                    .apiKey()
+                    .user(
+                        new User(
+                            "saml_enduser",
+                            new String[] { "saml_enduser_role" },
+                            "Saml Enduser",
+                            "samlenduser@elastic.co",
+                            new HashMap<>(),
+                            true
+                        )
+                    )
+                    .build()
             ).writeToContext(threadContext);
         }
 

@@ -8,13 +8,12 @@
 
 package org.elasticsearch.search.runtime;
 
-import com.carrotsearch.hppc.LongHashSet;
-import com.carrotsearch.hppc.LongSet;
-
 import org.elasticsearch.script.Script;
 
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.endsWith;
@@ -25,7 +24,7 @@ import static org.hamcrest.Matchers.startsWith;
 public class DoubleScriptFieldTermsQueryTests extends AbstractDoubleScriptFieldQueryTestCase<DoubleScriptFieldTermsQuery> {
     @Override
     protected DoubleScriptFieldTermsQuery createTestInstance() {
-        LongSet terms = new LongHashSet();
+        Set<Long> terms = new HashSet<>();
         int count = between(1, 100);
         while (terms.size() < count) {
             terms.add(Double.doubleToLongBits(randomDouble()));
@@ -35,7 +34,7 @@ public class DoubleScriptFieldTermsQueryTests extends AbstractDoubleScriptFieldQ
 
     @Override
     protected DoubleScriptFieldTermsQuery copy(DoubleScriptFieldTermsQuery orig) {
-        LongSet terms = new LongHashSet();
+        Set<Long> terms = new HashSet<>();
         for (double term : orig.terms()) {
             terms.add(Double.doubleToLongBits(term));
         }
@@ -46,7 +45,7 @@ public class DoubleScriptFieldTermsQueryTests extends AbstractDoubleScriptFieldQ
     protected DoubleScriptFieldTermsQuery mutate(DoubleScriptFieldTermsQuery orig) {
         Script script = orig.script();
         String fieldName = orig.fieldName();
-        LongSet terms = new LongHashSet();
+        Set<Long> terms = new HashSet<>();
         for (double term : orig.terms()) {
             terms.add(Double.doubleToLongBits(term));
         }
@@ -54,7 +53,7 @@ public class DoubleScriptFieldTermsQueryTests extends AbstractDoubleScriptFieldQ
             case 0 -> script = randomValueOtherThan(script, this::randomScript);
             case 1 -> fieldName += "modified";
             case 2 -> {
-                terms = new LongHashSet(terms);
+                terms = new HashSet<>(terms);
                 while (false == terms.add(Double.doubleToLongBits(randomDouble()))) {
                     // Random double was already in the set
                 }
@@ -70,7 +69,7 @@ public class DoubleScriptFieldTermsQueryTests extends AbstractDoubleScriptFieldQ
             randomScript(),
             leafFactory,
             "test",
-            LongHashSet.from(Double.doubleToLongBits(0.1), Double.doubleToLongBits(0.2), Double.doubleToLongBits(7.5))
+            Set.of(Double.doubleToLongBits(0.1), Double.doubleToLongBits(0.2), Double.doubleToLongBits(7.5))
         );
         assertTrue(query.matches(new double[] { 0.1 }, 1));
         assertTrue(query.matches(new double[] { 0.2 }, 1));

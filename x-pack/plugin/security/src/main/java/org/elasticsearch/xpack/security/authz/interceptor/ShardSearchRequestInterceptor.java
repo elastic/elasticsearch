@@ -64,7 +64,7 @@ public class ShardSearchRequestInterceptor extends FieldAndDocumentLevelSecurity
         return request instanceof ShardSearchRequest;
     }
 
-    boolean dlsUsesStoredScripts(
+    static boolean dlsUsesStoredScripts(
         ShardSearchRequest request,
         Map<String, IndicesAccessControl.IndexAccessControl> indexAccessControlByIndex
     ) {

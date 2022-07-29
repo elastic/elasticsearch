@@ -10,7 +10,7 @@ package org.elasticsearch.test;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.core.internal.io.Streams;
+import org.elasticsearch.core.Streams;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;

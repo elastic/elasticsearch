@@ -215,7 +215,7 @@ public class CircuitBreakerTests extends ESTestCase {
     }
 
     // test covering fix for https://github.com/elastic/elasticsearch/issues/88300
-    public void testParentCircuitBreakerOnClean() {
+    public void testEqlCBCleanedUp_on_ParentCBBreak() {
         final int sequenceFiltersCount = 2;
         final int searchRequestsExpectedCount = 2;
 

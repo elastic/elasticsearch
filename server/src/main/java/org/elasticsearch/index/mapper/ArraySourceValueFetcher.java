@@ -43,6 +43,15 @@ public abstract class ArraySourceValueFetcher implements ValueFetcher {
         this.nullValue = nullValue;
     }
 
+    /**
+     * @param sourcePaths   The paths to pull source values from
+     * @param nullValue     An optional substitute value if the _source value is `null`
+     */
+    public ArraySourceValueFetcher(Set<String> sourcePaths, Object nullValue) {
+        this.sourcePaths = sourcePaths;
+        this.nullValue = nullValue;
+    }
+
     @Override
     public List<Object> fetchValues(SourceLookup lookup, List<Object> ignoredValues) {
         List<Object> values = new ArrayList<>();

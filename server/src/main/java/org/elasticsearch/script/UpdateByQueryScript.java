@@ -25,11 +25,11 @@ public abstract class UpdateByQueryScript {
     private final Map<String, Object> params;
 
     /** The context map for the script */
-    private final Map<String, Object> ctx;
+    private final CtxMap<UpdateByQueryMetadata> ctxMap;
 
-    public UpdateByQueryScript(Map<String, Object> params, Map<String, Object> ctx) {
+    public UpdateByQueryScript(Map<String, Object> params, CtxMap<UpdateByQueryMetadata> ctxMap) {
         this.params = params;
-        this.ctx = ctx;
+        this.ctxMap = ctxMap;
     }
 
     /** Return the parameters for this script. */
@@ -39,12 +39,17 @@ public abstract class UpdateByQueryScript {
 
     /** Return the context map for this script */
     public Map<String, Object> getCtx() {
-        return ctx;
+        return ctxMap;
+    }
+
+    /** Return the update metadata for this script */
+    public Metadata metadata() {
+        return ctxMap.getMetadata();
     }
 
     public abstract void execute();
 
     public interface Factory {
-        UpdateByQueryScript newInstance(Map<String, Object> params, Map<String, Object> ctx);
+        UpdateByQueryScript newInstance(Map<String, Object> params, CtxMap<UpdateByQueryMetadata> ctx);
     }
 }

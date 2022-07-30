@@ -16,6 +16,8 @@ import java.io.IOException;
 
 /**
  * An extension of {@link ToXContent} that can be serialized in chunks by creating a {@link ChunkedXContentSerialization}.
+ * This is used by the REST layer to implement flow control that does not rely on blocking the serializing thread when writing the
+ * serialized bytes to a non-blocking channel.
  */
 public interface ChunkedToXContent extends ToXContent {
 

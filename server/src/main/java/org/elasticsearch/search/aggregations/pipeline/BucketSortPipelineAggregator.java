@@ -11,6 +11,7 @@ import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
+import org.elasticsearch.search.aggregations.bucket.filter.InternalFilters;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
@@ -78,7 +79,13 @@ public class BucketSortPipelineAggregator extends PipelineAggregator {
         for (int i = from; i < limit; ++i) {
             newBuckets.add(ordered.get(i).internalBucket);
         }
-        return originalAgg.create(newBuckets);
+
+        InternalAggregation internalAggregation = originalAgg.create(newBuckets);
+        if (internalAggregation instanceof InternalFilters internalFilters) {
+            return new InternalFilters(internalFilters.getName(), internalFilters.getBuckets(), false, internalFilters.getMetadata());
+        }
+
+        return internalAggregation;
     }
 
     private class ComparableBucket implements Comparable<ComparableBucket> {

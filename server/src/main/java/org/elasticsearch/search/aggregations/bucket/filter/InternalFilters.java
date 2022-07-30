@@ -239,8 +239,19 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
         } else {
             builder.startArray(CommonFields.BUCKETS.getPreferredName());
         }
+
+        // after bucket sort pipeline
+        // named filters' keyed parameter will be rewritten to false
+        // inner buckets' keyed parameter still be true
+        boolean bucketSort = buckets.size() > 0 && keyed == false && buckets.get(0).keyed;
         for (InternalBucket bucket : buckets) {
-            bucket.toXContent(builder, params);
+            if (bucketSort) {
+                builder.startObject();
+                bucket.toXContent(builder, params);
+                builder.endObject();
+            } else {
+                bucket.toXContent(builder, params);
+            }
         }
         if (keyed) {
             builder.endObject();

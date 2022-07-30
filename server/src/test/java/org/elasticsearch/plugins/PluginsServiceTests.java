@@ -711,6 +711,56 @@ public class PluginsServiceTests extends ESTestCase {
         assertThat(providers, allOf(hasSize(1), everyItem(instanceOf(BarTestService.class))));
     }
 
+    public void testDeprecatedPluginInterface() throws Exception {
+        final Path home = createTempDir();
+        final Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), home).build();
+        final Path plugins = home.resolve("plugins");
+        final Path plugin = plugins.resolve("deprecated-plugin");
+        Files.createDirectories(plugin);
+        PluginTestUtil.writeSimplePluginDescriptor(plugin, "deprecated-plugin", "p.DeprecatedPlugin");
+        Path jar = plugin.resolve("impl.jar");
+        JarUtils.createJarWithEntries(jar, Map.of("p/DeprecatedPlugin.class", InMemoryJavaCompiler.compile("p.DeprecatedPlugin", """
+            package p;
+            import org.elasticsearch.plugins.*;
+            public class DeprecatedPlugin extends Plugin implements NetworkPlugin {}
+            """)));
+
+        newPluginsService(settings);
+        assertWarnings(
+            "Plugin class p.DeprecatedPlugin from plugin deprecated-plugin implements "
+                + "deprecated plugin interface NetworkPlugin. "
+                + "This plugin interface will be removed in a future release."
+        );
+    }
+
+    public void testDeprecatedPluginMethod() throws Exception {
+        final Path home = createTempDir();
+        final Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), home).build();
+        final Path plugins = home.resolve("plugins");
+        final Path plugin = plugins.resolve("deprecated-plugin");
+        Files.createDirectories(plugin);
+        PluginTestUtil.writeSimplePluginDescriptor(plugin, "deprecated-plugin", "p.DeprecatedPlugin");
+        Path jar = plugin.resolve("impl.jar");
+        JarUtils.createJarWithEntries(jar, Map.of("p/DeprecatedPlugin.class", InMemoryJavaCompiler.compile("p.DeprecatedPlugin", """
+            package p;
+            import java.util.Map;
+            import org.elasticsearch.plugins.*;
+            import org.elasticsearch.cluster.coordination.ElectionStrategy;
+            public class DeprecatedPlugin extends Plugin implements DiscoveryPlugin {
+                @Override
+                public Map<String, ElectionStrategy> getElectionStrategies() {
+                    return Map.of();
+                }
+            }
+            """)));
+
+        newPluginsService(settings);
+        assertWarnings(
+            "Plugin class p.DeprecatedPlugin from plugin deprecated-plugin implements deprecated method "
+                + "getElectionStrategies from plugin interface DiscoveryPlugin. This method will be removed in a future release."
+        );
+    }
+
     private static class TestExtensiblePlugin extends Plugin implements ExtensiblePlugin {
         private List<TestExtensionPoint> extensions;
 

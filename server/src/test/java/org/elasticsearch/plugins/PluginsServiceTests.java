@@ -755,7 +755,7 @@ public class PluginsServiceTests extends ESTestCase {
             }
             """)));
 
-        var pluginService= newPluginsService(settings);
+        var pluginService = newPluginsService(settings);
         try {
             assertWarnings(
                 "Plugin class p.DeprecatedPlugin from plugin deprecated-plugin implements deprecated method "
@@ -769,7 +769,7 @@ public class PluginsServiceTests extends ESTestCase {
     // Closes the URLClassLoaders of plugins loaded by the given plugin service.
     static void closePluginLoaders(PluginsService pluginService) {
         for (var lp : pluginService.plugins()) {
-            if (lp.loader() instanceof URLClassLoader urlClassLoader) {
+            if (lp.loader()instanceof URLClassLoader urlClassLoader) {
                 try {
                     PrivilegedOperations.closeURLClassLoader(urlClassLoader);
                 } catch (IOException unexpected) {

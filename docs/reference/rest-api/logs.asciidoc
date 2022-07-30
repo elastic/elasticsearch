@@ -2,7 +2,7 @@
 [[logs-api]]
 == Log ingestion API
 
-Provides a simple JSON API to ingest log events into Elasticsearch.
+Provides a simple JSON API to ingest log events into {es}.
 
 [discrete]
 [[logs-api-request]]
@@ -22,16 +22,27 @@ stream enabled. See <<set-up-a-data-stream>>.
 [[logs-api-desc]]
 === {api-description-title}
 
-Provides a way to ingest multiple log events into Elasticsearch, similar to the <<docs-bulk, Bulk API>>.
+Provides a way to ingest multiple log events into {es}, similar to the <<docs-bulk, Bulk API>>.
 
 The log events are specified in the request body using a newline delimited JSON (NDJSON) structure.
 
-The events are indexed into the `logs-<dataset>-<namespace>` <<data-streams, data stream>>, according to the dataset and namespace parameters.
+The events are indexed into the `logs-<dataset>-<namespace>` <<data-streams, data stream>>,
+according to the dataset and namespace parameters, which can be provided globally or on a per-event basis.
 
 The endpoint is designed in a way that logs are never dropped, as long as the cluster has enough capacity.
 
-If an error happens during ingest, the logs are sent to the `logs-dlq-<namespace>` data stream that acts as a dead letter queue.
-The default mappings for the `logs-*-*` data streams are designed to minimize mapping conflicts.
+If an error happens during ingestion, the logs are sent to the `logs-dlq-<namespace>` data stream that acts as a dead letter queue for failed events.
+However, log ingestion should rarely fail as the default mappings for the `logs-*-*` data streams are designed to minimize mapping conflicts.
+
+A couple of fields from the {ecs-ref}[Elastic Common Schema (ECS)] are indexed by default that are commonly used to search or filter logs.
+All other fields are not indexed by default. But you can still use these fields in searches and aggregations using <<runtime, runtime fields>>. If there are custom fields that you frequently use in searches or aggregations, you can add them to the index template for your dataset (`logs-<dataset>-*`) so that the field will be indexed for new data.
+This comes at the expense of a larger index size more processing at ingest time.
+
+All fields, aside from the `@timestamp` field, are configured to <<ignore-malformed, ignore malformed>> values.
+This means that if a log event contains a field whose type is incompatible with the type of the field that exists in the mapping,
+{es} will ignore the field instead of rejecting the whole document.
+For example, when a string is provided for a field that is mapped to integer.
+Note that this currently doesn't apply for object/scalar mismatches, such as `"foo": "bar"` vs `"foo.bar": "baz"`.
 
 [discrete]
 [[logs-api-path-params]]
@@ -46,26 +57,24 @@ The default mappings for the `logs-*-*` data streams are designed to minimize ma
 
 `data_stream.namespace`::
   (Optional, string)
-  Defaults to `generic`.
+  Defaults to `default`.
   A user-configurable arbitrary grouping, such as an environment (dev, prod, or qa), a team, or a strategic business unit.
-
-
-The dataset and namespace parameters determine the <<data-streams, data stream>> in which the events will be indexed `logs-<dataset>-<namespace>`. This can be overridden on a per-event basis.
 
 [discrete]
 [[logs-api-query-params]]
 === {api-query-parms-title}
 
 Any provided query parameter will be added to each log line.
-For example, `/_logs/myapp?service.name=myapp` will add `"data_stream.dataset": "myapp"` and `"service.name": "myapp"` to all logs.
-
+For example, `/_logs?service.name=myapp` will add `"service.name": "myapp"` to all logs.
 [discrete]
 [[logs-api-request-body]]
 === {api-request-body-title}
 The request body contains a newline-delimited list of log events to ingest.
 The individual events don't have any required fields and can contain arbitrary JSON content.
 
-There are a couple of fields with special semantics:
+TIP: Use the {ecs-logging-ref}/intro.html[ECS logging libraries] to create JSON logs that work best with the log ingestion API.
+
+While there is no required structure for logs, there are a couple of fields with special semantics:
 
 `@timestamp`::
 (Optional, string)
@@ -81,18 +90,45 @@ Overrides the dataset path parameter.
 Overrides the namespace path parameter.
 
 `message`::
-(Optional, string) The log message
+(Optional, string)
+The log message.
+
+`log.level`::
+(Optional, string)
+The severity of the log message.
+Example: `INFO`.
+
+`service.name`::
+(Optional, string) The name of the service the log event relates to.
+This facilitates correlation with APM Services.
+
+`service.environment`::
+(Optional, string) The name of the service environment the log event relates to.
+This facilitates correlation with APM Services.
+
+`trace.id`::
+(Optional, string) The APM trace id that this log event relates to.
+This facilitates correlation with APM traces.
+
+`transaction.id`::
+(Optional, string) The APM transaction id that this log event relates to.
+This facilitates correlation with APM transactions.
+
+`span.id`::
+(Optional, string) The APM span id that this log event relates to.
+This facilitates correlation with APM spans.
+
+`error.id`::
+(Optional, string) The APM error id that this log event relates to.
+This facilitates correlation with APM errors.
 
 `_metadata`::
 (Optional, object)
 Marks this line as a metadata line.
 Provides metadata that will be merged into subsequent events.
-If a metadata event is provided as the first line, it will merge all logs with the metadata object, similarly to query parameters.
-If a metadata event is provided after the first line, it will be merged with subsequent log events until there's another metadata event.
+If a metadata event is provided as the first line, the metadata is added to all logs events.
+If a metadata event is provided after the first line, the metadata is added to all subsequent log events until another metadata event is provided.
 This way you can easily add global metadata and send logs from multiple datasets in a single request, providing dataset-specific metadata.
-
-Aside from these fields, a couple of ECS fields that are indexed by default that are commonly used to search or filter logs.
-All other fields are not indexed by default. But you can still use all fields in searches and aggregations using <<runtime, runtime fields>>. If there are custom fields that you frequently use in searches or aggregations, you can add them to the index template for your dataset (`logs-<dataset>-*`) so that the field will be indexed for new data. This comes at the expense of more disk space and more overhead at ingest time.
 
 Dotted field names are expanded to objects so that they can be used interchangeably with nested objects. For example, the following documents are treated equally: `{"log.level": "INFO"}`, `{"log": { "level": "INFO"} }`.
 
@@ -104,8 +140,8 @@ The log API's response body is always empty.
 
 Status
 
-* 202 Accepted: the log events have been received and will be searchable after a while
-* 500 Internal Server Error: There was an error while processing the log events. Some logs may not have been ingested.
+* 202 Accepted: The log events have been received and are processed in the background. They should be searchable after a short while.
+* 500 Internal Server Error: There was an error while processing the log events. Some logs may have been lost.
 
 [discrete]
 [[logs-api-example]]
@@ -120,8 +156,6 @@ POST _logs/myapp?service.name=myapp
 {"@timestamp":"2016-05-23T08:05:34.853Z", "message":"Hello World"}
 ------------------------------------------------------------
 
-Response: 202 Accepted
-
 
 Ingests a single log into the `logs-myapp-default` data stream.
 Provides global metadata via a metadata event.
@@ -132,8 +166,6 @@ POST _logs/myapp
 {"_metadata": {"service.name":"myapp"}}
 {"@timestamp":"2016-05-23T08:05:34.853Z", "message":"Hello World"}
 ------------------------------------------------------------
-
-Response: 202 Accepted
 
 Ingests a two log events into the `logs-myapp-default` and `logs-my_other_app-default` data stream, respectively.
 Provides metadata via local metadata events.
@@ -147,7 +179,3 @@ POST _logs
 {"_metadata": {"data_stream.dataset":"my_other_app"}}
 {"@timestamp":"2016-05-23T08:05:34.853Z", "message":"Hello other app"}
 ------------------------------------------------------------
-
-Response: 202 Accepted
-
-

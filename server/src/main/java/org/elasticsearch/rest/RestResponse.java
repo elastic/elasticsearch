@@ -57,21 +57,21 @@ public class RestResponse {
      * Creates a new response based on {@link XContentBuilder}.
      */
     public RestResponse(RestStatus status, XContentBuilder builder) {
-        this(status, builder.getResponseContentTypeString(), BytesReference.bytes(builder), null);
+        this(status, builder.getResponseContentTypeString(), BytesReference.bytes(builder));
     }
 
     /**
      * Creates a new plain text response.
      */
     public RestResponse(RestStatus status, String content) {
-        this(status, TEXT_CONTENT_TYPE, new BytesArray(content), null);
+        this(status, TEXT_CONTENT_TYPE, new BytesArray(content));
     }
 
     /**
      * Creates a new plain text response.
      */
     public RestResponse(RestStatus status, String responseMediaType, String content) {
-        this(status, responseMediaType, new BytesArray(content), null);
+        this(status, responseMediaType, new BytesArray(content));
     }
 
     public RestResponse(RestStatus status, String responseMediaType, BytesReference content) {

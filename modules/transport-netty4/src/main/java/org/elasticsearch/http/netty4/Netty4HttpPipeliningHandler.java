@@ -290,8 +290,8 @@ public class Netty4HttpPipeliningHandler extends ChannelDuplexHandler {
                 currentWrite = queuedWrites.poll();
             }
             if (currentWrite == null) {
-                // TODO: this is confusing, handle the outstanding first chunk of a chunked write nicer than by putting it in the
-                // queued writes
+                // no write from a non-chunked message was found queued to be written, check if a chunked message might have become
+                // writable
                 if (currentChunkedWrite != null) {
                     if (writeChunk(ctx, currentChunkedWrite.combiner, currentChunkedWrite.response.body())) {
                         finishChunkedWrite();

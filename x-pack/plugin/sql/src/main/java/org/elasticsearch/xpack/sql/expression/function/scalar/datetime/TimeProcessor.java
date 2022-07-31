@@ -13,7 +13,7 @@ import java.time.OffsetTime;
 import java.time.ZoneId;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.sql.util.DateUtils.asTimeAtZone;
+import static org.elasticsearch.xpack.qautil.DateUtils.asTimeAtZone;
 
 public class TimeProcessor extends DateTimeProcessor {
 

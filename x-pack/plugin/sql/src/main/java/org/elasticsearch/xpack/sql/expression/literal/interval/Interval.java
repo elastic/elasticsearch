@@ -12,7 +12,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.ql.expression.function.scalar.IntervalScripting;
 import org.elasticsearch.xpack.ql.expression.gen.processor.ConstantNamedWriteable;
 import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.util.DateUtils;
+import org.elasticsearch.xpack.qautil.DateUtils;
 
 import java.io.IOException;
 import java.time.temporal.TemporalAmount;

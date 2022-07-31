@@ -11,11 +11,11 @@ import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.qautil.DateUtils;
 import org.elasticsearch.xpack.ql.execution.search.extractor.BucketExtractor;
 import org.elasticsearch.xpack.sql.AbstractSqlWireSerializingTestCase;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.type.SqlDataTypes;
-import org.elasticsearch.xpack.sql.util.DateUtils;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -98,7 +98,7 @@ public class MetricAggExtractorTests extends AbstractSqlWireSerializingTestCase<
         double value = randomDouble();
         Aggregation agg = new TestSingleValueAggregation(extractor.name(), singletonList(extractor.property()), value);
         Bucket bucket = new TestBucket(emptyMap(), 0, new Aggregations(singletonList(agg)));
-        assertEquals(DateUtils.asDateTimeWithMillis((long) value, zoneId), extractor.extract(bucket));
+        assertEquals(org.elasticsearch.xpack.qautil.DateUtils.asDateTimeWithMillis((long) value, zoneId), extractor.extract(bucket));
     }
 
     public void testSingleValueInnerKey() {
@@ -124,7 +124,7 @@ public class MetricAggExtractorTests extends AbstractSqlWireSerializingTestCase<
             singletonMap(extractor.innerKey(), innerValue)
         );
         Bucket bucket = new TestBucket(emptyMap(), 0, new Aggregations(singletonList(agg)));
-        assertEquals(DateUtils.asDateTimeWithMillis((long) innerValue, zoneId), extractor.extract(bucket));
+        assertEquals(org.elasticsearch.xpack.qautil.DateUtils.asDateTimeWithMillis((long) innerValue, zoneId), extractor.extract(bucket));
     }
 
     public void testMultiValueProperty() {

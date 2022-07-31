@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.sql.plan.logical.command.sys;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.qautil.DateUtils;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
@@ -30,7 +31,6 @@ import org.elasticsearch.xpack.sql.session.SqlConfiguration;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.stats.Metrics;
 import org.elasticsearch.xpack.sql.types.SqlTypesTests;
-import org.elasticsearch.xpack.sql.util.DateUtils;
 
 import java.util.Comparator;
 import java.util.Iterator;

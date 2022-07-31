@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeP
 import java.time.ZoneId;
 
 import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeTestUtils.time;
-import static org.elasticsearch.xpack.sql.util.DateUtils.UTC;
+import static org.elasticsearch.xpack.qautil.DateUtils.UTC;
 
 public class TimeProcessorTests extends AbstractSqlWireSerializingTestCase<TimeProcessor> {
 

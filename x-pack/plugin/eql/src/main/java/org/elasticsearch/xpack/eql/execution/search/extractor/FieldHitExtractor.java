@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.eql.execution.search.extractor;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.xpack.ql.execution.search.extractor.AbstractFieldHitExtractor;
 import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.util.DateUtils;
+import org.elasticsearch.xpack.qautil.DateUtils;
 
 import java.io.IOException;
 import java.time.Instant;

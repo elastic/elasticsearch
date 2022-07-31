@@ -37,7 +37,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.xpack.ql.type.DateUtils.UTC;
+import static org.elasticsearch.xpack.qautil.DateUtils.UTC;
 
 public class LogicalPlanTests extends ESTestCase {
 

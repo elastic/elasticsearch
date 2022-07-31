@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ql.type;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.qautil.DateUtils;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.tree.Location;
@@ -34,8 +35,9 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSUPPORTED;
 import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
-import static org.elasticsearch.xpack.ql.type.DateUtils.asDateTime;
+import static org.elasticsearch.xpack.qautil.DateUtils.asDateTime;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.UNSIGNED_LONG_MAX;
+
 
 public class DataTypeConversionTests extends ESTestCase {
 

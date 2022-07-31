@@ -10,12 +10,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 import org.elasticsearch.search.aggregations.metrics.InternalTopHits;
+import org.elasticsearch.xpack.qautil.DateUtils;
 import org.elasticsearch.xpack.ql.execution.search.extractor.BucketExtractor;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.common.io.SqlStreamInput;
 import org.elasticsearch.xpack.sql.type.SqlDataTypes;
-import org.elasticsearch.xpack.sql.util.DateUtils;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -84,7 +84,7 @@ public class TopHitsAggExtractor implements BucketExtractor {
         if (fieldDataType == DATETIME || fieldDataType == DATE) {
             return DateUtils.asDateTimeWithNanos(value.toString()).withZoneSameInstant(zoneId());
         } else if (SqlDataTypes.isTimeBased(fieldDataType)) {
-            return DateUtils.asTimeOnly(Long.parseLong(value.toString()), zoneId);
+            return org.elasticsearch.xpack.qautil.DateUtils.asTimeOnly(Long.parseLong(value.toString()), zoneId);
         } else if (fieldDataType == UNSIGNED_LONG) {
             if (value == null) {
                 return null;

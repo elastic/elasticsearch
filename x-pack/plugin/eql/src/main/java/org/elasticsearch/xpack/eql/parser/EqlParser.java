@@ -31,7 +31,7 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 
 import static java.lang.String.format;
-import static org.elasticsearch.xpack.ql.type.DateUtils.UTC;
+import static org.elasticsearch.xpack.qautil.DateUtils.UTC;
 
 public class EqlParser {
 

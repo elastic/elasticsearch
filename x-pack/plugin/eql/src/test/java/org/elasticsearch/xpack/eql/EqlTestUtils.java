@@ -42,7 +42,7 @@ public final class EqlTestUtils {
 
     public static final EqlConfiguration TEST_CFG = new EqlConfiguration(
         new String[] { "none" },
-        org.elasticsearch.xpack.ql.util.DateUtils.UTC,
+        org.elasticsearch.xpack.qautil.DateUtils.UTC,
         "nobody",
         "cluster",
         null,

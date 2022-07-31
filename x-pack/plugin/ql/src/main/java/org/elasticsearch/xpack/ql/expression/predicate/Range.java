@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.type.DateUtils;
+import org.elasticsearch.xpack.qautil.DateUtils;
 
 import java.time.DateTimeException;
 import java.time.ZoneId;

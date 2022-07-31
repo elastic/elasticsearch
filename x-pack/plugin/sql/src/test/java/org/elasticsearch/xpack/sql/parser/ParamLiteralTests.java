@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 
 import java.util.List;
 
-import static org.elasticsearch.xpack.ql.type.DateUtils.UTC;
+import static org.elasticsearch.xpack.qautil.DateUtils.UTC;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.instanceOf;

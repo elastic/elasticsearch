@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.sql.planner;
 
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.xpack.qautil.DateUtils;
 import org.elasticsearch.xpack.ql.execution.search.AggRef;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
@@ -83,7 +84,6 @@ import org.elasticsearch.xpack.sql.querydsl.container.TopHitsAggRef;
 import org.elasticsearch.xpack.sql.session.EmptyExecutable;
 import org.elasticsearch.xpack.sql.type.SqlDataTypeConverter;
 import org.elasticsearch.xpack.sql.util.Check;
-import org.elasticsearch.xpack.sql.util.DateUtils;
 
 import java.time.Duration;
 import java.time.Period;

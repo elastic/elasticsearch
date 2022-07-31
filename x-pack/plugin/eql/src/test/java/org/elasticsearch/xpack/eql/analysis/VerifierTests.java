@@ -456,7 +456,7 @@ public class VerifierTests extends ESTestCase {
         PreAnalyzer preAnalyzer = new PreAnalyzer();
         EqlConfiguration eqlConfiguration = new EqlConfiguration(
             new String[] { "none" },
-            org.elasticsearch.xpack.ql.util.DateUtils.UTC,
+            org.elasticsearch.xpack.qautil.DateUtils.UTC,
             "nobody",
             "cluster",
             null,

@@ -1,0 +1,6 @@
+pr: 87985
+summary: Consolidating x-pack DateUtils classes
+area: Query Languages/SQL
+type: enhancement
+issues:
+  - 56494

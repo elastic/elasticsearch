@@ -21,6 +21,13 @@ import java.io.IOException;
  */
 public interface ChunkedToXContent extends ToXContent {
 
+    /**
+     * Create a serialization session for the implementation instance that will flush to the given {@code builder} and use the given
+     * {@code params} the same way {@link ToXContent#toXContent(XContentBuilder, Params)} would.
+     * @param builder builder to flush to
+     * @param params params for serialization
+     * @return serialization session
+     */
     ChunkedXContentSerialization toXContentChunked(XContentBuilder builder, ToXContent.Params params);
 
     @Override

@@ -116,7 +116,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
             RestRequest.Method.GET,
             "/favicon.ico",
             RestApiVersion.current(),
-            (request, channel, clnt) -> channel.sendResponse(new RestResponse(RestStatus.OK, "image/x-icon", FAVICON_RESPONSE, null))
+            (request, channel, clnt) -> channel.sendResponse(new RestResponse(RestStatus.OK, "image/x-icon", FAVICON_RESPONSE))
         );
     }
 
@@ -337,7 +337,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 e.addSuppressed(cause);
             }
             logger.warn("failed to send bad request response", e);
-            channel.sendResponse(new RestResponse(INTERNAL_SERVER_ERROR, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY, null));
+            channel.sendResponse(new RestResponse(INTERNAL_SERVER_ERROR, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
         }
     }
 
@@ -626,7 +626,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
             channel.sendResponse(restResponse);
         } catch (final IOException e) {
             logger.warn("failed to send bad request response", e);
-            channel.sendResponse(new RestResponse(INTERNAL_SERVER_ERROR, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY, null));
+            channel.sendResponse(new RestResponse(INTERNAL_SERVER_ERROR, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
         }
     }
 
@@ -638,7 +638,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
      * - Options</a>).
      */
     private static void handleOptionsRequest(RestChannel channel, Set<RestRequest.Method> validMethodSet) {
-        RestResponse restResponse = new RestResponse(OK, TEXT_CONTENT_TYPE, BytesArray.EMPTY, null);
+        RestResponse restResponse = new RestResponse(OK, TEXT_CONTENT_TYPE, BytesArray.EMPTY);
         // When we have an OPTIONS HTTP request and no valid handlers, simply send OK by default (with the Access Control Origin header
         // which gets automatically added).
         if (validMethodSet.isEmpty() == false) {

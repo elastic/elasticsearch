@@ -8,6 +8,10 @@ Provides a simple JSON API to ingest log events into {es}.
 [[logs-api-request]]
 === {api-request-title}
 
+`POST /_logs`
+
+`POST /_logs/<dataset>`
+
 `POST /_logs/<dataset>/<namespace>`
 
 [discrete]

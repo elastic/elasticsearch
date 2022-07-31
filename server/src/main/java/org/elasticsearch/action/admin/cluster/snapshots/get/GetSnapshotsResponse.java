@@ -197,45 +197,43 @@ public class GetSnapshotsResponse extends ActionResponse implements ChunkedToXCo
 
         @Override
         public XContentBuilder writeChunk() throws IOException {
-            if (snapshotsIter == null) {
-                throw new IllegalStateException("Already finished serializing");
-            }
             if (wroteStart == false) {
                 builder.startObject();
                 builder.startArray("snapshots");
                 wroteStart = true;
             }
             if (snapshotsIter.hasNext()) {
+                // write one snapshot info per invocation
                 snapshotsIter.next().toXContentExternal(builder, params);
-            } else {
-                builder.endArray();
-                if (failures.isEmpty() == false) {
-                    builder.startObject("failures");
-                    for (Map.Entry<String, ElasticsearchException> error : failures.entrySet()) {
-                        builder.field(error.getKey(), (b, pa) -> {
-                            b.startObject();
-                            error.getValue().toXContent(b, pa);
-                            b.endObject();
-                            return b;
-                        });
-                    }
-                    builder.endObject();
-                }
-                if (next != null) {
-                    builder.field("next", next);
-                }
-                if (total >= 0) {
-                    builder.field("total", total);
-                }
-                if (remaining >= 0) {
-                    builder.field("remaining", remaining);
+                return null;
+            }
+            // no more snapshot infos to write, close array and write the remaining fields in the last invocation
+            builder.endArray();
+            if (failures.isEmpty() == false) {
+                builder.startObject("failures");
+                for (Map.Entry<String, ElasticsearchException> error : failures.entrySet()) {
+                    builder.field(error.getKey(), (b, pa) -> {
+                        b.startObject();
+                        error.getValue().toXContent(b, pa);
+                        b.endObject();
+                        return b;
+                    });
                 }
                 builder.endObject();
-                final XContentBuilder b = builder;
-                builder = null;
-                return b;
             }
-            return null;
+            if (next != null) {
+                builder.field("next", next);
+            }
+            if (total >= 0) {
+                builder.field("total", total);
+            }
+            if (remaining >= 0) {
+                builder.field("remaining", remaining);
+            }
+            builder.endObject();
+            final XContentBuilder b = builder;
+            builder = null;
+            return b;
         }
     }
 

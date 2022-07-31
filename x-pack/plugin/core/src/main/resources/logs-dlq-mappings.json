@@ -15,7 +15,7 @@
             },
             "dataset": {
               "type": "constant_keyword",
-              "value": "generic"
+              "value": "dlq"
             },
             "namespace": {
               "type": "constant_keyword"

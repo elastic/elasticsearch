@@ -182,12 +182,13 @@ public class GetSnapshotsResponseTests extends ESTestCase {
         final GetSnapshotsResponse response = createTestInstance();
         final XContentBuilder builder = JsonXContent.contentBuilder();
         final ChunkedToXContent.ChunkedXContentSerialization serialization = response.toXContentChunked(builder, EMPTY_PARAMS);
-        for (int i = 0; i < response.getSnapshots().size() - 1; i++) {
+        for (int i = 0; i < response.getSnapshots().size(); i++) {
             assertNull(serialization.writeChunk());
         }
         final XContentBuilder b = serialization.writeChunk();
         assertSame(builder, b);
-        final BytesReference bytesReference = BytesReference.bytes(builder);
+        final BytesReference bytesReferenceFromChunked = BytesReference.bytes(builder);
+        assertEquals(bytesReferenceFromChunked, BytesReference.bytes(response.toXContent(JsonXContent.contentBuilder(), EMPTY_PARAMS)));
     }
 
 }

@@ -26,6 +26,7 @@ import org.elasticsearch.test.jar.JarUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.lang.reflect.InvocationTargetException;
 import java.net.URL;
 import java.net.URLClassLoader;
@@ -382,12 +383,7 @@ public class PluginsServiceTests extends ESTestCase {
     }
 
     public void testExistingMandatoryInstalledPlugin() throws IOException {
-        // This test opens a child classloader, reading a jar under the test temp
-        // dir (a dummy plugin). Classloaders are closed by GC, so when test teardown
-        // occurs the jar is deleted while the classloader is still open. However, on
-        // windows, files cannot be deleted when they are still open by a process.
-        assumeFalse("windows deletion behavior is asinine", Constants.WINDOWS);
-        final Path pathHome = createTempDir();
+        final Path pathHome = createTempDir(getTestName());
         final Path plugins = pathHome.resolve("plugins");
         final Path fake = plugins.resolve("fake");
 
@@ -411,7 +407,8 @@ public class PluginsServiceTests extends ESTestCase {
         }
 
         final Settings settings = Settings.builder().put("path.home", pathHome).put("plugin.mandatory", "fake").build();
-        newPluginsService(settings);
+        var pluginsService = newPluginsService(settings);
+        closePluginLoaders(pluginsService);
     }
 
     public void testPluginFromParentClassLoader() throws IOException {
@@ -725,12 +722,16 @@ public class PluginsServiceTests extends ESTestCase {
             public class DeprecatedPlugin extends Plugin implements NetworkPlugin {}
             """)));
 
-        newPluginsService(settings);
-        assertWarnings(
-            "Plugin class p.DeprecatedPlugin from plugin deprecated-plugin implements "
-                + "deprecated plugin interface NetworkPlugin. "
-                + "This plugin interface will be removed in a future release."
-        );
+        var pluginService = newPluginsService(settings);
+        try {
+            assertWarnings(
+                "Plugin class p.DeprecatedPlugin from plugin deprecated-plugin implements "
+                    + "deprecated plugin interface NetworkPlugin. "
+                    + "This plugin interface will be removed in a future release."
+            );
+        } finally {
+            closePluginLoaders(pluginService);
+        }
     }
 
     public void testDeprecatedPluginMethod() throws Exception {
@@ -754,11 +755,28 @@ public class PluginsServiceTests extends ESTestCase {
             }
             """)));
 
-        newPluginsService(settings);
-        assertWarnings(
-            "Plugin class p.DeprecatedPlugin from plugin deprecated-plugin implements deprecated method "
-                + "getElectionStrategies from plugin interface DiscoveryPlugin. This method will be removed in a future release."
-        );
+        var pluginService = newPluginsService(settings);
+        try {
+            assertWarnings(
+                "Plugin class p.DeprecatedPlugin from plugin deprecated-plugin implements deprecated method "
+                    + "getElectionStrategies from plugin interface DiscoveryPlugin. This method will be removed in a future release."
+            );
+        } finally {
+            closePluginLoaders(pluginService);
+        }
+    }
+
+    // Closes the URLClassLoaders of plugins loaded by the given plugin service.
+    static void closePluginLoaders(PluginsService pluginService) {
+        for (var lp : pluginService.plugins()) {
+            if (lp.loader()instanceof URLClassLoader urlClassLoader) {
+                try {
+                    PrivilegedOperations.closeURLClassLoader(urlClassLoader);
+                } catch (IOException unexpected) {
+                    throw new UncheckedIOException(unexpected);
+                }
+            }
+        }
     }
 
     private static class TestExtensiblePlugin extends Plugin implements ExtensiblePlugin {

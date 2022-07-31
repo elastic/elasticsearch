@@ -29,14 +29,4 @@ public class Netty4HttpResponse extends DefaultFullHttpResponse implements Netty
     public int getSequence() {
         return sequence;
     }
-
-    @Override
-    public void addHeader(String name, String value) {
-        headers().add(name, value);
-    }
-
-    @Override
-    public boolean containsHeader(String name) {
-        return headers().contains(name);
-    }
 }

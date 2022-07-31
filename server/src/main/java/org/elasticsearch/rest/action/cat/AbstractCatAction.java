@@ -50,7 +50,7 @@ public abstract class AbstractCatAction extends BaseRestHandler {
                     out.append("\n");
                 }
                 out.close();
-                channel.sendResponse(new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, bytesOutput.bytes(), null));
+                channel.sendResponse(new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, bytesOutput.bytes()));
             };
         } else {
             return doCatRequest(request, client);

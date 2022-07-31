@@ -94,7 +94,6 @@ public class RestGetSnapshotsAction extends BaseRestHandler {
                         new RestResponse(
                             RestStatus.OK,
                             (Objects.requireNonNullElse(request.getXContentType(), XContentType.JSON)).mediaType(),
-                            null,
                             ChunkedRestResponseBody.fromXContent(getSnapshotsResponse, request, channel)
                         )
                     );

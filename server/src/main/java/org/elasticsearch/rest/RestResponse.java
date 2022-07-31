@@ -78,10 +78,14 @@ public class RestResponse {
         this(status, responseMediaType, content, null);
     }
 
+    public RestResponse(RestStatus status, String responseMediaType, ChunkedRestResponseBody content) {
+        this(status, responseMediaType, null, content);
+    }
+
     /**
      * Creates a binary response.
      */
-    public RestResponse(
+    private RestResponse(
         RestStatus status,
         String responseMediaType,
         @Nullable BytesReference content,

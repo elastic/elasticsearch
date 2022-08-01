@@ -891,7 +891,20 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
         AtomicReference<Scheduler.Cancellable> cancellableReference
     ) {
         return response -> {
+            /*
+             * If the cancellableReference for this poll attempt is equal to remoteStableMasterHealthIndicatorTask, then that means that
+             * this poll attempt is the current one. If they are not equal, that means that
+             * cancelPollingRemoteStableMasterHealthIndicatorService() has been called on this poll attempt but this thread is not yet
+             * aware. So we cancel the Cancellable in cancellableReference if it is not null. Note that
+             * remoteStableMasterHealthIndicatorTask can be null.
+             */
             if (cancellableReference.equals(remoteStableMasterHealthIndicatorTask)) {
+                /*
+                 * Because this is not synchronized with the cancelPollingRemoteStableMasterHealthIndicatorService() method, there is a
+                 * slim chance that we will add a task here for a poll that has already been cancelled. But when it completes and runs
+                 * rescheduleDiagnosticsFetchConsumer() we will then see that remoteStableMasterHealthIndicatorTask does not equal
+                 * cancellableReference, so it will not be run again.
+                 */
                 try {
                     DiscoveryNode masterEligibleNode = getMasterEligibleNodes().stream().findAny().orElse(null);
                     cancellableReference.set(
@@ -909,27 +922,30 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                 }
             } else {
                 Scheduler.Cancellable cancellable = cancellableReference.get();
-                cancellable.cancel();
+                if (cancellable != null) {
+                    cancellable.cancel();
+                }
             }
         };
     }
 
     /**
-     * This method returns quickly, but in the background schedules to query the remote node's cluster diagnostics in 10 seconds
+     * This method returns quickly, but in the background schedules to query the remote masterEligibleNode's cluster diagnostics in 10 seconds
      * unless cancel() is called on the Cancellable that this method returns.
-     * @param node The node to poll for cluster diagnostics
-     * @param responseConsumer The consumer of the cluster diagnostics for the node, or the exception encountered while contacting it
+     * @param masterEligibleNode The masterEligibleNode to poll for cluster diagnostics. This masterEligibleNode can be null in the case when there are not yet any master-eligible
+     *            nodes known to this masterEligibleNode's PeerFinder.
+     * @param responseConsumer The consumer of the cluster diagnostics for the masterEligibleNode, or the exception encountered while contacting it
      * @return A Cancellable for the task that is scheduled to fetch cluster diagnostics
      */
     private Scheduler.Cancellable fetchCoordinationDiagnostics(
-        @Nullable DiscoveryNode node,
+        @Nullable DiscoveryNode masterEligibleNode,
         Consumer<RemoteMasterHealthResult> responseConsumer
     ) {
         StepListener<Releasable> connectionListener = new StepListener<>();
         StepListener<CoordinationDiagnosticsAction.Response> fetchCoordinationDiagnosticsListener = new StepListener<>();
         long startTime = System.nanoTime();
         connectionListener.whenComplete(releasable -> {
-            if (node == null) {
+            if (masterEligibleNode == null) {
                 responseConsumer.accept(null);
             } else {
                 /*
@@ -937,11 +953,11 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                  * code below is run, but this is harmless and not worth the additional synchronization in the normal case. The result
                  * will just be ignored.
                  */
-                logger.trace("Opened connection to {}, making master stability request", node);
+                logger.trace("Opened connection to {}, making master stability request", masterEligibleNode);
                 // If we don't get a response in 10 seconds that is a failure worth capturing on its own:
                 final TimeValue transportTimeout = TimeValue.timeValueSeconds(10);
                 transportService.sendRequest(
-                    node,
+                    masterEligibleNode,
                     CoordinationDiagnosticsAction.NAME,
                     new CoordinationDiagnosticsAction.Request(true),
                     TransportRequestOptions.timeout(transportTimeout),
@@ -952,33 +968,41 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                 );
             }
         }, e -> {
-            logger.warn("Exception connecting to master node", e);
-            responseConsumer.accept(new RemoteMasterHealthResult(node, null, e));
+            logger.warn("Exception connecting to master masterEligibleNode", e);
+            responseConsumer.accept(new RemoteMasterHealthResult(masterEligibleNode, null, e));
         });
 
         fetchCoordinationDiagnosticsListener.whenComplete(response -> {
             long endTime = System.nanoTime();
-            logger.trace("Received master stability result from {} in {}", node, TimeValue.timeValueNanos(endTime - startTime));
+            logger.trace(
+                "Received master stability result from {} in {}",
+                masterEligibleNode,
+                TimeValue.timeValueNanos(endTime - startTime)
+            );
             /*
              * It is possible that the task has been cancelled at this point, but it does not really matter. In that case this result
              * will be ignored and soon garbage collected.
              */
-            responseConsumer.accept(new RemoteMasterHealthResult(node, response.getCoordinationDiagnosticsResult(), null));
+            responseConsumer.accept(new RemoteMasterHealthResult(masterEligibleNode, response.getCoordinationDiagnosticsResult(), null));
         }, e -> {
-            logger.warn("Exception in master stability request to master node", e);
-            responseConsumer.accept(new RemoteMasterHealthResult(node, null, e));
+            logger.warn("Exception in master stability request to master masterEligibleNode", e);
+            responseConsumer.accept(new RemoteMasterHealthResult(masterEligibleNode, null, e));
         });
 
         return transportService.getThreadPool().schedule(() -> {
-            if (node == null) {
+            if (masterEligibleNode == null) {
+                /*
+                 * This node's PeerFinder hasn't yet discovered the master-eligible nodes. By notifying the responseConsumer with a null
+                 * value we effectively do nothing, and allow this request to be recheduled by rescheduleDiagnosticsFetchConsumer().
+                 */
                 responseConsumer.accept(null);
             } else {
                 Version minSupportedVersion = Version.V_8_4_0;
-                if (node.getVersion().onOrAfter(minSupportedVersion) == false) { // This was introduced in 8.4.0
+                if (masterEligibleNode.getVersion().onOrAfter(minSupportedVersion) == false) { // This was introduced in 8.4.0
                     logger.trace(
                         "Cannot get cluster coordination info for {} because it is at version {} and {} is required",
-                        node,
-                        node.getVersion(),
+                        masterEligibleNode,
+                        masterEligibleNode.getVersion(),
                         minSupportedVersion
                     );
                 } else {
@@ -989,7 +1013,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                      */
                     transportService.connectToNode(
                         // Note: This connection must be explicitly closed in the connectionListener
-                        node,
+                        masterEligibleNode,
                         ConnectionProfile.buildDefaultConnectionProfile(clusterService.getSettings()),
                         connectionListener
                     );

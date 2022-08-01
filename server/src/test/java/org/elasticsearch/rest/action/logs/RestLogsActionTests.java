@@ -100,6 +100,7 @@ public class RestLogsActionTests extends RestActionTestCase {
             assertDataStreamFields("dlq", "default", indexRequest);
             Map<String, Object> doc = ((IndexRequest) request.requests().get(0)).sourceAsMap();
             assertEquals("foo", getPath(doc, "event.original.data_stream.dataset"));
+            assertEquals("{\"message\": \"missing end quote}", getPath(doc, "event.original.message"));
             assertEquals("json_e_o_f_exception", getPath(doc, "error.type"));
             assertTrue(((String) getPath(doc, "error.message")).contains("{\"message\": \"missing end quote}"));
             return Mockito.mock(BulkResponse.class);

@@ -104,6 +104,7 @@ public class RestLogsAction extends BaseRestHandler {
                     }
                 } catch (Exception e) {
                     event = mergeMetadata(Map.of(), globalMetadata, localMetadata);
+                    event.put("message", content.slice(offset, endOfEvent).utf8ToString());
                     event = createDlqDoc(event, e);
                 }
                 indexRequests.add(Requests.indexRequest(routeToDataStream(event)).opType(DocWriteRequest.OpType.CREATE).source(event));

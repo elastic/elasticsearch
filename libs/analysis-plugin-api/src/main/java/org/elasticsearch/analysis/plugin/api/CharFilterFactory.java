@@ -6,12 +6,20 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.sp.api.analysis;
+package org.elasticsearch.analysis.plugin.api;
+
+import org.elasticsearch.plugin.api.Nameable;
+
+import java.io.Reader;
 
 /**
- * An analysis component used to create Analyzers
+ * An analysis component used to create char filters.
  */
-public non-sealed interface Analyzer<T extends org.apache.lucene.analysis.Analyzer> extends NamedComponent {
-    T create();
+public interface CharFilterFactory extends Nameable {
+    Reader create(Reader reader);
+
+    default Reader normalize(Reader reader) {
+        return reader;
+    }
 
 }

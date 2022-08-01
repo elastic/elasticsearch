@@ -6,13 +6,14 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.sp.api.analysis;
+package org.elasticsearch.analysis.plugin.api;
 
-import org.apache.lucene.analysis.Tokenizer;
+import org.elasticsearch.plugin.api.Nameable;
 
 /**
- * An analysis component used to create tokenizers
+ * An analysis component used to create Analyzers
  */
-public non-sealed interface TokenizerFactory extends NamedComponent {
-    Tokenizer create();
+public interface Analyzer<T extends org.apache.lucene.analysis.Analyzer> extends Nameable {
+    T create();
+
 }

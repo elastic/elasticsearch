@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.sp.api.analysis;
+package org.elasticsearch.analysis.plugin.api;
 
 /**
  * Enum representing the mode in which token filters and analyzers are allowed to operate.

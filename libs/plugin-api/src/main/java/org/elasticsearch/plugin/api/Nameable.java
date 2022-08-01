@@ -6,19 +6,17 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.sp.api.analysis;
-
-import org.elasticsearch.sp.api.analysis.annotations.NamedAnalysisComponent;
+package org.elasticsearch.plugin.api;
 
 /**
  * A named analysis component. Analysis components with a name can be registered and fetch under a name given in
  * <code>@NamedAnalysisComponent</code>
- * @see NamedAnalysisComponent
+ * @see NamedComponent
  */
-public sealed interface NamedComponent permits TokenFilterFactory,TokenizerFactory,CharFilterFactory,Analyzer {
+public interface Nameable {
 
     default String name() {
-        NamedAnalysisComponent[] annotationsByType = this.getClass().getAnnotationsByType(NamedAnalysisComponent.class);
+        NamedComponent[] annotationsByType = this.getClass().getAnnotationsByType(NamedComponent.class);
         if (annotationsByType.length == 1) {
             return annotationsByType[0].name();
         }

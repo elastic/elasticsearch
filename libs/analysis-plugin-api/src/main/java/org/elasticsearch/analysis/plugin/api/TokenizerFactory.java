@@ -6,10 +6,14 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.sp.api.analysis;
+package org.elasticsearch.analysis.plugin.api;
 
-public enum AnalyzerScope {
-    INDEX,
-    INDICES,
-    GLOBAL
+import org.apache.lucene.analysis.Tokenizer;
+import org.elasticsearch.plugin.api.Nameable;
+
+/**
+ * An analysis component used to create tokenizers
+ */
+public interface TokenizerFactory extends Nameable {
+    Tokenizer create();
 }

@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.sp.api.analysis.annotations;
+package org.elasticsearch.plugin.api;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -18,6 +18,6 @@ import java.lang.annotation.Target;
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ ElementType.TYPE })
-public @interface NamedAnalysisComponent {
+public @interface NamedComponent {
     String name();
 }

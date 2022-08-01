@@ -6,9 +6,10 @@
  * Side Public License, v 1.
  */
 
-module org.elasticsearch.sp.api {
-    requires org.apache.lucene.core;
+package org.elasticsearch.analysis.plugin.api;
 
-    exports org.elasticsearch.sp.api.analysis;
-    exports org.elasticsearch.sp.api.analysis.annotations;
+public enum AnalyzerScope {
+    INDEX,
+    INDICES,
+    GLOBAL
 }

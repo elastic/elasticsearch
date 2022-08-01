@@ -6,14 +6,15 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.sp.api.analysis;
+package org.elasticsearch.analysis.plugin.api;
 
 import org.apache.lucene.analysis.TokenStream;
+import org.elasticsearch.plugin.api.Nameable;
 
 /**
  * An analysis component used to create token filters.
  */
-public non-sealed interface TokenFilterFactory extends NamedComponent {
+public interface TokenFilterFactory extends Nameable {
     TokenStream create(TokenStream tokenStream);
 
     /**

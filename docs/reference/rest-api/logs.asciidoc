@@ -159,9 +159,61 @@ Provides global metadata via query parameters.
 [source,console]
 ------------------------------------------------------------
 POST _logs/myapp?service.name=myapp
-{"@timestamp":"2016-05-23T08:05:34.853Z", "message":"Hello World"}
+{"@timestamp":"2016-05-23T08:05:34.853Z", "message":"Hello World", "custom_field": "value"}
 ------------------------------------------------------------
 
+Event though `custom_field` is not among the <<logs-api-request-body, list of fields that are indexed by default>>,
+you can use it in searches and aggregations via <<dynamic-mapping-runtime-fields, dynamically mapped runtime fields>>.
+
+[source,console]
+------------------------------------------------------------
+POST logs-myapp-default/_search?q=custom_field:value
+------------------------------------------------------------
+
+The API returns the following response:
+
+[source,console-result]
+----
+{
+  "took": 1,
+  "timed_out": false,
+  "_shards": {
+    "total": 1,
+    "successful": 1,
+    "skipped": 0,
+    "failed": 0
+  },
+  "hits": {
+    "total": {
+      "value": 1,
+      "relation": "eq"
+    },
+    "max_score": 1.0,
+    "hits": [
+      {
+        "_index": ".ds-logs-foo-default-2016.05.23-000001",
+        "_id": "FKgQT4IBWsM7OYMsIp0N",
+        "_score": 1.0,
+        "_source": {
+          "@timestamp": "2016-05-23T08:05:34.853Z",
+          "message": "Hello World",
+          "custom_field": "value",
+          "service": {
+            "name": "myapp"
+          },
+          "data_stream": {
+            "type": "logs",
+            "dataset": "myapp"
+            "namespace": "default",
+          }
+        }
+      }
+    ]
+  }
+}
+----
+
+'''
 
 Ingests a single log into the `logs-myapp-default` data stream.
 Provides global metadata via a metadata event.
@@ -172,6 +224,8 @@ POST _logs/myapp
 {"_metadata": {"service.name":"myapp"}}
 {"@timestamp":"2016-05-23T08:05:34.853Z", "message":"Hello World"}
 ------------------------------------------------------------
+
+'''
 
 Ingests a two log events into the `logs-myapp-default` and `logs-my_other_app-default` data stream, respectively.
 Provides metadata via local metadata events.

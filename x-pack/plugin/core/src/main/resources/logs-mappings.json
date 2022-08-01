@@ -3,6 +3,15 @@
     "mappings": {
       "dynamic_templates": [
         {
+          "match_ip": {
+            "match_mapping_type": "string",
+            "match": "ip",
+            "runtime": {
+              "type": "ip"
+            }
+          }
+        },
+        {
           "message": {
             "path_match": "message",
             "mapping": { "type": "match_only_text" }

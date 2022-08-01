@@ -43,7 +43,7 @@ public class HealthMetadataServiceIT extends ESIntegTestCase {
             for (int i = 0; i < numberOfNodes; i++) {
                 ByteSizeValue randomBytes = new ByteSizeValue(randomLongBetween(6, 19));
                 String customWatermark = percentageMode ? randomIntBetween(86, 94) + "%" : randomBytes.toString();
-                ByteSizeValue customMaxHeadroom = randomBytes;
+                ByteSizeValue customMaxHeadroom = percentageMode ? randomBytes : ByteSizeValue.MINUS_ONE;
                 String nodeName = startNode(internalCluster, customWatermark, customMaxHeadroom.toString());
                 watermarkByNode.put(nodeName, customWatermark);
                 maxHeadroomByNode.put(nodeName, customMaxHeadroom);
@@ -76,27 +76,27 @@ public class HealthMetadataServiceIT extends ESIntegTestCase {
             int numberOfNodes = 3;
             ByteSizeValue randomBytes = new ByteSizeValue(randomLongBetween(6, 19));
             String initialWatermark = percentageMode ? randomIntBetween(86, 94) + "%" : randomBytes.toString();
-            ByteSizeValue initialMaxHeadroom = randomBytes;
+            ByteSizeValue initialMaxHeadroom = percentageMode ? randomBytes : ByteSizeValue.MINUS_ONE;
             for (int i = 0; i < numberOfNodes; i++) {
                 startNode(internalCluster, initialWatermark, initialMaxHeadroom.toString());
             }
 
             randomBytes = new ByteSizeValue(randomLongBetween(101, 200));
             String updatedLowWatermark = percentageMode ? randomIntBetween(40, 59) + "%" : randomBytes.toString();
-            ByteSizeValue updatedLowMaxHeadroom = percentageMode ? randomBytes : new ByteSizeValue(-1L);
+            ByteSizeValue updatedLowMaxHeadroom = percentageMode ? randomBytes : ByteSizeValue.MINUS_ONE;
             randomBytes = new ByteSizeValue(randomLongBetween(50, 100));
             String updatedHighWatermark = percentageMode ? randomIntBetween(60, 90) + "%" : randomBytes.toString();
-            ByteSizeValue updatedHighMaxHeadroom = percentageMode ? randomBytes : new ByteSizeValue(-1L);
+            ByteSizeValue updatedHighMaxHeadroom = percentageMode ? randomBytes : ByteSizeValue.MINUS_ONE;
             randomBytes = new ByteSizeValue(randomLongBetween(5, 10));
             String updatedFloodStageWatermark = percentageMode ? randomIntBetween(91, 95) + "%" : randomBytes.toString();
-            ByteSizeValue updatedFloodStageMaxHeadroom = percentageMode ? randomBytes : new ByteSizeValue(-1L);
+            ByteSizeValue updatedFloodStageMaxHeadroom = percentageMode ? randomBytes : ByteSizeValue.MINUS_ONE;
 
             ensureStableCluster(numberOfNodes);
             {
                 HealthMetadata.Disk diskMetadata = HealthMetadata.getFromClusterState(internalCluster.clusterService().state())
                     .getDiskMetadata();
                 assertThat(diskMetadata.describeHighWatermark(), equalTo(initialWatermark));
-                if (percentageMode) assertThat(diskMetadata.highMaxHeadroom(), equalTo(initialMaxHeadroom));
+                assertThat(diskMetadata.highMaxHeadroom(), equalTo(initialMaxHeadroom));
             }
             internalCluster.client()
                 .admin()

@@ -153,13 +153,13 @@ teardown:
       security.get_api_key:
         id: "$user1_key_id"
         owner: true
-  - length: { "api_keys" : 1 }
+  - length: { "api_keys": 1 }
   - match: {
-      "api_keys.0.metadata": {
-          "letter": "a",
-          "number": 42
-      }
+    "api_keys.0.metadata": {
+      "letter": "a",
+      "number": 42
     }
+  }
 
 ---
 "Test update api key without request fields":
@@ -214,7 +214,7 @@ teardown:
         Authorization: "Basic YXBpX2tleV91c2VyXzE6eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" # api_key_user_1
       security.update_api_key:
         id: "$user1_key_id"
-        body: {}
+        body: { }
   - match: { updated: true }
 
   # Check update works without a body
@@ -326,7 +326,7 @@ teardown:
         owner: true
   - length: { "api_keys": 1 }
   - match: {
-    "api_keys.0.metadata": {}
+    "api_keys.0.metadata": { }
   }
 
   # Check privileges auto-updated to owner user's
@@ -346,3 +346,123 @@ teardown:
             ]
           }
   - match: { "has_all_requested": true }
+
+---
+"Test bulk update api keys":
+
+  - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV91c2VyXzE6eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" # api_key_user_1
+      security.create_api_key:
+        body: >
+          {
+            "name": "user1-api-key",
+            "role_descriptors": {
+              "role-a": {
+                "cluster": ["none"],
+                "index": [
+                  {
+                    "names": ["index-a"],
+                    "privileges": ["read"]
+                  }
+                ]
+              }
+            }
+          }
+  - match: { name: "user1-api-key" }
+  - is_true: id
+  - is_true: api_key
+  - set: { id: user1_key_id }
+  - transform_and_set: { login_creds: "#base64EncodeCredentials(id,api_key)" }
+  - match: { encoded: $login_creds }
+
+  # Check API key does not have requested privileges
+  - do:
+      headers:
+        Authorization: ApiKey ${login_creds}
+      security.has_privileges:
+        user: null
+        body: >
+          {
+            "cluster": ["manage_own_api_key"],
+            "index": [
+              {
+                "names": ["index-a"],
+                "privileges": ["write"]
+              },
+              {
+                "names": ["index-b"],
+                "privileges": ["read"]
+              }
+            ]
+          }
+  - match: { "has_all_requested": false }
+
+  # Bulk update API keys to above privileges
+  - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV91c2VyXzE6eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" # api_key_user_1
+      security.bulk_update_api_keys:
+        body: >
+          {
+            "ids": ["$user1_key_id"],
+            "role_descriptors": {
+              "role-a": {
+                "cluster": ["all"],
+                "index": [
+                  {
+                    "names": ["index-a"],
+                    "privileges": ["write"]
+                  },
+                  {
+                    "names": ["index-b"],
+                    "privileges": ["read"]
+                  }
+                ]
+              }
+            },
+            "metadata": {
+               "letter": "a",
+               "number": 42
+            }
+          }
+  - length: { "updated": 1 }
+  - match: {
+    "updated.0": "$user1_key_id"
+  }
+
+  # Check updated privileges
+  - do:
+      headers:
+        Authorization: ApiKey ${login_creds}
+      security.has_privileges:
+        user: null
+        body: >
+          {
+            "cluster": ["manage_own_api_key"],
+            "index": [
+              {
+                "names": ["index-a"],
+                "privileges": ["write"]
+              },
+              {
+                "names": ["index-b"],
+                "privileges": ["read"]
+              }
+            ]
+          }
+  - match: { "has_all_requested": true }
+
+  # Check that metadata was updated
+  - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV91c2VyXzE6eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" # api_key_user_1
+      security.get_api_key:
+        owner: true
+  - length: { "api_keys": 1 }
+  - match: {
+    "api_keys.0.metadata": {
+      "letter": "a",
+      "number": 42
+    }
+  }

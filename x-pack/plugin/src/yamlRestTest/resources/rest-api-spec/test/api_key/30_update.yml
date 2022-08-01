@@ -356,7 +356,7 @@ teardown:
       security.create_api_key:
         body: >
           {
-            "name": "user1-api-key",
+            "name": "api-key-1",
             "role_descriptors": {
               "role-a": {
                 "cluster": ["none"],
@@ -369,17 +369,17 @@ teardown:
               }
             }
           }
-  - match: { name: "user1-api-key" }
+  - match: { name: "api-key-1" }
   - is_true: id
   - is_true: api_key
-  - set: { id: user1_key_id }
-  - transform_and_set: { login_creds: "#base64EncodeCredentials(id,api_key)" }
-  - match: { encoded: $login_creds }
+  - set: { id: api_key_1_id }
+  - transform_and_set: { login_creds_1: "#base64EncodeCredentials(id,api_key)" }
+  - match: { encoded: $login_creds_1 }
 
-  # Check API key does not have requested privileges
+  # Check API keys do not have requested privileges
   - do:
       headers:
-        Authorization: ApiKey ${login_creds}
+        Authorization: ApiKey ${login_creds_1}
       security.has_privileges:
         user: null
         body: >
@@ -405,7 +405,7 @@ teardown:
       security.bulk_update_api_keys:
         body: >
           {
-            "ids": ["$user1_key_id"],
+            "ids": ["$api_key_1_id"],
             "role_descriptors": {
               "role-a": {
                 "cluster": ["all"],
@@ -428,13 +428,13 @@ teardown:
           }
   - length: { "updated": 1 }
   - match: {
-    "updated.0": "$user1_key_id"
+    "updated.0": "$api_key_1_id"
   }
 
   # Check updated privileges
   - do:
       headers:
-        Authorization: ApiKey ${login_creds}
+        Authorization: ApiKey ${login_creds_1}
       security.has_privileges:
         user: null
         body: >

@@ -188,7 +188,7 @@ public final class PutFollowAction extends ActionType<PutFollowAction.Response> 
             out.writeString(leaderIndex);
             out.writeString(followerIndex);
             if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
-                Settings.writeSettingsToStream(settings, out);
+                settings.writeTo(out);
             }
             parameters.writeTo(out);
             waitForActiveShards.writeTo(out);

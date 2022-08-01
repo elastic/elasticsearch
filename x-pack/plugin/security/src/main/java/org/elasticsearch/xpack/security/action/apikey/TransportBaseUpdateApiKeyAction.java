@@ -59,11 +59,15 @@ public abstract class TransportBaseUpdateApiKeyAction<Request extends BaseUpdate
 
         resolver.resolveUserRoleDescriptors(
             authentication,
-            ActionListener.wrap(roleDescriptors -> doUpdate(request, authentication, roleDescriptors, listener), listener::onFailure)
+            ActionListener.wrap(
+                roleDescriptors -> doExecuteUpdate(task, request, authentication, roleDescriptors, listener),
+                listener::onFailure
+            )
         );
     }
 
-    abstract void doUpdate(
+    abstract void doExecuteUpdate(
+        Task task,
         Request request,
         Authentication authentication,
         Set<RoleDescriptor> roleDescriptors,

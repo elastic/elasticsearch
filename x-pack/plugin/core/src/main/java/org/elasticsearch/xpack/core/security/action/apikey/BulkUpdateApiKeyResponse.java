@@ -52,6 +52,10 @@ public final class BulkUpdateApiKeyResponse extends ActionResponse implements To
         return errorDetails;
     }
 
+    public int getTotalResultCount() {
+        return updated.size() + noops.size() + errorDetails.size();
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject().stringListField("updated", updated).stringListField("noops", noops);

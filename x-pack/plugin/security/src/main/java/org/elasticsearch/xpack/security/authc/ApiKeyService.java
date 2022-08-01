@@ -1113,6 +1113,9 @@ public class ApiKeyService {
         }
     }
 
+    /**
+     * @return `null` if the update is a noop, i.e., if no changes to `currentApiKeyDoc` are required
+     */
     @Nullable
     private IndexRequest maybeBuildIndexRequest(
         final VersionedApiKeyDoc currentVersionedDoc,
@@ -1120,16 +1123,18 @@ public class ApiKeyService {
         final BaseUpdateApiKeyRequest request,
         final Set<RoleDescriptor> userRoleDescriptors
     ) throws IOException {
-        logger.trace(
-            "Building index request for update of API key doc [{}] with seqNo [{}] and primaryTerm [{}]",
-            currentVersionedDoc.id(),
-            currentVersionedDoc.seqNo(),
-            currentVersionedDoc.primaryTerm()
-        );
+        if (logger.isTraceEnabled()) {
+            logger.trace(
+                "Building index request for update of API key doc [{}] with seqNo [{}] and primaryTerm [{}]",
+                currentVersionedDoc.id(),
+                currentVersionedDoc.seqNo(),
+                currentVersionedDoc.primaryTerm()
+            );
+        }
         final var targetDocVersion = clusterService.state().nodes().getMinNodeVersion();
         final var currentDocVersion = Version.fromId(currentVersionedDoc.doc().version);
         assert currentDocVersion.onOrBefore(targetDocVersion) : "current API key doc version must be on or before target version";
-        if (currentDocVersion.before(targetDocVersion)) {
+        if (logger.isDebugEnabled() && currentDocVersion.before(targetDocVersion)) {
             logger.debug(
                 "API key update for [{}] will update version from [{}] to [{}]",
                 currentVersionedDoc.id(),

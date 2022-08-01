@@ -32,12 +32,14 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField.RUN_AS_USER_HEADER;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
@@ -286,14 +288,11 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         assertThat(apiKeyId, not(emptyString()));
         assertThat(apiKeyEncoded, not(emptyString()));
 
-        doTestUpdateApiKey(apiKeyName, apiKeyId, apiKeyEncoded, null);
-        // bulk update also allowed
-        final var bulkUpdateApiKeyRequest = new Request("POST", "_security/api_key/_bulk_update");
-        final Map<String, Object> updateApiKeyRequestBody = Map.of("ids", List.of(apiKeyId));
-        bulkUpdateApiKeyRequest.setJsonEntity(
-            XContentTestUtils.convertToXContent(updateApiKeyRequestBody, XContentType.JSON).utf8ToString()
-        );
-        assertOK(performRequestUsingRandomAuthMethod(bulkUpdateApiKeyRequest));
+        if (randomBoolean()) {
+            doTestUpdateApiKey(apiKeyName, apiKeyId, apiKeyEncoded, null);
+        } else {
+            doTestUpdateApiKeyUsingBulkAction(apiKeyName, apiKeyId, apiKeyEncoded, null);
+        }
     }
 
     @SuppressWarnings({ "unchecked" })
@@ -378,6 +377,40 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         assertOK(updateApiKeyResponse);
         final Map<String, Object> updateApiKeyResponseMap = responseAsMap(updateApiKeyResponse);
         assertEquals(updated, updateApiKeyResponseMap.get("updated"));
+        expectMetadata(apiKeyId, expectedApiKeyMetadata == null ? Map.of() : expectedApiKeyMetadata);
+        // validate authentication still works after update
+        doTestAuthenticationWithApiKey(apiKeyName, apiKeyId, apiKeyEncoded);
+    }
+
+    @SuppressWarnings({ "unchecked" })
+    private void doTestUpdateApiKeyUsingBulkAction(
+        final String apiKeyName,
+        final String apiKeyId,
+        final String apiKeyEncoded,
+        final Map<String, Object> oldMetadata
+    ) throws IOException {
+        final var bulkUpdateApiKeyRequest = new Request("POST", "_security/api_key/_bulk_update");
+        final boolean updated = randomBoolean();
+        final Map<String, Object> expectedApiKeyMetadata = updated ? Map.of("not", "returned (changed)", "foo", "bar") : oldMetadata;
+        final Map<String, Object> bulkUpdateApiKeyRequestBody = expectedApiKeyMetadata == null
+            ? Map.of("ids", List.of(apiKeyId))
+            : Map.of("ids", List.of(apiKeyId), "metadata", expectedApiKeyMetadata);
+        bulkUpdateApiKeyRequest.setJsonEntity(
+            XContentTestUtils.convertToXContent(bulkUpdateApiKeyRequestBody, XContentType.JSON).utf8ToString()
+        );
+
+        final Response bulkUpdateApiKeyResponse = performRequestUsingRandomAuthMethod(bulkUpdateApiKeyRequest);
+
+        assertOK(bulkUpdateApiKeyResponse);
+        final Map<String, Object> bulkUpdateApiKeyResponseMap = responseAsMap(bulkUpdateApiKeyResponse);
+        assertThat(bulkUpdateApiKeyResponseMap, not(hasKey("errors")));
+        if (updated) {
+            assertThat((List<String>) bulkUpdateApiKeyResponseMap.get("noops"), empty());
+            assertThat((List<String>) bulkUpdateApiKeyResponseMap.get("updated"), contains(apiKeyId));
+        } else {
+            assertThat((List<String>) bulkUpdateApiKeyResponseMap.get("updated"), empty());
+            assertThat((List<String>) bulkUpdateApiKeyResponseMap.get("noops"), contains(apiKeyId));
+        }
         expectMetadata(apiKeyId, expectedApiKeyMetadata == null ? Map.of() : expectedApiKeyMetadata);
         // validate authentication still works after update
         doTestAuthenticationWithApiKey(apiKeyName, apiKeyId, apiKeyEncoded);

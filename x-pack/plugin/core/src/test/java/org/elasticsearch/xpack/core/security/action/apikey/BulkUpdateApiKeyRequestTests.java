@@ -52,7 +52,7 @@ public class BulkUpdateApiKeyRequestTests extends ESTestCase {
         }
     }
 
-    public void testNullValuesValid() {
+    public void testNullValuesValidForNonIds() {
         final var request = BulkUpdateApiKeyRequest.usingApiKeyIds("id");
         assertNull(request.validate());
     }

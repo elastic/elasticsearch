@@ -145,8 +145,20 @@
         },
         {
           "orchestrator_id": {
-            "path_match": "orchestrator.id",
-            "mapping": { "type": "keyword" }
+            "path_match": "orchestrator.cluster.id",
+            "mapping": {
+              "type": "keyword",
+              "ignore_above": 1024
+            }
+          }
+        },
+        {
+          "orchestrator_id": {
+            "path_match": "orchestrator.cluster.name",
+            "mapping": {
+              "type": "keyword",
+              "ignore_above": 1024
+            }
           }
         },
         {

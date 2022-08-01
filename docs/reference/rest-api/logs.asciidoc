@@ -37,11 +37,16 @@ according to the dataset and namespace parameters, which can be provided globall
 
 The endpoint is designed in a way that logs are never dropped, as long as the cluster has enough capacity.
 
-If an error happens during ingestion, the logs are sent to the `logs-dlq-<namespace>` data stream that acts as a dead letter queue for failed events.
+If an error happens during ingestion,
+the logs are sent to the `logs-dlq-<namespace>` data stream that acts as a dead letter queue for failed events.
 However, log ingestion should rarely fail as the default mappings for the `logs-*-*` data streams are designed to minimize mapping conflicts.
 
-A couple of fields from the {ecs-ref}[Elastic Common Schema (ECS)] are indexed by default that are commonly used to search or filter logs.
-All other fields are not indexed by default. But you can still use these fields in searches and aggregations using <<runtime, runtime fields>>. If there are custom fields that you frequently use in searches or aggregations, you can add them to the index template for your dataset (`logs-<dataset>-*`) so that the field will be indexed for new data.
+A <<logs-api-request-body, couple of fields>> from the {ecs-ref}[Elastic Common Schema (ECS)] are indexed by default that are commonly used to search or filter logs.
+All other fields are not indexed by default.
+But you can still add any top-level fields and use them in searches and aggregations as the default index template for logs
+<<dynamic-mapping-runtime-fields, maps dynamic fields as runtime fields>>.
+If there are custom fields that you frequently use in searches or aggregations,
+you can add them to the index template for your dataset (`logs-<dataset>-*`) so that the field will be indexed for new data.
 This comes at the expense of a larger index size more processing at ingest time.
 
 All fields, aside from the `@timestamp` field, are configured to <<ignore-malformed, ignore malformed>> values.
@@ -54,14 +59,14 @@ Note that this currently doesn't apply for object/scalar mismatches, such as `"f
 [[logs-api-path-params]]
 === {api-path-parms-title}
 
-`data_stream.dataset`::
+{ecs-ref}/ecs-base.html#field-data_stream.dataset[`data_stream.dataset`]::
   (Optional, string)
   Defaults to `generic`.
   Describes the ingested data and its structure.
   It is highly recommended to provide a value for this so that you can add structure to your logs after the fact.
   Example: `nginx.access`.
 
-`data_stream.namespace`::
+{ecs-ref}/ecs-base.html#field-data_stream.namespace[`data_stream.namespace`]::
   (Optional, string)
   Defaults to `default`.
   A user-configurable arbitrary grouping, such as an environment (dev, prod, or qa), a team, or a strategic business unit.
@@ -77,56 +82,47 @@ For example, `/_logs?service.name=myapp` will add `"service.name": "myapp"` to a
 === {api-request-body-title}
 The request body contains a newline-delimited list of log events to ingest.
 The individual events don't have any required fields and can contain arbitrary JSON content.
+There is no required structure for the log events, and you can add any top-level fields.
+However, it is recommended to follow the {ecs-ref}[Elastic Common Schema (ECS)] to structure your logs.
 
-TIP: Use the {ecs-logging-ref}/intro.html[ECS logging libraries] to create JSON logs that work best with the log ingestion API.
+TIP: Use the {ecs-logging-ref}/intro.html[ECS logging libraries] to create ECS-compliant JSON logs.
 
-While there is no required structure for logs, there are a couple of fields with special semantics:
+Only the following fields, which are commonly used for searching, filtering, and correlating logs, are indexed by default:
 
-`@timestamp`::
-(Optional, string)
-The timestamp of the log event.
-If not provided, will be set to the current time.
+* {ecs-ref}/ecs-base.html#field-timestamp[`@timestamp`] +
+  If not provided, will be set to the current time.
+* {ecs-ref}/ecs-data_stream.html#field-data-stream-dataset[`data_stream.dataset`] +
+  Overrides the `data_stream.dataset` <<logs-api-path-params, path parameter>> on a per-event basis.
+* {ecs-ref}/ecs-data_stream.html#field-data-stream-namespace[`data_stream.namespace`] +
+  Overrides the `data_stream.namespace` <<logs-api-path-params, path parameter>> on a per-event basis.
+* {ecs-ref}/ecs-base.html#field-message[`message`]
+* {ecs-ref}/ecs-log.html#field-log-level[`log.level`]
+* {ecs-ref}/ecs-log.html#field-log-logger[`log.logger`]
+* {ecs-ref}/ecs-service.html#field-service-name[`service.name`]
+* {ecs-ref}/ecs-service.html#field-service-environment[`service.environment`]
+* {ecs-ref}/ecs-service.html#field-service-version[`service.version`]
+* {ecs-ref}/ecs-tracing.html#field-trace-id[`trace.id`]
+* {ecs-ref}/ecs-tracing.html#field-transaction-id[`transaction.id`]
+* {ecs-ref}/ecs-tracing.html#field-span-id[`span.id`]
+* {ecs-ref}/ecs-process.html#field-process-pid[`process.pid`]
+* {ecs-ref}/ecs-process.html#field-process-thread-name[`process.thread.name`]
+* {ecs-ref}/ecs-error.html#field-error-type[`error.type`]
+* {ecs-ref}/ecs-error.html#field-error-message[`error.message`]
+* {ecs-ref}/ecs-event.html#field-event-dataset[`event.dataset`]
+* {ecs-ref}/ecs-cloud.html#field-cloud-provider[`cloud.provider`]
+* {ecs-ref}/ecs-cloud.html#field-cloud-availability-zone[`cloud.availability_zone`]
+* {ecs-ref}/ecs-cloud.html#field-cloud-region[`cloud.region`]
+* {ecs-ref}/ecs-host.html#field-host-hostname[`host.hostname`]
+* {ecs-ref}/ecs-host.html#field-host-name[`host.name`]
+* {ecs-ref}/ecs-container.html#field-container-id[`container.id`]
+* {ecs-ref}/ecs-container.html#field-container-name[`container.name`]
+* {ecs-ref}/ecs-orchestrator.html#field-orchestrator-namespace[`orchestrator.namespace`]
+* {ecs-ref}/ecs-orchestrator.html#field-orchestrator-cluster-id[`orchestrator.cluster.id`]
+* {ecs-ref}/ecs-orchestrator.html#field-orchestrator-cluster-name[`orchestrator.cluster.name`]
+* {ecs-ref}/ecs-orchestrator.html#field-orchestrator-resource-id[`orchestrator.resource.id`]
+* {ecs-ref}/ecs-orchestrator.html#field-orchestrator-resource-name[`orchestrator.resource.name`]
 
-`data_stream.dataset`::
-(Optional, string)
-Overrides the dataset path parameter.
-
-`data_stream.namespace`::
-(Optional, string)
-Overrides the namespace path parameter.
-
-`message`::
-(Optional, string)
-The log message.
-
-`log.level`::
-(Optional, string)
-The severity of the log message.
-Example: `INFO`.
-
-`service.name`::
-(Optional, string) The name of the service the log event relates to.
-This facilitates correlation with APM Services.
-
-`service.environment`::
-(Optional, string) The name of the service environment the log event relates to.
-This facilitates correlation with APM Services.
-
-`trace.id`::
-(Optional, string) The APM trace id that this log event relates to.
-This facilitates correlation with APM traces.
-
-`transaction.id`::
-(Optional, string) The APM transaction id that this log event relates to.
-This facilitates correlation with APM transactions.
-
-`span.id`::
-(Optional, string) The APM span id that this log event relates to.
-This facilitates correlation with APM spans.
-
-`error.id`::
-(Optional, string) The APM error id that this log event relates to.
-This facilitates correlation with APM errors.
+Dotted field names are expanded to objects so that they can be used interchangeably with nested objects. For example, the following documents are treated equally: `{"log.level": "INFO"}`, `{"log": { "level": "INFO"} }`.
 
 `_metadata`::
 (Optional, object)
@@ -135,8 +131,6 @@ Provides metadata that will be merged into subsequent events.
 If a metadata event is provided as the first line, the metadata is added to all logs events.
 If a metadata event is provided after the first line, the metadata is added to all subsequent log events until another metadata event is provided.
 This way you can easily add global metadata and send logs from multiple datasets in a single request, providing dataset-specific metadata.
-
-Dotted field names are expanded to objects so that they can be used interchangeably with nested objects. For example, the following documents are treated equally: `{"log.level": "INFO"}`, `{"log": { "level": "INFO"} }`.
 
 [discrete]
 [[logs-api-response-body]]

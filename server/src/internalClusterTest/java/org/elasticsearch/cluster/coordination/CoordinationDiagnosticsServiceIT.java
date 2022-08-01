@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.coordination;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.disruption.BlockClusterStateProcessing;
 import org.elasticsearch.threadpool.Scheduler;
@@ -69,6 +70,7 @@ public class CoordinationDiagnosticsServiceIT extends ESIntegTestCase {
         diagnosticsOnBlockedNode.clusterFormationResponses = nodeToClusterFormationStateMap;
         diagnosticsOnBlockedNode.clusterFormationInfoTasks = cancellables;
 
+        diagnosticsOnBlockedNode.remoteRequestInitialDelay = TimeValue.ZERO;
         diagnosticsOnBlockedNode.beginPollingClusterFormationInfo(
             nodesWithoutBlockedNode,
             nodeToClusterFormationStateMap::put,

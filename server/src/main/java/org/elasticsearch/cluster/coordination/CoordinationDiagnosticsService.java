@@ -113,6 +113,13 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
      */
     private volatile AtomicReference<RemoteMasterHealthResult> remoteCoordinationDiagnosisResult = new AtomicReference<>();
 
+    /**
+     * This is the amount of time that we wait before scheduling a remote request to gather diagnostic information. It is not
+     * user-configurable, but is non-final so that integration tests don't have to waste 10 seconds.
+     */
+    // Non-private for testing
+    TimeValue remoteRequestInitialDelay = new TimeValue(10, TimeUnit.SECONDS);
+
     private static final Logger logger = LogManager.getLogger(CoordinationDiagnosticsService.class);
 
     /**
@@ -825,7 +832,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                     connectionListener
                 );
             }
-        }, new TimeValue(10, TimeUnit.SECONDS), ThreadPool.Names.SAME);
+        }, remoteRequestInitialDelay, ThreadPool.Names.SAME);
     }
 
     private void beginPollingRemoteStableMasterHealthIndicatorService() {

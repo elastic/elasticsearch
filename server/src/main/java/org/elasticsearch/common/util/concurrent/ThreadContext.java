@@ -869,7 +869,7 @@ public final class ThreadContext implements Writeable {
             creatorsContext.restore();
             if (useNewTraceContext) {
                 // Discard the return value - we'll restore threadsOriginalContext in `onAfter()`.
-                //noinspection resource
+                // noinspection resource
                 newTraceContext();
             }
             in.doRun();

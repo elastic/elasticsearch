@@ -20,6 +20,13 @@ public abstract class AbstractRunnable implements Runnable {
         return false;
     }
 
+    /**
+     * Should the runnable start a new tracing context before it executes?
+     */
+    public boolean useNewTraceContext() {
+        return false;
+    }
+
     @Override
     public final void run() {
         try {

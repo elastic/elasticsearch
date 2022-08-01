@@ -538,8 +538,8 @@ public final class ThreadContext implements Writeable {
         if (command instanceof ContextPreservingRunnable) {
             return command;
         }
-        if (command instanceof AbstractRunnable) {
-            return new ContextPreservingAbstractRunnable((AbstractRunnable) command);
+        if (command instanceof AbstractRunnable abstractRunnable) {
+            return new ContextPreservingAbstractRunnable(abstractRunnable, abstractRunnable.useNewTraceContext());
         }
         return new ContextPreservingRunnable(command);
     }
@@ -821,17 +821,20 @@ public final class ThreadContext implements Writeable {
     }
 
     /**
-     * Wraps an AbstractRunnable to preserve the thread context.
+     * Wraps an AbstractRunnable to preserve the thread context, optionally creating a new trace context before
+     * executing.
      */
     private class ContextPreservingAbstractRunnable extends AbstractRunnable implements WrappedRunnable {
         private final AbstractRunnable in;
         private final ThreadContext.StoredContext creatorsContext;
+        private final boolean useNewTraceContext;
 
         private ThreadContext.StoredContext threadsOriginalContext = null;
 
-        private ContextPreservingAbstractRunnable(AbstractRunnable in) {
+        private ContextPreservingAbstractRunnable(AbstractRunnable in, boolean useNewTraceContext) {
             creatorsContext = newStoredContext(false);
             this.in = in;
+            this.useNewTraceContext = useNewTraceContext;
         }
 
         @Override
@@ -864,6 +867,11 @@ public final class ThreadContext implements Writeable {
         protected void doRun() throws Exception {
             threadsOriginalContext = stashContext();
             creatorsContext.restore();
+            if (useNewTraceContext) {
+                // Discard the return value - we'll restore threadsOriginalContext in `onAfter()`.
+                //noinspection resource
+                newTraceContext();
+            }
             in.doRun();
         }
 

@@ -958,17 +958,8 @@ public class TransportService extends AbstractLifecycleComponent
                 try {
                     threadPool.executor(executor).execute(new AbstractRunnable() {
                         @Override
-                        protected void doRun() {
-                            // This is a workaround for the fact that `AbstractRunnable#run()` is final, which means we can't
-                            // override it to wrap the entire execution in its own tracing context. We could just
-                            // not use an `AbstractRunnable` except that then we'd lose the `isForceExecution()` method.
-                            try (var ignored = threadPool.getThreadContext().newTraceContext()) {
-                                try {
-                                    reg.processMessageReceived(request, channel);
-                                } catch (Exception e) {
-                                    handleSendToLocalException(channel, e, action);
-                                }
-                            }
+                        protected void doRun() throws Exception {
+                            reg.processMessageReceived(request, channel);
                         }
 
                         @Override
@@ -977,11 +968,23 @@ public class TransportService extends AbstractLifecycleComponent
                         }
 
                         @Override
-                        public void onFailure(Exception e) {}
+                        public boolean useNewTraceContext() {
+                            return true;
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            handleSendToLocalException(channel, e, action);
+                        }
 
                         @Override
                         public String toString() {
                             return "processing of [" + requestId + "][" + action + "]: " + request;
+                        }
+
+                        @Override
+                        public void onAfter() {
+                            request.decRef();
                         }
                     });
                     success = true;

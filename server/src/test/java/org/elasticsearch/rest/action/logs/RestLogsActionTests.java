@@ -66,6 +66,39 @@ public class RestLogsActionTests extends RestActionTestCase {
         assertEquals(0, dispatchRequest(req).errors().get());
     }
 
+    public void testObjectScalarClashWithMetadata() {
+        RestRequest req = createLogsRequest(
+            "/_logs",
+            Map.of("_metadata", Map.of("foo", Map.of("bar", "baz"))),
+            Map.of("foo", "bar")
+        );
+
+        verifyingClient.setExecuteVerifier((BiFunction<ActionType<BulkResponse>, BulkRequest, BulkResponse>) (actionType, request) -> {
+            assertEquals(1, request.requests().size());
+            Map<String, Object> source = ((IndexRequest) request.requests().get(0)).sourceAsMap();
+            assertEquals("bar", source.get("foo"));
+            assertNull(source.get("foo.bar"));
+            return Mockito.mock(BulkResponse.class);
+        });
+        assertEquals(0, dispatchRequest(req).errors().get());
+    }
+
+    public void testObjectScalarClashInDocument() {
+        RestRequest req = createLogsRequest(
+            "/_logs",
+            Map.of("foo.bar", "baz", "foo", "bar")
+        );
+
+        verifyingClient.setExecuteVerifier((BiFunction<ActionType<BulkResponse>, BulkRequest, BulkResponse>) (actionType, request) -> {
+            assertEquals(1, request.requests().size());
+            Map<String, Object> source = ((IndexRequest) request.requests().get(0)).sourceAsMap();
+            assertEquals("bar", source.get("foo"));
+            assertEquals("baz", source.get("foo.bar"));
+            return Mockito.mock(BulkResponse.class);
+        });
+        assertEquals(0, dispatchRequest(req).errors().get());
+    }
+
     public void testInvalidJson() {
         RestRequest req = createLogsRequest("/_logs/foo", "{\"message\": \"missing end quote}");
         verifyingClient.setExecuteVerifier((BiFunction<ActionType<BulkResponse>, BulkRequest, BulkResponse>) (actionType, request) -> {

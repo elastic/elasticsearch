@@ -96,7 +96,7 @@ public class HealthMetadataServiceIT extends ESIntegTestCase {
                 HealthMetadata.Disk diskMetadata = HealthMetadata.getFromClusterState(internalCluster.clusterService().state())
                     .getDiskMetadata();
                 assertThat(diskMetadata.describeHighWatermark(), equalTo(initialWatermark));
-                assertThat(diskMetadata.highMaxHeadroom(), equalTo(initialMaxHeadroom));
+                if (percentageMode) assertThat(diskMetadata.highMaxHeadroom(), equalTo(initialMaxHeadroom));
             }
             internalCluster.client()
                 .admin()
@@ -150,21 +150,23 @@ public class HealthMetadataServiceIT extends ESIntegTestCase {
 
     private Settings createWatermarkSettings(String highWatermark, String highMaxHeadroom) {
         // We define both thresholds to avoid inconsistencies over the type of the thresholds
-        return Settings.builder()
+        Settings.Builder settings = Settings.builder()
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), percentageMode ? "85%" : "20b")
-            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_MAX_HEADROOM_SETTING.getKey(), "20b")
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), highWatermark)
-            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING.getKey(), highMaxHeadroom)
             .put(
                 DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(),
                 percentageMode ? "95%" : "1b"
             )
-            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_MAX_HEADROOM_SETTING.getKey(), "1b")
             .put(
                 DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_WATERMARK_SETTING.getKey(),
                 percentageMode ? "95%" : "5b"
-            )
-            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_MAX_HEADROOM_SETTING.getKey(), "5b")
-            .build();
+            );
+        if (percentageMode) {
+            settings = settings.put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_MAX_HEADROOM_SETTING.getKey(), "20b")
+                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING.getKey(), highMaxHeadroom)
+                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_MAX_HEADROOM_SETTING.getKey(), "1b")
+                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_MAX_HEADROOM_SETTING.getKey(), "5b");
+        }
+        return settings.build();
     }
 }

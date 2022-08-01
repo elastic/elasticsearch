@@ -270,16 +270,17 @@ event action.
 [%collapsible%open]
 ====
 [source,js]
-{"type":"audit", "timestamp":"2020-12-31T00:33:52,521+0200", "node.id":
-"9clhpgjJRR-iKzOw20xBNQ", "event.type":"security_config_change", "event.action":
-"change_apikeys", "request.id":"9FteCmovTzWHVI-9Gpa_vQ", "change":{"apikeys":
-{"ids":["zcwN3YEBBmnjw-K-hW5_"],"role_descriptors":[{"cluster":
-["monitor","manage_ilm"],"indices":[{"names":["index-a*"],"privileges":
+{"type":"audit","timestamp":"2020-12-31T00:33:52,521+0200","node.id":
+"9clhpgjJRR-iKzOw20xBNQ","event.type":"security_config_change",
+"event.action":"change_apikeys","request.id":"9FteCmovTzWHVI-9Gpa_vQ",
+"change":{"apikeys":
+{"ids":["zcwN3YEBBmnjw-K-hW5_","j7c0WYIBqecB5CbVR6Oq"],"role_descriptors":
+[{"cluster":["monitor","manage_ilm"],"indices":[{"names":["index-a*"],"privileges":
 ["read","maintenance"]},{"names":["in*","alias*"],"privileges":["read"],
 "field_security":{"grant":["field1*","@timestamp"],"except":["field11"]}}],
 "applications":[],"run_as":[]},{"cluster":["all"],"indices":[{"names":
 ["index-b*"],"privileges":["all"]}],"applications":[],"run_as":[]}],
-"metadata":{"application":"my-application","environment":{"level": 1,
+"metadata":{"application":"my-application","environment":{"level":1,
 "tags":["dev","staging"]}}}}}
 ====
 

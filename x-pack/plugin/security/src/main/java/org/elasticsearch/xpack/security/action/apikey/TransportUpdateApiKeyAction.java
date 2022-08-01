@@ -71,7 +71,7 @@ public final class TransportUpdateApiKeyAction extends TransportBaseUpdateApiKey
             if (errorEntry.getKey().equals(apiKeyId) == false) {
                 throwIllegalStateExceptionOnIdMismatch(apiKeyId, errorEntry.getKey());
             }
-            throw response.getErrorDetails().values().iterator().next();
+            throw errorEntry.getValue();
         } else if (response.getUpdated().isEmpty() == false) {
             final String updatedId = response.getUpdated().get(0);
             if (updatedId.equals(apiKeyId) == false) {

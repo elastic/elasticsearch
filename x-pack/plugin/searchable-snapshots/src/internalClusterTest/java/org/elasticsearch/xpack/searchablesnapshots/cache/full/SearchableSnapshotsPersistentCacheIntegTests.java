@@ -38,6 +38,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX;
@@ -274,7 +275,7 @@ public class SearchableSnapshotsPersistentCacheIntegTests extends BaseSearchable
                     dataNode.equals(excludedDataNode) ? equalTo(0L) : greaterThan(0L)
                 );
             }
-        });
+        }, 30L, TimeUnit.SECONDS);
 
         logger.info("--> deleting mounted index {}", mountedIndex);
         assertAcked(client().admin().indices().prepareDelete(mountedIndexName));

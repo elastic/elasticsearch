@@ -56,8 +56,8 @@ public class LocalHealthMonitor implements ClusterStateListener {
 
     private volatile TimeValue monitorInterval;
     private volatile boolean enabled;
-    // Signals that the health metadata is available, so we can start monitoring.
-    private volatile boolean healthMetadataInitialized;
+    // Signals that all the prerequisites have been fulfilled and the monitoring task can be scheduled.
+    private volatile boolean prerequisitesFulfilled;
     // Ensures that only one monitoring task will be in progress at any moment in time.
     // It removes the need to synchronize scheduling since at the event that there are two
     // monitoring tasks scheduled, one of them will be no-op.
@@ -88,7 +88,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
     }
 
     private void scheduleNextRunIfEnabled(TimeValue time) {
-        if (enabled && healthMetadataInitialized) {
+        if (prerequisitesFulfilled && enabled) {
             threadPool.scheduleUnlessShuttingDown(time, ThreadPool.Names.MANAGEMENT, this::monitorHealth);
         }
     }
@@ -100,13 +100,10 @@ public class LocalHealthMonitor implements ClusterStateListener {
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        // Wait until every node in the cluster is upgraded to 8.5.0 or later
-        if (event.state().nodesIfRecovered().getMinNodeVersion().onOrAfter(Version.V_8_5_0)) {
-            // Wait until the health metadata is available in the cluster state
-            if (healthMetadataInitialized == false) {
-                healthMetadataInitialized = HealthMetadata.getFromClusterState(event.state()) != null;
-                scheduleNowIfEnabled();
-            }
+        if (prerequisitesFulfilled == false) {
+            prerequisitesFulfilled = event.state().nodesIfRecovered().getMinNodeVersion().onOrAfter(Version.V_8_5_0)
+                && HealthMetadata.getFromClusterState(event.state()) != null;
+            scheduleNowIfEnabled();
         }
     }
 

@@ -586,8 +586,32 @@ teardown:
   - is_true: id
   - is_true: api_key
   - set: { id: api_key_1_id }
-  - transform_and_set: { login_creds: "#base64EncodeCredentials(id,api_key)" }
-  - match: { encoded: $login_creds }
+  - transform_and_set: { login_creds_1: "#base64EncodeCredentials(id,api_key)" }
+  - match: { encoded: $login_creds_1 }
+
+  - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV91c2VyXzE6eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" # api_key_user_1
+      security.create_api_key:
+        body: >
+          {
+            "name": "api-key",
+            "role_descriptors": {
+              "role-a": {
+                "cluster": ["monitor"]
+              }
+            },
+            "metadata": {
+              "letter": "b",
+              "number": 43
+            }
+          }
+  - match: { name: "api-key" }
+  - is_true: id
+  - is_true: api_key
+  - set: { id: api_key_2_id }
+  - transform_and_set: { login_creds_2: "#base64EncodeCredentials(id,api_key)" }
+  - match: { encoded: $login_creds_2 }
 
   # Give user new cluster privilege to test auto update
   - do:
@@ -610,31 +634,53 @@ teardown:
       security.bulk_update_api_keys:
         body: >
           {
-            "ids": ["${api_key_1_id}"],
+            "ids": ["${api_key_1_id}", "${api_key_2_id}"],
             "role_descriptors": {},
             "metadata": {}
           }
   - length: { "noops": 0 }
-  - length: { "updated": 1 }
+  - length: { "updated": 2 }
   - match: {
     "updated.0": "$api_key_1_id"
+  }
+  - match: {
+    "updated.1": "$api_key_2_id"
   }
 
   - do:
       headers:
         Authorization: "Basic YXBpX2tleV91c2VyXzE6eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" # api_key_user_1
       security.get_api_key:
-        id: "$api_key_1_id"
         owner: true
-  - length: { "api_keys": 1 }
+  - length: { "api_keys": 2 }
   - match: {
     "api_keys.0.metadata": { }
+  }
+  - match: {
+    "api_keys.1.metadata": { }
   }
 
   # Check privileges auto-updated to owner user's
   - do:
       headers:
-        Authorization: ApiKey ${login_creds}
+        Authorization: ApiKey ${login_creds_1}
+      security.has_privileges:
+        user: null
+        body: >
+          {
+            "cluster": ["all"],
+            "index": [
+              {
+                "names": ["index-a"],
+                "privileges": ["read"]
+              }
+            ]
+          }
+  - match: { "has_all_requested": true }
+
+  - do:
+      headers:
+        Authorization: ApiKey ${login_creds_2}
       security.has_privileges:
         user: null
         body: >

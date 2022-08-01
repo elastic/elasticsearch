@@ -171,8 +171,8 @@ force_synthetic_source_bad_mapping:
 ---
 stored text:
   - skip:
-      version: " - 8.3.99"
-      reason: introduced in 8.4.0
+      version: " - 8.4.99"
+      reason: introduced in 8.5.0
 
   - do:
       indices.create:

@@ -36,7 +36,7 @@ keyword:
 ---
 stored text:
   - skip:
-      version: " - 8.3.99"
+      version: " - 8.4.99"
       reason: introduced in 8.5.0
 
   - do:

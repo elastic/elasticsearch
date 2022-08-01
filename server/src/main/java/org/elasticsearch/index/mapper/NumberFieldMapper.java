@@ -1763,7 +1763,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public void write(FieldsVisitor fieldsVisitor, XContentBuilder b) throws IOException {
+            public void write(XContentBuilder b) throws IOException {
                 if (false == hasValue) {
                     return;
                 }
@@ -1821,7 +1821,7 @@ public class NumberFieldMapper extends FieldMapper {
                 }
 
                 @Override
-                public void write(FieldsVisitor fieldsVisitor, XContentBuilder b) throws IOException {
+                public void write(XContentBuilder b) throws IOException {
                     if (hasValue[idx] == false) {
                         return;
                     }

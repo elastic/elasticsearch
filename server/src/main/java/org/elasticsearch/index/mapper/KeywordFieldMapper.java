@@ -1214,7 +1214,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 }
 
                 @Override
-                public void write(FieldsVisitor fieldsVisitor, XContentBuilder b) throws IOException {
+                public void write(XContentBuilder b) throws IOException {
                     if (ords[idx] < 0) {
                         return;
                     }
@@ -1253,7 +1253,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             }
 
             @Override
-            public void write(FieldsVisitor fieldsVisitor, XContentBuilder b) throws IOException {
+            public void write(XContentBuilder b) throws IOException {
                 if (false == hasValue) {
                     return;
                 }
@@ -1325,7 +1325,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 }
 
                 @Override
-                public void write(FieldsVisitor fieldsVisitor, XContentBuilder b) throws IOException {
+                public void write(XContentBuilder b) throws IOException {
                     if (values == null || values.isEmpty()) {
                         return;
                     }

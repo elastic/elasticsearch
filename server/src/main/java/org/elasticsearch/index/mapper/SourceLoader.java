@@ -108,7 +108,7 @@ public interface SourceLoader {
                 // TODO accept a requested xcontent type
                 try (XContentBuilder b = new XContentBuilder(JsonXContent.jsonXContent, new ByteArrayOutputStream())) {
                     if (leaf.advanceToDoc(fieldsVisitor, docId)) {
-                        leaf.write(fieldsVisitor, b);
+                        leaf.write(b);
                     } else {
                         b.startObject().endObject();
                     }
@@ -137,7 +137,7 @@ public interface SourceLoader {
             }
 
             @Override
-            public void write(FieldsVisitor fieldsVisitor, XContentBuilder b) throws IOException {}
+            public void write(XContentBuilder b) throws IOException {}
         };
 
         /**
@@ -183,7 +183,7 @@ public interface SourceLoader {
             /**
              * Write values for this document.
              */
-            void write(FieldsVisitor fieldsVisitor, XContentBuilder b) throws IOException;
+            void write(XContentBuilder b) throws IOException;
         }
     }
 

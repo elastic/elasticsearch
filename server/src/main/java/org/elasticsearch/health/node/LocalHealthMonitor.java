@@ -100,8 +100,8 @@ public class LocalHealthMonitor implements ClusterStateListener {
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        // Wait until every node in the cluster is upgraded to 8.4.0 or later
-        if (event.state().nodesIfRecovered().getMinNodeVersion().onOrAfter(Version.V_8_4_0)) {
+        // Wait until every node in the cluster is upgraded to 8.5.0 or later
+        if (event.state().nodesIfRecovered().getMinNodeVersion().onOrAfter(Version.V_8_5_0)) {
             // Wait until the health metadata is available in the cluster state
             if (healthMetadataInitialized == false) {
                 healthMetadataInitialized = HealthMetadata.getFromClusterState(event.state()) != null;

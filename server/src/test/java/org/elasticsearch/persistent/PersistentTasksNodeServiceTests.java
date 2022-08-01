@@ -109,7 +109,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
 
         MockExecutor executor = new MockExecutor();
         PersistentTasksNodeService coordinator = new PersistentTasksNodeService(
-            new TestThreadPool(getClass().getName()),
+            threadPool,
             persistentTasksService,
             registry,
             new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet()),
@@ -225,7 +225,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
 
         MockExecutor executor = new MockExecutor();
         PersistentTasksNodeService coordinator = new PersistentTasksNodeService(
-            new TestThreadPool(getClass().getName()),
+            threadPool,
             persistentTasksService,
             registry,
             new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet()),
@@ -288,7 +288,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         MockExecutor executor = new MockExecutor();
         TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
         PersistentTasksNodeService coordinator = new PersistentTasksNodeService(
-            new TestThreadPool(getClass().getName()),
+            threadPool,
             persistentTasksService,
             registry,
             taskManager,
@@ -383,7 +383,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         MockExecutor executor = new MockExecutor();
         TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
         PersistentTasksNodeService coordinator = new PersistentTasksNodeService(
-            new TestThreadPool(getClass().getName()),
+            threadPool,
             persistentTasksService,
             registry,
             taskManager,
@@ -490,7 +490,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
 
         MockExecutor executor = new MockExecutor();
         PersistentTasksNodeService coordinator = new PersistentTasksNodeService(
-            new TestThreadPool(getClass().getName()),
+            threadPool,
             persistentTasksService,
             registry,
             new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet()),

@@ -838,14 +838,13 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
     }
 
     /**
-     * This method returns quickly, but in the background schedules to query the remote node's cluster diagnostics in 10 seconds, and
-     * repeats doing that until cancel() is called on all of the Cancellable that this method sends to the cancellableConsumer. This method
+     * This method returns quickly, but in the background schedules to query a remote master node's cluster diagnostics in 10 seconds, and
+     * repeats doing that until cancelPollingRemoteStableMasterHealthIndicatorService() is called. This method
      * exists (rather than being just part of the beginPollingRemoteStableMasterHealthIndicatorService() above) in order to facilitate
      * unit testing.
      * masterEligibleNodes A collection of all master eligible nodes that may be polled
      * @param responseConsumer A consumer for any results produced for a node by this method
-     * @param cancellableConsumer A consumer for any Cancellable tasks produced by this method
-     * @param isCancelled If true, this task has been cancelled in another thread and does not need to do any more work
+     * @param cancellableReference The Cancellable reference to assign the current Cancellable for this polling attempt
      */
     // Non-private for testing
     void beginPollingRemoteStableMasterHealthIndicatorService(
@@ -874,8 +873,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
      * completed, adding the resulting Cancellable to cancellableConsumer.
      * @param masterEligibleNode The node being polled
      * @param responseConsumer The response consumer to be wrapped
-     * @param cancellableConsumer The list of Cancellables
-     * @param isCancelled If true, this task has been cancelled in another thread and does not need to do any more work
+     * @param cancellableReference The Cancellable reference to assign the current Cancellable for this polling attempt
      * @return A wrapped Consumer that will run fetchCoordinationDiagnostics()
      */
     private Consumer<RemoteMasterHealthResult> rescheduleDiagnosticsFetchConsumer(
@@ -913,7 +911,6 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
      * unless cancel() is called on the Cancellable that this method returns.
      * @param node The node to poll for cluster diagnostics
      * @param responseConsumer The consumer of the cluster diagnostics for the node, or the exception encountered while contacting it
-     * @param isCancelled If true, this task has been cancelled in another thread and does not need to do any more work
      * @return A Cancellable for the task that is scheduled to fetch cluster diagnostics
      */
     private Scheduler.Cancellable fetchCoordinationDiagnostics(

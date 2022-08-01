@@ -446,7 +446,7 @@ teardown:
       security.bulk_update_api_keys:
         body: >
           {
-            "ids": ["$api_key_1_id"],
+            "ids": ["$api_key_1_id", "$api_key_2_id"],
             "role_descriptors": {
               "role-a": {
                 "cluster": ["all"],
@@ -467,15 +467,58 @@ teardown:
                "number": 42
             }
           }
-  - length: { "updated": 1 }
+  - length: { "noops": 0 }
+  - length: { "updated": 2 }
   - match: {
     "updated.0": "$api_key_1_id"
+  }
+  - match: {
+    "updated.1": "$api_key_2_id"
+  }
+
+  # Bulk update without request fields does not update API keys
+  - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV91c2VyXzE6eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" # api_key_user_1
+      security.bulk_update_api_keys:
+        body: >
+          {
+            "ids": ["$api_key_1_id", "$api_key_2_id"]
+          }
+  - length: { "updated": 0 }
+  - length: { "noops": 2 }
+  - match: {
+    "noops.0": "$api_key_1_id"
+  }
+  - match: {
+    "noops.1": "$api_key_2_id"
   }
 
   # Check updated privileges
   - do:
       headers:
         Authorization: ApiKey ${login_creds_1}
+      security.has_privileges:
+        user: null
+        body: >
+          {
+            "cluster": ["manage_own_api_key"],
+            "index": [
+              {
+                "names": ["index-a"],
+                "privileges": ["write"]
+              },
+              {
+                "names": ["index-b"],
+                "privileges": ["read"]
+              }
+            ]
+          }
+  - match: { "has_all_requested": true }
+
+  - do:
+      headers:
+        Authorization: ApiKey ${login_creds_2}
       security.has_privileges:
         user: null
         body: >
@@ -501,6 +544,12 @@ teardown:
       security.get_api_key:
         owner: true
   - length: { "api_keys": 2 }
+  - match: {
+    "api_keys.0.metadata": {
+      "letter": "a",
+      "number": 42
+    }
+  }
   - match: {
     "api_keys.1.metadata": {
       "letter": "a",

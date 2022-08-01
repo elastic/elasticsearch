@@ -200,7 +200,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         if (testMaxHeadroom) {
             // Set the low max headroom to 300GB
             // Set the high max headroom to 200GB
-            // node2 (with 250GB free space) now should not have new shards allocated to it, and shards cannot remain
+            // node2 (with 250GB free space) now should not have new shards allocated to it, but shards can remain
             diskSettings = Settings.builder()
                 .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), true)
                 .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_MAX_HEADROOM_SETTING.getKey(), ByteSizeValue.ofGb(300))

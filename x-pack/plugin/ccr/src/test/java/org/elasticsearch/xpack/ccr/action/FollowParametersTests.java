@@ -38,6 +38,11 @@ public class FollowParametersTests extends AbstractSerializingTestCase<FollowPar
         return FollowParameters::new;
     }
 
+    @Override
+    protected FollowParameters mutateInstance(FollowParameters instance) {
+        return randomInstance();
+    }
+
     static FollowParameters randomInstance() {
         FollowParameters followParameters = new FollowParameters();
         followParameters.setMaxOutstandingReadRequests(randomIntBetween(0, Integer.MAX_VALUE));

@@ -32,6 +32,7 @@ import com.nimbusds.jwt.SignedJWT;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.SecureString;
 
 import java.util.Date;
@@ -47,55 +48,6 @@ public class JwtValidateUtil {
         JOSEObjectType.JWT,
         null
     );
-
-    /**
-     * Validate a SignedJWT. Use iss/aud/alg filters for those claims, JWKSet for signature, and skew seconds for time claims.
-     * @param jwt Signed JWT to be validated.
-     * @param allowedIssuer Filter for the "iss" claim.
-     * @param allowedAudiences Filter for the "aud" claim.
-     * @param allowedClockSkewSeconds Skew tolerance for the "auth_time", "iat", "nbf", and "exp" claims.
-     * @param allowedSignatureAlgorithms Filter for the "aud" header.
-     * @param jwks JWKs of HMAC secret keys or RSA/EC public keys.
-     * @throws Exception Error for the first validation to fail.
-     */
-    public static void validate(
-        final SignedJWT jwt,
-        final String allowedIssuer,
-        final List<String> allowedAudiences,
-        final long allowedClockSkewSeconds,
-        final List<String> allowedSignatureAlgorithms,
-        final List<JWK> jwks
-    ) throws Exception {
-        final Date now = new Date();
-
-        if (LOGGER.isDebugEnabled()) {
-            LOGGER.debug(
-                "Validating JWT, now [{}], alg [{}], issuer [{}], audiences [{}], typ [{}],"
-                    + " auth_time [{}], iat [{}], nbf [{}], exp [{}], kid [{}], jti [{}]",
-                now,
-                jwt.getHeader().getAlgorithm(),
-                jwt.getJWTClaimsSet().getIssuer(),
-                jwt.getJWTClaimsSet().getAudience(),
-                jwt.getHeader().getType(),
-                jwt.getJWTClaimsSet().getDateClaim("auth_time"),
-                jwt.getJWTClaimsSet().getIssueTime(),
-                jwt.getJWTClaimsSet().getNotBeforeTime(),
-                jwt.getJWTClaimsSet().getExpirationTime(),
-                jwt.getHeader().getKeyID(),
-                jwt.getJWTClaimsSet().getJWTID()
-            );
-        }
-        // validate claims before signature, because log messages about rejected claims can be more helpful than rejected signatures
-        JwtValidateUtil.validateType(jwt);
-        JwtValidateUtil.validateIssuer(jwt, allowedIssuer);
-        JwtValidateUtil.validateAudiences(jwt, allowedAudiences);
-        JwtValidateUtil.validateSignatureAlgorithm(jwt, allowedSignatureAlgorithms);
-        JwtValidateUtil.validateAuthTime(jwt, now, allowedClockSkewSeconds);
-        JwtValidateUtil.validateIssuedAtTime(jwt, now, allowedClockSkewSeconds);
-        JwtValidateUtil.validateNotBeforeTime(jwt, now, allowedClockSkewSeconds);
-        JwtValidateUtil.validateExpiredTime(jwt, now, allowedClockSkewSeconds);
-        JwtValidateUtil.validateSignature(jwt, jwks);
-    }
 
     public static void validateType(final SignedJWT jwt) throws Exception {
         final JOSEObjectType jwtHeaderType = jwt.getHeader().getType();
@@ -277,7 +229,10 @@ public class JwtValidateUtil {
      * @throws Exception Error if JWKs fail to validate the Signed JWT.
      */
     public static void validateSignature(final SignedJWT jwt, final List<JWK> jwks) throws Exception {
-        assert jwks != null && jwks.isEmpty() == false : "Caller must provide a non-empty JWK list";
+        assert jwks != null : "Verify requires a non-null JWK list";
+        if (jwks.isEmpty()) {
+            throw new ElasticsearchException("Verify requires a non-empty JWK list");
+        }
         final String id = jwt.getHeader().getKeyID();
         final JWSAlgorithm alg = jwt.getHeader().getAlgorithm();
         LOGGER.trace("JWKs [{}], JWT KID [{}], and JWT Algorithm [{}] before filters.", jwks.size(), id, alg.getName());
@@ -305,12 +260,35 @@ public class JwtValidateUtil {
         final List<JWK> jwksStrength = jwksAlg.stream().filter(j -> JwkValidateUtil.isMatch(j, alg.getName())).toList();
         LOGGER.debug("JWKs [{}] after Algorithm [{}] match filter.", jwksStrength.size(), alg);
 
+        // No JWKs passed the kid, alg, and strength checks, so nothing left to use in verifying the JWT signature
+        if (jwksStrength.isEmpty()) {
+            throw new ElasticsearchException("Verify failed because all " + jwks.size() + " provided JWKs were filtered.");
+        }
+
         for (final JWK jwk : jwksStrength) {
             if (jwt.verify(JwtValidateUtil.createJwsVerifier(jwk))) {
-                return; // VERIFY SUCCEEDED
+                LOGGER.trace(
+                    "JWT signature validation succeeded with JWK kty=[{}], jwtAlg=[{}], jwtKid=[{}], use=[{}], ops=[{}]",
+                    jwk.getKeyType(),
+                    jwk.getAlgorithm(),
+                    jwk.getKeyID(),
+                    jwk.getKeyUse(),
+                    jwk.getKeyOperations()
+                );
+                return;
+            } else {
+                LOGGER.trace(
+                    "JWT signature validation failed with JWK kty=[{}], jwtAlg=[{}], jwtKid=[{}], use=[{}], ops={}",
+                    jwk.getKeyType(),
+                    jwk.getAlgorithm(),
+                    jwk.getKeyID(),
+                    jwk.getKeyUse(),
+                    jwk.getKeyOperations() == null ? "[null]" : jwk.getKeyOperations()
+                );
             }
         }
-        throw new Exception("Verify failed using " + jwksStrength.size() + " of " + jwks.size() + " provided JWKs.");
+
+        throw new ElasticsearchException("Verify failed using " + jwksStrength.size() + " of " + jwks.size() + " provided JWKs.");
     }
 
     public static JWSVerifier createJwsVerifier(final JWK jwk) throws JOSEException {

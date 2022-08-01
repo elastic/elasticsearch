@@ -9,9 +9,6 @@ your application to {es} 8.3.
 
 See also <<release-highlights>> and <<es-release-notes>>.
 
-coming::[8.3.0-SNAPSHOT]
-
-
 
 [discrete]
 [[breaking-changes-8.3]]

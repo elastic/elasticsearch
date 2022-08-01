@@ -64,6 +64,7 @@ import org.elasticsearch.discovery.TransportAddressConnector;
 import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.threadpool.Scheduler;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.NodeDisconnectedException;
 import org.elasticsearch.transport.TransportRequest;
@@ -83,6 +84,7 @@ import java.util.Locale;
 import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
@@ -173,6 +175,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
     private JoinHelper.JoinAccumulator joinAccumulator;
     private Optional<CoordinatorPublication> currentPublication = Optional.empty();
     private final NodeHealthService nodeHealthService;
+    private final List<PeerFinderListener> peerFinderListeners;
 
     /**
      * @param nodeName The name of the node, used to name the {@link java.util.concurrent.ExecutorService} of the {@link SeedHostsResolver}.
@@ -294,6 +297,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             joinHelper::logLastFailedJoinAttempt
         );
         this.nodeHealthService = nodeHealthService;
+        this.peerFinderListeners = new CopyOnWriteArrayList<>();
+        this.peerFinderListeners.add(clusterBootstrapService);
     }
 
     /**
@@ -396,8 +401,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
     }
 
     private void onClusterStateApplied() {
-        assert Thread.currentThread().getName().contains('[' + ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME + ']')
-            || Thread.currentThread().getName().startsWith("TEST-") : Thread.currentThread().getName();
+        assert ThreadPool.assertCurrentThreadPool(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME);
         if (getMode() != Mode.CANDIDATE) {
             joinHelper.onClusterStateApplied();
         }
@@ -1515,6 +1519,10 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         return joinValidationService.isIdle();
     }
 
+    public void addPeerFinderListener(PeerFinderListener peerFinderListener) {
+        this.peerFinderListeners.add(peerFinderListener);
+    }
+
     public enum Mode {
         CANDIDATE,
         LEADER,
@@ -1570,8 +1578,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                     }
                 }
             }
-
-            clusterBootstrapService.onFoundPeersUpdated();
+            peerFinderListeners.forEach(PeerFinderListener::onFoundPeersUpdated);
         }
     }
 
@@ -1936,5 +1943,9 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                 new ActionListenerResponseHandler<>(wrapWithMutex(responseActionListener), in -> Empty.INSTANCE, Names.CLUSTER_COORDINATION)
             );
         }
+    }
+
+    public interface PeerFinderListener {
+        void onFoundPeersUpdated();
     }
 }

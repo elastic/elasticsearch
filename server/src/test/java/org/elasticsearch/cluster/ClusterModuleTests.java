@@ -44,6 +44,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.plugins.ClusterPlugin;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 
 import java.util.Arrays;
@@ -66,7 +67,8 @@ public class ClusterModuleTests extends ModuleTestCase {
         clusterService = new ClusterService(
             Settings.EMPTY,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            null
+            null,
+            (TaskManager) null
         );
     }
 

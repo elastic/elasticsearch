@@ -6,6 +6,6 @@
 # Side Public License, v 1.
 #
 
-# subclass of AbstractKeywordDocValuesField
+# subclass of BaseKeywordDocValuesField
 class org.elasticsearch.xpack.constantkeyword.ConstantKeywordDocValuesField @dynamic_type {
 }

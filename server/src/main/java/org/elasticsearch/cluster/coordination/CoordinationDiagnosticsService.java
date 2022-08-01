@@ -661,7 +661,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
         Map<DiscoveryNode, Scheduler.Cancellable> cancellables = new ConcurrentHashMap<>();
         /*
          * Assignment of clusterFormationInfoTasks must be done before the call to beginPollingClusterFormationInfo because it is used
-         * asynchronously by rescheduleFetchConsumer, called from beginPollingClusterFormationInfo.
+         * asynchronously by rescheduleClusterFormationFetchConsumer, called from beginPollingClusterFormationInfo.
          */
         clusterFormationInfoTasks = cancellables;
         clusterFormationResponses = responses;
@@ -688,7 +688,9 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                     masterEligibleNode,
                     fetchClusterFormationInfo(
                         masterEligibleNode,
-                        responseConsumer.andThen(rescheduleFetchConsumer(masterEligibleNode, responseConsumer, cancellables))
+                        responseConsumer.andThen(
+                            rescheduleClusterFormationFetchConsumer(masterEligibleNode, responseConsumer, cancellables)
+                        )
                     )
                 );
             } catch (EsRejectedExecutionException e) {
@@ -702,14 +704,14 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
     }
 
     /**
-     * This wraps the responseConsumer in a Consumer that will run rescheduleFetchConsumer() after responseConsumer has
+     * This wraps the responseConsumer in a Consumer that will run rescheduleClusterFormationFetchConsumer() after responseConsumer has
      * completed, adding the resulting Cancellable to cancellableConsumer.
      * @param masterEligibleNode The node being polled
      * @param responseConsumer The response consumer to be wrapped
      * @param cancellables The Map of Cancellables, one for each node being polled
      * @return
      */
-    private Consumer<CoordinationDiagnosticsService.ClusterFormationStateOrException> rescheduleFetchConsumer(
+    private Consumer<CoordinationDiagnosticsService.ClusterFormationStateOrException> rescheduleClusterFormationFetchConsumer(
         DiscoveryNode masterEligibleNode,
         Consumer<CoordinationDiagnosticsService.ClusterFormationStateOrException> responseConsumer,
         Map<DiscoveryNode, Scheduler.Cancellable> cancellables
@@ -730,15 +732,18 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                 if (cancellables.equals(clusterFormationInfoTasks)) {
                     /*
                      * As mentioned in the comment in cancelPollingClusterFormationInfo(), there is a slim possibility here that we will
-                     * add a task here for a poll that has already been cancelled. But when it completes and runs rescheduleFetchConsumer()
-                     * we will then see that clusterFormationInfoTasks does not equal cancellables, so it will not be run again.
+                     * add a task here for a poll that has already been cancelled. But when it completes and runs
+                     * rescheduleClusterFormationFetchConsumer() we will then see that clusterFormationInfoTasks does not equal
+                     * cancellables, so it will not be run again.
                      */
                     try {
                         cancellables.put(
                             masterEligibleNode,
                             fetchClusterFormationInfo(
                                 masterEligibleNode,
-                                responseConsumer.andThen(rescheduleFetchConsumer(masterEligibleNode, responseConsumer, cancellables))
+                                responseConsumer.andThen(
+                                    rescheduleClusterFormationFetchConsumer(masterEligibleNode, responseConsumer, cancellables)
+                                )
                             )
                         );
                     } catch (EsRejectedExecutionException e) {
@@ -849,7 +854,6 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
      * repeats doing that until cancelPollingRemoteStableMasterHealthIndicatorService() is called. This method
      * exists (rather than being just part of the beginPollingRemoteStableMasterHealthIndicatorService() above) in order to facilitate
      * unit testing.
-     * masterEligibleNodes A collection of all master eligible nodes that may be polled
      * @param responseConsumer A consumer for any results produced for a node by this method
      * @param cancellableReference The Cancellable reference to assign the current Cancellable for this polling attempt
      */
@@ -878,7 +882,6 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
     /**
      * This wraps the responseConsumer in a Consumer that will run rescheduleDiagnosticsFetchConsumer() after responseConsumer has
      * completed, adding the resulting Cancellable to cancellableConsumer.
-     * @param masterEligibleNode The node being polled
      * @param responseConsumer The response consumer to be wrapped
      * @param cancellableReference The Cancellable reference to assign the current Cancellable for this polling attempt
      * @return A wrapped Consumer that will run fetchCoordinationDiagnostics()

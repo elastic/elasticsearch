@@ -37,12 +37,52 @@ class APMJvmOptions {
     /**
      * Contains agent configuration that must always be applied, and cannot be overridden.
      */
-    private static final Map<String, String> STATIC_CONFIG;
+    // tag::noformat
+    private static final Map<String, String> STATIC_CONFIG = Map.of(
+        // Identifies the version of Elasticsearch in the captured trace data.
+        "service_version", Version.CURRENT.toString(),
+
+        // Configures a log file to write to. `_AGENT_HOME_` is a placeholder used
+        // by the agent. Don't disable writing to a log file, as the agent will then
+        // require extra Security Manager permissions when it tries to do something
+        // else, and it's just painful.
+        "log_file", "_AGENT_HOME_/../../logs/apm.log",
+
+        // ES does not use auto-instrumentation.
+        "instrument", "false"
+        );
 
     /**
      * Contains default configuration that will be used unless overridden by explicit configuration.
      */
-    private static final Map<String, String> CONFIG_DEFAULTS;
+    private static final Map<String, String> CONFIG_DEFAULTS = Map.of(
+        // This is used to keep all the errors and transactions of a service
+        // together and is the primary filter in the Elastic APM user interface.
+        //
+        // You can optionally also set `service_node_name`, which is used to
+        // distinguish between different nodes of a service, therefore it should
+        // be unique for each JVM within a service. If not set, data
+        // aggregations will be done based on a container ID (where valid) or on
+        // the reported hostname (automatically discovered or manually
+        // configured through hostname). However, if this node's `node.name` is
+        // set, then that value is used for the `service_node_name`.
+        "service_name", "elasticsearch",
+
+        // An arbitrary string that identifies this deployment environment. For
+        // example, "dev", "staging" or "prod". Can be anything you like, but must
+        // have the same value across different systems in the same deployment
+        // environment.
+        "environment", "dev",
+
+        // Logging configuration. Unless you need detailed logs about what the APM
+        // is doing, leave this value alone.
+        "log_level", "error",
+        "application_packages", "org.elasticsearch,org.apache.lucene",
+        "metrics_interval", "120s",
+        "breakdown_metrics", "false",
+        "central_config", "false"
+        );
+    // end::noformat
 
     /**
      * Lists all APM configuration keys that are not dynamic and must be configured via the config file.
@@ -82,50 +122,6 @@ class APMJvmOptions {
         "use_jaxrs_path_as_transaction_name",
         "verify_server_cert"
     );
-
-    static {
-        STATIC_CONFIG = new HashMap<>();
-
-        // Identifies the version of Elasticsearch in the captured trace data.
-        STATIC_CONFIG.put("service_version", Version.CURRENT.toString());
-
-        // Configures a log file to write to. `_AGENT_HOME_` is a placeholder used
-        // by the agent. Don't disable writing to a log file, as the agent will then
-        // require extra Security Manager permissions when it tries to do something
-        // else, and it's just painful.
-        STATIC_CONFIG.put("log_file", "_AGENT_HOME_/../../logs/apm.log");
-
-        // ES does not use auto-instrumentation.
-        STATIC_CONFIG.put("instrument", "false");
-
-        CONFIG_DEFAULTS = new HashMap<>();
-
-        // This is used to keep all the errors and transactions of a service
-        // together and is the primary filter in the Elastic APM user interface.
-        //
-        // You can optionally also set `service_node_name`, which is used to
-        // distinguish between different nodes of a service, therefore it should
-        // be unique for each JVM within a service. If not set, data
-        // aggregations will be done based on a container ID (where valid) or on
-        // the reported hostname (automatically discovered or manually
-        // configured through hostname). However, if this node's `node.name` is
-        // set, then that value is used for the `service_node_name`.
-        CONFIG_DEFAULTS.put("service_name", "elasticsearch");
-
-        // An arbitrary string that identifies this deployment environment. For
-        // example, "dev", "staging" or "prod". Can be anything you like, but must
-        // have the same value across different systems in the same deployment
-        // environment.
-        CONFIG_DEFAULTS.put("environment", "dev");
-
-        // Logging configuration. Unless you need detailed logs about what the APM
-        // is doing, leave this value alone.
-        CONFIG_DEFAULTS.put("log_level", "error");
-        CONFIG_DEFAULTS.put("application_packages", "org.elasticsearch,org.apache.lucene");
-        CONFIG_DEFAULTS.put("metrics_interval", "120s");
-        CONFIG_DEFAULTS.put("breakdown_metrics", "false");
-        CONFIG_DEFAULTS.put("central_config", "false");
-    }
 
     /**
      * This method works out if APM tracing is enabled, and if so, prepares a temporary config file

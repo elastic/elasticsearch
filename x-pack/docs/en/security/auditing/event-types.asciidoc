@@ -820,7 +820,7 @@ a `name` or `expiration`.
 The object for a bulk API key update will differ in that it will not
 include `name`, `owned_by_authenticated_user`, or `user`. Instead, it
 may include `metadata` and `role_descriptors`, which have the same
-schemas as the fields in the `api_key` config object above.
+schemas as the fields in the `apikey` config object above.
 
 `service_token`       ::   An object like:
 +

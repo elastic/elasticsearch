@@ -38,7 +38,7 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
 
     public static final ConstructingObjectParser<MountSearchableSnapshotRequest, RestRequest> PARSER = new ConstructingObjectParser<>(
         "mount_searchable_snapshot",
-        true,
+        false,
         (a, request) -> new MountSearchableSnapshotRequest(
             Objects.requireNonNullElse((String) a[1], (String) a[0]),
             Objects.requireNonNull(request.param("repository")),
@@ -56,6 +56,15 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
     private static final ParseField INDEX_SETTINGS_FIELD = new ParseField("index_settings");
     private static final ParseField IGNORE_INDEX_SETTINGS_FIELD = new ParseField("ignore_index_settings");
 
+    /**
+     * This field only exists to be silently ignored when the body of a Mount API request contains a "ignored_index_settings" instead of
+     * "ignore_index_settings" (note the missing 'd'). We need to silently ignores this field instead of rejecting the request because the
+     * High Level REST Client uses the wrong field name. See https://github.com/elastic/elasticsearch/issues/75982.
+     * TODO: remove in 9.0.
+     */
+    @Deprecated
+    private static final ParseField IGNORED_INDEX_SETTINGS_FIELD = new ParseField("ignored_index_settings");
+
     static {
         PARSER.declareField(constructorArg(), XContentParser::text, INDEX_FIELD, ObjectParser.ValueType.STRING);
         PARSER.declareField(optionalConstructorArg(), XContentParser::text, RENAMED_INDEX_FIELD, ObjectParser.ValueType.STRING);
@@ -66,6 +75,10 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
             IGNORE_INDEX_SETTINGS_FIELD,
             ObjectParser.ValueType.STRING_ARRAY
         );
+        PARSER.declareField(optionalConstructorArg(), (p, c) -> {
+            p.skipChildren();
+            return Strings.EMPTY_ARRAY;
+        }, IGNORED_INDEX_SETTINGS_FIELD, ObjectParser.ValueType.STRING_ARRAY);
     }
 
     /**

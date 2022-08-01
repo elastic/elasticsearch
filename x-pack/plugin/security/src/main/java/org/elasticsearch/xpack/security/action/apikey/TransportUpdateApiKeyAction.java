@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 
+import java.util.Map;
 import java.util.Set;
 
 public final class TransportUpdateApiKeyAction extends TransportBaseUpdateApiKeyAction<UpdateApiKeyRequest, UpdateApiKeyResponse> {
@@ -60,31 +61,34 @@ public final class TransportUpdateApiKeyAction extends TransportBaseUpdateApiKey
     }
 
     private UpdateApiKeyResponse toSingleResponse(final String apiKeyId, final BulkUpdateApiKeyResponse response) throws Exception {
+        if (response.getTotalResultCount() != 1) {
+            throw new IllegalStateException(
+                "single result required for single API key update but result count was [" + response.getTotalResultCount() + "]"
+            );
+        }
         if (response.getErrorDetails().isEmpty() == false) {
-            if (false == (response.getErrorDetails().size() == 1
-                && response.getErrorDetails().containsKey(apiKeyId)
-                && response.getUpdated().isEmpty()
-                && response.getNoops().isEmpty())) {
-                singleMatchingResponseRequiredException(apiKeyId);
+            final Map.Entry<String, Exception> errorEntry = response.getErrorDetails().entrySet().iterator().next();
+            if (errorEntry.getKey().equals(apiKeyId) == false) {
+                throwIllegalStateExceptionOnIdMismatch(apiKeyId, errorEntry.getKey());
             }
             throw response.getErrorDetails().values().iterator().next();
         } else if (response.getUpdated().isEmpty() == false) {
-            if (false == (response.getUpdated().size() == 1
-                && response.getUpdated().get(0).equals(apiKeyId)
-                && response.getNoops().isEmpty())) {
-                singleMatchingResponseRequiredException(apiKeyId);
+            final String updatedId = response.getUpdated().get(0);
+            if (updatedId.equals(apiKeyId) == false) {
+                throwIllegalStateExceptionOnIdMismatch(apiKeyId, updatedId);
             }
             return new UpdateApiKeyResponse(true);
         } else {
-            if (false == (response.getNoops().size() == 1 && response.getNoops().get(0).equals(apiKeyId))) {
-                singleMatchingResponseRequiredException(apiKeyId);
+            final String noopId = response.getNoops().get(0);
+            if (noopId.equals(apiKeyId) == false) {
+                throwIllegalStateExceptionOnIdMismatch(apiKeyId, noopId);
             }
             return new UpdateApiKeyResponse(false);
         }
     }
 
-    private void singleMatchingResponseRequiredException(final String apiKeyId) {
-        final String message = "single API key update must provide single response matching requested ID [" + apiKeyId + "]";
+    private void throwIllegalStateExceptionOnIdMismatch(final String requestId, final String responseId) {
+        final String message = "response ID [" + responseId + "] does not match request ID [" + requestId + "] for single API key update";
         assert false : message;
         throw new IllegalStateException(message);
     }

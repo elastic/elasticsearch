@@ -1622,7 +1622,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final List<String> allIds = Stream.concat(response.getUpdated().stream(), response.getNoops().stream()).toList();
         assertThat(allIds, containsInAnyOrder(apiKeyIds.toArray()));
 
-        // Check not found IDs reported once for duplicates
+        // Check not found errors reported for all unique IDs
         final List<String> notFoundIds = randomList(
             1,
             5,
@@ -2554,14 +2554,13 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertThat(ese, throwableWithMessage(containsString("manage_api_key,manage_security,all]")));
     }
 
-    @SuppressWarnings("unchecked")
     private static <T extends Throwable> T expectThrowsWithUnwrappedExecutionException(Class<T> expectedType, ThrowingRunnable runnable) {
         final var ex = expectThrowsAnyOf(List.of(expectedType, ExecutionException.class), runnable);
         if (ex instanceof ExecutionException) {
             assertThat(ex.getCause(), instanceOf(expectedType));
-            return (T) ex.getCause();
+            return expectedType.cast(ex.getCause());
         } else {
-            return (T) ex;
+            return expectedType.cast(ex);
         }
     }
 }

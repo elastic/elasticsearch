@@ -1073,18 +1073,21 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     maxNode.removeShard(shard);
                     long shardSize = allocation.clusterInfo().getShardSize(shard, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
 
-                    if (decision.type() == Type.YES) {
-                        /* only allocate on the cluster if we are not throttled */
-                        logger.debug("Relocate [{}] from [{}] to [{}]", shard, maxNode.getNodeId(), minNode.getNodeId());
-                        minNode.addShard(routingNodes.relocateShard(shard, minNode.getNodeId(), shardSize, allocation.changes()).v1());
-                        return true;
-                    } else {
-                        /* allocate on the model even if throttled */
-                        logger.debug("Simulate relocation of [{}] from [{}] to [{}]", shard, maxNode.getNodeId(), minNode.getNodeId());
-                        assert decision.type() == Type.THROTTLE;
-                        minNode.addShard(shard.relocate(minNode.getNodeId(), shardSize));
-                        return false;
-                    }
+                    assert decision.type() == Type.YES || decision.type() == Type.THROTTLE : decision.type();
+                    logger.debug(
+                        "decision [{}]: relocate [{}] from [{}] to [{}]",
+                        decision.type(),
+                        shard,
+                        maxNode.getNodeId(),
+                        minNode.getNodeId()
+                    );
+                    minNode.addShard(
+                        decision.type() == Type.YES
+                            /* only allocate on the cluster if we are not throttled */
+                            ? routingNodes.relocateShard(shard, minNode.getNodeId(), shardSize, allocation.changes()).v1()
+                            : shard.relocate(minNode.getNodeId(), shardSize)
+                    );
+                    return true;
                 }
             }
             logger.trace("No shards of [{}] can relocate from [{}] to [{}]", idx, maxNode.getNodeId(), minNode.getNodeId());

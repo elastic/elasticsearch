@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.core.ml.inference.assignment;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStats;
 
@@ -47,6 +48,7 @@ public class AssignmentStatsTests extends AbstractWireSerializingTestCase<Assign
             randomBoolean() ? null : randomIntBetween(1, 8),
             randomBoolean() ? null : randomIntBetween(1, 8),
             randomBoolean() ? null : randomIntBetween(1, 10000),
+            randomBoolean() ? null : ByteSizeValue.ofBytes(randomLongBetween(1, 10000000)),
             Instant.now(),
             nodeStatsList
         );
@@ -71,6 +73,7 @@ public class AssignmentStatsTests extends AbstractWireSerializingTestCase<Assign
             avgInferenceTime,
             randomIntBetween(0, 100),
             randomIntBetween(0, 100),
+            randomLongBetween(0, 100),
             randomIntBetween(0, 100),
             randomIntBetween(0, 100),
             lastAccess,
@@ -79,7 +82,8 @@ public class AssignmentStatsTests extends AbstractWireSerializingTestCase<Assign
             randomIntBetween(1, 16),
             randomIntBetween(0, 100),
             randomIntBetween(0, 100),
-            avgInferenceTimeLastPeriod
+            avgInferenceTimeLastPeriod,
+            randomLongBetween(0, 100)
         );
     }
 
@@ -91,6 +95,7 @@ public class AssignmentStatsTests extends AbstractWireSerializingTestCase<Assign
             randomBoolean() ? null : randomIntBetween(1, 8),
             randomBoolean() ? null : randomIntBetween(1, 8),
             randomBoolean() ? null : randomIntBetween(1, 10000),
+            randomBoolean() ? null : ByteSizeValue.ofBytes(randomLongBetween(1, 1000000)),
             Instant.now(),
             List.of(
                 AssignmentStats.NodeStats.forStartedState(
@@ -99,6 +104,7 @@ public class AssignmentStatsTests extends AbstractWireSerializingTestCase<Assign
                     randomDoubleBetween(0.0, 100.0, true),
                     randomIntBetween(1, 10),
                     5,
+                    4L,
                     12,
                     3,
                     Instant.now(),
@@ -107,7 +113,8 @@ public class AssignmentStatsTests extends AbstractWireSerializingTestCase<Assign
                     randomIntBetween(1, 2),
                     randomNonNegativeLong(),
                     randomNonNegativeLong(),
-                    null
+                    null,
+                    1L
                 ),
                 AssignmentStats.NodeStats.forStartedState(
                     new DiscoveryNode("node_started_2", buildNewFakeTransportAddress(), Version.CURRENT),
@@ -115,6 +122,7 @@ public class AssignmentStatsTests extends AbstractWireSerializingTestCase<Assign
                     randomDoubleBetween(0.0, 100.0, true),
                     randomIntBetween(1, 10),
                     15,
+                    3L,
                     4,
                     2,
                     Instant.now(),
@@ -123,7 +131,8 @@ public class AssignmentStatsTests extends AbstractWireSerializingTestCase<Assign
                     randomIntBetween(1, 2),
                     randomNonNegativeLong(),
                     randomNonNegativeLong(),
-                    null
+                    null,
+                    1L
                 ),
                 AssignmentStats.NodeStats.forNotStartedState(
                     new DiscoveryNode("node_not_started_3", buildNewFakeTransportAddress(), Version.CURRENT),
@@ -146,6 +155,7 @@ public class AssignmentStatsTests extends AbstractWireSerializingTestCase<Assign
             randomBoolean() ? null : randomIntBetween(1, 8),
             randomBoolean() ? null : randomIntBetween(1, 8),
             randomBoolean() ? null : randomIntBetween(1, 10000),
+            randomBoolean() ? null : ByteSizeValue.ofBytes(randomLongBetween(1, 1000000)),
             Instant.now(),
             List.of()
         );
@@ -163,6 +173,7 @@ public class AssignmentStatsTests extends AbstractWireSerializingTestCase<Assign
             randomBoolean() ? null : randomIntBetween(1, 8),
             randomBoolean() ? null : randomIntBetween(1, 8),
             randomBoolean() ? null : randomIntBetween(1, 10000),
+            randomBoolean() ? null : ByteSizeValue.ofBytes(randomLongBetween(1, 1000000)),
             Instant.now(),
             List.of(
                 AssignmentStats.NodeStats.forNotStartedState(

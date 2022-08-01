@@ -9,18 +9,16 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.ImpactArea;
-import org.elasticsearch.health.UserAction;
 
 import java.util.Collection;
 import java.util.List;
-
-import static org.elasticsearch.health.ServerHealthComponents.CLUSTER_COORDINATION;
 
 /**
  * This indicator reports the health of master stability.
@@ -37,12 +35,12 @@ import static org.elasticsearch.health.ServerHealthComponents.CLUSTER_COORDINATI
 public class StableMasterHealthIndicatorService implements HealthIndicatorService {
 
     public static final String NAME = "master_is_stable";
-    private static final String HELP_URL = "https://ela.st/fix-master";
     public static final String GET_HELP_GUIDE = "https://ela.st/getting-help";
-    public static final UserAction CONTACT_SUPPORT_USER_ACTION = new UserAction(
-        new UserAction.Definition(
+    public static final Diagnosis CONTACT_SUPPORT_USER_ACTION = new Diagnosis(
+        new Diagnosis.Definition(
             "contact_support",
-            "The Elasticsearch cluster does not have a stable master node. Get help at " + GET_HELP_GUIDE,
+            "The Elasticsearch cluster does not have a stable master node.",
+            "Get help at " + GET_HELP_GUIDE,
             GET_HELP_GUIDE
         ),
         null
@@ -83,16 +81,6 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
     }
 
     @Override
-    public String component() {
-        return CLUSTER_COORDINATION;
-    }
-
-    @Override
-    public String helpURL() {
-        return HELP_URL;
-    }
-
-    @Override
     public HealthIndicatorResult calculate(boolean explain) {
         CoordinationDiagnosticsService.CoordinationDiagnosticsResult coordinationDiagnosticsResult = coordinationDiagnosticsService
             .diagnoseMasterStability(explain);
@@ -113,8 +101,8 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         HealthStatus status = HealthStatus.fromCoordinationDiagnosticsStatus(coordinationDiagnosticsResult.status());
         HealthIndicatorDetails details = getDetails(coordinationDiagnosticsResult.details(), explain);
         Collection<HealthIndicatorImpact> impacts = status.indicatesHealthProblem() ? UNSTABLE_MASTER_IMPACTS : List.of();
-        List<UserAction> userActions = status.indicatesHealthProblem() ? getContactSupportUserActions(explain) : List.of();
-        return createIndicator(status, coordinationDiagnosticsResult.summary(), details, impacts, userActions);
+        List<Diagnosis> diagnosis = status.indicatesHealthProblem() ? getContactSupportUserActions(explain) : List.of();
+        return createIndicator(status, coordinationDiagnosticsResult.summary(), details, impacts, diagnosis);
     }
 
     /**
@@ -166,11 +154,8 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
                     builder.field("stack_trace", coordinationDiagnosticsDetails.remoteExceptionStackTrace());
                 });
             }
-            if (coordinationDiagnosticsDetails.clusterFormationDescription() != null) {
-                builder.object(
-                    CLUSTER_FORMATION,
-                    xContentBuilder -> { builder.field("description", coordinationDiagnosticsDetails.clusterFormationDescription()); }
-                );
+            if (coordinationDiagnosticsDetails.nodeToClusterFormationDescriptionMap() != null) {
+                builder.field(CLUSTER_FORMATION, coordinationDiagnosticsDetails.nodeToClusterFormationDescriptionMap());
             }
             return builder.endObject();
         };
@@ -181,7 +166,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
      * @param explain If true, the returned list includes a UserAction to contact support, otherwise an empty list
      * @return a single UserAction instructing users to contact support.
      */
-    private List<UserAction> getContactSupportUserActions(boolean explain) {
+    private List<Diagnosis> getContactSupportUserActions(boolean explain) {
         if (explain) {
             return List.of(CONTACT_SUPPORT_USER_ACTION);
         } else {

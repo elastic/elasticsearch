@@ -1,5 +1,6 @@
 Test Suite:
 ===========
+:!compat-mode:
 
 [NOTE]
 .Required settings
@@ -14,6 +15,10 @@ bin/elasticsearch -Enode.attr.testattr=test -Epath.repo=/tmp -Erepositories.url.
 ---------------------
 
 =======================================
+
+Test execution
+---------------
+Please refer to xref:/TESTING.asciidoc#testing-the-rest-layer[this section].
 
 Test file structure
 --------------------

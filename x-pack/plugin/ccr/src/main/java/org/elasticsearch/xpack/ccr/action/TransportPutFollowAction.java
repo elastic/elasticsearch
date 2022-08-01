@@ -316,7 +316,7 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
     }
 
     /**
-     * Given the backing index that the follower is going to follower, the local data stream (if it
+     * Given the backing index that the follower is going to follow, the local data stream (if it
      * exists) and the remote data stream, return the new local data stream for the local cluster
      * (the follower) updated with whichever information is necessary to restore the new
      * soon-to-be-followed index.

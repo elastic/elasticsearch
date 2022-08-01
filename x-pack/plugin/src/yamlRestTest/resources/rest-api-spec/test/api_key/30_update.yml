@@ -565,7 +565,7 @@ teardown:
       security.create_api_key:
         body: >
           {
-            "name": "user1-api-key",
+            "name": "api-key",
             "role_descriptors": {
               "role-a": {
                 "cluster": ["none"],
@@ -582,10 +582,10 @@ teardown:
               "number": 42
             }
           }
-  - match: { name: "user1-api-key" }
+  - match: { name: "api-key" }
   - is_true: id
   - is_true: api_key
-  - set: { id: user1_key_id }
+  - set: { id: api_key_1_id }
   - transform_and_set: { login_creds: "#base64EncodeCredentials(id,api_key)" }
   - match: { encoded: $login_creds }
 
@@ -610,21 +610,21 @@ teardown:
       security.bulk_update_api_keys:
         body: >
           {
-            "ids": ["${user1_key_id}"],
+            "ids": ["${api_key_1_id}"],
             "role_descriptors": {},
             "metadata": {}
           }
   - length: { "noops": 0 }
   - length: { "updated": 1 }
   - match: {
-    "updated.0": "$user1_key_id"
+    "updated.0": "$api_key_1_id"
   }
-  
+
   - do:
       headers:
         Authorization: "Basic YXBpX2tleV91c2VyXzE6eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" # api_key_user_1
       security.get_api_key:
-        id: "$user1_key_id"
+        id: "$api_key_1_id"
         owner: true
   - length: { "api_keys": 1 }
   - match: {
@@ -648,4 +648,3 @@ teardown:
             ]
           }
   - match: { "has_all_requested": true }
-

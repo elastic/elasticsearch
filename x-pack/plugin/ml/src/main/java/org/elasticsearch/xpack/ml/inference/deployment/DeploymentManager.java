@@ -183,7 +183,7 @@ public class DeploymentManager {
                 listener.onFailure(
                     new IllegalArgumentException(
                         format(
-                            "[%s] must be an pytorch model found inference config of kind [%s]",
+                            "[%s] must be a pytorch model; found inference config of kind [%s]",
                             modelConfig.getModelId(),
                             modelConfig.getInferenceConfig().getWriteableName()
                         )

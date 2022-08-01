@@ -718,17 +718,16 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
         private class ImmediateLeaf implements Leaf {
             private final Map<Metric, SortedNumericDocValues> metricDocValues;
-            private Map<Metric, Boolean> dvHasValue;
-
-            private boolean hasValues;
+            private final Set<Metric> metricHasValue = EnumSet.noneOf(Metric.class);
 
             ImmediateLeaf(Map<Metric, SortedNumericDocValues> metricDocValues) {
+                assert metricDocValues.isEmpty() == false : "doc_values for metrics cannot be empty";
                 this.metricDocValues = metricDocValues;
             }
 
             @Override
             public boolean empty() {
-                return metricDocValues.isEmpty();
+                return false;
             }
 
             @Override
@@ -737,25 +736,24 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                 // it is enough to check for the first docValue. However, in the future
                 // we may relax the requirement of all metrics existing. In this case
                 // we should check the doc value for each metric separately
-                dvHasValue = new EnumMap<>(Metric.class);
-                hasValues = false;
+                metricHasValue.clear();
                 for (Map.Entry<Metric, SortedNumericDocValues> e : metricDocValues.entrySet()) {
-                    boolean leafHasValues = e.getValue().advanceExact(docId);
-                    hasValues = hasValues || leafHasValues;
-                    dvHasValue.put(e.getKey(), leafHasValues);
+                    if (e.getValue().advanceExact(docId)) {
+                        metricHasValue.add(e.getKey());
+                    }
                 }
 
-                return hasValues;
+                return metricHasValue.isEmpty() == false;
             }
 
             @Override
             public void write(XContentBuilder b) throws IOException {
-                if (false == hasValues) {
+                if (metricHasValue.isEmpty()) {
                     return;
                 }
                 b.startObject(simpleName);
                 for (Map.Entry<Metric, SortedNumericDocValues> entry : metricDocValues.entrySet()) {
-                    if (dvHasValue.get(entry.getKey())) {
+                    if (metricHasValue.contains(entry.getKey())) {
                         String metricName = entry.getKey().name();
                         long value = entry.getValue().nextValue();
                         if (entry.getKey() == Metric.value_count) {

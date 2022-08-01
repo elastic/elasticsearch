@@ -9,7 +9,7 @@
 package org.elasticsearch.plugin.api;
 
 /**
- * A named plugin component. Components with a name can be registered and fetch under a name given in
+ * A named plugin component. Components with a name can be registered and fetched under a name given in
  * <code>@NamedComponent</code>
  * @see NamedComponent
  */

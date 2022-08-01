@@ -319,11 +319,22 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
      * Returns a built (on demand) routing nodes view of the routing table.
      */
     public RoutingNodes getRoutingNodes() {
-        if (routingNodes != null) {
-            return routingNodes;
+        RoutingNodes r = routingNodes;
+        if (r != null) {
+            return r;
         }
-        routingNodes = RoutingNodes.immutable(routingTable, nodes);
-        return routingNodes;
+        r = buildRoutingNodes();
+        return r;
+    }
+
+    private synchronized RoutingNodes buildRoutingNodes() {
+        RoutingNodes r = routingNodes;
+        if (r != null) {
+            return r;
+        }
+        r = RoutingNodes.immutable(routingTable, nodes);
+        routingNodes = r;
+        return r;
     }
 
     /**

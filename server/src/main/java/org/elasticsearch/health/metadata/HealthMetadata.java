@@ -157,8 +157,6 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
             frozenFloodStageMaxHeadroom.writeTo(out);
             if (out.getVersion().onOrAfter(VERSION_SUPPORTING_HEADROOM_FIELDS)) {
                 highMaxHeadroom.writeTo(out);
-            }
-            if (out.getVersion().onOrAfter(VERSION_SUPPORTING_HEADROOM_FIELDS)) {
                 floodStageMaxHeadroom.writeTo(out);
             }
         }

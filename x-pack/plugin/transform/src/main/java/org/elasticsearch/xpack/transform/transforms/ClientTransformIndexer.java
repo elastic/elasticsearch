@@ -317,9 +317,11 @@ class ClientTransformIndexer extends TransformIndexer {
                 if (org.elasticsearch.ExceptionsHelper.unwrapCause(statsExc) instanceof VersionConflictEngineException) {
                     // this should never happen, but indicates a race condition in state persistence:
                     // - there should be only 1 save persistence at a time
-                    // - this is not a catastrophic failure, if 2 state persistence calls run at the same time, 1 should succeed and update
-                    // seqNoPrimaryTermAndIndex
-                    // - for tests fail(assert), so we can debug the problem
+                    // - there are reasons the seq_id, primary_term changes without user intervention, e.g. an internal
+                    // retry (seq_id) or an unexpected node failure (primary_term), these are rare
+                    // - in case re-get the versions and retry on the next persistence
+                    // - the transform can (extremely unlikely) fail if state persistence fails in a row
+                    // - for tests the number of allowed retries is set to 0 and therefore causes the transform to fail
                     logger.warn(
                         () -> format(
                             "[%s] updating stats of transform failed, unexpected version conflict of internal state, resetting to recover.",

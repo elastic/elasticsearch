@@ -170,6 +170,9 @@ spotless {
   }
 }
 
+tasks.named('forbiddenApisBenchmarks').configure {
+  enabled = false
+}
 
 allprojects {
   tasks.register("checkNoBwc") {

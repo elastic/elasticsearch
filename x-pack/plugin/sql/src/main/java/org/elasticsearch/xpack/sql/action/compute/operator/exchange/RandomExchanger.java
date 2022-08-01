@@ -8,11 +8,11 @@
 package org.elasticsearch.xpack.sql.action.compute.operator.exchange;
 
 import org.elasticsearch.action.support.ListenableActionFuture;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.xpack.sql.action.compute.data.Page;
 import org.elasticsearch.xpack.sql.action.compute.operator.Operator;
 
 import java.util.List;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Consumer;
 
 /**
@@ -28,7 +28,7 @@ public class RandomExchanger implements Exchanger {
 
     @Override
     public void accept(Page page) {
-        int randomIndex = ThreadLocalRandom.current().nextInt(buffers.size());
+        int randomIndex = Randomness.get().nextInt(buffers.size());
         buffers.get(randomIndex).accept(page);
     }
 

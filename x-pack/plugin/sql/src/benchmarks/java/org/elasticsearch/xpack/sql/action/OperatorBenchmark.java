@@ -31,7 +31,7 @@ import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.xpack.sql.action.compute.data.Block;
 import org.elasticsearch.xpack.sql.action.compute.data.LongBlock;
 import org.elasticsearch.xpack.sql.action.compute.data.Page;
-import org.elasticsearch.xpack.sql.action.compute.lucene.LuceneCollector;
+import org.elasticsearch.xpack.sql.action.compute.lucene.LuceneSourceOperator;
 import org.elasticsearch.xpack.sql.action.compute.lucene.NumericDocValuesExtractor;
 import org.elasticsearch.xpack.sql.action.compute.operator.Driver;
 import org.elasticsearch.xpack.sql.action.compute.operator.LongGroupingOperator;
@@ -39,10 +39,6 @@ import org.elasticsearch.xpack.sql.action.compute.operator.LongMaxOperator;
 import org.elasticsearch.xpack.sql.action.compute.operator.LongTransformerOperator;
 import org.elasticsearch.xpack.sql.action.compute.operator.Operator;
 import org.elasticsearch.xpack.sql.action.compute.operator.PageConsumerOperator;
-import org.elasticsearch.xpack.sql.action.compute.operator.exchange.ExchangeSink;
-import org.elasticsearch.xpack.sql.action.compute.operator.exchange.ExchangeSource;
-import org.elasticsearch.xpack.sql.action.compute.operator.exchange.ExchangeSourceOperator;
-import org.elasticsearch.xpack.sql.action.compute.operator.exchange.PassthroughExchanger;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -57,7 +53,6 @@ import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Warmup;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -277,31 +272,14 @@ public class OperatorBenchmark {
         return simpleGroupCollector.getVal();
     }
 
-    private int runWithDriver(int pageSize, Operator... operators) throws InterruptedException {
-        IndexSearcher searcher = new IndexSearcher(indexReader);
-        ExchangeSource luceneExchangeSource = new ExchangeSource();
-        LuceneCollector luceneCollector = new LuceneCollector(
-            new ExchangeSink(new PassthroughExchanger(luceneExchangeSource, 100), sink -> luceneExchangeSource.finish()),
-            pageSize
-        );
-        Thread t = new Thread(() -> {
-            try {
-                searcher.search(new MatchAllDocsQuery(), luceneCollector);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-            luceneCollector.finish();
-        });
-        t.start();
+    private int runWithDriver(int pageSize, Operator... operators) {
         AtomicInteger rowCount = new AtomicInteger();
-
         List<Operator> operatorList = new ArrayList<>();
-        operatorList.add(new ExchangeSourceOperator(luceneExchangeSource));
+        operatorList.add(new LuceneSourceOperator(indexReader, new MatchAllDocsQuery(), pageSize));
         operatorList.addAll(List.of(operators));
         operatorList.add(new PageConsumerOperator(page -> rowCount.addAndGet(page.getPositionCount())));
         Driver driver = new Driver(operatorList, () -> {});
         driver.run();
-        t.join();
         return rowCount.get();
     }
 
@@ -343,43 +321,4 @@ public class OperatorBenchmark {
             new LongTransformerOperator(0, i -> i + 1) // adds +1 to group number (which start with 0) to get group count
         );
     }
-
-    // public long testOperatorsWithLuceneParallel() throws InterruptedException {
-    // IndexSearcher searcher = new IndexSearcher(indexReader);
-    // LucenePageCollector pageCollector = new LucenePageCollector(ByteSizeValue.ofKb(16).bytesAsInt());
-    // Thread t = new Thread(() -> {
-    // try {
-    // searcher.search(new MatchAllDocsQuery(), pageCollector);
-    // } catch (IOException e) {
-    // throw new UncheckedIOException(e);
-    // }
-    // pageCollector.finish();
-    // });
-    // t.start();
-    // AtomicInteger rowCount = new AtomicInteger();
-    //
-    // // implements cardinality on value field
-    // List<Operator> operatorList = new ArrayList<>();
-    // operatorList.add(pageCollector);
-    // operatorList.addAll(List.of(new NumericDocValuesExtractor(indexReader, 0, 1, "value"),
-    // new LongGroupingOperator(2, BigArrays.NON_RECYCLING_INSTANCE),
-    // new LongMaxOperator(3), // returns largest group number
-    // new LongTransformer(0, i -> i + 1))); // adds +1 to group number (which start with 0) to get group count));
-    // operatorList.add(new PageConsumerOperator(page -> rowCount.addAndGet(page.getPositionCount())));
-    //
-    // Driver driver1 = new Driver(operatorList, () -> {
-    // });
-    // Thread t1 = new Thread(driver1::run);
-    //
-    // Driver driver2 = new Driver(operatorList, () -> {
-    // });
-    // Thread t2 = new Thread(driver2::run);
-    //
-    // t1.start();
-    // t2.start();
-    // t.join();
-    // t1.join();
-    // t2.join();
-    // return rowCount.get();
-    // }
 }

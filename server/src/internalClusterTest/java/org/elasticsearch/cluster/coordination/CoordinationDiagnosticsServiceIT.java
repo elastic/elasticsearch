@@ -114,8 +114,8 @@ public class CoordinationDiagnosticsServiceIT extends ESIntegTestCase {
     public void testBeginPollingRemoteStableMasterHealthIndicatorService() throws Exception {
         /*
          * This test picks a node that is not elected master, and then blocks cluster state processing on it. The reason is so that we
-         * can call CoordinationDiagnosticsService#beginPollingClusterFormationInfo without a cluster changed event resulting in the
-         * values we pass in being overwritten.
+         * can call CoordinationDiagnosticsService#beginPollingRemoteStableMasterHealthIndicatorService without a cluster changed event
+         * resulting in the values we pass in being overwritten.
          */
         final List<String> nodeNames = internalCluster().startNodes(3);
 
@@ -165,7 +165,9 @@ public class CoordinationDiagnosticsServiceIT extends ESIntegTestCase {
          * In this test we have three master-eligible nodes. We make it so that the two non-active ones cannot communicate, and then we
          * stop the active master node. Now there is no quorum so a new master cannot be elected. We set the master lookup threshold very
          * low on the data nodes, so when we run the master stability check on each of the master nodes, it will see that there has been no
-         * master recently and because there is no quorum, so it returns a RED status.
+         * master recently because there is no quorum, so it returns a RED status. In this test we then check the value of
+         * remoteCoordinationDiagnosisResult on each of the non-master-eligible nodes to make sure that they have reached out to one of
+         * the master-eligible nodes to get the expected result.
          */
         final List<String> masterNodes = internalCluster().startMasterOnlyNodes(
             3,

@@ -1265,6 +1265,12 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             builder.endObject(); // apikey
         }
 
+        private void withRequestBody(final XContentBuilder builder, final UpdateApiKeyRequest updateApiKeyRequest) throws IOException {
+            builder.startObject("apikey").field("id", updateApiKeyRequest.getId());
+            withBaseUpdateApiKeyFields(builder, updateApiKeyRequest);
+            builder.endObject();
+        }
+
         private void withRequestBody(final XContentBuilder builder, final BulkUpdateApiKeyRequest bulkUpdateApiKeyRequest)
             throws IOException {
             builder.startObject("apikeys").stringListField("ids", bulkUpdateApiKeyRequest.getIds());
@@ -1286,12 +1292,6 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 // because it replaces any metadata previously associated with the API key
                 builder.field("metadata", baseUpdateApiKeyRequest.getMetadata());
             }
-        }
-
-        private void withRequestBody(final XContentBuilder builder, final UpdateApiKeyRequest updateApiKeyRequest) throws IOException {
-            builder.startObject("apikey").field("id", updateApiKeyRequest.getId());
-            withBaseUpdateApiKeyFields(builder, updateApiKeyRequest);
-            builder.endObject();
         }
 
         private void withRoleDescriptor(XContentBuilder builder, RoleDescriptor roleDescriptor) throws IOException {

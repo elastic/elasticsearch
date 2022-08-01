@@ -345,7 +345,7 @@ public class DiskThresholdSettings {
             }
 
             // For the comparisons, we need to mind that headroom values can default to -1.
-            if (highHeadroom.compareTo(lowHeadroom) > 0 && lowHeadroom.getBytes() > 0) {
+            if (highHeadroom.compareTo(lowHeadroom) > 0 && lowHeadroom.getBytes() >= 0) {
                 throw new IllegalArgumentException(
                     "high disk max headroom ["
                         + highHeadroom.getStringRep()
@@ -354,7 +354,7 @@ public class DiskThresholdSettings {
                         + "]"
                 );
             }
-            if (floodHeadroom.compareTo(highHeadroom) > 0 && highHeadroom.getBytes() > 0) {
+            if (floodHeadroom.compareTo(highHeadroom) > 0 && highHeadroom.getBytes() >= 0) {
                 throw new IllegalArgumentException(
                     "flood disk max headroom ["
                         + floodHeadroom.getStringRep()

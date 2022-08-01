@@ -67,7 +67,7 @@ public class ZeroShotClassificationProcessor extends NlpTask.Processor {
     public NlpTask.RequestBuilder getRequestBuilder(NlpConfig nlpConfig) {
         final String[] labelsValue;
         if (nlpConfig instanceof ZeroShotClassificationConfig zeroShotConfig) {
-            labelsValue = zeroShotConfig.getLabels().toArray(new String[0]);
+            labelsValue = zeroShotConfig.getLabels().orElse(List.of()).toArray(new String[0]);
         } else {
             labelsValue = this.labels;
         }
@@ -83,7 +83,7 @@ public class ZeroShotClassificationProcessor extends NlpTask.Processor {
         final boolean isMultiLabelValue;
         final String resultsFieldValue;
         if (nlpConfig instanceof ZeroShotClassificationConfig zeroShotConfig) {
-            labelsValue = zeroShotConfig.getLabels().toArray(new String[0]);
+            labelsValue = zeroShotConfig.getLabels().orElse(List.of()).toArray(new String[0]);
             isMultiLabelValue = zeroShotConfig.isMultiLabel();
             resultsFieldValue = zeroShotConfig.getResultsField();
         } else {

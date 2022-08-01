@@ -41,6 +41,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.coordination.AbstractCoordinatorTestCase.Cluster.EXTREME_DELAY_VARIABILITY;
@@ -1013,6 +1014,43 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
                 cluster.stabilise();
                 assertThat(nodeToClusterFormationStateMap.size(), equalTo(0));  // Everything was cancelled
             });
+        }
+    }
+
+    public void testBeginPollingRemoteStableMasterHealthIndicatorServiceCancel() {
+        /*
+         * This test sets up a 5-node cluster (3 master eligible). We call beginPollingRemoteStableMasterHealthIndicatorService() on each
+         * non-master-eligible node. But we immediately call cancel, which is what will happen in practice most often since usually the
+         * master becomes null and then is immediately non-null when a new master is elected. This means that polling will not be started
+         *  since there is a 10-second delay, and we expect no results.
+         */
+        try (Cluster cluster = new Cluster(3, true, Settings.EMPTY)) {
+            createAndAddNonMasterNode(cluster);
+            createAndAddNonMasterNode(cluster);
+            cluster.runRandomly();
+            cluster.stabilise();
+            List<DiscoveryNode> masterNodes = cluster.clusterNodes.stream()
+                .map(Cluster.ClusterNode::getLocalNode)
+                .filter(DiscoveryNode::isMasterNode)
+                .toList();
+            cluster.clusterNodes.stream().filter(node -> node.getLocalNode().isMasterNode() == false).forEach(node -> {
+                List<CoordinationDiagnosticsService.RemoteMasterHealthResult> healthResults = new ArrayList<>();
+                AtomicReference<Scheduler.Cancellable> cancellableReference = new AtomicReference<>();
+                node.coordinationDiagnosticsService.beginPollingRemoteStableMasterHealthIndicatorService(
+                    healthResults::add,
+                    cancellableReference
+                );
+                cancellableReference.get().cancel();
+                cluster.runRandomly(false, true, EXTREME_DELAY_VARIABILITY);
+                cluster.stabilise();
+
+                /*
+                 * The cluster has now run normally for some period of time, but cancel() was called before polling began, so we expect
+                 * no results:
+                 */
+                assertThat(healthResults.size(), equalTo(0));
+            });
+
         }
     }
 

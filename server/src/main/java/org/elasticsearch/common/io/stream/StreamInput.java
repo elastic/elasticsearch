@@ -738,8 +738,12 @@ public abstract class StreamInput extends InputStream {
             case 6 -> readByteArray();
             case 7 -> readArrayList();
             case 8 -> readArray();
-            case 9 -> version.onOrAfter(Version.V_8_4_0) ? readObjectKeyLinkedHashMap() : readLinkedHashMap();
-            case 10 -> version.onOrAfter(Version.V_8_4_0) ? readObjectKeyHashMap() : readHashMap();
+            case 9 -> version.onOrAfter(Version.V_8_4_0)
+                ? readOrderedMap(StreamInput::readGenericValue, StreamInput::readGenericValue)
+                : readOrderedMap(StreamInput::readString, StreamInput::readGenericValue);
+            case 10 -> version.onOrAfter(Version.V_8_4_0)
+                ? readMap(StreamInput::readGenericValue, StreamInput::readGenericValue)
+                : readMap(StreamInput::readString, StreamInput::readGenericValue);
             case 11 -> readByte();
             case 12 -> readDate();
             case 13 ->
@@ -815,54 +819,6 @@ public abstract class StreamInput extends InputStream {
             list8[i] = readGenericValue();
         }
         return list8;
-    }
-
-    private Map<String, Object> readLinkedHashMap() throws IOException {
-        int size9 = readArraySize();
-        if (size9 == 0) {
-            return Collections.emptyMap();
-        }
-        Map<String, Object> map9 = Maps.newLinkedHashMapWithExpectedSize(size9);
-        for (int i = 0; i < size9; i++) {
-            map9.put(readString(), readGenericValue());
-        }
-        return map9;
-    }
-
-    private Map<Object, Object> readObjectKeyLinkedHashMap() throws IOException {
-        int size9 = readArraySize();
-        if (size9 == 0) {
-            return Collections.emptyMap();
-        }
-        Map<Object, Object> map9 = Maps.newLinkedHashMapWithExpectedSize(size9);
-        for (int i = 0; i < size9; i++) {
-            map9.put(readGenericValue(), readGenericValue());
-        }
-        return map9;
-    }
-
-    private Map<String, Object> readHashMap() throws IOException {
-        int size10 = readArraySize();
-        if (size10 == 0) {
-            return Collections.emptyMap();
-        }
-        Map<String, Object> map10 = Maps.newMapWithExpectedSize(size10);
-        for (int i = 0; i < size10; i++) {
-            map10.put(readString(), readGenericValue());
-        }
-        return map10;
-    }
-
-    private Map<Object, Object> readObjectKeyHashMap() throws IOException {
-        int size10 = readArraySize();
-        if (size10 == 0) {
-            return Collections.emptyMap();
-        }
-        Map<Object, Object> map10 = Maps.newMapWithExpectedSize(size10);
-        for (int i = 0; i < size10; i++) {
-            map10.put(readGenericValue(), readGenericValue());
-        }
-        return map10;
     }
 
     private Date readDate() throws IOException {

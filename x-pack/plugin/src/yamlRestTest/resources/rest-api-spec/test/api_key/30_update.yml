@@ -376,6 +376,26 @@ teardown:
   - transform_and_set: { login_creds_1: "#base64EncodeCredentials(id,api_key)" }
   - match: { encoded: $login_creds_1 }
 
+  - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV91c2VyXzE6eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" # api_key_user_1
+      security.create_api_key:
+        body: >
+          {
+            "name": "api-key",
+            "role_descriptors": {
+              "role-a": {
+                "cluster": ["monitor"]
+              }
+            }
+          }
+  - match: { name: "api-key" }
+  - is_true: id
+  - is_true: api_key
+  - set: { id: api_key_2_id }
+  - transform_and_set: { login_creds_2: "#base64EncodeCredentials(id,api_key)" }
+  - match: { encoded: $login_creds_2 }
+
   # Check API keys do not have requested privileges
   - do:
       headers:
@@ -459,9 +479,9 @@ teardown:
         Authorization: "Basic YXBpX2tleV91c2VyXzE6eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" # api_key_user_1
       security.get_api_key:
         owner: true
-  - length: { "api_keys": 1 }
+  - length: { "api_keys": 2 }
   - match: {
-    "api_keys.0.metadata": {
+    "api_keys.1.metadata": {
       "letter": "a",
       "number": 42
     }

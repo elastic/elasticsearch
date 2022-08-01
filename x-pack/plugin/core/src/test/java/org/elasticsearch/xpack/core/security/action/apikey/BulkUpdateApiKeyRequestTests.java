@@ -22,12 +22,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.containsStringIgnoringCase;
 import static org.hamcrest.Matchers.equalTo;
 
-public class UpdateApiKeyRequestTests extends ESTestCase {
-
-    public void testNullValuesValidForNonIds() {
-        final var request = new UpdateApiKeyRequest("id", null, null);
-        assertNull(request.validate());
-    }
+public class BulkUpdateApiKeyRequestTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
         final boolean roleDescriptorsPresent = randomBoolean();
@@ -42,25 +37,42 @@ public class UpdateApiKeyRequestTests extends ESTestCase {
             }
         }
 
-        final var id = randomAlphaOfLength(10);
-        final var metadata = ApiKeyTests.randomMetadata();
-        final var request = new UpdateApiKeyRequest(id, descriptorList, metadata);
+        final List<String> ids = randomList(1, 5, () -> randomAlphaOfLength(10));
+        final Map<String, Object> metadata = ApiKeyTests.randomMetadata();
+        final var request = new BulkUpdateApiKeyRequest(ids, descriptorList, metadata);
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             request.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
-                final var serialized = new UpdateApiKeyRequest(in);
-                assertEquals(id, serialized.getId());
+                final var serialized = new BulkUpdateApiKeyRequest(in);
+                assertEquals(ids, serialized.getIds());
                 assertEquals(descriptorList, serialized.getRoleDescriptors());
                 assertEquals(metadata, request.getMetadata());
             }
         }
     }
 
+    public void testNullValuesValidForNonIds() {
+        final var request = BulkUpdateApiKeyRequest.usingApiKeyIds("id");
+        assertNull(request.validate());
+    }
+
+    public void testEmptyIdsNotValid() {
+        final var request = new BulkUpdateApiKeyRequest(List.of(), null, null);
+        final ActionRequestValidationException ve = request.validate();
+        assertNotNull(ve);
+        assertThat(ve.validationErrors().size(), equalTo(1));
+        assertThat(ve.validationErrors().get(0), containsString("Field [ids] cannot be empty"));
+    }
+
     public void testMetadataKeyValidation() {
         final var reservedKey = "_" + randomAlphaOfLengthBetween(0, 10);
         final var metadataValue = randomAlphaOfLengthBetween(1, 10);
-        UpdateApiKeyRequest request = new UpdateApiKeyRequest(randomAlphaOfLength(10), null, Map.of(reservedKey, metadataValue));
+        final var request = new BulkUpdateApiKeyRequest(
+            randomList(1, 5, () -> randomAlphaOfLength(10)),
+            null,
+            Map.of(reservedKey, metadataValue)
+        );
         final ActionRequestValidationException ve = request.validate();
         assertNotNull(ve);
         assertThat(ve.validationErrors().size(), equalTo(1));
@@ -68,8 +80,8 @@ public class UpdateApiKeyRequestTests extends ESTestCase {
     }
 
     public void testRoleDescriptorValidation() {
-        final var request1 = new UpdateApiKeyRequest(
-            randomAlphaOfLength(10),
+        final var request = new BulkUpdateApiKeyRequest(
+            randomList(1, 5, () -> randomAlphaOfLength(10)),
             List.of(
                 new RoleDescriptor(
                     randomAlphaOfLength(5),
@@ -90,12 +102,12 @@ public class UpdateApiKeyRequestTests extends ESTestCase {
             ),
             null
         );
-        final ActionRequestValidationException ve1 = request1.validate();
-        assertNotNull(ve1);
-        assertThat(ve1.validationErrors().get(0), containsString("unknown cluster privilege"));
-        assertThat(ve1.validationErrors().get(1), containsString("unknown index privilege"));
-        assertThat(ve1.validationErrors().get(2), containsStringIgnoringCase("application name"));
-        assertThat(ve1.validationErrors().get(3), containsStringIgnoringCase("Application privilege names"));
-        assertThat(ve1.validationErrors().get(4), containsStringIgnoringCase("role descriptor metadata keys may not start with "));
+        final ActionRequestValidationException ve = request.validate();
+        assertNotNull(ve);
+        assertThat(ve.validationErrors().get(0), containsString("unknown cluster privilege"));
+        assertThat(ve.validationErrors().get(1), containsString("unknown index privilege"));
+        assertThat(ve.validationErrors().get(2), containsStringIgnoringCase("application name"));
+        assertThat(ve.validationErrors().get(3), containsStringIgnoringCase("Application privilege names"));
+        assertThat(ve.validationErrors().get(4), containsStringIgnoringCase("role descriptor metadata keys may not start with "));
     }
 }

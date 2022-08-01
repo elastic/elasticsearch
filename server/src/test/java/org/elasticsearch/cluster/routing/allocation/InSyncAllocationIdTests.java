@@ -130,7 +130,7 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
 
         logger.info("fail primary shard");
         ShardRouting startedPrimary = shardsWithState(clusterState.getRoutingNodes(), STARTED).get(0);
-        clusterState = allocation.applyFailedShard(clusterState, startedPrimary, true);
+        clusterState = allocation.applyFailedShards(clusterState, List.of(new FailedShard(startedPrimary, null, null, true)), List.of());
 
         assertThat(shardsWithState(clusterState.getRoutingNodes(), STARTED).size(), equalTo(0));
         assertEquals(

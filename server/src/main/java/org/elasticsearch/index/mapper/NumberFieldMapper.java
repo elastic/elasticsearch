@@ -373,6 +373,21 @@ public class NumberFieldMapper extends FieldMapper {
                 return new SortedDoublesIndexFieldData.Builder(name, numericType(), HalfFloatDocValuesField::new);
             }
 
+            @Override
+            public IndexFieldData.Builder getValueFetcherFieldDataBuilder(
+                String name,
+                SourceLookup sourceLookup,
+                ValueFetcher valueFetcher
+            ) {
+                return new SourceValueFetcherSortedDoubleIndexFieldData.Builder(
+                    name,
+                    numericType().getValuesSourceType(),
+                    valueFetcher,
+                    sourceLookup,
+                    HalfFloatDocValuesField::new
+                );
+            }
+
             private static void validateParsed(float value) {
                 if (Float.isFinite(HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(value))) == false) {
                     throw new IllegalArgumentException("[half_float] supports only finite values, but got [" + value + "]");
@@ -506,6 +521,21 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             public IndexFieldData.Builder getFieldDataBuilder(String name) {
                 return new SortedDoublesIndexFieldData.Builder(name, numericType(), FloatDocValuesField::new);
+            }
+
+            @Override
+            public IndexFieldData.Builder getValueFetcherFieldDataBuilder(
+                String name,
+                SourceLookup sourceLookup,
+                ValueFetcher valueFetcher
+            ) {
+                return new SourceValueFetcherSortedDoubleIndexFieldData.Builder(
+                    name,
+                    numericType().getValuesSourceType(),
+                    valueFetcher,
+                    sourceLookup,
+                    FloatDocValuesField::new
+                );
             }
 
             private static void validateParsed(float value) {

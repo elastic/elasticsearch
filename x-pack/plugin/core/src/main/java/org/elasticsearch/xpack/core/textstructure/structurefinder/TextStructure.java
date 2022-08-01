@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.textstructure.structurefinder;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -221,7 +222,11 @@ public class TextStructure implements ToXContentObject, Writeable {
         quote = in.readBoolean() ? (char) in.readVInt() : null;
         shouldTrimFields = in.readOptionalBoolean();
         grokPattern = in.readOptionalString();
-        ecsCompatibility = in.readOptionalString();
+        if (in.getVersion().onOrAfter(Version.V_8_5_0)) {
+            ecsCompatibility = in.readOptionalString();
+        } else {
+            ecsCompatibility = null;
+        }
         jodaTimestampFormats = in.readBoolean() ? Collections.unmodifiableList(in.readStringList()) : null;
         javaTimestampFormats = in.readBoolean() ? Collections.unmodifiableList(in.readStringList()) : null;
         timestampField = in.readOptionalString();
@@ -263,7 +268,9 @@ public class TextStructure implements ToXContentObject, Writeable {
         }
         out.writeOptionalBoolean(shouldTrimFields);
         out.writeOptionalString(grokPattern);
-        out.writeOptionalString(ecsCompatibility);
+        if (out.getVersion().onOrAfter(Version.V_8_5_0)) {
+            out.writeOptionalString(ecsCompatibility);
+        }
         if (jodaTimestampFormats == null) {
             out.writeBoolean(false);
         } else {

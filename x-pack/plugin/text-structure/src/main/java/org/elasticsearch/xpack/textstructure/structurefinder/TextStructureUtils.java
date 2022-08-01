@@ -29,8 +29,11 @@ import java.util.stream.Stream;
 
 public final class TextStructureUtils {
 
+    // The value of the ecs_compatibility option indicating that ECS Grok patterns are desired.
     private static final String ECS_COMPATIBILITY_V1 = "v1";
-    private static final boolean ECS_COMPATIBILITY = false;
+
+    // The ECS Grok pattern compatibility mode to use when no ecs_compatibility parameter is specified in the request.
+    private static final boolean DEFAULT_ECS_COMPATIBILITY = false;
 
     private static final Logger logger = LogManager.getLogger(TextStructureUtils.class);
     public static final String DEFAULT_TIMESTAMP_FIELD = "@timestamp";
@@ -263,7 +266,7 @@ public final class TextStructureUtils {
         List<Map<String, ?>> sampleRecords,
         TimeoutChecker timeoutChecker
     ) {
-        return guessMappingsAndCalculateFieldStats(explanation, sampleRecords, timeoutChecker, ECS_COMPATIBILITY);
+        return guessMappingsAndCalculateFieldStats(explanation, sampleRecords, timeoutChecker, DEFAULT_ECS_COMPATIBILITY);
     }
 
     /**

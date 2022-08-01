@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.textstructure.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
@@ -149,7 +150,11 @@ public class FindStructureAction extends ActionType<FindStructureAction.Response
             quote = in.readBoolean() ? (char) in.readVInt() : null;
             shouldTrimFields = in.readOptionalBoolean();
             grokPattern = in.readOptionalString();
-            ecsCompatibility = in.readOptionalString();
+            if (in.getVersion().onOrAfter(Version.V_8_5_0)) {
+                ecsCompatibility = in.readOptionalString();
+            } else {
+                ecsCompatibility = null;
+            }
             timestampFormat = in.readOptionalString();
             timestampField = in.readOptionalString();
             sample = in.readBytesReference();
@@ -418,7 +423,9 @@ public class FindStructureAction extends ActionType<FindStructureAction.Response
             }
             out.writeOptionalBoolean(shouldTrimFields);
             out.writeOptionalString(grokPattern);
-            out.writeOptionalString(ecsCompatibility);
+            if(out.getVersion().onOrAfter(Version.V_8_5_0)) {
+                out.writeOptionalString(ecsCompatibility);
+            }
             out.writeOptionalString(timestampFormat);
             out.writeOptionalString(timestampField);
             out.writeBytesReference(sample);

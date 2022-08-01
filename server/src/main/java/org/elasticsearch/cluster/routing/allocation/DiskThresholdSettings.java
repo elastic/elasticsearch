@@ -250,14 +250,18 @@ public class DiskThresholdSettings {
             }
         }
 
+        private static List<Setting<?>> settingsList = null;
+
         @Override
         public Iterator<Setting<?>> settings() {
-            final List<Setting<?>> settings = List.of(
-                CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING,
-                CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING,
-                CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING
-            );
-            return settings.iterator();
+            if (settingsList == null) {
+                settingsList = List.of(
+                    CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING,
+                    CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING,
+                    CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING
+                );
+            }
+            return settingsList.iterator();
         }
 
     }
@@ -361,17 +365,21 @@ public class DiskThresholdSettings {
             }
         }
 
+        private static List<Setting<?>> settingsList = null;
+
         @Override
         public Iterator<Setting<?>> settings() {
-            final List<Setting<?>> settings = List.of(
-                CLUSTER_ROUTING_ALLOCATION_LOW_DISK_MAX_HEADROOM_SETTING,
-                CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING,
-                CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_MAX_HEADROOM_SETTING,
-                CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_MAX_HEADROOM_SETTING,
-                CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING,
-                CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_WATERMARK_SETTING
-            );
-            return settings.iterator();
+            if (settingsList == null) {
+                settingsList = List.of(
+                    CLUSTER_ROUTING_ALLOCATION_LOW_DISK_MAX_HEADROOM_SETTING,
+                    CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING,
+                    CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_MAX_HEADROOM_SETTING,
+                    CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_MAX_HEADROOM_SETTING,
+                    CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING,
+                    CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_WATERMARK_SETTING
+                );
+            }
+            return settingsList.iterator();
         }
 
     }

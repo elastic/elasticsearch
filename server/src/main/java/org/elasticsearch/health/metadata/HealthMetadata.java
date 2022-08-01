@@ -169,11 +169,11 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(HIGH_WATERMARK_FIELD.getPreferredName(), describeHighWatermark());
+            builder.field(HIGH_MAX_HEADROOM_FIELD.getPreferredName(), highMaxHeadroom);
             builder.field(FLOOD_STAGE_WATERMARK_FIELD.getPreferredName(), describeFloodStageWatermark());
+            builder.field(FLOOD_STAGE_MAX_HEADROOM_FIELD.getPreferredName(), floodStageMaxHeadroom);
             builder.field(FROZEN_FLOOD_STAGE_WATERMARK_FIELD.getPreferredName(), describeFrozenFloodStageWatermark());
             builder.field(FROZEN_FLOOD_STAGE_MAX_HEADROOM_FIELD.getPreferredName(), frozenFloodStageMaxHeadroom);
-            builder.field(HIGH_MAX_HEADROOM_FIELD.getPreferredName(), highMaxHeadroom);
-            builder.field(FLOOD_STAGE_MAX_HEADROOM_FIELD.getPreferredName(), floodStageMaxHeadroom);
             return builder;
         }
 

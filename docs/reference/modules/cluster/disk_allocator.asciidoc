@@ -140,8 +140,8 @@ Controls the flood stage watermark for dedicated frozen nodes, which defaults to
 
 `cluster.routing.allocation.disk.watermark.flood_stage.frozen.max_headroom` {ess-icon}::
 (<<dynamic-cluster-setting,Dynamic>>)
-Controls the max headroom for the flood stage watermark for dedicated frozen
-nodes. Defaults to 20GB when
+Controls the max headroom for the flood stage watermark (in case of a
+percentage/ratio value) for dedicated frozen nodes. Defaults to 20GB when
 `cluster.routing.allocation.disk.watermark.flood_stage.frozen` is not explicitly
 set. This caps the amount of free space required on dedicated frozen nodes.
 

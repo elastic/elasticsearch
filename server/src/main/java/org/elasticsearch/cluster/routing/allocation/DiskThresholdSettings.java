@@ -114,6 +114,7 @@ public class DiskThresholdSettings {
             }
         },
         (s) -> ByteSizeValue.parseBytesSizeValue(s, "cluster.routing.allocation.disk.watermark.flood_stage.frozen.max_headroom"),
+        new MaxHeadroomValidator(),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -265,6 +266,7 @@ public class DiskThresholdSettings {
      * Validates that low, high and flood stage max headrooms adhere to the comparison: flood &lt; high &lt; low.
      * Also validates that if the low max headroom is set, then the high max headroom must be set as well.
      * Also validates that if the high max headroom is set, then the flood stage max headroom must be set as well.
+     * Also validates that if max headrooms are set, the respective watermark values should be ratios/percentages.
      * Else, throws an exception.
      */
     static class MaxHeadroomValidator implements Setting.Validator<ByteSizeValue> {
@@ -281,6 +283,43 @@ public class DiskThresholdSettings {
             final ByteSizeValue floodHeadroom = (ByteSizeValue) settings.get(
                 CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_MAX_HEADROOM_SETTING
             );
+            final ByteSizeValue frozenFloodHeadroom = (ByteSizeValue) settings.get(
+                CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_MAX_HEADROOM_SETTING
+            );
+
+            // Ensure that if max headroom values are set, then watermark values are ratios/percentages.
+            final RelativeByteSizeValue low = (RelativeByteSizeValue) settings.get(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING);
+            if (low.isAbsolute() && (lowHeadroom.getBytes() > 0 || highHeadroom.getBytes() > 0 || floodHeadroom.getBytes() > 0)) {
+                // No need to check that the high or flood stage watermarks are absolute as well, since there is another check in
+                // WatermarkValidator that all low/high/flood watermarks should be either ratios/percentages or absolute values.
+                throw new IllegalArgumentException(
+                    "At least one of the disk max headroom settings is set [low="
+                        + lowHeadroom.getStringRep()
+                        + ", high="
+                        + highHeadroom.getStringRep()
+                        + ", flood="
+                        + floodHeadroom.getStringRep()
+                        + "], while the disk watermark values are set to absolute values instead of ratios/percentages, e.g., "
+                        + "the low watermark is ["
+                        + low.getStringRep()
+                        + "]"
+                );
+            }
+
+            // Similar check for the frozen flood watermark and max headroom settings
+            final RelativeByteSizeValue frozenFlood = (RelativeByteSizeValue) settings.get(
+                CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_WATERMARK_SETTING
+            );
+            if (frozenFlood.isAbsolute() && frozenFloodHeadroom.getBytes() > 0) {
+                throw new IllegalArgumentException(
+                    "The frozen flood stage disk max headroom setting is set ["
+                        + frozenFloodHeadroom.getStringRep()
+                        + "], while the frozen flood stage disk watermark setting is set to an absolute value "
+                        + "instead of a ratio/percentage ["
+                        + frozenFlood.getStringRep()
+                        + "]"
+                );
+            }
 
             if (lowHeadroom.getBytes() > 0 && highHeadroom.getBytes() < 0) {
                 throw new IllegalArgumentException(
@@ -327,7 +366,10 @@ public class DiskThresholdSettings {
             final List<Setting<?>> settings = List.of(
                 CLUSTER_ROUTING_ALLOCATION_LOW_DISK_MAX_HEADROOM_SETTING,
                 CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING,
-                CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_MAX_HEADROOM_SETTING
+                CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_MAX_HEADROOM_SETTING,
+                CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_MAX_HEADROOM_SETTING,
+                CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING,
+                CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_WATERMARK_SETTING
             );
             return settings.iterator();
         }

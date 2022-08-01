@@ -311,10 +311,10 @@ public class DiskThresholdSettingsTests extends ESTestCase {
         DiskThresholdSettings diskThresholdSettings = new DiskThresholdSettings(Settings.EMPTY, nss);
 
         boolean watermarksAbsolute = randomBoolean();
-        boolean lowHeadroomEnabled = randomBoolean();
-        boolean highHeadroomEnabled = lowHeadroomEnabled ? true : randomBoolean();
-        boolean floodHeadroomEnabled = highHeadroomEnabled ? true : randomBoolean();
-        boolean frozenFloodHeadroomEnabled = randomBoolean();
+        boolean lowHeadroomEnabled = (watermarksAbsolute == false) && randomBoolean();
+        boolean highHeadroomEnabled = lowHeadroomEnabled ? true : ((watermarksAbsolute == false) && randomBoolean());
+        boolean floodHeadroomEnabled = highHeadroomEnabled ? true : ((watermarksAbsolute == false) && randomBoolean());
+        boolean frozenFloodHeadroomEnabled = (watermarksAbsolute == false) && randomBoolean();
 
         Settings newSettings = Settings.builder()
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), false)
@@ -498,6 +498,60 @@ public class DiskThresholdSettingsTests extends ESTestCase {
             "1000mb",
             DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(),
             "95.2%"
+        );
+        assertThat(cause, hasToString(containsString(incompatibleExpected)));
+    }
+
+    public void testIncompatibleMaxHeadroomUpdate() {
+        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        new DiskThresholdSettings(Settings.EMPTY, clusterSettings); // this has the effect of registering the settings updater
+
+        final Settings newSettings = Settings.builder()
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "300g")
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "200g")
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), "100g")
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_MAX_HEADROOM_SETTING.getKey(), "100g")
+            .build();
+
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> clusterSettings.applySettings(newSettings));
+        final String expected =
+            "illegal value can't update [cluster.routing.allocation.disk.watermark.low.max_headroom] from [150GB] to [100g]";
+        assertThat(e, hasToString(containsString(expected)));
+        assertNotNull(e.getCause());
+        assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
+        final IllegalArgumentException cause = (IllegalArgumentException) e.getCause();
+        final String incompatibleExpected = String.format(
+            Locale.ROOT,
+            "At least one of the disk max headroom settings is set [low=%s, high=-1, flood=-1], while the disk watermark values "
+                + "are set to absolute values instead of ratios/percentages, e.g., the low watermark is [%s]",
+            "100gb",
+            "300gb"
+        );
+        assertThat(cause, hasToString(containsString(incompatibleExpected)));
+    }
+
+    public void testIncompatibleFrozenMaxHeadroomUpdate() {
+        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        new DiskThresholdSettings(Settings.EMPTY, clusterSettings); // this has the effect of registering the settings updater
+
+        final Settings newSettings = Settings.builder()
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_WATERMARK_SETTING.getKey(), "300g")
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_MAX_HEADROOM_SETTING.getKey(), "100g")
+            .build();
+
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> clusterSettings.applySettings(newSettings));
+        final String expected =
+            "illegal value can't update [cluster.routing.allocation.disk.watermark.flood_stage.frozen.max_headroom] from [20GB] to [100g]";
+        assertThat(e, hasToString(containsString(expected)));
+        assertNotNull(e.getCause());
+        assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
+        final IllegalArgumentException cause = (IllegalArgumentException) e.getCause();
+        final String incompatibleExpected = String.format(
+            Locale.ROOT,
+            "The frozen flood stage disk max headroom setting is set [%s], while the frozen flood stage disk watermark setting "
+                + "is set to an absolute value instead of a ratio/percentage [%s]",
+            "100gb",
+            "300gb"
         );
         assertThat(cause, hasToString(containsString(incompatibleExpected)));
     }
@@ -735,38 +789,6 @@ public class DiskThresholdSettingsTests extends ESTestCase {
         assertThat(
             diskThresholdSettings.describeFrozenFloodStageThreshold(thousandTb, includeKey),
             equalTo(frozenFloodWatermarkPrefix + "91.5%")
-        );
-
-        diskThresholdSettings = new DiskThresholdSettings(
-            Settings.builder()
-                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "1GB")
-                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "10MB")
-                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), "2B")
-                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_WATERMARK_SETTING.getKey(), "1B")
-                // Max headroom values should be ignored since the watermark values are set to absolute values
-                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_MAX_HEADROOM_SETTING.getKey(), "100mb")
-                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING.getKey(), "50mb")
-                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_MAX_HEADROOM_SETTING.getKey(), "10mb")
-                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_MAX_HEADROOM_SETTING.getKey(), "10mb")
-                .build(),
-            clusterSettings
-        );
-
-        assertThat(diskThresholdSettings.describeLowThreshold(hundredBytes, includeKey), equalTo(lowWatermarkPrefix + "1gb"));
-        assertThat(diskThresholdSettings.describeHighThreshold(hundredBytes, includeKey), equalTo(highWatermarkPrefix + "10mb"));
-        assertThat(diskThresholdSettings.describeFloodStageThreshold(hundredBytes, includeKey), equalTo(floodWatermarkPrefix + "2b"));
-        assertThat(
-            diskThresholdSettings.describeFrozenFloodStageThreshold(hundredBytes, includeKey),
-            equalTo(frozenFloodWatermarkPrefix + "1b")
-        );
-
-        // Even for 1000TB, the watermarks apply since they are set to absolute values (max headroom values should be ignored)
-        assertThat(diskThresholdSettings.describeLowThreshold(thousandTb, includeKey), equalTo(lowWatermarkPrefix + "1gb"));
-        assertThat(diskThresholdSettings.describeHighThreshold(thousandTb, includeKey), equalTo(highWatermarkPrefix + "10mb"));
-        assertThat(diskThresholdSettings.describeFloodStageThreshold(thousandTb, includeKey), equalTo(floodWatermarkPrefix + "2b"));
-        assertThat(
-            diskThresholdSettings.describeFrozenFloodStageThreshold(thousandTb, includeKey),
-            equalTo(frozenFloodWatermarkPrefix + "1b")
         );
 
         // Test a mixture of percentages and max headroom values

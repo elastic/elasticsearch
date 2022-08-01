@@ -194,7 +194,7 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
                                                                                                                                   // full
         final long freeBytes = testMaxHeadroom
             ? ByteSizeValue.ofGb(randomIntBetween(100, 10000)).getBytes()
-            : randomLongBetween(20, totalBytes);
+            : randomLongBetween(50, totalBytes);
         Map<String, DiskUsage> mostAvailableUsage = Map.of("node_0", new DiskUsage("node_0", "node_0", "_na_", totalBytes, freeBytes));
 
         // way bigger than available space

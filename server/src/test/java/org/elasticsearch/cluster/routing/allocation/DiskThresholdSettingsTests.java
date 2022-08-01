@@ -61,7 +61,7 @@ public class DiskThresholdSettingsTests extends ESTestCase {
         ByteSizeValue thousandTb = ByteSizeValue.parseBytesSizeValue("1000tb", "test");
         ByteSizeValue lowHeadroom = ByteSizeValue.parseBytesSizeValue("150gb", "test");
         ByteSizeValue highHeadroom = ByteSizeValue.parseBytesSizeValue("100gb", "test");
-        ByteSizeValue floodHeadroom = ByteSizeValue.parseBytesSizeValue("20gb", "test");
+        ByteSizeValue floodHeadroom = ByteSizeValue.parseBytesSizeValue("50gb", "test");
         ByteSizeValue frozenFloodHeadroom = ByteSizeValue.parseBytesSizeValue("20gb", "test");
         assertEquals(lowHeadroom, diskThresholdSettings.getFreeBytesThresholdLowStage(thousandTb));
         assertEquals(highHeadroom, diskThresholdSettings.getFreeBytesThresholdHighStage(thousandTb));
@@ -69,7 +69,7 @@ public class DiskThresholdSettingsTests extends ESTestCase {
         assertEquals(frozenFloodHeadroom, diskThresholdSettings.getFreeBytesThresholdFrozenFloodStage(thousandTb));
         assertEquals("max_headroom=150gb", diskThresholdSettings.describeLowThreshold(thousandTb, false));
         assertEquals("max_headroom=100gb", diskThresholdSettings.describeHighThreshold(thousandTb, false));
-        assertEquals("max_headroom=20gb", diskThresholdSettings.describeFloodStageThreshold(thousandTb, false));
+        assertEquals("max_headroom=50gb", diskThresholdSettings.describeFloodStageThreshold(thousandTb, false));
         assertEquals("max_headroom=20gb", diskThresholdSettings.describeFrozenFloodStageThreshold(thousandTb, false));
         assertEquals(
             DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_MAX_HEADROOM_SETTING.getKey() + "=" + "150gb",
@@ -80,7 +80,7 @@ public class DiskThresholdSettingsTests extends ESTestCase {
             diskThresholdSettings.describeHighThreshold(thousandTb, true)
         );
         assertEquals(
-            DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_MAX_HEADROOM_SETTING.getKey() + "=" + "20gb",
+            DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_MAX_HEADROOM_SETTING.getKey() + "=" + "50gb",
             diskThresholdSettings.describeFloodStageThreshold(thousandTb, true)
         );
         assertEquals(
@@ -746,7 +746,7 @@ public class DiskThresholdSettingsTests extends ESTestCase {
 
         assertThat(diskThresholdSettings.describeLowThreshold(thousandTb, includeKey), equalTo(lowMaxHeadroomPrefix + "150gb"));
         assertThat(diskThresholdSettings.describeHighThreshold(thousandTb, includeKey), equalTo(highMaxHeadroomPrefix + "100gb"));
-        assertThat(diskThresholdSettings.describeFloodStageThreshold(thousandTb, includeKey), equalTo(floodMaxHeadroomPrefix + "20gb"));
+        assertThat(diskThresholdSettings.describeFloodStageThreshold(thousandTb, includeKey), equalTo(floodMaxHeadroomPrefix + "50gb"));
         assertThat(
             diskThresholdSettings.describeFrozenFloodStageThreshold(thousandTb, includeKey),
             equalTo(frozenFloodMaxHeadroomPrefix + "20gb")

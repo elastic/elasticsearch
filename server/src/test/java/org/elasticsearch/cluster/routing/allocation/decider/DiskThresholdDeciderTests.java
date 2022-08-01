@@ -750,7 +750,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), 0.8)
             .put(
                 DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING.getKey(),
-                (testMaxHeadroom ? ByteSizeValue.ofGb(50).toString() : "-1")
+                (testMaxHeadroom ? ByteSizeValue.ofGb(60).toString() : "-1")
             )
             .build();
 
@@ -961,7 +961,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "70%")
             .put(
                 DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING.getKey(),
-                (testMaxHeadroom ? ByteSizeValue.ofGb(50).toString() : "-1")
+                (testMaxHeadroom ? ByteSizeValue.ofGb(60).toString() : "-1")
             )
             .build();
 
@@ -1045,7 +1045,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             containsString(
                 testMaxHeadroom
                     ? "the shard cannot remain on this node because it is above the high watermark cluster setting "
-                        + "[cluster.routing.allocation.disk.watermark.high.max_headroom=50gb] and there is less than the required [50gb] "
+                        + "[cluster.routing.allocation.disk.watermark.high.max_headroom=60gb] and there is less than the required [60gb] "
                         + "free space on node, actual free: [40gb], actual used: [99.6%]"
                     : "the shard cannot remain on this node because it is above the high watermark cluster setting "
                         + "[cluster.routing.allocation.disk.watermark.high=70%] and there is less than the required [30b] free space "
@@ -1095,7 +1095,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                 containsString(
                     testMaxHeadroom
                         ? "the node is above the high watermark cluster setting [cluster.routing.allocation.disk.watermark"
-                            + ".high.max_headroom=50gb], having less than the minimum required [50gb] free space, actual free: "
+                            + ".high.max_headroom=60gb], having less than the minimum required [60gb] free space, actual free: "
                             + "[40gb], actual used: [99.6%]"
                         : "the node is above the high watermark cluster setting [cluster.routing.allocation.disk.watermark.high=70%], "
                             + "having less than the minimum required [30b] free space, actual free: [20b], actual used: [80%]"
@@ -1169,7 +1169,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "70%")
             .put(
                 DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING.getKey(),
-                (testMaxHeadroom ? ByteSizeValue.ofGb(50).toString() : "-1")
+                (testMaxHeadroom ? ByteSizeValue.ofGb(60).toString() : "-1")
             );
         if (randomBoolean()) {
             builder.put(DiskThresholdDecider.ENABLE_FOR_SINGLE_DATA_NODE.getKey(), true);
@@ -1279,7 +1279,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             containsString(
                 testMaxHeadroom
                     ? "the shard cannot remain on this node because it is above the high watermark cluster setting [cluster"
-                        + ".routing.allocation.disk.watermark.high.max_headroom=50gb] and there is less than the required [50gb] free "
+                        + ".routing.allocation.disk.watermark.high.max_headroom=60gb] and there is less than the required [60gb] free "
                         + "space on node, actual free: [40gb], actual used: [99.6%]"
                     : "the shard cannot remain on this node because it is above the high watermark cluster setting"
                         + " [cluster.routing.allocation.disk.watermark.high=70%] and there is less than the required [30b] free space "
@@ -1335,7 +1335,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "95%")
             .put(
                 DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_MAX_HEADROOM_SETTING.getKey(),
-                (testMaxHeadroom ? ByteSizeValue.ofGb(20).toString() : "-1")
+                (testMaxHeadroom ? ByteSizeValue.ofGb(60).toString() : "-1")
             )
             .build();
 

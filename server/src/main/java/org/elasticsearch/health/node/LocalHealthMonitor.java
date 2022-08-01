@@ -63,7 +63,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
     // simplifies the rescheduling during enabling/disabling or the change of the interval.
     private final AtomicBoolean inProgress = new AtomicBoolean();
     // Keeps the latest health state that was successfully reported.
-    private IndividualNodeHealth lastReportedHealth = null;
+    private DiskHealthInfo lastReportedDiskHealthInfo = null;
 
     public LocalHealthMonitor(Settings settings, ClusterService clusterService, NodeService nodeService, ThreadPool threadPool) {
         this.threadPool = threadPool;
@@ -116,19 +116,19 @@ public class LocalHealthMonitor implements ClusterStateListener {
             ClusterState clusterState = clusterService.state();
             HealthMetadata healthMetadata = HealthMetadata.getFromClusterState(clusterState);
             assert healthMetadata != null : "health metadata should have been initialized.";
-            IndividualNodeHealth previousHealth = this.lastReportedHealth;
-            IndividualNodeHealth currentHealth = new IndividualNodeHealth(diskCheck.getHealth(healthMetadata, clusterState));
+            DiskHealthInfo previousHealth = this.lastReportedDiskHealthInfo;
+            DiskHealthInfo currentHealth = diskCheck.getHealth(healthMetadata, clusterState);
             if (currentHealth.equals(previousHealth) == false) {
-                logger.info("Sending node health [{}] to health node", currentHealth);
-                this.lastReportedHealth = currentHealth;
+                logger.debug("Health status changed from {} to {}", previousHealth, currentHealth);
+                this.lastReportedDiskHealthInfo = currentHealth;
             }
             scheduleNextRunIfEnabled(monitorInterval);
             inProgress.set(false);
         }
     }
 
-    IndividualNodeHealth getLastReportedHealth() {
-        return lastReportedHealth;
+    DiskHealthInfo getLastReportedDiskHealthInfo() {
+        return lastReportedDiskHealthInfo;
     }
 
     /**
@@ -141,12 +141,12 @@ public class LocalHealthMonitor implements ClusterStateListener {
             this.nodeService = nodeService;
         }
 
-        IndividualNodeHealth.Disk getHealth(HealthMetadata healthMetadata, ClusterState clusterState) {
+        DiskHealthInfo getHealth(HealthMetadata healthMetadata, ClusterState clusterState) {
             DiscoveryNode node = clusterState.getNodes().getLocalNode();
             HealthMetadata.Disk diskMetadata = healthMetadata.getDiskMetadata();
             DiskUsage usage = getDiskUsage();
             if (usage == null) {
-                return new IndividualNodeHealth.Disk(HealthStatus.UNKNOWN, IndividualNodeHealth.Disk.Cause.NODE_HAS_NO_DISK_STATS);
+                return new DiskHealthInfo(HealthStatus.UNKNOWN, DiskHealthInfo.Cause.NODE_HAS_NO_DISK_STATS);
             }
 
             ByteSizeValue totalBytes = ByteSizeValue.ofBytes(usage.getTotalBytes());
@@ -155,24 +155,21 @@ public class LocalHealthMonitor implements ClusterStateListener {
                 long frozenFloodStageThreshold = diskMetadata.getFreeBytesFrozenFloodStageWatermark(totalBytes).getBytes();
                 if (usage.getFreeBytes() < frozenFloodStageThreshold) {
                     logger.debug("flood stage disk watermark [{}] exceeded on {}", frozenFloodStageThreshold, usage);
-                    return new IndividualNodeHealth.Disk(
-                        HealthStatus.RED,
-                        IndividualNodeHealth.Disk.Cause.FROZEN_NODE_OVER_FLOOD_STAGE_THRESHOLD
-                    );
+                    return new DiskHealthInfo(HealthStatus.RED, DiskHealthInfo.Cause.FROZEN_NODE_OVER_FLOOD_STAGE_THRESHOLD);
                 }
-                return new IndividualNodeHealth.Disk(HealthStatus.GREEN);
+                return new DiskHealthInfo(HealthStatus.GREEN);
             }
 
             long floodStageThreshold = diskMetadata.getFreeBytesFloodStageWatermark(totalBytes).getBytes();
             if (usage.getFreeBytes() < floodStageThreshold) {
-                return new IndividualNodeHealth.Disk(HealthStatus.RED, IndividualNodeHealth.Disk.Cause.NODE_OVER_THE_FLOOD_STAGE_THRESHOLD);
+                return new DiskHealthInfo(HealthStatus.RED, DiskHealthInfo.Cause.NODE_OVER_THE_FLOOD_STAGE_THRESHOLD);
             }
 
             long highThreshold = diskMetadata.getFreeBytesHighWatermark(totalBytes).getBytes();
             if (usage.getFreeBytes() < highThreshold && hasRelocatingShards(clusterState, node.getId()) == false) {
-                return new IndividualNodeHealth.Disk(HealthStatus.YELLOW, IndividualNodeHealth.Disk.Cause.NODE_OVER_HIGH_THRESHOLD);
+                return new DiskHealthInfo(HealthStatus.YELLOW, DiskHealthInfo.Cause.NODE_OVER_HIGH_THRESHOLD);
             }
-            return new IndividualNodeHealth.Disk(HealthStatus.GREEN);
+            return new DiskHealthInfo(HealthStatus.GREEN);
         }
 
         private DiskUsage getDiskUsage() {

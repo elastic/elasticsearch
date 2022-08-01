@@ -2,6 +2,8 @@
 [[logs-api]]
 == Log ingestion API
 
+experimental::[]
+
 Provides a simple JSON API to ingest log events into {es}.
 
 [discrete]

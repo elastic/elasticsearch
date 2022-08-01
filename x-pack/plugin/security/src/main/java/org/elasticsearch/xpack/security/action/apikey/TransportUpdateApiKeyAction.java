@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.security.action.apikey;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -88,36 +89,6 @@ public final class TransportUpdateApiKeyAction extends TransportBaseUpdateApiKey
 
     private void throwIllegalStateExceptionOnIdMismatch(final String requestId, final String responseId) {
         final String message = "response ID [" + responseId + "] does not match request ID [" + requestId + "] for single API key update";
-        assert false : message;
-        throw new IllegalStateException(message);
-    }
-
-    private UpdateApiKeyResponse fromBulkResponse(final String apiKeyId, final BulkUpdateApiKeyResponse response) throws Exception {
-        if (response.getErrorDetails().isEmpty() == false) {
-            if (false == (response.getErrorDetails().size() == 1
-                && response.getErrorDetails().containsKey(apiKeyId)
-                && response.getUpdated().isEmpty()
-                && response.getNoops().isEmpty())) {
-                singleMatchingResponseRequiredException(apiKeyId);
-            }
-            throw response.getErrorDetails().values().iterator().next();
-        } else if (response.getUpdated().isEmpty() == false) {
-            if (false == (response.getUpdated().size() == 1
-                && response.getUpdated().get(0).equals(apiKeyId)
-                && response.getNoops().isEmpty())) {
-                singleMatchingResponseRequiredException(apiKeyId);
-            }
-            return new UpdateApiKeyResponse(true);
-        } else {
-            if (false == (response.getNoops().size() == 1 && response.getNoops().get(0).equals(apiKeyId))) {
-                singleMatchingResponseRequiredException(apiKeyId);
-            }
-            return new UpdateApiKeyResponse(false);
-        }
-    }
-
-    private void singleMatchingResponseRequiredException(final String apiKeyId) {
-        final String message = "single API key update must provide single response matching requested ID [" + apiKeyId + "]";
         assert false : message;
         throw new IllegalStateException(message);
     }

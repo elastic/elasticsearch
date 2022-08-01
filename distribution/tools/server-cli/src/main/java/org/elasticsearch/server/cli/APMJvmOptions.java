@@ -250,7 +250,7 @@ class APMJvmOptions {
      */
     @Nullable
     private static Path findAgentJar() throws IOException, UserException {
-        final Path apmModule = Path.of("modules/apm");
+        final Path apmModule = Path.of(System.getProperty("user.dir")).resolve("modules/apm");
 
         try (var apmStream = Files.list(apmModule)) {
             final List<Path> paths = apmStream.filter(

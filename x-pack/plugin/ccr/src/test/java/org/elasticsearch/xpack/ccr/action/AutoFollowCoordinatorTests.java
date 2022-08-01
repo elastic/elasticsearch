@@ -1324,7 +1324,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                 e.getMessage(),
                 containsString(
                     "unable to determine follower index name from leader index name "
-                        + "[my-.ds-backing-index] and follow index pattern: [{{leader_index}}_copy],"
+                        + "[my-.ds-backing-index] and follow index pattern: [{{leader_index}}_copy]"
                         + ", index appears to follow a regular data stream backing pattern, but could not be parsed"
                 )
             );

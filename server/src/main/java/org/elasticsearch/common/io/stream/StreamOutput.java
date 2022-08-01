@@ -561,7 +561,7 @@ public abstract class StreamOutput extends OutputStream {
             .iterator();
         while (iterator.hasNext()) {
             Map.Entry<String, ?> next = iterator.next();
-            this.writeString(next.getKey());
+            this.writeGenericValue(next.getKey());
             this.writeGenericValue(next.getValue());
         }
     }

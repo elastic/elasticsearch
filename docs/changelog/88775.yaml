@@ -1,0 +1,5 @@
+pr: 88775
+summary: Stable Plugin API module and analysis interfaces
+area: Infra/Plugins
+type: feature
+issues: []

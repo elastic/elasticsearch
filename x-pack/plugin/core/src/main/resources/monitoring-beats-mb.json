@@ -735,13 +735,16 @@
                     "config": {
                       "properties": {
                         "running": {
-                          "type": "short"
+                          "type": "long"
                         },
                         "starts": {
-                          "type": "short"
+                          "type": "long"
                         },
                         "stops": {
-                          "type": "short"
+                          "type": "long"
+                        },
+                        "reloads": {
+                          "type": "long"
                         }
                       }
                     },
@@ -1787,6 +1790,10 @@
                               "path": "beat.stats.libbeat.config.stops"
                             }
                           }
+                        },
+                        "reloads": {
+                          "type": "alias",
+                          "path": "beat.stats.libbeat.config.reloads"
                         }
                       }
                     },

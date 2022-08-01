@@ -43,7 +43,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(LocalHealthMonitor.class);
 
-    public static final Setting<TimeValue> INTERVAL_SETTING = Setting.timeSetting(
+    public static final Setting<TimeValue> POLL_INTERVAL_SETTING = Setting.timeSetting(
         "health.reporting.local.monitor.interval",
         TimeValue.timeValueSeconds(30),
         TimeValue.timeValueSeconds(10),
@@ -67,13 +67,13 @@ public class LocalHealthMonitor implements ClusterStateListener {
 
     public LocalHealthMonitor(Settings settings, ClusterService clusterService, NodeService nodeService, ThreadPool threadPool) {
         this.threadPool = threadPool;
-        this.monitorInterval = INTERVAL_SETTING.get(settings);
+        this.monitorInterval = POLL_INTERVAL_SETTING.get(settings);
         this.enabled = HealthNodeTaskExecutor.ENABLED_SETTING.get(settings);
         this.clusterService = clusterService;
         this.diskCheck = new DiskCheck(nodeService);
         clusterService.addListener(this);
         ClusterSettings clusterSettings = clusterService.getClusterSettings();
-        clusterSettings.addSettingsUpdateConsumer(INTERVAL_SETTING, this::setMonitorInterval);
+        clusterSettings.addSettingsUpdateConsumer(POLL_INTERVAL_SETTING, this::setMonitorInterval);
         clusterSettings.addSettingsUpdateConsumer(HealthNodeTaskExecutor.ENABLED_SETTING, this::setEnabled);
     }
 
@@ -95,7 +95,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
 
     // Helper method that starts the monitoring without a delay.
     private void scheduleNowIfEnabled() {
-        scheduleNextRunIfEnabled(new TimeValue(1));
+        scheduleNextRunIfEnabled(TimeValue.timeValueMillis(1));
     }
 
     @Override

@@ -526,7 +526,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         MasterHistory.MAX_HISTORY_AGE_SETTING,
         ReadinessService.PORT,
         HealthNode.isEnabled() ? HealthNodeTaskExecutor.ENABLED_SETTING : null,
-        HealthNode.isEnabled() ? LocalHealthMonitor.INTERVAL_SETTING : null
+        HealthNode.isEnabled() ? LocalHealthMonitor.POLL_INTERVAL_SETTING : null
     ).filter(Objects::nonNull).collect(Collectors.toSet());
 
     static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.emptyList();

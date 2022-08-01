@@ -7,13 +7,17 @@
 
 package org.elasticsearch.xpack.sql.action.compute.operator;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ListenableActionFuture;
+import org.elasticsearch.common.util.concurrent.BaseFuture;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.sql.action.compute.data.Page;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 
 /**
@@ -137,6 +141,41 @@ public class Driver implements Runnable {
         return Operator.NOT_BLOCKED;
     }
 
+    public static ListenableActionFuture<Void> runToCompletion(Executor executor, List<Driver> drivers) {
+        TimeValue maxTime = TimeValue.timeValueMillis(200);
+        int maxIterations = 10000;
+        List<ListenableActionFuture<Void>> futures = new ArrayList<>();
+        for (Driver driver : drivers) {
+            futures.add(schedule(maxTime, maxIterations, executor, driver));
+        }
+        return Driver.allOf(futures);
+    }
+
+    private static ListenableActionFuture<Void> schedule(TimeValue maxTime, int maxIterations, Executor executor, Driver driver) {
+        ListenableActionFuture<Void> future = new ListenableActionFuture<>();
+        executor.execute(new ActionRunnable<>(future) {
+            @Override
+            protected void doRun() {
+                if (driver.isFinished()) {
+                    future.onResponse(null);
+                    return;
+                }
+                ListenableActionFuture<Void> fut = driver.run(maxTime, maxIterations);
+                if (fut.isDone()) {
+                    schedule(maxTime, maxIterations, executor, driver).addListener(future);
+                } else {
+                    fut.addListener(
+                        ActionListener.wrap(
+                            ignored -> schedule(maxTime, maxIterations, executor, driver).addListener(future),
+                            e -> future.onFailure(e)
+                        )
+                    );
+                }
+            }
+        });
+        return future;
+    }
+
     private static ListenableActionFuture<Void> oneOf(List<ListenableActionFuture<Void>> futures) {
         if (futures.isEmpty()) {
             return Operator.NOT_BLOCKED;
@@ -149,5 +188,23 @@ public class Driver implements Runnable {
             fut.addListener(oneOf);
         }
         return oneOf;
+    }
+
+    private static ListenableActionFuture<Void> allOf(List<ListenableActionFuture<Void>> futures) {
+        if (futures.isEmpty()) {
+            return Operator.NOT_BLOCKED;
+        }
+        if (futures.size() == 1) {
+            return futures.get(0);
+        }
+        ListenableActionFuture<Void> allOf = new ListenableActionFuture<>();
+        for (ListenableActionFuture<Void> fut : futures) {
+            fut.addListener(ActionListener.wrap(ignored -> {
+                if (futures.stream().allMatch(BaseFuture::isDone)) {
+                    allOf.onResponse(null);
+                }
+            }, e -> allOf.onFailure(e)));
+        }
+        return allOf;
     }
 }

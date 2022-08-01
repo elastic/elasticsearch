@@ -556,3 +556,96 @@ teardown:
       "number": 42
     }
   }
+---
+"Test bulk update api key with empty request fields":
+
+  - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV91c2VyXzE6eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" # api_key_user_1
+      security.create_api_key:
+        body: >
+          {
+            "name": "user1-api-key",
+            "role_descriptors": {
+              "role-a": {
+                "cluster": ["none"],
+                "index": [
+                  {
+                    "names": ["index-a"],
+                    "privileges": ["none"]
+                  }
+                ]
+              }
+            },
+            "metadata": {
+              "letter": "a",
+              "number": 42
+            }
+          }
+  - match: { name: "user1-api-key" }
+  - is_true: id
+  - is_true: api_key
+  - set: { id: user1_key_id }
+  - transform_and_set: { login_creds: "#base64EncodeCredentials(id,api_key)" }
+  - match: { encoded: $login_creds }
+
+  # Give user new cluster privilege to test auto update
+  - do:
+      security.put_role:
+        name: "user_role"
+        body: >
+          {
+            "cluster": ["all"],
+            "indices": [
+              {
+                "names": "index-a",
+                "privileges": ["all"]
+              }
+            ]
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV91c2VyXzE6eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" # api_key_user_1
+      security.bulk_update_api_keys:
+        body: >
+          {
+            "ids": ["${user1_key_id}"],
+            "role_descriptors": {},
+            "metadata": {}
+          }
+  - length: { "noops": 0 }
+  - length: { "updated": 1 }
+  - match: {
+    "updated.0": "$user1_key_id"
+  }
+  
+  - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV91c2VyXzE6eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" # api_key_user_1
+      security.get_api_key:
+        id: "$user1_key_id"
+        owner: true
+  - length: { "api_keys": 1 }
+  - match: {
+    "api_keys.0.metadata": { }
+  }
+
+  # Check privileges auto-updated to owner user's
+  - do:
+      headers:
+        Authorization: ApiKey ${login_creds}
+      security.has_privileges:
+        user: null
+        body: >
+          {
+            "cluster": ["all"],
+            "index": [
+              {
+                "names": ["index-a"],
+                "privileges": ["read"]
+              }
+            ]
+          }
+  - match: { "has_all_requested": true }
+

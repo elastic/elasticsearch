@@ -16,11 +16,22 @@ public class LongAvgOperator implements Operator {
     boolean returnedResult;
     long count;
     long sum;
-    private final int channel;
+    private final int rawChannel;
+    private final int sumChannel;
+    private final int countChannel;
 
-    public LongAvgOperator(int channel) {
-        this.channel = channel;
+    // PARTIAL
+    public LongAvgOperator(int rawChannel) {
+        this.rawChannel = rawChannel;
+        this.sumChannel = -1;
+        this.countChannel = -1;
+    }
 
+    // FINAL
+    public LongAvgOperator(int sumChannel, int countChannel) {
+        this.rawChannel = -1;
+        this.sumChannel = sumChannel;
+        this.countChannel = countChannel;
     }
 
     @Override
@@ -30,7 +41,11 @@ public class LongAvgOperator implements Operator {
     public Page getOutput() {
         if (finished && returnedResult == false) {
             returnedResult = true;
-            return new Page(new LongBlock(new long[] { sum / count }, 1));
+            if (rawChannel != -1) {
+                return new Page(new LongBlock(new long[] { sum }, 1), new LongBlock(new long[] { count }, 1));
+            } else {
+                return new Page(new LongBlock(new long[] { sum / count }, 1));
+            }
         }
         return null;
     }
@@ -52,10 +67,19 @@ public class LongAvgOperator implements Operator {
 
     @Override
     public void addInput(Page page) {
-        Block block = page.getBlock(channel);
-        for (int i = 0; i < block.getPositionCount(); i++) {
-            sum += block.getLong(i);
+        if (rawChannel != -1) {
+            Block block = page.getBlock(rawChannel);
+            for (int i = 0; i < block.getPositionCount(); i++) {
+                sum += block.getLong(i);
+            }
+            count += block.getPositionCount();
+        } else {
+            Block sumBlock = page.getBlock(sumChannel);
+            Block countBlock = page.getBlock(countChannel);
+            for (int i = 0; i < page.getPositionCount(); i++) {
+                sum += sumBlock.getLong(i);
+                count += countBlock.getLong(i);
+            }
         }
-        count += block.getPositionCount();
     }
 }

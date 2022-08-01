@@ -13,11 +13,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.concurrent.BaseFuture;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -45,7 +41,6 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -191,7 +186,7 @@ public class OperatorTests extends ESTestCase {
             () -> {}
         );
 
-        runToCompletion(randomExecutor(), List.of(driver1, driver2));
+        Driver.runToCompletion(randomExecutor(), List.of(driver1, driver2));
     }
 
     private Executor randomExecutor() {
@@ -252,7 +247,7 @@ public class OperatorTests extends ESTestCase {
             () -> {}
         );
 
-        runToCompletion(randomExecutor(), List.of(driver1, driver2, driver3, driver4)).actionGet();
+        Driver.runToCompletion(randomExecutor(), List.of(driver1, driver2, driver3, driver4)).actionGet();
     }
 
     public void testOperatorsAsync() {
@@ -282,7 +277,8 @@ public class OperatorTests extends ESTestCase {
         Driver driver = new Driver(
             List.of(
                 new ListLongBlockSourceOperator(List.of(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L)),
-                new LongAvgOperator(0),
+                new LongAvgOperator(0), // partial reduction
+                new LongAvgOperator(0, 1), // final reduction
                 new PageConsumerOperator(page -> {
                     logger.info("New page: {}", page);
                     pageCount.incrementAndGet();
@@ -332,59 +328,6 @@ public class OperatorTests extends ESTestCase {
         assertEquals(9, lastPage.get().getBlock(0).getLong(1));
         assertEquals(1, lastPage.get().getBlock(1).getLong(0));
         assertEquals(3, lastPage.get().getBlock(1).getLong(1));
-    }
-
-    private ListenableActionFuture<Void> runToCompletion(Executor executor, List<Driver> drivers) {
-        TimeValue maxTime = TimeValue.timeValueMillis(200);
-        int maxIterations = 10000;
-        List<ListenableActionFuture<Void>> futures = new ArrayList<>();
-        for (Driver driver : drivers) {
-            futures.add(schedule(maxTime, maxIterations, executor, driver));
-        }
-        return allOf(futures);
-    }
-
-    private static ListenableActionFuture<Void> allOf(List<ListenableActionFuture<Void>> futures) {
-        if (futures.isEmpty()) {
-            return Operator.NOT_BLOCKED;
-        }
-        if (futures.size() == 1) {
-            return futures.get(0);
-        }
-        ListenableActionFuture<Void> allOf = new ListenableActionFuture<>();
-        for (ListenableActionFuture<Void> fut : futures) {
-            fut.addListener(ActionListener.wrap(ignored -> {
-                if (futures.stream().allMatch(BaseFuture::isDone)) {
-                    allOf.onResponse(null);
-                }
-            }, e -> allOf.onFailure(e)));
-        }
-        return allOf;
-    }
-
-    private ListenableActionFuture<Void> schedule(TimeValue maxTime, int maxIterations, Executor executor, Driver driver) {
-        ListenableActionFuture<Void> future = new ListenableActionFuture<>();
-        executor.execute(new ActionRunnable<>(future) {
-            @Override
-            protected void doRun() {
-                if (driver.isFinished()) {
-                    future.onResponse(null);
-                    return;
-                }
-                ListenableActionFuture<Void> fut = driver.run(maxTime, maxIterations);
-                if (fut.isDone()) {
-                    schedule(maxTime, maxIterations, executor, driver).addListener(future);
-                } else {
-                    fut.addListener(
-                        ActionListener.wrap(
-                            ignored -> schedule(maxTime, maxIterations, executor, driver).addListener(future),
-                            e -> future.onFailure(e)
-                        )
-                    );
-                }
-            }
-        });
-        return future;
     }
 
     /**

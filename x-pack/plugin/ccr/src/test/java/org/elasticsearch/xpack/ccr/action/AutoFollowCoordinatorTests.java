@@ -76,6 +76,7 @@ import static org.elasticsearch.xpack.ccr.action.AutoFollowCoordinator.AutoFollo
 import static org.elasticsearch.xpack.ccr.action.AutoFollowCoordinator.AutoFollower.recordLeaderIndexAsFollowFunction;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -1275,6 +1276,58 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             assertThat(request.getFollowerIndex(), equalTo(".ds-logs-foo-bar-2022-02-01-123456"));
             assertThat(request.getLeaderIndex(), equalTo(".ds-logs-foo-bar-2022-02-01-123456"));
             assertThat(request.getDataStreamName(), equalTo(null));
+        }
+
+        // Renaming with a suffix and just the worst named backing indices
+        {
+            AutoFollowPattern pattern = new AutoFollowPattern(
+                "remote",
+                List.of("logs-*"),
+                List.of(),
+                "{{leader_index}}_copy",
+                Settings.EMPTY,
+                true,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+            );
+
+            Index index = new Index("my-.ds-backing-index", "uuid");
+            IndexAbstraction indexAbstraction = new IndexAbstraction.ConcreteIndex(
+                IndexMetadata.builder(index.getName())
+                    .settings(
+                        Settings.builder()
+                            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                            .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
+                            .build()
+                    )
+                    .build(),
+                new IndexAbstraction.DataStream(
+                    new DataStream("logs-foo-bar", List.of(index), 1, Map.of(), false, false, false, true, IndexMode.STANDARD)
+                )
+            );
+
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> AutoFollower.generateRequest("remote", index, indexAbstraction, pattern)
+            );
+            assertThat(
+                e.getMessage(),
+                containsString(
+                    "unable to determine follower index name from leader index name "
+                        + "[my-.ds-backing-index] and follow index pattern: [{{leader_index}}_copy],"
+                        + ", index appears to follow a regular data stream backing pattern, but could not be parsed"
+                )
+            );
         }
     }
 

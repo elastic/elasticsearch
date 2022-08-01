@@ -864,7 +864,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                                 + leaderIndexName
                                 + "] and follow index pattern: ["
                                 + followPattern
-                                + "]"
+                                + "], index appears to follow a regular data stream backing pattern, but could not be parsed"
                         );
                     }
                 } else {

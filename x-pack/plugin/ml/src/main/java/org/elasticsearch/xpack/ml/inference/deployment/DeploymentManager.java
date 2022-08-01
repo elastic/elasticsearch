@@ -206,7 +206,7 @@ public class DeploymentManager {
                     stream
                 )
         ) {
-            return Vocabulary.createParser(true).apply(parser, null);
+            return Vocabulary.PARSER.apply(parser, null);
         } catch (IOException e) {
             logger.error(() -> "failed to parse trained model vocabulary [" + hit.getId() + "]", e);
             throw e;

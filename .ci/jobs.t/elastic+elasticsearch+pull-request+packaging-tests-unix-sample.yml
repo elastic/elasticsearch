@@ -31,7 +31,7 @@
           type: label-expression
           name: os
           values:
-            - rocky-linux-8-packaging
+            - rhel-8-packaging
             - ubuntu-20.04-packaging
       - axis:
           type: user-defined

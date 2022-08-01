@@ -16,13 +16,13 @@ import java.util.Set;
 class UpsertMetadata extends UpdateMetadata {
     static final Map<String, FieldProperty<?>> PROPERTIES = Map.of(
         INDEX,
-        SET_ONCE_STRING,
+        StringField,
         ID,
-        SET_ONCE_STRING,
+        StringField,
         OP,
-        new FieldProperty<>(String.class, true, true, null),
+        StringField.withWritable().withNullable(),
         NOW,
-        SET_ONCE_LONG
+        LongField
     );
 
     UpsertMetadata(String index, String id, String op, long now) {

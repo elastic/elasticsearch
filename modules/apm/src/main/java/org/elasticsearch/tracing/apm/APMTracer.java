@@ -55,7 +55,7 @@ import static org.elasticsearch.tracing.apm.APMAgentSettings.APM_TRACING_NAMES_I
  */
 public class APMTracer extends AbstractLifecycleComponent implements org.elasticsearch.tracing.Tracer {
 
-    private static final Logger LOGGER = LogManager.getLogger(APMTracer.class);
+    private static final Logger logger = LogManager.getLogger(APMTracer.class);
 
     /** Holds in-flight span information. */
     private final Map<String, Context> spans = ConcurrentCollections.newConcurrentMap();
@@ -154,12 +154,12 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         }
 
         if (filterAutomaton.run(spanName) == false) {
-            LOGGER.trace("Skipping tracing [{}] [{}] as it has been filtered out", spanId, spanName);
+            logger.trace("Skipping tracing [{}] [{}] as it has been filtered out", spanId, spanName);
             return;
         }
 
         spans.computeIfAbsent(spanId, _spanId -> AccessController.doPrivileged((PrivilegedAction<Context>) () -> {
-            LOGGER.trace("Tracing [{}] [{}]", spanId, spanName);
+            logger.trace("Tracing [{}] [{}]", spanId, spanName);
             final SpanBuilder spanBuilder = services.tracer.spanBuilder(spanName);
 
             // A span can have a parent span, which here is modelled though a parent span context.
@@ -328,7 +328,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     public void stopTrace(String spanId) {
         final var span = Span.fromContextOrNull(spans.remove(spanId));
         if (span != null) {
-            LOGGER.trace("Finishing trace [{}]", spanId);
+            logger.trace("Finishing trace [{}]", spanId);
             span.end();
         }
     }

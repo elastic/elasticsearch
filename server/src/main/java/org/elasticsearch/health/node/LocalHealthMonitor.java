@@ -28,7 +28,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.metadata.HealthMetadata;
 import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
-import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.node.NodeService;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -59,8 +58,9 @@ public class LocalHealthMonitor implements ClusterStateListener {
     private volatile boolean enabled;
     // Signals that the health metadata is available, so we can start monitoring.
     private volatile boolean healthMetadataInitialized;
-    // Ensures that there will no parallel executions of the monitoring process and
-    // simplifies the rescheduling during enabling/disabling or the change of the interval.
+    // Ensures that only one monitoring task will be in progress at any moment in time.
+    // It removes the need to synchronize scheduling since at the event that there are two
+    // monitoring tasks scheduled, one of them will be no-op.
     private final AtomicBoolean inProgress = new AtomicBoolean();
     // Keeps the latest health state that was successfully reported.
     private DiskHealthInfo lastReportedDiskHealthInfo = null;
@@ -122,8 +122,12 @@ public class LocalHealthMonitor implements ClusterStateListener {
                 logger.debug("Health status changed from {} to {}", previousHealth, currentHealth);
                 this.lastReportedDiskHealthInfo = currentHealth;
             }
-            scheduleNextRunIfEnabled(monitorInterval);
             inProgress.set(false);
+            // Scheduling happens after the flag inProgress is false, this ensures that
+            // if the feature is enabled after the following schedule statement, the setEnabled
+            // method will be able to schedule the next run, and it will not be a no-op.
+            // We prefer to err towards an extra scheduling than miss the enabling of this feature alltogether.
+            scheduleNextRunIfEnabled(monitorInterval);
         }
     }
 
@@ -190,37 +194,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
                 false,
                 false
             );
-            final String nodeId = nodeStats.getNode().getId();
-            final String nodeName = nodeStats.getNode().getName();
-            if (nodeStats.getFs() == null) {
-                logger.debug("node [{}/{}] did not return any filesystem stats", nodeName, nodeId);
-                return null;
-            }
-
-            FsInfo.Path leastAvailablePath = null;
-            for (FsInfo.Path info : nodeStats.getFs()) {
-                if (leastAvailablePath == null) {
-                    leastAvailablePath = info;
-                } else if (leastAvailablePath.getAvailable().getBytes() > info.getAvailable().getBytes()) {
-                    leastAvailablePath = info;
-                }
-            }
-            if (leastAvailablePath == null) {
-                logger.debug("node [{}/{}] did not return any filesystem stats", nodeName, nodeId);
-                return null;
-            }
-            if (leastAvailablePath.getTotal().getBytes() < 0) {
-                logger.debug("node [{}/{}] reported negative total disk space", nodeName, nodeId);
-                return null;
-            }
-
-            return new DiskUsage(
-                nodeId,
-                nodeName,
-                leastAvailablePath.getPath(),
-                leastAvailablePath.getTotal().getBytes(),
-                leastAvailablePath.getAvailable().getBytes()
-            );
+            return DiskUsage.findLeastAvailablePath(nodeStats);
         }
 
         private boolean hasRelocatingShards(ClusterState clusterState, String nodeId) {

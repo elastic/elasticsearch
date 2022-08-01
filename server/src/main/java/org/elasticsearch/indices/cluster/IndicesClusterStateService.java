@@ -409,9 +409,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     } else if (newShardRouting.initializing() && currentRoutingEntry.active()) {
                         // this can happen if the node was isolated/gc-ed, rejoins the cluster and a new shard with the same allocation id
                         // is assigned to it. Batch cluster state processing or if shard fetching completes before the node gets a new
-                        // cluster
-                        // state may result in a new shard being initialized while having the same allocation id as the currently started
-                        // shard.
+                        // cluster state may result in a new shard being initialized while having the same allocation id as the currently
+                        // started shard.
                         logger.debug("{} removing shard (not active, current {}, new {})", shardId, currentRoutingEntry, newShardRouting);
                         indexService.removeShard(shardId.id(), "removing shard (stale copy)");
                     } else if (newShardRouting.primary() && currentRoutingEntry.primary() == false && newShardRouting.initializing()) {
@@ -426,6 +425,12 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         }
     }
 
+    /**
+     * Notifies master about shards that don't exist but are supposed to be active on this node, creates new shards that are supposed to
+     * be initializing on this node and if needed updates the state of existing shards with the new cluster state.
+     *
+     * @param state new cluster state
+     */
     private void createIndicesAndUpdateShards(final ClusterState state) {
         DiscoveryNodes nodes = state.nodes();
         RoutingNode localRoutingNode = state.getRoutingNodes().node(nodes.getLocalNodeId());
@@ -439,8 +444,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         // service is found
         final Map<Index, List<ShardRouting>> indicesToCreate = new HashMap<>();
         for (ShardRouting shardRouting : localRoutingNode) {
-            if (failedShardsCache.containsKey(shardRouting.shardId()) == false) {
-                ShardId shardId = shardRouting.shardId();
+            ShardId shardId = shardRouting.shardId();
+            if (failedShardsCache.containsKey(shardId) == false) {
                 final Index index = shardRouting.index();
                 final var indexService = indicesService.indexService(index);
                 if (shardRouting.initializing() == false && (indexService == null || indexService.getShardOrNull(shardId.id()) == null)) {
@@ -451,12 +456,12 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                         null,
                         state
                     );
-                    continue;
-                }
-                if (indexService == null) {
-                    indicesToCreate.computeIfAbsent(index, k -> new ArrayList<>()).add(shardRouting);
                 } else {
-                    createOrUpdateShard(state, nodes, routingTable, shardRouting, indexService);
+                    if (indexService == null) {
+                        indicesToCreate.computeIfAbsent(index, k -> new ArrayList<>()).add(shardRouting);
+                    } else {
+                        createOrUpdateShard(state, nodes, routingTable, shardRouting, indexService);
+                    }
                 }
             }
         }

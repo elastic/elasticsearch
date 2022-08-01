@@ -248,6 +248,39 @@ public class BlendedTermQueryTests extends ESTestCase {
         dir.close();
     }
 
+    public void testMissingFields() throws IOException {
+        Directory dir = newDirectory();
+        IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(new MockAnalyzer(random())));
+        FieldType ft = new FieldType(TextField.TYPE_NOT_STORED);
+        ft.freeze();
+
+        for (int i = 0; i < 10; i++) {
+            Document d = new Document();
+            d.add(new TextField("id", Integer.toString(i), Field.Store.YES));
+            d.add(new Field("dense", "foo", ft));
+            // Add a sparse field with high totalTermFreq but low docCount
+            if (i % 5 == 0) {
+                d.add(new Field("sparse", "foo", ft));
+                d.add(new Field("sparse", "one two three four five size", ft));
+            }
+            w.addDocument(d);
+        }
+        w.commit();
+
+        DirectoryReader reader = DirectoryReader.open(w);
+        IndexSearcher searcher = setSimilarity(newSearcher(reader));
+
+        String[] fields = new String[] { "dense", "sparse" };
+        Query query = BlendedTermQuery.dismaxBlendedQuery(toTerms(fields, "foo"), 0.1f);
+        TopDocs search = searcher.search(query, 10);
+        ScoreDoc[] scoreDocs = search.scoreDocs;
+        assertEquals(Integer.toString(0), reader.document(scoreDocs[0].doc).getField("id").stringValue());
+
+        reader.close();
+        w.close();
+        dir.close();
+    }
+
     public void testEqualsAndHash() {
         String[] fields = new String[1 + random().nextInt(10)];
         for (int i = 0; i < fields.length; i++) {

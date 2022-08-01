@@ -67,11 +67,7 @@ public class RestLogsActionTests extends RestActionTestCase {
     }
 
     public void testObjectScalarClashWithMetadata() {
-        RestRequest req = createLogsRequest(
-            "/_logs",
-            Map.of("_metadata", Map.of("foo", Map.of("bar", "baz"))),
-            Map.of("foo", "bar")
-        );
+        RestRequest req = createLogsRequest("/_logs", Map.of("_metadata", Map.of("foo", Map.of("bar", "baz"))), Map.of("foo", "bar"));
 
         verifyingClient.setExecuteVerifier((BiFunction<ActionType<BulkResponse>, BulkRequest, BulkResponse>) (actionType, request) -> {
             assertEquals(1, request.requests().size());
@@ -84,10 +80,7 @@ public class RestLogsActionTests extends RestActionTestCase {
     }
 
     public void testObjectScalarClashInDocument() {
-        RestRequest req = createLogsRequest(
-            "/_logs",
-            Map.of("foo.bar", "baz", "foo", "bar")
-        );
+        RestRequest req = createLogsRequest("/_logs", Map.of("foo.bar", "baz", "foo", "bar"));
 
         verifyingClient.setExecuteVerifier((BiFunction<ActionType<BulkResponse>, BulkRequest, BulkResponse>) (actionType, request) -> {
             assertEquals(1, request.requests().size());

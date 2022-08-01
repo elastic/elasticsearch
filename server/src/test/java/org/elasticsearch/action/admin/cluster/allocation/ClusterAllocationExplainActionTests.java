@@ -55,7 +55,8 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
             clusterState,
             null,
             null,
-            System.nanoTime()
+            System.nanoTime(),
+            "test"
         );
         ClusterAllocationExplanation cae = TransportClusterAllocationExplainAction.explainShard(
             shard,
@@ -269,6 +270,6 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
     }
 
     private static RoutingAllocation routingAllocation(ClusterState clusterState) {
-        return new RoutingAllocation(NOOP_DECIDERS, clusterState, null, null, System.nanoTime());
+        return new RoutingAllocation(NOOP_DECIDERS, clusterState, null, null, System.nanoTime(), "test");
     }
 }

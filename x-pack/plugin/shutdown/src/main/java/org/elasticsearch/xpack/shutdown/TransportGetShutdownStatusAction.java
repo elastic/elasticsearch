@@ -221,7 +221,8 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
             currentState,
             clusterInfoService.getClusterInfo(),
             snapshotsInfoService.snapshotShardSizes(),
-            System.nanoTime()
+            System.nanoTime(),
+            "TransportGetShutdownStatusAction"
         );
         allocation.setDebugMode(RoutingAllocation.DebugMode.EXCLUDE_YES_DECISIONS);
 

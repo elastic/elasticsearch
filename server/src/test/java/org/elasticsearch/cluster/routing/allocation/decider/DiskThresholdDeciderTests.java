@@ -916,7 +916,8 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             clusterState,
             clusterInfo,
             null,
-            System.nanoTime()
+            System.nanoTime(),
+            "test"
         );
         routingAllocation.debugDecision(true);
         Decision decision = diskThresholdDecider.canRemain(
@@ -953,7 +954,8 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             clusterState,
             clusterInfo,
             null,
-            System.nanoTime()
+            System.nanoTime(),
+            "test"
         );
         routingAllocation.debugDecision(true);
         decision = diskThresholdDecider.canRemain(
@@ -1116,7 +1118,8 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             clusterState,
             clusterInfo,
             null,
-            System.nanoTime()
+            System.nanoTime(),
+            "test"
         );
         routingAllocation.debugDecision(true);
         Decision decision = diskThresholdDecider.canRemain(

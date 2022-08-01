@@ -94,7 +94,8 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
             clusterState,
             ClusterInfo.EMPTY,
             SnapshotShardSizeInfo.EMPTY,
-            0L
+            0L,
+            "test"
         );
 
         reconcile(routingAllocation, new DesiredBalance(1, Map.of()));
@@ -152,7 +153,8 @@ public class DesiredBalanceReconcilerTests extends ESTestCase {
             clusterState,
             ClusterInfo.EMPTY,
             SnapshotShardSizeInfo.EMPTY,
-            0L
+            0L,
+            "test"
         );
 
         for (ShardRouting shardRouting : routingAllocation.routingNodes().unassigned()) {

@@ -579,7 +579,14 @@ public class DesiredBalanceComputerTests extends ESTestCase {
     }
 
     private static RoutingAllocation routingAllocationOf(ClusterState clusterState) {
-        return new RoutingAllocation(new AllocationDeciders(List.of()), clusterState, ClusterInfo.EMPTY, SnapshotShardSizeInfo.EMPTY, 0L);
+        return new RoutingAllocation(
+            new AllocationDeciders(List.of()),
+            clusterState,
+            ClusterInfo.EMPTY,
+            SnapshotShardSizeInfo.EMPTY,
+            0L,
+            "test"
+        );
     }
 
     private static RoutingAllocation routingAllocationWithDecidersOf(ClusterState clusterState) {
@@ -594,7 +601,8 @@ public class DesiredBalanceComputerTests extends ESTestCase {
             clusterState,
             ClusterInfo.EMPTY,
             SnapshotShardSizeInfo.EMPTY,
-            0L
+            0L,
+            "test"
         );
     }
 }

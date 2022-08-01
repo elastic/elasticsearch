@@ -444,7 +444,8 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             state,
             ClusterInfo.EMPTY,
             SnapshotShardSizeInfo.EMPTY,
-            System.nanoTime()
+            System.nanoTime(),
+            "explainAllocationsAndDiagnoseDeciders"
         );
         allocation.setDebugMode(RoutingAllocation.DebugMode.ON);
         ShardAllocationDecision shardAllocationDecision = allocationService.explainShardAllocation(shardRouting, allocation);

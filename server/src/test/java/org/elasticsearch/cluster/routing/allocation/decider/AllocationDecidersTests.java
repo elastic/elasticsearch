@@ -99,7 +99,7 @@ public class AllocationDecidersTests extends ESTestCase {
         ClusterState clusterState = ClusterState.builder(new ClusterName("test"))
             .metadata(Metadata.builder().put(idx, false).put(testIdx, false).build())
             .build();
-        final RoutingAllocation allocation = new RoutingAllocation(deciders, clusterState, null, null, 0L);
+        final RoutingAllocation allocation = new RoutingAllocation(deciders, clusterState, null, null, 0L, "test");
 
         allocation.setDebugMode(mode);
         final ShardRouting shardRouting = createShardRouting(testIdx.getIndex());
@@ -248,7 +248,7 @@ public class AllocationDecidersTests extends ESTestCase {
             .metadata(Metadata.builder().put(testIdx, false).put(indexMetadata, false).build())
             .build();
 
-        final RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, clusterState, null, null, 0L);
+        final RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, clusterState, null, null, 0L, "test");
         assertSame(Decision.NO, allocationDeciders.canAllocate(shardRouting, routingNode, allocation));
         assertSame(Decision.NO, allocationDeciders.canRebalance(shardRouting, allocation));
         assertSame(Decision.NO, allocationDeciders.canRemain(shardRouting, routingNode, allocation));
@@ -337,7 +337,7 @@ public class AllocationDecidersTests extends ESTestCase {
     }
 
     private static RoutingAllocation createRoutingAllocation(AllocationDeciders deciders) {
-        return new RoutingAllocation(deciders, ClusterState.builder(new ClusterName("test")).build(), null, null, 0L);
+        return new RoutingAllocation(deciders, ClusterState.builder(new ClusterName("test")).build(), null, null, 0L, "test");
     }
 
     private static final class AnyNodeInitialShardAllocationDecider extends AllocationDecider {

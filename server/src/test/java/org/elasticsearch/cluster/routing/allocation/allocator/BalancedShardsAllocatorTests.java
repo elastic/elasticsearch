@@ -69,7 +69,8 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
             clusterState,
             ClusterInfo.EMPTY,
             SnapshotShardSizeInfo.EMPTY,
-            System.nanoTime()
+            System.nanoTime(),
+            "test"
         );
 
         allocation.debugDecision(false);

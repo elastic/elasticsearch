@@ -82,7 +82,7 @@ public class NodeShutdownAllocationDeciderTests extends ESAllocationTestCase {
             service.reroute(ClusterState.EMPTY_STATE, "initial state"),
             SingleNodeShutdownMetadata.Type.RESTART
         );
-        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state, null, null, 0);
+        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state, null, null, 0, "test");
         RoutingNode routingNode = RoutingNodesHelper.routingNode(DATA_NODE.getId(), DATA_NODE, shard);
         allocation.debugDecision(true);
 
@@ -99,7 +99,7 @@ public class NodeShutdownAllocationDeciderTests extends ESAllocationTestCase {
             service.reroute(ClusterState.EMPTY_STATE, "initial state"),
             randomFrom(SingleNodeShutdownMetadata.Type.REMOVE, SingleNodeShutdownMetadata.Type.REPLACE)
         );
-        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state, null, null, 0);
+        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state, null, null, 0, "test");
         RoutingNode routingNode = RoutingNodesHelper.routingNode(DATA_NODE.getId(), DATA_NODE, shard);
         allocation.debugDecision(true);
 
@@ -113,7 +113,7 @@ public class NodeShutdownAllocationDeciderTests extends ESAllocationTestCase {
             service.reroute(ClusterState.EMPTY_STATE, "initial state"),
             SingleNodeShutdownMetadata.Type.RESTART
         );
-        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state, null, null, 0);
+        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state, null, null, 0, "test");
         RoutingNode routingNode = RoutingNodesHelper.routingNode(DATA_NODE.getId(), DATA_NODE, shard);
         allocation.debugDecision(true);
 
@@ -130,7 +130,7 @@ public class NodeShutdownAllocationDeciderTests extends ESAllocationTestCase {
             service.reroute(ClusterState.EMPTY_STATE, "initial state"),
             randomFrom(SingleNodeShutdownMetadata.Type.REMOVE, SingleNodeShutdownMetadata.Type.REPLACE)
         );
-        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state, null, null, 0);
+        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state, null, null, 0, "test");
         RoutingNode routingNode = RoutingNodesHelper.routingNode(DATA_NODE.getId(), DATA_NODE, shard);
         allocation.debugDecision(true);
 
@@ -144,7 +144,7 @@ public class NodeShutdownAllocationDeciderTests extends ESAllocationTestCase {
             service.reroute(ClusterState.EMPTY_STATE, "initial state"),
             SingleNodeShutdownMetadata.Type.RESTART
         );
-        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state, null, null, 0);
+        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state, null, null, 0, "test");
         allocation.debugDecision(true);
 
         Decision decision = decider.shouldAutoExpandToNode(indexMetadata, DATA_NODE, allocation);
@@ -158,7 +158,7 @@ public class NodeShutdownAllocationDeciderTests extends ESAllocationTestCase {
     public void testCanAutoExpandToNodeThatIsNotShuttingDown() {
         ClusterState state = service.reroute(ClusterState.EMPTY_STATE, "initial state");
 
-        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state, null, null, 0);
+        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state, null, null, 0, "test");
         allocation.debugDecision(true);
 
         Decision decision = decider.shouldAutoExpandToNode(indexMetadata, DATA_NODE, allocation);
@@ -171,7 +171,7 @@ public class NodeShutdownAllocationDeciderTests extends ESAllocationTestCase {
             service.reroute(ClusterState.EMPTY_STATE, "initial state"),
             randomFrom(SingleNodeShutdownMetadata.Type.REMOVE, SingleNodeShutdownMetadata.Type.REPLACE)
         );
-        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state, null, null, 0);
+        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state, null, null, 0, "test");
         allocation.debugDecision(true);
 
         Decision decision = decider.shouldAutoExpandToNode(indexMetadata, DATA_NODE, allocation);

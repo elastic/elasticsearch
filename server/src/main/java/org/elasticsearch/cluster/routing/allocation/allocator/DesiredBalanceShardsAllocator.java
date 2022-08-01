@@ -85,12 +85,12 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
         this.desiredBalanceComputation = new ContinuousComputation<>(threadPool.generic()) {
 
             @Override
-            protected void processInput(DesiredBalanceInput desiredBalanceInput) {
+            protected void processInput(DesiredBalanceInput input) {
 
-                logger.trace("Computing balance for [{}]", desiredBalanceInput.index());
+                logger.trace("Computing balance for [{}] with reason [{}]", input.index(), input.getReason());
 
-                setCurrentDesiredBalance(desiredBalanceComputer.compute(currentDesiredBalance, desiredBalanceInput, this::isFresh));
-                var isFresh = isFresh(desiredBalanceInput);
+                setCurrentDesiredBalance(desiredBalanceComputer.compute(currentDesiredBalance, input, this::isFresh));
+                var isFresh = isFresh(input);
 
                 if (isFresh) {
                     if (DesiredBalance.hasChanges(currentDesiredBalance, appliedDesiredBalance)) {
@@ -104,6 +104,11 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
                         queue.complete(lastConvergedIndex);
                     }
                 }
+            }
+
+            @Override
+            protected void onSupersedingInput(DesiredBalanceInput input) {
+                logger.trace("Superseding balance for [{}] with reason [{}]", input.index(), input.getReason());
             }
 
             @Override
@@ -121,8 +126,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
 
     @Override
     public void allocate(RoutingAllocation allocation, ActionListener<Void> listener) {
-        assert MasterService.isMasterUpdateThread() || Thread.currentThread().getName().startsWith("TEST-")
-            : Thread.currentThread().getName();
+        assert MasterService.assertMasterUpdateOrTestThread();
         // assert allocation.debugDecision() == false; set to true when called via the reroute API
         assert allocation.ignoreDisable() == false;
         // TODO add system context assertion
@@ -132,7 +136,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator, ClusterSt
         queue.pause();
 
         var index = indexGenerator.incrementAndGet();
-        logger.trace("Executing allocate for [{}]", index);
+        logger.trace("Executing allocate for [{}] with reason [{}]", index, allocation.getReason());
         queue.add(index, listener);
         desiredBalanceComputation.onNewInput(
             new DesiredBalanceInput(index, allocation.immutableClone(), new ArrayList<>(allocation.routingNodes().unassigned().ignored()))

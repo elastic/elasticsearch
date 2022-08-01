@@ -41,8 +41,11 @@ public abstract class ContinuousComputation<T> {
      */
     public void onNewInput(T input) {
         assert input != null;
-        if (enqueuedInput.getAndSet(Objects.requireNonNull(input)) == null) {
+        T previous = enqueuedInput.getAndSet(Objects.requireNonNull(input));
+        if (previous == null) {
             executorService.execute(processor);
+        } else {
+            onSupersedingInput(previous);
         }
     }
 
@@ -67,6 +70,8 @@ public abstract class ContinuousComputation<T> {
      * @param input the value that was last received by {@link #onNewInput} before invocation.
      */
     protected abstract void processInput(T input);
+
+    protected void onSupersedingInput(T value) {}
 
     private class Processor extends AbstractRunnable {
 

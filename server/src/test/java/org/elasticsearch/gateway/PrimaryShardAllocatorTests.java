@@ -490,7 +490,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
             public Long getShardSize(ShardRouting shardRouting) {
                 return shardSize;
             }
-        }, System.nanoTime());
+        }, System.nanoTime(), "test");
     }
 
     private RoutingAllocation routingAllocationWithOnePrimaryNoReplicas(
@@ -519,7 +519,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
             .routingTable(routingTableBuilder.build())
             .nodes(DiscoveryNodes.builder().add(node1).add(node2).add(node3))
             .build();
-        return new RoutingAllocation(deciders, state.mutableRoutingNodes(), state, null, null, System.nanoTime());
+        return new RoutingAllocation(deciders, state.mutableRoutingNodes(), state, null, null, System.nanoTime(), "test");
     }
 
     private void assertClusterHealthStatus(RoutingAllocation allocation, ClusterHealthStatus expectedStatus) {

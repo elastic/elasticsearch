@@ -136,7 +136,8 @@ public class AllocationService {
             clusterState,
             clusterInfoService.getClusterInfo(),
             snapshotsInfoService.snapshotShardSizes(),
-            currentNanoTime()
+            currentNanoTime(),
+            "applyStartedShards"
         );
         // as starting a primary relocation target can reinitialize replica shards, start replicas first
         startedShards = new ArrayList<>(startedShards);
@@ -215,7 +216,8 @@ public class AllocationService {
             tmpState,
             clusterInfoService.getClusterInfo(),
             snapshotsInfoService.snapshotShardSizes(),
-            currentNanoTime
+            currentNanoTime,
+            "applyFailedShards"
         );
 
         for (FailedShard failedShardEntry : failedShards) {
@@ -289,7 +291,8 @@ public class AllocationService {
             clusterState,
             clusterInfoService.getClusterInfo(),
             snapshotsInfoService.snapshotShardSizes(),
-            currentNanoTime()
+            currentNanoTime(),
+            reason
         );
 
         // first, clear from the shards any node id they used to belong to that is now dead
@@ -315,7 +318,8 @@ public class AllocationService {
             clusterState,
             clusterInfoService.getClusterInfo(),
             snapshotsInfoService.snapshotShardSizes(),
-            currentNanoTime()
+            currentNanoTime(),
+            "adaptAutoExpandReplicas"
         );
         final Map<Integer, List<String>> autoExpandReplicaChanges = AutoExpandReplicas.getAutoExpandReplicaChanges(
             clusterState.metadata(),
@@ -451,7 +455,8 @@ public class AllocationService {
             clusterState,
             clusterInfoService.getClusterInfo(),
             snapshotsInfoService.snapshotShardSizes(),
-            currentNanoTime()
+            currentNanoTime(),
+            "reroute commands"
         );
         // don't short circuit deciders, we want a full explanation
         allocation.debugDecision(true);
@@ -496,7 +501,8 @@ public class AllocationService {
             fixedClusterState,
             clusterInfoService.getClusterInfo(),
             snapshotsInfoService.snapshotShardSizes(),
-            currentNanoTime()
+            currentNanoTime(),
+            reason
         );
         if (listener == DesiredBalanceShardsAllocator.REMOVE_ME) {
             logger.warn("Executing reroute [{}] using [REMOVE_ME] listener, async result is ignored", reason);

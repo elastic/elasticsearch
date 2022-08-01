@@ -1536,7 +1536,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final List<RoleDescriptor> newRoleDescriptors = randomValueOtherThan(null, this::randomRoleDescriptors);
         final Map<String, Object> newMetadata = randomValueOtherThan(null, ApiKeyTests::randomMetadata);
 
-        final BulkUpdateApiKeyResponse response = executeBulkUpdateApiKey(
+        BulkUpdateApiKeyResponse response = executeBulkUpdateApiKey(
             TEST_USER_NAME,
             new BulkUpdateApiKeyRequest(apiKeyIds, newRoleDescriptors, newMetadata)
         );
@@ -1572,12 +1572,14 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         );
         newIds.addAll(notFoundIds);
         final BulkUpdateApiKeyRequest request = new BulkUpdateApiKeyRequest(shuffledList(newIds), newRoleDescriptors, newMetadata);
-        final BulkUpdateApiKeyResponse responseWithNoExpectedUpdates = executeBulkUpdateApiKey(TEST_USER_NAME, request);
-        assertNotNull(responseWithNoExpectedUpdates);
-        assertThat(responseWithNoExpectedUpdates.getUpdated(), empty());
-        assertEquals(apiKeyIds.size(), responseWithNoExpectedUpdates.getNoops().size());
-        assertThat(responseWithNoExpectedUpdates.getNoops(), containsInAnyOrder(apiKeyIds.toArray()));
-        assertThat(responseWithNoExpectedUpdates.getErrorDetails().keySet(), containsInAnyOrder(notFoundIds.toArray()));
+
+        response = executeBulkUpdateApiKey(TEST_USER_NAME, request);
+
+        assertNotNull(response);
+        assertThat(response.getUpdated(), empty());
+        assertEquals(apiKeyIds.size(), response.getNoops().size());
+        assertThat(response.getNoops(), containsInAnyOrder(apiKeyIds.toArray()));
+        assertThat(response.getErrorDetails().keySet(), containsInAnyOrder(notFoundIds.toArray()));
         for (String apiKeyId : apiKeyIds) {
             final Map<String, Object> doc = getApiKeyDocument(apiKeyId);
             expectRoleDescriptorsForApiKey("role_descriptors", newRoleDescriptors, doc);
@@ -1585,19 +1587,21 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             expectMetadataForApiKey(newMetadata, doc);
         }
 
-        // Check that bulk update works when all updates result in errors
-        getSecurityClient().invalidateApiKeys(apiKeyIds.toArray(new String[0]));
-        final BulkUpdateApiKeyRequest requestWithErrors = new BulkUpdateApiKeyRequest(
+        // Check that bulk update works when some or all updates result in errors
+        final List<String> invalidatedIds = randomNonEmptySubsetOf(apiKeyIds);
+        getSecurityClient().invalidateApiKeys(invalidatedIds.toArray(new String[0]));
+        final List<String> expectedSuccessfulIds = apiKeyIds.stream().filter(i -> invalidatedIds.contains(i) == false).toList();
+        final BulkUpdateApiKeyRequest requestWithSomeErrors = new BulkUpdateApiKeyRequest(
             shuffledList(apiKeyIds),
-            newRoleDescriptors,
-            newMetadata
+            randomValueOtherThan(null, this::randomRoleDescriptors),
+            randomValueOtherThan(null, ApiKeyTests::randomMetadata)
         );
 
-        final BulkUpdateApiKeyResponse responseWithErrors = executeBulkUpdateApiKey(TEST_USER_NAME, requestWithErrors);
+        response = executeBulkUpdateApiKey(TEST_USER_NAME, requestWithSomeErrors);
 
-        assertThat(responseWithErrors.getUpdated(), empty());
-        assertThat(responseWithErrors.getNoops(), empty());
-        assertThat(responseWithErrors.getErrorDetails().keySet(), containsInAnyOrder(apiKeyIds.toArray()));
+        final List<String> allSuccessfulIds = Stream.concat(response.getUpdated().stream(), response.getNoops().stream()).toList();
+        assertThat(allSuccessfulIds, containsInAnyOrder(expectedSuccessfulIds.toArray()));
+        assertThat(response.getErrorDetails().keySet(), containsInAnyOrder(invalidatedIds.toArray()));
     }
 
     public void testBulkUpdateApiKeysWithDuplicates() throws ExecutionException, InterruptedException {

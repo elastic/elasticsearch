@@ -47,6 +47,9 @@ setup:
                             doc_values: false
                         double:
                             type: double
+                        double_no_doc_values:
+                            type: double
+                            doc_values: false
                         float:
                             type: float
                         half_float:
@@ -86,6 +89,7 @@ setup:
                 byte: 12
                 byte_no_doc_values: 12
                 double: 3.14159265358979
+                double_no_doc_values: 3.14159265358979
                 float: 3.141592654
                 half_float: 3.140625
                 scaled_float: 3.14
@@ -121,6 +125,7 @@ setup:
               byte: [16, 32, 64, 8, 4]
               byte_no_doc_values: [16, 8, 32, 4, 64]
               double: [3.141592653588, 2.141592653587]
+              double_no_doc_values: [3.141592653588, 2.141592653587]
               float: [1.123, 2.234]
               half_float: [1.123, 2.234]
               scaled_float: [-3.5, 2.5]
@@ -1950,6 +1955,97 @@ setup:
     - match: { hits.hits.0.fields.field.0: 4.14159265358979 }
     - match: { hits.hits.1.fields.field.0: 0 }
     - match: { hits.hits.2.fields.field.0: 7.283185307175 }
+
+---
+"double_no_doc_values":
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['double_no_doc_values'].get(0)"
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      catch: bad_request
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: "1" } }
+          script_fields:
+            field:
+              script:
+                source: "doc['double_no_doc_values'].value"
+  - match: { error.failed_shards.0.reason.caused_by.type: "illegal_argument_exception" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('double_no_doc_values').get(-1)"
+  - match: { hits.hits.0.fields.field.0: 3.14159265358979 }
+  - match: { hits.hits.1.fields.field.0: -1 }
+  - match: { hits.hits.2.fields.field.0: 2.141592653587 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "/* avoid yaml stash */ $('double_no_doc_values', -1)"
+  - match: { hits.hits.0.fields.field.0: 3.14159265358979 }
+  - match: { hits.hits.1.fields.field.0: -1 }
+  - match: { hits.hits.2.fields.field.0: 2.141592653587 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "double defaultDouble = 7.8; field('double_no_doc_values').get(1, defaultDouble)"
+  - match: { hits.hits.0.fields.field.0: 7.8 }
+  - match: { hits.hits.1.fields.field.0: 7.8 }
+  - match: { hits.hits.2.fields.field.0: 3.141592653588 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('double_no_doc_values').get(1, 9.2)"
+  - match: { hits.hits.0.fields.field.0: 9.2 }
+  - match: { hits.hits.1.fields.field.0: 9.2 }
+  - match: { hits.hits.2.fields.field.0: 3.141592653588 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "double total = 0; for (double d : field('double_no_doc_values')) { total += d; } total + field('double_no_doc_values').size();"
+  - match: { hits.hits.0.fields.field.0: 4.14159265358979 }
+  - match: { hits.hits.1.fields.field.0: 0 }
+  - match: { hits.hits.2.fields.field.0: 7.283185307175 }
 
 ---
 "float":

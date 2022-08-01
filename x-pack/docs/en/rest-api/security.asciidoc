@@ -71,6 +71,7 @@ without requiring basic authentication:
 * <<security-api-grant-api-key,Grant API key>>
 * <<security-api-query-api-key,Query API key>>
 * <<security-api-update-api-key,Update API key>>
+* <<security-api-bulk-update-api-keys,Bulk update API keys>>
 
 [discrete]
 [[security-user-apis]]

@@ -14,5 +14,4 @@ package org.elasticsearch.sp.api.analysis;
 public non-sealed interface Analyzer<T extends org.apache.lucene.analysis.Analyzer> extends NamedComponent {
     T create();
 
-    AnalyzerScope scope();
 }

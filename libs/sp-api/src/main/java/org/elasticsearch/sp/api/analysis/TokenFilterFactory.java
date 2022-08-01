@@ -18,10 +18,20 @@ public non-sealed interface TokenFilterFactory extends NamedComponent {
 
     /**
      * Normalize a tokenStream for use in multi-term queries
-     *
+     * <p>
      * The default implementation is a no-op
      */
     default TokenStream normalize(TokenStream tokenStream) {
         return tokenStream;
     }
+
+    /**
+     * Get the {@link AnalysisMode} this filter is allowed to be used in. The default is
+     * {@link AnalysisMode#ALL}. Instances need to override this method to define their
+     * own restrictions.
+     */
+    default AnalysisMode getAnalysisMode() {
+        return AnalysisMode.ALL;
+    }
+
 }

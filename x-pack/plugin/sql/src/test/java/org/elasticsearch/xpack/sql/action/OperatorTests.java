@@ -284,7 +284,7 @@ public class OperatorTests extends ESTestCase {
                 new ListLongBlockSourceOperator(List.of(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L)),
                 new LongAvgOperator(0),
                 new PageConsumerOperator(page -> {
-                    System.out.println("New page: " + page);
+                    logger.info("New page: {}", page);
                     pageCount.incrementAndGet();
                     rowCount.addAndGet(page.getPositionCount());
                     lastPage.set(page);
@@ -315,7 +315,7 @@ public class OperatorTests extends ESTestCase {
                 new LongGroupingOperator(0, BigArrays.NON_RECYCLING_INSTANCE),
                 new LongAvgGroupingOperator(1, 0),
                 new PageConsumerOperator(page -> {
-                    System.out.println("New page: " + page);
+                    logger.info("New page: {}", page);
                     pageCount.incrementAndGet();
                     rowCount.addAndGet(page.getPositionCount());
                     lastPage.set(page);

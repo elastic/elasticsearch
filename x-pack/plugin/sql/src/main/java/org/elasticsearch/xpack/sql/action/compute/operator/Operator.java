@@ -28,7 +28,7 @@ public interface Operator {
     boolean needsInput();
 
     /**
-     * adds an input page to the operator. only called when needsInput() == true && isFinished() == false
+     * adds an input page to the operator. only called when needsInput() == true and isFinished() == false
      */
     void addInput(Page page);
 

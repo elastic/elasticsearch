@@ -148,7 +148,6 @@ public class Querier {
                     search.source().query() == null ? new MatchAllQueryBuilder() : search.source().query(),
                     query.aggs(),
                     page -> {
-                        System.out.println(page);
                         // TODO: extract response stream and turn into pages stream
                         if (page == null) {
                             // TODO: create meaningful responses

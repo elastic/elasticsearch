@@ -7,11 +7,11 @@
 
 package org.elasticsearch.xpack.sql.action.compute.operator.exchange;
 
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.xpack.sql.action.compute.data.Page;
 import org.elasticsearch.xpack.sql.action.compute.operator.Operator;
 
 import java.util.List;
-import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * Source operator implementation that interleaves the data from different exchange sources in
@@ -27,7 +27,7 @@ public class RandomUnionSourceOperator implements Operator {
 
     @Override
     public Page getOutput() {
-        int randomIndex = ThreadLocalRandom.current().nextInt(sources.size());
+        int randomIndex = Randomness.get().nextInt(sources.size());
         return sources.get(randomIndex).removePage();
     }
 

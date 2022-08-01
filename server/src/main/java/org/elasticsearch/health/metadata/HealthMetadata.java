@@ -110,7 +110,7 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
     ) implements ToXContentFragment, Writeable {
 
         public static final String TYPE = "disk";
-        public static Version VERSION_SUPPORTING_HEADROOM_FIELDS = Version.V_8_4_0;
+        public static Version VERSION_SUPPORTING_HEADROOM_FIELDS = Version.V_8_5_0;
 
         private static final ParseField HIGH_WATERMARK_FIELD = new ParseField("high_watermark");
         private static final ParseField HIGH_MAX_HEADROOM_FIELD = new ParseField("high_max_headroom");

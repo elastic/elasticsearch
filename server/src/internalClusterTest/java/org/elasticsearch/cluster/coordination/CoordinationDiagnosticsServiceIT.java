@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.emptyOrNullString;
@@ -88,7 +89,7 @@ public class CoordinationDiagnosticsServiceIT extends ESIntegTestCase {
                 ClusterFormationFailureHelper.ClusterFormationState clusterFormationState = result.clusterFormationState();
                 assertThat(clusterFormationState.getDescription(), not(emptyOrNullString()));
             });
-        });
+        }, 30, TimeUnit.SECONDS);
 
         disruption.stopDisrupting();
     }

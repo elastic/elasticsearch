@@ -266,9 +266,10 @@ public class DiskThresholdSettings {
         }
 
         // If watermark is percentage/ratio, calculate the total needed disk space.
-        double ratioThreshold = lowStageWatermark.getRatio().getAsRatio();
-        if (ratioThreshold >= 0.0 && ratioThreshold < 1.0) {
-            ByteSizeValue totalBytes = ByteSizeValue.ofBytes((long) Math.ceil(used.getBytes() / ratioThreshold));
+        double percentThreshold = lowStageWatermark.getRatio().getAsPercent();
+        if (percentThreshold >= 0.0 && percentThreshold < 100.0) {
+            // Use percentage instead of ratio, and multiple bytes with 100, to make division with double more accurate (issue #88791).
+            ByteSizeValue totalBytes = ByteSizeValue.ofBytes((long) Math.ceil((100 * used.getBytes()) / percentThreshold));
             return totalBytes;
         } else {
             return used;

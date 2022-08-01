@@ -58,6 +58,8 @@ include::troubleshooting/data/start-ilm.asciidoc[]
 
 include::troubleshooting/data/start-slm.asciidoc[]
 
+include::troubleshooting/data/restore-from-snapshot.asciidoc[]
+
 include::troubleshooting/snapshot/add-repository.asciidoc[]
 
 include::monitoring/troubleshooting.asciidoc[]
@@ -65,3 +67,5 @@ include::monitoring/troubleshooting.asciidoc[]
 include::transform/troubleshooting.asciidoc[leveloffset=+1]
 
 include::../../x-pack/docs/en/watcher/troubleshooting.asciidoc[]
+
+include::troubleshooting/corruption-issues.asciidoc[]

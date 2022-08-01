@@ -121,7 +121,7 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
                     // A replica Set might have one (and not more) replicas with the state of RELOCATING.
                     if (shard.assignedToNode()) {
                         // LinkedHashMap to preserve order
-                        nodesToShards.computeIfAbsent(shard.currentNodeId(), createRoutingNode).add(shard);
+                        nodesToShards.computeIfAbsent(shard.currentNodeId(), createRoutingNode).addWithoutValidation(shard);
                         assignedShardsAdd(shard);
                         if (shard.relocating()) {
                             relocatingShards++;
@@ -129,7 +129,8 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
                             addInitialRecovery(targetShardRouting, indexShard.primary);
                             // LinkedHashMap to preserve order.
                             // Add the counterpart shard with relocatingNodeId reflecting the source from which it's relocating from.
-                            nodesToShards.computeIfAbsent(shard.relocatingNodeId(), createRoutingNode).add(targetShardRouting);
+                            nodesToShards.computeIfAbsent(shard.relocatingNodeId(), createRoutingNode)
+                                .addWithoutValidation(targetShardRouting);
                             assignedShardsAdd(targetShardRouting);
                         } else if (shard.initializing()) {
                             if (shard.primary()) {
@@ -144,6 +145,12 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
                 }
             }
         }
+        assert invariant();
+    }
+
+    private boolean invariant() {
+        nodesToShards.values().forEach(RoutingNode::invariant);
+        return true;
     }
 
     private RoutingNodes(RoutingNodes routingNodes) {

@@ -102,7 +102,7 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
         assertTrue(putShutdownResponse.isAcknowledged());
 
         // Actually stop the node
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeToRestartName));
+        internalCluster().stopNode(nodeToRestartName);
 
         // And the index should turn green again well within the 30-second timeout
         ensureGreen("test");
@@ -210,7 +210,7 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
         }
 
         // Actually stop the node
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeToRestartName));
+        internalCluster().stopNode(nodeToRestartName);
 
         // Verify that the shard's allocation is delayed
         assertBusy(() -> { assertThat(client().admin().cluster().prepareHealth().get().getDelayedUnassignedShards(), equalTo(1)); });

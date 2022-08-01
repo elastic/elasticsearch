@@ -19,7 +19,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.function.Function;
+import java.util.function.BiFunction;
 
 import static org.mockito.AdditionalAnswers.returnsFirstArg;
 import static org.mockito.ArgumentMatchers.any;
@@ -50,7 +50,7 @@ public class LeafDocLookupTests extends ESTestCase {
 
         docLookup = new LeafDocLookup(
             field -> field.equals("field") ? fieldType1 : field.equals("alias") ? fieldType2 : null,
-            fieldType -> fieldType == fieldType1 ? fieldData1 : fieldType == fieldType2 ? fieldData2 : null,
+            (fieldType, fielddataType) -> fieldType == fieldType1 ? fieldData1 : fieldType == fieldType2 ? fieldData2 : null,
             null
         );
     }
@@ -77,7 +77,7 @@ public class LeafDocLookupTests extends ESTestCase {
         MappedFieldType fieldType1 = fieldType.getChildFieldType("key1");
         MappedFieldType fieldType2 = fieldType.getChildFieldType("key2");
 
-        Function<MappedFieldType, IndexFieldData<?>> fieldDataSupplier = ft -> {
+        BiFunction<MappedFieldType, MappedFieldType.FielddataOperation, IndexFieldData<?>> fieldDataSupplier = (ft, fdt) -> {
             FlattenedFieldMapper.KeyedFlattenedFieldType keyedFieldType = (FlattenedFieldMapper.KeyedFlattenedFieldType) ft;
             return keyedFieldType.key().equals("key1") ? fieldData1 : fieldData2;
         };

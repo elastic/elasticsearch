@@ -30,7 +30,6 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
-import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
 
@@ -98,7 +97,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
             );
         }
         ensureActivePeerRecoveryRetentionLeasesAdvanced(indexName);
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeWithReplica));
+        internalCluster().stopNode(nodeWithReplica);
         if (randomBoolean()) {
             client().admin().indices().prepareForceMerge(indexName).setFlush(true).get();
         }
@@ -171,7 +170,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
             randomBoolean(),
             IntStream.range(0, between(10, 100)).mapToObj(n -> client().prepareIndex(indexName).setSource("f", "v")).toList()
         );
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeWithReplica));
+        internalCluster().stopNode(nodeWithReplica);
         if (randomBoolean()) {
             indexRandom(
                 randomBoolean(),
@@ -322,7 +321,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         client().admin().indices().prepareFlush(indexName).get();
         String nodeWithLowerMatching = randomFrom(internalCluster().nodesInclude(indexName));
         Settings nodeWithLowerMatchingSettings = internalCluster().dataPathSettings(nodeWithLowerMatching);
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeWithLowerMatching));
+        internalCluster().stopNode(nodeWithLowerMatching);
         ensureGreen(indexName);
 
         indexRandom(
@@ -334,7 +333,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
         ensureActivePeerRecoveryRetentionLeasesAdvanced(indexName);
         String nodeWithHigherMatching = randomFrom(internalCluster().nodesInclude(indexName));
         Settings nodeWithHigherMatchingSettings = internalCluster().dataPathSettings(nodeWithHigherMatching);
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeWithHigherMatching));
+        internalCluster().stopNode(nodeWithHigherMatching);
         if (usually()) {
             indexRandom(
                 randomBoolean(),

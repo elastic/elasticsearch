@@ -9,5 +9,5 @@ h| Local cluster version
 | 8.0       |  {no-icon}  | {no-icon}  | {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon}
 | 8.1       |  {no-icon}  | {no-icon}  | {no-icon}  | {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon}
 | 8.2       |  {no-icon}  | {no-icon}  | {no-icon}  | {no-icon}  | {yes-icon} | {yes-icon} | {yes-icon}
-| 8.3       |  {no-icon}  | {no-icon}  | {no-icon}  | {no-icon}  | {yes-icon} | {yes-icon} | {yes-icon}
+| 8.3       |  {no-icon}  | {no-icon}  | {no-icon}  | {no-icon}  | {no-icon} | {yes-icon} | {yes-icon}
 |====

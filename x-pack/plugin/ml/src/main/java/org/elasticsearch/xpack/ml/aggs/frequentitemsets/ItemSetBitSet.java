@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.ml.aggs.frequentitemsets;
 
+import org.apache.lucene.util.ArrayUtil;
+
 import java.util.Arrays;
 
 /**
@@ -14,6 +16,12 @@ import java.util.Arrays;
  *
  * Unfortunately other {@code BitSet} implementation, e.g. java.util,
  * lack a subset check.
+ *
+ * For this implementation I took the code from {@code BitSet}, removed
+ * unnecessary parts and added additional functionality like the subset check.
+ * Cardinality - the number of set bits == number of items - is used a lot.
+ * The original {@code BitSet} uses a scan, this implementation uses
+ * a counter for faster retrieval.
  */
 class ItemSetBitSet implements Cloneable {
 
@@ -40,7 +48,7 @@ class ItemSetBitSet implements Cloneable {
     }
 
     void reset(ItemSetBitSet bitSet) {
-        ensureCapacity(bitSet.wordsInUse);
+        words = ArrayUtil.grow(words, bitSet.wordsInUse);
         System.arraycopy(bitSet.words, 0, this.words, 0, bitSet.wordsInUse);
         this.cardinality = bitSet.cardinality;
         this.wordsInUse = bitSet.wordsInUse;
@@ -208,14 +216,6 @@ class ItemSetBitSet implements Cloneable {
         words = new long[wordIndex(nbits - 1) + 1];
     }
 
-    private void ensureCapacity(int wordsRequired) {
-        if (words.length < wordsRequired) {
-            // Allocate larger of doubled size or required size
-            int request = Math.max(2 * words.length, wordsRequired);
-            words = Arrays.copyOf(words, request);
-        }
-    }
-
     private void recalculateWordsInUse() {
         // Traverse the bitset until a used word is found
         int i;
@@ -228,7 +228,7 @@ class ItemSetBitSet implements Cloneable {
     private void expandTo(int wordIndex) {
         int wordsRequired = wordIndex + 1;
         if (wordsInUse < wordsRequired) {
-            ensureCapacity(wordsRequired);
+            words = ArrayUtil.grow(words, wordsRequired);
             wordsInUse = wordsRequired;
         }
     }

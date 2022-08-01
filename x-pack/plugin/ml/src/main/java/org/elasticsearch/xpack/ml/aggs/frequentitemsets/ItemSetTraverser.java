@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.ml.aggs.frequentitemsets;
 
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.IntsRef;
 import org.apache.lucene.util.LongsRef;
 
@@ -163,17 +164,11 @@ class ItemSetTraverser {
 
     private void growStacksIfNecessary() {
         if (itemIdStack.longs.length == itemIdStack.length) {
-            LongsRef resizedItemIdStack = new LongsRef(itemIdStack.length + SIZE_INCREMENT);
-            System.arraycopy(itemIdStack.longs, 0, resizedItemIdStack.longs, 0, itemIdStack.length);
-            resizedItemIdStack.length = itemIdStack.length;
-            itemIdStack = resizedItemIdStack;
+            itemIdStack.longs = ArrayUtil.grow(itemIdStack.longs, itemIdStack.length + SIZE_INCREMENT);
         }
 
         if (itemPositionsStack.ints.length == itemPositionsStack.length) {
-            IntsRef resizeditemPositionsStack = new IntsRef(itemPositionsStack.length + SIZE_INCREMENT);
-            System.arraycopy(itemPositionsStack.ints, 0, resizeditemPositionsStack.ints, 0, itemPositionsStack.length);
-            resizeditemPositionsStack.length = itemPositionsStack.length;
-            itemPositionsStack = resizeditemPositionsStack;
+            itemPositionsStack.ints = ArrayUtil.grow(itemPositionsStack.ints, itemPositionsStack.length + SIZE_INCREMENT);
         }
     }
 

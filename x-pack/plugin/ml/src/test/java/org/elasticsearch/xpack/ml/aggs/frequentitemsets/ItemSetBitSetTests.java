@@ -19,6 +19,7 @@ public class ItemSetBitSetTests extends ESTestCase {
         set.set(5);
         set.set(65);
 
+        assertEquals(5, set.cardinality());
         assertTrue(set.get(0));
         assertFalse(set.get(1));
         assertFalse(set.get(2));
@@ -31,6 +32,7 @@ public class ItemSetBitSetTests extends ESTestCase {
         set.clear(0);
         set.clear(65);
         set.clear(5);
+        assertEquals(2, set.cardinality());
 
         assertFalse(set.get(0));
         assertFalse(set.get(1));
@@ -50,11 +52,13 @@ public class ItemSetBitSetTests extends ESTestCase {
         set1.set(5);
         set1.set(65);
 
+        assertEquals(5, set1.cardinality());
         ItemSetBitSet set2 = new ItemSetBitSet();
         set2.set(3);
         set2.set(200);
         set2.set(65);
 
+        assertEquals(3, set2.cardinality());
         assertTrue(set2.isSubset(set1));
         assertFalse(set1.isSubset(set2));
         assertTrue(set1.isSubset(set1));
@@ -85,6 +89,7 @@ public class ItemSetBitSetTests extends ESTestCase {
         set1.set(65);
 
         ItemSetBitSet set2 = (ItemSetBitSet) set1.clone();
+        assertEquals(5, set2.cardinality());
 
         assertTrue(set2.get(0));
         assertFalse(set2.get(1));
@@ -142,6 +147,30 @@ public class ItemSetBitSetTests extends ESTestCase {
 
         assertEquals(set3, set2);
         assertFalse(set2.get(99999999));
+    }
+
+    public void testCardinality() {
+        ItemSetBitSet set = new ItemSetBitSet();
+        set.set(0);
+        set.set(3);
+        set.set(200);
+        set.set(5);
+        set.set(65);
+
+        assertEquals(5, set.cardinality());
+        set.clear(1);
+        assertEquals(5, set.cardinality());
+        set.clear(200);
+        assertEquals(4, set.cardinality());
+        set.set(204);
+        set.set(204);
+        set.set(204);
+        set.set(204);
+        assertEquals(5, set.cardinality());
+        ItemSetBitSet set2 = new ItemSetBitSet();
+        set.reset(set2);
+        assertEquals(0, set.cardinality());
+        set.clear(999);
     }
 
     public void testHashCode() {

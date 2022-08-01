@@ -38,6 +38,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -978,6 +979,55 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
                 assertThat(nodeToClusterFormationStateMap.size(), equalTo(0));  // Everything was cancelled
             });
         }
+    }
+
+    public void testBeginPollingRemoteStableMasterHealthIndicatorService() throws Exception {
+        MasterHistoryService masterHistoryService = createMasterHistoryService();
+        var clusterService = mock(ClusterService.class);
+        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
+        when(clusterService.state()).thenReturn(nullMasterClusterState);
+        DiscoveryNode localNode = new DiscoveryNode(
+            "node4",
+            randomNodeId(),
+            buildNewFakeTransportAddress(),
+            Collections.emptyMap(),
+            Set.of(DiscoveryNodeRole.DATA_ROLE),
+            Version.CURRENT
+        );
+        when(clusterService.localNode()).thenReturn(localNode);
+        Coordinator coordinator = mock(Coordinator.class);
+        when(coordinator.getFoundPeers()).thenReturn(List.of(node1, node2, localNode));
+        DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
+        ThreadPool threadPool = deterministicTaskQueue.getThreadPool();
+
+        TransportService transportService = mock(TransportService.class);
+        when(transportService.getThreadPool()).thenReturn(threadPool);
+        CoordinationDiagnosticsService coordinationDiagnosticsService = new CoordinationDiagnosticsService(
+            clusterService,
+            transportService,
+            coordinator,
+            masterHistoryService
+        );
+
+        coordinationDiagnosticsService.beginPollingRemoteStableMasterHealthIndicatorService();
+        assertNotNull(coordinationDiagnosticsService.remoteStableMasterHealthIndicatorTask);
+        assertNotNull(coordinationDiagnosticsService.remoteStableMasterHealthIndicatorTask.get());
+        coordinationDiagnosticsService.cancelPollingRemoteStableMasterHealthIndicatorService();
+        assertThat(coordinationDiagnosticsService.remoteStableMasterHealthIndicatorTask, Matchers.nullValue());
+        coordinationDiagnosticsService.clusterChanged(
+            new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, node1MasterClusterState)
+        );
+        assertNotNull(coordinationDiagnosticsService.remoteStableMasterHealthIndicatorTask);
+        assertNotNull(coordinationDiagnosticsService.remoteStableMasterHealthIndicatorTask.get());
+        coordinationDiagnosticsService.clusterChanged(
+            new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, nullMasterClusterState)
+        );
+        assertThat(coordinationDiagnosticsService.remoteStableMasterHealthIndicatorTask, Matchers.nullValue());
+        /*
+         * Note that in this test we will never find any values in remoteCoordinationDiagnosisResult because transportService is mocked out.
+         * There is not a reasonable way to plug in a transportService to this simple unit test, so testing that is left to an
+         * integration test.
+         */
     }
 
     public void testBeginPollingRemoteStableMasterHealthIndicatorServiceCancel() {

@@ -111,7 +111,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
      * This field holds the result of the task in the remoteStableMasterHealthIndicatorTask field above. The field is accessed
      * (reads/writes) from multiple threads, and is also reassigned on multiple threads.
      */
-    volatile AtomicReference<RemoteMasterHealthResult> remoteCoordinationDiagnosisResult = new AtomicReference<>();
+    volatile AtomicReference<RemoteMasterHealthResult> remoteCoordinationDiagnosisResult = null;
 
     /**
      * This is the amount of time that we wait before scheduling a remote request to gather diagnostic information. It is not
@@ -840,7 +840,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
         }, remoteRequestInitialDelay, ThreadPool.Names.SAME);
     }
 
-    private void beginPollingRemoteStableMasterHealthIndicatorService() {
+    void beginPollingRemoteStableMasterHealthIndicatorService() {
         assert ThreadPool.assertCurrentThreadPool(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME);
         AtomicReference<Scheduler.Cancellable> cancellableReference = new AtomicReference<>();
         AtomicReference<RemoteMasterHealthResult> resultReference = new AtomicReference<>();
@@ -1023,11 +1023,12 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
         }, remoteRequestInitialDelay, ThreadPool.Names.SAME);
     }
 
-    private void cancelPollingRemoteStableMasterHealthIndicatorService() {
+    void cancelPollingRemoteStableMasterHealthIndicatorService() {
         assert ThreadPool.assertCurrentThreadPool(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME);
         if (remoteStableMasterHealthIndicatorTask != null) {
             remoteStableMasterHealthIndicatorTask.get().cancel();
-            remoteCoordinationDiagnosisResult = new AtomicReference<>();
+            remoteCoordinationDiagnosisResult = null;
+            remoteStableMasterHealthIndicatorTask = null;
         }
     }
 

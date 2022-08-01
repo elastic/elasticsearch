@@ -930,11 +930,12 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
     }
 
     /**
-     * This method returns quickly, but in the background schedules to query the remote masterEligibleNode's cluster diagnostics in 10 seconds
-     * unless cancel() is called on the Cancellable that this method returns.
-     * @param masterEligibleNode The masterEligibleNode to poll for cluster diagnostics. This masterEligibleNode can be null in the case when there are not yet any master-eligible
-     *            nodes known to this masterEligibleNode's PeerFinder.
-     * @param responseConsumer The consumer of the cluster diagnostics for the masterEligibleNode, or the exception encountered while contacting it
+     * This method returns quickly, but in the background schedules to query the remote masterEligibleNode's cluster diagnostics in 10
+     * seconds unless cancel() is called on the Cancellable that this method returns.
+     * @param masterEligibleNode The masterEligibleNode to poll for cluster diagnostics. This masterEligibleNode can be null in the case
+     *                           when there are not yet any master-eligible nodes known to this masterEligibleNode's PeerFinder.
+     * @param responseConsumer The consumer of the cluster diagnostics for the masterEligibleNode, or the exception encountered while
+     *                         contacting it
      * @return A Cancellable for the task that is scheduled to fetch cluster diagnostics
      */
     private Scheduler.Cancellable fetchCoordinationDiagnostics(

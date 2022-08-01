@@ -55,8 +55,6 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static java.util.Collections.emptyList;
-import static java.util.Collections.singletonList;
 import static org.elasticsearch.cluster.health.ClusterShardHealth.getInactivePrimaryHealth;
 import static org.elasticsearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
 
@@ -166,16 +164,6 @@ public class AllocationService {
         logClusterHealthStateChange(oldState, newState, reason);
 
         return newState;
-    }
-
-    // Used for testing
-    public ClusterState applyFailedShard(ClusterState clusterState, ShardRouting failedShard, boolean markAsStale) {
-        return applyFailedShards(clusterState, singletonList(new FailedShard(failedShard, null, null, markAsStale)), emptyList());
-    }
-
-    // Used for testing
-    public ClusterState applyFailedShards(ClusterState clusterState, List<FailedShard> failedShards) {
-        return applyFailedShards(clusterState, failedShards, emptyList());
     }
 
     /**

@@ -817,9 +817,10 @@ a `name` or `expiration`.
 ----
 // NOTCONSOLE
 +
-The object for `change_apikeys` will differ in that it may include
-`metadata` and `role_descriptors` (see `apikey`), and will not include `name`,
-`owned_by_authenticated_user`, or `user`.
+The object for a bulk API key update will differ in that it will not
+include `name`, `owned_by_authenticated_user`, or `user`. Instead, it
+may include `metadata` and `role_descriptors`, which have the same
+schemas as the fields in the `api_key` config object above.
 
 `service_token`       ::   An object like:
 +

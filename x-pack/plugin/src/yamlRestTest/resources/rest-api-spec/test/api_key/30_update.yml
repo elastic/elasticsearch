@@ -418,6 +418,27 @@ teardown:
           }
   - match: { "has_all_requested": false }
 
+  - do:
+      headers:
+        Authorization: ApiKey ${login_creds_2}
+      security.has_privileges:
+        user: null
+        body: >
+          {
+            "cluster": ["manage_own_api_key"],
+            "index": [
+              {
+                "names": ["index-a"],
+                "privileges": ["write"]
+              },
+              {
+                "names": ["index-b"],
+                "privileges": ["read"]
+              }
+            ]
+          }
+  - match: { "has_all_requested": false }
+
   # Bulk update API keys to above privileges
   - do:
       headers:

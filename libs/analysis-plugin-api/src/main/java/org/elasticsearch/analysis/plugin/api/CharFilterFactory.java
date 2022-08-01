@@ -14,12 +14,19 @@ import java.io.Reader;
 
 /**
  * An analysis component used to create char filters.
+ *
  */
 public interface CharFilterFactory extends Nameable {
+    /**
+     * Wraps the given Reader with a CharFilter.
+     */
     Reader create(Reader reader);
 
+    /**
+     * Normalize a tokenStream for use in multi-term queries
+     * The default implementation is a no-op
+     */
     default Reader normalize(Reader reader) {
         return reader;
     }
-
 }

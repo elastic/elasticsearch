@@ -9,8 +9,8 @@
 package org.elasticsearch.plugin.api;
 
 /**
- * A named analysis component. Analysis components with a name can be registered and fetch under a name given in
- * <code>@NamedAnalysisComponent</code>
+ * A named plugin component. Components with a name can be registered and fetch under a name given in
+ * <code>@NamedComponent</code>
  * @see NamedComponent
  */
 public interface Nameable {

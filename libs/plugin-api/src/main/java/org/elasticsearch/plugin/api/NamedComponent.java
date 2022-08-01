@@ -14,7 +14,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * An annotation used on analysis components which will be loaded by Elasticsearch server.
+ * An annotation used on plugin components which will be loaded by Elasticsearch server.
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ ElementType.TYPE })

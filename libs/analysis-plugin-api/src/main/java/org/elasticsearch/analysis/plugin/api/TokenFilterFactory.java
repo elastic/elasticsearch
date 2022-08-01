@@ -15,11 +15,14 @@ import org.elasticsearch.plugin.api.Nameable;
  * An analysis component used to create token filters.
  */
 public interface TokenFilterFactory extends Nameable {
+
+    /**
+     * Transform the specified input TokenStream
+     */
     TokenStream create(TokenStream tokenStream);
 
     /**
      * Normalize a tokenStream for use in multi-term queries
-     * <p>
      * The default implementation is a no-op
      */
     default TokenStream normalize(TokenStream tokenStream) {

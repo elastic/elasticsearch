@@ -15,5 +15,6 @@ import org.elasticsearch.plugin.api.Nameable;
  * An analysis component used to create tokenizers
  */
 public interface TokenizerFactory extends Nameable {
+
     Tokenizer create();
 }

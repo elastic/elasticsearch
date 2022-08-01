@@ -8,6 +8,7 @@
 
 package org.elasticsearch.server.cli;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserException;
@@ -139,6 +140,10 @@ class APMJvmOptions {
         IOException {
         final Path agentJar = findAgentJar();
 
+        if (agentJar == null) {
+            return List.of();
+        }
+
         final Map<String, String> propertiesMap = extractApmSettings(settings);
 
         // No point doing anything if we don't have a destination for the trace data, and it can't be configured dynamically
@@ -251,6 +256,16 @@ class APMJvmOptions {
     @Nullable
     private static Path findAgentJar() throws IOException, UserException {
         final Path apmModule = Path.of(System.getProperty("user.dir")).resolve("modules/apm");
+
+        if (Files.notExists(apmModule)) {
+            if (Build.CURRENT.isProductionRelease()) {
+                throw new UserException(
+                    ExitCodes.CODE_ERROR,
+                    "Expected to find [apm] module in [" + apmModule + "]! Installation is corrupt"
+                );
+            }
+            return null;
+        }
 
         try (var apmStream = Files.list(apmModule)) {
             final List<Path> paths = apmStream.filter(

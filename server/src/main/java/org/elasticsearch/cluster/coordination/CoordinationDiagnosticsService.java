@@ -106,19 +106,19 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
      * for diagnosis. It is null when no polling is occurring.
      * The field is accessed (reads/writes) from multiple threads, and is also reassigned on multiple threads.
      */
-    private volatile AtomicReference<Scheduler.Cancellable> remoteStableMasterHealthIndicatorTask = null;
+    volatile AtomicReference<Scheduler.Cancellable> remoteStableMasterHealthIndicatorTask = null;
     /*
      * This field holds the result of the task in the remoteStableMasterHealthIndicatorTask field above. The field is accessed
      * (reads/writes) from multiple threads, and is also reassigned on multiple threads.
      */
-    private volatile AtomicReference<RemoteMasterHealthResult> remoteCoordinationDiagnosisResult = new AtomicReference<>();
+    volatile AtomicReference<RemoteMasterHealthResult> remoteCoordinationDiagnosisResult = new AtomicReference<>();
 
     /**
      * This is the amount of time that we wait before scheduling a remote request to gather diagnostic information. It is not
      * user-configurable, but is non-final so that integration tests don't have to waste 10 seconds.
      */
     // Non-private for testing
-    TimeValue remoteRequestInitialDelay = new TimeValue(10, TimeUnit.SECONDS);
+    public TimeValue remoteRequestInitialDelay = new TimeValue(10, TimeUnit.SECONDS);
 
     private static final Logger logger = LogManager.getLogger(CoordinationDiagnosticsService.class);
 
@@ -643,9 +643,9 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
         }
         if (clusterService.localNode().isMasterNode() == false) {
             if (currentMaster == null) {
-                cancelPollingRemoteStableMasterHealthIndicatorService();
-            } else {
                 beginPollingRemoteStableMasterHealthIndicatorService();
+            } else {
+                cancelPollingRemoteStableMasterHealthIndicatorService();
             }
         }
     }
@@ -863,7 +863,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
             cancellableReference.set(
                 fetchCoordinationDiagnostics(
                     masterEligibleNode,
-                    responseConsumer.andThen(rescheduleDiagnosticsFetchConsumer(masterEligibleNode, responseConsumer, cancellableReference))
+                    responseConsumer.andThen(rescheduleDiagnosticsFetchConsumer(responseConsumer, cancellableReference))
                 )
             );
         } catch (EsRejectedExecutionException e) {
@@ -884,19 +884,17 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
      * @return A wrapped Consumer that will run fetchCoordinationDiagnostics()
      */
     private Consumer<RemoteMasterHealthResult> rescheduleDiagnosticsFetchConsumer(
-        DiscoveryNode masterEligibleNode,
         Consumer<RemoteMasterHealthResult> responseConsumer,
         AtomicReference<Scheduler.Cancellable> cancellableReference
     ) {
         return response -> {
             if (cancellableReference.equals(remoteStableMasterHealthIndicatorTask)) {
                 try {
+                    DiscoveryNode masterEligibleNode = getMasterEligibleNodes().stream().findAny().orElse(null);
                     cancellableReference.set(
                         fetchCoordinationDiagnostics(
                             masterEligibleNode,
-                            responseConsumer.andThen(
-                                rescheduleDiagnosticsFetchConsumer(masterEligibleNode, responseConsumer, cancellableReference)
-                            )
+                            responseConsumer.andThen(rescheduleDiagnosticsFetchConsumer(responseConsumer, cancellableReference))
                         )
                     );
                 } catch (EsRejectedExecutionException e) {
@@ -928,7 +926,9 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
         StepListener<CoordinationDiagnosticsAction.Response> fetchCoordinationDiagnosticsListener = new StepListener<>();
         long startTime = System.nanoTime();
         connectionListener.whenComplete(releasable -> {
-            if (node != null) {
+            if (node == null) {
+                responseConsumer.accept(null);
+            } else {
                 /*
                  * Since this block is not synchronized it is possible that this task is cancelled between the check above and when the
                  * code below is run, but this is harmless and not worth the additional synchronization in the normal case. The result
@@ -967,7 +967,9 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
         });
 
         return transportService.getThreadPool().schedule(() -> {
-            if (node != null) {
+            if (node == null) {
+                responseConsumer.accept(null);
+            } else {
                 Version minSupportedVersion = Version.V_8_4_0;
                 if (node.getVersion().onOrAfter(minSupportedVersion) == false) { // This was introduced in 8.4.0
                     logger.trace(
@@ -990,7 +992,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                     );
                 }
             }
-        }, new TimeValue(10, TimeUnit.SECONDS), ThreadPool.Names.SAME);
+        }, remoteRequestInitialDelay, ThreadPool.Names.SAME);
     }
 
     private void cancelPollingRemoteStableMasterHealthIndicatorService() {

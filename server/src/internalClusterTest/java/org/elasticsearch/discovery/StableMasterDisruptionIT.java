@@ -594,6 +594,8 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
                 .put(CoordinationDiagnosticsService.NODE_HAS_MASTER_LOOKUP_TIMEFRAME_SETTING.getKey(), new TimeValue(1, TimeUnit.SECONDS))
                 .build()
         );
+        internalCluster().getInstances(CoordinationDiagnosticsService.class)
+            .forEach(coordinationDiagnosticsService -> coordinationDiagnosticsService.remoteRequestInitialDelay = TimeValue.ZERO);
         ensureStableCluster(5);
         String firstMasterNode = internalCluster().getMasterName();
         List<String> nonActiveMasterNodes = masterNodes.stream().filter(nodeName -> firstMasterNode.equals(nodeName) == false).toList();
@@ -613,4 +615,5 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
             assertMasterStability(internalCluster().client(nonActiveMasterNode), HealthStatus.RED, "unable to form a quorum");
         }
     }
+
 }

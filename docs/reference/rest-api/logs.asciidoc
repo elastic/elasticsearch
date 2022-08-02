@@ -161,15 +161,19 @@ you can use it in searches and aggregations via <<dynamic-mapping-runtime-fields
 
 [source,console]
 ------------------------------------------------------------
+POST logs-myapp-default/_refresh <1>
 POST logs-myapp-default/_search?q=custom_field:value
 ------------------------------------------------------------
+// TEST[continued]
+
+<1> Do a <<indices-refresh, refresh>> to ensure the logs are searchable
 
 The API returns the following response:
 
 [source,console-result]
 ----
 {
-  "took": 1,
+  "took": 5,
   "timed_out": false,
   "_shards": {
     "total": 1,
@@ -206,6 +210,10 @@ The API returns the following response:
   }
 }
 ----
+// TESTRESPONSE[s/"took": 5/"took": $body.took/]
+// TESTRESPONSE[s/"_index": ".*"/"_index": $body.hits.hits.0._index/]
+// TESTRESPONSE[s/"_id": ".*"/"_id": $body.hits.hits.0._id/]
+// TESTRESPONSE[s/"_source": \{\n/"_source": \{\n"error_trace": "true",\n/]
 
 '''
 

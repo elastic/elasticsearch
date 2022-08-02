@@ -33,33 +33,27 @@ public class ShardSnapshotWorkers {
 
     private final int maxWorkers;
     private final Object mutex = new Object();
-    private final BlockingQueue<ShardSnapshotTask> snapshotTasks = new PriorityBlockingQueue<>();
+    private final BlockingQueue<SnapshotTask> snapshotTasks = new PriorityBlockingQueue<>();
     private final Executor executor;
     private final Consumer<SnapshotShardContext> shardSnapshotter;
     private final CheckedBiConsumer<SnapshotShardContext, FileInfo, IOException> fileSnapshotter;
     private int workerCount = 0;
 
-    class ShardSnapshotTask implements Comparable<ShardSnapshotTask> {
+    abstract class SnapshotTask implements Comparable<SnapshotTask>, Runnable {
         protected final SnapshotShardContext context;
 
-        ShardSnapshotTask(SnapshotShardContext context) {
+        SnapshotTask(SnapshotShardContext context) {
             this.context = context;
         }
+
+        public abstract short priority();
 
         public SnapshotShardContext context() {
             return context;
         }
 
-        public void run() {
-            shardSnapshotter.accept(context);
-        }
-
-        public short priority() {
-            return 1;
-        }
-
         @Override
-        public int compareTo(ShardSnapshotTask other) {
+        public int compareTo(SnapshotTask other) {
             int res = context.snapshotId().compareTo(other.context.snapshotId());
             if (res != 0) {
                 return res;
@@ -68,7 +62,24 @@ public class ShardSnapshotWorkers {
         }
     }
 
-    class FileSnapshotTask extends ShardSnapshotTask {
+    class ShardSnapshotTask extends SnapshotTask {
+        ShardSnapshotTask(SnapshotShardContext context) {
+            super(context);
+        }
+
+        @Override
+        public void run() {
+            shardSnapshotter.accept(context);
+        }
+
+        @Override
+        public short priority() {
+            return 1;
+        }
+
+    }
+
+    class FileSnapshotTask extends SnapshotTask {
         private final FileInfo fileInfo;
         private final ActionListener<Void> fileUploadListener;
 
@@ -165,7 +176,7 @@ public class ShardSnapshotWorkers {
         executor.execute(() -> {
             try {
                 while (true) {
-                    ShardSnapshotTask task = snapshotTasks.poll();
+                    SnapshotTask task = snapshotTasks.poll();
                     if (task == null) {
                         logger.trace("[worker {}] snapshot task queue is empty", workerId);
                         break;

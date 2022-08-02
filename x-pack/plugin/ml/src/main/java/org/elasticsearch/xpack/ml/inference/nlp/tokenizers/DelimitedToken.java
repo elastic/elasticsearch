@@ -7,9 +7,12 @@
 
 package org.elasticsearch.xpack.ml.inference.nlp.tokenizers;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.core.Strings.format;
 
 public class DelimitedToken {
 
@@ -67,6 +70,25 @@ public class DelimitedToken {
     }
 
     public static class Encoded extends DelimitedToken {
+        static DelimitedToken.Encoded mergeEncodedTokens(List<DelimitedToken.Encoded> tokens) {
+            if (tokens.size() == 1) {
+                return tokens.get(0);
+            }
+            int startOffSet = tokens.get(0).startOffset();
+            int endOffset = tokens.get(tokens.size() - 1).endOffset();
+            final int encoding = tokens.get(0).encoding;
+            List<CharSequence> sequences = new ArrayList<>(tokens.size());
+            for (var t : tokens) {
+                if (t.encoding != encoding) {
+                    throw new IllegalArgumentException(
+                        format("all merged tokens must have the same encoding, expected [%s]; found [%s]", encoding, t.encoding)
+                    );
+                }
+                sequences.add(t.charSequence());
+            }
+            return new DelimitedToken.Encoded(new MultiCharSequence(sequences), tokens.get(0).encoding, startOffSet, endOffset);
+        }
+
         private final int encoding;
 
         public Encoded(CharSequence charSequence, int encoding, int startOffset, int endOffset) {

@@ -1071,8 +1071,8 @@ for powerful insights.
 end::inference-config-text-embedding[]
 
 tag::inference-config-text-similarity[]
-Text similarity takes an input sequence and compares it with some other input sequence. This is commonly referred to
-as cross-encoding. This kind of task is useful for ranking document text when comparing it to some other provided text input.
+Text similarity takes an input sequence and compares it with another input sequence. This is commonly referred to
+as cross-encoding. This task is useful for ranking document text when comparing it to another provided text input.
 end::inference-config-text-similarity[]
 
 tag::inference-config-text-similarity-span-score-func[]

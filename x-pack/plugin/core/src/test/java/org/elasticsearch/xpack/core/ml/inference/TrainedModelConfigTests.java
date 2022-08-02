@@ -28,9 +28,9 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.FillMaskConfigTest
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.IndexLocationTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NerConfigTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.PassThroughConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigTests;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassificationConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfigTests;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -391,8 +391,8 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
             builder.setModelType(null);
             builder.setLocation(null);
         }
-        if (instance.getInferenceConfig()instanceof TextClassificationConfig textClassificationConfig) {
-            builder.setInferenceConfig(TextClassificationConfigTests.mutateInstance(textClassificationConfig, version));
+        if (instance.getInferenceConfig()instanceof NlpConfig nlpConfig) {
+            builder.setInferenceConfig(InferenceConfigItemTestCase.mutateForVersion(nlpConfig, version));
         }
         return builder.build();
     }

@@ -454,7 +454,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
 
             @Override
             public void onFailure(Exception e) {
-                fail("Rollup failed");
+                fail("Rollup failed: " + e.getMessage());
             }
         };
         client().execute(RollupAction.INSTANCE, new RollupAction.Request(sourceIndex, rollupIndex, config), rollupListener);

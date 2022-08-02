@@ -177,6 +177,7 @@ import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.Closeable;
@@ -244,7 +245,7 @@ public class RestHighLevelClient implements Closeable {
 
     // To be called using performClientRequest and performClientRequestAsync to ensure version compatibility check
     private final RestClient client;
-    private final NamedXContentRegistry registry;
+    private final XContentParserConfiguration parserConfig;
     private final CheckedConsumer<RestClient, IOException> doClose;
     private final boolean useAPICompatibility;
 
@@ -297,11 +298,19 @@ public class RestHighLevelClient implements Closeable {
     ) {
         this.client = Objects.requireNonNull(restClient, "restClient must not be null");
         this.doClose = Objects.requireNonNull(doClose, "doClose consumer must not be null");
-        this.registry = new NamedXContentRegistry(
+        NamedXContentRegistry registry = new NamedXContentRegistry(
             Stream.of(getDefaultNamedXContents().stream(), getProvidedNamedXContents().stream(), namedXContentEntries.stream())
                 .flatMap(Function.identity())
                 .collect(toList())
         );
+        /*
+         * Ignores deprecation warnings. This is appropriate because it is only
+         * used to parse responses from Elasticsearch. Any deprecation warnings
+         * emitted there just mean that you are talking to an old version of
+         * Elasticsearch. There isn't anything you can do about the deprecation.
+         */
+        this.parserConfig = XContentParserConfiguration.EMPTY.withRegistry(registry)
+            .withDeprecationHandler(DeprecationHandler.IGNORE_DEPRECATIONS);
         if (useAPICompatibility == null && "true".equals(System.getenv(API_VERSIONING_ENV_VARIABLE))) {
             this.useAPICompatibility = true;
         } else {
@@ -1165,7 +1174,7 @@ public class RestHighLevelClient implements Closeable {
         if (xContentType == null) {
             throw new IllegalStateException("Unsupported Content-Type: " + entity.getContentType().getValue());
         }
-        try (XContentParser parser = xContentType.xContent().createParser(registry, DEPRECATION_HANDLER, entity.getContent())) {
+        try (XContentParser parser = xContentType.xContent().createParser(parserConfig, entity.getContent())) {
             return entityParser.apply(parser);
         }
     }
@@ -1505,14 +1514,6 @@ public class RestHighLevelClient implements Closeable {
 
         return Optional.empty();
     }
-
-    /**
-     * Ignores deprecation warnings. This is appropriate because it is only
-     * used to parse responses from Elasticsearch. Any deprecation warnings
-     * emitted there just mean that you are talking to an old version of
-     * Elasticsearch. There isn't anything you can do about the deprecation.
-     */
-    private static final DeprecationHandler DEPRECATION_HANDLER = DeprecationHandler.IGNORE_DEPRECATIONS;
 
     static List<NamedXContentRegistry.Entry> getDefaultNamedXContents() {
         Map<String, ContextParser<Object, ? extends Aggregation>> map = new HashMap<>();

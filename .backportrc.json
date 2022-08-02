@@ -1,17 +1,9 @@
 {
-  "upstream": "elastic/elasticsearch",
-  "targetBranchChoices": [
-    "master",
-    "8.3",
-    "8.2",
-    "8.1",
-    "8.0",
-    "7.17",
-    "6.8"
-  ],
-  "targetPRLabels": ["backport"],
-  "branchLabelMapping": {
-    "^v8.4.0$": "master",
-    "^v(\\d+).(\\d+).\\d+(?:-(?:alpha|beta|rc)\\d+)?$": "$1.$2"
+  "upstream" : "elastic/elasticsearch",
+  "targetBranchChoices" : [ "main", "8.4", "8.3", "8.2", "8.1", "8.0", "7.17", "6.8" ],
+  "targetPRLabels" : [ "backport" ],
+  "branchLabelMapping" : {
+    "^v8.5.0$" : "main",
+    "^v(\\d+).(\\d+).\\d+(?:-(?:alpha|beta|rc)\\d+)?$" : "$1.$2"
   }
 }

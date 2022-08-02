@@ -8,21 +8,17 @@
 package org.elasticsearch.xpack.enterprisesearch.action;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest;
-import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
+import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.xpack.enterprisesearch.search.XSearchQueryBuilder;
 import org.elasticsearch.xpack.enterprisesearch.search.XSearchQueryOptions;
 
@@ -31,9 +27,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ExecutionException;
-import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
@@ -59,54 +52,33 @@ public class XSearchAction extends BaseRestHandler {
 
         final GetMappingsRequest getMappingsRequest = new GetMappingsRequest();
         getMappingsRequest.indices(index);
-        return channel -> {
-            client
-                .admin()
-                .indices()
-                .getMappings(getMappingsRequest, new ActionListener<>() {
-                    @Override
-                    public void onResponse(GetMappingsResponse getMappingsResponse) {
-                        Set<String> searchFields = getSearchFields(getMappingsResponse);
+        return channel -> client
+            .admin()
+            .indices()
+            .getMappings(getMappingsRequest, new ActionListener<>() {
+                @Override
+                public void onResponse(GetMappingsResponse getMappingsResponse) {
 
-                        final QueryBuilder queryBuilder = XSearchQueryBuilder.getQueryBuilder(new XSearchQueryOptions(query, searchFields.toArray(new String[]{})));
+                    final XSearchQueryOptions queryOptions = new XSearchQueryOptions(query, getMappingsResponse.mappings().values());
+                    final QueryBuilder queryBuilder = XSearchQueryBuilder.getQueryBuilder(queryOptions);
 
-                        SearchRequest searchRequest = client.prepareSearch(index)
-                            .setQuery(queryBuilder)
-                            .setSize(1000)
-                            .setFetchSource(true)
-                            .request();
+                    SearchRequest searchRequest = client.prepareSearch(index)
+                        .setQuery(queryBuilder)
+                        .setSize(1000)
+                        .setFetchSource(true)
+                        .request();
 
-                        client.execute(SearchAction.INSTANCE, searchRequest, new RestStatusToXContentListener<>(channel));
+                    client.execute(SearchAction.INSTANCE, searchRequest, new RestStatusToXContentListener<>(channel));
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    try {
+                        channel.sendResponse(new RestResponse(channel, BAD_REQUEST, e));
+                    } catch (final IOException ex) {
+                        throw new AssertionError(e);
                     }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        try {
-                            channel.sendResponse(new RestResponse(channel, BAD_REQUEST, e));
-                        } catch (final IOException ex) {
-                            throw new AssertionError(e);
-                        }
-                    }
-                });
-        };
-    }
-
-    private Set<String> getSearchFields(GetMappingsResponse getMappingsResponse) {
-        Set<String> searchFields = new HashSet<>();
-        for (MappingMetadata mappingMetadata : getMappingsResponse.mappings().values()) {
-            searchFields.addAll(getSearchFieldsFromMetadata(mappingMetadata));
-        }
-        return searchFields;
-    }
-
-    private Set<String> getSearchFieldsFromMetadata(MappingMetadata mappingMetadata) {
-        @SuppressWarnings("unchecked")
-        final Set<String> searchFields = ((Map<String, Map<String, Object>>) mappingMetadata.getSourceAsMap().get("properties"))
-            .entrySet()
-            .stream()
-            .filter(entry -> "text".equals(entry.getValue().get("type")))
-            .map(Map.Entry::getKey)
-            .collect(Collectors.toSet());
-        return searchFields;
+                }
+            });
     }
 }

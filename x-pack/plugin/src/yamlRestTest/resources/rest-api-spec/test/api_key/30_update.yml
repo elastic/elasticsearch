@@ -372,7 +372,7 @@ teardown:
   - match: { name: "api-key-1" }
   - is_true: id
   - is_true: api_key
-  - set: { id: api_key_1_id }
+  - set: { id: key_id_1 }
   - transform_and_set: { login_creds_1: "#base64EncodeCredentials(id,api_key)" }
   - match: { encoded: $login_creds_1 }
 
@@ -382,17 +382,17 @@ teardown:
       security.create_api_key:
         body: >
           {
-            "name": "api-key",
+            "name": "api-key-2",
             "role_descriptors": {
               "role-a": {
                 "cluster": ["monitor"]
               }
             }
           }
-  - match: { name: "api-key" }
+  - match: { name: "api-key-2" }
   - is_true: id
   - is_true: api_key
-  - set: { id: api_key_2_id }
+  - set: { id: key_id_2 }
   - transform_and_set: { login_creds_2: "#base64EncodeCredentials(id,api_key)" }
   - match: { encoded: $login_creds_2 }
 
@@ -446,7 +446,7 @@ teardown:
       security.bulk_update_api_keys:
         body: >
           {
-            "ids": ["$api_key_1_id", "$api_key_2_id"],
+            "ids": ["$key_id_1", "$key_id_2"],
             "role_descriptors": {
               "role-a": {
                 "cluster": ["all"],
@@ -470,10 +470,10 @@ teardown:
   - length: { "noops": 0 }
   - length: { "updated": 2 }
   - match: {
-    "updated.0": "$api_key_1_id"
+    "updated.0": "$key_id_1"
   }
   - match: {
-    "updated.1": "$api_key_2_id"
+    "updated.1": "$key_id_2"
   }
 
   # Bulk update without request fields does not update API keys
@@ -483,15 +483,15 @@ teardown:
       security.bulk_update_api_keys:
         body: >
           {
-            "ids": ["$api_key_1_id", "$api_key_2_id"]
+            "ids": ["$key_id_1", "$key_id_2"]
           }
   - length: { "updated": 0 }
   - length: { "noops": 2 }
   - match: {
-    "noops.0": "$api_key_1_id"
+    "noops.0": "$key_id_1"
   }
   - match: {
-    "noops.1": "$api_key_2_id"
+    "noops.1": "$key_id_2"
   }
 
   # Check updated privileges
@@ -565,7 +565,7 @@ teardown:
       security.create_api_key:
         body: >
           {
-            "name": "api-key",
+            "name": "api-key-1",
             "role_descriptors": {
               "role-a": {
                 "cluster": ["none"],
@@ -582,10 +582,10 @@ teardown:
               "number": 42
             }
           }
-  - match: { name: "api-key" }
+  - match: { name: "api-key-1" }
   - is_true: id
   - is_true: api_key
-  - set: { id: api_key_1_id }
+  - set: { id: key_id_1 }
   - transform_and_set: { login_creds_1: "#base64EncodeCredentials(id,api_key)" }
   - match: { encoded: $login_creds_1 }
 
@@ -595,7 +595,7 @@ teardown:
       security.create_api_key:
         body: >
           {
-            "name": "api-key",
+            "name": "api-key-2",
             "role_descriptors": {
               "role-a": {
                 "cluster": ["monitor"]
@@ -606,10 +606,10 @@ teardown:
               "number": 43
             }
           }
-  - match: { name: "api-key" }
+  - match: { name: "api-key-2" }
   - is_true: id
   - is_true: api_key
-  - set: { id: api_key_2_id }
+  - set: { id: key_id_2 }
   - transform_and_set: { login_creds_2: "#base64EncodeCredentials(id,api_key)" }
   - match: { encoded: $login_creds_2 }
 
@@ -634,17 +634,17 @@ teardown:
       security.bulk_update_api_keys:
         body: >
           {
-            "ids": ["${api_key_1_id}", "${api_key_2_id}"],
+            "ids": ["${key_id_1}", "${key_id_2}"],
             "role_descriptors": {},
             "metadata": {}
           }
   - length: { "noops": 0 }
   - length: { "updated": 2 }
   - match: {
-    "updated.0": "$api_key_1_id"
+    "updated.0": "$key_id_1"
   }
   - match: {
-    "updated.1": "$api_key_2_id"
+    "updated.1": "$key_id_2"
   }
 
   - do:

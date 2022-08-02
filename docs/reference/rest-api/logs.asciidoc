@@ -168,14 +168,21 @@ After a short while the logs will become searchable.
 Event though `custom_field` is not among the <<logs-api-request-body, list of fields that are indexed by default>>,
 you can use it in searches and aggregations as it is mapped as a <<dynamic-mapping-runtime-fields, dynamic runtime field>>.
 
+////
+[source,console]
+----
+POST logs-myapp-default/_refresh
+----
+// TEST[continued]
+// commented out to avoid documenting that a _refresh will always be sufficient to make the logs searchable
+// in the future, logs may be buffered and asynchronously processed
+////
+
 [source,console]
 ------------------------------------------------------------
 POST logs-myapp-default/_search?q=custom_field:value
 ------------------------------------------------------------
 // TEST[continued]
-// TEST[s/^/POST logs-myapp-default\/_refresh\n/]
-// avoid documenting that a _refresh will always be sufficient to make the logs searchable
-// in the future, logs may be buffered and asynchronously processed
 
 The API returns the following response:
 

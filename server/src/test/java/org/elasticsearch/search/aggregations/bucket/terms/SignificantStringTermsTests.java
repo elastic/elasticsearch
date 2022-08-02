@@ -84,7 +84,7 @@ public class SignificantStringTermsTests extends InternalSignificantTermsTestCas
             List<SignificantStringTerms.Bucket> buckets = stringTerms.getBuckets();
             SignificanceHeuristic significanceHeuristic = stringTerms.significanceHeuristic;
             Map<String, Object> metadata = stringTerms.getMetadata();
-            switch (between(0, 5)) {
+            switch (between(0, 6)) {
                 case 0 -> name += randomAlphaOfLength(5);
                 case 1 -> requiredSize += between(1, 100);
                 case 2 -> minDocCount += between(1, 100);
@@ -105,7 +105,7 @@ public class SignificantStringTermsTests extends InternalSignificantTermsTestCas
                         )
                     );
                 }
-                case 8 -> {
+                case 6 -> {
                     if (metadata == null) {
                         metadata = Maps.newMapWithExpectedSize(1);
                     } else {

@@ -44,8 +44,8 @@ public class PyTorchInferenceResult implements ToXContentObject {
             INFERENCE,
             ObjectParser.ValueType.VALUE_ARRAY
         );
-        PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), TIME_MS);
-        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), CACHE_HIT);
+        PARSER.declareLong(ConstructingObjectParser.constructorArg(), TIME_MS);
+        PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), CACHE_HIT);
     }
 
     public static PyTorchInferenceResult fromXContent(XContentParser parser) throws IOException {
@@ -54,14 +54,14 @@ public class PyTorchInferenceResult implements ToXContentObject {
 
     private final String requestId;
     private final double[][][] inference;
-    private final Long timeMs;
+    private final long timeMs;
     private final boolean cacheHit;
 
-    public PyTorchInferenceResult(String requestId, @Nullable double[][][] inference, @Nullable Long timeMs, @Nullable Boolean cacheHit) {
+    public PyTorchInferenceResult(String requestId, @Nullable double[][][] inference, long timeMs, boolean cacheHit) {
         this.requestId = Objects.requireNonNull(requestId);
         this.inference = inference;
         this.timeMs = timeMs;
-        this.cacheHit = cacheHit != null && cacheHit;
+        this.cacheHit = cacheHit;
     }
 
     public String getRequestId() {
@@ -72,7 +72,7 @@ public class PyTorchInferenceResult implements ToXContentObject {
         return inference;
     }
 
-    public Long getTimeMs() {
+    public long getTimeMs() {
         return timeMs;
     }
 
@@ -95,9 +95,7 @@ public class PyTorchInferenceResult implements ToXContentObject {
             }
             builder.endArray();
         }
-        if (timeMs != null) {
-            builder.field(TIME_MS.getPreferredName(), timeMs);
-        }
+        builder.field(TIME_MS.getPreferredName(), timeMs);
         builder.field(CACHE_HIT.getPreferredName(), cacheHit);
         builder.endObject();
         return builder;
@@ -116,7 +114,7 @@ public class PyTorchInferenceResult implements ToXContentObject {
         PyTorchInferenceResult that = (PyTorchInferenceResult) other;
         return Objects.equals(requestId, that.requestId)
             && Arrays.deepEquals(inference, that.inference)
-            && Objects.equals(timeMs, that.timeMs)
+            && timeMs == that.timeMs
             && cacheHit == that.cacheHit;
     }
 }

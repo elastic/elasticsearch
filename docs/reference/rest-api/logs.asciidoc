@@ -45,6 +45,7 @@ A <<logs-api-request-body, couple of fields>> from the {ecs-ref}[Elastic Common 
 All other fields are not indexed by default.
 But you can still add any top-level fields and use them in searches and aggregations as the default index template for logs
 <<dynamic-mapping-runtime-fields, maps dynamic fields as runtime fields>>.
+
 If there are custom fields that you frequently use in searches or aggregations,
 you can <<create-index-template, create an index template>> for your dataset `logs-<dataset>-*` based on the built-in index template for `logs-*-*` and add your custom field to the mappings.
 If wanted, you can <<manually-roll-over-a-data-stream, roll over the data stream>> to immediately apply the setting to the data stream’s write index.

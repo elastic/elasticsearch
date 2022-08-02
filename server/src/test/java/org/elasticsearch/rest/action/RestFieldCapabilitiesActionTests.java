@@ -41,6 +41,7 @@ public class RestFieldCapabilitiesActionTests extends ESTestCase {
             .build();
         try {
             action.prepareRequest(request, mock(NodeClient.class));
+            fail("expected failure");
         } catch (IllegalArgumentException e) {
             assertEquals(e.getMessage(), "can't specify a request body and [fields]" +
                 " request parameter, either specify a request body or the" +

@@ -46,19 +46,8 @@ public class RestFieldCapabilitiesAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        if (request.hasContent()) {
-            Map<String, Object> contentMap = XContentHelper.convertToMap(request.requiredContent(), false, request.getXContentType()).v2();
-            if (contentMap.containsKey("fields") && request.hasParam("fields")) {
-                throw new IllegalArgumentException("can't specify a request body and [fields]" +
-                    " request parameter, either specify a request body or the" +
-                    " [fields] request parameter");
-            }
-        }
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final FieldCapabilitiesRequest fieldRequest = new FieldCapabilitiesRequest();
-        if (request.hasParam("fields")) {
-            fieldRequest.fields(Strings.splitStringByCommaToArray(request.param("fields")));
-        }
         fieldRequest.indices(indices);
 
         fieldRequest.indicesOptions(IndicesOptions.fromRequest(request, fieldRequest.indicesOptions()));
@@ -70,6 +59,14 @@ public class RestFieldCapabilitiesAction extends BaseRestHandler {
                 PARSER.parse(parser, fieldRequest, null);
             }
         });
+        if (request.hasParam("fields")) {
+            if (fieldRequest.fields().length > 0) {
+                throw new IllegalArgumentException("can't specify a request body and [fields]" +
+                    " request parameter, either specify a request body or the" +
+                    " [fields] request parameter");
+            }
+            fieldRequest.fields(Strings.splitStringByCommaToArray(request.param("fields")));
+        }
         return channel -> client.fieldCaps(fieldRequest, new RestToXContentListener<>(channel));
     }
 

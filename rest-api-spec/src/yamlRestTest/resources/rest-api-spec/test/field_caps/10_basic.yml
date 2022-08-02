@@ -125,7 +125,8 @@ setup:
   - do:
       field_caps:
         index: 'test1,test2,test3'
-        fields: [text, keyword, number, date, geo]
+        body:
+          fields: [text, keyword, number, date, geo]
 
   - match: {fields.text.text.searchable:                true}
   - match: {fields.text.text.aggregatable:              false}

@@ -125,7 +125,7 @@ public class ZeroShotClassificationConfigUpdateTests extends AbstractNlpConfigUp
                 originalConfig.getTokenization(),
                 originalConfig.getHypothesisTemplate(),
                 true,
-                originalConfig.getLabels(),
+                originalConfig.getLabels().orElse(null),
                 originalConfig.getResultsField()
             ),
             equalTo(new ZeroShotClassificationConfigUpdate.Builder().setMultiLabel(true).build().apply(originalConfig))
@@ -137,7 +137,7 @@ public class ZeroShotClassificationConfigUpdateTests extends AbstractNlpConfigUp
                 originalConfig.getTokenization(),
                 originalConfig.getHypothesisTemplate(),
                 originalConfig.isMultiLabel(),
-                originalConfig.getLabels(),
+                originalConfig.getLabels().orElse(null),
                 "updated-field"
             ),
             equalTo(new ZeroShotClassificationConfigUpdate.Builder().setResultsField("updated-field").build().apply(originalConfig))
@@ -152,7 +152,7 @@ public class ZeroShotClassificationConfigUpdateTests extends AbstractNlpConfigUp
                 tokenization,
                 originalConfig.getHypothesisTemplate(),
                 originalConfig.isMultiLabel(),
-                originalConfig.getLabels(),
+                originalConfig.getLabels().orElse(null),
                 originalConfig.getResultsField()
             ),
             equalTo(

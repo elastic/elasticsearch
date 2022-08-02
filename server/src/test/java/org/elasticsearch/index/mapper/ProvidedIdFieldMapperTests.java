@@ -14,6 +14,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -56,13 +57,13 @@ public class ProvidedIdFieldMapperTests extends MapperServiceTestCase {
 
         IllegalArgumentException exc = expectThrows(
             IllegalArgumentException.class,
-            () -> ft.fielddataBuilder("test", () -> { throw new UnsupportedOperationException(); }).build(null, null)
+            () -> ft.fielddataBuilder(FieldDataContext.noRuntimeFields("test")).build(null, null)
         );
         assertThat(exc.getMessage(), containsString(IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey()));
         assertFalse(ft.isAggregatable());
 
         enabled[0] = true;
-        ft.fielddataBuilder("test", () -> { throw new UnsupportedOperationException(); }).build(null, null);
+        ft.fielddataBuilder(FieldDataContext.noRuntimeFields("test")).build(null, null);
         assertWarnings(ProvidedIdFieldMapper.ID_FIELD_DATA_DEPRECATION_MESSAGE);
         assertTrue(ft.isAggregatable());
     }
@@ -74,7 +75,10 @@ public class ProvidedIdFieldMapperTests extends MapperServiceTestCase {
             mapperService,
             iw -> { iw.addDocument(mapperService.documentMapper().parse(source(id, b -> b.field("field", "value"), null)).rootDoc()); },
             iw -> {
-                SearchLookup lookup = new SearchLookup(mapperService::fieldType, fieldDataLookup());
+                SearchLookup lookup = new SearchLookup(
+                    mapperService::fieldType,
+                    fieldDataLookup(mapperService.mappingLookup()::sourcePaths)
+                );
                 SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
                 when(searchExecutionContext.lookup()).thenReturn(lookup);
                 ProvidedIdFieldMapper.IdFieldType ft = (ProvidedIdFieldMapper.IdFieldType) mapperService.fieldType("_id");

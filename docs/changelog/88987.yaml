@@ -1,0 +1,6 @@
+pr: 88987
+summary: Reject unknown request body fields in Mount API
+area: Snapshot/Restore
+type: bug
+issues:
+ - 75982

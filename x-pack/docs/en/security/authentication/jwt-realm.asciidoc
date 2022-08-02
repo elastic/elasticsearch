@@ -24,7 +24,7 @@ TIP: If the front-end application does not exist, you can use the
 JWT authentication in {es} is derived from OIDC user workflows, where different
 tokens can be issued by an OIDC Provider (OP). One possible token is an
 _ID token_, which uses the JWT format. If the ID token is presented to a JWT
-realm, {es} can use as a bearer token to authenticate, identify, and authorize an individual
+realm, {es} can use it as a bearer token to authenticate, identify, and authorize an individual
 user.
 
 NOTE: Because JWTs are obtained external to {es}, you can define a custom workflow

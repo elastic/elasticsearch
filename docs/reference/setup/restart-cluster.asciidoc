@@ -8,9 +8,6 @@ nodes in the cluster while in the case of
 <<restart-cluster-rolling,rolling restart>>, you shut down only one node at a
 time, so the service remains uninterrupted.
 
-[WARNING]
-Nodes exceed low watermark will be slow to restart. You may want to reduce disk
-usage below low watermark before proceeding to restart nodes.
 
 [discrete]
 [[restart-cluster-full]]

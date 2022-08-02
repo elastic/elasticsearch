@@ -19,9 +19,9 @@ This is a simplified example that allows you to see quickly how <<downsampling,d
 [[downsampling-manual-prereqs]]
 ==== Prerequisites
 
-Refer to <<tsds-prereqs,time series data stream prerequisites>.
+Refer to <<tsds-prereqs,time series data stream prerequisites>>.
 
-For the example you need a sample data set. Go `FIX ME -> https://download.elastic.co/demos/logstash/gettingstarted/logstash-tutorial.log.gz[here]` to
+For the example you need a sample data set. Go `FIX ME -> https://download.elastic.co/demos/elasticsearch/sample-k8s-metrics.json[here]` to
 download the file, and save it in the local directory where you're running {es}.
 
 [discrete]
@@ -187,6 +187,7 @@ PUT /sample-01
 }
 
 ----
+// TEST
 
 [discrete]
 [[downsampling-manual-ingest-data]]
@@ -194,12 +195,14 @@ PUT /sample-01
 
 In a terminal window with {es} running, run the following curl command to load the documents from the downloaded sample data file:
 
-[source,console]
-----
+//[source,console]
+//----
+```
 curl -s -H "Content-Type: application/json" \
    -XPOST http://localhost:9200/sample-01/_bulk?pretty \
-   --data-binary @sample-01-raw.json
-----
+   --data-binary @sample-k8s-metrics.json
+```
+//----
 
 Approximately 18,000 documents are added. Check the search results for the newly ingested data:
 
@@ -207,6 +210,7 @@ Approximately 18,000 documents are added. Check the search results for the newly
 ----
 GET /sample-01*/_search
 ----
+// TEST[continued]
 
 The query should return the first 10,000 hits. In each document you can see the time series dimensions (`host`, `node`, `pod` and `container`) as well as the various CPU and memory time series metrics.
 
@@ -316,6 +320,7 @@ GET /sample-01*/_search
     }
 }
 ----
+// TEST[continued]
 
 Re-run your search query to view the aggregated time series data.
 
@@ -323,6 +328,7 @@ Re-run your search query to view the aggregated time series data.
 ----
 GET /sample-01*/_search
 ----
+// TEST[continued]
 
 [discrete]
 [[downsampling-manual-run]]
@@ -334,6 +340,7 @@ Before running downsampling, the index needs to be set to read only mode:
 ----
 PUT /sample-01/_block/write
 ----
+// TEST[continued]
 
 And now, you can use the rollup API to downsample the index, setting the time series interval to one hour:
 
@@ -344,6 +351,7 @@ POST /sample-01/_rollup/sample-01-rollup
   "fixed_interval": "1h"
 }
 ----
+// TEST[continued]
 
 Finally, delete the original index:
 
@@ -351,6 +359,7 @@ Finally, delete the original index:
 ----
 DELETE /sample-01
 ----
+// TEST[continued]
 
 [discrete]
 [[downsampling-manual-view-results]]
@@ -363,6 +372,7 @@ Now, re-run your search query:
 ----
 GET /sample-01*/_search
 ----
+// TEST[continued]
 
 In the query results, notice that the numer of hits has been reduced to only 288 documents. As well, for each time series metric statistical representations have been calculated: `min`, `max`, `sum`, and `value_count`.
 
@@ -434,6 +444,8 @@ Downsampling is very easily integrated within an ILM policy. To learn more, try 
 [source,console]
 ----
 DELETE /sample-01*
+DELETE _data_stream/*
+DELETE _index_template/*
 ----
 // TEST[continued]
 ////

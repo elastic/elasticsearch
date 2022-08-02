@@ -18,7 +18,7 @@ This is a simplified example that allows you to see quickly how <<downsampling,d
 [[downsampling-ilm-prereqs]]
 ==== Prerequisites
 
-Refer to <<tsds-prereqs,time series data stream prerequisites>.
+Refer to <<tsds-prereqs,time series data stream prerequisites>>.
 
 Before running this example you may want to try the <<downsampling-example-manual,Run downsampling manually>> example.
 
@@ -66,7 +66,6 @@ PUT _ilm/policy/datastream_policy
   }
 }
 ----
-// TEST[continued]
 
 [discrete]
 [[downsampling-ilm-create-index-template]]
@@ -227,6 +226,14 @@ PUT _index_template/datastream_template
 ----
 // TEST[continued]
 
+////
+[source,console]
+----
+DELETE _index_template/*
+----
+// TEST[continued]
+////
+
 [discrete]
 [[downsampling-ilm-ingest-data]]
 ==== Ingest time series data
@@ -368,10 +375,9 @@ Wait a minute or so and then re-run the `GET _data_stream` request. After the IL
 ////
 [source,console]
 ----
+DELETE _data_stream/*
+DELETE _index_template/*
 DELETE _ilm/policy/datastream_policy
-DELETE _index_template/datastream_template
-DELETE _data_stream/datastream
 ----
 // TEST[continued]
 ////
-

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.core.ml.inference.assignment;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
@@ -23,7 +24,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
@@ -37,7 +37,7 @@ public class TrainedModelAssignmentTests extends AbstractSerializingTestCase<Tra
 
     public static TrainedModelAssignment randomInstance() {
         TrainedModelAssignment.Builder builder = TrainedModelAssignment.Builder.empty(randomParams());
-        List<String> nodes = Stream.generate(() -> randomAlphaOfLength(10)).limit(randomInt(5)).collect(Collectors.toList());
+        List<String> nodes = Stream.generate(() -> randomAlphaOfLength(10)).limit(randomInt(5)).toList();
         for (String node : nodes) {
             builder.addRoutingEntry(node, RoutingInfoTests.randomInstance());
         }
@@ -267,12 +267,14 @@ public class TrainedModelAssignmentTests extends AbstractSerializingTestCase<Tra
     }
 
     private static StartTrainedModelDeploymentAction.TaskParams randomTaskParams(int numberOfAllocations) {
+        long modelSize = randomNonNegativeLong();
         return new StartTrainedModelDeploymentAction.TaskParams(
             randomAlphaOfLength(10),
-            randomNonNegativeLong(),
+            modelSize,
             randomIntBetween(1, 8),
             numberOfAllocations,
-            randomIntBetween(1, 10000)
+            randomIntBetween(1, 10000),
+            randomBoolean() ? null : ByteSizeValue.ofBytes(randomLongBetween(0, modelSize + 1))
         );
     }
 

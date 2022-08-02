@@ -17,6 +17,7 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -140,10 +141,10 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
                 hasLatestTemplate.set(true);
             }
             logger.info("Auditor template [{}] successfully installed", templateName);
-            writeBacklog();
             putTemplateInProgress.set(false);
+            writeBacklog();
         }, e -> {
-            logger.warn("Error putting latest template [{}]", templateName);
+            logger.warn(Strings.format("Error putting latest template [%s]", templateName), e);
             putTemplateInProgress.set(false);
         });
 
@@ -158,7 +159,7 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
                     }
                     backlog.add(toXContent);
                 } else {
-                    logger.error("Latest audit template missing but the back log has been written");
+                    logger.error("Latest audit template missing and audit message cannot be added to the backlog");
                 }
 
                 // stop multiple invocations

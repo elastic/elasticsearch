@@ -20,6 +20,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentState;
 import org.elasticsearch.xpack.core.ml.integration.MlRestTestStateCleaner;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
@@ -267,7 +268,7 @@ public class PyTorchModelIT extends ESRestTestCase {
             assertThat(stats, hasSize(1));
             String stringModelSizeBytes = (String) XContentMapValues.extractValue("model_size_stats.model_size", stats.get(0));
             assertThat(
-                "stats response: " + responseMap + " human stats response" + humanResponseMap,
+                "stats response: " + responseMap + " human stats response " + humanResponseMap,
                 stringModelSizeBytes,
                 is(not(nullValue()))
             );
@@ -322,6 +323,10 @@ public class PyTorchModelIT extends ESRestTestCase {
 
         infer("once", modelA);
         infer("twice", modelA);
+        // By making this request 3 times at least one of the responses must come from the cache because the cluster has 2 ML nodes
+        infer("three times", modelA);
+        infer("three times", modelA);
+        infer("three times", modelA);
         {
             Response postInferStatsResponse = getTrainedModelStats(modelA);
             List<Map<String, Object>> stats = (List<Map<String, Object>>) entityAsMap(postInferStatsResponse).get("trained_model_stats");
@@ -337,18 +342,57 @@ public class PyTorchModelIT extends ESRestTestCase {
             for (var node : nodes) {
                 assertThat(node.get("number_of_pending_requests"), notNullValue());
             }
-            // last_access and average_inference_time_ms may be null if inference wasn't performed on this node
+            assertAtLeastOneOfTheseIsNonZero("inference_cache_hit_count", nodes);
+            // last_access, average_inference_time_ms and inference_cache_hit_count_last_minute
+            // may be null if inference wasn't performed on a node. Also, in this test they'll
+            // be zero even when they are present because we don't have a full minute of history.
             assertAtLeastOneOfTheseIsNotNull("last_access", nodes);
             assertAtLeastOneOfTheseIsNotNull("average_inference_time_ms", nodes);
+            assertAtLeastOneOfTheseIsNotNull("inference_cache_hit_count_last_minute", nodes);
 
-            assertThat((Integer) XContentMapValues.extractValue("inference_stats.inference_count", stats.get(0)), equalTo(2));
+            assertThat((Integer) XContentMapValues.extractValue("inference_stats.inference_count", stats.get(0)), equalTo(5));
             int inferenceCount = sumInferenceCountOnNodes(nodes);
-            assertThat(inferenceCount, equalTo(2));
+            assertThat(inferenceCount, equalTo(5));
         }
     }
 
+    @SuppressWarnings("unchecked")
+    public void testFailedDeploymentStats() throws Exception {
+        String badModel = "bad_model";
+        String poorlyFormattedModelBase64 = "cG9vcmx5IGZvcm1hdHRlZCBtb2RlbAo=";
+        int length = Base64.getDecoder().decode(poorlyFormattedModelBase64).length;
+        createTrainedModel(badModel);
+        putVocabulary(List.of("once", "twice"), badModel);
+        Request request = new Request("PUT", "_ml/trained_models/" + badModel + "/definition/0");
+        request.setJsonEntity("""
+            {"total_definition_length":%s,"definition": "%s","total_parts": 1}""".formatted(length, poorlyFormattedModelBase64));
+        client().performRequest(request);
+        startDeployment(badModel, AllocationStatus.State.STARTING.toString());
+        assertBusy(() -> {
+            Response noInferenceCallsStatsResponse = getTrainedModelStats(badModel);
+            List<Map<String, Object>> stats = (List<Map<String, Object>>) entityAsMap(noInferenceCallsStatsResponse).get(
+                "trained_model_stats"
+            );
+            assertThat(stats, hasSize(1));
+
+            String assignmentState = (String) XContentMapValues.extractValue("deployment_stats.state", stats.get(0));
+            assertThat(assignmentState, equalTo(AssignmentState.FAILED.toString()));
+        });
+    }
+
     private void assertAtLeastOneOfTheseIsNotNull(String name, List<Map<String, Object>> nodes) {
-        assertTrue("all nodes have null value for [" + name + "]", nodes.stream().anyMatch(n -> n.get(name) != null));
+        assertTrue("all nodes have null value for [" + name + "] in " + nodes, nodes.stream().anyMatch(n -> n.get(name) != null));
+    }
+
+    private void assertAtLeastOneOfTheseIsNonZero(String name, List<Map<String, Object>> nodes) {
+        assertTrue("all nodes have null or zero value for [" + name + "] in " + nodes, nodes.stream().anyMatch(n -> {
+            Object o = n.get(name);
+            if (o instanceof Number) {
+                return ((Number) o).longValue() != 0;
+            } else {
+                return false;
+            }
+        }));
     }
 
     @SuppressWarnings("unchecked")
@@ -748,6 +792,26 @@ public class PyTorchModelIT extends ESRestTestCase {
         assertSystemNotificationsContain("Rebalanced trained model allocations because [model deployment started]");
     }
 
+    public void testStartDeployment_TooManyAllocations() throws IOException {
+        String modelId = "test_start_deployment_too_many_allocations";
+        createTrainedModel(modelId);
+        putModelDefinition(modelId);
+        putVocabulary(List.of("these", "are", "my", "words"), modelId);
+
+        ResponseException ex = expectThrows(
+            ResponseException.class,
+            () -> startDeployment(modelId, AllocationStatus.State.STARTED.toString(), 100, 1)
+        );
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(429));
+        assertThat(
+            EntityUtils.toString(ex.getResponse().getEntity()),
+            containsString("Could not start deployment because there are not enough resources to provide all requested allocations")
+        );
+
+        Response response = getTrainedModelStats(modelId);
+        assertThat(EntityUtils.toString(response.getEntity()), not(containsString("deployment_stats")));
+    }
+
     @SuppressWarnings("unchecked")
     private void assertAllocationCount(String modelId, int expectedAllocationCount) throws IOException {
         Response response = getTrainedModelStats(modelId);
@@ -768,8 +832,9 @@ public class PyTorchModelIT extends ESRestTestCase {
 
     private void putModelDefinition(String modelId) throws IOException {
         Request request = new Request("PUT", "_ml/trained_models/" + modelId + "/definition/0");
-        request.setJsonEntity("""
-            {"total_definition_length":%s,"definition": "%s","total_parts": 1}""".formatted(RAW_MODEL_SIZE, BASE_64_ENCODED_MODEL));
+        String body = """
+            {"total_definition_length":%s,"definition": "%s","total_parts": 1}""".formatted(RAW_MODEL_SIZE, BASE_64_ENCODED_MODEL);
+        request.setJsonEntity(body);
         client().performRequest(request);
     }
 

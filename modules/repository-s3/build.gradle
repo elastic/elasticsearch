@@ -75,6 +75,20 @@ esplugin.bundleSpec.from('config/repository-s3') {
     into 'config'
 }
 
+def testRepositoryCreds = tasks.register("testRepositoryCreds", Test) {
+  include '**/RepositoryCredentialsTests.class'
+  systemProperty 'es.allow_insecure_settings', 'true'
+}
+
+tasks.named('check').configure {
+  dependsOn(testRepositoryCreds)
+}
+
+tasks.named('test').configure {
+  // this is tested explicitly in separate test tasks
+  exclude '**/RepositoryCredentialsTests.class'
+}
+
 boolean useFixture = false
 
 def fixtureAddress = { fixture, name, port ->

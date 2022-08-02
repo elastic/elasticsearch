@@ -7,54 +7,56 @@
 
 package org.elasticsearch.xpack.spatial.index.fielddata;
 
-import org.elasticsearch.common.geo.GeoPoint;
+import java.util.function.BiFunction;
 
 /**
- * Get the first node of the tree and provide a point in that gemetry (point, line or triangle)
+ * Get the first node of the tree and provide a point in that geometry (point, line or triangle)
  * as a suggested label position likely to be somewhere in the middle of the entire geometry.
  *
  * TODO: We could instead choose the point closer to the centroid which improves unbalanced trees
  */
-public class LabelPositionVisitor implements TriangleTreeReader.Visitor {
+public class LabelPositionVisitor<T> implements TriangleTreeReader.Visitor {
 
-    private GeoPoint labelPosition;
+    private T labelPosition;
     private final CoordinateEncoder encoder;
+    private final BiFunction<Double, Double, T> pointMaker;
 
-    public LabelPositionVisitor(CoordinateEncoder encoder) {
+    public LabelPositionVisitor(CoordinateEncoder encoder, BiFunction<Double, Double, T> pointMaker) {
         this.encoder = encoder;
+        this.pointMaker = pointMaker;
     }
 
     @Override
-    public void visitPoint(int x, int y) {
-        double lon = encoder.decodeX(x);
-        double lat = encoder.decodeY(y);
-        // System.out.println("Got point: (" + lon + "," + lat + ")");
+    public void visitPoint(int xi, int yi) {
+        double x = encoder.decodeX(xi);
+        double y = encoder.decodeY(yi);
+        // System.out.println("Got point: (" + x + "," + y + ")");
         assert labelPosition == null;
-        labelPosition = new GeoPoint(lat, lon);
+        labelPosition = pointMaker.apply(x, y);
     }
 
     @Override
-    public void visitLine(int aX, int aY, int bX, int bY, byte metadata) {
-        double aLon = encoder.decodeX(aX);
-        double aLat = encoder.decodeY(aY);
-        double bLon = encoder.decodeX(bX);
-        double bLat = encoder.decodeY(bY);
-        // System.out.println("Got line: (" + aLon + "," + aLat + ")-(" + bLon + "," + bLat + ")");
+    public void visitLine(int aXi, int aYi, int bXi, int bYi, byte metadata) {
+        double aX = encoder.decodeX(aXi);
+        double aY = encoder.decodeY(aYi);
+        double bX = encoder.decodeX(bXi);
+        double bY = encoder.decodeY(bYi);
+        // System.out.println("Got line: (" + aX + "," + aY + ")-(" + bX + "," + bY + ")");
         assert labelPosition == null;
-        labelPosition = new GeoPoint((aLat + bLat) / 2.0, (aLon + bLon) / 2.0);
+        labelPosition = pointMaker.apply((aX + bX) / 2.0, (aY + bY) / 2.0);
     }
 
     @Override
-    public void visitTriangle(int aX, int aY, int bX, int bY, int cX, int cY, byte metadata) {
-        double aLon = encoder.decodeX(aX);
-        double aLat = encoder.decodeY(aY);
-        double bLon = encoder.decodeX(bX);
-        double bLat = encoder.decodeY(bY);
-        double cLon = encoder.decodeX(cX);
-        double cLat = encoder.decodeY(cY);
-        // System.out.println("Got triangle: (" + aLon + "," + aLat + ")-(" + bLon + "," + bLat + ")-(" + cLon + "," + cLat + ")");
+    public void visitTriangle(int aXi, int aYi, int bXi, int bYi, int cXi, int cYi, byte metadata) {
+        double aX = encoder.decodeX(aXi);
+        double aY = encoder.decodeY(aYi);
+        double bX = encoder.decodeX(bXi);
+        double bY = encoder.decodeY(bYi);
+        double cX = encoder.decodeX(cXi);
+        double cY = encoder.decodeY(cYi);
+        // System.out.println("Got triangle: (" + aX + "," + aY + ")-(" + bX + "," + bY + ")-(" + cX + "," + cY + ")");
         assert labelPosition == null;
-        labelPosition = new GeoPoint((aLat + bLat + cLat) / 3.0, (aLon + bLon + cLon) / 3.0);
+        labelPosition = pointMaker.apply((aX + bX + cX) / 3.0, (aY + bY + cY) / 3.0);
     }
 
     @Override
@@ -87,7 +89,7 @@ public class LabelPositionVisitor implements TriangleTreeReader.Visitor {
         return true;
     }
 
-    public GeoPoint labelPosition() {
+    public T labelPosition() {
         return labelPosition;
     }
 }

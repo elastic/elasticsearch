@@ -93,3 +93,97 @@
         id: "4"
 
   - match: { _source.within_one_minute: true }
+
+---
+"Script Upsert Metadata":
+  - skip:
+      version: " - 8.3.99"
+      reason: "update metadata introduced in 8.4.0"
+
+  - do:
+      catch: /routing is unavailable for insert/
+      update:
+        index:    test_1
+        id:       "1"
+        body:
+          script:
+            source: "ctx._source.foo = metadata().routing"
+            lang: "painless"
+          upsert: {}
+          scripted_upsert: true
+
+  - do:
+      update:
+        index:    test_1
+        id:       "2"
+        body:
+          script:
+            source: "ctx._source.foo = metadata().index + '_1'; ctx._source.bar = 'nothing'"
+            lang: "painless"
+          upsert: {}
+          scripted_upsert: true
+
+  - do:
+      get:
+        index: test_1
+        id: "2"
+
+  - match: { _source.foo: test_1_1 }
+  - match: { _source.bar: nothing }
+
+  - do:
+      update:
+        index:    test_1
+        id:       "3"
+        body:
+          script:
+            source: "metadata().op = 'noop'; ctx._source.bar = 'skipped?'"
+            lang: "painless"
+          upsert: {}
+          scripted_upsert: true
+
+  - do:
+      catch: missing
+      get:
+        index: test_1
+        id: "3"
+
+  - match: { found: false }
+
+  - do:
+      update:
+        index:    test_1
+        id:       "3"
+        body:
+          script:
+            source: "metadata().op = 'create'; ctx._source.bar = 'skipped?'"
+            lang: "painless"
+          upsert: {}
+          scripted_upsert: true
+
+  - do:
+      get:
+        index: test_1
+        id: "3"
+
+  - match: { found: true }
+  - match: { _source.bar: "skipped?" }
+
+  # update
+  - do:
+      update:
+        index:    test_1
+        id:       "2"
+        body:
+          script:
+            source: "ctx._source.bar = metadata().op + '-extra'"
+            lang: "painless"
+          upsert: {}
+          scripted_upsert: true
+
+  - do:
+      get:
+        index: test_1
+        id: "2"
+
+  - match: { _source.bar: index-extra }

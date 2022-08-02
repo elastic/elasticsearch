@@ -13,8 +13,6 @@ import joptsimple.OptionSpec;
 import joptsimple.OptionSpecBuilder;
 import joptsimple.util.PathConverter;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Build;
 import org.elasticsearch.bootstrap.ServerArgs;
 import org.elasticsearch.cli.CliToolProvider;
@@ -40,8 +38,6 @@ import java.util.Locale;
  */
 class ServerCli extends EnvironmentAwareCommand {
 
-    private static final Logger logger = LogManager.getLogger(ServerCli.class);
-
     private final OptionSpecBuilder versionOption;
     private final OptionSpecBuilder daemonizeOption;
     private final OptionSpec<Path> pidfileOption;
@@ -52,7 +48,7 @@ class ServerCli extends EnvironmentAwareCommand {
 
     // visible for testing
     ServerCli() {
-        super("Starts Elasticsearch"); // we configure logging later so we override the base class from configuring logging
+        super("Starts Elasticsearch"); // we configure logging later, so we override the base class from configuring logging
         versionOption = parser.acceptsAll(Arrays.asList("V", "version"), "Prints Elasticsearch version information and exits");
         daemonizeOption = parser.acceptsAll(Arrays.asList("d", "daemonize"), "Starts Elasticsearch in the background")
             .availableUnless(versionOption);
@@ -88,7 +84,7 @@ class ServerCli extends EnvironmentAwareCommand {
         syncPlugins(terminal, env, processInfo);
 
         ServerArgs args = createArgs(options, env, keystorePassword, processInfo);
-        this.server = startServer(terminal, processInfo, args, env.pluginsFile());
+        this.server = startServer(terminal, processInfo, args);
 
         if (options.has(daemonizeOption)) {
             server.detach();
@@ -162,7 +158,7 @@ class ServerCli extends EnvironmentAwareCommand {
         } catch (UserException e) {
             boolean okCode = switch (e.exitCode) {
                 // these exit codes cover the cases where auto-conf cannot run but the node should NOT be prevented from starting as usual
-                // eg the node is restarted, is already configured in an incompatible way, or the file system permissions do not allow it
+                // e.g. the node is restarted, is already configured in an incompatible way, or the file system permissions do not allow it
                 case ExitCodes.CANT_CREATE, ExitCodes.CONFIG, ExitCodes.NOOP -> true;
                 default -> false;
             };
@@ -230,7 +226,7 @@ class ServerCli extends EnvironmentAwareCommand {
     }
 
     // protected to allow tests to override
-    protected ServerProcess startServer(Terminal terminal, ProcessInfo processInfo, ServerArgs args, Path pluginsDir) throws UserException {
-        return ServerProcess.start(terminal, processInfo, args, pluginsDir);
+    protected ServerProcess startServer(Terminal terminal, ProcessInfo processInfo, ServerArgs args) throws UserException {
+        return ServerProcess.start(terminal, processInfo, args);
     }
 }

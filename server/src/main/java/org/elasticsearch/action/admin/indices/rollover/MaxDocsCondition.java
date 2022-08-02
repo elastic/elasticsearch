@@ -23,12 +23,12 @@ public class MaxDocsCondition extends Condition<Long> {
     public static final String NAME = "max_docs";
 
     public MaxDocsCondition(Long value) {
-        super(NAME);
+        super(NAME, Type.MAX);
         this.value = value;
     }
 
     public MaxDocsCondition(StreamInput in) throws IOException {
-        super(NAME);
+        super(NAME, Type.MAX);
         this.value = in.readLong();
     }
 
@@ -56,7 +56,7 @@ public class MaxDocsCondition extends Condition<Long> {
         if (parser.nextToken() == XContentParser.Token.VALUE_NUMBER) {
             return new MaxDocsCondition(parser.longValue());
         } else {
-            throw new IllegalArgumentException("invalid token: " + parser.currentToken());
+            throw new IllegalArgumentException("invalid token when parsing " + NAME + " condition: " + parser.currentToken());
         }
     }
 }

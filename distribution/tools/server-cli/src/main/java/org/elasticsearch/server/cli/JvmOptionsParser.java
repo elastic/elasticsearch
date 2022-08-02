@@ -69,16 +69,15 @@ final class JvmOptionsParser {
      * variable.
      *
      * @param configDir the ES config dir
-     * @param pluginsDir the ES plugins dir
      * @param tmpDir the directory that should be passed to {@code -Djava.io.tmpdir}
      * @param envOptions the options passed through the ES_JAVA_OPTS env var
      * @return the list of options to put on the Java command line
      * @throws InterruptedException if the java subprocess is interrupted
      * @throws IOException if there is a problem reading any of the files
-     * @throws UserException if there is a problem parsing the jvm.options file or jvm.options.d files
+     * @throws UserException if there is a problem parsing the `jvm.options` file or `jvm.options.d` files
      */
-    static List<String> determineJvmOptions(Path configDir, Path pluginsDir, Path tmpDir, String envOptions) throws InterruptedException,
-        IOException, UserException {
+    static List<String> determineJvmOptions(Path configDir, Path tmpDir, String envOptions) throws InterruptedException, IOException,
+        UserException {
 
         final JvmOptionsParser parser = new JvmOptionsParser();
 
@@ -87,7 +86,7 @@ final class JvmOptionsParser {
         substitutions.put("ES_PATH_CONF", configDir.toString());
 
         try {
-            return parser.jvmOptions(configDir, pluginsDir, envOptions, substitutions);
+            return parser.jvmOptions(configDir, envOptions, substitutions);
         } catch (final JvmOptionsFileParserException e) {
             final String errorMessage = String.format(
                 Locale.ROOT,
@@ -116,7 +115,7 @@ final class JvmOptionsParser {
         }
     }
 
-    private List<String> jvmOptions(final Path config, Path plugins, final String esJavaOpts, final Map<String, String> substitutions)
+    private List<String> jvmOptions(final Path config, final String esJavaOpts, final Map<String, String> substitutions)
         throws InterruptedException, IOException, JvmOptionsFileParserException {
 
         final List<String> jvmOptions = readJvmOptionsFiles(config);

@@ -58,13 +58,13 @@ public class SourceValueFetcherSortedDoubleIndexFieldData extends SourceValueFet
     }
 
     @Override
-    public SourceValueFetcherSortedNumericLeafFieldData loadDirect(LeafReaderContext context) throws Exception {
-        return new SourceValueFetcherSortedNumericLeafFieldData(toScriptFieldFactory, context, valueFetcher, sourceLookup);
+    public SourceValueFetcherLeafFieldData<SortedNumericDoubleValues> loadDirect(LeafReaderContext context) throws Exception {
+        return new SourceValueFetcherSortedDoubleLeafFieldData(toScriptFieldFactory, context, valueFetcher, sourceLookup);
     }
 
-    public static class SourceValueFetcherSortedNumericLeafFieldData extends SourceValueFetcherLeafFieldData<SortedNumericDoubleValues> {
+    private static class SourceValueFetcherSortedDoubleLeafFieldData extends SourceValueFetcherLeafFieldData<SortedNumericDoubleValues> {
 
-        public SourceValueFetcherSortedNumericLeafFieldData(
+        private SourceValueFetcherSortedDoubleLeafFieldData(
             ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory,
             LeafReaderContext leafReaderContext,
             ValueFetcher valueFetcher,
@@ -82,17 +82,17 @@ public class SourceValueFetcherSortedDoubleIndexFieldData extends SourceValueFet
         }
     }
 
-    public static class SourceValueFetcherSortedNumericDoubleValues extends SortedNumericDoubleValues implements ValueFetcherDocValues {
+    private static class SourceValueFetcherSortedNumericDoubleValues extends SortedNumericDoubleValues implements ValueFetcherDocValues {
 
-        protected final LeafReaderContext leafReaderContext;
+        private final LeafReaderContext leafReaderContext;
 
-        protected final ValueFetcher valueFetcher;
-        protected final SourceLookup sourceLookup;
+        private final ValueFetcher valueFetcher;
+        private final SourceLookup sourceLookup;
 
-        protected TreeSet<Double> values;
-        protected Iterator<Double> iterator;
+        private TreeSet<Double> values;
+        private Iterator<Double> iterator;
 
-        public SourceValueFetcherSortedNumericDoubleValues(
+        private SourceValueFetcherSortedNumericDoubleValues(
             LeafReaderContext leafReaderContext,
             ValueFetcher valueFetcher,
             SourceLookup sourceLookup
@@ -108,6 +108,7 @@ public class SourceValueFetcherSortedDoubleIndexFieldData extends SourceValueFet
             values = new TreeSet<>();
 
             for (Object value : valueFetcher.fetchValues(sourceLookup, Collections.emptyList())) {
+                assert value instanceof Number;
                 values.add(((Number) value).doubleValue());
             }
 

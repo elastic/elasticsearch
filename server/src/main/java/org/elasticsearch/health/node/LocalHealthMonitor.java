@@ -63,7 +63,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
     // monitoring tasks scheduled, one of them will be no-op.
     private final AtomicBoolean inProgress = new AtomicBoolean();
     // Keeps the latest health state that was successfully reported.
-    private DiskHealthInfo lastReportedDiskHealthInfo = null;
+    private volatile DiskHealthInfo lastReportedDiskHealthInfo = null;
 
     public LocalHealthMonitor(Settings settings, ClusterService clusterService, NodeService nodeService, ThreadPool threadPool) {
         this.threadPool = threadPool;
@@ -79,23 +79,27 @@ public class LocalHealthMonitor implements ClusterStateListener {
 
     void setMonitorInterval(TimeValue monitorInterval) {
         this.monitorInterval = monitorInterval;
-        scheduleNowIfEnabled();
+        maybeScheduleNow();
     }
 
     void setEnabled(boolean enabled) {
         this.enabled = enabled;
-        scheduleNowIfEnabled();
+        maybeScheduleNow();
     }
 
-    private void scheduleNextRunIfEnabled(TimeValue time) {
+    /**
+     * We always check if the prerequisites are fulfilled and if the health node
+     * is enabled before we schedule a monitoring task.
+     */
+    private void maybeScheduleNextRun(TimeValue time) {
         if (prerequisitesFulfilled && enabled) {
             threadPool.scheduleUnlessShuttingDown(time, ThreadPool.Names.MANAGEMENT, this::monitorHealth);
         }
     }
 
     // Helper method that starts the monitoring without a delay.
-    private void scheduleNowIfEnabled() {
-        scheduleNextRunIfEnabled(TimeValue.timeValueMillis(1));
+    private void maybeScheduleNow() {
+        maybeScheduleNextRun(TimeValue.timeValueMillis(1));
     }
 
     @Override
@@ -103,7 +107,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
         if (prerequisitesFulfilled == false) {
             prerequisitesFulfilled = event.state().nodesIfRecovered().getMinNodeVersion().onOrAfter(Version.V_8_5_0)
                 && HealthMetadata.getFromClusterState(event.state()) != null;
-            scheduleNowIfEnabled();
+            maybeScheduleNow();
         }
     }
 
@@ -124,7 +128,7 @@ public class LocalHealthMonitor implements ClusterStateListener {
             // if the feature is enabled after the following schedule statement, the setEnabled
             // method will be able to schedule the next run, and it will not be a no-op.
             // We prefer to err towards an extra scheduling than miss the enabling of this feature alltogether.
-            scheduleNextRunIfEnabled(monitorInterval);
+            maybeScheduleNextRun(monitorInterval);
         }
     }
 

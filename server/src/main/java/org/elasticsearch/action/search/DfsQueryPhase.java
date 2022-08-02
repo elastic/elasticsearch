@@ -7,15 +7,23 @@
  */
 package org.elasticsearch.action.search;
 
+import org.apache.lucene.search.ScoreDoc;
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.dfs.AggregatedDfs;
+import org.elasticsearch.search.dfs.DfsKnnResults;
 import org.elasticsearch.search.dfs.DfsSearchResult;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.search.vectors.KnnScoreDocQueryBuilder;
 import org.elasticsearch.transport.Transport;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.function.Function;
 
@@ -30,6 +38,7 @@ final class DfsQueryPhase extends SearchPhase {
     private final QueryPhaseResultConsumer queryResult;
     private final List<DfsSearchResult> searchResults;
     private final AggregatedDfs dfs;
+    private final DfsKnnResults knnResults;
     private final Function<ArraySearchPhaseResults<SearchPhaseResult>, SearchPhase> nextPhaseFactory;
     private final SearchPhaseContext context;
     private final SearchTransportService searchTransportService;
@@ -38,6 +47,7 @@ final class DfsQueryPhase extends SearchPhase {
     DfsQueryPhase(
         List<DfsSearchResult> searchResults,
         AggregatedDfs dfs,
+        DfsKnnResults knnResults,
         QueryPhaseResultConsumer queryResult,
         Function<ArraySearchPhaseResults<SearchPhaseResult>, SearchPhase> nextPhaseFactory,
         SearchPhaseContext context
@@ -47,6 +57,7 @@ final class DfsQueryPhase extends SearchPhase {
         this.queryResult = queryResult;
         this.searchResults = searchResults;
         this.dfs = dfs;
+        this.knnResults = knnResults;
         this.nextPhaseFactory = nextPhaseFactory;
         this.context = context;
         this.searchTransportService = context.getSearchTransport();
@@ -66,13 +77,15 @@ final class DfsQueryPhase extends SearchPhase {
             () -> context.executeNextPhase(this, nextPhaseFactory.apply(queryResult)),
             context
         );
+
         for (final DfsSearchResult dfsResult : searchResults) {
             final SearchShardTarget shardTarget = dfsResult.getSearchShardTarget();
             Transport.Connection connection = context.getConnection(shardTarget.getClusterAlias(), shardTarget.getNodeId());
+            ShardSearchRequest shardRequest = rewriteShardSearchRequest(dfsResult.getShardSearchRequest());
             QuerySearchRequest querySearchRequest = new QuerySearchRequest(
                 context.getOriginalIndices(dfsResult.getShardIndex()),
                 dfsResult.getContextId(),
-                dfsResult.getShardSearchRequest(),
+                shardRequest,
                 dfs
             );
             final int shardIndex = dfsResult.getShardIndex();
@@ -114,5 +127,31 @@ final class DfsQueryPhase extends SearchPhase {
                 }
             );
         }
+    }
+
+    private ShardSearchRequest rewriteShardSearchRequest(ShardSearchRequest request) {
+        SearchSourceBuilder source = request.source();
+        if (source == null || source.knnSearch() == null) {
+            return request;
+        }
+
+        List<ScoreDoc> scoreDocs = new ArrayList<>();
+        for (ScoreDoc scoreDoc : knnResults.scoreDocs()) {
+            if (scoreDoc.shardIndex == request.shardRequestIndex()) {
+                scoreDocs.add(scoreDoc);
+            }
+        }
+        scoreDocs.sort(Comparator.comparingInt(scoreDoc -> scoreDoc.doc));
+        KnnScoreDocQueryBuilder knnQuery = new KnnScoreDocQueryBuilder(scoreDocs.toArray(new ScoreDoc[0]));
+
+        SearchSourceBuilder newSource = source.shallowCopy().knnSearch(null);
+        if (source.query() == null) {
+            newSource.query(knnQuery);
+        } else {
+            newSource.query(new BoolQueryBuilder().should(knnQuery).should(source.query()));
+        }
+
+        request.source(newSource);
+        return request;
     }
 }

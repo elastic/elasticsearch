@@ -24,7 +24,12 @@ public class TransportPutFollowActionTests extends ESTestCase {
     public void testCreateNewLocalDataStream() {
         DataStream remoteDataStream = generateDataSteam("logs-foobar", 3, false);
         Index backingIndexToFollow = remoteDataStream.getIndices().get(remoteDataStream.getIndices().size() - 1);
-        DataStream result = TransportPutFollowAction.updateLocalDataStream(backingIndexToFollow, null, remoteDataStream);
+        DataStream result = TransportPutFollowAction.updateLocalDataStream(
+            backingIndexToFollow,
+            null,
+            remoteDataStream.getName(),
+            remoteDataStream
+        );
         assertThat(result.getName(), equalTo(remoteDataStream.getName()));
         assertThat(result.getTimeStampField(), equalTo(remoteDataStream.getTimeStampField()));
         assertThat(result.getGeneration(), equalTo(remoteDataStream.getGeneration()));
@@ -36,7 +41,12 @@ public class TransportPutFollowActionTests extends ESTestCase {
         DataStream remoteDataStream = generateDataSteam("logs-foobar", 3, false);
         DataStream localDataStream = generateDataSteam("logs-foobar", 2, true);
         Index backingIndexToFollow = remoteDataStream.getIndices().get(remoteDataStream.getIndices().size() - 1);
-        DataStream result = TransportPutFollowAction.updateLocalDataStream(backingIndexToFollow, localDataStream, remoteDataStream);
+        DataStream result = TransportPutFollowAction.updateLocalDataStream(
+            backingIndexToFollow,
+            localDataStream,
+            remoteDataStream.getName(),
+            remoteDataStream
+        );
         assertThat(result.getName(), equalTo(remoteDataStream.getName()));
         assertThat(result.getTimeStampField(), equalTo(remoteDataStream.getTimeStampField()));
         assertThat(result.getGeneration(), equalTo(remoteDataStream.getGeneration()));
@@ -51,7 +61,12 @@ public class TransportPutFollowActionTests extends ESTestCase {
         DataStream remoteDataStream = generateDataSteam("logs-foobar", 5, false);
         DataStream localDataStream = generateDataSteam("logs-foobar", 5, true, DataStream.getDefaultBackingIndexName("logs-foobar", 5));
         Index backingIndexToFollow = remoteDataStream.getIndices().get(0);
-        DataStream result = TransportPutFollowAction.updateLocalDataStream(backingIndexToFollow, localDataStream, remoteDataStream);
+        DataStream result = TransportPutFollowAction.updateLocalDataStream(
+            backingIndexToFollow,
+            localDataStream,
+            remoteDataStream.getName(),
+            remoteDataStream
+        );
         assertThat(result.getName(), equalTo(remoteDataStream.getName()));
         assertThat(result.getTimeStampField(), equalTo(remoteDataStream.getTimeStampField()));
         assertThat(result.getGeneration(), equalTo(remoteDataStream.getGeneration()));
@@ -62,7 +77,12 @@ public class TransportPutFollowActionTests extends ESTestCase {
         // follow second last backing index:
         localDataStream = result;
         backingIndexToFollow = remoteDataStream.getIndices().get(remoteDataStream.getIndices().size() - 2);
-        result = TransportPutFollowAction.updateLocalDataStream(backingIndexToFollow, localDataStream, remoteDataStream);
+        result = TransportPutFollowAction.updateLocalDataStream(
+            backingIndexToFollow,
+            localDataStream,
+            remoteDataStream.getName(),
+            remoteDataStream
+        );
         assertThat(result.getName(), equalTo(remoteDataStream.getName()));
         assertThat(result.getTimeStampField(), equalTo(remoteDataStream.getTimeStampField()));
         assertThat(result.getGeneration(), equalTo(remoteDataStream.getGeneration()));

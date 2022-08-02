@@ -39,7 +39,7 @@ The endpoint is designed in a way that logs are never dropped, as long as the cl
 
 If an error happens during ingestion,
 the logs are sent to the `logs-dlq-<namespace>` data stream that acts as a dead letter queue for failed events.
-However, log ingestion should rarely fail as the default mappings for the `logs-*-*` data streams are designed to minimize mapping conflicts.
+However, log ingestion should rarely fail as the mappings in the built-in index template for the `logs-*-*` data streams are designed to minimize mapping conflicts.
 
 A <<logs-api-request-body, couple of fields>> from the {ecs-ref}[Elastic Common Schema (ECS)] are indexed by default that are commonly used to search or filter logs.
 All other fields are not indexed by default.

@@ -37,7 +37,7 @@ public class ShardSnapshotWorkers {
     private final Executor executor;
     private final Consumer<SnapshotShardContext> shardSnapshotter;
     private final CheckedBiConsumer<SnapshotShardContext, FileInfo, IOException> fileSnapshotter;
-    private volatile int workerCount = 0;
+    private int workerCount = 0;
 
     class ShardSnapshotTask implements Comparable<ShardSnapshotTask> {
         protected final SnapshotShardContext context;
@@ -155,7 +155,9 @@ public class ShardSnapshotWorkers {
 
     // for testing
     int size() {
-        return workerCount;
+        synchronized (mutex) {
+            return workerCount;
+        }
     }
 
     private void startWorker(final String workerId) {

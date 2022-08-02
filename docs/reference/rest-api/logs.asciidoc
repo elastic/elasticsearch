@@ -59,14 +59,14 @@ Note that this currently doesn't apply for object/scalar mismatches, such as `"f
 [[logs-api-path-params]]
 === {api-path-parms-title}
 
-{ecs-ref}/ecs-base.html#field-data_stream.dataset[`data_stream.dataset`]::
+{ecs-ref}/ecs-data_stream.html#field-data-stream-dataset[`data_stream.dataset`]::
   (Optional, string)
   Defaults to `generic`.
   Describes the ingested data and its structure.
   It is highly recommended to provide a value for this so that you can add structure to your logs after the fact.
   Example: `nginx.access`.
 
-{ecs-ref}/ecs-base.html#field-data_stream.namespace[`data_stream.namespace`]::
+{ecs-ref}/ecs-data_stream.html#field-data-stream-namespace[`data_stream.namespace`]::
   (Optional, string)
   Defaults to `default`.
   A user-configurable arbitrary grouping, such as an environment (dev, prod, or qa), a team, or a strategic business unit.

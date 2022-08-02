@@ -46,7 +46,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.function.LongSupplier;
@@ -1171,8 +1170,7 @@ public class IndexNameExpressionResolver {
             for (int i = 0; i < expressions.size(); i++) {
                 String expression = expressions.get(i);
                 validateAliasOrIndex(expression);
-                Optional<RuntimeException> existsException = aliasOrIndexExists(context, expression);
-                if (existsException.isEmpty()) {
+                if (aliasOrIndexExists(context, expression, false)) {
                     if (result != null) {
                         result.add(expression);
                     }
@@ -1192,14 +1190,7 @@ public class IndexNameExpressionResolver {
                 if (Regex.isSimpleMatchPattern(expression) == false) {
                     // TODO why does wildcard resolver throw exceptions regarding non wildcarded expressions? This should not be done here.
                     if (false == context.getOptions().ignoreUnavailable()) {
-                        if (add) {
-                            throw existsException.get();
-                        } else {
-                            existsException = aliasOrIndexExists(context, expression);
-                            if (false == existsException.isEmpty()) {
-                                throw existsException.get();
-                            }
-                        }
+                        aliasOrIndexExists(context, expression, true);
                     }
                     if (add) {
                         result.add(expression);
@@ -1237,23 +1228,32 @@ public class IndexNameExpressionResolver {
             }
         }
 
-        private static Optional<RuntimeException> aliasOrIndexExists(Context context, String expression) {
+        private static boolean aliasOrIndexExists(Context context, String expression, boolean throwExceptionIfAbsent) {
             final IndicesOptions options = context.getOptions();
             IndexAbstraction indexAbstraction = context.getState().getMetadata().getIndicesLookup().get(expression);
             if (indexAbstraction == null) {
-                return Optional.of(indexNotFoundException(expression));
+                if (throwExceptionIfAbsent) {
+                    throw indexNotFoundException(expression);
+                }
+                return false;
             }
 
             // treat aliases as unavailable indices when ignoreAliases is set to true (e.g. delete index and update aliases api)
             if (indexAbstraction.getType() == IndexAbstraction.Type.ALIAS && options.ignoreAliases()) {
-                return Optional.of(aliasesNotSupportedException(expression));
+                if (throwExceptionIfAbsent) {
+                    throw aliasesNotSupportedException(expression);
+                }
+                return false;
             }
 
             if (indexAbstraction.isDataStreamRelated() && false == context.includeDataStreams()) {
-                return Optional.of(indexNotFoundException(expression));
+                if (throwExceptionIfAbsent) {
+                    throw indexNotFoundException(expression);
+                }
+                return false;
             }
 
-            return Optional.empty();
+            return true;
         }
 
         private static IndexNotFoundException indexNotFoundException(String expression) {

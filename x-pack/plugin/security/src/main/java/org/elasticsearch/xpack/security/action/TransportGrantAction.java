@@ -81,7 +81,7 @@ public abstract class TransportGrantAction<Request extends GrantRequest, Respons
                             AuthenticateAction.NAME,
                             new AuthenticateRequest(effectiveUsername),
                             ActionListener.wrap(
-                                ignore2 -> doExecuteOnSuccessfulGrant(task, request, authentication, listener),
+                                ignore2 -> doExecuteOnGrantAuthenticationSuccess(task, request, authentication, listener),
                                 listener::onFailure
                             )
                         );
@@ -93,7 +93,7 @@ public abstract class TransportGrantAction<Request extends GrantRequest, Respons
                             new ElasticsearchStatusException("the provided grant credentials do not support run-as", RestStatus.BAD_REQUEST)
                         );
                     } else {
-                        doExecuteOnSuccessfulGrant(task, request, authentication, listener);
+                        doExecuteOnGrantAuthenticationSuccess(task, request, authentication, listener);
                     }
                 }
             }, listener::onFailure);
@@ -112,7 +112,7 @@ public abstract class TransportGrantAction<Request extends GrantRequest, Respons
         }
     }
 
-    protected abstract void doExecuteOnSuccessfulGrant(
+    protected abstract void doExecuteOnGrantAuthenticationSuccess(
         Task task,
         Request request,
         Authentication authentication,

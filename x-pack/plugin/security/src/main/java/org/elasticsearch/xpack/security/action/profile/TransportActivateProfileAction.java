@@ -48,7 +48,7 @@ public class TransportActivateProfileAction extends TransportGrantAction<Activat
     }
 
     @Override
-    protected void doExecuteOnSuccessfulGrant(
+    protected void doExecuteOnGrantAuthenticationSuccess(
         Task task,
         ActivateProfileRequest request,
         Authentication authentication,

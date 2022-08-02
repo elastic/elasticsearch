@@ -20,8 +20,7 @@ import java.util.Map;
 
 public class GetMappingsRequest extends ClusterInfoRequest<GetMappingsRequest> {
 
-    public GetMappingsRequest() {
-    }
+    public GetMappingsRequest() {}
 
     public GetMappingsRequest(StreamInput in) throws IOException {
         super(in);

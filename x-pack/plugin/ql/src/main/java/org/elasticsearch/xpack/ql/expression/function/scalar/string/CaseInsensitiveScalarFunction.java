@@ -34,9 +34,11 @@ public abstract class CaseInsensitiveScalarFunction extends ScalarFunction {
 
     @Override
     public ScriptTemplate scriptWithField(FieldAttribute field) {
-        return new ScriptTemplate(processScript(Scripts.DOC_VALUE),
+        return new ScriptTemplate(
+            processScript(Scripts.DOC_VALUE),
             paramsBuilder().variable(field.exactAttribute().name()).build(),
-            dataType());
+            dataType()
+        );
     }
 
     @Override

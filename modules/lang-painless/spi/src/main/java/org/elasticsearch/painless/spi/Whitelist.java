@@ -40,8 +40,13 @@ public final class Whitelist {
     public final List<WhitelistInstanceBinding> whitelistInstanceBindings;
 
     /** Standard constructor. All values must be not {@code null}. */
-    public Whitelist(ClassLoader classLoader, List<WhitelistClass> whitelistClasses, List<WhitelistMethod> whitelistImportedMethods,
-            List<WhitelistClassBinding> whitelistClassBindings, List<WhitelistInstanceBinding> whitelistInstanceBindings) {
+    public Whitelist(
+        ClassLoader classLoader,
+        List<WhitelistClass> whitelistClasses,
+        List<WhitelistMethod> whitelistImportedMethods,
+        List<WhitelistClassBinding> whitelistClassBindings,
+        List<WhitelistInstanceBinding> whitelistInstanceBindings
+    ) {
 
         this.classLoader = Objects.requireNonNull(classLoader);
         this.whitelistClasses = Collections.unmodifiableList(Objects.requireNonNull(whitelistClasses));

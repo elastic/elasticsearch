@@ -6,13 +6,13 @@
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
-import java.nio.charset.StandardCharsets;
-import java.util.Set;
-
 import org.opensaml.saml.common.SAMLObject;
 import org.opensaml.security.SecurityException;
 import org.opensaml.security.x509.X509Credential;
 import org.opensaml.xmlsec.crypto.XMLSigningUtil;
+
+import java.nio.charset.StandardCharsets;
+import java.util.Set;
 
 /**
  * Encapsulates the rules and credentials for how and when Elasticsearch should sign outgoing SAML messages.

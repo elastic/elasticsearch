@@ -7,22 +7,21 @@
  */
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
+import org.elasticsearch.cluster.SimpleDiffable;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -32,9 +31,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
-public class DataStreamAlias extends AbstractDiffable<DataStreamAlias> implements ToXContentFragment {
+public class DataStreamAlias implements SimpleDiffable<DataStreamAlias>, ToXContentFragment {
 
     public static final ParseField DATA_STREAMS_FIELD = new ParseField("data_streams");
     public static final ParseField WRITE_DATA_STREAM_FIELD = new ParseField("write_data_stream");
@@ -50,23 +48,17 @@ public class DataStreamAlias extends AbstractDiffable<DataStreamAlias> implement
     static {
         PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), DATA_STREAMS_FIELD);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), WRITE_DATA_STREAM_FIELD);
-        PARSER.declareField(
-            ConstructingObjectParser.optionalConstructorArg(),
-            (p, c) -> {
-                if (p.currentToken() == XContentParser.Token.VALUE_EMBEDDED_OBJECT ||
-                    p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                    return new CompressedXContent(p.binaryValue());
-                } else if (p.currentToken() == XContentParser.Token.START_OBJECT) {
-                    XContentBuilder builder = XContentFactory.jsonBuilder().map(p.mapOrdered());
-                    return new CompressedXContent(BytesReference.bytes(builder));
-                } else {
-                    assert false : "unexpected token [" + p.currentToken() + " ]";
-                    return null;
-                }
-            },
-            FILTER_FIELD,
-            ObjectParser.ValueType.VALUE_OBJECT_ARRAY
-        );
+        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
+            if (p.currentToken() == XContentParser.Token.VALUE_EMBEDDED_OBJECT || p.currentToken() == XContentParser.Token.VALUE_STRING) {
+                return new CompressedXContent(p.binaryValue());
+            } else if (p.currentToken() == XContentParser.Token.START_OBJECT) {
+                XContentBuilder builder = XContentFactory.jsonBuilder().map(p.mapOrdered());
+                return new CompressedXContent(BytesReference.bytes(builder));
+            } else {
+                assert false : "unexpected token [" + p.currentToken() + " ]";
+                return null;
+            }
+        }, FILTER_FIELD, ObjectParser.ValueType.VALUE_OBJECT_ARRAY);
     }
 
     private final String name;
@@ -108,7 +100,7 @@ public class DataStreamAlias extends AbstractDiffable<DataStreamAlias> implement
         this.name = in.readString();
         this.dataStreams = in.readStringList();
         this.writeDataStream = in.readOptionalString();
-        this.filter = in.getVersion().onOrAfter(Version.V_7_15_0) && in.readBoolean() ? CompressedXContent.readCompressedString(in) : null;
+        this.filter = in.readBoolean() ? CompressedXContent.readCompressedString(in) : null;
     }
 
     /**
@@ -138,6 +130,10 @@ public class DataStreamAlias extends AbstractDiffable<DataStreamAlias> implement
 
     public CompressedXContent getFilter() {
         return filter;
+    }
+
+    public boolean filteringRequired() {
+        return filter != null;
     }
 
     /**
@@ -215,9 +211,7 @@ public class DataStreamAlias extends AbstractDiffable<DataStreamAlias> implement
      * data stream no longer appears in the intersection.
      */
     public DataStreamAlias intersect(Predicate<String> filter) {
-        List<String> intersectingDataStreams = this.dataStreams.stream()
-            .filter(filter)
-            .collect(Collectors.toList());
+        List<String> intersectingDataStreams = this.dataStreams.stream().filter(filter).toList();
         String writeDataStream = this.writeDataStream;
         if (intersectingDataStreams.contains(writeDataStream) == false) {
             writeDataStream = null;
@@ -226,42 +220,64 @@ public class DataStreamAlias extends AbstractDiffable<DataStreamAlias> implement
     }
 
     /**
-     * Returns a new {@link DataStreamAlias} instance containing data streams referenced in this instance
-     * and the other instance. If this instance doesn't have a write data stream then the write index of
-     * the other data stream becomes the write data stream of the returned instance.
+     * Performs alias related restore operations for this instance as part of the entire restore operation.
+     *
+     * If a previous instance is provided then it merges the data streams referenced in this instance and
+     * the previous instance. If this instance doesn't have a write data stream then the write index of
+     * the other data stream becomes the write data stream of the returned instance. If both this and
+     * previous instances have a write data stream then these write data streams need to be the same.
+     *
+     * If a renamePattern and renameReplacement is provided then data streams this instance is referring to
+     * are renamed. Assuming that those data streams match with the specified renamePattern.
+     *
+     * @param previous          Optionally, the alias instance that this alias instance is replacing.
+     * @param renamePattern     Optionally, the pattern that is required to match to rename data streams this alias is referring to.
+     * @param renameReplacement Optionally, the replacement used to rename data streams this alias is referring to.
+     * @return a new alias instance that can be applied in the cluster state
      */
-    public DataStreamAlias merge(DataStreamAlias other) {
-        Set<String> mergedDataStreams = new HashSet<>(other.getDataStreams());
-        mergedDataStreams.addAll(this.getDataStreams());
+    public DataStreamAlias restore(DataStreamAlias previous, String renamePattern, String renameReplacement) {
+        Set<String> mergedDataStreams = previous != null ? new HashSet<>(previous.getDataStreams()) : new HashSet<>();
 
         String writeDataStream = this.writeDataStream;
-        if (writeDataStream == null) {
-            if (other.getWriteDataStream() != null && mergedDataStreams.contains(other.getWriteDataStream())) {
-                writeDataStream = other.getWriteDataStream();
+        if (renamePattern != null && renameReplacement != null) {
+            this.dataStreams.stream().map(s -> s.replaceAll(renamePattern, renameReplacement)).forEach(mergedDataStreams::add);
+            if (writeDataStream != null) {
+                writeDataStream = writeDataStream.replaceAll(renamePattern, renameReplacement);
+            }
+        } else {
+            mergedDataStreams.addAll(this.dataStreams);
+        }
+
+        if (previous != null) {
+            if (writeDataStream != null && previous.getWriteDataStream() != null) {
+                String previousWriteDataStream = previous.getWriteDataStream();
+                if (renamePattern != null && renameReplacement != null) {
+                    previousWriteDataStream = previousWriteDataStream.replaceAll(renamePattern, renameReplacement);
+                }
+                if (writeDataStream.equals(previousWriteDataStream) == false) {
+                    throw new IllegalArgumentException(
+                        "cannot merge alias ["
+                            + name
+                            + "], write data stream of this ["
+                            + writeDataStream
+                            + "] and write data stream of other ["
+                            + previous.getWriteDataStream()
+                            + "] are different"
+                    );
+                }
+            } else if (writeDataStream == null && previous.getWriteDataStream() != null) {
+                // The write alias should exist in the set of merged data streams. It shouldn't be possible to construct an alias with
+                // a write data stream, that doesn't exist in the list of data streams.
+                assert mergedDataStreams.contains(previous.getWriteDataStream());
+                writeDataStream = previous.getWriteDataStream();
             }
         }
 
         return new DataStreamAlias(this.name, List.copyOf(mergedDataStreams), writeDataStream, filter);
     }
 
-    /**
-     * Returns a new instance with potentially renamed data stream names and write data stream name.
-     * If a data stream name matches with the provided rename pattern then it is renamed according
-     * to the provided rename replacement.
-     */
-    public DataStreamAlias renameDataStreams(String renamePattern, String renameReplacement) {
-        List<String> renamedDataStreams = this.dataStreams.stream()
-            .map(s -> s.replaceAll(renamePattern, renameReplacement))
-            .collect(Collectors.toList());
-        String writeDataStream = this.writeDataStream;
-        if (writeDataStream != null) {
-            writeDataStream = writeDataStream.replaceAll(renamePattern, renameReplacement);
-        }
-        return new DataStreamAlias(this.name, renamedDataStreams, writeDataStream, filter);
-    }
-
     public static Diff<DataStreamAlias> readDiffFrom(StreamInput in) throws IOException {
-        return readDiffFrom(DataStreamAlias::new, in);
+        return SimpleDiffable.readDiffFrom(DataStreamAlias::new, in);
     }
 
     public static DataStreamAlias fromXContent(XContentParser parser) throws IOException {
@@ -276,7 +292,7 @@ public class DataStreamAlias extends AbstractDiffable<DataStreamAlias> implement
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
-        builder.field(DATA_STREAMS_FIELD.getPreferredName(), dataStreams);
+        builder.stringListField(DATA_STREAMS_FIELD.getPreferredName(), dataStreams);
         if (writeDataStream != null) {
             builder.field(WRITE_DATA_STREAM_FIELD.getPreferredName(), writeDataStream);
         }
@@ -297,13 +313,11 @@ public class DataStreamAlias extends AbstractDiffable<DataStreamAlias> implement
         out.writeString(name);
         out.writeStringCollection(dataStreams);
         out.writeOptionalString(writeDataStream);
-        if (out.getVersion().onOrAfter(Version.V_7_15_0)) {
-            if (filter != null) {
-                out.writeBoolean(true);
-                filter.writeTo(out);
-            } else {
-                out.writeBoolean(false);
-            }
+        if (filter != null) {
+            out.writeBoolean(true);
+            filter.writeTo(out);
+        } else {
+            out.writeBoolean(false);
         }
     }
 
@@ -312,10 +326,10 @@ public class DataStreamAlias extends AbstractDiffable<DataStreamAlias> implement
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         DataStreamAlias that = (DataStreamAlias) o;
-        return Objects.equals(name, that.name) &&
-            Objects.equals(dataStreams, that.dataStreams) &&
-            Objects.equals(writeDataStream, that.writeDataStream) &&
-            Objects.equals(filter, that.filter);
+        return Objects.equals(name, that.name)
+            && Objects.equals(dataStreams, that.dataStreams)
+            && Objects.equals(writeDataStream, that.writeDataStream)
+            && Objects.equals(filter, that.filter);
     }
 
     @Override
@@ -325,11 +339,17 @@ public class DataStreamAlias extends AbstractDiffable<DataStreamAlias> implement
 
     @Override
     public String toString() {
-        return "DataStreamAlias{" +
-            "name='" + name + '\'' +
-            ", dataStreams=" + dataStreams +
-            ", writeDataStream='" + writeDataStream + '\'' +
-            ", filter=" + filter.string() +
-            '}';
+        return "DataStreamAlias{"
+            + "name='"
+            + name
+            + '\''
+            + ", dataStreams="
+            + dataStreams
+            + ", writeDataStream='"
+            + writeDataStream
+            + '\''
+            + ", filter="
+            + (filter != null ? filter.string() : "null")
+            + '}';
     }
 }

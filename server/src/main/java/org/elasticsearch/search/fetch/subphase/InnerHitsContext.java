@@ -11,7 +11,7 @@ package org.elasticsearch.search.fetch.subphase;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.Collector;
-import org.apache.lucene.search.ConjunctionDISI;
+import org.apache.lucene.search.ConjunctionUtils;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.ScoreMode;
@@ -52,8 +52,11 @@ public final class InnerHitsContext {
 
     public void addInnerHitDefinition(InnerHitSubContext innerHit) {
         if (innerHits.containsKey(innerHit.getName())) {
-            throw new IllegalArgumentException("inner_hit definition with the name [" + innerHit.getName() +
-                    "] already exists. Use a different inner_hit name or define one explicitly");
+            throw new IllegalArgumentException(
+                "inner_hit definition with the name ["
+                    + innerHit.getName()
+                    + "] already exists. Use a different inner_hit name or define one explicitly"
+            );
         }
 
         innerHits.put(innerHit.getName(), innerHit);
@@ -97,8 +100,8 @@ public final class InnerHitsContext {
         protected Weight getInnerHitQueryWeight() throws IOException {
             if (innerHitQueryWeight == null) {
                 final boolean needsScores = size() != 0 && (sort() == null || sort().sort.needsScores());
-                innerHitQueryWeight = context.searcher().createWeight(context.searcher().rewrite(query()),
-                    needsScores ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES, 1f);
+                innerHitQueryWeight = context.searcher()
+                    .createWeight(context.searcher().rewrite(query()), needsScores ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES, 1f);
             }
             return innerHitQueryWeight;
         }
@@ -160,8 +163,9 @@ public final class InnerHitsContext {
 
         try {
             Bits acceptDocs = ctx.reader().getLiveDocs();
-            DocIdSetIterator iterator = ConjunctionDISI.intersectIterators(Arrays.asList(innerHitQueryScorer.iterator(),
-                scorer.iterator()));
+            DocIdSetIterator iterator = ConjunctionUtils.intersectIterators(
+                Arrays.asList(innerHitQueryScorer.iterator(), scorer.iterator())
+            );
             for (int docId = iterator.nextDoc(); docId < DocIdSetIterator.NO_MORE_DOCS; docId = iterator.nextDoc()) {
                 if (acceptDocs == null || acceptDocs.get(docId)) {
                     leafCollector.collect(docId);

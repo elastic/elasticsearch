@@ -34,6 +34,9 @@ import org.elasticsearch.transport.TransportService;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
+
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_HIDDEN;
 
 /**
  * Create index action.
@@ -45,12 +48,26 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
     private final SystemIndices systemIndices;
 
     @Inject
-    public TransportCreateIndexAction(TransportService transportService, ClusterService clusterService,
-                                      ThreadPool threadPool, MetadataCreateIndexService createIndexService,
-                                      ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                      SystemIndices systemIndices) {
-        super(CreateIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, CreateIndexRequest::new,
-            indexNameExpressionResolver, CreateIndexResponse::new, ThreadPool.Names.SAME);
+    public TransportCreateIndexAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        MetadataCreateIndexService createIndexService,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        SystemIndices systemIndices
+    ) {
+        super(
+            CreateIndexAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            CreateIndexRequest::new,
+            indexNameExpressionResolver,
+            CreateIndexResponse::new,
+            ThreadPool.Names.SAME
+        );
         this.createIndexService = createIndexService;
         this.systemIndices = systemIndices;
     }
@@ -61,32 +78,49 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
     }
 
     @Override
-    protected void masterOperation(Task task, final CreateIndexRequest request, final ClusterState state,
-                                   final ActionListener<CreateIndexResponse> listener) {
+    protected void masterOperation(
+        Task task,
+        final CreateIndexRequest request,
+        final ClusterState state,
+        final ActionListener<CreateIndexResponse> listener
+    ) {
         String cause = request.cause();
         if (cause.isEmpty()) {
             cause = "api";
         }
 
-
         final long resolvedAt = System.currentTimeMillis();
-        final String indexName  = indexNameExpressionResolver.resolveDateMathExpression(request.index(), resolvedAt);
+        final String indexName = IndexNameExpressionResolver.resolveDateMathExpression(request.index(), resolvedAt);
 
         final SystemIndexDescriptor mainDescriptor = systemIndices.findMatchingDescriptor(indexName);
-        final boolean isSystemIndex = mainDescriptor != null && mainDescriptor.isAutomaticallyManaged();
+        final boolean isSystemIndex = mainDescriptor != null;
+        final boolean isManagedSystemIndex = isSystemIndex && mainDescriptor.isAutomaticallyManaged();
         if (mainDescriptor != null && mainDescriptor.isNetNew()) {
-            final SystemIndexAccessLevel systemIndexAccessLevel = systemIndices.getSystemIndexAccessLevel(threadPool.getThreadContext());
+            final SystemIndexAccessLevel systemIndexAccessLevel = SystemIndices.getSystemIndexAccessLevel(threadPool.getThreadContext());
             if (systemIndexAccessLevel != SystemIndexAccessLevel.ALL) {
                 if (systemIndexAccessLevel == SystemIndexAccessLevel.RESTRICTED) {
                     if (systemIndices.getProductSystemIndexNamePredicate(threadPool.getThreadContext()).test(indexName) == false) {
-                        throw systemIndices.netNewSystemIndexAccessException(threadPool.getThreadContext(), List.of(indexName));
+                        throw SystemIndices.netNewSystemIndexAccessException(threadPool.getThreadContext(), List.of(indexName));
                     }
                 } else {
                     // BACKWARDS_COMPATIBLE_ONLY should never be a possibility here, it cannot be returned from getSystemIndexAccessLevel
-                    assert systemIndexAccessLevel == SystemIndexAccessLevel.NONE :
-                        "Expected no system index access but level is " + systemIndexAccessLevel;
-                    throw systemIndices.netNewSystemIndexAccessException(threadPool.getThreadContext(), List.of(indexName));
+                    assert systemIndexAccessLevel == SystemIndexAccessLevel.NONE
+                        : "Expected no system index access but level is " + systemIndexAccessLevel;
+                    throw SystemIndices.netNewSystemIndexAccessException(threadPool.getThreadContext(), List.of(indexName));
                 }
+            }
+        }
+
+        if (isSystemIndex) {
+            if (Objects.isNull(request.settings())) {
+                request.settings(SystemIndexDescriptor.DEFAULT_SETTINGS);
+            } else if (false == request.settings().hasValue(SETTING_INDEX_HIDDEN)) {
+                request.settings(Settings.builder().put(request.settings()).put(SETTING_INDEX_HIDDEN, true).build());
+            } else if (Boolean.FALSE.toString().equalsIgnoreCase(request.settings().get(SETTING_INDEX_HIDDEN))) {
+                final String message = "Cannot create system index [" + indexName + "] with [index.hidden] set to 'false'";
+                logger.warn(message);
+                listener.onFailure(new IllegalStateException(message));
+                return;
             }
         }
 
@@ -96,9 +130,10 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
         // different mappings, settings etc. This is so that rolling upgrade scenarios still work.
         // We check this via the request's origin. Eventually, `SystemIndexManager` will reconfigure
         // the index to the latest settings.
-        if (isSystemIndex && Strings.isNullOrEmpty(request.origin())) {
-            final SystemIndexDescriptor descriptor =
-                mainDescriptor.getDescriptorCompatibleWith(state.nodes().getSmallestNonClientNodeVersion());
+        if (isManagedSystemIndex && Strings.isNullOrEmpty(request.origin())) {
+            final SystemIndexDescriptor descriptor = mainDescriptor.getDescriptorCompatibleWith(
+                state.nodes().getSmallestNonClientNodeVersion()
+            );
             if (descriptor == null) {
                 final String message = mainDescriptor.getMinimumNodeVersionMessage("create index");
                 logger.warn(message);
@@ -110,22 +145,33 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
             updateRequest = buildUpdateRequest(request, cause, indexName, resolvedAt);
         }
 
-        createIndexService.createIndex(updateRequest, listener.map(response ->
-            new CreateIndexResponse(response.isAcknowledged(), response.isShardsAcknowledged(), indexName)));
+        createIndexService.createIndex(
+            updateRequest,
+            listener.map(response -> new CreateIndexResponse(response.isAcknowledged(), response.isShardsAcknowledged(), indexName))
+        );
     }
 
-    private CreateIndexClusterStateUpdateRequest buildUpdateRequest(CreateIndexRequest request, String cause,
-                                                                    String indexName, long nameResolvedAt) {
+    private CreateIndexClusterStateUpdateRequest buildUpdateRequest(
+        CreateIndexRequest request,
+        String cause,
+        String indexName,
+        long nameResolvedAt
+    ) {
+        Set<Alias> aliases = request.aliases().stream().peek(alias -> {
+            if (systemIndices.isSystemName(alias.name())) {
+                alias.isHidden(true);
+            }
+        }).collect(Collectors.toSet());
         return new CreateIndexClusterStateUpdateRequest(cause, indexName, request.index()).ackTimeout(request.timeout())
             .masterNodeTimeout(request.masterNodeTimeout())
             .settings(request.settings())
             .mappings(request.mappings())
-            .aliases(request.aliases())
+            .aliases(aliases)
             .nameResolvedInstant(nameResolvedAt)
             .waitForActiveShards(request.waitForActiveShards());
     }
 
-    private CreateIndexClusterStateUpdateRequest buildSystemIndexUpdateRequest(
+    private static CreateIndexClusterStateUpdateRequest buildSystemIndexUpdateRequest(
         CreateIndexRequest request,
         String cause,
         SystemIndexDescriptor descriptor
@@ -136,7 +182,14 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
         if (descriptor.getAliasName() == null) {
             aliases = Set.of();
         } else {
-            aliases = Set.of(new Alias(descriptor.getAliasName()));
+            aliases = Set.of(new Alias(descriptor.getAliasName()).isHidden(true).writeIndex(true));
+        }
+
+        // Throw an error if we are trying to directly create a system index other than the primary system index (or the alias)
+        if (request.index().equals(descriptor.getPrimaryIndex()) == false && request.index().equals(descriptor.getAliasName()) == false) {
+            throw new IllegalArgumentException(
+                "Cannot create system index with name " + request.index() + "; descriptor primary index is " + descriptor.getPrimaryIndex()
+            );
         }
 
         final CreateIndexClusterStateUpdateRequest updateRequest = new CreateIndexClusterStateUpdateRequest(

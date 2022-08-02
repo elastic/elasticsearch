@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.process;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
@@ -33,6 +32,8 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * Abstract class for implementing a native process.
@@ -61,8 +62,14 @@ public abstract class AbstractNativeProcess implements NativeProcess {
     private volatile boolean processKilled;
     private volatile boolean isReady;
 
-    protected AbstractNativeProcess(String jobId, NativeController nativeController, ProcessPipes processPipes,
-                                    int numberOfFields, List<Path> filesToDelete, Consumer<String> onProcessCrash) {
+    protected AbstractNativeProcess(
+        String jobId,
+        NativeController nativeController,
+        ProcessPipes processPipes,
+        int numberOfFields,
+        List<Path> filesToDelete,
+        Consumer<String> onProcessCrash
+    ) {
         this.jobId = jobId;
         this.nativeController = nativeController;
         this.processPipes = processPipes;
@@ -90,7 +97,7 @@ public abstract class AbstractNativeProcess implements NativeProcess {
                 h.tailStream();
             } catch (IOException e) {
                 if (processKilled == false) {
-                    LOGGER.error(new ParameterizedMessage("[{}] Error tailing {} process logs", jobId, getName()), e);
+                    LOGGER.error(() -> format("[%s] Error tailing %s process logs", jobId, getName()), e);
                 }
             } finally {
                 detectCrash();
@@ -124,8 +131,8 @@ public abstract class AbstractNativeProcess implements NativeProcess {
         String errors = cppLogHandler().getErrors();
         long pid = cppLogHandler().tryGetPid();
 
-        String fullError = pid > 0 ?
-            String.format(Locale.ROOT, "[%s] %s/%d process stopped unexpectedly: %s", jobId, getName(), pid, errors)
+        String fullError = pid > 0
+            ? String.format(Locale.ROOT, "[%s] %s/%d process stopped unexpectedly: %s", jobId, getName(), pid, errors)
             : String.format(Locale.ROOT, "[%s] %s process stopped unexpectedly before logging started: %s", jobId, getName(), errors);
 
         LOGGER.error(fullError);
@@ -149,7 +156,7 @@ public abstract class AbstractNativeProcess implements NativeProcess {
                 }
             } catch (IOException e) {
                 if (processKilled == false) {
-                    LOGGER.error(new ParameterizedMessage("[{}] Error reading {} state output", jobId, getName()), e);
+                    LOGGER.error(() -> format("[%s] Error reading %s state output", jobId, getName()), e);
                 }
             }
         });
@@ -203,9 +210,9 @@ public abstract class AbstractNativeProcess implements NativeProcess {
                 LOGGER.debug("[{}] {} process exited", jobId, getName());
             }
         } catch (ExecutionException | TimeoutException e) {
-            LOGGER.warn(new ParameterizedMessage("[{}] Exception closing the running {} process", jobId, getName()), e);
+            LOGGER.warn(() -> format("[%s] Exception closing the running %s process", jobId, getName()), e);
         } catch (InterruptedException e) {
-            LOGGER.warn(new ParameterizedMessage("[{}] Exception closing the running {} process", jobId, getName()), e);
+            LOGGER.warn(() -> format("[%s] Exception closing the running %s process", jobId, getName()), e);
             Thread.currentThread().interrupt();
         } finally {
             deleteAssociatedFiles();

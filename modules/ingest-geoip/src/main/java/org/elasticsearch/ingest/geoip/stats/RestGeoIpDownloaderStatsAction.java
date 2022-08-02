@@ -8,7 +8,7 @@
 
 package org.elasticsearch.ingest.geoip.stats;
 
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -31,7 +31,10 @@ public class RestGeoIpDownloaderStatsAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
-        return channel -> client.execute(GeoIpDownloaderStatsAction.INSTANCE, new GeoIpDownloaderStatsAction.Request(),
-            new RestToXContentListener<>(channel));
+        return channel -> client.execute(
+            GeoIpDownloaderStatsAction.INSTANCE,
+            new GeoIpDownloaderStatsAction.Request(),
+            new RestToXContentListener<>(channel)
+        );
     }
 }

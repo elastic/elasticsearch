@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.ql.querydsl.container;
 
+import org.elasticsearch.search.aggregations.bucket.composite.MissingOrder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.ql.expression.Order.NullsPosition;
 import org.elasticsearch.xpack.ql.expression.Order.OrderDirection;
@@ -13,7 +14,8 @@ import org.elasticsearch.xpack.ql.expression.Order.OrderDirection;
 public abstract class Sort {
 
     public enum Direction {
-        ASC, DESC;
+        ASC,
+        DESC;
 
         public static Direction from(OrderDirection dir) {
             return dir == null || dir == OrderDirection.ASC ? ASC : DESC;
@@ -25,20 +27,55 @@ public abstract class Sort {
     }
 
     public enum Missing {
-        FIRST("_first"), LAST("_last");
+        FIRST("_first", MissingOrder.FIRST),
+        LAST("_last", MissingOrder.LAST),
+        /**
+         * Nulls position has not been specified by the user and an appropriate default will be used.
+         *
+         * The default values are chosen such that it stays compatible with previous behavior. Unfortunately, this results in
+         * inconsistencies across different types of queries (see https://github.com/elastic/elasticsearch/issues/77068).
+         */
+        ANY(null, null);
 
-        private final String position;
+        private final String searchOrder;
+        private final MissingOrder aggregationOrder;
 
-        Missing(String position) {
-            this.position = position;
+        Missing(String searchOrder, MissingOrder aggregationOrder) {
+            this.searchOrder = searchOrder;
+            this.aggregationOrder = aggregationOrder;
         }
 
         public static Missing from(NullsPosition pos) {
-            return pos == null || pos == NullsPosition.FIRST ? FIRST : LAST;
+            return switch (pos) {
+                case FIRST -> FIRST;
+                case LAST -> LAST;
+                default -> ANY;
+            };
         }
 
-        public String position() {
-            return position;
+        public String searchOrder() {
+            return searchOrder(null);
+        }
+
+        /**
+         * Preferred order of null values in non-aggregation queries.
+         */
+        public String searchOrder(Direction fallbackDirection) {
+            if (searchOrder != null) {
+                return searchOrder;
+            } else {
+                return switch (fallbackDirection) {
+                    case ASC -> LAST.searchOrder;
+                    case DESC -> FIRST.searchOrder;
+                };
+            }
+        }
+
+        /**
+         * Preferred order of null values in aggregation queries.
+         */
+        public MissingOrder aggregationOrder() {
+            return aggregationOrder;
         }
     }
 

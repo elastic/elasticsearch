@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.job.categorization;
 
 import java.io.IOException;
 
-
 /**
  * Java port of the classic ML categorization tokenizer, as implemented in the ML C++ code.
  *
@@ -18,8 +17,7 @@ public class MlClassicTokenizer extends AbstractMlTokenizer {
 
     public static String NAME = "ml_classic";
 
-    MlClassicTokenizer() {
-    }
+    MlClassicTokenizer() {}
 
     /**
      * Basically tokenize into [a-zA-Z0-9]+ strings, but also allowing underscores, dots and dashes in the middle.
@@ -47,8 +45,8 @@ public class MlClassicTokenizer extends AbstractMlTokenizer {
 
                 // We don't return tokens that are hex numbers, and it's most efficient to keep a running note of this
                 haveNonHex = haveNonHex ||
-                        // Count dots and dashes as numeric
-                        (Character.digit(curChar, 16) == -1 && curChar != '.' && curChar != '-');
+                // Count dots and dashes as numeric
+                    (Character.digit(curChar, 16) == -1 && curChar != '.' && curChar != '-');
             } else if (length > 0) {
                 // If we get here, we've found a separator character having built up a candidate token
 

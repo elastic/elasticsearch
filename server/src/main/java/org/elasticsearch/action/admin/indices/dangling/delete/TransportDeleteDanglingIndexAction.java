@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.admin.indices.dangling.delete;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
@@ -21,9 +20,10 @@ import org.elasticsearch.action.admin.indices.dangling.list.NodeListDanglingIndi
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -32,12 +32,14 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -102,14 +104,12 @@ public class TransportDeleteDanglingIndexAction extends AcknowledgedTransportMas
 
                 final String taskSource = "delete-dangling-index [" + indexName + "] [" + indexUUID + "]";
 
-                clusterService.submitStateUpdateTask(
-                    taskSource, new AckedClusterStateUpdateTask(deleteRequest, clusterStateUpdatedListener) {
-                        @Override
-                        public ClusterState execute(final ClusterState currentState) {
-                            return deleteDanglingIndex(currentState, indexToDelete);
-                        }
+                submitUnbatchedTask(taskSource, new AckedClusterStateUpdateTask(deleteRequest, clusterStateUpdatedListener) {
+                    @Override
+                    public ClusterState execute(final ClusterState currentState) {
+                        return deleteDanglingIndex(currentState, indexToDelete);
                     }
-                );
+                });
             }
 
             @Override
@@ -120,11 +120,16 @@ public class TransportDeleteDanglingIndexAction extends AcknowledgedTransportMas
         });
     }
 
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
+    }
+
     private ClusterState deleteDanglingIndex(ClusterState currentState, Index indexToDelete) {
         final Metadata metaData = currentState.getMetadata();
 
-        for (ObjectObjectCursor<String, IndexMetadata> each : metaData.indices()) {
-            if (indexToDelete.getUUID().equals(each.value.getIndexUUID())) {
+        for (Map.Entry<String, IndexMetadata> each : metaData.indices().entrySet()) {
+            if (indexToDelete.getUUID().equals(each.getValue().getIndexUUID())) {
                 throw new IllegalArgumentException(
                     "Refusing to delete dangling index "
                         + indexToDelete
@@ -158,8 +163,10 @@ public class TransportDeleteDanglingIndexAction extends AcknowledgedTransportMas
     }
 
     private void findDanglingIndex(String indexUUID, ActionListener<Index> listener) {
-        this.nodeClient.execute(ListDanglingIndicesAction.INSTANCE, new ListDanglingIndicesRequest(indexUUID), listener.delegateFailure(
-            (l, response) -> {
+        this.nodeClient.execute(
+            ListDanglingIndicesAction.INSTANCE,
+            new ListDanglingIndicesRequest(indexUUID),
+            listener.delegateFailure((l, response) -> {
                 if (response.hasFailures()) {
                     final String nodeIds = response.failures().stream().map(FailedNodeException::nodeId).collect(Collectors.joining(","));
                     ElasticsearchException e = new ElasticsearchException("Failed to query nodes [" + nodeIds + "]");
@@ -184,6 +191,7 @@ public class TransportDeleteDanglingIndexAction extends AcknowledgedTransportMas
                     }
                 }
                 l.onFailure(new IllegalArgumentException("No dangling index found for UUID [" + indexUUID + "]"));
-        }));
+            })
+        );
     }
 }

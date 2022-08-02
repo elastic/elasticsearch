@@ -7,18 +7,21 @@
  */
 package org.elasticsearch.gradle.internal;
 
+import org.gradle.api.Project;
+import org.gradle.testfixtures.ProjectBuilder;
+import org.junit.Test;
+
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.Arrays;
 
-import org.elasticsearch.gradle.internal.test.GradleUnitTestCase;
-import org.gradle.api.Project;
-import org.gradle.testfixtures.ProjectBuilder;
+import static org.junit.Assert.assertEquals;
 
-public class ConcatFilesTaskTests extends GradleUnitTestCase {
+public class ConcatFilesTaskTests {
 
+    @Test
     public void testHeaderAdded() throws IOException {
 
         Project project = createProject();
@@ -39,6 +42,7 @@ public class ConcatFilesTaskTests extends GradleUnitTestCase {
         file.delete();
     }
 
+    @Test
     public void testConcatenationWithUnique() throws IOException {
 
         Project project = createProject();

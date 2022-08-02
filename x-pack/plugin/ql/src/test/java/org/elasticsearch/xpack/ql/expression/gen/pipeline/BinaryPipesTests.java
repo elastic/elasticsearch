@@ -159,7 +159,6 @@ public class BinaryPipesTests extends ESTestCase {
         }
 
         @Override
-        public void collectFields(QlSourceBuilder sourceBuilder) {
-        }
+        public void collectFields(QlSourceBuilder sourceBuilder) {}
     }
 }

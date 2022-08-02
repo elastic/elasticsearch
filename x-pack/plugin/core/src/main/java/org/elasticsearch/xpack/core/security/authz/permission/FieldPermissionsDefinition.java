@@ -104,8 +104,10 @@ public final class FieldPermissionsDefinition implements CacheKey {
         @Override
         public String toString() {
             return getClass().getSimpleName()
-                + "[grant=" + Strings.arrayToCommaDelimitedString(grantedFields)
-                + "; exclude=" + Strings.arrayToCommaDelimitedString(excludedFields)
+                + "[grant="
+                + Strings.arrayToCommaDelimitedString(grantedFields)
+                + "; exclude="
+                + Strings.arrayToCommaDelimitedString(excludedFields)
                 + "]";
         }
 

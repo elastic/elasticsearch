@@ -9,13 +9,13 @@ package org.elasticsearch.xpack.ilm.action;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.ilm.ErrorStep;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleExplainResponse;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
-import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.WaitForRolloverReadyStep;
@@ -24,30 +24,31 @@ import org.elasticsearch.xpack.ilm.IndexLifecycleService;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
+import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.elasticsearch.xpack.ilm.action.TransportExplainLifecycleAction.getIndexLifecycleExplainResponse;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Matchers.anyString;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class TransportExplainLifecycleActionTests extends ESTestCase {
 
-    public static final String PHASE_DEFINITION = "{\n" +
-        "        \"policy\" : \"my-policy\",\n" +
-        "        \"phase_definition\" : {\n" +
-        "          \"min_age\" : \"20m\",\n" +
-        "          \"actions\" : {\n" +
-        "            \"rollover\" : {\n" +
-        "              \"max_age\" : \"5s\"\n" +
-        "            }\n" +
-        "          }\n" +
-        "        },\n" +
-        "        \"version\" : 1,\n" +
-        "        \"modified_date_in_millis\" : 1578521007076\n" +
-        "      }";
+    public static final String PHASE_DEFINITION = """
+        {
+                "policy" : "my-policy",
+                "phase_definition" : {
+                  "min_age" : "20m",
+                  "actions" : {
+                    "rollover" : {
+                      "max_age" : "5s"
+                    }
+                  }
+                },
+                "version" : 1,
+                "modified_date_in_millis" : 1578521007076
+              }""";
 
     private static final NamedXContentRegistry REGISTRY;
 
@@ -76,8 +77,13 @@ public class TransportExplainLifecycleActionTests extends ESTestCase {
                 .putCustom(ILM_CUSTOM_METADATA_KEY, errorStepState.build().asMap())
                 .build();
 
-            IndexLifecycleExplainResponse onlyErrorsResponse = getIndexLifecycleExplainResponse(meta, true, true, indexLifecycleService,
-                REGISTRY);
+            IndexLifecycleExplainResponse onlyErrorsResponse = getIndexLifecycleExplainResponse(
+                meta,
+                true,
+                true,
+                indexLifecycleService,
+                REGISTRY
+            );
             assertThat(onlyErrorsResponse, notNullValue());
             assertThat(onlyErrorsResponse.getIndex(), is(indexInErrorStep));
             assertThat(onlyErrorsResponse.getStep(), is(ErrorStep.NAME));
@@ -102,12 +108,22 @@ public class TransportExplainLifecycleActionTests extends ESTestCase {
                 .putCustom(ILM_CUSTOM_METADATA_KEY, checkRolloverReadyStepState.build().asMap())
                 .build();
 
-            IndexLifecycleExplainResponse onlyErrorsResponse = getIndexLifecycleExplainResponse(meta, true, true, indexLifecycleService,
-                REGISTRY);
+            IndexLifecycleExplainResponse onlyErrorsResponse = getIndexLifecycleExplainResponse(
+                meta,
+                true,
+                true,
+                indexLifecycleService,
+                REGISTRY
+            );
             assertThat(onlyErrorsResponse, nullValue());
 
-            IndexLifecycleExplainResponse allManagedResponse = getIndexLifecycleExplainResponse(meta, false, true, indexLifecycleService,
-                REGISTRY);
+            IndexLifecycleExplainResponse allManagedResponse = getIndexLifecycleExplainResponse(
+                meta,
+                false,
+                true,
+                indexLifecycleService,
+                REGISTRY
+            );
             assertThat(allManagedResponse, notNullValue());
             assertThat(allManagedResponse.getIndex(), is(indexInCheckRolloverStep));
             assertThat(allManagedResponse.getStep(), is(WaitForRolloverReadyStep.NAME));
@@ -125,8 +141,13 @@ public class TransportExplainLifecycleActionTests extends ESTestCase {
                 .numberOfReplicas(randomIntBetween(0, 5))
                 .build();
 
-            IndexLifecycleExplainResponse onlyErrorsResponse = getIndexLifecycleExplainResponse(meta, true, true, indexLifecycleService,
-                REGISTRY);
+            IndexLifecycleExplainResponse onlyErrorsResponse = getIndexLifecycleExplainResponse(
+                meta,
+                true,
+                true,
+                indexLifecycleService,
+                REGISTRY
+            );
             assertThat(onlyErrorsResponse, notNullValue());
             assertThat(onlyErrorsResponse.getPolicyName(), is("random-policy"));
         }
@@ -142,8 +163,13 @@ public class TransportExplainLifecycleActionTests extends ESTestCase {
                 .numberOfReplicas(randomIntBetween(0, 5))
                 .build();
 
-            IndexLifecycleExplainResponse onlyManaged = getIndexLifecycleExplainResponse(meta, false, true, indexLifecycleService,
-                REGISTRY);
+            IndexLifecycleExplainResponse onlyManaged = getIndexLifecycleExplainResponse(
+                meta,
+                false,
+                true,
+                indexLifecycleService,
+                REGISTRY
+            );
             assertThat(onlyManaged, nullValue());
         }
     }

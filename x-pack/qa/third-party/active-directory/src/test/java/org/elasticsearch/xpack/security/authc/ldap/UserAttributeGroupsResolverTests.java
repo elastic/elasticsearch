@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.authc.ldap;
 import com.unboundid.ldap.sdk.Attribute;
 import com.unboundid.ldap.sdk.SearchRequest;
 import com.unboundid.ldap.sdk.SearchScope;
+
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
@@ -31,15 +32,25 @@ public class UserAttributeGroupsResolverTests extends GroupsResolverTestCase {
     private static final RealmConfig.RealmIdentifier REALM_ID = new RealmConfig.RealmIdentifier("ldap", "realm1");
 
     public void testResolve() throws Exception {
-        //falling back on the 'memberOf' attribute
+        // falling back on the 'memberOf' attribute
         UserAttributeGroupsResolver resolver = new UserAttributeGroupsResolver(config(REALM_ID, Settings.EMPTY));
-        List<String> groups =
-                resolveBlocking(resolver, ldapConnection, BRUCE_BANNER_DN, TimeValue.timeValueSeconds(20), NoOpLogger.INSTANCE, null);
-        assertThat(groups, containsInAnyOrder(
+        List<String> groups = resolveBlocking(
+            resolver,
+            ldapConnection,
+            BRUCE_BANNER_DN,
+            TimeValue.timeValueSeconds(20),
+            NoOpLogger.INSTANCE,
+            null
+        );
+        assertThat(
+            groups,
+            containsInAnyOrder(
                 containsString("Avengers"),
                 containsString("SHIELD"),
                 containsString("Geniuses"),
-                containsString("Philanthropists")));
+                containsString("Philanthropists")
+            )
+        );
     }
 
     public void testResolveFromPreloadedAttributes() throws Exception {
@@ -47,13 +58,23 @@ public class UserAttributeGroupsResolverTests extends GroupsResolverTestCase {
         final Collection<Attribute> attributes = ldapConnection.searchForEntry(preSearch).getAttributes();
 
         UserAttributeGroupsResolver resolver = new UserAttributeGroupsResolver(config(REALM_ID, Settings.EMPTY));
-        List<String> groups =
-                resolveBlocking(resolver, ldapConnection, BRUCE_BANNER_DN, TimeValue.timeValueSeconds(20), NoOpLogger.INSTANCE, attributes);
-        assertThat(groups, containsInAnyOrder(
+        List<String> groups = resolveBlocking(
+            resolver,
+            ldapConnection,
+            BRUCE_BANNER_DN,
+            TimeValue.timeValueSeconds(20),
+            NoOpLogger.INSTANCE,
+            attributes
+        );
+        assertThat(
+            groups,
+            containsInAnyOrder(
                 containsString("Avengers"),
                 containsString("SHIELD"),
                 containsString("Geniuses"),
-                containsString("Philanthropists")));
+                containsString("Philanthropists")
+            )
+        );
     }
 
     public void testResolveCustomGroupAttribute() throws Exception {
@@ -61,10 +82,16 @@ public class UserAttributeGroupsResolverTests extends GroupsResolverTestCase {
             .put(getFullSettingKey("realm1", UserAttributeGroupsResolverSettings.ATTRIBUTE), "seeAlso")
             .build();
         UserAttributeGroupsResolver resolver = new UserAttributeGroupsResolver(config(REALM_ID, settings));
-        List<String> groups =
-                resolveBlocking(resolver, ldapConnection, BRUCE_BANNER_DN, TimeValue.timeValueSeconds(20), NoOpLogger.INSTANCE, null);
+        List<String> groups = resolveBlocking(
+            resolver,
+            ldapConnection,
+            BRUCE_BANNER_DN,
+            TimeValue.timeValueSeconds(20),
+            NoOpLogger.INSTANCE,
+            null
+        );
         assertThat(groups, hasSize(1));
-        assertThat(groups.get(0), containsString("Avengers"));  //seeAlso only has Avengers
+        assertThat(groups.get(0), containsString("Avengers"));  // seeAlso only has Avengers
     }
 
     public void testResolveInvalidGroupAttribute() throws Exception {
@@ -72,8 +99,14 @@ public class UserAttributeGroupsResolverTests extends GroupsResolverTestCase {
             .put(getFullSettingKey("realm1", UserAttributeGroupsResolverSettings.ATTRIBUTE), "doesntExist")
             .build();
         UserAttributeGroupsResolver resolver = new UserAttributeGroupsResolver(config(REALM_ID, settings));
-        List<String> groups =
-                resolveBlocking(resolver, ldapConnection, BRUCE_BANNER_DN, TimeValue.timeValueSeconds(20), NoOpLogger.INSTANCE, null);
+        List<String> groups = resolveBlocking(
+            resolver,
+            ldapConnection,
+            BRUCE_BANNER_DN,
+            TimeValue.timeValueSeconds(20),
+            NoOpLogger.INSTANCE,
+            null
+        );
         assertThat(groups, empty());
     }
 

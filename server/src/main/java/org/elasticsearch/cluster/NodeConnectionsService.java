@@ -10,7 +10,6 @@ package org.elasticsearch.cluster;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.cluster.coordination.FollowersChecker;
@@ -40,6 +39,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.common.settings.Setting.Property;
 import static org.elasticsearch.common.settings.Setting.positiveTimeSetting;
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * This component is responsible for maintaining connections from this node to all the nodes listed in the cluster state, and for
@@ -60,8 +60,11 @@ import static org.elasticsearch.common.settings.Setting.positiveTimeSetting;
 public class NodeConnectionsService extends AbstractLifecycleComponent {
     private static final Logger logger = LogManager.getLogger(NodeConnectionsService.class);
 
-    public static final Setting<TimeValue> CLUSTER_NODE_RECONNECT_INTERVAL_SETTING =
-        positiveTimeSetting("cluster.nodes.reconnect_interval", TimeValue.timeValueSeconds(10), Property.NodeScope);
+    public static final Setting<TimeValue> CLUSTER_NODE_RECONNECT_INTERVAL_SETTING = positiveTimeSetting(
+        "cluster.nodes.reconnect_interval",
+        TimeValue.timeValueSeconds(10),
+        Property.NodeScope
+    );
 
     private final ThreadPool threadPool;
     private final TransportService transportService;
@@ -94,8 +97,10 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
             return;
         }
 
-        final GroupedActionListener<Void> listener
-            = new GroupedActionListener<>(ActionListener.wrap(onCompletion), discoveryNodes.getSize());
+        final GroupedActionListener<Void> listener = new GroupedActionListener<>(
+            ActionListener.wrap(onCompletion),
+            discoveryNodes.getSize()
+        );
 
         final List<Runnable> runnables = new ArrayList<>(discoveryNodes.getSize());
         synchronized (mutex) {
@@ -109,9 +114,9 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
 
                 if (isNewNode) {
                     logger.debug("connecting to {}", discoveryNode);
-                    runnables.add(connectionTarget.connect(ActionListener.runAfter(
-                        listener,
-                        () -> logger.debug("connected to {}", discoveryNode))));
+                    runnables.add(
+                        connectionTarget.connect(ActionListener.runAfter(listener, () -> logger.debug("connected to {}", discoveryNode)))
+                    );
                 } else {
                     // known node, try and ensure it's connected but do not wait
                     logger.trace("checking connection to existing node [{}]", discoveryNode);
@@ -155,7 +160,9 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
             } else {
                 logger.trace("ensureConnections: {}", targetsByNode);
                 final GroupedActionListener<Void> listener = new GroupedActionListener<>(
-                    ActionListener.wrap(onCompletion), connectionTargets.size());
+                    ActionListener.wrap(onCompletion),
+                    connectionTargets.size()
+                );
                 for (final ConnectionTarget connectionTarget : connectionTargets) {
                     runnables.add(connectionTarget.connect(listener));
                 }
@@ -202,8 +209,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
     }
 
     @Override
-    protected void doClose() {
-    }
+    protected void doClose() {}
 
     // for disruption tests, re-establish any disrupted connections
     public void reconnectToNodes(DiscoveryNodes discoveryNodes, Runnable onCompletion) {
@@ -268,8 +274,11 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
                         final int currentFailureCount = consecutiveFailureCount.incrementAndGet();
                         // only warn every 6th failure
                         final Level level = currentFailureCount % 6 == 1 ? Level.WARN : Level.DEBUG;
-                        logger.log(level, new ParameterizedMessage("failed to connect to {} (tried [{}] times)",
-                            discoveryNode, currentFailureCount), e);
+                        logger.log(
+                            level,
+                            () -> format("failed to connect to %s (tried [%s] times)", discoveryNode, currentFailureCount),
+                            e
+                        );
                         setConnectionRef(null);
                         if (listener != null) {
                             listener.onFailure(e);
@@ -287,9 +296,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
         @Override
         public String toString() {
             synchronized (mutex) {
-                return "ConnectionTarget{" +
-                    "discoveryNode=" + discoveryNode +
-                    '}';
+                return "ConnectionTarget{" + "discoveryNode=" + discoveryNode + '}';
             }
         }
     }

@@ -19,48 +19,51 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.stream.Collectors;
+import java.util.Locale;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
-import static org.hamcrest.Matchers.startsWith;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Unit tests for the {@link AllocateUnassignedDecision} class.
  */
 public class AllocateUnassignedDecisionTests extends ESTestCase {
 
-    private DiscoveryNode node1 = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
-    private DiscoveryNode node2 = new DiscoveryNode("node2", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+    private final DiscoveryNode node1 = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+    private final DiscoveryNode node2 = new DiscoveryNode("node2", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
 
     public void testDecisionNotTaken() {
         AllocateUnassignedDecision allocateUnassignedDecision = AllocateUnassignedDecision.NOT_TAKEN;
         assertFalse(allocateUnassignedDecision.isDecisionTaken());
-        expectThrows(IllegalStateException.class, () -> allocateUnassignedDecision.getAllocationDecision());
-        expectThrows(IllegalStateException.class, () -> allocateUnassignedDecision.getAllocationStatus());
-        expectThrows(IllegalStateException.class, () -> allocateUnassignedDecision.getAllocationId());
-        expectThrows(IllegalStateException.class, () -> allocateUnassignedDecision.getTargetNode());
-        expectThrows(IllegalStateException.class, () -> allocateUnassignedDecision.getNodeDecisions());
-        expectThrows(IllegalStateException.class, () -> allocateUnassignedDecision.getExplanation());
+        expectThrows(IllegalStateException.class, allocateUnassignedDecision::getAllocationDecision);
+        expectThrows(IllegalStateException.class, allocateUnassignedDecision::getAllocationStatus);
+        expectThrows(IllegalStateException.class, allocateUnassignedDecision::getAllocationId);
+        expectThrows(IllegalStateException.class, allocateUnassignedDecision::getTargetNode);
+        expectThrows(IllegalStateException.class, allocateUnassignedDecision::getNodeDecisions);
+        expectThrows(IllegalStateException.class, allocateUnassignedDecision::getExplanation);
     }
 
     public void testNoDecision() {
         final AllocationStatus allocationStatus = randomFrom(
-            AllocationStatus.DELAYED_ALLOCATION, AllocationStatus.NO_VALID_SHARD_COPY, AllocationStatus.FETCHING_SHARD_DATA
+            AllocationStatus.DELAYED_ALLOCATION,
+            AllocationStatus.NO_VALID_SHARD_COPY,
+            AllocationStatus.FETCHING_SHARD_DATA
         );
         AllocateUnassignedDecision noDecision = AllocateUnassignedDecision.no(allocationStatus, null);
         assertTrue(noDecision.isDecisionTaken());
         assertEquals(AllocationDecision.fromAllocationStatus(allocationStatus), noDecision.getAllocationDecision());
         assertEquals(allocationStatus, noDecision.getAllocationStatus());
         if (allocationStatus == AllocationStatus.FETCHING_SHARD_DATA) {
-            assertEquals("cannot allocate because information about existing shard data is still being retrieved from " +
-                             "some of the nodes", noDecision.getExplanation());
+            assertEquals(Explanations.Allocation.AWAITING_INFO, noDecision.getExplanation());
         } else if (allocationStatus == AllocationStatus.DELAYED_ALLOCATION) {
-            assertThat(noDecision.getExplanation(), startsWith("cannot allocate because the cluster is still waiting"));
+            assertThat(
+                noDecision.getExplanation(),
+                equalTo(String.format(Locale.ROOT, Explanations.Allocation.DELAYED_WITHOUT_ALTERNATIVE, "0s"))
+            );
         } else {
-            assertThat(noDecision.getExplanation(),
-                startsWith("cannot allocate because a previous copy of the primary shard existed"));
+            assertThat(noDecision.getExplanation(), equalTo(Explanations.Allocation.NO_COPIES));
         }
         assertNull(noDecision.getNodeDecisions());
         assertNull(noDecision.getTargetNode());
@@ -75,12 +78,11 @@ public class AllocateUnassignedDecisionTests extends ESTestCase {
         assertEquals(AllocationDecision.NO, noDecision.getAllocationDecision());
         assertEquals(AllocationStatus.DECIDERS_NO, noDecision.getAllocationStatus());
         if (reuseStore) {
-            assertEquals("cannot allocate because allocation is not permitted to any of the nodes that hold an in-sync shard copy",
-                noDecision.getExplanation());
+            assertEquals(Explanations.Allocation.EXISTING_STORES_FORBIDDEN, noDecision.getExplanation());
         } else {
-            assertEquals("cannot allocate because allocation is not permitted to any of the nodes", noDecision.getExplanation());
+            assertEquals(Explanations.Allocation.ALL_NODES_FORBIDDEN, noDecision.getExplanation());
         }
-        assertEquals(nodeDecisions.stream().sorted().collect(Collectors.toList()), noDecision.getNodeDecisions());
+        assertEquals(nodeDecisions.stream().sorted().toList(), noDecision.getNodeDecisions());
         // node1 should be sorted first b/c of better weight ranking
         assertEquals("node1", noDecision.getNodeDecisions().iterator().next().getNode().getId());
         assertNull(noDecision.getTargetNode());
@@ -98,8 +100,8 @@ public class AllocateUnassignedDecisionTests extends ESTestCase {
         assertTrue(throttleDecision.isDecisionTaken());
         assertEquals(AllocationDecision.THROTTLED, throttleDecision.getAllocationDecision());
         assertEquals(AllocationStatus.DECIDERS_THROTTLED, throttleDecision.getAllocationStatus());
-        assertThat(throttleDecision.getExplanation(), startsWith("allocation temporarily throttled"));
-        assertEquals(nodeDecisions.stream().sorted().collect(Collectors.toList()), throttleDecision.getNodeDecisions());
+        assertThat(throttleDecision.getExplanation(), equalTo(Explanations.Allocation.THROTTLED));
+        assertEquals(nodeDecisions.stream().sorted().toList(), throttleDecision.getNodeDecisions());
         // node2 should be sorted first b/c a THROTTLE is higher than a NO decision
         assertEquals("node2", throttleDecision.getNodeDecisions().iterator().next().getNode().getId());
         assertNull(throttleDecision.getTargetNode());
@@ -111,13 +113,12 @@ public class AllocateUnassignedDecisionTests extends ESTestCase {
         nodeDecisions.add(new NodeAllocationResult(node1, Decision.NO, 1));
         nodeDecisions.add(new NodeAllocationResult(node2, Decision.YES, 2));
         String allocId = randomBoolean() ? "allocId" : null;
-        AllocateUnassignedDecision yesDecision = AllocateUnassignedDecision.yes(
-            node2, allocId, nodeDecisions, randomBoolean());
+        AllocateUnassignedDecision yesDecision = AllocateUnassignedDecision.yes(node2, allocId, nodeDecisions, randomBoolean());
         assertTrue(yesDecision.isDecisionTaken());
         assertEquals(AllocationDecision.YES, yesDecision.getAllocationDecision());
         assertNull(yesDecision.getAllocationStatus());
-        assertEquals("can allocate the shard", yesDecision.getExplanation());
-        assertEquals(nodeDecisions.stream().sorted().collect(Collectors.toList()), yesDecision.getNodeDecisions());
+        assertEquals(Explanations.Allocation.YES, yesDecision.getExplanation());
+        assertEquals(nodeDecisions.stream().sorted().toList(), yesDecision.getNodeDecisions());
         assertEquals("node2", yesDecision.getTargetNode().getId());
         assertEquals(allocId, yesDecision.getAllocationId());
         // node1 should be sorted first b/c YES decisions are the highest
@@ -125,8 +126,13 @@ public class AllocateUnassignedDecisionTests extends ESTestCase {
     }
 
     public void testCachedDecisions() {
-        List<AllocationStatus> cacheableStatuses = Arrays.asList(AllocationStatus.DECIDERS_NO, AllocationStatus.DECIDERS_THROTTLED,
-            AllocationStatus.NO_VALID_SHARD_COPY, AllocationStatus.FETCHING_SHARD_DATA, AllocationStatus.DELAYED_ALLOCATION);
+        List<AllocationStatus> cacheableStatuses = Arrays.asList(
+            AllocationStatus.DECIDERS_NO,
+            AllocationStatus.DECIDERS_THROTTLED,
+            AllocationStatus.NO_VALID_SHARD_COPY,
+            AllocationStatus.FETCHING_SHARD_DATA,
+            AllocationStatus.DELAYED_ALLOCATION
+        );
         for (AllocationStatus allocationStatus : cacheableStatuses) {
             if (allocationStatus == AllocationStatus.DECIDERS_THROTTLED) {
                 AllocateUnassignedDecision cached = AllocateUnassignedDecision.throttle(null);
@@ -159,16 +165,27 @@ public class AllocateUnassignedDecisionTests extends ESTestCase {
         DiscoveryNode assignedNode = finalDecision == Decision.Type.YES ? node1 : null;
         List<NodeAllocationResult> nodeDecisions = new ArrayList<>();
         nodeDecisions.add(new NodeAllocationResult(node1, Decision.NO, 2));
-        nodeDecisions.add(new NodeAllocationResult(node2, finalDecision == Decision.Type.YES ? Decision.YES :
-                                                              randomFrom(Decision.NO, Decision.THROTTLE, Decision.YES), 1));
+        nodeDecisions.add(
+            new NodeAllocationResult(
+                node2,
+                finalDecision == Decision.Type.YES ? Decision.YES : randomFrom(Decision.NO, Decision.THROTTLE, Decision.YES),
+                1
+            )
+        );
         AllocateUnassignedDecision decision;
         if (finalDecision == Decision.Type.YES) {
-            decision = AllocateUnassignedDecision.yes(assignedNode, randomBoolean() ? randomAlphaOfLength(5) : null,
-                nodeDecisions, randomBoolean());
+            decision = AllocateUnassignedDecision.yes(
+                assignedNode,
+                randomBoolean() ? randomAlphaOfLength(5) : null,
+                nodeDecisions,
+                randomBoolean()
+            );
         } else {
-            decision = AllocateUnassignedDecision.no(randomFrom(
-                AllocationStatus.DELAYED_ALLOCATION, AllocationStatus.NO_VALID_SHARD_COPY, AllocationStatus.FETCHING_SHARD_DATA
-            ), nodeDecisions, randomBoolean());
+            decision = AllocateUnassignedDecision.no(
+                randomFrom(AllocationStatus.DELAYED_ALLOCATION, AllocationStatus.NO_VALID_SHARD_COPY, AllocationStatus.FETCHING_SHARD_DATA),
+                nodeDecisions,
+                randomBoolean()
+            );
         }
         BytesStreamOutput output = new BytesStreamOutput();
         decision.writeTo(output);

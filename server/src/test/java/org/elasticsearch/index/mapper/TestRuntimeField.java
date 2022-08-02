@@ -9,8 +9,8 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -72,6 +72,16 @@ public final class TestRuntimeField implements RuntimeField {
         @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
             return null;
+        }
+
+        @Override
+        public boolean isSearchable() {
+            return true;
+        }
+
+        @Override
+        public boolean isAggregatable() {
+            return true;
         }
     }
 }

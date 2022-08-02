@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.core.watcher.support.xcontent;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.FilterXContentParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.FilterXContentParserWrapper;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.common.secret.Secret;
 import org.elasticsearch.xpack.core.watcher.crypto.CryptoService;
 
@@ -26,7 +26,7 @@ import java.time.ZonedDateTime;
  * {@link Secret}s are encrypted values that are stored in memory and are decrypted
  * on demand when needed.
  */
-public class WatcherXContentParser extends FilterXContentParser {
+public class WatcherXContentParser extends FilterXContentParserWrapper {
 
     public static final String REDACTED_PASSWORD = "::es_redacted::";
 
@@ -42,8 +42,7 @@ public class WatcherXContentParser extends FilterXContentParser {
             return new Secret(chars);
         }
 
-        if (parser instanceof WatcherXContentParser) {
-            WatcherXContentParser watcherParser = (WatcherXContentParser) parser;
+        if (parser instanceof WatcherXContentParser watcherParser) {
             if (REDACTED_PASSWORD.equals(text)) {
                 if (watcherParser.allowRedactedPasswords) {
                     return null;
@@ -59,16 +58,23 @@ public class WatcherXContentParser extends FilterXContentParser {
     }
 
     private final ZonedDateTime parseTime;
-    @Nullable private final CryptoService cryptoService;
+    @Nullable
+    private final CryptoService cryptoService;
     private final boolean allowRedactedPasswords;
 
-    public WatcherXContentParser(XContentParser parser, ZonedDateTime parseTime, @Nullable CryptoService cryptoService,
-                                 boolean allowRedactedPasswords) {
+    public WatcherXContentParser(
+        XContentParser parser,
+        ZonedDateTime parseTime,
+        @Nullable CryptoService cryptoService,
+        boolean allowRedactedPasswords
+    ) {
         super(parser);
         this.parseTime = parseTime;
         this.cryptoService = cryptoService;
         this.allowRedactedPasswords = allowRedactedPasswords;
     }
 
-    public ZonedDateTime getParseDateTime() { return parseTime; }
+    public ZonedDateTime getParseDateTime() {
+        return parseTime;
+    }
 }

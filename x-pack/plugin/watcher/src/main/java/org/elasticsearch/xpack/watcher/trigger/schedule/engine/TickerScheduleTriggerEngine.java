@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
@@ -28,7 +29,6 @@ import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -38,8 +38,11 @@ import static org.elasticsearch.common.settings.Setting.positiveTimeSetting;
 
 public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
 
-    public static final Setting<TimeValue> TICKER_INTERVAL_SETTING =
-        positiveTimeSetting("xpack.watcher.trigger.schedule.ticker.tick_interval", TimeValue.timeValueMillis(500), Property.NodeScope);
+    public static final Setting<TimeValue> TICKER_INTERVAL_SETTING = positiveTimeSetting(
+        "xpack.watcher.trigger.schedule.ticker.tick_interval",
+        TimeValue.timeValueMillis(500),
+        Property.NodeScope
+    );
 
     private static final Logger logger = LogManager.getLogger(TickerScheduleTriggerEngine.class);
 
@@ -56,10 +59,9 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
     @Override
     public synchronized void start(Collection<Watch> jobs) {
         long startTime = clock.millis();
-        Map<String, ActiveSchedule> startingSchedules = new HashMap<>(jobs.size());
+        Map<String, ActiveSchedule> startingSchedules = Maps.newMapWithExpectedSize(jobs.size());
         for (Watch job : jobs) {
-            if (job.trigger() instanceof ScheduleTrigger) {
-                ScheduleTrigger trigger = (ScheduleTrigger) job.trigger();
+            if (job.trigger()instanceof ScheduleTrigger trigger) {
                 startingSchedules.put(job.id(), new ActiveSchedule(job.id(), trigger.getSchedule(), startTime));
             }
         }
@@ -113,8 +115,7 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
             if (scheduledTime > 0) {
                 ZonedDateTime triggeredDateTime = utcDateTimeAtEpochMillis(triggeredTime);
                 ZonedDateTime scheduledDateTime = utcDateTimeAtEpochMillis(scheduledTime);
-                logger.debug("triggered job [{}] at [{}] (scheduled time was [{}])", schedule.name,
-                    triggeredDateTime, scheduledDateTime);
+                logger.debug("triggered job [{}] at [{}] (scheduled time was [{}])", schedule.name, triggeredDateTime, scheduledDateTime);
                 events.add(new ScheduleTriggerEvent(schedule.name, triggeredDateTime, scheduledDateTime));
                 if (events.size() >= 1000) {
                     notifyListeners(events);

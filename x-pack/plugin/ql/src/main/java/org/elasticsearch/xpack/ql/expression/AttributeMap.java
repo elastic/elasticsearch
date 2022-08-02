@@ -6,13 +6,13 @@
  */
 package org.elasticsearch.xpack.ql.expression;
 
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 
 import java.util.AbstractSet;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
@@ -39,8 +39,7 @@ public class AttributeMap<E> implements Map<Attribute, E> {
 
         @Override
         public boolean equals(Object obj) {
-            if (obj instanceof AttributeWrapper) {
-                AttributeWrapper aw = (AttributeWrapper) obj;
+            if (obj instanceof AttributeWrapper aw) {
                 return attr.semanticEquals(aw.attr);
             }
 
@@ -81,7 +80,6 @@ public class AttributeMap<E> implements Map<Attribute, E> {
         }
 
         protected abstract U unwrap(W next);
-
 
         @Override
         public Stream<U> stream() {
@@ -221,7 +219,7 @@ public class AttributeMap<E> implements Map<Attribute, E> {
     }
 
     public Set<String> attributeNames() {
-        Set<String> s = new LinkedHashSet<>(size());
+        Set<String> s = Sets.newLinkedHashSetWithExpectedSize(size());
 
         for (AttributeWrapper aw : delegate.keySet()) {
             s.add(aw.attr.name());

@@ -108,28 +108,27 @@ public class FindTextStructureActionRequestTests extends AbstractWireSerializing
         FindStructureAction.Request request = new FindStructureAction.Request();
         String errorField;
         switch (randomIntBetween(0, 4)) {
-            case 0:
+            case 0 -> {
                 errorField = "column_names";
                 request.setColumnNames(Arrays.asList("col1", "col2"));
-                break;
-            case 1:
+            }
+            case 1 -> {
                 errorField = "has_header_row";
                 request.setHasHeaderRow(randomBoolean());
-                break;
-            case 2:
+            }
+            case 2 -> {
                 errorField = "delimiter";
                 request.setDelimiter(randomFrom(',', '\t', ';', '|'));
-                break;
-            case 3:
+            }
+            case 3 -> {
                 errorField = "quote";
                 request.setQuote(randomFrom('"', '\''));
-                break;
-            case 4:
+            }
+            case 4 -> {
                 errorField = "should_trim_fields";
                 request.setShouldTrimFields(randomBoolean());
-                break;
-            default:
-                throw new IllegalStateException("unexpected switch value");
+            }
+            default -> throw new IllegalStateException("unexpected switch value");
         }
         request.setSample(new BytesArray("foo\n"));
 

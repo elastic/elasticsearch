@@ -22,7 +22,7 @@ public class RoutingException extends ElasticsearchException {
         super(message, cause);
     }
 
-    public RoutingException(StreamInput in) throws IOException{
+    public RoutingException(StreamInput in) throws IOException {
         super(in);
     }
 }

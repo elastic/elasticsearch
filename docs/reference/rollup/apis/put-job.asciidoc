@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[rollup-put-job]]
 === Create {rollup-jobs} API
 [subs="attributes"]

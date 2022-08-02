@@ -14,14 +14,16 @@ uses the
 <<tier-preference-allocation-filter,`index.routing.allocation.include._tier_preference`>>
 setting to mount the index directly to the phase's corresponding data tier. In
 the frozen phase, the action mounts a <<partially-mounted,partially mounted
-index>> to the frozen tier. In other phases, the action mounts a
-<<fully-mounted,fully mounted index>> to the corresponding data tier.
+index>> prefixed with `partial-` to the frozen tier. In other phases, the action mounts a
+<<fully-mounted,fully mounted index>> prefixed with `restored-` to the corresponding data tier.
 
-IMPORTANT: If the `searchable_snapshot` action is used in the hot phase the
-subsequent phases cannot include the `shrink`, `forcemerge`, or `freeze`
-actions.
+WARNING: Don't include the `searchable_snapshot` action in both the hot and cold
+phases. This can result in indices failing to automatically migrate to the cold
+tier during the cold phase.
 
-[NOTE]
+If the `searchable_snapshot` action is used in the hot phase the subsequent
+phases cannot include the `shrink` or `forcemerge` actions.
+
 This action cannot be performed on a data stream's write index. Attempts to do
 so will fail. To convert the index to a searchable snapshot, first
 <<manually-roll-over-a-data-stream,manually roll over>> the data stream. This
@@ -30,6 +32,12 @@ index, the action can then convert it to a searchable snapshot.
 Using a policy that makes use of the <<ilm-rollover, rollover>> action
 in the hot phase will avoid this situation and the need for a manual rollover for future
 managed indices.
+
+IMPORTANT: Mounting and relocating the shards of {search-snap} indices involves
+copying the shard contents from the snapshot repository. This may incur
+different costs from the copying between nodes that happens with regular
+indices. These costs are typically lower but, in some environments, may be
+higher. See <<searchable-snapshots-costs>> for more details.
 
 By default, this snapshot is deleted by the <<ilm-delete, delete action>> in the delete phase.
 To keep the snapshot, set `delete_searchable_snapshot` to `false` in the delete action.
@@ -55,8 +63,27 @@ the shards are relocating, in which case they will not be merged.
 The `searchable_snapshot` action will continue executing even if not all shards
 are force merged.
 
+This force merging occurs in the phase that the index is in *prior* to the `searchable_snapshot`
+action. For example, if using a `searchable_snapshot` action in the `hot` phase, the force merge
+will be performed on the hot nodes. If using a `searchable_snapshot` action in the `cold` phase, the
+force merge will be performed on whatever tier the index is *prior* to the `cold` phase (either
+`hot` or `warm`).
+
 [[ilm-searchable-snapshot-ex]]
 ==== Examples
+////
+[source,console]
+--------------------------------------------------
+PUT /_snapshot/backing_repo
+{
+ "type": "fs",
+  "settings": {
+    "location": "my_backup_location"
+  }
+}
+--------------------------------------------------
+// TESTSETUP
+////
 [source,console]
 --------------------------------------------------
 PUT _ilm/policy/my_policy

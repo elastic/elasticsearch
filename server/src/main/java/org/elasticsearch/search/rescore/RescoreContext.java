@@ -22,7 +22,7 @@ import java.util.Set;
 public class RescoreContext {
     private final int windowSize;
     private final Rescorer rescorer;
-    private Set<Integer> rescoredDocs; //doc Ids for which rescoring was applied
+    private Set<Integer> rescoredDocs; // doc Ids for which rescoring was applied
 
     /**
      * Build the context.

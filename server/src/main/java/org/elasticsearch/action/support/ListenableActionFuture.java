@@ -14,7 +14,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * A {@code Future} and {@link ActionListener} against which which other {@link ActionListener}s can be registered later, to support
+ * A {@code Future} and {@link ActionListener} against which other {@link ActionListener}s can be registered later, to support
  * fanning-out a result to a dynamic collection of listeners.
  */
 public class ListenableActionFuture<T> extends AdapterActionFuture<T, T> {
@@ -26,7 +26,7 @@ public class ListenableActionFuture<T> extends AdapterActionFuture<T, T> {
      * Registers an {@link ActionListener} to be notified when this future is completed. If the future is already completed then the
      * listener is notified immediately, on the calling thread. If not, the listener is notified on the thread that completes the listener.
      */
-    @SuppressWarnings({"unchecked", "rawtypes"})
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     public void addListener(final ActionListener<T> listener) {
         final boolean executeImmediate;
         synchronized (this) {
@@ -56,7 +56,7 @@ public class ListenableActionFuture<T> extends AdapterActionFuture<T, T> {
     }
 
     @Override
-    @SuppressWarnings({"unchecked", "rawtypes"})
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     protected void done(boolean success) {
         super.done(success);
         final Object listenersToExecute;

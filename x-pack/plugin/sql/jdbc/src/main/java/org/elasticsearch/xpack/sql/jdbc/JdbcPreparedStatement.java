@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.sql.jdbc;
 import java.io.InputStream;
 import java.io.Reader;
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.net.URL;
 import java.sql.Array;
 import java.sql.Blob;
@@ -44,13 +45,14 @@ import java.util.List;
 import java.util.Locale;
 
 import static java.time.ZoneOffset.UTC;
+import static org.elasticsearch.xpack.sql.jdbc.TypeUtils.scaleOrLength;
 
 class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
 
     final PreparedQuery query;
 
-    JdbcPreparedStatement(JdbcConnection con, JdbcConfiguration info, String sql) throws SQLException {
-        super(con, info);
+    JdbcPreparedStatement(JdbcConnection con, String sql) throws SQLException {
+        super(con);
         this.query = PreparedQuery.prepare(sql);
     }
 
@@ -81,8 +83,9 @@ class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
         checkOpen();
 
         if (parameterIndex < 0 || parameterIndex > query.paramCount()) {
-            throw new SQLException("Invalid parameter index [ " + parameterIndex + "; needs to be between 1 and [" + query.paramCount() +
-                    "]");
+            throw new SQLException(
+                "Invalid parameter index [ " + parameterIndex + "; needs to be between 1 and [" + query.paramCount() + "]"
+            );
         }
 
         query.setParam(parameterIndex, value, type);
@@ -208,9 +211,8 @@ class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
         // {@code java.sql.Array} etc) will generate the correct exception message. Otherwise, the method call
         // {@code TypeConverter.fromJavaToJDBC(x.getClass())} will report the implementing class as not being supported.
         checkKnownUnsupportedTypes(x);
-        setObject(parameterIndex, x, TypeUtils.of(x.getClass()).getVendorTypeNumber(), 0);
+        setObject(parameterIndex, x, TypeUtils.of(x.getClass()).getVendorTypeNumber(), scaleOrLength(x));
     }
-
 
     @Override
     public void addBatch() throws SQLException {
@@ -353,7 +355,7 @@ class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
 
     @Override
     public void setObject(int parameterIndex, Object x, SQLType targetSqlType, int scaleOrLength) throws SQLException {
-        setObject(parameterIndex, x, TypeUtils.of(targetSqlType), targetSqlType.getName());
+        setObject(parameterIndex, x, TypeUtils.of(targetSqlType, scaleOrLength), targetSqlType.getName());
     }
 
     private void setObject(int parameterIndex, Object x, EsType dataType, String typeString) throws SQLException {
@@ -367,20 +369,18 @@ class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
         checkKnownUnsupportedTypes(x);
         if (x instanceof byte[]) {
             if (dataType != EsType.BINARY) {
-                throw new SQLFeatureNotSupportedException(
-                        "Conversion from type [byte[]] to [" + typeString + "] not supported");
+                throw new SQLFeatureNotSupportedException("Conversion from type [byte[]] to [" + typeString + "] not supported");
             }
             setParam(parameterIndex, x, EsType.BINARY);
             return;
         }
 
         if (x instanceof Timestamp
-                || x instanceof Calendar
-                || x instanceof Date
-                || x instanceof LocalDateTime
-                || x instanceof Time
-                || x instanceof java.util.Date)
-        {
+            || x instanceof Calendar
+            || x instanceof Date
+            || x instanceof LocalDateTime
+            || x instanceof Time
+            || x instanceof java.util.Date) {
             if (dataType == EsType.DATETIME || dataType == EsType.TIME) {
                 // converting to {@code java.util.Date} because this is the type supported by {@code XContentBuilder} for serialization
 
@@ -411,36 +411,56 @@ class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
             }
             // anything else other than VARCHAR and TIMESTAMP is not supported in this JDBC driver
             throw new SQLFeatureNotSupportedException(
-                    "Conversion from type [" + x.getClass().getName() + "] to [" + typeString + "] not supported");
+                "Conversion from type [" + x.getClass().getName() + "] to [" + typeString + "] not supported"
+            );
         }
 
         if (x instanceof Boolean
-                || x instanceof Byte
-                || x instanceof Short
-                || x instanceof Integer
-                || x instanceof Long
-                || x instanceof Float
-                || x instanceof Double
-                || x instanceof String) {
-            setParam(parameterIndex,
-                    TypeConverter.convert(x, TypeUtils.of(x.getClass()), (Class<?>) TypeUtils.classOf(dataType), typeString),
-                    dataType);
+            || x instanceof Byte
+            || x instanceof Short
+            || x instanceof Integer
+            || x instanceof Long
+            || x instanceof BigInteger
+            || x instanceof Float
+            || x instanceof Double
+            || x instanceof String) {
+            setParam(
+                parameterIndex,
+                TypeConverter.convert(x, TypeUtils.of(x.getClass()), (Class<?>) TypeUtils.classOf(dataType), typeString),
+                dataType
+            );
             return;
         }
 
         throw new SQLFeatureNotSupportedException(
-                "Conversion from type [" + x.getClass().getName() + "] to [" + typeString + "] not supported");
+            "Conversion from type [" + x.getClass().getName() + "] to [" + typeString + "] not supported"
+        );
     }
 
     private void checkKnownUnsupportedTypes(Object x) throws SQLFeatureNotSupportedException {
-        List<Class<?>> unsupportedTypes = new ArrayList<>(Arrays.asList(Struct.class, Array.class, SQLXML.class,
-                RowId.class, Ref.class, Blob.class, NClob.class, Clob.class, LocalDate.class, LocalTime.class,
-                OffsetTime.class, OffsetDateTime.class, URL.class, BigDecimal.class));
+        List<Class<?>> unsupportedTypes = new ArrayList<>(
+            Arrays.asList(
+                Struct.class,
+                Array.class,
+                SQLXML.class,
+                RowId.class,
+                Ref.class,
+                Blob.class,
+                NClob.class,
+                Clob.class,
+                LocalDate.class,
+                LocalTime.class,
+                OffsetTime.class,
+                OffsetDateTime.class,
+                URL.class,
+                BigDecimal.class
+            )
+        );
 
-        for (Class<?> clazz:unsupportedTypes) {
-           if (clazz.isAssignableFrom(x.getClass())) {
+        for (Class<?> clazz : unsupportedTypes) {
+            if (clazz.isAssignableFrom(x.getClass())) {
                 throw new SQLFeatureNotSupportedException("Objects of type [" + clazz.getName() + "] are not supported");
-           }
+            }
         }
     }
 

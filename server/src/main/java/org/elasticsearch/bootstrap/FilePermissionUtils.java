@@ -52,8 +52,13 @@ public class FilePermissionUtils {
      * @param recursiveAccessOnly   indicates if the permission should provide recursive access to files underneath
      */
     @SuppressForbidden(reason = "only place where creating Java-9 compatible FilePermission objects is possible")
-    public static void addDirectoryPath(Permissions policy, String configurationName, Path path, String permissions,
-                                        boolean recursiveAccessOnly) throws IOException {
+    public static void addDirectoryPath(
+        Permissions policy,
+        String configurationName,
+        Path path,
+        String permissions,
+        boolean recursiveAccessOnly
+    ) throws IOException {
         // paths may not exist yet, this also checks accessibility
         try {
             Security.ensureDirectoryExists(path);

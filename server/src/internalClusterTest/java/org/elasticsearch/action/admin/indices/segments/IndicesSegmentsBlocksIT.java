@@ -34,8 +34,12 @@ public class IndicesSegmentsBlocksIT extends ESIntegTestCase {
         client().admin().indices().prepareFlush("test-blocks").get();
 
         // Request is not blocked
-        for (String blockSetting : Arrays.asList(SETTING_BLOCKS_READ, SETTING_BLOCKS_WRITE, SETTING_READ_ONLY,
-            SETTING_READ_ONLY_ALLOW_DELETE)) {
+        for (String blockSetting : Arrays.asList(
+            SETTING_BLOCKS_READ,
+            SETTING_BLOCKS_WRITE,
+            SETTING_READ_ONLY,
+            SETTING_READ_ONLY_ALLOW_DELETE
+        )) {
             try {
                 enableIndexBlock("test-blocks", blockSetting);
                 IndicesSegmentResponse response = client().admin().indices().prepareSegments("test-blocks").execute().actionGet();

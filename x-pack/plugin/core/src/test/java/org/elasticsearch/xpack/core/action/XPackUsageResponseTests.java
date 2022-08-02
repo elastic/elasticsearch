@@ -35,11 +35,7 @@ public class XPackUsageResponseTests extends ESTestCase {
             VersionUtils.getFirstVersion(),
             VersionUtils.getPreviousVersion(VersionUtils.getPreviousMinorVersion())
         );
-        newVersion = VersionUtils.randomVersionBetween(
-            random(),
-            VersionUtils.getPreviousMinorVersion(),
-            Version.CURRENT
-        );
+        newVersion = VersionUtils.randomVersionBetween(random(), VersionUtils.getPreviousMinorVersion(), Version.CURRENT);
     }
 
     public static class OldUsage extends XPackFeatureSet.Usage {
@@ -82,10 +78,12 @@ public class XPackUsageResponseTests extends ESTestCase {
         oldStream.setVersion(VersionUtils.randomVersionBetween(random(), oldVersion, VersionUtils.getPreviousVersion(newVersion)));
         before.writeTo(oldStream);
 
-        final NamedWriteableRegistry registry = new NamedWriteableRegistry(List.of(
-            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, "old", OldUsage::new),
-            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, "new", NewUsage::new)
-        ));
+        final NamedWriteableRegistry registry = new NamedWriteableRegistry(
+            List.of(
+                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, "old", OldUsage::new),
+                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, "new", NewUsage::new)
+            )
+        );
 
         final StreamInput in = new NamedWriteableAwareStreamInput(oldStream.bytes().streamInput(), registry);
         final XPackUsageResponse after = new XPackUsageResponse(in);
@@ -99,10 +97,12 @@ public class XPackUsageResponseTests extends ESTestCase {
         newStream.setVersion(VersionUtils.randomVersionBetween(random(), newVersion, Version.CURRENT));
         before.writeTo(newStream);
 
-        final NamedWriteableRegistry registry = new NamedWriteableRegistry(List.of(
-            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, "old", OldUsage::new),
-            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, "new", NewUsage::new)
-        ));
+        final NamedWriteableRegistry registry = new NamedWriteableRegistry(
+            List.of(
+                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, "old", OldUsage::new),
+                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, "new", NewUsage::new)
+            )
+        );
 
         final StreamInput in = new NamedWriteableAwareStreamInput(newStream.bytes().streamInput(), registry);
         final XPackUsageResponse after = new XPackUsageResponse(in);

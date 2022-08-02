@@ -28,8 +28,8 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * to force merge down to. Defaults to simply checking if a merge needs
  * to execute, and if so, executes it
  *
- * @see org.elasticsearch.client.Requests#forceMergeRequest(String...)
- * @see org.elasticsearch.client.IndicesAdminClient#forceMerge(ForceMergeRequest)
+ * @see org.elasticsearch.client.internal.Requests#forceMergeRequest(String...)
+ * @see org.elasticsearch.client.internal.IndicesAdminClient#forceMerge(ForceMergeRequest)
  * @see ForceMergeResponse
  */
 public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
@@ -43,6 +43,10 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
     private int maxNumSegments = Defaults.MAX_NUM_SEGMENTS;
     private boolean onlyExpungeDeletes = Defaults.ONLY_EXPUNGE_DELETES;
     private boolean flush = Defaults.FLUSH;
+    /**
+     * Should this task store its result?
+     */
+    private boolean shouldStoreResult;
 
     private static final Version FORCE_MERGE_UUID_SIMPLE_VERSION = Version.V_8_0_0;
 
@@ -131,12 +135,30 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
         return this;
     }
 
+    /**
+     * Should this task store its result after it has finished?
+     */
+    public ForceMergeRequest setShouldStoreResult(boolean shouldStoreResult) {
+        this.shouldStoreResult = shouldStoreResult;
+        return this;
+    }
+
+    @Override
+    public boolean getShouldStoreResult() {
+        return shouldStoreResult;
+    }
+
     @Override
     public String getDescription() {
-        return "Force-merge indices " + Arrays.toString(indices()) +
-            ", maxSegments[" + maxNumSegments +
-            "], onlyExpungeDeletes[" + onlyExpungeDeletes +
-            "], flush[" + flush + "]";
+        return "Force-merge indices "
+            + Arrays.toString(indices())
+            + ", maxSegments["
+            + maxNumSegments
+            + "], onlyExpungeDeletes["
+            + onlyExpungeDeletes
+            + "], flush["
+            + flush
+            + "]";
     }
 
     @Override
@@ -156,18 +178,23 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationError = super.validate();
         if (onlyExpungeDeletes && maxNumSegments != Defaults.MAX_NUM_SEGMENTS) {
-            validationError = addValidationError("cannot set only_expunge_deletes and max_num_segments at the same time, those two " +
-                "parameters are mutually exclusive", validationError);
+            validationError = addValidationError(
+                "cannot set only_expunge_deletes and max_num_segments at the same time, those two " + "parameters are mutually exclusive",
+                validationError
+            );
         }
         return validationError;
     }
 
     @Override
     public String toString() {
-        return "ForceMergeRequest{" +
-                "maxNumSegments=" + maxNumSegments +
-                ", onlyExpungeDeletes=" + onlyExpungeDeletes +
-                ", flush=" + flush +
-                '}';
+        return "ForceMergeRequest{"
+            + "maxNumSegments="
+            + maxNumSegments
+            + ", onlyExpungeDeletes="
+            + onlyExpungeDeletes
+            + ", flush="
+            + flush
+            + '}';
     }
 }

@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.spatial.index.mapper;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.LatLonShape;
 import org.apache.lucene.document.ShapeField;
-import org.apache.lucene.geo.GeoTestUtil;
 import org.apache.lucene.geo.LatLonGeometry;
 import org.apache.lucene.geo.Point;
 import org.apache.lucene.geo.Polygon;
@@ -21,16 +20,19 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.SerialMergeScheduler;
-import org.apache.lucene.search.CheckHits;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryUtils;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.apache.lucene.tests.geo.GeoTestUtil;
+import org.apache.lucene.tests.search.CheckHits;
+import org.apache.lucene.tests.search.QueryUtils;
+import org.elasticsearch.common.geo.Orientation;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.spatial.index.fielddata.CoordinateEncoder;
 
 import java.io.IOException;
 import java.util.List;
@@ -42,15 +44,15 @@ public class LatLonShapeDocValuesQueryTests extends ESTestCase {
 
     public void testEqualsAndHashcode() {
         Polygon polygon = GeoTestUtil.nextPolygon();
-        Query q1 = new LatLonShapeDocValuesQuery(FIELD_NAME,ShapeField.QueryRelation.INTERSECTS, polygon);
-        Query q2 = new LatLonShapeDocValuesQuery(FIELD_NAME,ShapeField.QueryRelation.INTERSECTS, polygon);
+        Query q1 = new LatLonShapeDocValuesQuery(FIELD_NAME, ShapeField.QueryRelation.INTERSECTS, polygon);
+        Query q2 = new LatLonShapeDocValuesQuery(FIELD_NAME, ShapeField.QueryRelation.INTERSECTS, polygon);
         QueryUtils.checkEqual(q1, q2);
 
-        Query q3 = new LatLonShapeDocValuesQuery(FIELD_NAME + "x",ShapeField.QueryRelation.INTERSECTS, polygon);
+        Query q3 = new LatLonShapeDocValuesQuery(FIELD_NAME + "x", ShapeField.QueryRelation.INTERSECTS, polygon);
         QueryUtils.checkUnequal(q1, q3);
 
-        Rectangle rectangle  = GeoTestUtil.nextBox();
-        Query q4 = new LatLonShapeDocValuesQuery(FIELD_NAME,ShapeField.QueryRelation.INTERSECTS, rectangle);
+        Rectangle rectangle = GeoTestUtil.nextBox();
+        Query q4 = new LatLonShapeDocValuesQuery(FIELD_NAME, ShapeField.QueryRelation.INTERSECTS, rectangle);
         QueryUtils.checkUnequal(q1, q4);
     }
 
@@ -64,10 +66,11 @@ public class LatLonShapeDocValuesQueryTests extends ESTestCase {
         // RandomIndexWriter is too slow here:
         IndexWriter w = new IndexWriter(dir, iwc);
         final int numDocs = randomIntBetween(10, 1000);
-        GeoShapeIndexer indexer = new GeoShapeIndexer(true, FIELD_NAME);
+        GeoShapeIndexer indexer = new GeoShapeIndexer(Orientation.CCW, FIELD_NAME);
         for (int id = 0; id < numDocs; id++) {
             Document doc = new Document();
-            @SuppressWarnings("unchecked") Function<Boolean, Geometry> geometryFunc = ESTestCase.randomFrom(
+            @SuppressWarnings("unchecked")
+            Function<Boolean, Geometry> geometryFunc = ESTestCase.randomFrom(
                 GeometryTestUtils::randomLine,
                 GeometryTestUtils::randomPoint,
                 GeometryTestUtils::randomPolygon
@@ -77,7 +80,7 @@ public class LatLonShapeDocValuesQueryTests extends ESTestCase {
             for (IndexableField field : fields) {
                 doc.add(field);
             }
-            BinaryGeoShapeDocValuesField docVal = new BinaryGeoShapeDocValuesField(FIELD_NAME);
+            BinaryShapeDocValuesField docVal = new BinaryShapeDocValuesField(FIELD_NAME, CoordinateEncoder.GEO);
             docVal.add(fields, geometry);
             doc.add(docVal);
             w.addDocument(doc);
@@ -111,7 +114,7 @@ public class LatLonShapeDocValuesQueryTests extends ESTestCase {
         // RandomIndexWriter is too slow here:
         IndexWriter w = new IndexWriter(dir, iwc);
         final int numDocs = randomIntBetween(10, 100);
-        GeoShapeIndexer indexer = new GeoShapeIndexer(true, FIELD_NAME);
+        GeoShapeIndexer indexer = new GeoShapeIndexer(Orientation.CCW, FIELD_NAME);
         for (int id = 0; id < numDocs; id++) {
             Document doc = new Document();
             Geometry geometry = GeometryTestUtils.randomGeometryWithoutCircle(randomIntBetween(1, 5), false);
@@ -119,7 +122,7 @@ public class LatLonShapeDocValuesQueryTests extends ESTestCase {
             for (IndexableField field : fields) {
                 doc.add(field);
             }
-            BinaryGeoShapeDocValuesField docVal = new BinaryGeoShapeDocValuesField(FIELD_NAME);
+            BinaryShapeDocValuesField docVal = new BinaryShapeDocValuesField(FIELD_NAME, CoordinateEncoder.GEO);
             docVal.add(fields, geometry);
             doc.add(docVal);
             w.addDocument(doc);
@@ -158,11 +161,11 @@ public class LatLonShapeDocValuesQueryTests extends ESTestCase {
     }
 
     private LatLonGeometry randomLuceneQueryGeometry() {
-        switch (randomInt(3)) {
-            case 0: return GeoTestUtil.nextPolygon();
-            case 1: return GeoTestUtil.nextCircle();
-            case 2: return new Point(GeoTestUtil.nextLatitude(), GeoTestUtil.nextLongitude());
-            default: return GeoTestUtil.nextBox();
-        }
+        return switch (randomInt(3)) {
+            case 0 -> GeoTestUtil.nextPolygon();
+            case 1 -> GeoTestUtil.nextCircle();
+            case 2 -> new Point(GeoTestUtil.nextLatitude(), GeoTestUtil.nextLongitude());
+            default -> GeoTestUtil.nextBox();
+        };
     }
 }

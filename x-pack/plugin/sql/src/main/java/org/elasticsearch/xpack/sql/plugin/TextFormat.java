@@ -8,20 +8,16 @@ package org.elasticsearch.xpack.sql.plugin;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.common.xcontent.MediaType;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.xcontent.MediaType;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.action.BasicFormatter;
 import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
-import org.elasticsearch.xpack.sql.session.Cursor;
-import org.elasticsearch.xpack.sql.session.Cursors;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
-import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Locale;
@@ -30,8 +26,9 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.sql.action.BasicFormatter.FormatOption.TEXT;
-import static org.elasticsearch.xpack.sql.proto.Protocol.URL_PARAM_DELIMITER;
+import static org.elasticsearch.core.Tuple.tuple;
+import static org.elasticsearch.xpack.sql.action.Protocol.URL_PARAM_DELIMITER;
+import static org.elasticsearch.xpack.sql.proto.formatter.SimpleFormatter.FormatOption.TEXT;
 
 /**
  * Templating class for displaying SQL responses in text formats.
@@ -48,40 +45,21 @@ enum TextFormat implements MediaType {
      */
     PLAIN_TEXT() {
         @Override
-        String format(RestRequest request, SqlQueryResponse response) {
-            BasicFormatter formatter = null;
-            Cursor cursor = null;
-            ZoneId zoneId = null;
+        Tuple<String, BasicFormatter> format(RestRequest request, BasicFormatter requestFormatter, SqlQueryResponse response) {
+            if (requestFormatter != null) {
+                // scroll response
+                return tuple(requestFormatter.formatWithoutHeader(response.rows()), requestFormatter);
+            } else if (response.columns() != null) {
+                // initial response
+                BasicFormatter formatter = new BasicFormatter(response.columns(), response.rows(), TEXT);
 
-            // check if the cursor is already wrapped first
-            if (response.hasCursor()) {
-                Tuple<Cursor, ZoneId> tuple = Cursors.decodeFromStringWithZone(response.cursor());
-                cursor = tuple.v1();
-                zoneId = tuple.v2();
-                if (cursor instanceof TextFormatterCursor) {
-                    formatter = ((TextFormatterCursor) cursor).getFormatter();
-                }
+                return tuple(formatter.formatWithHeader(response.columns(), response.rows()), formatter);
+            } else if (response.hasId() || response.rows().isEmpty()) {
+                // async query or empty response
+                return tuple(StringUtils.EMPTY, null);
+            } else {
+                throw new SqlIllegalArgumentException("Cannot format non-empty response without a valid formatter.");
             }
-
-            // if there are headers available, it means it's the first request
-            // so initialize the underlying formatter and wrap it in the cursor
-            if (response.columns() != null) {
-                formatter = new BasicFormatter(response.columns(), response.rows(), TEXT);
-                // if there's a cursor, wrap the formatter in it
-                if (cursor != null) {
-                    response.cursor(Cursors.encodeToString(new TextFormatterCursor(cursor, formatter), zoneId));
-                }
-                // format with header
-                return formatter.formatWithHeader(response.columns(), response.rows());
-            } else if (formatter != null) { // should be initialized (wrapped by the cursor)
-                // format without header
-                return formatter.formatWithoutHeader(response.rows());
-            } else if (response.hasId()) {
-                // an async request has no results yet
-                return StringUtils.EMPTY;
-            }
-            // if this code is reached, it means it's a next page without cursor wrapping
-            throw new SqlIllegalArgumentException("Cannot find text formatter - this is likely a bug");
         }
 
         @Override
@@ -107,10 +85,12 @@ enum TextFormat implements MediaType {
         @Override
         public Set<HeaderValue> headerValues() {
             return Set.of(
-                new HeaderValue(CONTENT_TYPE_TXT,
-                    Map.of("header", "present|absent")),
-                new HeaderValue(VENDOR_CONTENT_TYPE_TXT,
-                    Map.of("header", "present|absent", COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN)));
+                new HeaderValue(CONTENT_TYPE_TXT, Map.of("header", "present|absent")),
+                new HeaderValue(
+                    VENDOR_CONTENT_TYPE_TXT,
+                    Map.of("header", "present|absent", COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN)
+                )
+            );
         }
 
     },
@@ -132,7 +112,7 @@ enum TextFormat implements MediaType {
 
         @Override
         protected String eol() {
-            //CRLF
+            // CRLF
             return "\r\n";
         }
 
@@ -148,8 +128,11 @@ enum TextFormat implements MediaType {
 
         @Override
         String contentType(RestRequest request) {
-            return contentType() + "; charset=utf-8; " +
-                URL_PARAM_HEADER + "=" + (hasHeader(request) ? PARAM_HEADER_PRESENT : PARAM_HEADER_ABSENT);
+            return contentType()
+                + "; charset=utf-8; "
+                + URL_PARAM_HEADER
+                + "="
+                + (hasHeader(request) ? PARAM_HEADER_PRESENT : PARAM_HEADER_ABSENT);
         }
 
         @Override
@@ -160,18 +143,18 @@ enum TextFormat implements MediaType {
             }
             delimiterParam = URLDecoder.decode(delimiterParam, StandardCharsets.UTF_8);
             if (delimiterParam.length() != 1) {
-                throw new IllegalArgumentException("invalid " +
-                    (delimiterParam.length() > 0 ? "multi-character" : "empty") + " delimiter [" + delimiterParam + "]");
+                throw new IllegalArgumentException(
+                    "invalid " + (delimiterParam.length() > 0 ? "multi-character" : "empty") + " delimiter [" + delimiterParam + "]"
+                );
             }
             Character delimiter = delimiterParam.charAt(0);
             switch (delimiter) {
-                case '"':
-                case '\n':
-                case '\r':
-                    throw new IllegalArgumentException("illegal reserved character specified as delimiter [" + delimiter + "]");
-                case '\t':
-                    throw new IllegalArgumentException("illegal delimiter [TAB] specified as delimiter for the [csv] format; " +
-                        "choose the [tsv] format instead");
+                case '"', '\n', '\r' -> throw new IllegalArgumentException(
+                    "illegal reserved character specified as delimiter [" + delimiter + "]"
+                );
+                case '\t' -> throw new IllegalArgumentException(
+                    "illegal delimiter [TAB] specified as delimiter for the [csv] format; " + "choose the [tsv] format instead"
+                );
             }
             return delimiter;
         }
@@ -231,13 +214,15 @@ enum TextFormat implements MediaType {
         @Override
         public Set<HeaderValue> headerValues() {
             return Set.of(
-                new HeaderValue(CONTENT_TYPE_CSV,
-                    Map.of("header", "present|absent","delimiter", ".+")),// more detailed parsing is in TextFormat.CSV#delimiter
-                new HeaderValue(VENDOR_CONTENT_TYPE_CSV,
-                    Map.of("header", "present|absent","delimiter", ".+", COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN)));
+                new HeaderValue(CONTENT_TYPE_CSV, Map.of("header", "present|absent", "delimiter", ".+")),// more detailed parsing is in
+                                                                                                         // TextFormat.CSV#delimiter
+                new HeaderValue(
+                    VENDOR_CONTENT_TYPE_CSV,
+                    Map.of("header", "present|absent", "delimiter", ".+", COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN)
+                )
+            );
         }
     },
-
 
     TSV() {
         @Override
@@ -273,14 +258,9 @@ enum TextFormat implements MediaType {
             for (int i = 0; i < value.length(); i++) {
                 char c = value.charAt(i);
                 switch (c) {
-                    case '\n' :
-                        sb.append("\\n");
-                        break;
-                    case '\t' :
-                        sb.append("\\t");
-                        break;
-                    default:
-                        sb.append(c);
+                    case '\n' -> sb.append("\\n");
+                    case '\t' -> sb.append("\\t");
+                    default -> sb.append(c);
                 }
             }
 
@@ -291,8 +271,11 @@ enum TextFormat implements MediaType {
         public Set<HeaderValue> headerValues() {
             return Set.of(
                 new HeaderValue(CONTENT_TYPE_TSV, Map.of("header", "present|absent")),
-                new HeaderValue(VENDOR_CONTENT_TYPE_TSV,
-                    Map.of("header", "present|absent", COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN)));
+                new HeaderValue(
+                    VENDOR_CONTENT_TYPE_TSV,
+                    Map.of("header", "present|absent", COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN)
+                )
+            );
         }
     };
 
@@ -309,7 +292,7 @@ enum TextFormat implements MediaType {
     private static final String PARAM_HEADER_ABSENT = "absent";
     private static final String PARAM_HEADER_PRESENT = "present";
 
-    String format(RestRequest request, SqlQueryResponse response) {
+    Tuple<String, BasicFormatter> format(RestRequest request, BasicFormatter requestFormatter, SqlQueryResponse response) {
         StringBuilder sb = new StringBuilder();
 
         // if the header is requested (and the column info is present - namely it's the first page) return the info
@@ -318,11 +301,15 @@ enum TextFormat implements MediaType {
         }
 
         for (List<Object> row : response.rows()) {
-            row(sb, row, f -> f instanceof ZonedDateTime ? DateUtils.toString((ZonedDateTime) f) : Objects.toString(f, StringUtils.EMPTY),
-                delimiter(request));
+            row(
+                sb,
+                row,
+                f -> f instanceof ZonedDateTime ? DateUtils.toString((ZonedDateTime) f) : Objects.toString(f, StringUtils.EMPTY),
+                delimiter(request)
+            );
         }
 
-        return sb.toString();
+        return tuple(sb.toString(), null);
     }
 
     boolean hasHeader(RestRequest request) {

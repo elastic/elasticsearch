@@ -12,11 +12,12 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.TransportAction;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
@@ -32,7 +33,6 @@ import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction;
 import org.elasticsearch.xpack.core.ssl.SSLService;
-import org.elasticsearch.xpack.datastreams.DataStreamsPlugin;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.elasticsearch.xpack.watcher.Watcher;
 
@@ -44,11 +44,17 @@ public class LocalStateMonitoring extends LocalStateCompositeXPackPlugin {
 
     public static class MonitoringTransportXPackUsageAction extends TransportXPackUsageAction {
         @Inject
-        public MonitoringTransportXPackUsageAction(ThreadPool threadPool, TransportService transportService,
-                                         ClusterService clusterService, ActionFilters actionFilters,
-                                         IndexNameExpressionResolver indexNameExpressionResolver, NodeClient client) {
+        public MonitoringTransportXPackUsageAction(
+            ThreadPool threadPool,
+            TransportService transportService,
+            ClusterService clusterService,
+            ActionFilters actionFilters,
+            IndexNameExpressionResolver indexNameExpressionResolver,
+            NodeClient client
+        ) {
             super(threadPool, transportService, clusterService, actionFilters, indexNameExpressionResolver, client);
         }
+
         @Override
         protected List<XPackUsageFeatureAction> usageActions() {
             return Collections.singletonList(XPackUsageFeatureAction.MONITORING);
@@ -121,16 +127,25 @@ public class LocalStateMonitoring extends LocalStateCompositeXPackPlugin {
 
         @Override
         protected void doExecute(Task task, CcrStatsAction.Request request, ActionListener<CcrStatsAction.Response> listener) {
-            AutoFollowStats autoFollowStats =
-                new AutoFollowStats(0, 0, 0, Collections.emptyNavigableMap(), Collections.emptyNavigableMap());
-            FollowStatsAction.StatsResponses statsResponses =
-                new FollowStatsAction.StatsResponses(Collections.emptyList(), Collections.emptyList(), Collections.emptyList());
+            AutoFollowStats autoFollowStats = new AutoFollowStats(
+                0,
+                0,
+                0,
+                Collections.emptyNavigableMap(),
+                Collections.emptyNavigableMap()
+            );
+            FollowStatsAction.StatsResponses statsResponses = new FollowStatsAction.StatsResponses(
+                Collections.emptyList(),
+                Collections.emptyList(),
+                Collections.emptyList()
+            );
             listener.onResponse(new CcrStatsAction.Response(autoFollowStats, statsResponses));
         }
     }
 
-    public static class TransportEnrichStatsStubAction
-        extends HandledTransportAction<EnrichStatsAction.Request, EnrichStatsAction.Response> {
+    public static class TransportEnrichStatsStubAction extends HandledTransportAction<
+        EnrichStatsAction.Request,
+        EnrichStatsAction.Response> {
 
         @Inject
         public TransportEnrichStatsStubAction(TransportService transportService, ActionFilters actionFilters) {

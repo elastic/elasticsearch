@@ -35,12 +35,12 @@ public class WatcherConcreteIndexTests extends AbstractWatcherIntegrationTestCas
         ensureGreen(newWatcherIndexName);
         startWatcher();
 
-        PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client(), "mywatch").setSource(watchBuilder()
-            .trigger(schedule(interval("3s")))
-            .input(noneInput())
-            .condition(InternalAlwaysCondition.INSTANCE)
-            .addAction("indexer", indexAction(watchResultsIndex)))
-            .get();
+        PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client(), "mywatch").setSource(
+            watchBuilder().trigger(schedule(interval("3s")))
+                .input(noneInput())
+                .condition(InternalAlwaysCondition.INSTANCE)
+                .addAction("indexer", indexAction(watchResultsIndex))
+        ).get();
 
         assertTrue(putWatchResponse.isCreated());
         refresh();

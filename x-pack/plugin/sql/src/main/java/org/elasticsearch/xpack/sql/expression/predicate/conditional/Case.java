@@ -90,26 +90,41 @@ public class Case extends ConditionalFunction {
 
         for (IfConditional conditional : conditions) {
             if (conditional.condition().dataType() != DataTypes.BOOLEAN) {
-                return new TypeResolution(format(null, "condition of [{}] must be [boolean], found value [{}] type [{}]",
-                    conditional.sourceText(),
-                    Expressions.name(conditional.condition()),
-                    conditional.condition().dataType().typeName()));
+                return new TypeResolution(
+                    format(
+                        null,
+                        "condition of [{}] must be [boolean], found value [{}] type [{}]",
+                        conditional.sourceText(),
+                        Expressions.name(conditional.condition()),
+                        conditional.condition().dataType().typeName()
+                    )
+                );
             }
             if (SqlDataTypes.areCompatible(expectedResultDataType, conditional.dataType()) == false) {
-                return new TypeResolution(format(null, "result of [{}] must be [{}], found value [{}] type [{}]",
-                    conditional.sourceText(),
-                    expectedResultDataType.typeName(),
-                    Expressions.name(conditional.result()),
-                    conditional.dataType().typeName()));
+                return new TypeResolution(
+                    format(
+                        null,
+                        "result of [{}] must be [{}], found value [{}] type [{}]",
+                        conditional.sourceText(),
+                        expectedResultDataType.typeName(),
+                        Expressions.name(conditional.result()),
+                        conditional.dataType().typeName()
+                    )
+                );
             }
         }
 
         if (SqlDataTypes.areCompatible(expectedResultDataType, elseResult.dataType()) == false) {
-            return new TypeResolution(format(null, "ELSE clause of [{}] must be [{}], found value [{}] type [{}]",
-                elseResult.sourceText(),
-                expectedResultDataType.typeName(),
-                Expressions.name(elseResult),
-                elseResult.dataType().typeName()));
+            return new TypeResolution(
+                format(
+                    null,
+                    "ELSE clause of [{}] must be [{}], found value [{}] type [{}]",
+                    elseResult.sourceText(),
+                    expectedResultDataType.typeName(),
+                    Expressions.name(elseResult),
+                    elseResult.dataType().typeName()
+                )
+            );
         }
 
         return TypeResolution.TYPE_RESOLVED;

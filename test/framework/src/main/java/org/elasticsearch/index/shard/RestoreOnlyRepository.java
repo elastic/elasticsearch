@@ -28,6 +28,7 @@ import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.repositories.SnapshotShardContext;
+import org.elasticsearch.snapshots.SnapshotDeleteListener;
 import org.elasticsearch.snapshots.SnapshotId;
 
 import java.util.Collection;
@@ -48,16 +49,13 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
     }
 
     @Override
-    protected void doStart() {
-    }
+    protected void doStart() {}
 
     @Override
-    protected void doStop() {
-    }
+    protected void doStop() {}
 
     @Override
-    protected void doClose() {
-    }
+    protected void doClose() {}
 
     @Override
     public RepositoryMetadata getMetadata() {
@@ -82,7 +80,8 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
     @Override
     public void getRepositoryData(ActionListener<RepositoryData> listener) {
         final IndexId indexId = new IndexId(indexName, "blah");
-        listener.onResponse(new RepositoryData(
+        listener.onResponse(
+            new RepositoryData(
                 MISSING_UUID,
                 EMPTY_REPO_GEN,
                 Collections.emptyMap(),
@@ -90,7 +89,9 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
                 Collections.singletonMap(indexId, emptyList()),
                 ShardGenerations.EMPTY,
                 IndexMetaDataGenerations.EMPTY,
-                MISSING_UUID));
+                MISSING_UUID
+            )
+        );
     }
 
     @Override
@@ -99,9 +100,13 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
     }
 
     @Override
-    public void deleteSnapshots(Collection<SnapshotId> snapshotIds, long repositoryStateId, Version repositoryMetaVersion,
-                                ActionListener<RepositoryData> listener) {
-        listener.onResponse(null);
+    public void deleteSnapshots(
+        Collection<SnapshotId> snapshotIds,
+        long repositoryStateId,
+        Version repositoryMetaVersion,
+        SnapshotDeleteListener listener
+    ) {
+        listener.onFailure(new UnsupportedOperationException());
     }
 
     @Override
@@ -120,8 +125,7 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
     }
 
     @Override
-    public void endVerification(String verificationToken) {
-    }
+    public void endVerification(String verificationToken) {}
 
     @Override
     public boolean isReadOnly() {
@@ -129,8 +133,7 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
     }
 
     @Override
-    public void snapshotShard(SnapshotShardContext context) {
-    }
+    public void snapshotShard(SnapshotShardContext context) {}
 
     @Override
     public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
@@ -138,20 +141,20 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
     }
 
     @Override
-    public void verify(String verificationToken, DiscoveryNode localNode) {
-    }
+    public void verify(String verificationToken, DiscoveryNode localNode) {}
 
     @Override
-    public void updateState(final ClusterState state) {
-    }
+    public void updateState(final ClusterState state) {}
 
     @Override
-    public void awaitIdle() {
-    }
+    public void awaitIdle() {}
 
     @Override
-    public void executeConsistentStateUpdate(Function<RepositoryData, ClusterStateUpdateTask> createUpdateTask, String source,
-                                             Consumer<Exception> onFailure) {
+    public void executeConsistentStateUpdate(
+        Function<RepositoryData, ClusterStateUpdateTask> createUpdateTask,
+        String source,
+        Consumer<Exception> onFailure
+    ) {
         throw new UnsupportedOperationException("Unsupported for restore-only repository");
     }
 
@@ -161,7 +164,8 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
         SnapshotId target,
         RepositoryShardId repositoryShardId,
         ShardGeneration shardGeneration,
-        ActionListener<ShardSnapshotResult> listener) {
+        ActionListener<ShardSnapshotResult> listener
+    ) {
 
         throw new UnsupportedOperationException("Unsupported for restore-only repository");
     }

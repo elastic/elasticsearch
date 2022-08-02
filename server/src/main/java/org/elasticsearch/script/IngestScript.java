@@ -18,17 +18,31 @@ import java.util.Map;
  */
 public abstract class IngestScript {
 
-    public static final String[] PARAMETERS = { "ctx" };
+    public static final String[] PARAMETERS = {};
 
     /** The context used to compile {@link IngestScript} factories. */
-    public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("ingest", Factory.class,
-        200, TimeValue.timeValueMillis(0), ScriptCache.UNLIMITED_COMPILATION_RATE.asTuple(), true);
+    public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>(
+        "ingest",
+        Factory.class,
+        200,
+        TimeValue.timeValueMillis(0),
+        false,
+        true
+    );
 
     /** The generic runtime parameters for the script. */
     private final Map<String, Object> params;
 
-    public IngestScript(Map<String, Object> params) {
+    /** The metadata available to the script */
+    private final Metadata metadata;
+
+    /** The metadata and source available to the script */
+    private final Map<String, Object> ctx;
+
+    public IngestScript(Map<String, Object> params, Metadata metadata, Map<String, Object> ctx) {
         this.params = params;
+        this.metadata = metadata;
+        this.ctx = ctx;
     }
 
     /** Return the parameters for this script. */
@@ -36,9 +50,19 @@ public abstract class IngestScript {
         return params;
     }
 
-    public abstract void execute(Map<String, Object> ctx);
+    /** Provides backwards compatibility access to ctx */
+    public Map<String, Object> getCtx() {
+        return ctx;
+    }
+
+    /** Return the ingest metadata object */
+    public Metadata metadata() {
+        return metadata;
+    }
+
+    public abstract void execute();
 
     public interface Factory {
-        IngestScript newInstance(Map<String, Object> params);
+        IngestScript newInstance(Map<String, Object> params, Metadata metadata, Map<String, Object> ctx);
     }
 }

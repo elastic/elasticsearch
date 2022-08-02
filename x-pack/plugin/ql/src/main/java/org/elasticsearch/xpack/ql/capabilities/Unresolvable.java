@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ql.capabilities;
 
-
 public interface Unresolvable extends Resolvable {
 
     String UNRESOLVED_PREFIX = "?";

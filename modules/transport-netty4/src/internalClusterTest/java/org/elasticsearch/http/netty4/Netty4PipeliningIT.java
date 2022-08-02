@@ -10,6 +10,7 @@ package org.elasticsearch.http.netty4;
 
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.util.ReferenceCounted;
+
 import org.elasticsearch.ESNetty4IntegTestCase;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
@@ -31,7 +32,7 @@ public class Netty4PipeliningIT extends ESNetty4IntegTestCase {
     }
 
     public void testThatNettyHttpServerSupportsPipelining() throws Exception {
-        String[] requests = new String[]{"/", "/_nodes/stats", "/", "/_cluster/state", "/"};
+        String[] requests = new String[] { "/", "/_nodes/stats", "/", "/_cluster/state", "/" };
 
         HttpServerTransport httpServerTransport = internalCluster().getInstance(HttpServerTransport.class);
         TransportAddress[] boundAddresses = httpServerTransport.boundAddress().boundAddresses();

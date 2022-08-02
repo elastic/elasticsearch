@@ -16,9 +16,9 @@ dependencies {
     testImplementation(testArtifact(project(xpackModule('core'))))
 }
 
-addQaCheckDependencies()
+addQaCheckDependencies(project)
 
-testClusters.all {
+testClusters.configureEach {
   testDistribution = 'default'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'trial'

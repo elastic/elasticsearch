@@ -8,13 +8,13 @@ package org.elasticsearch.xpack.idp;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.security.user.User;
-import org.elasticsearch.client.security.user.privileges.ApplicationResourcePrivileges;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -37,10 +37,10 @@ public class WildcardServiceProviderRestIT extends IdpRestTestCase {
 
     @Before
     public void defineApplicationPrivileges() throws IOException {
-        super.createApplicationPrivileges("elastic-cloud", Map.ofEntries(
-            Map.entry("deployment_admin", Set.of("sso:admin")),
-            Map.entry("deployment_viewer", Set.of("sso:viewer"))
-        ));
+        super.createApplicationPrivileges(
+            "elastic-cloud",
+            Map.ofEntries(Map.entry("deployment_admin", Set.of("sso:admin")), Map.entry("deployment_viewer", Set.of("sso:viewer")))
+        );
     }
 
     public void testGetWildcardServiceProviderMetadata() throws Exception {
@@ -64,9 +64,11 @@ public class WildcardServiceProviderRestIT extends IdpRestTestCase {
         final String roleName = username + "_role";
         final User user = createUser(username, password, roleName);
 
-        final ApplicationResourcePrivileges applicationPrivilege = new ApplicationResourcePrivileges(
-            "elastic-cloud", List.of("sso:admin"), List.of("sso:" + entityId)
-        );
+        final RoleDescriptor.ApplicationResourcePrivileges applicationPrivilege = RoleDescriptor.ApplicationResourcePrivileges.builder()
+            .application("elastic-cloud")
+            .privileges("sso:admin")
+            .resources("sso:" + entityId)
+            .build();
         createRole(roleName, List.of(), List.of(), List.of(applicationPrivilege));
 
         final String samlResponse = initSso(entityId, acs, new UsernamePasswordToken(username, password));
@@ -76,9 +78,9 @@ public class WildcardServiceProviderRestIT extends IdpRestTestCase {
             assertThat(samlResponse, containsString("FriendlyName=\"" + attr + "\""));
         }
 
-        assertThat(samlResponse, containsString(user.getUsername()));
-        assertThat(samlResponse, containsString(user.getEmail()));
-        assertThat(samlResponse, containsString(user.getFullName()));
+        assertThat(samlResponse, containsString(user.principal()));
+        assertThat(samlResponse, containsString(user.email()));
+        assertThat(samlResponse, containsString(user.fullName()));
         assertThat(samlResponse, containsString(">admin<"));
 
         deleteUser(username);
@@ -99,8 +101,14 @@ public class WildcardServiceProviderRestIT extends IdpRestTestCase {
     private String initSso(String entityId, String acs, UsernamePasswordToken secondaryAuth) throws IOException {
         final Request request = new Request("POST", "/_idp/saml/init/");
         request.setJsonEntity(toJson(Map.of("entity_id", entityId, "acs", acs)));
-        request.setOptions(request.getOptions().toBuilder().addHeader("es-secondary-authorization",
-            UsernamePasswordToken.basicAuthHeaderValue(secondaryAuth.principal(), secondaryAuth.credentials())));
+        request.setOptions(
+            request.getOptions()
+                .toBuilder()
+                .addHeader(
+                    "es-secondary-authorization",
+                    UsernamePasswordToken.basicAuthHeaderValue(secondaryAuth.principal(), secondaryAuth.credentials())
+                )
+        );
         Response response = client().performRequest(request);
 
         final Map<String, Object> map = entityAsMap(response);

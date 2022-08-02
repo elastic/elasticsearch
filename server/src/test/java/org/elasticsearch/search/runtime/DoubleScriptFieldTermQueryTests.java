@@ -30,17 +30,10 @@ public class DoubleScriptFieldTermQueryTests extends AbstractDoubleScriptFieldQu
         String fieldName = orig.fieldName();
         double term = orig.term();
         switch (randomInt(2)) {
-            case 0:
-                script = randomValueOtherThan(script, this::randomScript);
-                break;
-            case 1:
-                fieldName += "modified";
-                break;
-            case 2:
-                term = randomValueOtherThan(term, ESTestCase::randomDouble);
-                break;
-            default:
-                fail();
+            case 0 -> script = randomValueOtherThan(script, this::randomScript);
+            case 1 -> fieldName += "modified";
+            case 2 -> term = randomValueOtherThan(term, ESTestCase::randomDouble);
+            default -> fail();
         }
         return new DoubleScriptFieldTermQuery(script, leafFactory, fieldName, term);
     }

@@ -30,15 +30,14 @@ import java.util.Locale;
  */
 public class Scopes {
 
-    private Scopes() {
-    }
+    private Scopes() {}
 
     /**
      * One instance per {@link Injector}. Also see {@code @}{@link Singleton}.
      */
     public static final Scope SINGLETON = new Scope() {
         @Override
-        public <T> Provider<T> scope(Key<T> key, final Provider<T> creator) {
+        public <T> Provider<T> scope(final Provider<T> creator) {
             return new Provider<T>() {
 
                 private volatile T instance;
@@ -90,7 +89,7 @@ public class Scopes {
      */
     public static final Scope NO_SCOPE = new Scope() {
         @Override
-        public <T> Provider<T> scope(Key<T> key, Provider<T> unscoped) {
+        public <T> Provider<T> scope(Provider<T> unscoped) {
             return unscoped;
         }
 
@@ -103,8 +102,7 @@ public class Scopes {
     /**
      * Scopes an internal factory.
      */
-    static <T> InternalFactory<? extends T> scope(Key<T> key, InjectorImpl injector,
-                                                  InternalFactory<? extends T> creator, Scoping scoping) {
+    static <T> InternalFactory<? extends T> scope(InjectorImpl injector, InternalFactory<? extends T> creator, Scoping scoping) {
 
         if (scoping.isNoScope()) {
             return creator;
@@ -113,10 +111,8 @@ public class Scopes {
         Scope scope = scoping.getScopeInstance();
 
         // TODO: use diamond operator once JI-9019884 is fixed
-        Provider<T> scoped
-                = scope.scope(key, new ProviderToInternalFactoryAdapter<T>(injector, creator));
-        return new InternalFactoryToProviderAdapter<>(
-                Initializables.<Provider<? extends T>>of(scoped));
+        Provider<T> scoped = scope.scope(new ProviderToInternalFactoryAdapter<T>(injector, creator));
+        return new InternalFactoryToProviderAdapter<>(Initializables.of(scoped));
     }
 
     /**

@@ -22,24 +22,37 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-public class TransportGetStoredScriptAction extends TransportMasterNodeReadAction<GetStoredScriptRequest,
-        GetStoredScriptResponse> {
-
-    private final ScriptService scriptService;
+public class TransportGetStoredScriptAction extends TransportMasterNodeReadAction<GetStoredScriptRequest, GetStoredScriptResponse> {
 
     @Inject
-    public TransportGetStoredScriptAction(TransportService transportService, ClusterService clusterService,
-                                          ThreadPool threadPool, ActionFilters actionFilters,
-                                          IndexNameExpressionResolver indexNameExpressionResolver, ScriptService scriptService) {
-        super(GetStoredScriptAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            GetStoredScriptRequest::new, indexNameExpressionResolver, GetStoredScriptResponse::new, ThreadPool.Names.SAME);
-        this.scriptService = scriptService;
+    public TransportGetStoredScriptAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            GetStoredScriptAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            GetStoredScriptRequest::new,
+            indexNameExpressionResolver,
+            GetStoredScriptResponse::new,
+            ThreadPool.Names.SAME
+        );
     }
 
     @Override
-    protected void masterOperation(Task task, GetStoredScriptRequest request, ClusterState state,
-                                   ActionListener<GetStoredScriptResponse> listener) throws Exception {
-        listener.onResponse(new GetStoredScriptResponse(request.id(), scriptService.getStoredScript(state, request)));
+    protected void masterOperation(
+        Task task,
+        GetStoredScriptRequest request,
+        ClusterState state,
+        ActionListener<GetStoredScriptResponse> listener
+    ) throws Exception {
+        listener.onResponse(new GetStoredScriptResponse(request.id(), ScriptService.getStoredScript(state, request)));
     }
 
     @Override

@@ -12,13 +12,17 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
+
+import java.util.function.BiFunction;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -28,7 +32,7 @@ import static org.hamcrest.core.IsNull.notNullValue;
 public class WaitForIndexColorStepTests extends AbstractStepTestCase<WaitForIndexColorStep> {
 
     private static ClusterHealthStatus randomColor() {
-        String[] colors = new String[]{"green", "yellow", "red"};
+        String[] colors = new String[] { "green", "yellow", "red" };
         int randomColor = randomIntBetween(0, colors.length - 1);
         return ClusterHealthStatus.fromString(colors[randomColor]);
     }
@@ -47,33 +51,29 @@ public class WaitForIndexColorStepTests extends AbstractStepTestCase<WaitForInde
         StepKey key = instance.getKey();
         StepKey nextKey = instance.getNextStepKey();
         ClusterHealthStatus color = instance.getColor(), newColor = randomColor();
-        String indexPrefix = instance.getIndexNamePrefix();
+        BiFunction<String, LifecycleExecutionState, String> indexNameSupplier = instance.getIndexNameSupplier();
 
         while (color.equals(newColor)) {
             newColor = randomColor();
         }
 
         switch (between(0, 2)) {
-            case 0:
-                key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-                break;
-            case 1:
-                nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-                break;
-            case 2:
-                color = newColor;
-                break;
-            case 3:
-                indexPrefix = randomAlphaOfLengthBetween(1, 10);
-                break;
+            case 0 -> key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+            case 1 -> nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+            case 2 -> color = newColor;
         }
 
-        return new WaitForIndexColorStep(key, nextKey, color, indexPrefix);
+        return new WaitForIndexColorStep(key, nextKey, color, indexNameSupplier);
     }
 
     @Override
     protected WaitForIndexColorStep copyInstance(WaitForIndexColorStep instance) {
-        return new WaitForIndexColorStep(instance.getKey(), instance.getNextStepKey(), instance.getColor(), instance.getIndexNamePrefix());
+        return new WaitForIndexColorStep(
+            instance.getKey(),
+            instance.getNextStepKey(),
+            instance.getColor(),
+            instance.getIndexNameSupplier()
+        );
     }
 
     public void testConditionMetForGreen() {
@@ -83,10 +83,13 @@ public class WaitForIndexColorStepTests extends AbstractStepTestCase<WaitForInde
             .numberOfReplicas(2)
             .build();
 
-        ShardRouting shardRouting =
-            TestShardRouting.newShardRouting("test_index", 0, "1", true, ShardRoutingState.STARTED);
-        IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex())
-            .addShard(shardRouting).build();
+        ShardRouting shardRouting = TestShardRouting.newShardRouting(
+            new ShardId(indexMetadata.getIndex(), 0),
+            "1",
+            true,
+            ShardRoutingState.STARTED
+        );
+        IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex()).addShard(shardRouting).build();
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
             .metadata(Metadata.builder().put(indexMetadata, true).build())
@@ -106,10 +109,13 @@ public class WaitForIndexColorStepTests extends AbstractStepTestCase<WaitForInde
             .numberOfReplicas(0)
             .build();
 
-        ShardRouting shardRouting =
-            TestShardRouting.newShardRouting("test_index", 0, "1", true, ShardRoutingState.INITIALIZING);
-        IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex())
-            .addShard(shardRouting).build();
+        ShardRouting shardRouting = TestShardRouting.newShardRouting(
+            new ShardId(indexMetadata.getIndex(), 0),
+            "1",
+            true,
+            ShardRoutingState.INITIALIZING
+        );
+        IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex()).addShard(shardRouting).build();
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
             .metadata(Metadata.builder().put(indexMetadata, true).build())
@@ -151,10 +157,13 @@ public class WaitForIndexColorStepTests extends AbstractStepTestCase<WaitForInde
             .numberOfReplicas(0)
             .build();
 
-        ShardRouting shardRouting =
-            TestShardRouting.newShardRouting("index2", 0, "1", true, ShardRoutingState.STARTED);
-        IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex())
-            .addShard(shardRouting).build();
+        ShardRouting shardRouting = TestShardRouting.newShardRouting(
+            new ShardId(indexMetadata.getIndex(), 0),
+            "1",
+            true,
+            ShardRoutingState.STARTED
+        );
+        IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex()).addShard(shardRouting).build();
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
             .metadata(Metadata.builder().put(indexMetadata, true).build())
@@ -174,10 +183,13 @@ public class WaitForIndexColorStepTests extends AbstractStepTestCase<WaitForInde
             .numberOfReplicas(0)
             .build();
 
-        ShardRouting shardRouting =
-            TestShardRouting.newShardRouting("index2", 0, "1", true, ShardRoutingState.INITIALIZING);
-        IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex())
-            .addShard(shardRouting).build();
+        ShardRouting shardRouting = TestShardRouting.newShardRouting(
+            new ShardId(indexMetadata.getIndex(), 0),
+            "1",
+            true,
+            ShardRoutingState.INITIALIZING
+        );
+        IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex()).addShard(shardRouting).build();
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
             .metadata(Metadata.builder().put(indexMetadata, true).build())
@@ -220,10 +232,14 @@ public class WaitForIndexColorStepTests extends AbstractStepTestCase<WaitForInde
             .build();
 
         String indexPrefix = randomAlphaOfLengthBetween(5, 10) + "-";
-        ShardRouting shardRouting =
-            TestShardRouting.newShardRouting(originalIndex.getIndex().getName(), 0, "1", true, ShardRoutingState.STARTED);
-        IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(originalIndex.getIndex())
-            .addShard(shardRouting).build();
+        ShardRouting shardRouting = TestShardRouting.newShardRouting(
+            originalIndex.getIndex().getName(),
+            0,
+            "1",
+            true,
+            ShardRoutingState.STARTED
+        );
+        IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(originalIndex.getIndex()).addShard(shardRouting).build();
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
             .metadata(Metadata.builder().put(originalIndex, true).build())
@@ -235,8 +251,18 @@ public class WaitForIndexColorStepTests extends AbstractStepTestCase<WaitForInde
         assertThat(result.isComplete(), is(false));
         WaitForIndexColorStep.Info info = (WaitForIndexColorStep.Info) result.getInfomationContext();
         String targetIndex = indexPrefix + originalIndex.getIndex().getName();
-        assertThat(info.getMessage(), is("[" + step.getKey().getAction() + "] lifecycle action for index [" +
-            originalIndex.getIndex().getName() + "] executed but the target index [" + targetIndex + "] does not exist"));
+        assertThat(
+            info.getMessage(),
+            is(
+                "["
+                    + step.getKey().getAction()
+                    + "] lifecycle action for index ["
+                    + originalIndex.getIndex().getName()
+                    + "] executed but the target index ["
+                    + targetIndex
+                    + "] does not exist"
+            )
+        );
     }
 
     public void testStepWaitsForTargetIndexHealthWhenPrefixConfigured() {
@@ -245,10 +271,16 @@ public class WaitForIndexColorStepTests extends AbstractStepTestCase<WaitForInde
             .numberOfShards(1)
             .numberOfReplicas(2)
             .build();
-        ShardRouting originalShardRouting =
-            TestShardRouting.newShardRouting(originalIndex.getIndex().getName(), 0, "1", true, ShardRoutingState.STARTED);
+        ShardRouting originalShardRouting = TestShardRouting.newShardRouting(
+            originalIndex.getIndex().getName(),
+            0,
+            "1",
+            true,
+            ShardRoutingState.STARTED
+        );
         IndexRoutingTable originalIndexRoutingTable = IndexRoutingTable.builder(originalIndex.getIndex())
-            .addShard(originalShardRouting).build();
+            .addShard(originalShardRouting)
+            .build();
 
         String indexPrefix = randomAlphaOfLengthBetween(5, 10) + "-";
         String targetIndexName = indexPrefix + originalIndex.getIndex().getName();
@@ -259,10 +291,15 @@ public class WaitForIndexColorStepTests extends AbstractStepTestCase<WaitForInde
             .build();
 
         {
-            ShardRouting targetShardRouting =
-                TestShardRouting.newShardRouting(targetIndexName, 0, "1", true, ShardRoutingState.INITIALIZING);
+            ShardRouting targetShardRouting = TestShardRouting.newShardRouting(
+                new ShardId(originalIndex.getIndex(), 0),
+                "1",
+                true,
+                ShardRoutingState.INITIALIZING
+            );
             IndexRoutingTable targetIndexRoutingTable = IndexRoutingTable.builder(originalIndex.getIndex())
-                .addShard(targetShardRouting).build();
+                .addShard(targetShardRouting)
+                .build();
 
             ClusterState clusterTargetInitializing = ClusterState.builder(new ClusterName("_name"))
                 .metadata(Metadata.builder().put(originalIndex, true).put(targetIndex, true).build())
@@ -277,10 +314,15 @@ public class WaitForIndexColorStepTests extends AbstractStepTestCase<WaitForInde
         }
 
         {
-            ShardRouting targetShardRouting =
-                TestShardRouting.newShardRouting(targetIndexName, 0, "1", true, ShardRoutingState.STARTED);
+            ShardRouting targetShardRouting = TestShardRouting.newShardRouting(
+                new ShardId(originalIndex.getIndex(), 0),
+                "1",
+                true,
+                ShardRoutingState.STARTED
+            );
             IndexRoutingTable targetIndexRoutingTable = IndexRoutingTable.builder(originalIndex.getIndex())
-                .addShard(targetShardRouting).build();
+                .addShard(targetShardRouting)
+                .build();
 
             ClusterState clusterTargetInitializing = ClusterState.builder(new ClusterName("_name"))
                 .metadata(Metadata.builder().put(originalIndex, true).put(targetIndex, true).build())
@@ -294,4 +336,3 @@ public class WaitForIndexColorStepTests extends AbstractStepTestCase<WaitForInde
         }
     }
 }
-

@@ -76,9 +76,6 @@ public abstract class ThreeArgsDateTimePipe extends Pipe {
             return false;
         }
         ThreeArgsDateTimePipe that = (ThreeArgsDateTimePipe) o;
-        return first.equals(that.first) &&
-            second.equals(that.second) &&
-            third.equals(that.third) &&
-            zoneId.equals(that.zoneId);
+        return first.equals(that.first) && second.equals(that.second) && third.equals(that.third) && zoneId.equals(that.zoneId);
     }
 }

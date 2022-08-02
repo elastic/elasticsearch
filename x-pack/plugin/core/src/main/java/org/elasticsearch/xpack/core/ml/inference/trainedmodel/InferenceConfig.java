@@ -7,11 +7,13 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.xpack.core.ml.utils.NamedXContentObject;
 
+public interface InferenceConfig extends NamedXContentObject, VersionedNamedWriteable {
 
-public interface InferenceConfig extends NamedXContentObject, NamedWriteable {
+    String DEFAULT_TOP_CLASSES_RESULTS_FIELD = "top_classes";
+    String DEFAULT_RESULTS_FIELD = "predicted_value";
 
     boolean isTargetTypeSupported(TargetType targetType);
 
@@ -23,6 +25,8 @@ public interface InferenceConfig extends NamedXContentObject, NamedWriteable {
     default boolean requestingImportance() {
         return false;
     }
+
+    String getResultsField();
 
     boolean isAllocateOnly();
 }

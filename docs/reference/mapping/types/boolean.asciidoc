@@ -174,7 +174,10 @@ The following parameters are accepted by `boolean` fields:
 
 <<mapping-index,`index`>>::
 
-    Should the field be searchable? Accepts `true` (default) and `false`.
+    Should the field be quickly searchable? Accepts `true` (default) and
+    `false`. Fields that only have <<doc-values,`doc_values`>>
+    enabled can still be queried using term or range-based queries,
+    albeit slower.
 
 <<null-value,`null_value`>>::
 
@@ -211,3 +214,39 @@ The following parameters are accepted by `boolean` fields:
 <<mapping-field-meta,`meta`>>::
 
     Metadata about the field.
+
+ifeval::["{release-state}"=="unreleased"]
+[[boolean-synthetic-source]]
+==== Synthetic source
+`boolean` fields support <<synthetic-source,synthetic `_source`>> in their
+default configuration. Synthetic `_source` cannot be used together with
+<<copy-to,`copy_to`>> or with <<doc-values,`doc_values`>> disabled.
+
+Synthetic source always sorts `boolean` fields. For example:
+[source,console,id=synthetic-source-boolean-example]
+----
+PUT idx
+{
+  "mappings": {
+    "_source": { "mode": "synthetic" },
+    "properties": {
+      "bool": { "type": "boolean" }
+    }
+  }
+}
+PUT idx/_doc/1
+{
+  "bool": [true, false, true, false]
+}
+----
+// TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
+
+Will become:
+[source,console-result]
+----
+{
+  "bool": [false, false, true, true]
+}
+----
+// TEST[s/^/{"_source":/ s/\n$/}/]
+endif::[]

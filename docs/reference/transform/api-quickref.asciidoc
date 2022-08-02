@@ -15,6 +15,7 @@ _transform/
 * <<get-transform,Get {transforms}>>
 * <<get-transform-stats,Get {transforms} statistics>>
 * <<preview-transform,Preview {transforms}>>
+* <<reset-transform,Reset {transforms}>>
 * <<start-transform,Start {transforms}>>
 * <<stop-transform,Stop {transforms}>>
 * <<update-transform,Update {transforms}>>

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.restore;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
@@ -15,10 +16,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -28,9 +29,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
-import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 
 /**
@@ -49,7 +48,9 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
     private boolean includeGlobalState = false;
     private boolean partial = false;
     private boolean includeAliases = true;
-    private Settings indexSettings = EMPTY_SETTINGS;
+    public static Version VERSION_SUPPORTING_QUIET_PARAMETER = Version.V_8_4_0;
+    private boolean quiet = false;
+    private Settings indexSettings = Settings.EMPTY;
     private String[] ignoreIndexSettings = Strings.EMPTY_ARRAY;
 
     // This field does not get serialised (except toString for debugging purpose) because it is always set locally by authz
@@ -84,6 +85,11 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         includeGlobalState = in.readBoolean();
         partial = in.readBoolean();
         includeAliases = in.readBoolean();
+        if (in.getVersion().onOrAfter(VERSION_SUPPORTING_QUIET_PARAMETER)) {
+            quiet = in.readBoolean();
+        } else {
+            quiet = true;
+        }
         indexSettings = readSettingsFromStream(in);
         ignoreIndexSettings = in.readStringArray();
         snapshotUuid = in.readOptionalString();
@@ -103,7 +109,10 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         out.writeBoolean(includeGlobalState);
         out.writeBoolean(partial);
         out.writeBoolean(includeAliases);
-        writeSettingsToStream(indexSettings, out);
+        if (out.getVersion().onOrAfter(VERSION_SUPPORTING_QUIET_PARAMETER)) {
+            out.writeBoolean(quiet);
+        }
+        indexSettings.writeTo(out);
         out.writeStringArray(ignoreIndexSettings);
         out.writeOptionalString(snapshotUuid);
     }
@@ -385,6 +394,27 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
     }
 
     /**
+     * If {@code false}, report the start and completion of the restore at {@code INFO} log level.
+     * If {@code true}, report the start and completion of the restore at {@code DEBUG} log level.
+     *
+     * @param quiet
+     * @return this request
+     */
+    public RestoreSnapshotRequest quiet(boolean quiet) {
+        this.quiet = quiet;
+        return this;
+    }
+
+    /**
+     *
+     * @return {@code true}  if logging of the start and completion of the restore should happen at {@code DEBUG} log level, else it
+     * happens at {@code INFO} log level.
+     */
+    public boolean quiet() {
+        return quiet;
+    }
+
+    /**
      * Sets settings that should be added/changed in all restored indices
      */
     public RestoreSnapshotRequest indexSettings(Settings settings) {
@@ -602,6 +632,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
             && includeGlobalState == that.includeGlobalState
             && partial == that.partial
             && includeAliases == that.includeAliases
+            && quiet == that.quiet
             && Objects.equals(snapshot, that.snapshot)
             && Objects.equals(repository, that.repository)
             && Arrays.equals(indices, that.indices)
@@ -627,6 +658,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
             includeGlobalState,
             partial,
             includeAliases,
+            quiet,
             indexSettings,
             snapshotUuid,
             skipOperatorOnlyState

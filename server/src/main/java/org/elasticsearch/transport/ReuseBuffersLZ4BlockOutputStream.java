@@ -1,11 +1,4 @@
 /*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
- */
-/*
  * Copyright 2020 Adrien Grand and the lz4-java contributors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -29,6 +22,7 @@ import net.jpountz.lz4.LZ4FrameOutputStream;
 import net.jpountz.util.SafeUtils;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.util.ByteUtils;
 
 import java.io.FilterOutputStream;
 import java.io.IOException;
@@ -81,12 +75,11 @@ public class ReuseBuffersLZ4BlockOutputStream extends FilterOutputStream {
     static final byte[] MAGIC = new byte[] { 'L', 'Z', '4', 'B', 'l', 'o', 'c', 'k' };
     static final int MAGIC_LENGTH = MAGIC.length;
 
-    static final int HEADER_LENGTH =
-        MAGIC_LENGTH // magic bytes
-            + 1          // token
-            + 4          // compressed length
-            + 4          // decompressed length
-            + 4;         // checksum
+    static final int HEADER_LENGTH = MAGIC_LENGTH // magic bytes
+        + 1          // token
+        + 4          // compressed length
+        + 4          // decompressed length
+        + 4;         // checksum
 
     static final int COMPRESSION_LEVEL_BASE = 10;
     static final int MIN_BLOCK_SIZE = 64;
@@ -216,10 +209,10 @@ public class ReuseBuffersLZ4BlockOutputStream extends FilterOutputStream {
         }
 
         compressedBuffer[MAGIC_LENGTH] = (byte) (compressMethod | compressionLevel);
-        writeIntLE(compressedLength, compressedBuffer, MAGIC_LENGTH + 1);
-        writeIntLE(o, compressedBuffer, MAGIC_LENGTH + 5);
+        ByteUtils.writeIntLE(compressedLength, compressedBuffer, MAGIC_LENGTH + 1);
+        ByteUtils.writeIntLE(o, compressedBuffer, MAGIC_LENGTH + 5);
         // Write 0 for checksum. We do not read it on decompress.
-        writeIntLE(0, compressedBuffer, MAGIC_LENGTH + 9);
+        ByteUtils.writeIntLE(0, compressedBuffer, MAGIC_LENGTH + 9);
         assert MAGIC_LENGTH + 13 == HEADER_LENGTH;
         out.write(compressedBuffer, 0, HEADER_LENGTH + compressedLength);
         o = 0;
@@ -255,27 +248,18 @@ public class ReuseBuffersLZ4BlockOutputStream extends FilterOutputStream {
         ensureNotFinished();
         flushBufferedData();
         compressedBuffer[MAGIC_LENGTH] = (byte) (COMPRESSION_METHOD_RAW | compressionLevel);
-        writeIntLE(0, compressedBuffer, MAGIC_LENGTH + 1);
-        writeIntLE(0, compressedBuffer, MAGIC_LENGTH + 5);
-        writeIntLE(0, compressedBuffer, MAGIC_LENGTH + 9);
+        ByteUtils.writeIntLE(0, compressedBuffer, MAGIC_LENGTH + 1);
+        ByteUtils.writeIntLE(0, compressedBuffer, MAGIC_LENGTH + 5);
+        ByteUtils.writeIntLE(0, compressedBuffer, MAGIC_LENGTH + 9);
         assert MAGIC_LENGTH + 13 == HEADER_LENGTH;
         out.write(compressedBuffer, 0, HEADER_LENGTH);
         finished = true;
         out.flush();
     }
 
-    private static void writeIntLE(int i, byte[] buf, int off) {
-        buf[off++] = (byte) i;
-        buf[off++] = (byte) (i >>> 8);
-        buf[off++] = (byte) (i >>> 16);
-        buf[off++] = (byte) (i >>> 24);
-    }
-
     @Override
     public String toString() {
-        return getClass().getSimpleName() + "(out=" + out + ", blockSize=" + blockSize
-            + ", compressor=" + compressor + ")";
+        return getClass().getSimpleName() + "(out=" + out + ", blockSize=" + blockSize + ", compressor=" + compressor + ")";
     }
 
 }
-

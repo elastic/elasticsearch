@@ -13,9 +13,10 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.BoostingQueryBuilder;
@@ -31,6 +32,7 @@ import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
@@ -39,12 +41,14 @@ import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggre
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.metrics.Avg;
 import org.elasticsearch.search.aggregations.metrics.InternalAvg;
-import org.elasticsearch.search.aggregations.metrics.InternalSum;
+import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.action.RollupJobCaps;
@@ -55,15 +59,14 @@ import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
 import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
 import org.elasticsearch.xpack.rollup.Rollup;
 import org.hamcrest.core.IsEqual;
-import org.joda.time.DateTimeZone;
 import org.junit.Before;
 import org.mockito.Mockito;
 
 import java.io.IOException;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -454,7 +457,7 @@ public class SearchActionTests extends ESTestCase {
         SearchRequest request = new SearchRequest(combinedIndices, source);
 
         final GroupConfig groupConfig = new GroupConfig(
-            new DateHistogramGroupConfig.CalendarInterval("foo", new DateHistogramInterval("1d"), null, DateTimeZone.UTC.getID())
+            new DateHistogramGroupConfig.CalendarInterval("foo", new DateHistogramInterval("1d"), null, ZoneOffset.UTC.getId())
         );
         final RollupJobConfig job = new RollupJobConfig("foo", "index", "rollup", "*/5 * * * * ?", 10, groupConfig, emptyList(), null);
         Set<RollupJobCaps> caps = singleton(new RollupJobCaps(job));
@@ -502,7 +505,7 @@ public class SearchActionTests extends ESTestCase {
         );
         RollupJobCaps cap2 = new RollupJobCaps(job2);
 
-        Set<RollupJobCaps> caps = new HashSet<>(2);
+        Set<RollupJobCaps> caps = Sets.newHashSetWithExpectedSize(2);
         caps.add(cap);
         caps.add(cap2);
 
@@ -562,7 +565,7 @@ public class SearchActionTests extends ESTestCase {
         );
         RollupJobCaps cap2 = new RollupJobCaps(job2);
 
-        Set<RollupJobCaps> caps = new HashSet<>(2);
+        Set<RollupJobCaps> caps = Sets.newHashSetWithExpectedSize(2);
         caps.add(cap);
         caps.add(cap2);
 
@@ -611,25 +614,21 @@ public class SearchActionTests extends ESTestCase {
     }
 
     public void testNoIndicesToSeparate() {
-        String[] indices = new String[] {};
-        ImmutableOpenMap<String, IndexMetadata> meta = ImmutableOpenMap.<String, IndexMetadata>builder().build();
-        expectThrows(IllegalArgumentException.class, () -> TransportRollupSearchAction.separateIndices(indices, meta));
+        expectThrows(IllegalArgumentException.class, () -> TransportRollupSearchAction.separateIndices(new String[0], Map.of()));
     }
 
     public void testSeparateAll() {
         String[] indices = new String[] { Metadata.ALL, "foo" };
-        ImmutableOpenMap<String, IndexMetadata> meta = ImmutableOpenMap.<String, IndexMetadata>builder().build();
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> TransportRollupSearchAction.separateIndices(indices, meta)
+            () -> TransportRollupSearchAction.separateIndices(indices, Map.of())
         );
         assertThat(e.getMessage(), equalTo("Searching _all via RollupSearch endpoint is not supported at this time."));
     }
 
     public void testEmptyMetadata() {
         String[] indices = new String[] { "foo", "bar" };
-        ImmutableOpenMap<String, IndexMetadata> meta = ImmutableOpenMap.<String, IndexMetadata>builder().build();
-        TransportRollupSearchAction.RollupSearchContext result = TransportRollupSearchAction.separateIndices(indices, meta);
+        TransportRollupSearchAction.RollupSearchContext result = TransportRollupSearchAction.separateIndices(indices, Map.of());
         assertThat(result.getLiveIndices().length, equalTo(2));
         assertThat(result.getRollupIndices().length, equalTo(0));
         assertThat(result.getJobCaps().size(), equalTo(0));
@@ -638,9 +637,8 @@ public class SearchActionTests extends ESTestCase {
     public void testNoMatchingIndexInMetadata() {
         String[] indices = new String[] { "foo" };
         IndexMetadata indexMetadata = mock(IndexMetadata.class);
-        ImmutableOpenMap.Builder<String, IndexMetadata> meta = ImmutableOpenMap.builder(1);
-        meta.put("bar", indexMetadata);
-        TransportRollupSearchAction.RollupSearchContext result = TransportRollupSearchAction.separateIndices(indices, meta.build());
+        Map<String, IndexMetadata> meta = Map.of("bar", indexMetadata);
+        TransportRollupSearchAction.RollupSearchContext result = TransportRollupSearchAction.separateIndices(indices, meta);
         assertThat(result.getLiveIndices().length, equalTo(1));
         assertThat(result.getRollupIndices().length, equalTo(0));
         assertThat(result.getJobCaps().size(), equalTo(0));
@@ -663,9 +661,8 @@ public class SearchActionTests extends ESTestCase {
         IndexMetadata meta = Mockito.mock(IndexMetadata.class);
         when(meta.mapping()).thenReturn(mappingMeta);
 
-        ImmutableOpenMap.Builder<String, IndexMetadata> metaMap = ImmutableOpenMap.builder(1);
-        metaMap.put("foo", meta);
-        TransportRollupSearchAction.RollupSearchContext result = TransportRollupSearchAction.separateIndices(indices, metaMap.build());
+        Map<String, IndexMetadata> metaMap = Map.of("foo", meta);
+        TransportRollupSearchAction.RollupSearchContext result = TransportRollupSearchAction.separateIndices(indices, metaMap);
         assertThat(result.getLiveIndices().length, equalTo(0));
         assertThat(result.getRollupIndices().length, equalTo(1));
         assertThat(result.getRollupIndices()[0], equalTo("foo"));
@@ -675,9 +672,8 @@ public class SearchActionTests extends ESTestCase {
     public void testLiveOnlyProcess() throws Exception {
         String[] indices = new String[] { "foo" };
         IndexMetadata indexMetadata = mock(IndexMetadata.class);
-        ImmutableOpenMap.Builder<String, IndexMetadata> meta = ImmutableOpenMap.builder(1);
-        meta.put("bar", indexMetadata);
-        TransportRollupSearchAction.RollupSearchContext result = TransportRollupSearchAction.separateIndices(indices, meta.build());
+        Map<String, IndexMetadata> meta = Map.of("bar", indexMetadata);
+        TransportRollupSearchAction.RollupSearchContext result = TransportRollupSearchAction.separateIndices(indices, meta);
 
         SearchResponse response = mock(SearchResponse.class);
         MultiSearchResponse.Item item = new MultiSearchResponse.Item(response, null);
@@ -686,7 +682,7 @@ public class SearchActionTests extends ESTestCase {
         SearchResponse r = TransportRollupSearchAction.processResponses(
             result,
             msearchResponse,
-            mock(InternalAggregation.ReduceContext.class)
+            InternalAggregationTestCase.emptyReduceContextBuilder()
         );
         assertThat(r, equalTo(response));
     }
@@ -708,9 +704,8 @@ public class SearchActionTests extends ESTestCase {
         IndexMetadata indexMeta = Mockito.mock(IndexMetadata.class);
         when(indexMeta.mapping()).thenReturn(mappingMeta);
 
-        ImmutableOpenMap.Builder<String, IndexMetadata> metaMap = ImmutableOpenMap.builder(1);
-        metaMap.put("foo", indexMeta);
-        TransportRollupSearchAction.RollupSearchContext result = TransportRollupSearchAction.separateIndices(indices, metaMap.build());
+        Map<String, IndexMetadata> metaMap = Map.of("foo", indexMeta);
+        TransportRollupSearchAction.RollupSearchContext result = TransportRollupSearchAction.separateIndices(indices, metaMap);
 
         SearchResponse response = mock(SearchResponse.class);
         when(response.getTook()).thenReturn(new TimeValue(100));
@@ -718,18 +713,16 @@ public class SearchActionTests extends ESTestCase {
         InternalFilter filter = mock(InternalFilter.class);
 
         List<InternalAggregation> subaggs = new ArrayList<>(2);
-        Map<String, Object> metadata = new HashMap<>(1);
+        Map<String, Object> metadata = Maps.newMapWithExpectedSize(1);
         metadata.put(RollupField.ROLLUP_META + "." + RollupField.COUNT_FIELD, "foo." + RollupField.COUNT_FIELD);
-        InternalSum sum = mock(InternalSum.class);
-        when(sum.getValue()).thenReturn(10.0);
+        Sum sum = mock(Sum.class);
         when(sum.value()).thenReturn(10.0);
         when(sum.getName()).thenReturn("foo");
         when(sum.getMetadata()).thenReturn(metadata);
         when(sum.getType()).thenReturn(SumAggregationBuilder.NAME);
         subaggs.add(sum);
 
-        InternalSum count = mock(InternalSum.class);
-        when(count.getValue()).thenReturn(2.0);
+        Sum count = mock(Sum.class);
         when(count.value()).thenReturn(2.0);
         when(count.getName()).thenReturn("foo." + RollupField.COUNT_FIELD);
         when(count.getMetadata()).thenReturn(null);
@@ -748,7 +741,7 @@ public class SearchActionTests extends ESTestCase {
         SearchResponse r = TransportRollupSearchAction.processResponses(
             result,
             msearchResponse,
-            mock(InternalAggregation.ReduceContext.class)
+            InternalAggregationTestCase.emptyReduceContextBuilder()
         );
 
         assertNotNull(r);
@@ -774,12 +767,10 @@ public class SearchActionTests extends ESTestCase {
         IndexMetadata indexMeta = Mockito.mock(IndexMetadata.class);
         when(indexMeta.mapping()).thenReturn(mappingMeta);
 
-        ImmutableOpenMap.Builder<String, IndexMetadata> metaMap = ImmutableOpenMap.builder(2);
-        metaMap.put("foo", indexMeta);
-        metaMap.put("bar", indexMeta);
+        Map<String, IndexMetadata> metaMap = Map.of("foo", indexMeta, "bar", indexMeta);
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> TransportRollupSearchAction.separateIndices(indices, metaMap.build())
+            () -> TransportRollupSearchAction.separateIndices(indices, metaMap)
         );
         assertThat(
             e.getMessage(),
@@ -800,7 +791,11 @@ public class SearchActionTests extends ESTestCase {
 
         RuntimeException e = expectThrows(
             RuntimeException.class,
-            () -> TransportRollupSearchAction.processResponses(result, msearchResponse, mock(InternalAggregation.ReduceContext.class))
+            () -> TransportRollupSearchAction.processResponses(
+                result,
+                msearchResponse,
+                InternalAggregationTestCase.emptyReduceContextBuilder()
+            )
         );
         assertThat(e.getMessage(), equalTo("MSearch response was empty, cannot unroll RollupSearch results"));
     }
@@ -827,13 +822,8 @@ public class SearchActionTests extends ESTestCase {
         IndexMetadata liveIndexMeta = Mockito.mock(IndexMetadata.class);
         when(liveIndexMeta.mapping()).thenReturn(liveMappingMetadata);
 
-        ImmutableOpenMap.Builder<String, IndexMetadata> metaMap = ImmutableOpenMap.builder(2);
-        metaMap.put("foo", indexMeta);
-        metaMap.put("bar", liveIndexMeta);
-        TransportRollupSearchAction.RollupSearchContext separateIndices = TransportRollupSearchAction.separateIndices(
-            indices,
-            metaMap.build()
-        );
+        Map<String, IndexMetadata> metaMap = Map.of("foo", indexMeta, "bar", liveIndexMeta);
+        TransportRollupSearchAction.RollupSearchContext separateIndices = TransportRollupSearchAction.separateIndices(indices, metaMap);
 
         SearchResponse protoResponse = mock(SearchResponse.class);
         when(protoResponse.getTook()).thenReturn(new TimeValue(100));
@@ -850,18 +840,16 @@ public class SearchActionTests extends ESTestCase {
         InternalFilter filter = mock(InternalFilter.class);
 
         List<InternalAggregation> subaggs = new ArrayList<>(2);
-        Map<String, Object> metadata = new HashMap<>(1);
+        Map<String, Object> metadata = Maps.newMapWithExpectedSize(1);
         metadata.put(RollupField.ROLLUP_META + "." + RollupField.COUNT_FIELD, "foo." + RollupField.COUNT_FIELD);
-        InternalSum sum = mock(InternalSum.class);
-        when(sum.getValue()).thenReturn(10.0);
+        Sum sum = mock(Sum.class);
         when(sum.value()).thenReturn(10.0);
         when(sum.getName()).thenReturn("foo");
         when(sum.getMetadata()).thenReturn(metadata);
         when(sum.getType()).thenReturn(SumAggregationBuilder.NAME);
         subaggs.add(sum);
 
-        InternalSum count = mock(InternalSum.class);
-        when(count.getValue()).thenReturn(2.0);
+        Sum count = mock(Sum.class);
         when(count.value()).thenReturn(2.0);
         when(count.getName()).thenReturn("foo." + RollupField.COUNT_FIELD);
         when(count.getMetadata()).thenReturn(null);
@@ -884,7 +872,10 @@ public class SearchActionTests extends ESTestCase {
         SearchResponse response = TransportRollupSearchAction.processResponses(
             separateIndices,
             msearchResponse,
-            mock(InternalAggregation.ReduceContext.class)
+            InternalAggregationTestCase.emptyReduceContextBuilder(
+                new AggregatorFactories.Builder().addAggregator(new MaxAggregationBuilder("foo"))
+                    .addAggregator(new MaxAggregationBuilder("foo." + RollupField.COUNT_FIELD))
+            )
         );
 
         assertNotNull(response);

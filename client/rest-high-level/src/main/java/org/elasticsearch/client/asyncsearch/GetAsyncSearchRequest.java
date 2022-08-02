@@ -6,7 +6,6 @@
  * Side Public License, v 1.
  */
 
-
 package org.elasticsearch.client.asyncsearch;
 
 import org.elasticsearch.client.Validatable;
@@ -62,8 +61,8 @@ public class GetAsyncSearchRequest implements Validatable {
         }
         GetAsyncSearchRequest request = (GetAsyncSearchRequest) o;
         return Objects.equals(getId(), request.getId())
-                && Objects.equals(getKeepAlive(), request.getKeepAlive())
-                && Objects.equals(getWaitForCompletion(), request.getWaitForCompletion());
+            && Objects.equals(getKeepAlive(), request.getKeepAlive())
+            && Objects.equals(getWaitForCompletion(), request.getWaitForCompletion());
     }
 
     @Override

@@ -58,7 +58,8 @@ public class RefCountedTests extends ESTestCase {
         assertFalse(counted.tryIncRef());
         assertThat(
             expectThrows(IllegalStateException.class, counted::incRef).getMessage(),
-            equalTo(AbstractRefCounted.ALREADY_CLOSED_MESSAGE));
+            equalTo(AbstractRefCounted.ALREADY_CLOSED_MESSAGE)
+        );
         assertThat(expectThrows(IllegalStateException.class, counted::ensureOpen).getMessage(), equalTo("closed"));
     }
 
@@ -92,8 +93,10 @@ public class RefCountedTests extends ESTestCase {
         }
         counted.decRef();
         assertThat(expectThrows(IllegalStateException.class, counted::ensureOpen).getMessage(), equalTo("closed"));
-        assertThat(expectThrows(IllegalStateException.class, counted::incRef).getMessage(),
-            equalTo(AbstractRefCounted.ALREADY_CLOSED_MESSAGE));
+        assertThat(
+            expectThrows(IllegalStateException.class, counted::incRef).getMessage(),
+            equalTo(AbstractRefCounted.ALREADY_CLOSED_MESSAGE)
+        );
         assertThat(counted.refCount(), is(0));
         assertFalse(counted.hasReferences());
         assertThat(exceptions, Matchers.emptyIterable());

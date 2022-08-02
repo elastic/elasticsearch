@@ -22,7 +22,7 @@ setup:
   - do:
       index:
         index: test
-        id: 1
+        id: "1"
         body:
           a_field: "quick brown fox jump lazy dog"
           text_field: "quick brown fox jump lazy dog"

@@ -13,10 +13,10 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -32,9 +32,8 @@ import java.util.Set;
 import java.util.StringTokenizer;
 import java.util.TreeSet;
 import java.util.function.Supplier;
-
-import static java.util.Collections.unmodifiableSet;
-import static org.elasticsearch.common.util.set.Sets.newHashSet;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class Strings {
 
@@ -87,23 +86,14 @@ public class Strings {
                 }
                 ch = s.charAt(pos++);
                 if (decode) {
-                    switch (ch) {
-                        case 'n':
-                            ch = '\n';
-                            break;
-                        case 't':
-                            ch = '\t';
-                            break;
-                        case 'r':
-                            ch = '\r';
-                            break;
-                        case 'b':
-                            ch = '\b';
-                            break;
-                        case 'f':
-                            ch = '\f';
-                            break;
-                    }
+                    ch = switch (ch) {
+                        case 'n' -> '\n';
+                        case 't' -> '\t';
+                        case 'r' -> '\r';
+                        case 'b' -> '\b';
+                        case 'f' -> '\f';
+                        default -> ch;
+                    };
                 }
             }
 
@@ -117,10 +107,9 @@ public class Strings {
         return lst;
     }
 
-
-    //---------------------------------------------------------------------
+    // ---------------------------------------------------------------------
     // General convenience methods for working with Strings
-    //---------------------------------------------------------------------
+    // ---------------------------------------------------------------------
 
     /**
      * Check that the given CharSequence is neither <code>null</code> nor of length 0.
@@ -164,7 +153,6 @@ public class Strings {
         return hasLength((CharSequence) str);
     }
 
-
     /**
      * Check that the given CharSequence is either <code>null</code> or of length 0.
      * Note: Will return <code>false</code> for a CharSequence that purely consists of whitespace.
@@ -181,7 +169,6 @@ public class Strings {
     public static boolean isEmpty(CharSequence str) {
         return hasLength(str) == false;
     }
-
 
     /**
      * Check whether the given CharSequence has actual text.
@@ -293,17 +280,6 @@ public class Strings {
     }
 
     /**
-     * Delete all occurrences of the given substring.
-     *
-     * @param inString the original String
-     * @param pattern  the pattern to delete all occurrences of
-     * @return the resulting String
-     */
-    public static String delete(String inString, String pattern) {
-        return replace(inString, pattern, "");
-    }
-
-    /**
      * Delete any character in a given String.
      *
      * @param inString      the original String
@@ -325,21 +301,9 @@ public class Strings {
         return sb.toString();
     }
 
-
-    //---------------------------------------------------------------------
+    // ---------------------------------------------------------------------
     // Convenience methods for working with formatted Strings
-    //---------------------------------------------------------------------
-
-    /**
-     * Quote the given String with single quotes.
-     *
-     * @param str the input String (e.g. "myString")
-     * @return the quoted String (e.g. "'myString'"),
-     *         or <code>null</code> if the input was <code>null</code>
-     */
-    public static String quote(String str) {
-        return (str != null ? "'" + str + "'" : null);
-    }
+    // ---------------------------------------------------------------------
 
     /**
      * Capitalize a <code>String</code>, changing the first letter to
@@ -367,13 +331,13 @@ public class Strings {
         return sb.toString();
     }
 
-    public static final Set<Character> INVALID_FILENAME_CHARS = unmodifiableSet(
-            newHashSet('\\', '/', '*', '?', '"', '<', '>', '|', ' ', ','));
+    public static final String INVALID_FILENAME_CHARS = "["
+        + Stream.of('\\', '/', '*', '?', '"', '<', '>', '|', ' ', ',').map(c -> "'" + c + "'").collect(Collectors.joining(","))
+        + "]";
 
     public static boolean validFileName(String fileName) {
         for (int i = 0; i < fileName.length(); i++) {
-            char c = fileName.charAt(i);
-            if (INVALID_FILENAME_CHARS.contains(c)) {
+            if (isInvalidFileNameCharacter(fileName.charAt(i))) {
                 return false;
             }
         }
@@ -383,11 +347,18 @@ public class Strings {
     public static boolean validFileNameExcludingAstrix(String fileName) {
         for (int i = 0; i < fileName.length(); i++) {
             char c = fileName.charAt(i);
-            if (c != '*' && INVALID_FILENAME_CHARS.contains(c)) {
+            if (c != '*' && isInvalidFileNameCharacter(c)) {
                 return false;
             }
         }
         return true;
+    }
+
+    private static boolean isInvalidFileNameCharacter(char c) {
+        return switch (c) {
+            case '\\', '/', '*', '?', '"', '<', '>', '|', ' ', ',' -> true;
+            default -> false;
+        };
     }
 
     /**
@@ -467,7 +438,7 @@ public class Strings {
         }
         String beforeDelimiter = toSplit.substring(0, offset);
         String afterDelimiter = toSplit.substring(offset + delimiter.length());
-        return new String[]{beforeDelimiter, afterDelimiter};
+        return new String[] { beforeDelimiter, afterDelimiter };
     }
 
     /**
@@ -505,7 +476,10 @@ public class Strings {
      * @see java.util.StringTokenizer
      */
     private static <T extends Collection<String>> T tokenizeToCollection(
-            final String s, final String delimiters, final Supplier<T> supplier) {
+        final String s,
+        final String delimiters,
+        final Supplier<T> supplier
+    ) {
         if (s == null) {
             return null;
         }
@@ -555,7 +529,7 @@ public class Strings {
             return EMPTY_ARRAY;
         }
         if (delimiter == null) {
-            return new String[]{str};
+            return new String[] { str };
         }
         List<String> result = new ArrayList<>();
         if ("".equals(delimiter)) {
@@ -759,8 +733,7 @@ public class Strings {
         return (array == null || array.length == 0);
     }
 
-    private Strings() {
-    }
+    private Strings() {}
 
     public static byte[] toUTF8Bytes(CharSequence charSequence) {
         return toUTF8Bytes(charSequence, new BytesRefBuilder());
@@ -770,7 +743,6 @@ public class Strings {
         spare.copyChars(charSequence);
         return Arrays.copyOf(spare.bytes(), spare.length());
     }
-
 
     /**
      * Return substring(beginIndex, endIndex) that is impervious to string length.
@@ -922,8 +894,27 @@ public class Strings {
         return str;
     }
 
+    /**
+     * Checks that the supplied string is neither null nor blank, per {@link #isNullOrBlank(String)}.
+     * If this check fails, then an {@link IllegalArgumentException} is thrown with the supplied message.
+     *
+     * @param str the <code>String</code> to check
+     * @param message the exception message to use if {@code str} is null or blank
+     * @return the supplied {@code str}
+     */
+    public static String requireNonBlank(String str, String message) {
+        if (isNullOrBlank(str)) {
+            throw new IllegalArgumentException(message);
+        }
+        return str;
+    }
+
     public static boolean isNullOrEmpty(@Nullable String s) {
         return s == null || s.isEmpty();
+    }
+
+    public static boolean isNullOrBlank(@Nullable String s) {
+        return s == null || s.isBlank();
     }
 
     public static String coalesceToEmpty(@Nullable String s) {

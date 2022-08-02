@@ -7,18 +7,17 @@
 
 package org.elasticsearch.xpack.autoscaling.policy;
 
-import org.elasticsearch.cluster.AbstractDiffable;
-import org.elasticsearch.cluster.Diffable;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.AbstractMap;
@@ -30,7 +29,7 @@ import java.util.SortedMap;
 import java.util.SortedSet;
 import java.util.TreeMap;
 
-public class AutoscalingPolicy extends AbstractDiffable<AutoscalingPolicy> implements Diffable<AutoscalingPolicy>, ToXContentObject {
+public class AutoscalingPolicy implements SimpleDiffable<AutoscalingPolicy>, ToXContentObject {
 
     public static final String NAME = "autoscaling_policy";
 
@@ -90,11 +89,11 @@ public class AutoscalingPolicy extends AbstractDiffable<AutoscalingPolicy> imple
         this.name = in.readString();
         this.roles = in.readSet(StreamInput::readString).stream().collect(Sets.toUnmodifiableSortedSet());
         int deciderCount = in.readInt();
-        SortedMap<String, Settings> deciders = new TreeMap<>();
+        SortedMap<String, Settings> decidersMap = new TreeMap<>();
         for (int i = 0; i < deciderCount; ++i) {
-            deciders.put(in.readString(), Settings.readSettingsFromStream(in));
+            decidersMap.put(in.readString(), Settings.readSettingsFromStream(in));
         }
-        this.deciders = Collections.unmodifiableSortedMap(deciders);
+        this.deciders = Collections.unmodifiableSortedMap(decidersMap);
     }
 
     @Override
@@ -104,7 +103,7 @@ public class AutoscalingPolicy extends AbstractDiffable<AutoscalingPolicy> imple
         out.writeInt(deciders.size());
         for (Map.Entry<String, Settings> entry : deciders.entrySet()) {
             out.writeString(entry.getKey());
-            Settings.writeSettingsToStream(entry.getValue(), out);
+            entry.getValue().writeTo(out);
         }
     }
 

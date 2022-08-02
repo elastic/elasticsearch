@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.rollup.config;
 
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig;
@@ -15,10 +16,9 @@ import org.elasticsearch.xpack.core.rollup.job.HistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
 import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
-import org.joda.time.DateTimeZone;
 
+import java.time.ZoneId;
 import java.time.zone.ZoneRulesException;
-import java.util.HashMap;
 import java.util.Map;
 
 import static java.util.Collections.emptyList;
@@ -75,17 +75,17 @@ public class ConfigTests extends ESTestCase {
 
     public void testNullTimeZone() {
         DateHistogramGroupConfig config = new CalendarInterval("foo", DateHistogramInterval.HOUR, null, null);
-        assertThat(config.getTimeZone(), equalTo(DateTimeZone.UTC.getID()));
+        assertThat(config.getTimeZone(), equalTo(ZoneId.of("UTC").getId()));
     }
 
     public void testEmptyTimeZone() {
         DateHistogramGroupConfig config = new CalendarInterval("foo", DateHistogramInterval.HOUR, null, "");
-        assertThat(config.getTimeZone(), equalTo(DateTimeZone.UTC.getID()));
+        assertThat(config.getTimeZone(), equalTo(ZoneId.of("UTC").getId()));
     }
 
     public void testDefaultTimeZone() {
         DateHistogramGroupConfig config = new CalendarInterval("foo", DateHistogramInterval.HOUR);
-        assertThat(config.getTimeZone(), equalTo(DateTimeZone.UTC.getID()));
+        assertThat(config.getTimeZone(), equalTo(ZoneId.of("UTC").getId()));
     }
 
     public void testUnkownTimeZone() {
@@ -126,7 +126,7 @@ public class ConfigTests extends ESTestCase {
     }
 
     public void testNoHeadersInJSON() {
-        Map<String, String> headers = new HashMap<>(1);
+        Map<String, String> headers = Maps.newMapWithExpectedSize(2);
         headers.put("es-security-runas-user", "foo");
         headers.put("_xpack_security_authentication", "bar");
         RollupJob job = new RollupJob(randomRollupJobConfig(random()), headers);

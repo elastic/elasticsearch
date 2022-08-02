@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="platinum"]
 [[ml-get-datafeed]]
 = Get {dfeeds} API
 
@@ -30,11 +29,6 @@ Requires the `monitor_ml` cluster privilege. This privilege is included in the
 [[ml-get-datafeed-desc]]
 == {api-description-title}
 
-You can get information for multiple {dfeeds} in a single API request by using a
-comma-separated list of {dfeeds} or a wildcard expression. You can get
-information for all {dfeeds} by using `_all`, by specifying `*` as the
-`<feed_id>`, or by omitting the `<feed_id>`.
-
 IMPORTANT: This API returns a maximum of 10,000 {dfeeds}.
 
 [[ml-get-datafeed-path-parms]]
@@ -44,17 +38,17 @@ IMPORTANT: This API returns a maximum of 10,000 {dfeeds}.
 (Optional, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=datafeed-id-wildcard]
 +
---
-If you do not specify one of these options, the API returns information about
-all {dfeeds}.
---
+You can get information for multiple {dfeeds} in a single API request by using a
+comma-separated list of {dfeeds} or a wildcard expression. You can get
+information for all {dfeeds} by using `_all`, by specifying `*` as the
+{dfeed} identifier, or by omitting the identifier.
 
 [[ml-get-datafeed-query-parms]]
 == {api-query-parms-title}
 
 `allow_no_match`::
 (Optional, Boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-datafeeds]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-match-datafeeds]
 
 `exclude_generated`::
 (Optional, Boolean)
@@ -92,25 +86,38 @@ The API returns the following results:
     {
       "datafeed_id" : "datafeed-high_sum_total_sales",
       "job_id" : "high_sum_total_sales",
+      "authorization" : {
+        "roles" : [
+          "superuser"
+        ]
+      },
       "query_delay" : "93169ms",
-      "indices" : [
-        "kibana_sample_data_ecommerce"
-      ],
+      "chunking_config" : {
+        "mode" : "auto"
+      },
+      "indices_options" : {
+        "expand_wildcards" : [
+          "open"
+        ],
+        "ignore_unavailable" : false,
+        "allow_no_indices" : true,
+        "ignore_throttled" : true
+      },
       "query" : {
         "bool" : {
           "filter" : [
             {
               "term" : {
-                "_index" : "kibana_sample_data_ecommerce"
+                "event.dataset" : "sample_ecommerce"
               }
             }
           ]
         }
       },
+      "indices" : [
+        "kibana_sample_data_ecommerce"
+      ],
       "scroll_size" : 1000,
-      "chunking_config" : {
-        "mode" : "auto"
-      },
       "delayed_data_check_config" : {
         "enabled" : true
       }
@@ -118,4 +125,3 @@ The API returns the following results:
   ]
 }
 ----
-// TESTRESPONSE[s/"query.boost": "93169ms"/"query.boost": $body.query.boost/]

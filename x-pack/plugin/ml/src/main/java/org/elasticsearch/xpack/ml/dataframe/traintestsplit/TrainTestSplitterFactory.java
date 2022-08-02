@@ -8,11 +8,10 @@ package org.elasticsearch.xpack.ml.dataframe.traintestsplit;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregations;
@@ -59,14 +58,23 @@ public class TrainTestSplitterFactory {
             .setQuery(QueryBuilders.existsQuery(regression.getDependentVariable()));
 
         try {
-            SearchResponse searchResponse = ClientHelper.executeWithHeaders(config.getHeaders(), ClientHelper.ML_ORIGIN, client,
-                searchRequestBuilder::get);
-            return new SingleClassReservoirTrainTestSplitter(fieldNames, regression.getDependentVariable(),
-                regression.getTrainingPercent(), regression.getRandomizeSeed(), searchResponse.getHits().getTotalHits().value);
+            SearchResponse searchResponse = ClientHelper.executeWithHeaders(
+                config.getHeaders(),
+                ClientHelper.ML_ORIGIN,
+                client,
+                searchRequestBuilder::get
+            );
+            return new SingleClassReservoirTrainTestSplitter(
+                fieldNames,
+                regression.getDependentVariable(),
+                regression.getTrainingPercent(),
+                regression.getRandomizeSeed(),
+                searchResponse.getHits().getTotalHits().value
+            );
         } catch (Exception e) {
-            ParameterizedMessage msg = new ParameterizedMessage("[{}] Error searching total number of training docs", config.getId());
+            String msg = "[" + config.getId() + "] Error searching total number of training docs";
             LOGGER.error(msg, e);
-            throw new ElasticsearchException(msg.getFormattedMessage(), e);
+            throw new ElasticsearchException(msg, e);
         }
     }
 
@@ -75,13 +83,19 @@ public class TrainTestSplitterFactory {
         SearchRequestBuilder searchRequestBuilder = client.prepareSearch(config.getDest().getIndex())
             .setSize(0)
             .setAllowPartialSearchResults(false)
-            .addAggregation(AggregationBuilders.terms(aggName)
-                .field(classification.getDependentVariable())
-                .size(Classification.MAX_DEPENDENT_VARIABLE_CARDINALITY));
+            .addAggregation(
+                AggregationBuilders.terms(aggName)
+                    .field(classification.getDependentVariable())
+                    .size(Classification.MAX_DEPENDENT_VARIABLE_CARDINALITY)
+            );
 
         try {
-            SearchResponse searchResponse = ClientHelper.executeWithHeaders(config.getHeaders(), ClientHelper.ML_ORIGIN, client,
-                searchRequestBuilder::get);
+            SearchResponse searchResponse = ClientHelper.executeWithHeaders(
+                config.getHeaders(),
+                ClientHelper.ML_ORIGIN,
+                client,
+                searchRequestBuilder::get
+            );
             Aggregations aggs = searchResponse.getAggregations();
             Terms terms = aggs.get(aggName);
             Map<String, Long> classCounts = new HashMap<>();
@@ -89,12 +103,17 @@ public class TrainTestSplitterFactory {
                 classCounts.put(String.valueOf(bucket.getKey()), bucket.getDocCount());
             }
 
-            return new StratifiedTrainTestSplitter(fieldNames, classification.getDependentVariable(), classCounts,
-                classification.getTrainingPercent(), classification.getRandomizeSeed());
+            return new StratifiedTrainTestSplitter(
+                fieldNames,
+                classification.getDependentVariable(),
+                classCounts,
+                classification.getTrainingPercent(),
+                classification.getRandomizeSeed()
+            );
         } catch (Exception e) {
-            ParameterizedMessage msg = new ParameterizedMessage("[{}] Dependent variable terms search failed", config.getId());
+            String msg = "[" + config.getId() + "] Dependent variable terms search failed";
             LOGGER.error(msg, e);
-            throw new ElasticsearchException(msg.getFormattedMessage(), e);
+            throw new ElasticsearchException(msg, e);
         }
     }
 }

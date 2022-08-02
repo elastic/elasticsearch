@@ -15,8 +15,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCapacity;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderContext;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderResult;
@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.autoscaling.util.FrozenUtils;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.StreamSupport;
 
 public class FrozenStorageDeciderService implements AutoscalingDeciderService {
     public static final String NAME = "frozen_storage";
@@ -42,13 +41,16 @@ public class FrozenStorageDeciderService implements AutoscalingDeciderService {
     @Override
     public AutoscalingDeciderResult scale(Settings configuration, AutoscalingDeciderContext context) {
         Metadata metadata = context.state().metadata();
-        long dataSetSize = StreamSupport.stream(metadata.spliterator(), false)
+        long dataSetSize = metadata.stream()
             .filter(imd -> FrozenUtils.isFrozenIndex(imd.getSettings()))
             .mapToLong(imd -> estimateSize(imd, context.info()))
             .sum();
 
         long storageSize = (long) (PERCENTAGE.get(configuration) * dataSetSize) / 100;
-        return new AutoscalingDeciderResult(AutoscalingCapacity.builder().total(storageSize, null).build(), new FrozenReason(dataSetSize));
+        return new AutoscalingDeciderResult(
+            AutoscalingCapacity.builder().total(storageSize, null, null).build(),
+            new FrozenReason(dataSetSize)
+        );
     }
 
     static long estimateSize(IndexMetadata imd, ClusterInfo info) {

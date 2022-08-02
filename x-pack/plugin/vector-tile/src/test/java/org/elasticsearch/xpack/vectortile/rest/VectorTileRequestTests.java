@@ -11,10 +11,6 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -24,11 +20,16 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.ScriptSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -49,36 +50,71 @@ public class VectorTileRequestTests extends ESTestCase {
         assertRestRequest((builder) -> {}, (vectorTileRequest) -> {
             assertThat(vectorTileRequest.getSize(), Matchers.equalTo(VectorTileRequest.Defaults.SIZE));
             assertThat(vectorTileRequest.getExtent(), Matchers.equalTo(VectorTileRequest.Defaults.EXTENT));
+            assertThat(vectorTileRequest.getBuffer(), Matchers.equalTo(VectorTileRequest.Defaults.BUFFER));
             assertThat(vectorTileRequest.getAggBuilder(), Matchers.equalTo(VectorTileRequest.Defaults.AGGS));
             assertThat(vectorTileRequest.getFieldAndFormats(), Matchers.equalTo(VectorTileRequest.Defaults.FETCH));
+            assertThat(vectorTileRequest.getGridAgg(), Matchers.equalTo(VectorTileRequest.Defaults.GRID_AGG));
             assertThat(vectorTileRequest.getGridType(), Matchers.equalTo(VectorTileRequest.Defaults.GRID_TYPE));
             assertThat(vectorTileRequest.getGridPrecision(), Matchers.equalTo(VectorTileRequest.Defaults.GRID_PRECISION));
             assertThat(vectorTileRequest.getExactBounds(), Matchers.equalTo(VectorTileRequest.Defaults.EXACT_BOUNDS));
+            assertThat(vectorTileRequest.getWithLabels(), Matchers.equalTo(VectorTileRequest.Defaults.WITH_LABELS));
             assertThat(vectorTileRequest.getRuntimeMappings(), Matchers.equalTo(VectorTileRequest.Defaults.RUNTIME_MAPPINGS));
             assertThat(vectorTileRequest.getQueryBuilder(), Matchers.equalTo(VectorTileRequest.Defaults.QUERY));
+            assertThat(vectorTileRequest.getTrackTotalHitsUpTo(), Matchers.equalTo(VectorTileRequest.Defaults.TRACK_TOTAL_HITS_UP_TO));
         });
     }
 
     public void testFieldSize() throws IOException {
         final int size = randomIntBetween(0, 10000);
         assertRestRequest(
-            (builder) -> { builder.field(SearchSourceBuilder.SIZE_FIELD.getPreferredName(), size); },
-            (vectorTileRequest) -> { assertThat(vectorTileRequest.getSize(), Matchers.equalTo(size)); }
+            (builder) -> builder.field(SearchSourceBuilder.SIZE_FIELD.getPreferredName(), size),
+            (vectorTileRequest) -> assertThat(vectorTileRequest.getSize(), Matchers.equalTo(size))
+        );
+    }
+
+    public void testFieldTrackTotalHitsAsBoolean() throws IOException {
+        assertRestRequest(
+            (builder) -> builder.field(SearchSourceBuilder.TRACK_TOTAL_HITS_FIELD.getPreferredName(), true),
+            (vectorTileRequest) -> {
+                assertThat(vectorTileRequest.getTrackTotalHitsUpTo(), Matchers.equalTo(SearchContext.TRACK_TOTAL_HITS_ACCURATE));
+            }
+        );
+        assertRestRequest(
+            (builder) -> builder.field(SearchSourceBuilder.TRACK_TOTAL_HITS_FIELD.getPreferredName(), false),
+            (vectorTileRequest) -> {
+                assertThat(vectorTileRequest.getTrackTotalHitsUpTo(), Matchers.equalTo(SearchContext.TRACK_TOTAL_HITS_DISABLED));
+            }
+        );
+    }
+
+    public void testFieldTrackTotalHitsAsInt() throws IOException {
+        final int trackTotalHits = randomIntBetween(1, 10000);
+        assertRestRequest(
+            (builder) -> builder.field(SearchSourceBuilder.TRACK_TOTAL_HITS_FIELD.getPreferredName(), trackTotalHits),
+            (vectorTileRequest) -> assertThat(vectorTileRequest.getTrackTotalHitsUpTo(), Matchers.equalTo(trackTotalHits))
         );
     }
 
     public void testFieldExtent() throws IOException {
         final int extent = randomIntBetween(256, 8192);
         assertRestRequest(
-            (builder) -> { builder.field(VectorTileRequest.EXTENT_FIELD.getPreferredName(), extent); },
-            (vectorTileRequest) -> { assertThat(vectorTileRequest.getExtent(), Matchers.equalTo(extent)); }
+            (builder) -> builder.field(VectorTileRequest.EXTENT_FIELD.getPreferredName(), extent),
+            (vectorTileRequest) -> assertThat(vectorTileRequest.getExtent(), Matchers.equalTo(extent))
+        );
+    }
+
+    public void testFieldBuffer() throws IOException {
+        final int buffer = randomIntBetween(0, VectorTileRequest.Defaults.EXTENT - 1);
+        assertRestRequest(
+            (builder) -> builder.field(VectorTileRequest.BUFFER_FIELD.getPreferredName(), buffer),
+            (vectorTileRequest) -> assertThat(vectorTileRequest.getBuffer(), Matchers.equalTo(buffer))
         );
     }
 
     public void testFieldFetch() throws IOException {
         final String fetchField = randomAlphaOfLength(10);
         assertRestRequest(
-            (builder) -> { builder.field(SearchSourceBuilder.FETCH_FIELDS_FIELD.getPreferredName(), new String[] { fetchField }); },
+            (builder) -> builder.field(SearchSourceBuilder.FETCH_FIELDS_FIELD.getPreferredName(), new String[] { fetchField }),
             (vectorTileRequest) -> {
                 assertThat(vectorTileRequest.getFieldAndFormats(), Matchers.iterableWithSize(1));
                 assertThat(vectorTileRequest.getFieldAndFormats().get(0).field, Matchers.equalTo(fetchField));
@@ -86,27 +122,43 @@ public class VectorTileRequestTests extends ESTestCase {
         );
     }
 
-    public void testFieldGridType() throws IOException {
-        final VectorTileRequest.GRID_TYPE grid_type = RandomPicks.randomFrom(random(), VectorTileRequest.GRID_TYPE.values());
+    public void testFieldGridAgg() throws IOException {
+        final GridAggregation grid_agg = RandomPicks.randomFrom(random(), GridAggregation.values());
         assertRestRequest(
-            (builder) -> { builder.field(VectorTileRequest.GRID_TYPE_FIELD.getPreferredName(), grid_type.name()); },
-            (vectorTileRequest) -> { assertThat(vectorTileRequest.getGridType(), Matchers.equalTo(grid_type)); }
+            (builder) -> builder.field(VectorTileRequest.GRID_AGG_FIELD.getPreferredName(), grid_agg.name()),
+            (vectorTileRequest) -> assertThat(vectorTileRequest.getGridAgg(), Matchers.equalTo(grid_agg))
+        );
+    }
+
+    public void testFieldGridType() throws IOException {
+        final GridType grid_type = RandomPicks.randomFrom(random(), GridType.values());
+        assertRestRequest(
+            (builder) -> builder.field(VectorTileRequest.GRID_TYPE_FIELD.getPreferredName(), grid_type.name()),
+            (vectorTileRequest) -> assertThat(vectorTileRequest.getGridType(), Matchers.equalTo(grid_type))
         );
     }
 
     public void testFieldGridPrecision() throws IOException {
         final int grid_precision = randomIntBetween(1, 8);
         assertRestRequest(
-            (builder) -> { builder.field(VectorTileRequest.GRID_PRECISION_FIELD.getPreferredName(), grid_precision); },
-            (vectorTileRequest) -> { assertThat(vectorTileRequest.getGridPrecision(), Matchers.equalTo(grid_precision)); }
+            (builder) -> builder.field(VectorTileRequest.GRID_PRECISION_FIELD.getPreferredName(), grid_precision),
+            (vectorTileRequest) -> assertThat(vectorTileRequest.getGridPrecision(), Matchers.equalTo(grid_precision))
         );
     }
 
     public void testFieldExactBounds() throws IOException {
         final boolean exactBounds = randomBoolean();
         assertRestRequest(
-            (builder) -> { builder.field(VectorTileRequest.EXACT_BOUNDS_FIELD.getPreferredName(), exactBounds); },
-            (vectorTileRequest) -> { assertThat(vectorTileRequest.getExactBounds(), Matchers.equalTo(exactBounds)); }
+            (builder) -> builder.field(VectorTileRequest.EXACT_BOUNDS_FIELD.getPreferredName(), exactBounds),
+            (vectorTileRequest) -> assertThat(vectorTileRequest.getExactBounds(), Matchers.equalTo(exactBounds))
+        );
+    }
+
+    public void testWithLabels() throws IOException {
+        final boolean withLabels = randomBoolean();
+        assertRestRequest(
+            (builder) -> builder.field(VectorTileRequest.WITH_LABELS_FIELD.getPreferredName(), withLabels),
+            (vectorTileRequest) -> assertThat(vectorTileRequest.getWithLabels(), Matchers.equalTo(withLabels))
         );
     }
 
@@ -115,7 +167,7 @@ public class VectorTileRequestTests extends ESTestCase {
         assertRestRequest((builder) -> {
             builder.field(SearchSourceBuilder.QUERY_FIELD.getPreferredName());
             queryBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        }, (vectorTileRequest) -> { assertThat(vectorTileRequest.getQueryBuilder(), Matchers.equalTo(queryBuilder)); });
+        }, (vectorTileRequest) -> assertThat(vectorTileRequest.getQueryBuilder(), Matchers.equalTo(queryBuilder)));
     }
 
     public void testFieldAgg() throws IOException {
@@ -125,8 +177,8 @@ public class VectorTileRequestTests extends ESTestCase {
             aggregationBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
         }, (vectorTileRequest) -> {
-            assertThat(vectorTileRequest.getAggBuilder().getAggregatorFactories(), Matchers.iterableWithSize(1));
-            assertThat(vectorTileRequest.getAggBuilder().getAggregatorFactories().contains(aggregationBuilder), Matchers.equalTo(true));
+            assertThat(vectorTileRequest.getAggBuilder(), Matchers.iterableWithSize(1));
+            assertThat(vectorTileRequest.getAggBuilder().contains(aggregationBuilder), Matchers.equalTo(true));
         });
     }
 

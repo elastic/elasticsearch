@@ -8,16 +8,16 @@
 
 package org.elasticsearch.ingest.common;
 
-import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.TestIngestDocument;
 import org.elasticsearch.ingest.TestTemplateService;
+import org.elasticsearch.test.ESTestCase;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
-import java.util.ArrayList;
 import java.util.Map;
 
 import static org.elasticsearch.ingest.common.NetworkDirectionProcessor.Factory.DEFAULT_TARGET;
@@ -150,7 +150,7 @@ public class NetworkDirectionProcessorTests extends ESTestCase {
             null,
             config
         );
-        IngestDocument input = new IngestDocument(source, Map.of());
+        IngestDocument input = TestIngestDocument.withDefaultVersion(source);
         IngestDocument output = processor.execute(input);
         String hash = output.getFieldValue(DEFAULT_TARGET, String.class);
         assertThat(hash, equalTo("external"));
@@ -167,16 +167,12 @@ public class NetworkDirectionProcessorTests extends ESTestCase {
         config.put("internal_networks", networks);
         ElasticsearchParseException e = expectThrows(
             ElasticsearchParseException.class,
-            () -> new NetworkDirectionProcessor.Factory(TestTemplateService.instance()).create(
-                null,
-                processorTag,
-                null,
-                config
-            )
+            () -> new NetworkDirectionProcessor.Factory(TestTemplateService.instance()).create(null, processorTag, null, config)
         );
-        assertThat(e.getMessage(), containsString(
-            "[internal_networks] and [internal_networks_field] cannot both be used in the same processor"
-        ));
+        assertThat(
+            e.getMessage(),
+            containsString("[internal_networks] and [internal_networks_field] cannot both be used in the same processor")
+        );
     }
 
     private void testNetworkDirectionProcessor(
@@ -200,7 +196,7 @@ public class NetworkDirectionProcessorTests extends ESTestCase {
             config
         );
 
-        IngestDocument input = new IngestDocument(source, Map.of());
+        IngestDocument input = TestIngestDocument.withDefaultVersion(source);
         IngestDocument output = processor.execute(input);
 
         String hash = output.getFieldValue(DEFAULT_TARGET, String.class, ignoreMissing);

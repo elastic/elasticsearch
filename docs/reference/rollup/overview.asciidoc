@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[rollup-overview]]
 === {rollup-cap} overview
 ++++

@@ -27,12 +27,10 @@ public class NoopCircuitBreaker implements CircuitBreaker {
     }
 
     @Override
-    public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
-    }
+    public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {}
 
     @Override
-    public void addWithoutBreaking(long bytes) {
-    }
+    public void addWithoutBreaking(long bytes) {}
 
     @Override
     public long getUsed() {
@@ -65,5 +63,5 @@ public class NoopCircuitBreaker implements CircuitBreaker {
     }
 
     @Override
-    public void setLimitAndOverhead(long limit, double overhead) { }
+    public void setLimitAndOverhead(long limit, double overhead) {}
 }

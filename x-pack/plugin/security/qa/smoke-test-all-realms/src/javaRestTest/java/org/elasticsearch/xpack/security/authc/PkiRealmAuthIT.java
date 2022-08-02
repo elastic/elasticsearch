@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.security.authc;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 
 import java.io.IOException;
 import java.util.Map;
@@ -39,6 +40,7 @@ public class PkiRealmAuthIT extends SecurityRealmSmokeTestCase {
         assertUsername(authenticate, USERNAME);
         assertRealm(authenticate, "pki", "pki4");
         assertRoles(authenticate, new String[0]);
+        assertNoApiKeyInfo(authenticate, Authentication.AuthenticationType.REALM);
     }
 
 }

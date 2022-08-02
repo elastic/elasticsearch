@@ -15,6 +15,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeState;
@@ -28,26 +29,36 @@ import java.util.stream.Collectors;
 
 public final class MlTasks {
 
-    public static final String TRAINED_MODEL_ALLOCATION_TASK_TYPE = "trained_model_allocation";
-    public static final String TRAINED_MODEL_ALLOCATION_TASK_NAME_PREFIX = "xpack/ml/allocation-";
+    public static final String TRAINED_MODEL_ASSIGNMENT_TASK_TYPE = "trained_model_assignment";
+    public static final String TRAINED_MODEL_ASSIGNMENT_TASK_ACTION = "xpack/ml/trained_model_assignment[n]";
 
     public static final String JOB_TASK_NAME = "xpack/ml/job";
     public static final String DATAFEED_TASK_NAME = "xpack/ml/datafeed";
     public static final String DATA_FRAME_ANALYTICS_TASK_NAME = "xpack/ml/data_frame/analytics";
     public static final String JOB_SNAPSHOT_UPGRADE_TASK_NAME = "xpack/ml/job/snapshot/upgrade";
 
+    /**
+     * A set of all ML persistent tasks that have an associated native process.
+     */
+    public static final Set<String> ML_PROCESS_TASKS = Set.of(
+        JOB_TASK_NAME,
+        DATA_FRAME_ANALYTICS_TASK_NAME,
+        JOB_SNAPSHOT_UPGRADE_TASK_NAME
+    );
+
     public static final String JOB_TASK_ID_PREFIX = "job-";
     public static final String DATAFEED_TASK_ID_PREFIX = "datafeed-";
     public static final String DATA_FRAME_ANALYTICS_TASK_ID_PREFIX = "data_frame_analytics-";
     public static final String JOB_SNAPSHOT_UPGRADE_TASK_ID_PREFIX = "job-snapshot-upgrade-";
-    public static final String TRAINED_MODEL_DEPLOYMENT_TASK_ID_PREFIX = "trained_model_deployment-";
 
-    public static final PersistentTasksCustomMetadata.Assignment AWAITING_UPGRADE =
-        new PersistentTasksCustomMetadata.Assignment(null,
-            "persistent task cannot be assigned while upgrade mode is enabled.");
-    public static final PersistentTasksCustomMetadata.Assignment RESET_IN_PROGRESS =
-        new PersistentTasksCustomMetadata.Assignment(null,
-            "persistent task will not be assigned as a feature reset is in progress.");
+    public static final PersistentTasksCustomMetadata.Assignment AWAITING_UPGRADE = new PersistentTasksCustomMetadata.Assignment(
+        null,
+        "persistent task cannot be assigned while upgrade mode is enabled."
+    );
+    public static final PersistentTasksCustomMetadata.Assignment RESET_IN_PROGRESS = new PersistentTasksCustomMetadata.Assignment(
+        null,
+        "persistent task will not be assigned as a feature reset is in progress."
+    );
 
     // When a master node action is executed and there is no master node the transport will wait
     // for a new master node to be elected and retry against that, but will only wait as long as
@@ -60,8 +71,7 @@ public final class MlTasks {
     // defeats the point of the task being "persistent".
     public static final TimeValue PERSISTENT_TASK_MASTER_NODE_TIMEOUT = TimeValue.timeValueDays(365);
 
-    private MlTasks() {
-    }
+    private MlTasks() {}
 
     /**
      * Namespaces the task ids for jobs.
@@ -98,12 +108,8 @@ public final class MlTasks {
         return taskId.substring(DATA_FRAME_ANALYTICS_TASK_ID_PREFIX.length());
     }
 
-    public static String trainedModelDeploymentTaskId(String deploymentId) {
-        return TRAINED_MODEL_DEPLOYMENT_TASK_ID_PREFIX + deploymentId;
-    }
-
-    public static String trainedModelDeploymentId(String taskId) {
-        return taskId.substring(TRAINED_MODEL_DEPLOYMENT_TASK_ID_PREFIX.length());
+    public static String trainedModelAssignmentTaskDescription(String modelId) {
+        return TrainedModelConfig.MODEL_ID.getPreferredName() + "[" + modelId + "]";
     }
 
     @Nullable
@@ -112,21 +118,27 @@ public final class MlTasks {
     }
 
     @Nullable
-    public static PersistentTasksCustomMetadata.PersistentTask<?> getDatafeedTask(String datafeedId,
-                                                                                  @Nullable PersistentTasksCustomMetadata tasks) {
+    public static PersistentTasksCustomMetadata.PersistentTask<?> getDatafeedTask(
+        String datafeedId,
+        @Nullable PersistentTasksCustomMetadata tasks
+    ) {
         return tasks == null ? null : tasks.getTask(datafeedTaskId(datafeedId));
     }
 
     @Nullable
-    public static PersistentTasksCustomMetadata.PersistentTask<?> getDataFrameAnalyticsTask(String analyticsId,
-                                                                                            @Nullable PersistentTasksCustomMetadata tasks) {
+    public static PersistentTasksCustomMetadata.PersistentTask<?> getDataFrameAnalyticsTask(
+        String analyticsId,
+        @Nullable PersistentTasksCustomMetadata tasks
+    ) {
         return tasks == null ? null : tasks.getTask(dataFrameAnalyticsTaskId(analyticsId));
     }
 
     @Nullable
-    public static PersistentTasksCustomMetadata.PersistentTask<?> getSnapshotUpgraderTask(String jobId,
-                                                                                          String snapshotId,
-                                                                                          @Nullable PersistentTasksCustomMetadata tasks) {
+    public static PersistentTasksCustomMetadata.PersistentTask<?> getSnapshotUpgraderTask(
+        String jobId,
+        String snapshotId,
+        @Nullable PersistentTasksCustomMetadata tasks
+    ) {
         return tasks == null ? null : tasks.getTask(snapshotUpgradeTaskId(jobId, snapshotId));
     }
 
@@ -163,7 +175,7 @@ public final class MlTasks {
         }
         JobState jobState = jobTaskState.getState();
         if (jobTaskState.isStatusStale(task)) {
-            // the job is re-locating
+            // the job is relocating
             if (jobState == JobState.CLOSING) {
                 // previous executor node failed while the job was closing - it won't
                 // be reopened on another node, so consider it CLOSED for most purposes
@@ -176,6 +188,27 @@ public final class MlTasks {
             }
         }
         return jobState;
+    }
+
+    public static SnapshotUpgradeState getSnapshotUpgradeState(
+        String jobId,
+        String snapshotId,
+        @Nullable PersistentTasksCustomMetadata tasks
+    ) {
+        return getSnapshotUpgradeState(getSnapshotUpgraderTask(jobId, snapshotId, tasks));
+    }
+
+    public static SnapshotUpgradeState getSnapshotUpgradeState(@Nullable PersistentTasksCustomMetadata.PersistentTask<?> task) {
+        if (task == null) {
+            return SnapshotUpgradeState.STOPPED;
+        }
+        SnapshotUpgradeTaskState taskState = (SnapshotUpgradeTaskState) task.getState();
+        if (taskState == null) {
+            // If we haven't set a state yet then the task has never been assigned, so
+            // report that it's doing the first thing it does
+            return SnapshotUpgradeState.LOADING_OLD_STATE;
+        }
+        return taskState.getState();
     }
 
     public static DatafeedState getDatafeedState(String datafeedId, @Nullable PersistentTasksCustomMetadata tasks) {
@@ -236,10 +269,7 @@ public final class MlTasks {
             return Collections.emptySet();
         }
 
-        return openJobTasks(tasks)
-                .stream()
-                .map(t -> t.getId().substring(JOB_TASK_ID_PREFIX.length()))
-                .collect(Collectors.toSet());
+        return openJobTasks(tasks).stream().map(t -> t.getId().substring(JOB_TASK_ID_PREFIX.length())).collect(Collectors.toSet());
     }
 
     public static Collection<PersistentTasksCustomMetadata.PersistentTask<?>> openJobTasks(@Nullable PersistentTasksCustomMetadata tasks) {
@@ -251,7 +281,9 @@ public final class MlTasks {
     }
 
     public static Collection<PersistentTasksCustomMetadata.PersistentTask<?>> datafeedTasksOnNode(
-        @Nullable PersistentTasksCustomMetadata tasks, String nodeId) {
+        @Nullable PersistentTasksCustomMetadata tasks,
+        String nodeId
+    ) {
         if (tasks == null) {
             return Collections.emptyList();
         }
@@ -260,7 +292,9 @@ public final class MlTasks {
     }
 
     public static Collection<PersistentTasksCustomMetadata.PersistentTask<?>> jobTasksOnNode(
-        @Nullable PersistentTasksCustomMetadata tasks, String nodeId) {
+        @Nullable PersistentTasksCustomMetadata tasks,
+        String nodeId
+    ) {
         if (tasks == null) {
             return Collections.emptyList();
         }
@@ -269,7 +303,9 @@ public final class MlTasks {
     }
 
     public static Collection<PersistentTasksCustomMetadata.PersistentTask<?>> nonFailedJobTasksOnNode(
-        @Nullable PersistentTasksCustomMetadata tasks, String nodeId) {
+        @Nullable PersistentTasksCustomMetadata tasks,
+        String nodeId
+    ) {
         if (tasks == null) {
             return Collections.emptyList();
         }
@@ -286,8 +322,20 @@ public final class MlTasks {
         });
     }
 
+    public static Collection<PersistentTasksCustomMetadata.PersistentTask<?>> snapshotUpgradeTasks(
+        @Nullable PersistentTasksCustomMetadata tasks
+    ) {
+        if (tasks == null) {
+            return Collections.emptyList();
+        }
+
+        return tasks.findTasks(JOB_SNAPSHOT_UPGRADE_TASK_NAME, task -> true);
+    }
+
     public static Collection<PersistentTasksCustomMetadata.PersistentTask<?>> snapshotUpgradeTasksOnNode(
-        @Nullable PersistentTasksCustomMetadata tasks, String nodeId) {
+        @Nullable PersistentTasksCustomMetadata tasks,
+        String nodeId
+    ) {
         if (tasks == null) {
             return Collections.emptyList();
         }
@@ -296,7 +344,9 @@ public final class MlTasks {
     }
 
     public static Collection<PersistentTasksCustomMetadata.PersistentTask<?>> nonFailedSnapshotUpgradeTasksOnNode(
-        @Nullable PersistentTasksCustomMetadata tasks, String nodeId) {
+        @Nullable PersistentTasksCustomMetadata tasks,
+        String nodeId
+    ) {
         if (tasks == null) {
             return Collections.emptyList();
         }
@@ -322,11 +372,10 @@ public final class MlTasks {
      * @param nodes The cluster nodes
      * @return The job Ids of tasks to do not have an assignment.
      */
-    public static Set<String> unassignedJobIds(@Nullable PersistentTasksCustomMetadata tasks,
-                                               DiscoveryNodes nodes) {
+    public static Set<String> unassignedJobIds(@Nullable PersistentTasksCustomMetadata tasks, DiscoveryNodes nodes) {
         return unassignedJobTasks(tasks, nodes).stream()
-                .map(task -> task.getId().substring(JOB_TASK_ID_PREFIX.length()))
-                .collect(Collectors.toSet());
+            .map(task -> task.getId().substring(JOB_TASK_ID_PREFIX.length()))
+            .collect(Collectors.toSet());
     }
 
     /**
@@ -338,8 +387,9 @@ public final class MlTasks {
      * @return Unassigned job tasks
      */
     public static Collection<PersistentTasksCustomMetadata.PersistentTask<?>> unassignedJobTasks(
-            @Nullable PersistentTasksCustomMetadata tasks,
-            DiscoveryNodes nodes) {
+        @Nullable PersistentTasksCustomMetadata tasks,
+        DiscoveryNodes nodes
+    ) {
         if (tasks == null) {
             return Collections.emptyList();
         }
@@ -359,9 +409,9 @@ public final class MlTasks {
         }
 
         return tasks.findTasks(DATAFEED_TASK_NAME, task -> true)
-                .stream()
-                .map(t -> t.getId().substring(DATAFEED_TASK_ID_PREFIX.length()))
-                .collect(Collectors.toSet());
+            .stream()
+            .map(t -> t.getId().substring(DATAFEED_TASK_ID_PREFIX.length()))
+            .collect(Collectors.toSet());
     }
 
     /**
@@ -372,12 +422,11 @@ public final class MlTasks {
      * @param nodes The cluster nodes
      * @return The job Ids of tasks to do not have an assignment.
      */
-    public static Set<String> unassignedDatafeedIds(@Nullable PersistentTasksCustomMetadata tasks,
-                                                    DiscoveryNodes nodes) {
+    public static Set<String> unassignedDatafeedIds(@Nullable PersistentTasksCustomMetadata tasks, DiscoveryNodes nodes) {
 
         return unassignedDatafeedTasks(tasks, nodes).stream()
-                .map(task -> task.getId().substring(DATAFEED_TASK_ID_PREFIX.length()))
-                .collect(Collectors.toSet());
+            .map(task -> task.getId().substring(DATAFEED_TASK_ID_PREFIX.length()))
+            .collect(Collectors.toSet());
     }
 
     /**
@@ -389,8 +438,9 @@ public final class MlTasks {
      * @return Unassigned datafeed tasks
      */
     public static Collection<PersistentTasksCustomMetadata.PersistentTask<?>> unassignedDatafeedTasks(
-            @Nullable PersistentTasksCustomMetadata tasks,
-            DiscoveryNodes nodes) {
+        @Nullable PersistentTasksCustomMetadata tasks,
+        DiscoveryNodes nodes
+    ) {
         if (tasks == null) {
             return Collections.emptyList();
         }
@@ -400,16 +450,28 @@ public final class MlTasks {
 
     public static MemoryTrackedTaskState getMemoryTrackedTaskState(PersistentTasksCustomMetadata.PersistentTask<?> task) {
         String taskName = task.getTaskName();
-        switch (taskName) {
-            case JOB_TASK_NAME:
-                return getJobStateModifiedForReassignments(task);
-            case JOB_SNAPSHOT_UPGRADE_TASK_NAME:
-                SnapshotUpgradeTaskState taskState = (SnapshotUpgradeTaskState) task.getState();
-                return taskState == null ? SnapshotUpgradeState.LOADING_OLD_STATE : taskState.getState();
-            case DATA_FRAME_ANALYTICS_TASK_NAME:
-                return getDataFrameAnalyticsState(task);
-            default:
-                throw new IllegalStateException("unexpected task type [" + task.getTaskName() + "]");
+        return switch (taskName) {
+            case JOB_TASK_NAME -> getJobStateModifiedForReassignments(task);
+            case JOB_SNAPSHOT_UPGRADE_TASK_NAME -> getSnapshotUpgradeState(task);
+            case DATA_FRAME_ANALYTICS_TASK_NAME -> getDataFrameAnalyticsState(task);
+            default -> throw new IllegalStateException("unexpected task type [" + task.getTaskName() + "]");
+        };
+    }
+
+    public static Set<PersistentTasksCustomMetadata.PersistentTask<?>> findMlProcessTasks(@Nullable PersistentTasksCustomMetadata tasks) {
+        if (tasks == null) {
+            return Set.of();
         }
+        return tasks.tasks().stream().filter(p -> ML_PROCESS_TASKS.contains(p.getTaskName())).collect(Collectors.toSet());
+    }
+
+    public static String prettyPrintTaskName(String taskName) {
+        return switch (taskName) {
+            case JOB_TASK_NAME -> "anomaly detection";
+            case JOB_SNAPSHOT_UPGRADE_TASK_NAME -> "snapshot upgrade (anomaly detection)";
+            case DATA_FRAME_ANALYTICS_TASK_NAME -> "data frame analytics";
+            case DATAFEED_TASK_NAME -> "datafeed";
+            default -> throw new IllegalArgumentException("unexpected task type [" + taskName + "]");
+        };
     }
 }

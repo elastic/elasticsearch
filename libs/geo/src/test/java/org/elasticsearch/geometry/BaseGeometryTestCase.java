@@ -62,7 +62,8 @@ abstract class BaseGeometryTestCase<T extends Geometry> extends AbstractWireTest
 
             @Override
             public Object visit(GeometryCollection<?> collection) {
-                return verify(collection, "GeometryCollection");            }
+                return verify(collection, "GeometryCollection");
+            }
 
             @Override
             public Object visit(Line line) {

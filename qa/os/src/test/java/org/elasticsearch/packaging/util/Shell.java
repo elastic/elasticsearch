@@ -81,29 +81,25 @@ public class Shell {
     }
 
     public void chown(Path path) throws Exception {
+        chown(path, System.getenv("username"));
+    }
+
+    public void chown(Path path, String newOwner) throws Exception {
+        logger.info("Chowning " + path + " to " + newOwner);
         Platforms.onLinux(() -> run("chown -R elasticsearch:elasticsearch " + path));
-        Platforms.onWindows(
-            () -> run(
-                String.format(
-                    Locale.ROOT,
-                    "$account = New-Object System.Security.Principal.NTAccount '%s'; "
-                        + "$pathInfo = Get-Item '%s'; "
-                        + "$toChown = @(); "
-                        + "if ($pathInfo.PSIsContainer) { "
-                        + "  $toChown += Get-ChildItem '%s' -Recurse; "
-                        + "}"
-                        + "$toChown += $pathInfo; "
-                        + "$toChown | ForEach-Object { "
-                        + "  $acl = Get-Acl $_.FullName; "
-                        + "  $acl.SetOwner($account); "
-                        + "  Set-Acl $_.FullName $acl "
-                        + "}",
-                    System.getenv("username"),
-                    path,
-                    path
-                )
-            )
-        );
+        Platforms.onWindows(() -> run(String.format(Locale.ROOT, """
+            $account = New-Object System.Security.Principal.NTAccount '%s';
+            $pathInfo = Get-Item '%s';
+            $toChown = @();
+            if ($pathInfo.PSIsContainer) {
+              $toChown += Get-ChildItem '%s' -Recurse;
+            }
+            $toChown += $pathInfo;
+            $toChown | ForEach-Object {
+              $acl = Get-Acl $_.FullName;
+              $acl.SetOwner($account);
+              Set-Acl $_.FullName $acl
+            }""", newOwner, path, path)));
     }
 
     public void extractZip(Path zipPath, Path destinationDir) throws Exception {
@@ -144,7 +140,7 @@ public class Shell {
         logger.warn("Running command with env: " + env);
         Result result = runScriptIgnoreExitCode(command);
         if (result.isSuccess() == false) {
-            throw new ShellException("Command was not successful: [" + String.join(" ", command) + "]\n   result: " + result.toString());
+            throw new ShellException("Command was not successful: [" + String.join(" ", command) + "]\n   result: " + result);
         }
         return result;
     }
@@ -206,8 +202,14 @@ public class Shell {
     private String readFileIfExists(Path path) throws IOException {
         if (Files.exists(path)) {
             long size = Files.size(path);
-            if (size > 100 * 1024) {
-                return "<<Too large to read: " + size + " bytes>>";
+            final int maxFileSize = 100 * 1024;
+            if (size > maxFileSize) {
+                // file is really big, truncate
+                try (var br = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
+                    char[] buf = new char[maxFileSize];
+                    int nRead = br.read(buf);
+                    return new String(buf, 0, nRead) + "\n<<Too large to read (" + size + " bytes), truncated>>";
+                }
             }
             try (Stream<String> lines = Files.lines(path, StandardCharsets.UTF_8)) {
                 return lines.collect(Collectors.joining("\n"));
@@ -232,21 +234,13 @@ public class Shell {
         return String.format(Locale.ROOT, " env = [%s] workingDirectory = [%s]", env, workingDirectory);
     }
 
-    public static class Result {
-        public final int exitCode;
-        public final String stdout;
-        public final String stderr;
-
-        public Result(int exitCode, String stdout, String stderr) {
-            this.exitCode = exitCode;
-            this.stdout = stdout;
-            this.stderr = stderr;
-        }
+    public record Result(int exitCode, String stdout, String stderr) {
 
         public boolean isSuccess() {
             return exitCode == 0;
         }
 
+        @Override
         public String toString() {
             return String.format(Locale.ROOT, "exitCode = [%d] stdout = [%s] stderr = [%s]", exitCode, stdout.trim(), stderr.trim());
         }

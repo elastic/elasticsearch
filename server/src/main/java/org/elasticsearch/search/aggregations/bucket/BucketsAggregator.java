@@ -30,6 +30,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
@@ -45,13 +46,13 @@ public abstract class BucketsAggregator extends AggregatorBase {
     public BucketsAggregator(
         String name,
         AggregatorFactories factories,
-        AggregationContext context,
+        AggregationContext aggCtx,
         Aggregator parent,
         CardinalityUpperBound bucketCardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        super(name, factories, context, parent, bucketCardinality, metadata);
-        multiBucketConsumer = context.multiBucketConsumer();
+        super(name, factories, aggCtx, parent, bucketCardinality, metadata);
+        multiBucketConsumer = aggCtx.multiBucketConsumer();
         docCounts = bigArrays().newLongArray(1, true);
         docCountProvider = new DocCountProvider();
     }
@@ -99,8 +100,11 @@ public abstract class BucketsAggregator extends AggregatorBase {
      *  If a bucket's ordinal is mapped to -1 then the bucket is removed entirely.
      */
     public final void rewriteBuckets(long newNumBuckets, LongUnaryOperator mergeMap) {
-        try (LongArray oldDocCounts = docCounts) {
+        LongArray oldDocCounts = docCounts;
+        boolean success = false;
+        try {
             docCounts = bigArrays().newLongArray(newNumBuckets, true);
+            success = true;
             docCounts.fill(0, newNumBuckets, 0);
             for (long i = 0; i < oldDocCounts.size(); i++) {
                 long docCount = oldDocCounts.get(i);
@@ -112,6 +116,10 @@ public abstract class BucketsAggregator extends AggregatorBase {
                 if (destinationOrdinal != -1) {
                     docCounts.increment(destinationOrdinal, docCount);
                 }
+            }
+        } finally {
+            if (success) {
+                oldDocCounts.close();
             }
         }
     }
@@ -399,14 +407,9 @@ public abstract class BucketsAggregator extends AggregatorBase {
         if (key == null || "doc_count".equals(key)) {
             return (lhs, rhs) -> order.reverseMul() * Long.compare(bucketDocCount(lhs), bucketDocCount(rhs));
         }
-        throw new IllegalArgumentException(
-            "Ordering on a single-bucket aggregation can only be done on its doc_count. "
-                + "Either drop the key (a la \""
-                + name()
-                + "\") or change it to \"doc_count\" (a la \""
-                + name()
-                + ".doc_count\") or \"key\"."
-        );
+        throw new IllegalArgumentException(String.format(Locale.ROOT, """
+            Ordering on a single-bucket aggregation can only be done on its doc_count. \
+            Either drop the key (a la "%s") or change it to "doc_count" (a la "%s.doc_count") or "key".""", name(), name()));
     }
 
     public static boolean descendsFromGlobalAggregator(Aggregator parent) {

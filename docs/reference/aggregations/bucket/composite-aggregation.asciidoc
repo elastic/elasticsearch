@@ -4,6 +4,9 @@
 <titleabbrev>Composite</titleabbrev>
 ++++
 
+WARNING: The composite aggregation is expensive. Load test your application
+before deploying a composite aggregation in production.
+
 A multi-bucket aggregation that creates composite buckets from different sources.
 
 Unlike the other `multi-bucket` aggregations, you can use the `composite`
@@ -119,7 +122,7 @@ The `sources` parameter can be any of the following types:
 [[_terms]]
 ===== Terms
 
-The `terms` value source is equivalent to a simple `terms` aggregation.
+The `terms` value source is similar to a simple `terms` aggregation.
 The values are extracted from a field exactly like the `terms` aggregation.
 
 Example:
@@ -201,6 +204,13 @@ GET /_search
 }
 ----
 ////
+
+Although similar, the `terms` value source doesn't support the same set of
+parameters as the `terms` aggregation. For other supported value source
+parameters, see:
+
+* <<_order>>
+* <<_missing_bucket>>
 
 [[_histogram]]
 ===== Histogram
@@ -492,8 +502,8 @@ GET /_search
                 "field": "location",
                 "precision": 22,
                 "bounds": {
-                  "top_left": "52.4, 4.9",
-                  "bottom_right": "52.3, 5.0"
+                  "top_left": "POINT (4.9 52.4)",
+                  "bottom_right": "POINT (5.0 52.3)"
                 }
               }
             }
@@ -553,6 +563,7 @@ GET /_search
 }
 --------------------------------------------------
 
+[[_order]]
 ==== Order
 
 By default the composite buckets are sorted by their natural ordering. Values are sorted
@@ -585,6 +596,7 @@ GET /_search
 \... will sort the composite bucket in descending order when comparing values from the `date_histogram` source
 and in ascending order when comparing values from the `terms` source.
 
+[[_missing_bucket]]
 ==== Missing bucket
 
 By default documents without a value for a given source are ignored.
@@ -599,19 +611,30 @@ GET /_search
   "aggs": {
     "my_buckets": {
       "composite": {
-        "sources": [
-          { "product_name": { "terms": { "field": "product", "missing_bucket": true } } }
-        ]
+        "sources": [{
+          "product_name": {
+            "terms": {
+              "field": "product",
+              "missing_bucket": true,
+              "missing_order": "last"
+            }
+          }
+        }]
       }
     }
   }
 }
 --------------------------------------------------
 
-In the example above the source `product_name` will emit an explicit `null` value
-for documents without a value for the field `product`.
-The `order` specified in the source dictates whether the `null` values should rank
-first (ascending order, `asc`) or last (descending order, `desc`).
+In the above example, the `product_name` source emits an explicit `null` bucket
+for documents without a `product` value. This bucket is placed last.
+
+You can control the position of the `null` bucket using the optional
+`missing_order` parameter. If `missing_order` is `first` or `last`, the `null`
+bucket is placed in the respective first or last position. If `missing_order` is
+omitted or `default`, the source's `order` determines the bucket's position. If
+`order` is `asc` (ascending), the bucket is in the first position. If `order` is
+`desc` (descending), the bucket is in the last position.
 
 ==== Size
 
@@ -713,7 +736,7 @@ GET /_search
 
 NOTE: The `after_key` is *usually* the key to the last bucket returned in
 the response, but that isn't guaranteed. Always use the returned `after_key` instead
-of derriving it from the buckets.
+of deriving it from the buckets.
 
 ==== Early termination
 

@@ -8,7 +8,7 @@
 
 package org.elasticsearch.common.recycler;
 
-import com.carrotsearch.hppc.BitMixer;
+import org.apache.lucene.util.hppc.BitMixer;
 
 import java.util.ArrayDeque;
 
@@ -111,7 +111,7 @@ public enum Recyclers {
             private final Recycler<T>[] recyclers;
 
             {
-                @SuppressWarnings({"rawtypes", "unchecked"})
+                @SuppressWarnings({ "rawtypes", "unchecked" })
                 final Recycler<T>[] recyclers = new Recycler[concurrencyLevel];
                 this.recyclers = recyclers;
                 for (int i = 0; i < concurrencyLevel; ++i) {
@@ -137,7 +137,4 @@ public enum Recyclers {
         };
     }
 
-    public static <T> Recycler<T> concurrent(final Recycler.Factory<T> factory) {
-        return concurrent(factory, Runtime.getRuntime().availableProcessors());
-    }
 }

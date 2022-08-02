@@ -34,6 +34,13 @@
         }
       ]
     },
+    "params":{
+      "timeout":{
+        "type":"time",
+        "required":false,
+        "description":"Controls the time to wait for the preview"
+      }
+    },
     "body":{
       "description":"The definition for the transform to preview",
       "required":false

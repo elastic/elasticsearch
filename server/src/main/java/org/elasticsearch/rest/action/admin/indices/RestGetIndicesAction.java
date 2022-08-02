@@ -8,17 +8,18 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
-
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.rest.action.DispatchingRestToXContentListener;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -38,15 +39,20 @@ public class RestGetIndicesAction extends BaseRestHandler {
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using `include_type_name` in get indices requests"
         + " is deprecated. The parameter will be removed in the next major version.";
 
-    private static final Set<String> COMPATIBLE_RESPONSE_PARAMS = Collections
-        .unmodifiableSet(Stream.concat(Collections.singleton(INCLUDE_TYPE_NAME_PARAMETER).stream(), Settings.FORMAT_PARAMS.stream())
-            .collect(Collectors.toSet()));
+    private static final Set<String> COMPATIBLE_RESPONSE_PARAMS = Collections.unmodifiableSet(
+        Stream.concat(Collections.singleton(INCLUDE_TYPE_NAME_PARAMETER).stream(), Settings.FORMAT_PARAMS.stream())
+            .collect(Collectors.toSet())
+    );
+
+    private final ThreadPool threadPool;
+
+    public RestGetIndicesAction(ThreadPool threadPool) {
+        this.threadPool = threadPool;
+    }
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(GET, "/{index}"),
-            new Route(HEAD, "/{index}"));
+        return List.of(new Route(GET, "/{index}"), new Route(HEAD, "/{index}"));
     }
 
     @Override
@@ -57,8 +63,9 @@ public class RestGetIndicesAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         // starting with 7.0 we don't include types by default in the response to GET requests
-        if (request.getRestApiVersion() == RestApiVersion.V_7 &&
-            request.hasParam(INCLUDE_TYPE_NAME_PARAMETER) && request.method().equals(GET)) {
+        if (request.getRestApiVersion() == RestApiVersion.V_7
+            && request.hasParam(INCLUDE_TYPE_NAME_PARAMETER)
+            && request.method().equals(GET)) {
             deprecationLogger.compatibleCritical("get_indices_with_types", TYPES_DEPRECATION_MESSAGE);
         }
 
@@ -70,7 +77,14 @@ public class RestGetIndicesAction extends BaseRestHandler {
         getIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getIndexRequest.masterNodeTimeout()));
         getIndexRequest.humanReadable(request.paramAsBoolean("human", false));
         getIndexRequest.includeDefaults(request.paramAsBoolean("include_defaults", false));
-        return channel -> client.admin().indices().getIndex(getIndexRequest, new RestToXContentListener<>(channel));
+        getIndexRequest.features(GetIndexRequest.Feature.fromRequest(request));
+        final var httpChannel = request.getHttpChannel();
+        return channel -> new RestCancellableNodeClient(client, httpChannel).admin()
+            .indices()
+            .getIndex(
+                getIndexRequest,
+                new DispatchingRestToXContentListener<>(threadPool.executor(ThreadPool.Names.MANAGEMENT), channel, request)
+            );
     }
 
     /**
@@ -84,7 +98,7 @@ public class RestGetIndicesAction extends BaseRestHandler {
 
     @Override
     protected Set<String> responseParams(RestApiVersion restApiVersion) {
-        if(restApiVersion == RestApiVersion.V_7){
+        if (restApiVersion == RestApiVersion.V_7) {
             return COMPATIBLE_RESPONSE_PARAMS;
         } else {
             return responseParams();

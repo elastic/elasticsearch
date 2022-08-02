@@ -9,12 +9,9 @@ package org.elasticsearch.search.aggregations.bucket;
 
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
@@ -30,6 +27,8 @@ import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.Stats;
 import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
@@ -37,7 +36,6 @@ import java.util.List;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.nestedQuery;
@@ -54,6 +52,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFail
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -303,7 +302,7 @@ public class NestedIT extends ESIntegTestCase {
             assertThat(nested, notNullValue());
             Max max = nested.getAggregations().get("max_value");
             assertThat(max, notNullValue());
-            assertThat(max.getValue(), equalTo(numChildren[i] == 0 ? Double.NEGATIVE_INFINITY : (double) i + numChildren[i]));
+            assertThat(max.value(), equalTo(numChildren[i] == 0 ? Double.NEGATIVE_INFINITY : (double) i + numChildren[i]));
         }
     }
 
@@ -331,7 +330,7 @@ public class NestedIT extends ESIntegTestCase {
         Nested level2 = bBucket.getAggregations().get("level2");
         assertThat(level2.getDocCount(), equalTo(1L));
         Sum sum = level2.getAggregations().get("sum");
-        assertThat(sum.getValue(), equalTo(2d));
+        assertThat(sum.value(), equalTo(2d));
 
         a = level1.getAggregations().get("a");
         bBucket = a.getBucketByKey("b");
@@ -340,7 +339,7 @@ public class NestedIT extends ESIntegTestCase {
         level2 = bBucket.getAggregations().get("level2");
         assertThat(level2.getDocCount(), equalTo(1L));
         sum = level2.getAggregations().get("sum");
-        assertThat(sum.getValue(), equalTo(2d));
+        assertThat(sum.value(), equalTo(2d));
     }
 
     public void testEmptyAggregation() throws Exception {
@@ -361,6 +360,10 @@ public class NestedIT extends ESIntegTestCase {
         assertThat(nested.getDocCount(), is(0L));
     }
 
+    // TODO previously we would detect if you tried to do a nested agg on a non-nested object field,
+    // but ignore things if you tried to do a nested agg on any other field. We should probably
+    // decide which behaviour we want and do the same in both cases.
+    /*
     public void testNestedOnObjectField() throws Exception {
         try {
             client().prepareSearch("idx").setQuery(matchAllQuery()).addAggregation(nested("object_field", "incorrect")).get();
@@ -369,6 +372,7 @@ public class NestedIT extends ESIntegTestCase {
             assertThat(e.toString(), containsString("[nested] nested path [incorrect] is not nested"));
         }
     }
+    */
 
     // Test based on: https://github.com/elastic/elasticsearch/issues/9280
     public void testParentFilterResolvedCorrectly() throws Exception {
@@ -432,26 +436,50 @@ public class NestedIT extends ESIntegTestCase {
         ensureGreen("idx2");
 
         List<IndexRequestBuilder> indexRequests = new ArrayList<>(2);
-        indexRequests.add(
-            client().prepareIndex("idx2")
-                .setId("1")
-                .setSource(
-                    "{\"dates\": {\"month\": {\"label\": \"2014-11\", \"end\": \"2014-11-30\", \"start\": \"2014-11-01\"}, "
-                        + "\"day\": \"2014-11-30\"}, \"comments\": [{\"cid\": 3,\"identifier\": \"29111\"}, {\"cid\": 4,\"tags\": ["
-                        + "{\"tid\" :44,\"name\": \"Roles\"}], \"identifier\": \"29101\"}]}",
-                    XContentType.JSON
-                )
-        );
-        indexRequests.add(
-            client().prepareIndex("idx2")
-                .setId("2")
-                .setSource(
-                    "{\"dates\": {\"month\": {\"label\": \"2014-12\", \"end\": \"2014-12-31\", \"start\": \"2014-12-01\"}, "
-                        + "\"day\": \"2014-12-03\"}, \"comments\": [{\"cid\": 1, \"identifier\": \"29111\"}, {\"cid\": 2,\"tags\": ["
-                        + "{\"tid\" : 22, \"name\": \"DataChannels\"}], \"identifier\": \"29101\"}]}",
-                    XContentType.JSON
-                )
-        );
+        indexRequests.add(client().prepareIndex("idx2").setId("1").setSource("""
+            {
+              "dates": {
+                "month": {
+                  "label": "2014-11",
+                  "end": "2014-11-30",
+                  "start": "2014-11-01"
+                },
+                "day": "2014-11-30"
+              },
+              "comments": [
+                {
+                  "cid": 3,
+                  "identifier": "29111"
+                },
+                {
+                  "cid": 4,
+                  "tags": [ { "tid": 44, "name": "Roles" } ],
+                  "identifier": "29101"
+                }
+              ]
+            }""", XContentType.JSON));
+        indexRequests.add(client().prepareIndex("idx2").setId("2").setSource("""
+            {
+              "dates": {
+                "month": {
+                  "label": "2014-12",
+                  "end": "2014-12-31",
+                  "start": "2014-12-01"
+                },
+                "day": "2014-12-03"
+              },
+              "comments": [
+                {
+                  "cid": 1,
+                  "identifier": "29111"
+                },
+                {
+                  "cid": 2,
+                  "tags": [ { "tid": 22, "name": "DataChannels" } ],
+                  "identifier": "29101"
+                }
+              ]
+            }""", XContentType.JSON));
         indexRandom(true, indexRequests);
 
         SearchResponse response = client().prepareSearch("idx2")

@@ -66,7 +66,8 @@ public class PrioritizedExecutorsTests extends ESTestCase {
             EsExecutors.daemonThreadFactory(getTestName()),
             holder,
             null,
-            PrioritizedEsThreadPoolExecutor.StarvationWatcher.NOOP_STARVATION_WATCHER);
+            PrioritizedEsThreadPoolExecutor.StarvationWatcher.NOOP_STARVATION_WATCHER
+        );
         List<Integer> results = new ArrayList<>(8);
         CountDownLatch awaitingLatch = new CountDownLatch(1);
         CountDownLatch finishedLatch = new CountDownLatch(8);
@@ -100,7 +101,8 @@ public class PrioritizedExecutorsTests extends ESTestCase {
             EsExecutors.daemonThreadFactory(getTestName()),
             holder,
             null,
-            PrioritizedEsThreadPoolExecutor.StarvationWatcher.NOOP_STARVATION_WATCHER);
+            PrioritizedEsThreadPoolExecutor.StarvationWatcher.NOOP_STARVATION_WATCHER
+        );
         List<Integer> results = new ArrayList<>(8);
         CountDownLatch awaitingLatch = new CountDownLatch(1);
         CountDownLatch finishedLatch = new CountDownLatch(8);
@@ -134,7 +136,8 @@ public class PrioritizedExecutorsTests extends ESTestCase {
             EsExecutors.daemonThreadFactory(getTestName()),
             holder,
             null,
-            PrioritizedEsThreadPoolExecutor.StarvationWatcher.NOOP_STARVATION_WATCHER);
+            PrioritizedEsThreadPoolExecutor.StarvationWatcher.NOOP_STARVATION_WATCHER
+        );
         List<Integer> results = new ArrayList<>(8);
         CountDownLatch awaitingLatch = new CountDownLatch(1);
         CountDownLatch finishedLatch = new CountDownLatch(8);
@@ -168,7 +171,8 @@ public class PrioritizedExecutorsTests extends ESTestCase {
             EsExecutors.daemonThreadFactory(getTestName()),
             holder,
             null,
-            PrioritizedEsThreadPoolExecutor.StarvationWatcher.NOOP_STARVATION_WATCHER);
+            PrioritizedEsThreadPoolExecutor.StarvationWatcher.NOOP_STARVATION_WATCHER
+        );
         List<Integer> results = new ArrayList<>(8);
         CountDownLatch awaitingLatch = new CountDownLatch(1);
         CountDownLatch finishedLatch = new CountDownLatch(8);
@@ -198,11 +202,13 @@ public class PrioritizedExecutorsTests extends ESTestCase {
 
     public void testTimeout() throws Exception {
         ScheduledExecutorService timer = Executors.newSingleThreadScheduledExecutor(EsExecutors.daemonThreadFactory(getTestName()));
-        PrioritizedEsThreadPoolExecutor executor = EsExecutors.newSinglePrioritizing(getName(),
+        PrioritizedEsThreadPoolExecutor executor = EsExecutors.newSinglePrioritizing(
+            getName(),
             EsExecutors.daemonThreadFactory(getTestName()),
             holder,
             timer,
-            PrioritizedEsThreadPoolExecutor.StarvationWatcher.NOOP_STARVATION_WATCHER);
+            PrioritizedEsThreadPoolExecutor.StarvationWatcher.NOOP_STARVATION_WATCHER
+        );
         final CountDownLatch invoked = new CountDownLatch(1);
         final CountDownLatch block = new CountDownLatch(1);
         executor.execute(new Runnable() {
@@ -230,22 +236,21 @@ public class PrioritizedExecutorsTests extends ESTestCase {
         final AtomicBoolean executeCalled = new AtomicBoolean();
         final CountDownLatch timedOut = new CountDownLatch(1);
         executor.execute(new Runnable() {
-                             @Override
-                             public void run() {
-                                 executeCalled.set(true);
-                             }
+            @Override
+            public void run() {
+                executeCalled.set(true);
+            }
 
-                             @Override
-                             public String toString() {
-                                 return "the waiting";
-                             }
-                         }, TimeValue.timeValueMillis(100) /* enough timeout to catch them in the pending list... */, new Runnable() {
-                    @Override
-                    public void run() {
-                        timedOut.countDown();
-                    }
-                }
-        );
+            @Override
+            public String toString() {
+                return "the waiting";
+            }
+        }, TimeValue.timeValueMillis(100) /* enough timeout to catch them in the pending list... */, new Runnable() {
+            @Override
+            public void run() {
+                timedOut.countDown();
+            }
+        });
 
         pending = executor.getPending();
         assertThat(pending.length, equalTo(2));
@@ -270,21 +275,21 @@ public class PrioritizedExecutorsTests extends ESTestCase {
             EsExecutors.daemonThreadFactory(getTestName()),
             holder,
             timer,
-            PrioritizedEsThreadPoolExecutor.StarvationWatcher.NOOP_STARVATION_WATCHER);
+            PrioritizedEsThreadPoolExecutor.StarvationWatcher.NOOP_STARVATION_WATCHER
+        );
         final CountDownLatch invoked = new CountDownLatch(1);
         executor.execute(new Runnable() {
-                             @Override
-                             public void run() {
-                                 invoked.countDown();
-                             }
-                         }, TimeValue.timeValueHours(1), new Runnable() {
-                    @Override
-                    public void run() {
-                        // We should never get here
-                        timeoutCalled.set(true);
-                    }
-                }
-        );
+            @Override
+            public void run() {
+                invoked.countDown();
+            }
+        }, TimeValue.timeValueHours(1), new Runnable() {
+            @Override
+            public void run() {
+                // We should never get here
+                timeoutCalled.set(true);
+            }
+        });
         invoked.await();
 
         // the timeout handler is added post execution (and quickly cancelled). We have allow for this
@@ -314,7 +319,8 @@ public class PrioritizedExecutorsTests extends ESTestCase {
                 public void onNonemptyQueue() {
                     nonemptyQueueCount.incrementAndGet();
                 }
-            });
+            }
+        );
         final int jobCount = between(1, 10);
         final List<Integer> results = new ArrayList<>(jobCount);
         final CyclicBarrier awaitingBarrier = new CyclicBarrier(2);

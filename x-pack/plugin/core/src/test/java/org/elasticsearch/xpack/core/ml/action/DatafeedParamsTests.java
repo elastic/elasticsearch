@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -22,8 +22,10 @@ public class DatafeedParamsTests extends AbstractSerializingTestCase<StartDatafe
     }
 
     public static StartDatafeedAction.DatafeedParams createDatafeedParams() {
-        StartDatafeedAction.DatafeedParams params =
-                new StartDatafeedAction.DatafeedParams(randomAlphaOfLength(10), randomNonNegativeLong());
+        StartDatafeedAction.DatafeedParams params = new StartDatafeedAction.DatafeedParams(
+            randomAlphaOfLength(10),
+            randomNonNegativeLong()
+        );
         if (randomBoolean()) {
             params.setEndTime(randomNonNegativeLong());
         }

@@ -16,23 +16,31 @@ import org.elasticsearch.xpack.idp.saml.authn.SamlAuthnRequestValidator;
 import org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProvider;
 import org.elasticsearch.xpack.idp.saml.support.SamlFactory;
 
-public class TransportSamlValidateAuthnRequestAction
-    extends HandledTransportAction<SamlValidateAuthnRequestRequest, SamlValidateAuthnRequestResponse> {
+public class TransportSamlValidateAuthnRequestAction extends HandledTransportAction<
+    SamlValidateAuthnRequestRequest,
+    SamlValidateAuthnRequestResponse> {
 
     private final SamlIdentityProvider identityProvider;
     private final SamlFactory samlFactory;
 
     @Inject
-    public TransportSamlValidateAuthnRequestAction(TransportService transportService, ActionFilters actionFilters,
-                                                   SamlIdentityProvider idp, SamlFactory factory) {
+    public TransportSamlValidateAuthnRequestAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        SamlIdentityProvider idp,
+        SamlFactory factory
+    ) {
         super(SamlValidateAuthnRequestAction.NAME, transportService, actionFilters, SamlValidateAuthnRequestRequest::new);
         this.identityProvider = idp;
         this.samlFactory = factory;
     }
 
     @Override
-    protected void doExecute(Task task, SamlValidateAuthnRequestRequest request,
-                             ActionListener<SamlValidateAuthnRequestResponse> listener) {
+    protected void doExecute(
+        Task task,
+        SamlValidateAuthnRequestRequest request,
+        ActionListener<SamlValidateAuthnRequestResponse> listener
+    ) {
         final SamlAuthnRequestValidator validator = new SamlAuthnRequestValidator(samlFactory, identityProvider);
         try {
             validator.processQueryString(request.getQueryString(), listener);

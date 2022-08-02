@@ -37,7 +37,6 @@ public final class TranslogDeletionPolicy {
     private final Map<Long, Counter> translogRefCounts = new HashMap<>();
     private long localCheckpointOfSafeCommit = SequenceNumbers.NO_OPS_PERFORMED;
 
-
     public TranslogDeletionPolicy() {
         if (Assertions.ENABLED) {
             openTranslogRef = new ConcurrentHashMap<>();
@@ -48,8 +47,14 @@ public final class TranslogDeletionPolicy {
 
     public synchronized void setLocalCheckpointOfSafeCommit(long newCheckpoint) {
         if (newCheckpoint < this.localCheckpointOfSafeCommit) {
-            throw new IllegalArgumentException("local checkpoint of the safe commit can't go backwards: " +
-                "current [" + this.localCheckpointOfSafeCommit + "] new [" + newCheckpoint + "]");
+            throw new IllegalArgumentException(
+                "local checkpoint of the safe commit can't go backwards: "
+                    + "current ["
+                    + this.localCheckpointOfSafeCommit
+                    + "] new ["
+                    + newCheckpoint
+                    + "]"
+            );
         }
         this.localCheckpointOfSafeCommit = newCheckpoint;
     }
@@ -113,7 +118,6 @@ public final class TranslogDeletionPolicy {
     public synchronized long getLocalCheckpointOfSafeCommit() {
         return localCheckpointOfSafeCommit;
     }
-
 
     synchronized long getTranslogRefCount(long gen) {
         final Counter counter = translogRefCounts.get(gen);

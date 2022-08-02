@@ -23,8 +23,12 @@ public final class DestructiveOperations {
     /**
      * Setting which controls whether wildcard usage (*, prefix*, _all) is allowed.
      */
-    public static final Setting<Boolean> REQUIRES_NAME_SETTING =
-        Setting.boolSetting("action.destructive_requires_name", true, Property.Dynamic, Property.NodeScope);
+    public static final Setting<Boolean> REQUIRES_NAME_SETTING = Setting.boolSetting(
+        "action.destructive_requires_name",
+        true,
+        Property.Dynamic,
+        Property.NodeScope
+    );
 
     /**
      * The "match none" pattern, "*,-*", will never actually be destructive
@@ -33,7 +37,7 @@ public final class DestructiveOperations {
      * core code in order to indicate that an operation won't run on any
      * indices, relying on the core code to handle this situation.
      */
-    private static final String[] MATCH_NONE_PATTERN = {"*", "-*"};
+    private static final String[] MATCH_NONE_PATTERN = { "*", "-*" };
 
     private volatile boolean destructiveRequiresName;
 

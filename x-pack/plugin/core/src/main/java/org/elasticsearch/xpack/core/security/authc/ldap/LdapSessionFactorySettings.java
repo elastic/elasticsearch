@@ -21,8 +21,10 @@ import static org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings
 public final class LdapSessionFactorySettings {
 
     public static final Setting.AffixSetting<List<String>> USER_DN_TEMPLATES_SETTING = Setting.affixKeySetting(
-            RealmSettings.realmSettingPrefix(LDAP_TYPE), "user_dn_templates",
-            key -> Setting.listSetting(key, Collections.emptyList(), Function.identity(), Setting.Property.NodeScope));
+        RealmSettings.realmSettingPrefix(LDAP_TYPE),
+        "user_dn_templates",
+        key -> Setting.listSetting(key, Collections.emptyList(), Function.identity(), Setting.Property.NodeScope)
+    );
 
     public static Set<Setting.AffixSetting<?>> getSettings() {
         Set<Setting.AffixSetting<?>> settings = new HashSet<>();

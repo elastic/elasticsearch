@@ -40,8 +40,7 @@ public class SpatialFeatureSetUsageTests extends AbstractWireSerializingTestCase
     }
 
     private SpatialStatsAction.Response randomStatsResponse() {
-        DiscoveryNode node = new DiscoveryNode("_node_id",
-            new TransportAddress(InetAddress.getLoopbackAddress(), 9300), Version.CURRENT);
+        DiscoveryNode node = new DiscoveryNode("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9300), Version.CURRENT);
         EnumCounters<SpatialStatsAction.Item> counters = new EnumCounters<>(SpatialStatsAction.Item.class);
         SpatialStatsAction.NodeResponse nodeResponse = new SpatialStatsAction.NodeResponse(node, counters);
         return new SpatialStatsAction.Response(new ClusterName("cluster_name"), List.of(nodeResponse), emptyList());

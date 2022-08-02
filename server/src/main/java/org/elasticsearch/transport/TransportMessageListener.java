@@ -11,7 +11,8 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 
 public interface TransportMessageListener {
 
-    TransportMessageListener NOOP_LISTENER = new TransportMessageListener() {};
+    TransportMessageListener NOOP_LISTENER = new TransportMessageListener() {
+    };
 
     /**
      * Called once a request is received
@@ -45,8 +46,13 @@ public interface TransportMessageListener {
      * @param request the actual request
      * @param finalOptions the request options
      */
-    default void onRequestSent(DiscoveryNode node, long requestId, String action, TransportRequest request,
-                               TransportRequestOptions finalOptions) {}
+    default void onRequestSent(
+        DiscoveryNode node,
+        long requestId,
+        String action,
+        TransportRequest request,
+        TransportRequestOptions finalOptions
+    ) {}
 
     /**
      * Called for every response received

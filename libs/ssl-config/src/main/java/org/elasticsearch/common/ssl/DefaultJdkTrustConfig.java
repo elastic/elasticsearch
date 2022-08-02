@@ -10,8 +10,6 @@ package org.elasticsearch.common.ssl;
 
 import org.elasticsearch.core.Nullable;
 
-import javax.net.ssl.TrustManagerFactory;
-import javax.net.ssl.X509ExtendedTrustManager;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.security.GeneralSecurityException;
@@ -20,6 +18,9 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.function.BiFunction;
+
+import javax.net.ssl.TrustManagerFactory;
+import javax.net.ssl.X509ExtendedTrustManager;
 
 /**
  * This class represents a trust configuration that corresponds to the default trusted CAs of the JDK

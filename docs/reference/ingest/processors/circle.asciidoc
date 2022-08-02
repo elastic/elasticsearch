@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[ingest-circle-processor]]
 === Circle processor
 ++++

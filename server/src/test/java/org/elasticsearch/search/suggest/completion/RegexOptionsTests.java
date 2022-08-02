@@ -47,8 +47,11 @@ public class RegexOptionsTests extends ESTestCase {
     public void testSerialization() throws IOException {
         for (int i = 0; i < NUMBER_OF_RUNS; i++) {
             RegexOptions testOptions = randomRegexOptions();
-            RegexOptions deserializedModel = copyWriteable(testOptions, new NamedWriteableRegistry(Collections.emptyList()),
-                    RegexOptions::new);
+            RegexOptions deserializedModel = copyWriteable(
+                testOptions,
+                new NamedWriteableRegistry(Collections.emptyList()),
+                RegexOptions::new
+            );
             assertEquals(testOptions, deserializedModel);
             assertEquals(testOptions.hashCode(), deserializedModel.hashCode());
             assertNotSame(testOptions, deserializedModel);

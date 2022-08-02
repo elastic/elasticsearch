@@ -1,0 +1,9 @@
+---
+jjbb-template: matrix-gradle-unix.yml
+vars:
+  - job-name: elastic+elasticsearch+%BRANCH%+intake+multijob+bwc-snapshots
+  - job-display-name: "elastic / elasticsearch # %BRANCH% - intake bwc"
+  - job-description: Elasticsearch %BRANCH% branch intake backwards compatibility checks.
+  - matrix-yaml-file: ".ci/snapshotBwcVersions"
+  - matrix-variable: BWC_VERSION
+  - gradle-args: "-Dbwc.checkout.align=true -Dorg.elasticsearch.build.cache.push=true -Dignore.tests.seed -Dscan.capture-task-input-files v$BWC_VERSION#bwcTest"

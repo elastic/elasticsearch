@@ -15,6 +15,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.tracing.Tracer;
 
 import java.io.IOException;
 
@@ -26,11 +27,19 @@ public class RequestHandlerRegistry<Request extends TransportRequest> {
     private final boolean canTripCircuitBreaker;
     private final String executor;
     private final TaskManager taskManager;
+    private final Tracer tracer;
     private final Writeable.Reader<Request> requestReader;
 
-    public RequestHandlerRegistry(String action, Writeable.Reader<Request> requestReader, TaskManager taskManager,
-                                  TransportRequestHandler<Request> handler, String executor, boolean forceExecution,
-                                  boolean canTripCircuitBreaker) {
+    public RequestHandlerRegistry(
+        String action,
+        Writeable.Reader<Request> requestReader,
+        TaskManager taskManager,
+        TransportRequestHandler<Request> handler,
+        String executor,
+        boolean forceExecution,
+        boolean canTripCircuitBreaker,
+        Tracer tracer
+    ) {
         this.action = action;
         this.requestReader = requestReader;
         this.handler = handler;
@@ -38,6 +47,7 @@ public class RequestHandlerRegistry<Request extends TransportRequest> {
         this.canTripCircuitBreaker = canTripCircuitBreaker;
         this.executor = executor;
         this.taskManager = taskManager;
+        this.tracer = tracer;
     }
 
     public String getAction() {
@@ -86,9 +96,19 @@ public class RequestHandlerRegistry<Request extends TransportRequest> {
         return handler.toString();
     }
 
-    public static <R extends TransportRequest> RequestHandlerRegistry<R> replaceHandler(RequestHandlerRegistry<R> registry,
-                                                                                        TransportRequestHandler<R> handler) {
-        return new RequestHandlerRegistry<>(registry.action, registry.requestReader, registry.taskManager, handler,
-            registry.executor, registry.forceExecution, registry.canTripCircuitBreaker);
+    public static <R extends TransportRequest> RequestHandlerRegistry<R> replaceHandler(
+        RequestHandlerRegistry<R> registry,
+        TransportRequestHandler<R> handler
+    ) {
+        return new RequestHandlerRegistry<>(
+            registry.action,
+            registry.requestReader,
+            registry.taskManager,
+            handler,
+            registry.executor,
+            registry.forceExecution,
+            registry.canTripCircuitBreaker,
+            registry.tracer
+        );
     }
 }

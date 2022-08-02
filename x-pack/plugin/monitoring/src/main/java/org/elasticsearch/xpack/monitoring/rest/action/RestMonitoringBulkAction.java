@@ -7,16 +7,15 @@
 package org.elasticsearch.xpack.monitoring.rest.action;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkRequestBuilder;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkResponse;
@@ -44,17 +43,19 @@ public class RestMonitoringBulkAction extends BaseRestHandler {
     );
 
     private static final Map<MonitoredSystem, List<String>> SUPPORTED_API_VERSIONS = Map.of(
-        MonitoredSystem.KIBANA, ALL_VERSIONS,
-        MonitoredSystem.LOGSTASH, ALL_VERSIONS,
-        MonitoredSystem.BEATS, ALL_VERSIONS);
+        MonitoredSystem.KIBANA,
+        ALL_VERSIONS,
+        MonitoredSystem.LOGSTASH,
+        ALL_VERSIONS,
+        MonitoredSystem.BEATS,
+        ALL_VERSIONS
+    );
 
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.builder(POST, "/_monitoring/bulk")
-                .replaces(POST, "/_xpack/monitoring/_bulk", RestApiVersion.V_7).build(),
-            Route.builder(PUT, "/_monitoring/bulk")
-                .replaces(PUT, "/_xpack/monitoring/_bulk", RestApiVersion.V_7).build()
+            Route.builder(POST, "/_monitoring/bulk").replaces(POST, "/_xpack/monitoring/_bulk", RestApiVersion.V_7).build(),
+            Route.builder(PUT, "/_monitoring/bulk").replaces(PUT, "/_xpack/monitoring/_bulk", RestApiVersion.V_7).build()
         );
     }
 
@@ -87,8 +88,9 @@ public class RestMonitoringBulkAction extends BaseRestHandler {
 
         final MonitoredSystem system = MonitoredSystem.fromSystem(id);
         if (isSupportedSystemVersion(system, version) == false) {
-            throw new IllegalArgumentException(MONITORING_VERSION + " [" + version + "] is not supported by "
-                    + MONITORING_ID + " [" + id + "]");
+            throw new IllegalArgumentException(
+                MONITORING_VERSION + " [" + version + "] is not supported by " + MONITORING_ID + " [" + id + "]"
+            );
         }
 
         final long timestamp = System.currentTimeMillis();
@@ -134,7 +136,7 @@ public class RestMonitoringBulkAction extends BaseRestHandler {
                     }
                 }
                 builder.endObject();
-                return new BytesRestResponse(response.status(), builder);
+                return new RestResponse(response.status(), builder);
             }
         };
     }

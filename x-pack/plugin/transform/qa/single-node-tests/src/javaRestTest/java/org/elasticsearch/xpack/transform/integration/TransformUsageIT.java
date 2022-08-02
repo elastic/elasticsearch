@@ -40,9 +40,9 @@ public class TransformUsageIT extends TransformRestTestCase {
         assertTrue((boolean) XContentMapValues.extractValue("transform.available", usageAsMap));
         assertTrue((boolean) XContentMapValues.extractValue("transform.enabled", usageAsMap));
         // no transforms, no stats
-        assertNull(XContentMapValues.extractValue("transform.transforms", usageAsMap));
-        assertNull(XContentMapValues.extractValue("transform.feature_counts", usageAsMap));
-        assertNull(XContentMapValues.extractValue("transform.stats", usageAsMap));
+        assertNull("full usage response: " + usageAsMap, XContentMapValues.extractValue("transform.transforms", usageAsMap));
+        assertNull("full usage response: " + usageAsMap, XContentMapValues.extractValue("transform.feature_counts", usageAsMap));
+        assertNull("full usage response: " + usageAsMap, XContentMapValues.extractValue("transform.stats", usageAsMap));
 
         // create transforms
         createPivotReviewsTransform("test_usage", "pivot_reviews", null);
@@ -69,9 +69,14 @@ public class TransformUsageIT extends TransformRestTestCase {
                 + ":"
                 + TransformStoredDoc.NAME
         );
-        statsExistsRequest.setOptions(expectWarnings("this request accesses system indices: [" +
-            TransformInternalIndexConstants.LATEST_INDEX_NAME + "], but in a future major version, direct access to system indices will " +
-            "be prevented by default"));
+        statsExistsRequest.setOptions(
+            expectWarnings(
+                "this request accesses system indices: ["
+                    + TransformInternalIndexConstants.LATEST_INDEX_NAME
+                    + "], but in a future major version, direct access to system indices will "
+                    + "be prevented by default"
+            )
+        );
         // Verify that we have one stat document
         assertBusy(() -> {
             Map<String, Object> hasStatsMap = entityAsMap(client().performRequest(statsExistsRequest));

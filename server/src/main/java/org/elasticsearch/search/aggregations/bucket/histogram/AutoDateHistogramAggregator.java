@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.CollectionUtil;
@@ -17,6 +16,7 @@ import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BucketOrder;
@@ -124,11 +124,11 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
     protected abstract LeafBucketCollector getLeafCollector(SortedNumericDocValues values, LeafBucketCollector sub) throws IOException;
 
     @Override
-    public final LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
+    public final LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-        return getLeafCollector(valuesSource.longValues(ctx), sub);
+        return getLeafCollector(valuesSource.longValues(aggCtx.getLeafReaderContext()), sub);
     }
 
     protected final InternalAggregation[] buildAggregations(
@@ -276,10 +276,13 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                         return;
                     }
                     do {
-                        try (LongKeyedBucketOrds oldOrds = bucketOrds) {
+                        LongKeyedBucketOrds oldOrds = bucketOrds;
+                        boolean success = false;
+                        try {
                             preparedRounding = prepareRounding(++roundingIdx);
                             long[] mergeMap = new long[Math.toIntExact(oldOrds.size())];
                             bucketOrds = new LongKeyedBucketOrds.FromSingle(bigArrays());
+                            success = true; // now it is safe to close oldOrds after we finish
                             LongKeyedBucketOrds.BucketOrdsEnum ordsEnum = oldOrds.ordsEnum(0);
                             while (ordsEnum.next()) {
                                 long oldKey = ordsEnum.value();
@@ -288,6 +291,10 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                                 mergeMap[(int) ordsEnum.ord()] = newBucketOrd >= 0 ? newBucketOrd : -1 - newBucketOrd;
                             }
                             merge(mergeMap, bucketOrds.size());
+                        } finally {
+                            if (success) {
+                                oldOrds.close();
+                            }
                         }
                     } while (roundingIdx < roundingInfos.length - 1
                         && (bucketOrds.size() > targetBuckets * roundingInfos[roundingIdx].getMaximumInnerInterval()
@@ -527,9 +534,12 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
 
         private void rebucket() {
             rebucketCount++;
-            try (LongKeyedBucketOrds oldOrds = bucketOrds) {
+            LongKeyedBucketOrds oldOrds = bucketOrds;
+            boolean success = false;
+            try {
                 long[] mergeMap = new long[Math.toIntExact(oldOrds.size())];
                 bucketOrds = new LongKeyedBucketOrds.FromMany(bigArrays());
+                success = true;
                 for (long owningBucketOrd = 0; owningBucketOrd <= oldOrds.maxOwningBucketOrd(); owningBucketOrd++) {
                     LongKeyedBucketOrds.BucketOrdsEnum ordsEnum = oldOrds.ordsEnum(owningBucketOrd);
                     Rounding.Prepared preparedRounding = preparedRoundings[roundingIndexFor(owningBucketOrd)];
@@ -543,6 +553,10 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                     liveBucketCountUnderestimate.set(owningBucketOrd, Math.toIntExact(bucketOrds.bucketsInOrd(owningBucketOrd)));
                 }
                 merge(mergeMap, bucketOrds.size());
+            } finally {
+                if (success) {
+                    oldOrds.close();
+                }
             }
         }
 

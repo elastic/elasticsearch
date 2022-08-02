@@ -43,7 +43,7 @@ public abstract class IRNode {
 
     @SuppressWarnings("unchecked")
     public <V> V attachDecoration(IRDecoration<V> decoration) {
-        IRDecoration<V> previous = (IRDecoration<V>)decorations.put((Class<? extends IRDecoration<?>>)decoration.getClass(), decoration);
+        IRDecoration<V> previous = (IRDecoration<V>) decorations.put((Class<? extends IRDecoration<?>>) decoration.getClass(), decoration);
         return previous == null ? null : previous.getValue();
     }
 
@@ -100,6 +100,7 @@ public abstract class IRNode {
     /* ---- end node data, begin visitor ---- */
 
     public abstract <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope);
+
     public abstract <Scope> void visitChildren(IRTreeVisitor<Scope> irTreeVisitor, Scope scope);
 
     /* ---- end visitor ---- */

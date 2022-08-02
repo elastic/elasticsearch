@@ -34,15 +34,18 @@ import java.util.Map;
 /**
  * Transport action responsible for generating a SAML {@code &lt;LogoutRequest&gt;} as a redirect binding URL.
  */
-public final class TransportSamlLogoutAction
-        extends HandledTransportAction<SamlLogoutRequest, SamlLogoutResponse> {
+public final class TransportSamlLogoutAction extends HandledTransportAction<SamlLogoutRequest, SamlLogoutResponse> {
 
     private final Realms realms;
     private final TokenService tokenService;
 
     @Inject
-    public TransportSamlLogoutAction(TransportService transportService, ActionFilters actionFilters, Realms realms,
-                                     TokenService tokenService) {
+    public TransportSamlLogoutAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        Realms realms,
+        TokenService tokenService
+    ) {
         super(SamlLogoutAction.NAME, transportService, actionFilters, SamlLogoutRequest::new);
         this.realms = realms;
         this.tokenService = tokenService;
@@ -53,26 +56,22 @@ public final class TransportSamlLogoutAction
         invalidateRefreshToken(request.getRefreshToken(), ActionListener.wrap(ignore -> {
             try {
                 final String token = request.getToken();
-                tokenService.getAuthenticationAndMetadata(token, ActionListener.wrap(
-                        tuple -> {
-                            Authentication authentication = tuple.v1();
-                            final Map<String, Object> tokenMetadata = tuple.v2();
-                            SamlLogoutResponse response = buildResponse(authentication, tokenMetadata);
-                            tokenService.invalidateAccessToken(token, ActionListener.wrap(
-                                    created -> {
-                                        if (logger.isTraceEnabled()) {
-                                            logger.trace("SAML Logout User [{}], Token [{}...{}]",
-                                                    authentication.getUser().principal(),
-                                                    token.substring(0, 8),
-                                                    token.substring(token.length() - 8)
-                                            );
-                                        }
-                                        listener.onResponse(response);
-                                    },
-                                    listener::onFailure
-                            ));
-                        }, listener::onFailure
-                ));
+                tokenService.getAuthenticationAndMetadata(token, ActionListener.wrap(tuple -> {
+                    Authentication authentication = tuple.v1();
+                    final Map<String, Object> tokenMetadata = tuple.v2();
+                    SamlLogoutResponse response = buildResponse(authentication, tokenMetadata);
+                    tokenService.invalidateAccessToken(token, ActionListener.wrap(created -> {
+                        if (logger.isTraceEnabled()) {
+                            logger.trace(
+                                "SAML Logout User [{}], Token [{}...{}]",
+                                authentication.getUser().principal(),
+                                token.substring(0, 8),
+                                token.substring(token.length() - 8)
+                            );
+                        }
+                        listener.onResponse(response);
+                    }, listener::onFailure));
+                }, listener::onFailure));
             } catch (ElasticsearchException e) {
                 logger.debug("Internal exception during SAML logout", e);
                 listener.onFailure(e);
@@ -104,11 +103,11 @@ public final class TransportSamlLogoutAction
         }
 
         final SamlNameId nameId = new SamlNameId(
-                getMetadataString(tokenMetadata, SamlRealm.TOKEN_METADATA_NAMEID_FORMAT),
-                getMetadataString(tokenMetadata, SamlRealm.TOKEN_METADATA_NAMEID_VALUE),
-                getMetadataString(tokenMetadata, SamlRealm.TOKEN_METADATA_NAMEID_QUALIFIER),
-                getMetadataString(tokenMetadata, SamlRealm.TOKEN_METADATA_NAMEID_SP_QUALIFIER),
-                getMetadataString(tokenMetadata, SamlRealm.TOKEN_METADATA_NAMEID_SP_PROVIDED_ID)
+            getMetadataString(tokenMetadata, SamlRealm.TOKEN_METADATA_NAMEID_FORMAT),
+            getMetadataString(tokenMetadata, SamlRealm.TOKEN_METADATA_NAMEID_VALUE),
+            getMetadataString(tokenMetadata, SamlRealm.TOKEN_METADATA_NAMEID_QUALIFIER),
+            getMetadataString(tokenMetadata, SamlRealm.TOKEN_METADATA_NAMEID_SP_QUALIFIER),
+            getMetadataString(tokenMetadata, SamlRealm.TOKEN_METADATA_NAMEID_SP_PROVIDED_ID)
         );
         final String session = getMetadataString(tokenMetadata, SamlRealm.TOKEN_METADATA_SESSION);
         final LogoutRequest logout = realm.buildLogoutRequest(nameId.asXml(), session);

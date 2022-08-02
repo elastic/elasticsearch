@@ -34,14 +34,16 @@ public class OperationModeFileWatcherTests extends ESTestCase {
     @Before
     public void setup() throws Exception {
         threadPool = new TestThreadPool("license mode file watcher tests");
-        Settings settings = Settings.builder()
-                .put("resource.reload.interval.high", "10ms")
-                .build();
+        Settings settings = Settings.builder().put("resource.reload.interval.high", "10ms").build();
         watcherService = new ResourceWatcherService(settings, threadPool);
         licenseModePath = createTempFile();
         onChangeCounter = new AtomicReference<>(new CountDownLatch(1));
-        operationModeFileWatcher = new OperationModeFileWatcher(watcherService, licenseModePath, logger,
-                () -> onChangeCounter.get().countDown());
+        operationModeFileWatcher = new OperationModeFileWatcher(
+            watcherService,
+            licenseModePath,
+            logger,
+            () -> onChangeCounter.get().countDown()
+        );
     }
 
     @After

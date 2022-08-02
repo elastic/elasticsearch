@@ -113,9 +113,7 @@ public class DateTimeProcessorTests extends AbstractSqlWireSerializingTestCase<D
 
     public void testFailOnTime() {
         DateTimeProcessor proc = new DateTimeProcessor(DateTimeExtractor.YEAR, UTC);
-        SqlIllegalArgumentException e = expectThrows(SqlIllegalArgumentException.class, () -> {
-           proc.process(OffsetTime.now(UTC));
-        });
+        SqlIllegalArgumentException e = expectThrows(SqlIllegalArgumentException.class, () -> { proc.process(OffsetTime.now(UTC)); });
         assertThat(e.getMessage(), startsWith("A [date], a [time] or a [datetime] is required; received "));
     }
 }

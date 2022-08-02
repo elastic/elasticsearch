@@ -9,8 +9,8 @@
 import java.nio.file.Files
 
 String buildNumber = System.getenv('BUILD_NUMBER')
-
-if (buildNumber) {
+String performanceTest = System.getenv('BUILD_PERFORMANCE_TEST')
+if (buildNumber && performanceTest == null) {
   File uploadFile = file("build/${buildNumber}.tar.bz2")
   project.gradle.buildFinished { result ->
     println "build complete, generating: $uploadFile"
@@ -23,7 +23,7 @@ if (buildNumber) {
         fileset(dir: projectDir) {
           Set<File> fileSet = fileTree(projectDir) {
             include("**/*.hprof")
-            include("**/reaper.log")
+            include(".gradle/reaper/**")
             include("**/build/test-results/**/*.xml")
             include("**/build/testclusters/**")
             exclude("**/build/testclusters/**/data/**")

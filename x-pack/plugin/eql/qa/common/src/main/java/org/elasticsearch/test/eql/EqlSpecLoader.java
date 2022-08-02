@@ -30,10 +30,10 @@ public class EqlSpecLoader {
         }
     }
 
-    public static List<EqlSpec> load(String ...paths) throws Exception {
+    public static List<EqlSpec> load(String... paths) throws Exception {
         Set<String> uniqueTestNames = new HashSet<>();
         List<EqlSpec> specs = new ArrayList<>();
-        for (String path: paths) {
+        for (String path : paths) {
             specs.addAll(load(path, uniqueTestNames));
         }
         return specs;
@@ -101,6 +101,9 @@ public class EqlSpecLoader {
                 }
                 spec.expectedEventIds(expectedEventIds);
             }
+
+            arr = table.getList("join_keys");
+            spec.joinKeys(arr != null ? arr.toArray(new String[0]) : new String[0]);
             validateAndAddSpec(testSpecs, spec, uniqueTestNames);
         }
 

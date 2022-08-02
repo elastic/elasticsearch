@@ -11,7 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.core.TimeValue;
@@ -85,9 +85,9 @@ public class UpdateJobProcessNotifier {
     private void stop() {
         orderedJobUpdates.clear();
 
-        ThreadPool.Cancellable cancellable = this.cancellable;
-        if (cancellable != null) {
-            cancellable.cancel();
+        ThreadPool.Cancellable cancellableCopy = this.cancellable;
+        if (cancellableCopy != null) {
+            cancellableCopy.cancel();
         }
     }
 
@@ -110,45 +110,55 @@ public class UpdateJobProcessNotifier {
 
         if (update.isJobUpdate() && clusterService.localNode().isMasterNode() == false) {
             assert clusterService.localNode().isMasterNode();
-            logger.error("Job update was submitted to non-master node [" + clusterService.getNodeName() + "]; update for job ["
-                    + update.getJobId() + "] will be ignored");
+            logger.error(
+                "Job update was submitted to non-master node ["
+                    + clusterService.getNodeName()
+                    + "]; update for job ["
+                    + update.getJobId()
+                    + "] will be ignored"
+            );
             executeProcessUpdates(updatesIterator);
             return;
         }
 
-        Request request = new Request(update.getJobId(), update.getModelPlotConfig(), update.getPerPartitionCategorizationConfig(),
-            update.getDetectorUpdates(), update.getFilter(), update.isUpdateScheduledEvents());
+        Request request = new Request(
+            update.getJobId(),
+            update.getModelPlotConfig(),
+            update.getPerPartitionCategorizationConfig(),
+            update.getDetectorUpdates(),
+            update.getFilter(),
+            update.isUpdateScheduledEvents()
+        );
 
-        executeAsyncWithOrigin(client, ML_ORIGIN, UpdateProcessAction.INSTANCE, request,
-                new ActionListener<Response>() {
-                    @Override
-                    public void onResponse(Response response) {
-                        if (response.isUpdated()) {
-                            logger.info("Successfully updated remote job [{}]", update.getJobId());
-                            updateHolder.listener.onResponse(true);
-                        } else {
-                            String msg = "Failed to update remote job [" + update.getJobId() + "]";
-                            logger.error(msg);
-                            updateHolder.listener.onFailure(ExceptionsHelper.serverError(msg));
-                        }
-                        executeProcessUpdates(updatesIterator);
-                    }
+        executeAsyncWithOrigin(client, ML_ORIGIN, UpdateProcessAction.INSTANCE, request, new ActionListener<Response>() {
+            @Override
+            public void onResponse(Response response) {
+                if (response.isUpdated()) {
+                    logger.info("Successfully updated remote job [{}]", update.getJobId());
+                    updateHolder.listener.onResponse(true);
+                } else {
+                    String msg = "Failed to update remote job [" + update.getJobId() + "]";
+                    logger.error(msg);
+                    updateHolder.listener.onFailure(ExceptionsHelper.serverError(msg));
+                }
+                executeProcessUpdates(updatesIterator);
+            }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        Throwable cause = ExceptionsHelper.unwrapCause(e);
-                        if (cause instanceof ResourceNotFoundException) {
-                            logger.debug("Remote job [{}] not updated as it has been deleted", update.getJobId());
-                        } else if (cause.getMessage().contains("because job [" + update.getJobId() + "] is not open")
-                                && cause instanceof ElasticsearchStatusException) {
-                            logger.debug("Remote job [{}] not updated as it is no longer open", update.getJobId());
-                        } else {
-                            logger.error("Failed to update remote job [" + update.getJobId() + "]", cause);
-                        }
-                        updateHolder.listener.onFailure(e);
-                        executeProcessUpdates(updatesIterator);
+            @Override
+            public void onFailure(Exception e) {
+                Throwable cause = ExceptionsHelper.unwrapCause(e);
+                if (cause instanceof ResourceNotFoundException) {
+                    logger.debug("Remote job [{}] not updated as it has been deleted", update.getJobId());
+                } else if (cause.getMessage().contains("because job [" + update.getJobId() + "] is not open")
+                    && cause instanceof ElasticsearchStatusException) {
+                        logger.debug("Remote job [{}] not updated as it is no longer open", update.getJobId());
+                    } else {
+                        logger.error("Failed to update remote job [" + update.getJobId() + "]", cause);
                     }
-                });
+                updateHolder.listener.onFailure(e);
+                executeProcessUpdates(updatesIterator);
+            }
+        });
     }
 
     private static class UpdateHolder {

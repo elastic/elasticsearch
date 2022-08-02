@@ -7,10 +7,10 @@
  */
 package org.elasticsearch.script;
 
+import org.elasticsearch.search.lookup.SearchLookup;
+
 import java.io.IOException;
 import java.util.Map;
-
-import org.elasticsearch.search.lookup.SearchLookup;
 
 /**
  * A script implementation of a query filter.
@@ -25,7 +25,7 @@ public abstract class FilterScript extends DocBasedScript {
     private final Map<String, Object> params;
 
     public FilterScript(Map<String, Object> params, SearchLookup lookup, DocReader docReader) {
-        // searchLookup is taken in for compatibility with expressions.  See ExpressionScriptEngine.newFilterScript and
+        // searchLookup is taken in for compatibility with expressions. See ExpressionScriptEngine.newFilterScript and
         // ExpressionScriptEngine.getDocValueSource for where it's used.
         super(docReader);
         this.params = params;
@@ -51,7 +51,7 @@ public abstract class FilterScript extends DocBasedScript {
 
     /** A factory to construct stateful {@link FilterScript} factories for a specific index. */
     public interface Factory extends ScriptFactory {
-        // searchLookup is taken in for compatibility with expressions.  See ExpressionScriptEngine.newFilterScript and
+        // searchLookup is taken in for compatibility with expressions. See ExpressionScriptEngine.newFilterScript and
         // ExpressionScriptEngine.getDocValueSource for where it's used.
         LeafFactory newFactory(Map<String, Object> params, SearchLookup lookup);
     }

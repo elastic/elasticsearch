@@ -9,15 +9,17 @@
 package org.elasticsearch.index.query.functionscore;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.function.FieldValueFactorFunction;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -119,10 +121,10 @@ public class FieldValueFactorFunctionBuilder extends ScoreFunctionBuilder<FieldV
 
     @Override
     protected boolean doEquals(FieldValueFactorFunctionBuilder functionBuilder) {
-        return Objects.equals(this.field, functionBuilder.field) &&
-                Objects.equals(this.factor, functionBuilder.factor) &&
-                Objects.equals(this.missing, functionBuilder.missing) &&
-                Objects.equals(this.modifier, functionBuilder.modifier);
+        return Objects.equals(this.field, functionBuilder.field)
+            && Objects.equals(this.factor, functionBuilder.factor)
+            && Objects.equals(this.missing, functionBuilder.missing)
+            && Objects.equals(this.modifier, functionBuilder.modifier);
     }
 
     @Override
@@ -131,10 +133,15 @@ public class FieldValueFactorFunctionBuilder extends ScoreFunctionBuilder<FieldV
     }
 
     @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
+    }
+
+    @Override
     protected ScoreFunction doToFunction(SearchExecutionContext context) {
         IndexNumericFieldData fieldData = null;
         if (context.isFieldMapped(field)) {
-            fieldData = context.getForField(context.getFieldType(field));
+            fieldData = context.getForField(context.getFieldType(field), MappedFieldType.FielddataOperation.SEARCH);
         } else {
             if (missing == null) {
                 throw new ElasticsearchException("Unable to find a field mapper for field [" + field + "]. No 'missing' value defined.");
@@ -143,8 +150,7 @@ public class FieldValueFactorFunctionBuilder extends ScoreFunctionBuilder<FieldV
         return new FieldValueFactorFunction(field, factor, modifier, missing, fieldData);
     }
 
-    public static FieldValueFactorFunctionBuilder fromXContent(XContentParser parser)
-            throws IOException, ParsingException {
+    public static FieldValueFactorFunctionBuilder fromXContent(XContentParser parser) throws IOException, ParsingException {
         String currentFieldName = null;
         String field = null;
         float boostFactor = FieldValueFactorFunctionBuilder.DEFAULT_FACTOR;
@@ -167,10 +173,12 @@ public class FieldValueFactorFunctionBuilder extends ScoreFunctionBuilder<FieldV
                     throw new ParsingException(parser.getTokenLocation(), NAME + " query does not support [" + currentFieldName + "]");
                 }
             } else if ("factor".equals(currentFieldName)
-                    && (token == XContentParser.Token.START_ARRAY || token == XContentParser.Token.START_OBJECT)) {
-                throw new ParsingException(parser.getTokenLocation(),
-                        "[" + NAME + "] field 'factor' does not support lists or objects");
-            }
+                && (token == XContentParser.Token.START_ARRAY || token == XContentParser.Token.START_OBJECT)) {
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "[" + NAME + "] field 'factor' does not support lists or objects"
+                    );
+                }
         }
 
         if (field == null) {
@@ -178,7 +186,7 @@ public class FieldValueFactorFunctionBuilder extends ScoreFunctionBuilder<FieldV
         }
 
         FieldValueFactorFunctionBuilder fieldValueFactorFunctionBuilder = new FieldValueFactorFunctionBuilder(field).factor(boostFactor)
-                .modifier(modifier);
+            .modifier(modifier);
         if (missing != null) {
             fieldValueFactorFunctionBuilder.missing(missing);
         }

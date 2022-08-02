@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.support.tasks;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
@@ -20,13 +19,14 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
@@ -39,6 +39,7 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.Consumer;
@@ -49,11 +50,10 @@ import static java.util.Collections.emptyList;
  * The base class for transport actions that are interacting with currently running tasks.
  */
 public abstract class TransportTasksAction<
-        OperationTask extends Task,
-        TasksRequest extends BaseTasksRequest<TasksRequest>,
-        TasksResponse extends BaseTasksResponse,
-        TaskResponse extends Writeable
-    > extends HandledTransportAction<TasksRequest, TasksResponse> {
+    OperationTask extends Task,
+    TasksRequest extends BaseTasksRequest<TasksRequest>,
+    TasksResponse extends BaseTasksResponse,
+    TaskResponse extends Writeable> extends HandledTransportAction<TasksRequest, TasksResponse> {
 
     protected final ClusterService clusterService;
     protected final TransportService transportService;
@@ -63,10 +63,16 @@ public abstract class TransportTasksAction<
 
     protected final String transportNodeAction;
 
-    protected TransportTasksAction(String actionName, ClusterService clusterService, TransportService transportService,
-                                   ActionFilters actionFilters, Writeable.Reader<TasksRequest> requestReader,
-                                   Writeable.Reader<TasksResponse> responsesReader, Writeable.Reader<TaskResponse> responseReader,
-                                   String nodeExecutor) {
+    protected TransportTasksAction(
+        String actionName,
+        ClusterService clusterService,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        Writeable.Reader<TasksRequest> requestReader,
+        Writeable.Reader<TasksResponse> responsesReader,
+        Writeable.Reader<TaskResponse> responseReader,
+        String nodeExecutor
+    ) {
         super(actionName, transportService, actionFilters, requestReader);
         this.clusterService = clusterService;
         this.transportService = transportService;
@@ -83,7 +89,7 @@ public abstract class TransportTasksAction<
         new AsyncAction(task, request, listener).start();
     }
 
-    private void nodeOperation(NodeTaskRequest nodeTaskRequest, ActionListener<NodeTasksResponse> listener) {
+    private void nodeOperation(Task task, NodeTaskRequest nodeTaskRequest, ActionListener<NodeTasksResponse> listener) {
         TasksRequest request = nodeTaskRequest.tasksRequest;
         List<OperationTask> tasks = new ArrayList<>();
         processTasks(request, tasks::add);
@@ -117,8 +123,9 @@ public abstract class TransportTasksAction<
                     for (Tuple<TaskResponse, Exception> response : responses.asList()) {
                         if (response.v1() == null) {
                             assert response.v2() != null;
-                            exceptions.add(new TaskOperationFailure(clusterService.localNode().getId(), tasks.get(taskIndex).getId(),
-                                    response.v2()));
+                            exceptions.add(
+                                new TaskOperationFailure(clusterService.localNode().getId(), tasks.get(taskIndex).getId(), response.v2())
+                            );
                         } else {
                             assert response.v2() == null;
                             results.add(response.v1());
@@ -128,7 +135,7 @@ public abstract class TransportTasksAction<
                 }
             };
             try {
-                taskOperation(request, tasks.get(taskIndex), taskListener);
+                taskOperation(task, request, tasks.get(taskIndex), taskListener);
             } catch (Exception e) {
                 taskListener.onFailure(e);
             }
@@ -140,8 +147,8 @@ public abstract class TransportTasksAction<
     }
 
     protected String[] resolveNodes(TasksRequest request, ClusterState clusterState) {
-        if (request.getTaskId().isSet()) {
-            return new String[]{request.getTaskId().getNodeId()};
+        if (request.getTargetTaskId().isSet()) {
+            return new String[] { request.getTargetTaskId().getNodeId() };
         } else {
             return clusterState.nodes().resolveNodes(request.getNodes());
         }
@@ -149,17 +156,17 @@ public abstract class TransportTasksAction<
 
     @SuppressWarnings("unchecked")
     protected void processTasks(TasksRequest request, Consumer<OperationTask> operation) {
-        if (request.getTaskId().isSet()) {
+        if (request.getTargetTaskId().isSet()) {
             // we are only checking one task, we can optimize it
-            Task task = taskManager.getTask(request.getTaskId().getId());
+            Task task = taskManager.getTask(request.getTargetTaskId().getId());
             if (task != null) {
                 if (request.match(task)) {
                     operation.accept((OperationTask) task);
                 } else {
-                    throw new ResourceNotFoundException("task [{}] doesn't support this operation", request.getTaskId());
+                    throw new ResourceNotFoundException("task [{}] doesn't support this operation", request.getTargetTaskId());
                 }
             } else {
-                throw new ResourceNotFoundException("task [{}] is missing", request.getTaskId());
+                throw new ResourceNotFoundException("task [{}] is missing", request.getTargetTaskId());
             }
         } else {
             for (Task task : taskManager.getTasks().values()) {
@@ -170,8 +177,12 @@ public abstract class TransportTasksAction<
         }
     }
 
-    protected abstract TasksResponse newResponse(TasksRequest request, List<TaskResponse> tasks, List<TaskOperationFailure>
-        taskOperationFailures, List<FailedNodeException> failedNodeExceptions);
+    protected abstract TasksResponse newResponse(
+        TasksRequest request,
+        List<TaskResponse> tasks,
+        List<TaskOperationFailure> taskOperationFailures,
+        List<FailedNodeException> failedNodeExceptions
+    );
 
     @SuppressWarnings("unchecked")
     protected TasksResponse newResponse(TasksRequest request, AtomicReferenceArray<?> responses) {
@@ -197,8 +208,12 @@ public abstract class TransportTasksAction<
 
     /**
      * Perform the required operation on the task. It is OK start an asynchronous operation or to throw an exception but not both.
+     * @param actionTask The related transport action task. Can be used to create a task ID to handle upstream transport cancellations.
+     * @param request the original transport request
+     * @param task the task on which the operation is taking place
+     * @param listener the listener to signal.
      */
-    protected abstract void taskOperation(TasksRequest request, OperationTask task, ActionListener<TaskResponse> listener);
+    protected abstract void taskOperation(Task actionTask, TasksRequest request, OperationTask task, ActionListener<TaskResponse> listener);
 
     private class AsyncAction {
 
@@ -217,7 +232,7 @@ public abstract class TransportTasksAction<
             ClusterState clusterState = clusterService.state();
             String[] nodesIds = resolveNodes(request, clusterState);
             this.nodesIds = filterNodeIds(clusterState.nodes(), nodesIds);
-            ImmutableOpenMap<String, DiscoveryNode> nodes = clusterState.nodes().getNodes();
+            Map<String, DiscoveryNode> nodes = clusterState.nodes().getNodes();
             this.nodes = new DiscoveryNode[nodesIds.length];
             for (int i = 0; i < this.nodesIds.length; i++) {
                 this.nodes[i] = nodes.get(this.nodesIds[i]);
@@ -246,7 +261,11 @@ public abstract class TransportTasksAction<
                         } else {
                             NodeTaskRequest nodeRequest = new NodeTaskRequest(request);
                             nodeRequest.setParentTask(clusterService.localNode().getId(), task.getId());
-                            transportService.sendRequest(node, transportNodeAction, nodeRequest, transportRequestOptions,
+                            transportService.sendRequest(
+                                node,
+                                transportNodeAction,
+                                nodeRequest,
+                                transportRequestOptions,
                                 new TransportResponseHandler<NodeTasksResponse>() {
                                     @Override
                                     public NodeTasksResponse read(StreamInput in) throws IOException {
@@ -262,7 +281,8 @@ public abstract class TransportTasksAction<
                                     public void handleException(TransportException exp) {
                                         onFailure(idx, node.getId(), exp);
                                     }
-                                });
+                                }
+                            );
                         }
                     } catch (Exception e) {
                         onFailure(idx, nodeId, e);
@@ -279,7 +299,7 @@ public abstract class TransportTasksAction<
         }
 
         private void onFailure(int idx, String nodeId, Throwable t) {
-            logger.debug(new ParameterizedMessage("failed to execute on node [{}]", nodeId), t);
+            logger.debug(() -> "failed to execute on node [" + nodeId + "]", t);
 
             responses.set(idx, new FailedNodeException(nodeId, "Failed node [" + nodeId + "]", t));
 
@@ -289,6 +309,9 @@ public abstract class TransportTasksAction<
         }
 
         private void finishHim() {
+            if ((task instanceof CancellableTask t) && t.notifyIfCancelled(listener)) {
+                return;
+            }
             TasksResponse finalResponse;
             try {
                 finalResponse = newResponse(request, responses);
@@ -305,21 +328,19 @@ public abstract class TransportTasksAction<
 
         @Override
         public void messageReceived(final NodeTaskRequest request, final TransportChannel channel, Task task) throws Exception {
-            nodeOperation(request, ActionListener.wrap(channel::sendResponse,
-                e -> {
-                    try {
-                        channel.sendResponse(e);
-                    } catch (IOException e1) {
-                        e1.addSuppressed(e);
-                        logger.warn("Failed to send failure", e1);
-                    }
+            nodeOperation(task, request, ActionListener.wrap(channel::sendResponse, e -> {
+                try {
+                    channel.sendResponse(e);
+                } catch (IOException e1) {
+                    e1.addSuppressed(e);
+                    logger.warn("Failed to send failure", e1);
                 }
-            ));
+            }));
         }
     }
 
     private class NodeTaskRequest extends TransportRequest {
-        private TasksRequest tasksRequest;
+        private final TasksRequest tasksRequest;
 
         protected NodeTaskRequest(StreamInput in) throws IOException {
             super(in);
@@ -335,6 +356,11 @@ public abstract class TransportTasksAction<
         protected NodeTaskRequest(TasksRequest tasksRequest) {
             super();
             this.tasksRequest = tasksRequest;
+        }
+
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers);
         }
 
     }
@@ -364,9 +390,7 @@ public abstract class TransportTasksAction<
             }
         }
 
-        NodeTasksResponse(String nodeId,
-                                 List<TaskResponse> results,
-                                 List<TaskOperationFailure> exceptions) {
+        NodeTasksResponse(String nodeId, List<TaskResponse> results, List<TaskOperationFailure> exceptions) {
             this.nodeId = nodeId;
             this.results = results;
             this.exceptions = exceptions;
@@ -383,22 +407,10 @@ public abstract class TransportTasksAction<
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(nodeId);
-            out.writeVInt(results.size());
-            for (TaskResponse result : results) {
-                if (result != null) {
-                    out.writeBoolean(true);
-                    result.writeTo(out);
-                } else {
-                    out.writeBoolean(false);
-                }
-            }
+            out.writeCollection(results, StreamOutput::writeOptionalWriteable);
             out.writeBoolean(exceptions != null);
             if (exceptions != null) {
-                int taskFailures = exceptions.size();
-                out.writeVInt(taskFailures);
-                for (TaskOperationFailure exception : exceptions) {
-                    exception.writeTo(out);
-                }
+                out.writeCollection(exceptions);
             }
         }
     }

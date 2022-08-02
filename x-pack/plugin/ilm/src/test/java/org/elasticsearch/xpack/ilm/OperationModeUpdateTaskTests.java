@@ -10,7 +10,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
@@ -18,6 +17,7 @@ import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleStats;
 
 import java.util.Collections;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -37,13 +37,11 @@ public class OperationModeUpdateTaskTests extends ESTestCase {
 
     public void testExecuteWithEmptyMetadata() {
         OperationMode requestedMode = OperationMode.STOPPING;
-        OperationMode newMode = executeUpdate(false, IndexLifecycleMetadata.EMPTY.getOperationMode(),
-            requestedMode, false);
+        OperationMode newMode = executeUpdate(false, IndexLifecycleMetadata.EMPTY.getOperationMode(), requestedMode, false);
         assertThat(newMode, equalTo(requestedMode));
 
         requestedMode = randomFrom(OperationMode.RUNNING, OperationMode.STOPPED);
-        newMode = executeUpdate(false, IndexLifecycleMetadata.EMPTY.getOperationMode(),
-            requestedMode, false);
+        newMode = executeUpdate(false, IndexLifecycleMetadata.EMPTY.getOperationMode(), requestedMode, false);
         assertThat(newMode, equalTo(OperationMode.RUNNING));
     }
 
@@ -57,19 +55,23 @@ public class OperationModeUpdateTaskTests extends ESTestCase {
         assertThat(newMode, equalTo(currentMode));
     }
 
-    private OperationMode executeUpdate(boolean metadataInstalled, OperationMode currentMode, OperationMode requestMode,
-                                        boolean assertSameClusterState) {
+    private OperationMode executeUpdate(
+        boolean metadataInstalled,
+        OperationMode currentMode,
+        OperationMode requestMode,
+        boolean assertSameClusterState
+    ) {
         IndexLifecycleMetadata indexLifecycleMetadata = new IndexLifecycleMetadata(Collections.emptyMap(), currentMode);
-        SnapshotLifecycleMetadata snapshotLifecycleMetadata =
-            new SnapshotLifecycleMetadata(Collections.emptyMap(), currentMode, new SnapshotLifecycleStats());
-        ImmutableOpenMap.Builder<String, Metadata.Custom> customsMapBuilder = ImmutableOpenMap.builder();
-        Metadata.Builder metadata = Metadata.builder()
-            .persistentSettings(settings(Version.CURRENT).build());
+        SnapshotLifecycleMetadata snapshotLifecycleMetadata = new SnapshotLifecycleMetadata(
+            Collections.emptyMap(),
+            currentMode,
+            new SnapshotLifecycleStats()
+        );
+        Metadata.Builder metadata = Metadata.builder().persistentSettings(settings(Version.CURRENT).build());
         if (metadataInstalled) {
-            metadata.customs(customsMapBuilder
-                .fPut(IndexLifecycleMetadata.TYPE, indexLifecycleMetadata)
-                .fPut(SnapshotLifecycleMetadata.TYPE, snapshotLifecycleMetadata)
-                .build());
+            metadata.customs(
+                Map.of(IndexLifecycleMetadata.TYPE, indexLifecycleMetadata, SnapshotLifecycleMetadata.TYPE, snapshotLifecycleMetadata)
+            );
         }
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
         OperationModeUpdateTask task = OperationModeUpdateTask.ilmMode(requestMode);

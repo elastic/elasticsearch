@@ -23,12 +23,14 @@ public class RecoverySnapshotFileRequest extends RecoveryTransportRequest {
     private final IndexId indexId;
     private final BlobStoreIndexShardSnapshot.FileInfo fileInfo;
 
-    public RecoverySnapshotFileRequest(long recoveryId,
-                                       long requestSeqNo,
-                                       ShardId shardId,
-                                       String repository,
-                                       IndexId indexId,
-                                       BlobStoreIndexShardSnapshot.FileInfo fileInfo) {
+    public RecoverySnapshotFileRequest(
+        long recoveryId,
+        long requestSeqNo,
+        ShardId shardId,
+        String repository,
+        IndexId indexId,
+        BlobStoreIndexShardSnapshot.FileInfo fileInfo
+    ) {
         super(requestSeqNo);
         this.recoveryId = recoveryId;
         this.shardId = shardId;
@@ -48,8 +50,8 @@ public class RecoverySnapshotFileRequest extends RecoveryTransportRequest {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        assert out.getVersion().onOrAfter(RecoverySettings.SNAPSHOT_RECOVERIES_SUPPORTED_VERSION) :
-            "Unexpected serialization version " + out.getVersion();
+        assert out.getVersion().onOrAfter(RecoverySettings.SNAPSHOT_RECOVERIES_SUPPORTED_VERSION)
+            : "Unexpected serialization version " + out.getVersion();
         super.writeTo(out);
         out.writeLong(recoveryId);
         shardId.writeTo(out);

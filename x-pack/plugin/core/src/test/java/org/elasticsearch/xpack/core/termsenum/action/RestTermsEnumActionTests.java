@@ -12,12 +12,10 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -29,8 +27,11 @@ import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.usage.UsageService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.termsenum.rest.RestTermsEnumAction;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -52,8 +53,14 @@ public class RestTermsEnumActionTests extends ESTestCase {
     private static NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
 
     private static UsageService usageService = new UsageService();
-    private static RestController controller = new RestController(emptySet(), null, client,
-        new NoneCircuitBreakerService(), usageService);
+    private static RestController controller = new RestController(
+        emptySet(),
+        null,
+        client,
+        new NoneCircuitBreakerService(),
+        usageService,
+        Tracer.NOOP
+    );
     private static RestTermsEnumAction action = new RestTermsEnumAction();
 
     /**
@@ -78,8 +85,14 @@ public class RestTermsEnumActionTests extends ESTestCase {
             new HashMap<>();
         actions.put(TermsEnumAction.INSTANCE, transportAction);
 
-        client.initialize(actions, taskManager, () -> "local",
-            mock(Transport.Connection.class), null, new NamedWriteableRegistry(List.of()));
+        client.initialize(
+            actions,
+            taskManager,
+            () -> "local",
+            mock(Transport.Connection.class),
+            null,
+            new NamedWriteableRegistry(List.of())
+        );
         controller.registerHandler(action);
     }
 
@@ -103,11 +116,21 @@ public class RestTermsEnumActionTests extends ESTestCase {
 
     public void testRestTermEnumAction() throws Exception {
         // GIVEN a valid query
-        final String content = "{"
-            + "\"field\":\"a\", "
-            + "\"string\":\"foo\", "
-            + "\"search_after\":\"football\", "
-            + "\"index_filter\":{\"bool\":{\"must\":{\"term\":{\"user\":\"kimchy\"}}}}}";
+        final String content = """
+            {
+              "field": "a",
+              "string": "foo",
+              "search_after": "football",
+              "index_filter": {
+                "bool": {
+                  "must": {
+                    "term": {
+                      "user": "kimchy"
+                    }
+                  }
+                }
+              }
+            }""";
 
         final RestRequest request = createRestRequest(content);
         final FakeRestChannel channel = new FakeRestChannel(request, true, 0);
@@ -123,10 +146,19 @@ public class RestTermsEnumActionTests extends ESTestCase {
 
     public void testRestTermEnumActionMissingField() throws Exception {
         // GIVEN an invalid query
-        final String content = "{"
-//            + "\"field\":\"a\", "
-            + "\"string\":\"foo\", "
-            + "\"index_filter\":{\"bool\":{\"must\":{\"term\":{\"user\":\"kimchy\"}}}}}";
+        final String content = """
+            {
+              "string": "foo",
+              "index_filter": {
+                "bool": {
+                  "must": {
+                    "term": {
+                      "user": "kimchy"
+                    }
+                  }
+                }
+              }
+            }""";
 
         final RestRequest request = createRestRequest(content);
         final FakeRestChannel channel = new FakeRestChannel(request, true, 0);
@@ -140,10 +172,8 @@ public class RestTermsEnumActionTests extends ESTestCase {
         assertThat(channel.capturedResponse().content().utf8ToString(), containsString("field cannot be null"));
     }
 
-
     private RestRequest createRestRequest(String content) {
-        return new FakeRestRequest.Builder(xContentRegistry())
-            .withPath("index1/_terms_enum")
+        return new FakeRestRequest.Builder(xContentRegistry()).withPath("index1/_terms_enum")
             .withParams(emptyMap())
             .withContent(new BytesArray(content), XContentType.JSON)
             .build();

@@ -34,9 +34,10 @@ public final class TransportInvalidateTokenAction extends HandledTransportAction
 
     @Override
     protected void doExecute(Task task, InvalidateTokenRequest request, ActionListener<InvalidateTokenResponse> listener) {
-        final ActionListener<TokensInvalidationResult> invalidateListener =
-            ActionListener.wrap(tokensInvalidationResult ->
-                listener.onResponse(new InvalidateTokenResponse(tokensInvalidationResult)), listener::onFailure);
+        final ActionListener<TokensInvalidationResult> invalidateListener = ActionListener.wrap(
+            tokensInvalidationResult -> listener.onResponse(new InvalidateTokenResponse(tokensInvalidationResult)),
+            listener::onFailure
+        );
         if (Strings.hasText(request.getUserName()) || Strings.hasText(request.getRealmName())) {
             tokenService.invalidateActiveTokensForRealmAndUser(request.getRealmName(), request.getUserName(), invalidateListener);
         } else if (request.getTokenType() == InvalidateTokenRequest.Type.ACCESS_TOKEN) {

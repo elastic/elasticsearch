@@ -10,10 +10,11 @@ package org.elasticsearch.search.aggregations.pipeline;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -25,8 +26,7 @@ public class InternalSimpleValue extends InternalNumericMetricsAggregation.Singl
     protected final double value;
 
     public InternalSimpleValue(String name, double value, DocValueFormat formatter, Map<String, Object> metadata) {
-        super(name, metadata);
-        this.format = formatter;
+        super(name, formatter, metadata);
         this.value = value;
     }
 
@@ -35,7 +35,6 @@ public class InternalSimpleValue extends InternalNumericMetricsAggregation.Singl
      */
     public InternalSimpleValue(StreamInput in) throws IOException {
         super(in);
-        format = in.readNamedWriteable(DocValueFormat.class);
         value = in.readDouble();
     }
 
@@ -64,7 +63,7 @@ public class InternalSimpleValue extends InternalNumericMetricsAggregation.Singl
     }
 
     @Override
-    public InternalSimpleValue reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalSimpleValue reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
         throw new UnsupportedOperationException("Not supported");
     }
 

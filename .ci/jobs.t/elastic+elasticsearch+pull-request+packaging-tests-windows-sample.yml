@@ -21,8 +21,9 @@
           github-hooks: true
           status-context: elasticsearch-ci/packaging-tests-windows-sample
           cancel-builds-on-update: true
-          white-list-target-branches:
-            - master
+          black-list-target-branches:
+            - 7.17
+            - 7.16
           excluded-regions:
             - ^docs/.*
           black-list-labels:

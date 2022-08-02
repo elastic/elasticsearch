@@ -13,8 +13,13 @@ import org.elasticsearch.search.DocValueFormat;
 
 public class BucketedSortForDoublesTests extends BucketedSortTestCase<BucketedSort.ForDoubles> {
     @Override
-    public BucketedSort.ForDoubles build(SortOrder sortOrder, DocValueFormat format, int bucketSize,
-            BucketedSort.ExtraData extra, double[] values) {
+    public BucketedSort.ForDoubles build(
+        SortOrder sortOrder,
+        DocValueFormat format,
+        int bucketSize,
+        BucketedSort.ExtraData extra,
+        double[] values
+    ) {
         return new BucketedSort.ForDoubles(bigArrays(), sortOrder, format, bucketSize, extra) {
             @Override
             public Leaf forLeaf(LeafReaderContext ctx) {

@@ -7,12 +7,11 @@
 package org.elasticsearch.xpack.ml.job.retention;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 
 import java.util.Iterator;
-import java.util.Objects;
 import java.util.function.BooleanSupplier;
 
 /**
@@ -39,16 +38,16 @@ abstract class AbstractExpiredJobDataRemover implements MlDataRemover {
     }
 
     @Override
-    public void remove(float requestsPerSecond,
-                       ActionListener<Boolean> listener,
-                       BooleanSupplier isTimedOutSupplier) {
+    public void remove(float requestsPerSecond, ActionListener<Boolean> listener, BooleanSupplier isTimedOutSupplier) {
         removeData(jobIterator, requestsPerSecond, listener, isTimedOutSupplier);
     }
 
-    private void removeData(Iterator<Job> jobIterator,
-                            float requestsPerSecond,
-                            ActionListener<Boolean> listener,
-                            BooleanSupplier isTimedOutSupplier) {
+    private void removeData(
+        Iterator<Job> jobIterator,
+        float requestsPerSecond,
+        ActionListener<Boolean> listener,
+        BooleanSupplier isTimedOutSupplier
+    ) {
         if (jobIterator.hasNext() == false) {
             listener.onResponse(true);
             return;
@@ -71,18 +70,19 @@ abstract class AbstractExpiredJobDataRemover implements MlDataRemover {
             return;
         }
 
-        calcCutoffEpochMs(job.getId(), retentionDays, ActionListener.wrap(
-                response -> {
-                    if (response == null) {
-                        removeData(jobIterator, requestsPerSecond, listener, isTimedOutSupplier);
-                    } else {
-                        removeDataBefore(job, requestsPerSecond, response.latestTimeMs, response.cutoffEpochMs, ActionListener.wrap(
-                                r -> removeData(jobIterator, requestsPerSecond, listener, isTimedOutSupplier),
-                                listener::onFailure));
-                    }
-                },
-                listener::onFailure
-        ));
+        calcCutoffEpochMs(job.getId(), retentionDays, ActionListener.wrap(response -> {
+            if (response == null) {
+                removeData(jobIterator, requestsPerSecond, listener, isTimedOutSupplier);
+            } else {
+                removeDataBefore(
+                    job,
+                    requestsPerSecond,
+                    response.latestTimeMs,
+                    response.cutoffEpochMs,
+                    ActionListener.wrap(r -> removeData(jobIterator, requestsPerSecond, listener, isTimedOutSupplier), listener::onFailure)
+                );
+            }
+        }, listener::onFailure));
     }
 
     abstract void calcCutoffEpochMs(String jobId, long retentionDays, ActionListener<CutoffDetails> listener);
@@ -107,32 +107,5 @@ abstract class AbstractExpiredJobDataRemover implements MlDataRemover {
      * being removed.  This class groups the cutoff time with it's "latest"
      * reference point.
      */
-    protected static final class CutoffDetails {
-
-        public final long latestTimeMs;
-        public final long cutoffEpochMs;
-
-        public CutoffDetails(long latestTimeMs, long cutoffEpochMs) {
-            this.latestTimeMs = latestTimeMs;
-            this.cutoffEpochMs = cutoffEpochMs;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(latestTimeMs, cutoffEpochMs);
-        }
-
-        @Override
-        public boolean equals(Object other) {
-            if (other == this) {
-                return true;
-            }
-            if (other instanceof CutoffDetails == false) {
-                return false;
-            }
-            CutoffDetails that = (CutoffDetails) other;
-            return this.latestTimeMs == that.latestTimeMs &&
-                this.cutoffEpochMs == that.cutoffEpochMs;
-        }
-    }
+    protected record CutoffDetails(long latestTimeMs, long cutoffEpochMs) {}
 }

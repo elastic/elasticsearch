@@ -78,19 +78,20 @@ public class ToString extends ScalarFunction {
     public ScriptTemplate asScript() {
         ScriptTemplate sourceScript = asScript(value);
 
-        return new ScriptTemplate(format(Locale.ROOT, formatTemplate("{eql}.%s(%s)"),
-                "string",
-                sourceScript.template()),
-                paramsBuilder()
-                    .script(sourceScript.params())
-                    .build(), dataType());
+        return new ScriptTemplate(
+            format(Locale.ROOT, formatTemplate("{eql}.%s(%s)"), "string", sourceScript.template()),
+            paramsBuilder().script(sourceScript.params()).build(),
+            dataType()
+        );
     }
 
     @Override
     public ScriptTemplate scriptWithField(FieldAttribute field) {
-        return new ScriptTemplate(processScript(Scripts.DOC_VALUE),
-                paramsBuilder().variable(field.exactAttribute().name()).build(),
-                dataType());
+        return new ScriptTemplate(
+            processScript(Scripts.DOC_VALUE),
+            paramsBuilder().variable(field.exactAttribute().name()).build(),
+            dataType()
+        );
     }
 
     @Override

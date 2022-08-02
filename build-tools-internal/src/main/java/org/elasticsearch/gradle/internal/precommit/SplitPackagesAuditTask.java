@@ -10,9 +10,9 @@ package org.elasticsearch.gradle.internal.precommit;
 
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
-import org.gradle.api.Project;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.FileCollection;
+import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
@@ -32,7 +32,6 @@ import org.gradle.workers.WorkAction;
 import org.gradle.workers.WorkParameters;
 import org.gradle.workers.WorkerExecutor;
 
-import javax.inject.Inject;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -47,10 +46,13 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+
+import javax.inject.Inject;
+
+import static org.elasticsearch.gradle.util.GradleUtils.projectPath;
 
 /**
  * Checks for split packages with dependencies. These are not allowed in a future modularized world.
@@ -64,36 +66,27 @@ public class SplitPackagesAuditTask extends DefaultTask {
     private final SetProperty<File> srcDirs;
     private final SetProperty<String> ignoreClasses;
     private final RegularFileProperty markerFile;
+    private Map<File, String> projectBuildDirs;
 
     @Inject
-    public SplitPackagesAuditTask(WorkerExecutor workerExecutor, ObjectFactory objectFactory) {
+    public SplitPackagesAuditTask(WorkerExecutor workerExecutor, ObjectFactory objectFactory, ProjectLayout projectLayout) {
         this.workerExecutor = workerExecutor;
         this.srcDirs = objectFactory.setProperty(File.class);
         this.ignoreClasses = objectFactory.setProperty(String.class);
         this.markerFile = objectFactory.fileProperty();
-
-        this.markerFile.set(getProject().getLayout().getBuildDirectory().file("markers/" + this.getName() + ".marker"));
+        this.markerFile.set(projectLayout.getBuildDirectory().file("markers/" + this.getName() + ".marker"));
     }
 
     @TaskAction
     public void auditSplitPackages() {
         workerExecutor.noIsolation().submit(SplitPackagesAuditAction.class, params -> {
-            params.getProjectPath().set(getProject().getPath());
-            params.getProjectBuildDirs().set(getProjectBuildDirs());
+            params.getProjectPath().set(projectPath(getPath()));
+            params.getProjectBuildDirs().set(projectBuildDirs);
             params.getClasspath().from(classpath);
             params.getSrcDirs().set(srcDirs);
             params.getIgnoreClasses().set(ignoreClasses);
             params.getMarkerFile().set(markerFile);
         });
-    }
-
-    private Map<File, String> getProjectBuildDirs() {
-        // while this is done in every project, it should be cheap to calculate
-        Map<File, String> buildDirs = new HashMap<>();
-        for (Project project : getProject().getRootProject().getAllprojects()) {
-            buildDirs.put(project.getBuildDir(), project.getPath());
-        }
-        return buildDirs;
     }
 
     @CompileClasspath
@@ -131,6 +124,10 @@ public class SplitPackagesAuditTask extends DefaultTask {
         return markerFile;
     }
 
+    public void setProjectBuildDirs(Map<File, String> projectBuildDirs) {
+        this.projectBuildDirs = projectBuildDirs;
+    }
+
     public abstract static class SplitPackagesAuditAction implements WorkAction<Parameters> {
         @Override
         public void execute() {
@@ -163,8 +160,10 @@ public class SplitPackagesAuditTask extends DefaultTask {
                 LOGGER.error(String.join(System.lineSeparator(), msg));
             }
             if (splitPackages.isEmpty() == false) {
-                throw new GradleException("Verification failed: Split packages found! See errors above for details.\n" +
-                    "DO NOT ADD THESE SPLIT PACKAGES TO THE IGNORE LIST! Choose a new package name for the classes added.");
+                throw new GradleException(
+                    "Verification failed: Split packages found! See errors above for details.\n"
+                        + "DO NOT ADD THESE SPLIT PACKAGES TO THE IGNORE LIST! Choose a new package name for the classes added."
+                );
             }
 
             try {
@@ -184,7 +183,10 @@ public class SplitPackagesAuditTask extends DefaultTask {
             if (LOGGER.isInfoEnabled()) {
                 List<String> msg = new ArrayList<>();
                 msg.add("Packages from dependencies:");
-                packages.entrySet().stream().sorted(Map.Entry.comparingByKey()).forEach(e -> msg.add("  -" + e.getKey() + " -> " + e.getValue()));
+                packages.entrySet()
+                    .stream()
+                    .sorted(Map.Entry.comparingByKey())
+                    .forEach(e -> msg.add("  -" + e.getKey() + " -> " + e.getValue()));
                 LOGGER.info(String.join(System.lineSeparator(), msg));
             }
             return packages;
@@ -198,9 +200,16 @@ public class SplitPackagesAuditTask extends DefaultTask {
                         String packageName = getPackageName(path);
                         String className = path.subpath(path.getNameCount() - 1, path.getNameCount()).toString();
                         className = className.substring(0, className.length() - ".java".length());
-                        LOGGER.info("Inspecting " + path + System.lineSeparator()
-                            + "  package: " + packageName + System.lineSeparator()
-                            + "  class: " + className);
+                        LOGGER.info(
+                            "Inspecting "
+                                + path
+                                + System.lineSeparator()
+                                + "  package: "
+                                + packageName
+                                + System.lineSeparator()
+                                + "  class: "
+                                + className
+                        );
                         if (dependencyPackages.contains(packageName)) {
                             splitPackages.computeIfAbsent(packageName, k -> new TreeSet<>()).add(packageName + "." + className);
                         }
@@ -212,7 +221,10 @@ public class SplitPackagesAuditTask extends DefaultTask {
             if (LOGGER.isInfoEnabled()) {
                 List<String> msg = new ArrayList<>();
                 msg.add("Split packages:");
-                splitPackages.entrySet().stream().sorted(Map.Entry.comparingByKey()).forEach(e -> msg.add("  -" + e.getKey() + " -> " + e.getValue()));
+                splitPackages.entrySet()
+                    .stream()
+                    .sorted(Map.Entry.comparingByKey())
+                    .forEach(e -> msg.add("  -" + e.getKey() + " -> " + e.getValue()));
                 LOGGER.info(String.join(System.lineSeparator(), msg));
             }
             return splitPackages;
@@ -286,12 +298,13 @@ public class SplitPackagesAuditTask extends DefaultTask {
             if (Files.exists(root) == false) {
                 return;
             }
-            Files.walk(root)
-                .filter(p -> p.toString().endsWith(suffix))
-                .map(root::relativize)
-                .filter(p -> p.getNameCount() > 1) // module-info or other things without a package can be skipped
-                .filter(p -> p.toString().startsWith("META-INF") == false)
-                .forEach(classConsumer);
+            try (var paths = Files.walk(root)) {
+                paths.filter(p -> p.toString().endsWith(suffix))
+                    .map(root::relativize)
+                    .filter(p -> p.getNameCount() > 1) // module-info or other things without a package can be skipped
+                    .filter(p -> p.toString().startsWith("META-INF") == false)
+                    .forEach(classConsumer);
+            }
         }
 
         private static String getPackageName(Path path) {
@@ -319,10 +332,15 @@ public class SplitPackagesAuditTask extends DefaultTask {
 
     interface Parameters extends WorkParameters {
         Property<String> getProjectPath();
+
         MapProperty<File, String> getProjectBuildDirs();
+
         ConfigurableFileCollection getClasspath();
+
         SetProperty<File> getSrcDirs();
+
         SetProperty<String> getIgnoreClasses();
+
         RegularFileProperty getMarkerFile();
     }
 }

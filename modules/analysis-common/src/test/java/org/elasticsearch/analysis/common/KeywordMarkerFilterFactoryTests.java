@@ -48,8 +48,7 @@ public class KeywordMarkerFilterFactoryTests extends ESTokenStreamTestCase {
         assertThat(filter, instanceOf(SetKeywordMarkerFilter.class));
         NamedAnalyzer analyzer = analysis.indexAnalyzers.get("my_keyword");
         // jogging is not part of the keywords set, so verify that its the only stemmed word
-        assertAnalyzesTo(analyzer, "running jogging sleeping",
-            new String[] { "running", "jog", "sleeping" });
+        assertAnalyzesTo(analyzer, "running jogging sleeping", new String[] { "running", "jog", "sleeping" });
     }
 
     /**
@@ -87,9 +86,10 @@ public class KeywordMarkerFilterFactoryTests extends ESTokenStreamTestCase {
             .put("index.analysis.analyzer.my_keyword.filter", "my_keyword, porter_stem")
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .build();
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisPlugin()));
-        assertEquals("cannot specify both `keywords_pattern` and `keywords` or `keywords_path`",
-            e.getMessage());
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisPlugin())
+        );
+        assertEquals("cannot specify both `keywords_pattern` and `keywords` or `keywords_path`", e.getMessage());
     }
 }

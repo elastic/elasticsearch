@@ -10,21 +10,23 @@ package org.elasticsearch.discovery.ec2;
 
 import com.amazonaws.http.HttpMethodName;
 import com.amazonaws.services.ec2.model.Instance;
+
 import org.apache.http.HttpStatus;
 import org.apache.http.NameValuePair;
 import org.apache.http.client.utils.URLEncodedUtils;
 import org.elasticsearch.Version;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.discovery.SeedHostsProvider;
 import org.elasticsearch.discovery.SeedHostsResolver;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.nio.MockNioTransport;
+import org.elasticsearch.transport.netty4.Netty4Transport;
+import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -44,9 +46,22 @@ public class EC2RetriesTests extends AbstractEC2MockAPITestCase {
 
     @Override
     protected MockTransportService createTransportService() {
-        return new MockTransportService(Settings.EMPTY, new MockNioTransport(Settings.EMPTY, Version.CURRENT, threadPool, networkService,
-            PageCacheRecycler.NON_RECYCLING_INSTANCE, new NamedWriteableRegistry(Collections.emptyList()),
-            new NoneCircuitBreakerService()), threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, null);
+        return new MockTransportService(
+            Settings.EMPTY,
+            new Netty4Transport(
+                Settings.EMPTY,
+                Version.CURRENT,
+                threadPool,
+                networkService,
+                PageCacheRecycler.NON_RECYCLING_INSTANCE,
+                new NamedWriteableRegistry(Collections.emptyList()),
+                new NoneCircuitBreakerService(),
+                new SharedGroupFactory(Settings.EMPTY)
+            ),
+            threadPool,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            null
+        );
     }
 
     public void testEC2DiscoveryRetriesOnRateLimiting() throws IOException {
@@ -64,8 +79,10 @@ public class EC2RetriesTests extends AbstractEC2MockAPITestCase {
                     if (auth == null || auth.contains(accessKey) == false) {
                         throw new IllegalArgumentException("wrong access key: " + auth);
                     }
-                    if (failedRequests.compute(exchange.getRequestHeaders().getFirst("Amz-sdk-invocation-id"),
-                        (requestId, count) -> Objects.requireNonNullElse(count, 0) + 1) < maxRetries) {
+                    if (failedRequests.compute(
+                        exchange.getRequestHeaders().getFirst("Amz-sdk-invocation-id"),
+                        (requestId, count) -> Objects.requireNonNullElse(count, 0) + 1
+                    ) < maxRetries) {
                         exchange.sendResponseHeaders(HttpStatus.SC_SERVICE_UNAVAILABLE, -1);
                         return;
                     }
@@ -73,8 +90,9 @@ public class EC2RetriesTests extends AbstractEC2MockAPITestCase {
                     byte[] responseBody = null;
                     for (NameValuePair parse : URLEncodedUtils.parse(request, UTF_8)) {
                         if ("Action".equals(parse.getName())) {
-                            responseBody = generateDescribeInstancesResponse(hosts.stream().map(
-                                address -> new Instance().withPublicIpAddress(address)).collect(Collectors.toList()));
+                            responseBody = generateDescribeInstancesResponse(
+                                hosts.stream().map(address -> new Instance().withPublicIpAddress(address)).collect(Collectors.toList())
+                            );
                             break;
                         }
                     }

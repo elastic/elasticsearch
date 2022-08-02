@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.test.AbstractBootstrapCheckTestCase;
+import org.elasticsearch.test.ESTestCase.WithoutSecurityManager;
 import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.Before;
@@ -28,6 +29,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
+@WithoutSecurityManager
 public class EvilBootstrapChecksTests extends AbstractBootstrapCheckTestCase {
 
     private String esEnforceBootstrapChecks = System.getProperty(ES_ENFORCE_BOOTSTRAP_CHECKS);
@@ -52,10 +54,10 @@ public class EvilBootstrapChecksTests extends AbstractBootstrapCheckTestCase {
         final Logger logger = mock(Logger.class);
 
         final NodeValidationException e = expectThrows(
-                NodeValidationException.class,
-                () -> BootstrapChecks.check(emptyContext, false, checks, logger));
-        final Matcher<String> allOf =
-                allOf(containsString("bootstrap checks failed"), containsString("error"));
+            NodeValidationException.class,
+            () -> BootstrapChecks.check(emptyContext, false, checks, logger)
+        );
+        final Matcher<String> allOf = allOf(containsString("bootstrap checks failed"), containsString("error"));
         assertThat(e, hasToString(allOf));
         verify(logger).info("explicitly enforcing bootstrap checks");
         verifyNoMoreInteractions(logger);
@@ -74,10 +76,10 @@ public class EvilBootstrapChecksTests extends AbstractBootstrapCheckTestCase {
         setEsEnforceBootstrapChecks(value);
         final boolean enforceLimits = randomBoolean();
         final IllegalArgumentException e = expectThrows(
-                IllegalArgumentException.class,
-                () -> BootstrapChecks.check(emptyContext, enforceLimits, emptyList()));
-        final Matcher<String> matcher = containsString(
-                "[es.enforce.bootstrap.checks] must be [true] but was [" + value + "]");
+            IllegalArgumentException.class,
+            () -> BootstrapChecks.check(emptyContext, enforceLimits, emptyList())
+        );
+        final Matcher<String> matcher = containsString("[es.enforce.bootstrap.checks] must be [true] but was [" + value + "]");
         assertThat(e, hasToString(matcher));
     }
 

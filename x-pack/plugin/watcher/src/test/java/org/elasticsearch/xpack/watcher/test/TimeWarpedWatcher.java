@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.watcher.test;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -59,7 +59,7 @@ public class TimeWarpedWatcher extends LocalStateCompositeXPackPlugin {
             }
 
             @Override
-            protected TriggerEngine<?, ?> getTriggerEngine(Clock clock, ScheduleRegistry scheduleRegistry){
+            protected TriggerEngine<?, ?> getTriggerEngine(Clock clock, ScheduleRegistry scheduleRegistry) {
                 return new ScheduleTriggerEngineMock(scheduleRegistry, clock);
             }
 
@@ -69,7 +69,7 @@ public class TimeWarpedWatcher extends LocalStateCompositeXPackPlugin {
             }
 
             @Override
-            protected Consumer<Iterable<TriggerEvent>> getTriggerEngineListener(ExecutionService executionService){
+            protected Consumer<Iterable<TriggerEvent>> getTriggerEngineListener(ExecutionService executionService) {
                 return new SyncTriggerEventConsumer(executionService);
             }
         });

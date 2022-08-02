@@ -72,7 +72,7 @@ public class Analysis {
     public static void checkForDeprecatedVersion(String name, Settings settings) {
         String sVersion = settings.get("version");
         if (sVersion != null) {
-            DEPRECATION_LOGGER.critical(
+            DEPRECATION_LOGGER.warn(
                 DeprecationCategory.ANALYSIS,
                 "analyzer.version",
                 "Setting [version] on analysis component [" + name + "] has no effect and is deprecated"
@@ -95,43 +95,50 @@ public class Analysis {
     }
 
     private static final Map<String, Set<?>> NAMED_STOP_WORDS = Map.ofEntries(
-            entry("_arabic_", ArabicAnalyzer.getDefaultStopSet()),
-            entry("_armenian_", ArmenianAnalyzer.getDefaultStopSet()),
-            entry("_basque_", BasqueAnalyzer.getDefaultStopSet()),
-            entry("_bengali_", BengaliAnalyzer.getDefaultStopSet()),
-            entry("_brazilian_", BrazilianAnalyzer.getDefaultStopSet()),
-            entry("_bulgarian_", BulgarianAnalyzer.getDefaultStopSet()),
-            entry("_catalan_", CatalanAnalyzer.getDefaultStopSet()),
-            entry("_czech_", CzechAnalyzer.getDefaultStopSet()),
-            entry("_danish_", DanishAnalyzer.getDefaultStopSet()),
-            entry("_dutch_", DutchAnalyzer.getDefaultStopSet()),
-            entry("_english_", EnglishAnalyzer.getDefaultStopSet()),
-            entry("_estonian_", EstonianAnalyzer.getDefaultStopSet()),
-            entry("_finnish_", FinnishAnalyzer.getDefaultStopSet()),
-            entry("_french_", FrenchAnalyzer.getDefaultStopSet()),
-            entry("_galician_", GalicianAnalyzer.getDefaultStopSet()),
-            entry("_german_", GermanAnalyzer.getDefaultStopSet()),
-            entry("_greek_", GreekAnalyzer.getDefaultStopSet()),
-            entry("_hindi_", HindiAnalyzer.getDefaultStopSet()),
-            entry("_hungarian_", HungarianAnalyzer.getDefaultStopSet()),
-            entry("_indonesian_", IndonesianAnalyzer.getDefaultStopSet()),
-            entry("_irish_", IrishAnalyzer.getDefaultStopSet()),
-            entry("_italian_", ItalianAnalyzer.getDefaultStopSet()),
-            entry("_latvian_", LatvianAnalyzer.getDefaultStopSet()),
-            entry("_lithuanian_", LithuanianAnalyzer.getDefaultStopSet()),
-            entry("_norwegian_", NorwegianAnalyzer.getDefaultStopSet()),
-            entry("_persian_", PersianAnalyzer.getDefaultStopSet()),
-            entry("_portuguese_", PortugueseAnalyzer.getDefaultStopSet()),
-            entry("_romanian_", RomanianAnalyzer.getDefaultStopSet()),
-            entry("_russian_", RussianAnalyzer.getDefaultStopSet()),
-            entry("_sorani_", SoraniAnalyzer.getDefaultStopSet()),
-            entry("_spanish_", SpanishAnalyzer.getDefaultStopSet()),
-            entry("_swedish_", SwedishAnalyzer.getDefaultStopSet()),
-            entry("_thai_", ThaiAnalyzer.getDefaultStopSet()),
-            entry("_turkish_", TurkishAnalyzer.getDefaultStopSet()));
+        entry("_arabic_", ArabicAnalyzer.getDefaultStopSet()),
+        entry("_armenian_", ArmenianAnalyzer.getDefaultStopSet()),
+        entry("_basque_", BasqueAnalyzer.getDefaultStopSet()),
+        entry("_bengali_", BengaliAnalyzer.getDefaultStopSet()),
+        entry("_brazilian_", BrazilianAnalyzer.getDefaultStopSet()),
+        entry("_bulgarian_", BulgarianAnalyzer.getDefaultStopSet()),
+        entry("_catalan_", CatalanAnalyzer.getDefaultStopSet()),
+        entry("_czech_", CzechAnalyzer.getDefaultStopSet()),
+        entry("_danish_", DanishAnalyzer.getDefaultStopSet()),
+        entry("_dutch_", DutchAnalyzer.getDefaultStopSet()),
+        entry("_english_", EnglishAnalyzer.getDefaultStopSet()),
+        entry("_estonian_", EstonianAnalyzer.getDefaultStopSet()),
+        entry("_finnish_", FinnishAnalyzer.getDefaultStopSet()),
+        entry("_french_", FrenchAnalyzer.getDefaultStopSet()),
+        entry("_galician_", GalicianAnalyzer.getDefaultStopSet()),
+        entry("_german_", GermanAnalyzer.getDefaultStopSet()),
+        entry("_greek_", GreekAnalyzer.getDefaultStopSet()),
+        entry("_hindi_", HindiAnalyzer.getDefaultStopSet()),
+        entry("_hungarian_", HungarianAnalyzer.getDefaultStopSet()),
+        entry("_indonesian_", IndonesianAnalyzer.getDefaultStopSet()),
+        entry("_irish_", IrishAnalyzer.getDefaultStopSet()),
+        entry("_italian_", ItalianAnalyzer.getDefaultStopSet()),
+        entry("_latvian_", LatvianAnalyzer.getDefaultStopSet()),
+        entry("_lithuanian_", LithuanianAnalyzer.getDefaultStopSet()),
+        entry("_norwegian_", NorwegianAnalyzer.getDefaultStopSet()),
+        entry("_persian_", PersianAnalyzer.getDefaultStopSet()),
+        entry("_portuguese_", PortugueseAnalyzer.getDefaultStopSet()),
+        entry("_romanian_", RomanianAnalyzer.getDefaultStopSet()),
+        entry("_russian_", RussianAnalyzer.getDefaultStopSet()),
+        entry("_sorani_", SoraniAnalyzer.getDefaultStopSet()),
+        entry("_spanish_", SpanishAnalyzer.getDefaultStopSet()),
+        entry("_swedish_", SwedishAnalyzer.getDefaultStopSet()),
+        entry("_thai_", ThaiAnalyzer.getDefaultStopSet()),
+        entry("_turkish_", TurkishAnalyzer.getDefaultStopSet())
+    );
 
-    public static CharArraySet parseWords(Environment env, Settings settings, String name, CharArraySet defaultWords,
-                                          Map<String, Set<?>> namedWords, boolean ignoreCase) {
+    public static CharArraySet parseWords(
+        Environment env,
+        Settings settings,
+        String name,
+        CharArraySet defaultWords,
+        Map<String, Set<?>> namedWords,
+        boolean ignoreCase
+    ) {
         String value = settings.get(name);
         if (value != null) {
             if ("_none_".equals(value)) {
@@ -156,8 +163,7 @@ public class Analysis {
         return parseWords(env, settings, "articles", null, null, articlesCase);
     }
 
-    public static CharArraySet parseStopWords(Environment env, Settings settings,
-                                              CharArraySet defaultStopWords) {
+    public static CharArraySet parseStopWords(Environment env, Settings settings, CharArraySet defaultStopWords) {
         boolean stopwordsCase = settings.getAsBoolean("stopwords_case", false);
         return parseStopWords(env, settings, defaultStopWords, stopwordsCase);
     }
@@ -208,8 +214,13 @@ public class Analysis {
      * @throws IllegalArgumentException
      *          If the word list cannot be found at either key.
      */
-    public static List<String> getWordList(Environment env, Settings settings,
-                                           String settingPath, String settingList, boolean removeComments) {
+    public static List<String> getWordList(
+        Environment env,
+        Settings settings,
+        String settingPath,
+        String settingList,
+        boolean removeComments
+    ) {
         String wordListPath = settings.get(settingPath, null);
 
         if (wordListPath == null) {
@@ -226,9 +237,12 @@ public class Analysis {
         try {
             return loadWordList(path, removeComments);
         } catch (CharacterCodingException ex) {
-            String message = String.format(Locale.ROOT,
+            String message = String.format(
+                Locale.ROOT,
                 "Unsupported character encoding detected while reading %s: %s - files must be UTF-8 encoded",
-                settingPath, path.toString());
+                settingPath,
+                path.toString()
+            );
             throw new IllegalArgumentException(message, ex);
         } catch (IOException ioe) {
             String message = String.format(Locale.ROOT, "IOException while reading %s: %s", settingPath, path.toString());
@@ -267,9 +281,12 @@ public class Analysis {
         try {
             return Files.newBufferedReader(path, StandardCharsets.UTF_8);
         } catch (CharacterCodingException ex) {
-            String message = String.format(Locale.ROOT,
+            String message = String.format(
+                Locale.ROOT,
                 "Unsupported character encoding detected while reading %s_path: %s files must be UTF-8 encoded",
-                settingPrefix, path.toString());
+                settingPrefix,
+                path.toString()
+            );
             throw new IllegalArgumentException(message, ex);
         } catch (IOException ioe) {
             String message = String.format(Locale.ROOT, "IOException while reading %s_path: %s", settingPrefix, path.toString());

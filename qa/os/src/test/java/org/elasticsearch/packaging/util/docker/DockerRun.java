@@ -11,17 +11,21 @@ package org.elasticsearch.packaging.util.docker;
 import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.Platforms;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
+import static java.util.Objects.requireNonNull;
 import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileExists;
 import static org.hamcrest.MatcherAssert.assertThat;
 
+/**
+ * A utility class for constructing a {@code docker run} command line from Java.
+ */
 public class DockerRun {
 
     private Distribution distribution;
@@ -30,53 +34,70 @@ public class DockerRun {
     private Integer uid;
     private Integer gid;
     private final List<String> extraArgs = new ArrayList<>();
+    private final List<String> runArgs = new ArrayList<>();
     private String memory = "2g"; // default to 2g memory limit
 
     private DockerRun() {}
 
     public static DockerRun builder() {
-        return new DockerRun();
+        // Disable this setting by default in the Docker tests
+        return new DockerRun().envVar("ingest.geoip.downloader.enabled", "false");
     }
 
     public DockerRun distribution(Distribution distribution) {
-        this.distribution = Objects.requireNonNull(distribution);
+        this.distribution = requireNonNull(distribution);
         return this;
     }
 
-    public DockerRun envVars(Map<String, String> envVars) {
-        if (envVars != null) {
-            this.envVars.putAll(envVars);
+    public DockerRun envVar(String key, String value) {
+        this.envVars.put(requireNonNull(key), requireNonNull(value));
+        return this;
+    }
+
+    public DockerRun volume(Path from, String to) {
+        requireNonNull(from);
+        if (Files.exists(from) == false) {
+            throw new RuntimeException("Path [" + from + "] does not exist");
         }
+        this.volumes.put(requireNonNull(from), Path.of(requireNonNull(to)));
         return this;
     }
 
-    public DockerRun volumes(Map<Path, Path> volumes) {
-        if (volumes != null) {
-            this.volumes.putAll(volumes);
-        }
+    public DockerRun volume(Path from, Path to) {
+        this.volumes.put(requireNonNull(from), requireNonNull(to));
         return this;
     }
 
-    public DockerRun uid(Integer uid, Integer gid) {
-        if (uid == null) {
-            if (gid != null) {
+    /**
+     * Sets the UID that the container is run with, and the GID too if specified.
+     *
+     * @param uidToUse the UID to use, or {@code null} to use the image default
+     * @param gidToUse the GID to use, or {@code null} to use the image default
+     * @return the current builder
+     */
+    public DockerRun uid(Integer uidToUse, Integer gidToUse) {
+        if (uidToUse == null) {
+            if (gidToUse != null) {
                 throw new IllegalArgumentException("Cannot override GID without also overriding UID");
             }
         }
-        this.uid = uid;
-        this.gid = gid;
+        this.uid = uidToUse;
+        this.gid = gidToUse;
         return this;
     }
 
     public DockerRun memory(String memoryLimit) {
-        if (memoryLimit != null) {
-            this.memory = memoryLimit;
-        }
+        this.memory = requireNonNull(memoryLimit);
         return this;
     }
 
     public DockerRun extraArgs(String... args) {
         Collections.addAll(this.extraArgs, args);
+        return this;
+    }
+
+    public DockerRun runArgs(String... args) {
+        Collections.addAll(this.runArgs, args);
         return this;
     }
 
@@ -93,12 +114,12 @@ public class DockerRun {
 
         this.envVars.forEach((key, value) -> cmd.add("--env " + key + "=\"" + value + "\""));
 
-        // The container won't run without configuring discovery
-        cmd.add("--env discovery.type=single-node");
-
         // Map ports in the container to the host, so that we can send requests
-        cmd.add("--publish 9200:9200");
-        cmd.add("--publish 9300:9300");
+        // allow ports to be overridden by tests
+        if (this.extraArgs.stream().anyMatch(arg -> arg.startsWith("-p") || arg.startsWith("--publish")) == false) {
+            cmd.add("--publish 9200:9200");
+            cmd.add("--publish 9300:9300");
+        }
 
         // Bind-mount any volumes
         volumes.forEach((localPath, containerPath) -> {
@@ -129,6 +150,8 @@ public class DockerRun {
         // Image name
         cmd.add(getImageName(distribution));
 
+        cmd.addAll(this.runArgs);
+
         return String.join(" ", cmd);
     }
 
@@ -138,32 +161,14 @@ public class DockerRun {
      * @return an image name
      */
     public static String getImageName(Distribution distribution) {
-        String suffix;
-
-        switch (distribution.packaging) {
-            case DOCKER:
-                suffix = "";
-                break;
-
-            case DOCKER_UBI:
-                suffix = "-ubi8";
-                break;
-
-            case DOCKER_IRON_BANK:
-                suffix = "-ironbank";
-                break;
-
-            case DOCKER_CLOUD:
-                suffix = "-cloud";
-                break;
-
-            case DOCKER_CLOUD_ESS:
-                suffix = "-cloud-ess";
-                break;
-
-            default:
-                throw new IllegalStateException("Unexpected distribution packaging type: " + distribution.packaging);
-        }
+        String suffix = switch (distribution.packaging) {
+            case DOCKER -> "";
+            case DOCKER_UBI -> "-ubi8";
+            case DOCKER_IRON_BANK -> "-ironbank";
+            case DOCKER_CLOUD -> "-cloud";
+            case DOCKER_CLOUD_ESS -> "-cloud-ess";
+            default -> throw new IllegalStateException("Unexpected distribution packaging type: " + distribution.packaging);
+        };
 
         return "elasticsearch" + suffix + ":test";
     }

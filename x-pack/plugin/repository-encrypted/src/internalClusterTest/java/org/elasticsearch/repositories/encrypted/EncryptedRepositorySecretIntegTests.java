@@ -20,7 +20,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
-import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.RepositoryData;
@@ -59,7 +59,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.mockito.Matchers.anyObject;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -118,7 +118,7 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
 
         if (randomBoolean()) {
             // stop the node with the missing password
-            internalCluster().stopRandomNode(InternalTestCluster.nameFilter(masterNodeName));
+            internalCluster().stopNode(masterNodeName);
             ensureStableCluster(2);
         } else {
             // restart the node with the missing password
@@ -183,7 +183,7 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
         expectThrows(RepositoryVerificationException.class, () -> client().admin().cluster().prepareVerifyRepository(repositoryName).get());
         if (randomBoolean()) {
             // stop the node with the missing password
-            internalCluster().stopRandomNode(InternalTestCluster.nameFilter(otherNodeName));
+            internalCluster().stopNode(otherNodeName);
             ensureStableCluster(1);
             // repository verification now succeeds
             VerifyRepositoryResponse verifyRepositoryResponse = client().admin().cluster().prepareVerifyRepository(repositoryName).get();
@@ -316,8 +316,8 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
             RepositoriesService.class
         ).repository(repositoryName);
         encryptedRepository.licenseStateSupplier = () -> {
-            XPackLicenseState mockLicenseState = mock(XPackLicenseState.class);
-            when(mockLicenseState.isAllowed(anyObject())).thenReturn(false);
+            MockLicenseState mockLicenseState = mock(MockLicenseState.class);
+            when(mockLicenseState.isAllowed(any())).thenReturn(false);
             return mockLicenseState;
         };
 
@@ -420,7 +420,10 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
             incompleteSnapshotResponse.getSnapshotInfo()
                 .shardFailures()
                 .stream()
-                .allMatch(shardFailure -> shardFailure.reason().contains("[" + repositoryName + "] missing"))
+                .allMatch(
+                    shardFailure -> shardFailure.reason()
+                        .contains("Secure setting [repository.encrypted." + repositoryName + ".password] must be set")
+                )
         );
         assertThat(
             incompleteSnapshotResponse.getSnapshotInfo().userMetadata(),
@@ -683,7 +686,7 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
         client().admin().cluster().prepareCreateSnapshot(repoName, snapshotName).setIndices(indexName).setWaitForCompletion(false).get();
 
         // stop master
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(masterNode));
+        internalCluster().stopNode(masterNode);
         ensureStableCluster(3);
 
         otherNodeEncryptedRepo.unblockSnapshotShard();
@@ -773,9 +776,9 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
                     return snapshotInfos.get(0);
                 } else {
                     boolean found = false;
-                    for (SnapshotsInProgress.Entry entry : snapshotsInProgress.entries()) {
+                    for (SnapshotsInProgress.Entry entry : snapshotsInProgress.forRepo(repository)) {
                         final Snapshot curr = entry.snapshot();
-                        if (curr.getRepository().equals(repository) && curr.getSnapshotId().getName().equals(snapshotName)) {
+                        if (curr.getSnapshotId().getName().equals(snapshotName)) {
                             found = true;
                             break;
                         }

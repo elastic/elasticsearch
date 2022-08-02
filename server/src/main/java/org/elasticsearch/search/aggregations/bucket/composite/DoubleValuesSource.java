@@ -46,7 +46,15 @@ class DoubleValuesSource extends SingleDimensionValuesSource<Double> {
         super(bigArrays, format, fieldType, missingBucket, missingOrder, size, reverseMul);
         this.docValuesFunc = docValuesFunc;
         this.bits = this.missingBucket ? new BitArray(100, bigArrays) : null;
-        this.values = bigArrays.newDoubleArray(Math.min(size, 100), false);
+        boolean success = false;
+        try {
+            this.values = bigArrays.newDoubleArray(Math.min(size, 100), false);
+            success = true;
+        } finally {
+            if (success == false) {
+                close();
+            }
+        }
     }
 
     @Override
@@ -153,10 +161,14 @@ class DoubleValuesSource extends SingleDimensionValuesSource<Double> {
             public void collect(int doc, long bucket) throws IOException {
                 if (dvs.advanceExact(doc)) {
                     int num = dvs.docValueCount();
+                    double previous = Double.MAX_VALUE;
                     for (int i = 0; i < num; i++) {
                         currentValue = dvs.nextValue();
                         missingCurrentValue = false;
-                        next.collect(doc, bucket);
+                        if (i == 0 || previous != currentValue) {
+                            next.collect(doc, bucket);
+                            previous = currentValue;
+                        }
                     }
                 } else if (missingBucket) {
                     missingCurrentValue = true;

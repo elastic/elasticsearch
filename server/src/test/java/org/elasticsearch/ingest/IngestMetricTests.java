@@ -31,4 +31,18 @@ public class IngestMetricTests extends ESTestCase {
         assertThat(1L, equalTo(metric.createStats().getIngestTimeInMillis()));
     }
 
+    public void testPostIngestDoubleDecrement() {
+        IngestMetric metric = new IngestMetric();
+
+        metric.preIngest();
+        assertThat(1L, equalTo(metric.createStats().getIngestCurrent()));
+
+        metric.postIngest(500000L);
+        assertThat(0L, equalTo(metric.createStats().getIngestCurrent()));
+
+        // the second postIngest triggers an assertion error
+        expectThrows(AssertionError.class, () -> metric.postIngest(500000L));
+        assertThat(-1L, equalTo(metric.createStats().getIngestCurrent()));
+    }
+
 }

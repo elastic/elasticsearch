@@ -14,7 +14,7 @@ import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineTestCase;
@@ -166,19 +166,19 @@ public class FrozenEngineTests extends EngineTestCase {
                         SegmentsStats segmentsStats = frozenEngine.segmentsStats(randomBoolean(), false);
                         try (Engine.Searcher searcher = reader.acquireSearcher("test")) {
                             segmentsStats = frozenEngine.segmentsStats(randomBoolean(), false);
-                            assertEquals(frozenEngine.segments(randomBoolean()).size(), segmentsStats.getCount());
+                            assertEquals(frozenEngine.segments().size(), segmentsStats.getCount());
                             assertEquals(1, listener.afterRefresh.get());
                         }
                         segmentsStats = frozenEngine.segmentsStats(randomBoolean(), false);
                         assertEquals(0, segmentsStats.getCount());
                         try (Engine.Searcher searcher = reader.acquireSearcher("test")) {
                             segmentsStats = frozenEngine.segmentsStats(randomBoolean(), true);
-                            assertEquals(frozenEngine.segments(randomBoolean()).size(), segmentsStats.getCount());
+                            assertEquals(frozenEngine.segments().size(), segmentsStats.getCount());
                             assertEquals(2, listener.afterRefresh.get());
                         }
                         assertFalse(frozenEngine.isReaderOpen());
                         segmentsStats = frozenEngine.segmentsStats(randomBoolean(), true);
-                        assertEquals(frozenEngine.segments(randomBoolean()).size(), segmentsStats.getCount());
+                        assertEquals(frozenEngine.segments().size(), segmentsStats.getCount());
                     }
                 }
             }

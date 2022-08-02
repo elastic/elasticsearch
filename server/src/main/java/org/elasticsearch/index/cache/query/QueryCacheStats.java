@@ -8,22 +8,18 @@
 
 package org.elasticsearch.index.cache.query;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.DocIdSet;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
 public class QueryCacheStats implements Writeable, ToXContentFragment {
-
-    private static final Logger logger = LogManager.getLogger(QueryCacheStats.class);
 
     private long ramBytesUsed;
     private long hitCount;
@@ -31,8 +27,7 @@ public class QueryCacheStats implements Writeable, ToXContentFragment {
     private long cacheCount;
     private long cacheSize;
 
-    public QueryCacheStats() {
-    }
+    public QueryCacheStats() {}
 
     public QueryCacheStats(StreamInput in) throws IOException {
         ramBytesUsed = in.readLong();

@@ -143,7 +143,7 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
         AGGREGATIONS("aggregations"),
         INDICES("indices");
 
-        private String metricName;
+        private final String metricName;
 
         Metric(String name) {
             this.metricName = name;
@@ -151,10 +151,6 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
 
         public String metricName() {
             return this.metricName;
-        }
-
-        boolean containedIn(Set<String> metricNames) {
-            return metricNames.contains(this.metricName());
         }
 
         public static Set<String> allMetrics() {

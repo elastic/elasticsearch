@@ -10,7 +10,6 @@ package org.elasticsearch.action.admin.indices.settings.put;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -33,11 +32,14 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.indices.SystemIndexManager.MANAGED_SYSTEM_INDEX_SETTING_UPDATE_ALLOWLIST;
 
 public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNodeAction<UpdateSettingsRequest> {
 
@@ -47,12 +49,25 @@ public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNo
     private final SystemIndices systemIndices;
 
     @Inject
-    public TransportUpdateSettingsAction(TransportService transportService, ClusterService clusterService,
-                                         ThreadPool threadPool, MetadataUpdateSettingsService updateSettingsService,
-                                         ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                         SystemIndices systemIndices) {
-        super(UpdateSettingsAction.NAME, transportService, clusterService, threadPool, actionFilters, UpdateSettingsRequest::new,
-            indexNameExpressionResolver, ThreadPool.Names.SAME);
+    public TransportUpdateSettingsAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        MetadataUpdateSettingsService updateSettingsService,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        SystemIndices systemIndices
+    ) {
+        super(
+            UpdateSettingsAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            UpdateSettingsRequest::new,
+            indexNameExpressionResolver,
+            ThreadPool.Names.SAME
+        );
         this.updateSettingsService = updateSettingsService;
         this.systemIndices = systemIndices;
     }
@@ -70,13 +85,17 @@ public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNo
             || IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING.exists(request.settings())) {
             return null;
         }
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE,
-            indexNameExpressionResolver.concreteIndexNames(state, request));
+        return state.blocks()
+            .indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, indexNameExpressionResolver.concreteIndexNames(state, request));
     }
 
     @Override
-    protected void masterOperation(Task task, final UpdateSettingsRequest request, final ClusterState state,
-                                   final ActionListener<AcknowledgedResponse> listener) {
+    protected void masterOperation(
+        Task task,
+        final UpdateSettingsRequest request,
+        final ClusterState state,
+        final ActionListener<AcknowledgedResponse> listener
+    ) {
         final Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
         final Settings requestSettings = request.settings();
 
@@ -92,27 +111,25 @@ public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNo
             return;
         }
 
-        final List<String> hiddenSystemIndexViolations
-            = checkForHidingSystemIndex(concreteIndices, request);
-        if (hiddenSystemIndexViolations.isEmpty() == false) {
-            final String message = "Cannot set [index.hidden] to 'true' on system indices: "
-                + hiddenSystemIndexViolations.stream()
-                    .map(entry -> "[" + entry + "]")
-                    .collect(Collectors.joining(", "));
+        final List<String> unhiddenSystemIndexViolations = checkForUnhidingSystemIndex(concreteIndices, request);
+        if (unhiddenSystemIndexViolations.isEmpty() == false) {
+            final String message = "Cannot set [index.hidden] to 'false' on system indices: "
+                + unhiddenSystemIndexViolations.stream().map(entry -> "[" + entry + "]").collect(Collectors.joining(", "));
             logger.warn(message);
             listener.onFailure(new IllegalStateException(message));
             return;
         }
 
-        UpdateSettingsClusterStateUpdateRequest clusterStateUpdateRequest = new UpdateSettingsClusterStateUpdateRequest()
-                .indices(concreteIndices)
-                .settings(requestSettings)
-                .setPreserveExisting(request.isPreserveExisting())
-                .ackTimeout(request.timeout())
-                .masterNodeTimeout(request.masterNodeTimeout());
+        UpdateSettingsClusterStateUpdateRequest clusterStateUpdateRequest = new UpdateSettingsClusterStateUpdateRequest().indices(
+            concreteIndices
+        )
+            .settings(requestSettings)
+            .setPreserveExisting(request.isPreserveExisting())
+            .ackTimeout(request.timeout())
+            .masterNodeTimeout(request.masterNodeTimeout());
 
         updateSettingsService.updateSettings(clusterStateUpdateRequest, listener.delegateResponse((l, e) -> {
-            logger.debug(() -> new ParameterizedMessage("failed to update settings on indices [{}]", (Object) concreteIndices), e);
+            logger.debug(() -> "failed to update settings on indices [" + Arrays.toString(concreteIndices) + "]", e);
             l.onFailure(e);
         }));
     }
@@ -141,6 +158,10 @@ public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNo
                 final Settings descriptorSettings = descriptor.getSettings();
                 List<String> failedKeys = new ArrayList<>();
                 for (String key : requestSettings.keySet()) {
+                    if (MANAGED_SYSTEM_INDEX_SETTING_UPDATE_ALLOWLIST.contains(key)) {
+                        // Don't check the setting if it's on the allowlist.
+                        continue;
+                    }
                     final String expectedValue = descriptorSettings.get(key);
                     final String actualValue = requestSettings.get(key);
 
@@ -159,17 +180,17 @@ public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNo
     }
 
     /**
-     * Checks that the request isn't trying to add the "hidden" setting to a system
+     * Checks that the request isn't trying to remove the "hidden" setting on a system
      * index
      *
      * @param concreteIndices the indices being updated
      * @param request the update request
-     * @return a list of system indexes that this request would set to hidden
+     * @return a list of system indexes that this request would make visible
      */
-    private List<String> checkForHidingSystemIndex(Index[] concreteIndices, UpdateSettingsRequest request) {
+    private List<String> checkForUnhidingSystemIndex(Index[] concreteIndices, UpdateSettingsRequest request) {
         // Requests that a cluster generates itself are permitted to have a difference in settings
         // so that rolling upgrade scenarios still work. We check this via the request's origin.
-        if (request.settings().getAsBoolean(IndexMetadata.SETTING_INDEX_HIDDEN, false) == false) {
+        if (request.settings().getAsBoolean(IndexMetadata.SETTING_INDEX_HIDDEN, true)) {
             return List.of();
         }
 

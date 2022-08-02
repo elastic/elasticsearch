@@ -16,12 +16,12 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RerouteExplanation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardNotFoundException;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Optional;
@@ -115,18 +115,31 @@ public class AllocateStalePrimaryAllocationCommand extends BasePrimaryAllocation
         }
 
         if (acceptDataLoss == false) {
-            String dataLossWarning = "allocating an empty primary for [" + index + "][" + shardId + "] can result in data loss. Please " +
-                "confirm by setting the accept_data_loss parameter to true";
+            String dataLossWarning = "allocating an empty primary for ["
+                + index
+                + "]["
+                + shardId
+                + "] can result in data loss. Please "
+                + "confirm by setting the accept_data_loss parameter to true";
             return explainOrThrowRejectedCommand(explain, allocation, dataLossWarning);
         }
 
         if (shardRouting.recoverySource().getType() != RecoverySource.Type.EXISTING_STORE) {
-            return explainOrThrowRejectedCommand(explain, allocation,
-                "trying to allocate an existing primary shard [" + index + "][" + shardId + "], while no such shard has ever been active");
+            return explainOrThrowRejectedCommand(
+                explain,
+                allocation,
+                "trying to allocate an existing primary shard [" + index + "][" + shardId + "], while no such shard has ever been active"
+            );
         }
 
-        initializeUnassignedShard(allocation, routingNodes, routingNode, shardRouting, null,
-            RecoverySource.ExistingStoreRecoverySource.FORCE_STALE_PRIMARY_INSTANCE);
+        initializeUnassignedShard(
+            allocation,
+            routingNodes,
+            routingNode,
+            shardRouting,
+            null,
+            RecoverySource.ExistingStoreRecoverySource.FORCE_STALE_PRIMARY_INSTANCE
+        );
         return new RerouteExplanation(this, allocation.decision(Decision.YES, name() + " (allocation command)", "ignore deciders"));
     }
 

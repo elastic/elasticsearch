@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.sql.qa.security;
 
 import org.apache.lucene.util.SuppressForbidden;
-import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
@@ -17,10 +16,10 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
@@ -175,14 +174,15 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
         Request request = new Request("PUT", "/_bulk");
         request.addParameter("refresh", "true");
 
-        StringBuilder bulk = new StringBuilder();
-        bulk.append("{\"index\":{\"_index\": \"test\", \"_id\":\"1\"}\n");
-        bulk.append("{\"a\": 1, \"b\": 2, \"c\": 3}\n");
-        bulk.append("{\"index\":{\"_index\": \"test\", \"_id\":\"2\"}\n");
-        bulk.append("{\"a\": 4, \"b\": 5, \"c\": 6}\n");
-        bulk.append("{\"index\":{\"_index\": \"bort\", \"_id\":\"1\"}\n");
-        bulk.append("{\"a\": \"test\"}\n");
-        request.setJsonEntity(bulk.toString());
+        String bulk = """
+            {"index":{"_index": "test", "_id":"1"}}
+            {"a": 1, "b": 2, "c": 3}
+            {"index":{"_index": "test", "_id":"2"}}
+            {"a": 4, "b": 5, "c": 6}
+            {"index":{"_index": "bort", "_id":"1"}}
+            {"a": "test"}
+            """;
+        request.setJsonEntity(bulk);
         client().performRequest(request);
         oneTimeSetup = true;
     }
@@ -527,20 +527,12 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
             String principal,
             Matcher<? extends Iterable<? extends String>> indicesMatcher
         ) {
-            String request;
-            switch (action) {
-                case SQL_ACTION_NAME:
-                    request = "SqlQueryRequest";
-                    break;
-                case GetIndexAction.NAME:
-                    request = GetIndexRequest.class.getSimpleName();
-                    break;
-                case FieldCapabilitiesAction.NAME:
-                    request = FieldCapabilitiesRequest.class.getSimpleName();
-                    break;
-                default:
-                    throw new IllegalArgumentException("Unknown action [" + action + "]");
-            }
+            String request = switch (action) {
+                case SQL_ACTION_NAME -> "SqlQueryRequest";
+                case GetIndexAction.NAME -> GetIndexRequest.class.getSimpleName();
+                case FieldCapabilitiesAction.NAME -> FieldCapabilitiesRequest.class.getSimpleName();
+                default -> throw new IllegalArgumentException("Unknown action [" + action + "]");
+            };
             final String eventAction = granted ? "access_granted" : "access_denied";
             final String realm = principal.equals("test_admin") ? "default_file" : "default_native";
             return expect(eventAction, action, principal, realm, indicesMatcher, request);
@@ -649,16 +641,13 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
                                     List<String> castIndices = (ArrayList<String>) log.get("indices");
                                     indices = castIndices;
                                     if ("test_admin".equals(log.get("user.name"))) {
-                                        CharacterRunAutomaton restrictedAutomaton = new CharacterRunAutomaton(
-                                            TestRestrictedIndices.RESTRICTED_INDICES_AUTOMATON
-                                        );
                                         /*
                                          * Sometimes we accidentally sneak access to the security tables. This is fine,
                                          * SQL drops them from the interface. So we might have access to them, but we
                                          * don't show them.
                                          */
                                         indices = indices.stream()
-                                            .filter(idx -> false == restrictedAutomaton.run(idx))
+                                            .filter(idx -> false == TestRestrictedIndices.RESTRICTED_INDICES.isRestricted(idx))
                                             .collect(Collectors.toList());
                                     }
                                 }

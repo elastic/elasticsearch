@@ -45,6 +45,6 @@ public class RestGetActionTests extends RestActionTestCase {
             Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader)
         ).withPath("/some_index/some_type/some_id");
         dispatchRequest(deprecatedRequest.withMethod(method).build());
-        assertWarnings(RestGetAction.TYPES_DEPRECATION_MESSAGE);
+        assertCriticalWarnings(RestGetAction.TYPES_DEPRECATION_MESSAGE);
     }
 }

@@ -9,6 +9,7 @@
 package org.elasticsearch.gradle.internal.test.rest.transform.warnings;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
+
 import org.elasticsearch.gradle.internal.test.rest.transform.RestTestTransform;
 import org.elasticsearch.gradle.internal.test.rest.transform.feature.InjectFeatureTests;
 import org.junit.Test;
@@ -61,7 +62,12 @@ public class InjectAllowedWarningsTests extends InjectFeatureTests {
         List<ObjectNode> transformedTests = transformTests(tests, getTransformationsForTest("Test with existing allowed warnings"));
         printTest(testName, transformedTests);
         validateSetupAndTearDown(transformedTests);
-        validateBodyHasWarnings(ALLOWED_WARNINGS, "Test with existing allowed warnings", transformedTests, Set.of("a", "b", "added warning"));
+        validateBodyHasWarnings(
+            ALLOWED_WARNINGS,
+            "Test with existing allowed warnings",
+            transformedTests,
+            Set.of("a", "b", "added warning")
+        );
         validateBodyHasWarnings(ALLOWED_WARNINGS, "Test with existing allowed warnings not to change", transformedTests, Set.of("a", "b"));
     }
 

@@ -18,4 +18,5 @@ grant {
   permission org.elasticsearch.script.ClassPermission "java.lang.Math";
   permission org.elasticsearch.script.ClassPermission "org.apache.lucene.util.MathUtil";
   permission org.elasticsearch.script.ClassPermission "org.apache.lucene.util.SloppyMath";
+  permission org.elasticsearch.script.ClassPermission "org.apache.lucene.expressions.js.ExpressionMath";
 };

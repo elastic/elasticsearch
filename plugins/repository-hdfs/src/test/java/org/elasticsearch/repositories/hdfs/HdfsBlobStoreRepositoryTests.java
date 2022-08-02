@@ -8,6 +8,7 @@
 package org.elasticsearch.repositories.hdfs;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase;
@@ -33,7 +34,8 @@ public class HdfsBlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTest
             .put("conf.fs.AbstractFileSystem.hdfs.impl", TestingFs.class.getName())
             .put("path", "foo")
             .put("chunk_size", randomIntBetween(100, 1000) + "k")
-            .put("compress", randomBoolean()).build();
+            .put("compress", randomBoolean())
+            .build();
     }
 
     @Override

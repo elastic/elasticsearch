@@ -7,12 +7,12 @@
 package org.elasticsearch.xpack.watcher.notification.email.attachment;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
@@ -28,7 +28,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -46,17 +46,17 @@ public class EmailAttachmentParsersTests extends ESTestCase {
 
         XContentBuilder builder = jsonBuilder();
         builder.startObject()
-                .startObject("my-id")
-                .startObject("test")
-                .field("foo", "bar")
-                .endObject()
-                .endObject()
-                .startObject("my-other-id")
-                .startObject("test")
-                .field("foo", "baz")
-                .endObject()
-                .endObject()
-                .endObject();
+            .startObject("my-id")
+            .startObject("test")
+            .field("foo", "bar")
+            .endObject()
+            .endObject()
+            .startObject("my-other-id")
+            .startObject("test")
+            .field("foo", "baz")
+            .endObject()
+            .endObject()
+            .endObject();
 
         logger.info("JSON: {}", Strings.toString(builder));
         XContentParser xContentParser = createParser(builder);
@@ -148,8 +148,12 @@ public class EmailAttachmentParsersTests extends ESTestCase {
 
         @Override
         public Attachment toAttachment(WatchExecutionContext ctx, Payload payload, TestEmailAttachment attachment) {
-            return new Attachment.Bytes(attachment.id(), attachment.getValue().getBytes(StandardCharsets.UTF_8),
-                                        "personalContentType", false);
+            return new Attachment.Bytes(
+                attachment.id(),
+                attachment.getValue().getBytes(StandardCharsets.UTF_8),
+                "personalContentType",
+                false
+            );
         }
     }
 
@@ -188,11 +192,7 @@ public class EmailAttachmentParsersTests extends ESTestCase {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder.startObject(id)
-                    .startObject(type())
-                    .field(Fields.FOO.getPreferredName(), value)
-                    .endObject()
-                    .endObject();
+            return builder.startObject(id).startObject(type()).field(Fields.FOO.getPreferredName(), value).endObject().endObject();
         }
     }
 }

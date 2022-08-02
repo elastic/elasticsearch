@@ -27,7 +27,7 @@ elasticsearch_distributions {
 tasks.named("preProcessFixture").configure {
   dependsOn "copyKeystore", elasticsearch_distributions.docker
   doLast {
-    File file = file("${buildDir}/logs/node1")
+    File file = file("${testFixturesDir}/logs/node1")
     file.mkdirs()
     file.setWritable(true, false)
   }

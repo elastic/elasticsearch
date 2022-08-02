@@ -9,9 +9,11 @@
 package org.elasticsearch.gradle.internal;
 
 import org.elasticsearch.gradle.VersionProperties;
+import org.elasticsearch.gradle.internal.conventions.GUtils;
 import org.elasticsearch.gradle.internal.conventions.LicensingPlugin;
 import org.gradle.api.Action;
 import org.gradle.api.GradleException;
+import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.file.ArchiveOperations;
@@ -19,7 +21,6 @@ import org.gradle.api.plugins.BasePlugin;
 import org.gradle.api.tasks.Copy;
 import org.gradle.api.tasks.TaskProvider;
 
-import javax.inject.Inject;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -29,9 +30,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
-import org.elasticsearch.gradle.internal.conventions.GUtils;
 
-public class InternalDistributionArchiveCheckPlugin implements InternalPlugin {
+import javax.inject.Inject;
+
+public class InternalDistributionArchiveCheckPlugin implements Plugin<Project> {
 
     private ArchiveOperations archiveOperations;
 
@@ -54,13 +56,17 @@ public class InternalDistributionArchiveCheckPlugin implements InternalPlugin {
         // sanity checks if archives can be extracted
         TaskProvider<Copy> checkExtraction = registerCheckExtractionTask(project, buildDistTask, archiveExtractionDir);
         TaskProvider<Task> checkLicense = registerCheckLicenseTask(project, checkExtraction);
-
         TaskProvider<Task> checkNotice = registerCheckNoticeTask(project, checkExtraction);
+        TaskProvider<Task> checkModulesTask = InternalDistributionModuleCheckTaskProvider.registerCheckModulesTask(
+            project,
+            checkExtraction
+        );
         TaskProvider<Task> checkTask = project.getTasks().named("check");
         checkTask.configure(task -> {
             task.dependsOn(checkExtraction);
             task.dependsOn(checkLicense);
             task.dependsOn(checkNotice);
+            task.dependsOn(checkModulesTask);
         });
 
         String projectName = project.getName();

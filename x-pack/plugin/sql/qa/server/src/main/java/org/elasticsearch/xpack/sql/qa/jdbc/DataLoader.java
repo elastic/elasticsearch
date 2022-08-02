@@ -12,9 +12,9 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -27,8 +27,6 @@ import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-
-import static org.elasticsearch.test.rest.ESRestTestCase.expectWarnings;
 
 public class DataLoader {
 
@@ -67,8 +65,10 @@ public class DataLoader {
     protected static void loadEmpDatasetIntoEs(RestClient client) throws Exception {
         loadEmpDatasetIntoEs(client, "test_emp", "employees");
         loadEmpDatasetWithExtraIntoEs(client, "test_emp_copy", "employees");
+        loadAppsDatasetIntoEs(client, "apps", "apps");
         loadLogsDatasetIntoEs(client, "logs", "logs");
         loadLogNanosDatasetIntoEs(client, "logs_nanos", "logs_nanos");
+        loadLogUnsignedLongIntoEs(client, "logs_unsigned_long", "logs_unsigned_long");
         makeAlias(client, "test_alias", "test_emp", "test_emp_copy");
         makeAlias(client, "test_alias_emp", "test_emp", "test_emp_copy");
         // frozen index
@@ -81,7 +81,12 @@ public class DataLoader {
         createEmptyIndex(client, index);
         Request request = new Request("POST", "/" + index + "/_bulk");
         request.addParameter("refresh", "true");
-        request.setJsonEntity("{\"index\":{}\n{}\n" + "{\"index\":{}\n{}\n");
+        request.setJsonEntity("""
+            {"index":{}}
+            {}
+            {"index":{}}
+            {}
+            """);
         client.performRequest(request);
     }
 
@@ -148,6 +153,9 @@ public class DataLoader {
                 createIndex.startObject("birth_date").field("type", "date").endObject();
                 createIndex.startObject("hire_date").field("type", "date").endObject();
                 createIndex.startObject("salary").field("type", "integer").endObject();
+                if (extraFields) {
+                    createIndex.startObject("salary_ul").field("type", "unsigned_long").endObject();
+                }
                 createIndex.startObject("languages").field("type", "byte").endObject();
                 {
                     createIndex.startObject("dep").field("type", "nested");
@@ -223,8 +231,12 @@ public class DataLoader {
                     }
                     hadLastItem = true;
                     bulk.append('"').append(titles.get(f)).append("\":\"").append(fields.get(f)).append('"');
-                    if (titles.get(f).equals("gender") && extraFields) {
-                        bulk.append(",\"extra_gender\":\"Female\"");
+                    if (extraFields) {
+                        if (titles.get(f).equals("gender")) {
+                            bulk.append(",\"extra_gender\":\"Female\"");
+                        } else if (titles.get(f).equals("salary")) {
+                            bulk.append(",\"salary_ul\":" + fields.get(f));
+                        }
                     }
                 }
                 if ((titles.get(f).equals("first_name") || titles.get(f).equals("last_name")) && extraFields && setWildcardName) {
@@ -263,15 +275,43 @@ public class DataLoader {
         client.performRequest(request);
     }
 
-    protected static void loadLogsDatasetIntoEs(RestClient client, String index, String filename) throws Exception {
-        Request request = new Request("PUT", "/" + index);
+    protected static void loadAppsDatasetIntoEs(RestClient client, String index, String filename) throws Exception {
         XContentBuilder createIndex = JsonXContent.contentBuilder().startObject();
-        createIndex.startObject("settings");
+        createIndex.startObject("mappings");
         {
-            createIndex.field("number_of_shards", 1);
-            createIndex.field("number_of_replicas", 1);
+            createIndex.startObject("properties");
+            {
+                createIndex.startObject("id").field("type", "integer").endObject();
+                createIndex.startObject("version");
+                {
+                    createIndex.field("type", "version");
+                    createIndex.startObject("fields");
+                    {
+                        createIndex.startObject("raw").field("type", "keyword").endObject();
+                    }
+                    createIndex.endObject();
+                }
+                createIndex.endObject();
+                createIndex.startObject("name");
+                {
+                    createIndex.field("type", "text");
+                    createIndex.startObject("fields");
+                    {
+                        createIndex.startObject("raw").field("type", "keyword").endObject();
+                    }
+                    createIndex.endObject();
+                }
+                createIndex.endObject();
+            }
+            createIndex.endObject();
         }
         createIndex.endObject();
+
+        loadDatasetIntoEs(client, index, filename, createIndex);
+    }
+
+    protected static void loadLogsDatasetIntoEs(RestClient client, String index, String filename) throws Exception {
+        XContentBuilder createIndex = JsonXContent.contentBuilder().startObject();
         createIndex.startObject("mappings");
         {
             createIndex.startObject("properties");
@@ -287,39 +327,13 @@ public class DataLoader {
             }
             createIndex.endObject();
         }
-        createIndex.endObject().endObject();
-        request.setJsonEntity(Strings.toString(createIndex));
-        client.performRequest(request);
+        createIndex.endObject();
 
-        request = new Request("POST", "/" + index + "/_bulk?refresh=wait_for");
-        request.addParameter("refresh", "true");
-        StringBuilder bulk = new StringBuilder();
-        csvToLines(filename, (titles, fields) -> {
-            bulk.append("{\"index\":{\"_id\":\"" + fields.get(0) + "\"}}\n");
-            bulk.append("{");
-            for (int f = 0; f < titles.size(); f++) {
-                if (Strings.hasText(fields.get(f))) {
-                    if (f > 0) {
-                        bulk.append(",");
-                    }
-                    bulk.append('"').append(titles.get(f)).append("\":\"").append(fields.get(f)).append('"');
-                }
-            }
-            bulk.append("}\n");
-        });
-        request.setJsonEntity(bulk.toString());
-        client.performRequest(request);
+        loadDatasetIntoEs(client, index, filename, createIndex);
     }
 
     protected static void loadLogNanosDatasetIntoEs(RestClient client, String index, String filename) throws Exception {
-        Request request = new Request("PUT", "/" + index);
         XContentBuilder createIndex = JsonXContent.contentBuilder().startObject();
-        createIndex.startObject("settings");
-        {
-            createIndex.field("number_of_shards", 1);
-            createIndex.field("number_of_replicas", 1);
-        }
-        createIndex.endObject();
         createIndex.startObject("mappings");
         {
             createIndex.startObject("properties");
@@ -330,39 +344,32 @@ public class DataLoader {
             }
             createIndex.endObject();
         }
-        createIndex.endObject().endObject();
-        request.setJsonEntity(Strings.toString(createIndex));
-        client.performRequest(request);
+        createIndex.endObject();
 
-        request = new Request("POST", "/" + index + "/_bulk?refresh=wait_for");
-        request.addParameter("refresh", "true");
-        StringBuilder bulk = new StringBuilder();
-        csvToLines(filename, (titles, fields) -> {
-            bulk.append("{\"index\":{\"_id\":\"" + fields.get(0) + "\"}}\n");
-            bulk.append("{");
-            for (int f = 0; f < titles.size(); f++) {
-                if (Strings.hasText(fields.get(f))) {
-                    if (f > 0) {
-                        bulk.append(",");
-                    }
-                    bulk.append('"').append(titles.get(f)).append("\":\"").append(fields.get(f)).append('"');
-                }
+        loadDatasetIntoEs(client, index, filename, createIndex);
+    }
+
+    protected static void loadLogUnsignedLongIntoEs(RestClient client, String index, String filename) throws Exception {
+        XContentBuilder createIndex = JsonXContent.contentBuilder().startObject();
+        createIndex.startObject("mappings");
+        {
+            createIndex.startObject("properties");
+            {
+                createIndex.startObject("id").field("type", "integer").endObject();
+                createIndex.startObject("@timestamp").field("type", "date_nanos").endObject();
+                createIndex.startObject("bytes_in").field("type", "unsigned_long").endObject();
+                createIndex.startObject("bytes_out").field("type", "unsigned_long").endObject();
+                createIndex.startObject("status").field("type", "keyword").endObject();
             }
-            bulk.append("}\n");
-        });
-        request.setJsonEntity(bulk.toString());
-        client.performRequest(request);
+            createIndex.endObject();
+        }
+        createIndex.endObject();
+
+        loadDatasetIntoEs(client, index, filename, createIndex);
     }
 
     protected static void loadLibDatasetIntoEs(RestClient client, String index) throws Exception {
-        Request request = new Request("PUT", "/" + index);
         XContentBuilder createIndex = JsonXContent.contentBuilder().startObject();
-        createIndex.startObject("settings");
-        {
-            createIndex.field("number_of_shards", 1);
-            createIndex.field("number_of_replicas", 1);
-        }
-        createIndex.endObject();
         createIndex.startObject("mappings");
         {
             createIndex.startObject("properties");
@@ -374,21 +381,39 @@ public class DataLoader {
             }
             createIndex.endObject();
         }
-        createIndex.endObject().endObject();
+        createIndex.endObject();
+
+        loadDatasetIntoEs(client, index, "library", createIndex);
+    }
+
+    // createIndex must be startObject()'d, but not endObject()'d: the index settings are added at the end
+    protected static void loadDatasetIntoEs(RestClient client, String index, String filename, XContentBuilder createIndex)
+        throws Exception {
+        createIndex.startObject("settings");
+        {
+            createIndex.field("number_of_shards", 1);
+            createIndex.field("number_of_replicas", 1);
+        }
+        createIndex.endObject();
+        createIndex.endObject();
+
+        Request request = new Request("PUT", "/" + index);
         request.setJsonEntity(Strings.toString(createIndex));
         client.performRequest(request);
 
         request = new Request("POST", "/" + index + "/_bulk?refresh=wait_for");
         request.addParameter("refresh", "true");
         StringBuilder bulk = new StringBuilder();
-        csvToLines("library", (titles, fields) -> {
+        csvToLines(filename, (titles, fields) -> {
             bulk.append("{\"index\":{\"_id\":\"" + fields.get(0) + "\"}}\n");
             bulk.append("{");
             for (int f = 0; f < titles.size(); f++) {
-                if (f > 0) {
-                    bulk.append(",");
+                if (fields.size() > f && Strings.hasText(fields.get(f))) {
+                    if (f > 0) {
+                        bulk.append(",");
+                    }
+                    bulk.append('"').append(titles.get(f)).append("\":\"").append(fields.get(f)).append('"');
                 }
-                bulk.append('"').append(titles.get(f)).append("\":\"").append(fields.get(f)).append('"');
             }
             bulk.append("}\n");
         });
@@ -405,12 +430,6 @@ public class DataLoader {
     protected static void freeze(RestClient client, String... indices) throws Exception {
         for (String index : indices) {
             Request freezeRequest = new Request("POST", "/" + index + "/_freeze");
-            freezeRequest.setOptions(
-                expectWarnings(
-                    "Frozen indices are deprecated because they provide no benefit given improvements in "
-                        + "heap memory utilization. They will be removed in a future release."
-                )
-            );
             client.performRequest(freezeRequest);
         }
     }

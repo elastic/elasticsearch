@@ -8,7 +8,6 @@
 
 package org.elasticsearch.common.lucene.search;
 
-import com.carrotsearch.hppc.ObjectHashSet;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
@@ -19,22 +18,25 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.StringHelper;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Objects;
+import java.util.Set;
 
 public class MultiPhrasePrefixQuery extends Query {
 
     private final String field;
-    private ArrayList<Term[]> termArrays = new ArrayList<>();
-    private ArrayList<Integer> positions = new ArrayList<>();
+    private final ArrayList<Term[]> termArrays = new ArrayList<>();
+    private final ArrayList<Integer> positions = new ArrayList<>();
     private int maxExpansions = Integer.MAX_VALUE;
 
     private int slop = 0;
@@ -71,7 +73,7 @@ public class MultiPhrasePrefixQuery extends Query {
      * @see org.apache.lucene.search.PhraseQuery.Builder#add(Term)
      */
     public void add(Term term) {
-        add(new Term[]{term});
+        add(new Term[] { term });
     }
 
     /**
@@ -82,8 +84,7 @@ public class MultiPhrasePrefixQuery extends Query {
      */
     public void add(Term[] terms) {
         int position = 0;
-        if (positions.size() > 0)
-            position = positions.get(positions.size() - 1) + 1;
+        if (positions.size() > 0) position = positions.get(positions.size() - 1) + 1;
 
         add(terms, position);
     }
@@ -97,10 +98,8 @@ public class MultiPhrasePrefixQuery extends Query {
      */
     public void add(Term[] terms, int position) {
         for (int i = 0; i < terms.length; i++) {
-            if (terms[i].field() != field) {
-                throw new IllegalArgumentException(
-                        "All phrase terms must be in the same field (" + field + "): "
-                                + terms[i]);
+            if (Objects.equals(terms[i].field(), field) == false) {
+                throw new IllegalArgumentException("All phrase terms must be in the same field (" + field + "): " + terms[i]);
             }
         }
 
@@ -147,7 +146,7 @@ public class MultiPhrasePrefixQuery extends Query {
         }
         Term[] suffixTerms = termArrays.get(sizeMinus1);
         int position = positions.get(sizeMinus1);
-        ObjectHashSet<Term> terms = new ObjectHashSet<>();
+        Set<Term> terms = new HashSet<>();
         for (Term term : suffixTerms) {
             getPrefixTerms(terms, term, reader);
             if (terms.size() > maxExpansions) {
@@ -160,18 +159,21 @@ public class MultiPhrasePrefixQuery extends Query {
                 return Queries.newMatchNoDocsQuery("No terms supplied for " + MultiPhrasePrefixQuery.class.getName());
             }
 
-            // if the terms does not exist we could return a MatchNoDocsQuery but this would break the unified highlighter
-            // which rewrites query with an empty reader.
-            return new BooleanQuery.Builder()
-                .add(query.build(), BooleanClause.Occur.MUST)
-                .add(Queries.newMatchNoDocsQuery("No terms supplied for " + MultiPhrasePrefixQuery.class.getName()),
-                    BooleanClause.Occur.MUST).build();
+            // Hack so that the Unified Highlighter can still extract the original terms from this query
+            // after rewriting, even though it would normally become a MatchNoDocsQuery against an empty
+            // index
+            return new BooleanQuery.Builder().add(query.build(), BooleanClause.Occur.MUST)
+                .add(
+                    new NoRewriteMatchNoDocsQuery("No terms supplied for " + MultiPhrasePrefixQuery.class.getName()),
+                    BooleanClause.Occur.MUST
+                )
+                .build();
         }
-        query.add(terms.toArray(Term.class), position);
+        query.add(terms.toArray(new Term[0]), position);
         return query.build();
     }
 
-    private void getPrefixTerms(ObjectHashSet<Term> terms, final Term prefix, final IndexReader reader) throws IOException {
+    private void getPrefixTerms(Set<Term> terms, final Term prefix, final IndexReader reader) throws IOException {
         // SlowCompositeReaderWrapper could be used... but this would merge all terms from each segment into one terms
         // instance, which is very expensive. Therefore I think it is better to iterate over each leaf individually.
         List<LeafReaderContext> leaves = reader.leaves();
@@ -257,9 +259,7 @@ public class MultiPhrasePrefixQuery extends Query {
             return false;
         }
         MultiPhrasePrefixQuery other = (MultiPhrasePrefixQuery) o;
-        return this.slop == other.slop
-                && termArraysEquals(this.termArrays, other.termArrays)
-                && this.positions.equals(other.positions);
+        return this.slop == other.slop && termArraysEquals(this.termArrays, other.termArrays) && this.positions.equals(other.positions);
     }
 
     /**
@@ -267,24 +267,20 @@ public class MultiPhrasePrefixQuery extends Query {
      */
     @Override
     public int hashCode() {
-        return classHash()
-                ^ slop
-                ^ termArraysHashCode()
-                ^ positions.hashCode();
+        return classHash() ^ slop ^ termArraysHashCode() ^ positions.hashCode();
     }
 
     // Breakout calculation of the termArrays hashcode
     private int termArraysHashCode() {
         int hashCode = 1;
         for (final Term[] termArray : termArrays) {
-            hashCode = 31 * hashCode
-                    + (termArray == null ? 0 : Arrays.hashCode(termArray));
+            hashCode = 31 * hashCode + (termArray == null ? 0 : Arrays.hashCode(termArray));
         }
         return hashCode;
     }
 
     // Breakout calculation of the termArrays equals
-    private boolean termArraysEquals(List<Term[]> termArrays1, List<Term[]> termArrays2) {
+    private static boolean termArraysEquals(List<Term[]> termArrays1, List<Term[]> termArrays2) {
         if (termArrays1.size() != termArrays2.size()) {
             return false;
         }
@@ -300,7 +296,10 @@ public class MultiPhrasePrefixQuery extends Query {
         return true;
     }
 
-    public String getField() {
-        return field;
+    @Override
+    public void visit(QueryVisitor visitor) {
+        if (visitor.acceptField(field)) {
+            visitor.visitLeaf(this);    // TODO implement term visiting
+        }
     }
 }

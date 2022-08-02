@@ -10,10 +10,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
@@ -29,12 +30,10 @@ public class ShrinkStep extends AsyncActionStep {
     public static final String NAME = "shrink";
     private static final Logger logger = LogManager.getLogger(ShrinkStep.class);
 
-
     private Integer numberOfShards;
     private ByteSizeValue maxPrimaryShardSize;
 
-    public ShrinkStep(StepKey key, StepKey nextStepKey, Client client, Integer numberOfShards,
-                      ByteSizeValue maxPrimaryShardSize) {
+    public ShrinkStep(StepKey key, StepKey nextStepKey, Client client, Integer numberOfShards, ByteSizeValue maxPrimaryShardSize) {
         super(key, nextStepKey, client);
         this.numberOfShards = numberOfShards;
         this.maxPrimaryShardSize = maxPrimaryShardSize;
@@ -54,37 +53,45 @@ public class ShrinkStep extends AsyncActionStep {
     }
 
     @Override
-    public void performAction(IndexMetadata indexMetadata, ClusterState currentState,
-                              ClusterStateObserver observer, ActionListener<Void> listener) {
-        LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
-        if (lifecycleState.getLifecycleDate() == null) {
-            throw new IllegalStateException("source index [" + indexMetadata.getIndex().getName() +
-                "] is missing lifecycle date");
+    public void performAction(
+        IndexMetadata indexMetadata,
+        ClusterState currentState,
+        ClusterStateObserver observer,
+        ActionListener<Void> listener
+    ) {
+        LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
+        if (lifecycleState.lifecycleDate() == null) {
+            throw new IllegalStateException("source index [" + indexMetadata.getIndex().getName() + "] is missing lifecycle date");
         }
 
         String shrunkenIndexName = getShrinkIndexName(indexMetadata.getIndex().getName(), lifecycleState);
         if (currentState.metadata().index(shrunkenIndexName) != null) {
-            logger.warn("skipping [{}] step for index [{}] as part of policy [{}] as the shrunk index [{}] already exists",
-                ShrinkStep.NAME, indexMetadata.getIndex().getName(),
-                LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings()), shrunkenIndexName);
+            logger.warn(
+                "skipping [{}] step for index [{}] as part of policy [{}] as the shrunk index [{}] already exists",
+                ShrinkStep.NAME,
+                indexMetadata.getIndex().getName(),
+                indexMetadata.getLifecyclePolicyName(),
+                shrunkenIndexName
+            );
             listener.onResponse(null);
             return;
         }
 
-        String lifecycle = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings());
+        String policyName = indexMetadata.getLifecyclePolicyName();
 
         Settings.Builder builder = Settings.builder();
         // need to remove the single shard, allocation so replicas can be allocated
         builder.put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, indexMetadata.getNumberOfReplicas())
-            .put(LifecycleSettings.LIFECYCLE_NAME, lifecycle)
+            .put(LifecycleSettings.LIFECYCLE_NAME, policyName)
             .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id", (String) null);
         if (numberOfShards != null) {
             builder.put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards);
         }
         Settings relevantTargetSettings = builder.build();
 
-        ResizeRequest resizeRequest = new ResizeRequest(shrunkenIndexName, indexMetadata.getIndex().getName())
-            .masterNodeTimeout(TimeValue.MAX_VALUE);
+        ResizeRequest resizeRequest = new ResizeRequest(shrunkenIndexName, indexMetadata.getIndex().getName()).masterNodeTimeout(
+            TimeValue.MAX_VALUE
+        );
         resizeRequest.setMaxPrimaryShardSize(maxPrimaryShardSize);
         resizeRequest.getTargetIndexRequest().settings(relevantTargetSettings);
 
@@ -111,9 +118,9 @@ public class ShrinkStep extends AsyncActionStep {
             return false;
         }
         ShrinkStep other = (ShrinkStep) obj;
-        return super.equals(obj) &&
-                Objects.equals(numberOfShards, other.numberOfShards) &&
-                Objects.equals(maxPrimaryShardSize, other.maxPrimaryShardSize);
+        return super.equals(obj)
+            && Objects.equals(numberOfShards, other.numberOfShards)
+            && Objects.equals(maxPrimaryShardSize, other.maxPrimaryShardSize);
     }
 
 }

@@ -35,7 +35,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.max;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.min;
@@ -43,6 +42,7 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.range;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -284,21 +284,21 @@ public class UnsignedLongTests extends ESIntegTestCase {
             assertSearchResponse(response);
             Sum sum = response.getAggregations().get("ul_sum");
             double expectedSum = Arrays.stream(values).mapToDouble(Number::doubleValue).sum();
-            assertEquals(expectedSum, sum.getValue(), 0.001);
+            assertEquals(expectedSum, sum.value(), 0.001);
         }
         // max agg
         {
             SearchResponse response = client().prepareSearch("idx").setSize(0).addAggregation(max("ul_max").field("ul_field")).get();
             assertSearchResponse(response);
             Max max = response.getAggregations().get("ul_max");
-            assertEquals(1.8446744073709551615E19, max.getValue(), 0.001);
+            assertEquals(1.8446744073709551615E19, max.value(), 0.001);
         }
         // min agg
         {
             SearchResponse response = client().prepareSearch("idx").setSize(0).addAggregation(min("ul_min").field("ul_field")).get();
             assertSearchResponse(response);
             Min min = response.getAggregations().get("ul_min");
-            assertEquals(0, min.getValue(), 0.001);
+            assertEquals(0, min.value(), 0.001);
         }
     }
 

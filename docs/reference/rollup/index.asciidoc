@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[xpack-rollup]]
 == Rolling up historical data
 

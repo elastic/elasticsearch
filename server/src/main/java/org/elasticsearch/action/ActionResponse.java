@@ -10,9 +10,9 @@ package org.elasticsearch.action;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
@@ -21,8 +21,7 @@ import java.io.IOException;
  */
 public abstract class ActionResponse extends TransportResponse {
 
-    public ActionResponse() {
-    }
+    public ActionResponse() {}
 
     public ActionResponse(StreamInput in) throws IOException {
         super(in);

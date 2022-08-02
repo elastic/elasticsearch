@@ -1,0 +1,366 @@
+ecs style:
+  - skip:
+      version: " - 8.0.99"
+      reason: introduced in 8.1.0
+
+  - do:
+      indices.create:
+          index: tsdb_index
+          body:
+            settings:
+              index:
+                mode: time_series
+                routing_path: [metricset, k8s.pod.uid]
+                time_series:
+                  start_time: 2021-04-28T00:00:00Z
+                  end_time: 2021-04-29T00:00:00Z
+                number_of_replicas: 0
+                number_of_shards: 2
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                metricset:
+                  type: keyword
+                  time_series_dimension: true
+                k8s:
+                  properties:
+                    pod:
+                      properties:
+                        availability_zone:
+                          type: short
+                          time_series_dimension: true
+                        uid:
+                          type: keyword
+                          time_series_dimension: true
+                        name:
+                          type: keyword
+                        ip:
+                          type: ip
+                          time_series_dimension: true
+                        network:
+                          properties:
+                            tx:
+                              type: long
+                              time_series_metric: counter
+                            rx:
+                              type: integer
+                              time_series_metric: gauge
+                            packets_dropped:
+                              type: long
+                              time_series_metric: gauge
+                            latency:
+                              type: double
+                              time_series_metric: gauge
+
+---
+top level wildcard dim object:
+  - skip:
+      version: " - 8.1.99"
+      reason: routing_path object type check improve in 8.2.0
+
+  - do:
+      indices.create:
+          index: tsdb_index
+          body:
+            settings:
+              index:
+                mode: time_series
+                routing_path: [dim*]
+                time_series:
+                  start_time: 2021-04-28T00:00:00Z
+                  end_time: 2021-04-29T00:00:00Z
+                number_of_replicas: 0
+                number_of_shards: 2
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                dim:
+                  properties:
+                    metricset:
+                      type: keyword
+                      time_series_dimension: true
+                    uid:
+                      type: keyword
+                      time_series_dimension: true
+                k8s:
+                  properties:
+                    pod:
+                      properties:
+                        availability_zone:
+                          type: short
+                          time_series_dimension: true
+                        name:
+                          type: keyword
+                        ip:
+                          type: ip
+                          time_series_dimension: true
+                        network:
+                          properties:
+                            tx:
+                              type: long
+                              time_series_metric: counter
+                            rx:
+                              type: integer
+                              time_series_metric: gauge
+                            packets_dropped:
+                              type: long
+                              time_series_metric: gauge
+                            latency:
+                              type: double
+                              time_series_metric: gauge
+
+---
+exact match object type:
+  - skip:
+      version: " - 8.1.99"
+      reason: routing_path object type check improve in 8.2.0
+
+  - do:
+      catch: '/All fields that match routing_path must be keywords with \[time_series_dimension: true\] and without the \[script\] parameter. \[dim\] was \[object\]./'
+      indices.create:
+        index: tsdb_index
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [dim]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+              number_of_replicas: 0
+              number_of_shards: 2
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              dim:
+                properties:
+                  metricset:
+                    type: keyword
+                    time_series_dimension: true
+                  uid:
+                    type: keyword
+                    time_series_dimension: true
+
+---
+non keyword matches routing_path:
+  - skip:
+      version: " - 8.0.99"
+      reason: introduced in 8.1.0
+
+  - do:
+      catch: '/All fields that match routing_path must be keywords with \[time_series_dimension: true\] and without the \[script\] parameter. \[@timestamp\] was \[date\]./'
+      indices.create:
+          index: test_index
+          body:
+            settings:
+              index:
+                mode: time_series
+                routing_path: [metricset, k8s.pod.uid, "@timestamp"]
+                time_series:
+                  start_time: 2021-04-28T00:00:00Z
+                  end_time: 2021-04-29T00:00:00Z
+                number_of_replicas: 0
+                number_of_shards: 2
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                metricset:
+                  type: keyword
+                  time_series_dimension: true
+                k8s:
+                  properties:
+                    pod:
+                      properties:
+                        uid:
+                          type: keyword
+                          time_series_dimension: true
+                        name:
+                          type: keyword
+                        ip:
+                          type: ip
+                        network:
+                          properties:
+                            tx:
+                              type: long
+                            rx:
+                              type: long
+
+---
+runtime field matching routing path:
+  - skip:
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
+
+  - do:
+      indices.create:
+          index: test
+          body:
+            settings:
+              index:
+                mode: time_series
+                routing_path: [dim.*]
+                time_series:
+                  start_time: 2021-04-28T00:00:00Z
+                  end_time: 2021-04-29T00:00:00Z
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+
+  - do:
+      bulk:
+        refresh: true
+        index: test
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:04.467Z", "dim": {"foo": "a"}}'
+
+  - do:
+      catch: /runtime fields may not match \[routing_path\] but \[dim.bar\] matched/
+      search:
+        index: test
+        body:
+          runtime_mappings:
+            dim.bar:
+              type: keyword
+          query:
+            match:
+              dim.foo: a
+
+---
+"dynamic: runtime matches routing_path":
+  - skip:
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
+
+  - do:
+      indices.create:
+          index: test
+          body:
+            settings:
+              index:
+                mode: time_series
+                routing_path: [dim.*]
+                time_series:
+                  start_time: 2021-04-28T00:00:00Z
+                  end_time: 2021-04-29T00:00:00Z
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                dim_kw:
+                    type: "keyword"
+                    time_series_dimension: true
+                dim:
+                  type: object
+                  dynamic: runtime
+
+  - do:
+      bulk:
+        refresh: true
+        index: test
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:04.467Z", "dim_kw": "dim", "dim": {"foo": "a"}}'
+  - match: {items.0.index.error.reason: "All fields that match routing_path must be keywords with [time_series_dimension: true] and without the [script] parameter. [dim.foo] was a runtime [keyword]."}
+
+---
+"dynamic: false matches routing_path":
+  - skip:
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
+
+  - do:
+      indices.create:
+          index: test
+          body:
+            settings:
+              index:
+                mode: time_series
+                routing_path: [dim.*]
+                time_series:
+                  start_time: 2021-04-28T00:00:00Z
+                  end_time: 2021-04-29T00:00:00Z
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                dim:
+                  type: object
+                  dynamic: false
+
+  - do:
+      bulk:
+        refresh: true
+        index: test
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:04.467Z", "dim": {"foo": "a"}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:04.467Z", "dim": {"foo": {"bar": "a"}}}'
+  - match: {items.0.index.error.reason: "All fields matching [routing_path] must be mapped but [dim.foo] was declared as [dynamic: false]"}
+  - match: {items.1.index.error.reason: "All fields matching [routing_path] must be mapped but [dim.foo] was declared as [dynamic: false]"}
+
+---
+nested dimensions:
+  - skip:
+      version: " - 8.1.99"
+      reason: message changed in 8.2.0
+
+  - do:
+      catch: /time_series_dimension can't be configured in nested field \[nested.dim\]/
+      indices.create:
+          index: test
+          body:
+            settings:
+              index:
+                mode: time_series
+                routing_path: [nested.*]
+                time_series:
+                  start_time: 2021-04-28T00:00:00Z
+                  end_time: 2021-04-29T00:00:00Z
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                nested:
+                  type: nested
+                  properties:
+                      dim:
+                        type: keyword
+                        time_series_dimension: true
+
+---
+nested fields:
+  - skip:
+      version: " - 8.1.99"
+      reason: message changed in 8.2.0
+
+  - do:
+      catch: /cannot have nested fields when index is in \[index.mode=time_series\]/
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [dim]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              dim:
+                type: keyword
+                time_series_dimension: true
+              nested:
+                type: nested
+                properties:
+                  foo:
+                    type: keyword

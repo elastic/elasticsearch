@@ -10,6 +10,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
+import org.elasticsearch.Version;
 import org.elasticsearch.index.analysis.AnalysisMode;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -35,17 +36,32 @@ public final class TextParams {
         public final Parameter<Integer> positionIncrementGap;
         public final IndexAnalyzers indexAnalyzers;
 
-        public Analyzers(IndexAnalyzers indexAnalyzers,
-                         Function<FieldMapper, NamedAnalyzer> analyzerInitFunction,
-                         Function<FieldMapper, Integer> positionGapInitFunction) {
-            this.indexAnalyzer = Parameter.analyzerParam("analyzer", false,
-                            analyzerInitFunction, indexAnalyzers::getDefaultIndexAnalyzer)
-                .setSerializerCheck((id, ic, a) -> id || ic ||
-                    Objects.equals(a, getSearchAnalyzer()) == false || Objects.equals(a, getSearchQuoteAnalyzer()) == false)
+        public Analyzers(
+            IndexAnalyzers indexAnalyzers,
+            Function<FieldMapper, NamedAnalyzer> analyzerInitFunction,
+            Function<FieldMapper, Integer> positionGapInitFunction,
+            Version indexCreatedVersion
+        ) {
+
+            this.indexAnalyzer = Parameter.analyzerParam(
+                "analyzer",
+                indexCreatedVersion.isLegacyIndexVersion(),
+                analyzerInitFunction,
+                indexAnalyzers::getDefaultIndexAnalyzer,
+                indexCreatedVersion
+            )
+                .setSerializerCheck(
+                    (id, ic, a) -> id
+                        || ic
+                        || Objects.equals(a, getSearchAnalyzer()) == false
+                        || Objects.equals(a, getSearchQuoteAnalyzer()) == false
+                )
                 .addValidator(a -> a.checkAllowedInMode(AnalysisMode.INDEX_TIME));
-            this.searchAnalyzer
-                = Parameter.analyzerParam("search_analyzer", true,
-                m -> m.fieldType().getTextSearchInfo().getSearchAnalyzer(), () -> {
+            this.searchAnalyzer = Parameter.analyzerParam(
+                "search_analyzer",
+                true,
+                m -> m.fieldType().getTextSearchInfo().searchAnalyzer(),
+                () -> {
                     if (indexAnalyzer.isConfigured() == false) {
                         NamedAnalyzer defaultAnalyzer = indexAnalyzers.get(AnalysisRegistry.DEFAULT_SEARCH_ANALYZER_NAME);
                         if (defaultAnalyzer != null) {
@@ -53,12 +69,16 @@ public final class TextParams {
                         }
                     }
                     return indexAnalyzer.get();
-                })
+                },
+                indexCreatedVersion
+            )
                 .setSerializerCheck((id, ic, a) -> id || ic || Objects.equals(a, getSearchQuoteAnalyzer()) == false)
                 .addValidator(a -> a.checkAllowedInMode(AnalysisMode.SEARCH_TIME));
-            this.searchQuoteAnalyzer
-                = Parameter.analyzerParam("search_quote_analyzer", true,
-                m -> m.fieldType().getTextSearchInfo().getSearchQuoteAnalyzer(), () -> {
+            this.searchQuoteAnalyzer = Parameter.analyzerParam(
+                "search_quote_analyzer",
+                true,
+                m -> m.fieldType().getTextSearchInfo().searchQuoteAnalyzer(),
+                () -> {
                     if (searchAnalyzer.isConfigured() == false && indexAnalyzer.isConfigured() == false) {
                         NamedAnalyzer defaultAnalyzer = indexAnalyzers.get(AnalysisRegistry.DEFAULT_SEARCH_QUOTED_ANALYZER_NAME);
                         if (defaultAnalyzer != null) {
@@ -66,15 +86,19 @@ public final class TextParams {
                         }
                     }
                     return searchAnalyzer.get();
-                })
-                .addValidator(a -> a.checkAllowedInMode(AnalysisMode.SEARCH_TIME));
-            this.positionIncrementGap = Parameter.intParam("position_increment_gap", false,
-                        positionGapInitFunction, TextFieldMapper.Defaults.POSITION_INCREMENT_GAP)
-                .addValidator(v -> {
-                    if (v < 0) {
-                        throw new MapperParsingException("[position_increment_gap] must be positive, got [" + v + "]");
-                    }
-                });
+                },
+                indexCreatedVersion
+            ).addValidator(a -> a.checkAllowedInMode(AnalysisMode.SEARCH_TIME));
+            this.positionIncrementGap = Parameter.intParam(
+                "position_increment_gap",
+                false,
+                positionGapInitFunction,
+                TextFieldMapper.Defaults.POSITION_INCREMENT_GAP
+            ).addValidator(v -> {
+                if (v < 0) {
+                    throw new MapperParsingException("[position_increment_gap] must be positive, got [" + v + "]");
+                }
+            });
             this.indexAnalyzers = indexAnalyzers;
         }
 
@@ -100,27 +124,58 @@ public final class TextParams {
 
     public static Parameter<Boolean> norms(boolean defaultValue, Function<FieldMapper, Boolean> initializer) {
         // norms can be updated from 'true' to 'false' but not vv
-        return Parameter.boolParam("norms", true, initializer, defaultValue)
-            .setMergeValidator((o, n, c) -> o == n || (o && n == false));
+        return Parameter.boolParam("norms", true, initializer, defaultValue).setMergeValidator((o, n, c) -> o == n || (o && n == false));
     }
 
     public static Parameter<SimilarityProvider> similarity(Function<FieldMapper, SimilarityProvider> init) {
-        return new Parameter<>("similarity", false, () -> null,
-            (n, c, o) -> TypeParsers.resolveSimilarity(c, n, o), init)
-            .setSerializer((b, f, v) -> b.field(f, v == null ? null : v.name()), v -> v == null ? null : v.name())
-            .acceptsNull();
+        return new Parameter<>(
+            "similarity",
+            false,
+            () -> null,
+            (n, c, o) -> TypeParsers.resolveSimilarity(c, n, o),
+            init,
+            (b, f, v) -> b.field(f, v == null ? null : v.name()),
+            v -> v == null ? null : v.name()
+        ).acceptsNull();
     }
 
-    public static Parameter<String> indexOptions(Function<FieldMapper, String> initializer) {
-        return Parameter.restrictedStringParam("index_options", false, initializer,
-            "positions", "docs", "freqs", "offsets");
+    public static Parameter<String> keywordIndexOptions(Function<FieldMapper, String> initializer) {
+        return Parameter.stringParam("index_options", false, initializer, "docs").addValidator(v -> {
+            switch (v) {
+                case "docs":
+                case "freqs":
+                    return;
+                default:
+                    throw new MapperParsingException(
+                        "Unknown value [" + v + "] for field [index_options] - accepted values are [docs, freqs]"
+                    );
+            }
+        });
     }
 
-    public static FieldType buildFieldType(Supplier<Boolean> indexed,
-                                           Supplier<Boolean> stored,
-                                           Supplier<String> indexOptions,
-                                           Supplier<Boolean> norms,
-                                           Supplier<String> termVectors) {
+    public static Parameter<String> textIndexOptions(Function<FieldMapper, String> initializer) {
+        return Parameter.stringParam("index_options", false, initializer, "positions").addValidator(v -> {
+            switch (v) {
+                case "positions":
+                case "docs":
+                case "freqs":
+                case "offsets":
+                    return;
+                default:
+                    throw new MapperParsingException(
+                        "Unknown value [" + v + "] for field [index_options] - accepted values are [positions, docs, freqs, offsets]"
+                    );
+            }
+        });
+    }
+
+    public static FieldType buildFieldType(
+        Supplier<Boolean> indexed,
+        Supplier<Boolean> stored,
+        Supplier<String> indexOptions,
+        Supplier<Boolean> norms,
+        Supplier<String> termVectors
+    ) {
         FieldType ft = new FieldType();
         ft.setStored(stored.get());
         ft.setTokenized(true);
@@ -148,48 +203,66 @@ public final class TextParams {
     }
 
     public static Parameter<String> termVectors(Function<FieldMapper, String> initializer) {
-        return Parameter.restrictedStringParam("term_vector", false, initializer,
-            "no",
-            "yes",
-            "with_positions",
-            "with_offsets",
-            "with_positions_offsets",
-            "with_positions_payloads",
-            "with_positions_offsets_payloads");
+        return Parameter.stringParam("term_vector", false, initializer, "no").addValidator(v -> {
+            switch (v) {
+                case "no":
+                case "yes":
+                case "with_positions":
+                case "with_offsets":
+                case "with_positions_offsets":
+                case "with_positions_payloads":
+                case "with_positions_offsets_payloads":
+                    return;
+                default:
+                    throw new MapperParsingException(
+                        "Unknown value ["
+                            + v
+                            + "] for field [term_vector] - accepted values are [no, yes, with_positions, with_offsets, "
+                            + "with_positions_offsets, with_positions_payloads, with_positions_offsets_payloads]"
+                    );
+            }
+        });
     }
 
     public static void setTermVectorParams(String configuration, FieldType fieldType) {
         switch (configuration) {
-            case "no":
+            case "no" -> {
                 fieldType.setStoreTermVectors(false);
                 return;
-            case "yes":
+            }
+            case "yes" -> {
                 fieldType.setStoreTermVectors(true);
                 return;
-            case "with_positions":
+            }
+            case "with_positions" -> {
                 fieldType.setStoreTermVectors(true);
                 fieldType.setStoreTermVectorPositions(true);
                 return;
-            case "with_offsets":
+            }
+            case "with_offsets" -> {
                 fieldType.setStoreTermVectors(true);
                 fieldType.setStoreTermVectorOffsets(true);
                 return;
-            case "with_positions_offsets":
+            }
+            case "with_positions_offsets" -> {
                 fieldType.setStoreTermVectors(true);
                 fieldType.setStoreTermVectorPositions(true);
                 fieldType.setStoreTermVectorOffsets(true);
                 return;
-            case "with_positions_payloads":
+            }
+            case "with_positions_payloads" -> {
                 fieldType.setStoreTermVectors(true);
                 fieldType.setStoreTermVectorPositions(true);
                 fieldType.setStoreTermVectorPayloads(true);
                 return;
-            case "with_positions_offsets_payloads":
+            }
+            case "with_positions_offsets_payloads" -> {
                 fieldType.setStoreTermVectors(true);
                 fieldType.setStoreTermVectorPositions(true);
                 fieldType.setStoreTermVectorOffsets(true);
                 fieldType.setStoreTermVectorPayloads(true);
                 return;
+            }
         }
         throw new IllegalArgumentException("Unknown [term_vector] setting: [" + configuration + "]");
     }

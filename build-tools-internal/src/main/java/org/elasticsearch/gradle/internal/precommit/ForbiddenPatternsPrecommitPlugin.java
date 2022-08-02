@@ -8,7 +8,6 @@
 
 package org.elasticsearch.gradle.internal.precommit;
 
-import org.elasticsearch.gradle.internal.InternalPlugin;
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitPlugin;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Project;
@@ -16,10 +15,11 @@ import org.gradle.api.Task;
 import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.tasks.TaskProvider;
 
-import javax.inject.Inject;
 import java.util.stream.Collectors;
 
-public class ForbiddenPatternsPrecommitPlugin extends PrecommitPlugin implements InternalPlugin {
+import javax.inject.Inject;
+
+public class ForbiddenPatternsPrecommitPlugin extends PrecommitPlugin {
 
     public static final String FORBIDDEN_PATTERNS_TASK_NAME = "forbiddenPatterns";
     private final ProviderFactory providerFactory;
@@ -38,6 +38,12 @@ public class ForbiddenPatternsPrecommitPlugin extends PrecommitPlugin implements
                         () -> GradleUtils.getJavaSourceSets(project).stream().map(s -> s.getAllSource()).collect(Collectors.toList())
                     )
                 );
+            forbiddenPatternsTask.dependsOn(
+                GradleUtils.getJavaSourceSets(project)
+                    .stream()
+                    .map(sourceSet -> sourceSet.getProcessResourcesTaskName())
+                    .collect(Collectors.toList())
+            );
             forbiddenPatternsTask.getRootDir().set(project.getRootDir());
         });
     }

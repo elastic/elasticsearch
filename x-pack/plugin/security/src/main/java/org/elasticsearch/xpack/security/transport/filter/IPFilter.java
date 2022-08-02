@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.security.transport.filter;
 
-
 import io.netty.handler.ipfilter.IpFilterRuleType;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xpack.security.Security;
@@ -46,89 +47,108 @@ public class IPFilter {
      */
     public static final String HTTP_PROFILE_NAME = ".http";
 
-    public static final Setting<Boolean> ALLOW_BOUND_ADDRESSES_SETTING =
-            Setting.boolSetting(setting("filter.always_allow_bound_address"), true, Property.NodeScope);
+    public static final Setting<Boolean> ALLOW_BOUND_ADDRESSES_SETTING = Setting.boolSetting(
+        setting("filter.always_allow_bound_address"),
+        true,
+        Property.NodeScope
+    );
 
-    public static final Setting<Boolean> IP_FILTER_ENABLED_HTTP_SETTING = Setting.boolSetting(setting("http.filter.enabled"),
-            true, Property.OperatorDynamic, Property.NodeScope);
+    public static final Setting<Boolean> IP_FILTER_ENABLED_HTTP_SETTING = Setting.boolSetting(
+        setting("http.filter.enabled"),
+        true,
+        Property.OperatorDynamic,
+        Property.NodeScope
+    );
 
-    public static final Setting<Boolean> IP_FILTER_ENABLED_SETTING = Setting.boolSetting(setting("transport.filter.enabled"),
-            true, Property.OperatorDynamic, Property.NodeScope);
+    public static final Setting<Boolean> IP_FILTER_ENABLED_SETTING = Setting.boolSetting(
+        setting("transport.filter.enabled"),
+        true,
+        Property.OperatorDynamic,
+        Property.NodeScope
+    );
 
     private static final IPFilterValidator ALLOW_VALIDATOR = new IPFilterValidator(true);
     private static final IPFilterValidator DENY_VALIDATOR = new IPFilterValidator(false);
 
     public static final Setting<List<String>> TRANSPORT_FILTER_ALLOW_SETTING = Setting.listSetting(
-            setting("transport.filter.allow"),
-            Collections.emptyList(),
-            Function.identity(),
-            ALLOW_VALIDATOR,
-            Property.OperatorDynamic,
-            Property.NodeScope);
+        setting("transport.filter.allow"),
+        Collections.emptyList(),
+        Function.identity(),
+        ALLOW_VALIDATOR,
+        Property.OperatorDynamic,
+        Property.NodeScope
+    );
     public static final Setting<List<String>> TRANSPORT_FILTER_DENY_SETTING = Setting.listSetting(
-            setting("transport.filter.deny"),
-            Collections.emptyList(),
-            Function.identity(),
-            DENY_VALIDATOR,
-            Property.OperatorDynamic,
-            Property.NodeScope);
+        setting("transport.filter.deny"),
+        Collections.emptyList(),
+        Function.identity(),
+        DENY_VALIDATOR,
+        Property.OperatorDynamic,
+        Property.NodeScope
+    );
 
     public static final Setting.AffixSetting<List<String>> PROFILE_FILTER_DENY_SETTING = Setting.affixKeySetting(
-            "transport.profiles.",
-            "xpack.security.filter.deny",
-            key -> Setting.listSetting(
-                    key,
-                    Collections.emptyList(),
-                    Function.identity(),
-                    DENY_VALIDATOR,
-                    Property.OperatorDynamic,
-                    Property.NodeScope));
+        "transport.profiles.",
+        "xpack.security.filter.deny",
+        key -> Setting.listSetting(
+            key,
+            Collections.emptyList(),
+            Function.identity(),
+            DENY_VALIDATOR,
+            Property.OperatorDynamic,
+            Property.NodeScope
+        )
+    );
     public static final Setting.AffixSetting<List<String>> PROFILE_FILTER_ALLOW_SETTING = Setting.affixKeySetting(
-            "transport.profiles.",
-            "xpack.security.filter.allow",
-            key -> Setting.listSetting(
-                    key,
-                    Collections.emptyList(),
-                    Function.identity(),
-                    ALLOW_VALIDATOR,
-                    Property.OperatorDynamic,
-                    Property.NodeScope));
+        "transport.profiles.",
+        "xpack.security.filter.allow",
+        key -> Setting.listSetting(
+            key,
+            Collections.emptyList(),
+            Function.identity(),
+            ALLOW_VALIDATOR,
+            Property.OperatorDynamic,
+            Property.NodeScope
+        )
+    );
 
     private static final Setting<List<String>> HTTP_FILTER_ALLOW_FALLBACK = Setting.listSetting(
-            "transport.profiles.default.xpack.security.filter.allow",
-            TRANSPORT_FILTER_ALLOW_SETTING,
-            Function.identity(),
-            TRANSPORT_FILTER_ALLOW_SETTING::get,
-            ALLOW_VALIDATOR,
-            Property.NodeScope);
+        "transport.profiles.default.xpack.security.filter.allow",
+        TRANSPORT_FILTER_ALLOW_SETTING,
+        Function.identity(),
+        TRANSPORT_FILTER_ALLOW_SETTING::get,
+        ALLOW_VALIDATOR,
+        Property.NodeScope
+    );
     public static final Setting<List<String>> HTTP_FILTER_ALLOW_SETTING = Setting.listSetting(
-            setting("http.filter.allow"),
-            HTTP_FILTER_ALLOW_FALLBACK,
-            Function.identity(),
-            HTTP_FILTER_ALLOW_FALLBACK::get,
-            ALLOW_VALIDATOR,
-            Property.OperatorDynamic,
-            Property.NodeScope);
+        setting("http.filter.allow"),
+        HTTP_FILTER_ALLOW_FALLBACK,
+        Function.identity(),
+        HTTP_FILTER_ALLOW_FALLBACK::get,
+        ALLOW_VALIDATOR,
+        Property.OperatorDynamic,
+        Property.NodeScope
+    );
 
     private static final Setting<List<String>> HTTP_FILTER_DENY_FALLBACK = Setting.listSetting(
-            "transport.profiles.default.xpack.security.filter.deny",
-            TRANSPORT_FILTER_DENY_SETTING,
-            Function.identity(),
-            TRANSPORT_FILTER_DENY_SETTING::get,
-            DENY_VALIDATOR,
-            Property.NodeScope);
+        "transport.profiles.default.xpack.security.filter.deny",
+        TRANSPORT_FILTER_DENY_SETTING,
+        Function.identity(),
+        TRANSPORT_FILTER_DENY_SETTING::get,
+        DENY_VALIDATOR,
+        Property.NodeScope
+    );
     public static final Setting<List<String>> HTTP_FILTER_DENY_SETTING = Setting.listSetting(
-            setting("http.filter.deny"),
-            HTTP_FILTER_DENY_FALLBACK,
-            Function.identity(),
-            HTTP_FILTER_DENY_FALLBACK::get,
-            DENY_VALIDATOR,
-            Property.OperatorDynamic,
-            Property.NodeScope);
+        setting("http.filter.deny"),
+        HTTP_FILTER_DENY_FALLBACK,
+        Function.identity(),
+        HTTP_FILTER_DENY_FALLBACK::get,
+        DENY_VALIDATOR,
+        Property.OperatorDynamic,
+        Property.NodeScope
+    );
 
-    public static final Map<String, Object> DISABLED_USAGE_STATS = Map.of(
-            "http", false,
-            "transport", false);
+    public static final Map<String, Object> DISABLED_USAGE_STATS = Map.of("http", false, "transport", false);
 
     public static final SecurityIpFilterRule DEFAULT_PROFILE_ACCEPT_ALL = new SecurityIpFilterRule(true, "default:accept_all") {
 
@@ -163,8 +183,12 @@ public class IPFilter {
     private final Map<String, List<String>> profileAllowRules = Collections.synchronizedMap(new HashMap<>());
     private final Map<String, List<String>> profileDenyRules = Collections.synchronizedMap(new HashMap<>());
 
-    public IPFilter(final Settings settings, AuditTrailService auditTrailService, ClusterSettings clusterSettings,
-                    XPackLicenseState licenseState) {
+    public IPFilter(
+        final Settings settings,
+        AuditTrailService auditTrailService,
+        ClusterSettings clusterSettings,
+        XPackLicenseState licenseState
+    ) {
         this.auditTrailService = auditTrailService;
         this.licenseState = licenseState;
         this.alwaysAllowBoundAddresses = ALLOW_BOUND_ADDRESSES_SETTING.get(settings);
@@ -175,8 +199,11 @@ public class IPFilter {
         isHttpFilterEnabled = IP_FILTER_ENABLED_HTTP_SETTING.get(settings);
         isIpFilterEnabled = IP_FILTER_ENABLED_SETTING.get(settings);
 
-        this.profiles = settings.getGroups("transport.profiles.",true).keySet().stream().filter(k -> TransportSettings
-                .DEFAULT_PROFILE.equals(k) == false).collect(Collectors.toSet()); // exclude default profile -- it's handled differently
+        this.profiles = settings.getGroups("transport.profiles.", true)
+            .keySet()
+            .stream()
+            .filter(k -> TransportSettings.DEFAULT_PROFILE.equals(k) == false)
+            .collect(Collectors.toSet()); // exclude default profile -- it's handled differently
         for (String profile : profiles) {
             Setting<List<String>> allowSetting = PROFILE_FILTER_ALLOW_SETTING.getConcreteSettingForNamespace(profile);
             profileAllowRules.put(profile, allowSetting.get(settings));
@@ -189,16 +216,16 @@ public class IPFilter {
         clusterSettings.addSettingsUpdateConsumer(TRANSPORT_FILTER_DENY_SETTING, this::setTransportDenyFilter);
         clusterSettings.addSettingsUpdateConsumer(HTTP_FILTER_ALLOW_SETTING, this::setHttpAllowFilter);
         clusterSettings.addSettingsUpdateConsumer(HTTP_FILTER_DENY_SETTING, this::setHttpDenyFilter);
-        clusterSettings.addAffixUpdateConsumer(PROFILE_FILTER_ALLOW_SETTING, this::setProfileAllowRules, (a,b) -> {});
-        clusterSettings.addAffixUpdateConsumer(PROFILE_FILTER_DENY_SETTING, this::setProfileDenyRules, (a,b) -> {});
+        clusterSettings.addAffixUpdateConsumer(PROFILE_FILTER_ALLOW_SETTING, this::setProfileAllowRules, (a, b) -> {});
+        clusterSettings.addAffixUpdateConsumer(PROFILE_FILTER_DENY_SETTING, this::setProfileDenyRules, (a, b) -> {});
         updateRules();
     }
 
     public Map<String, Object> usageStats() {
-        Map<String, Object> map = new HashMap<>(2);
+        Map<String, Object> map = Maps.newMapWithExpectedSize(2);
         final boolean httpFilterEnabled = isHttpFilterEnabled && (httpAllowFilter.isEmpty() == false || httpDenyFilter.isEmpty() == false);
-        final boolean transportFilterEnabled = isIpFilterEnabled &&
-                (transportAllowFilter.isEmpty() == false || transportDenyFilter.isEmpty() == false);
+        final boolean transportFilterEnabled = isIpFilterEnabled
+            && (transportAllowFilter.isEmpty() == false || transportDenyFilter.isEmpty() == false);
         map.put("http", httpFilterEnabled);
         map.put("transport", transportFilterEnabled);
         return map;
@@ -259,15 +286,15 @@ public class IPFilter {
             if (rule.matches(peerAddress)) {
                 boolean isAllowed = rule.ruleType() == IpFilterRuleType.ACCEPT;
                 if (isAllowed) {
-                    auditTrail.connectionGranted(peerAddress.getAddress(), profile, rule);
+                    auditTrail.connectionGranted(peerAddress, profile, rule);
                 } else {
-                    auditTrail.connectionDenied(peerAddress.getAddress(), profile, rule);
+                    auditTrail.connectionDenied(peerAddress, profile, rule);
                 }
                 return isAllowed;
             }
         }
 
-        auditTrail.connectionGranted(peerAddress.getAddress(), profile, DEFAULT_PROFILE_ACCEPT_ALL);
+        auditTrail.connectionGranted(peerAddress, profile, DEFAULT_PROFILE_ACCEPT_ALL);
         return true;
     }
 
@@ -326,8 +353,10 @@ public class IPFilter {
         return rules.toArray(new SecurityIpFilterRule[rules.size()]);
     }
 
-    public void setBoundTransportAddress(BoundTransportAddress boundTransportAddress,
-                                         Map<String, BoundTransportAddress> profileBoundAddress) {
+    public void setBoundTransportAddress(
+        BoundTransportAddress boundTransportAddress,
+        Map<String, BoundTransportAddress> profileBoundAddress
+    ) {
         this.boundTransportAddress.set(boundTransportAddress);
         this.profileBoundAddress.set(profileBoundAddress);
         updateRules();

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 
-
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 
 /**
@@ -23,7 +22,7 @@ public class UnboundedGeoTileGridTiler extends AbstractGeoTileGridTiler {
 
     @Override
     protected boolean validTile(int x, int y, int z) {
-       return true;
+        return true;
     }
 
     @Override
@@ -35,7 +34,7 @@ public class UnboundedGeoTileGridTiler extends AbstractGeoTileGridTiler {
     protected int setValuesForFullyContainedTile(int xTile, int yTile, int zTile, GeoShapeCellValues values, int valuesIndex) {
         // For every level we go down, we half each dimension. The total number of splits is equal to 1 << (levelEnd - levelStart)
         final int splits = 1 << precision - zTile;
-        // The start value of a dimension is calculated by multiplying the  value of that dimension at the start level
+        // The start value of a dimension is calculated by multiplying the value of that dimension at the start level
         // by the number of splits
         final int minX = xTile * splits;
         final int minY = yTile * splits;

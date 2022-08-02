@@ -28,11 +28,7 @@ public class LeafSearchLookup {
         this.docMap = docMap;
         this.sourceLookup = sourceLookup;
         this.fieldsLookup = fieldsLookup;
-        this.asMap = Map.of(
-                "doc", docMap,
-                "_doc", docMap,
-                "_source", sourceLookup,
-                "_fields", fieldsLookup);
+        this.asMap = Map.of("doc", docMap, "_doc", docMap, "_source", sourceLookup, "_fields", fieldsLookup);
     }
 
     public Map<String, Object> asMap() {

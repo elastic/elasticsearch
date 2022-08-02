@@ -30,27 +30,18 @@ public class DoubleArrayTests extends ESTestCase {
     public void testDivMut() {
         double[] zeros = DoubleStream.generate(() -> 0.0).limit(10).toArray();
         DoubleArray.divMut(zeros, randomDouble());
-        assertThat(
-            boxed(zeros),
-            arrayContaining(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
-        );
+        assertThat(boxed(zeros), arrayContaining(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0));
 
         double[] ones = DoubleStream.generate(() -> 1.0).limit(10).toArray();
         DoubleArray.divMut(ones, 2.0);
-        assertThat(
-            boxed(ones),
-            arrayContaining(0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5)
-        );
+        assertThat(boxed(ones), arrayContaining(0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5));
 
     }
 
     public void testDivMut_validation() {
         expectThrows(
             IllegalArgumentException.class,
-            () -> DoubleArray.divMut(
-                DoubleStream.generate(ESTestCase::randomDouble).limit(10).toArray(),
-                0.0
-            )
+            () -> DoubleArray.divMut(DoubleStream.generate(ESTestCase::randomDouble).limit(10).toArray(), 0.0)
         );
         expectThrows(
             IllegalArgumentException.class,

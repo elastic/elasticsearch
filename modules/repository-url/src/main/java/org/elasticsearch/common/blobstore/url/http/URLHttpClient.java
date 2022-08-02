@@ -19,11 +19,11 @@ import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.apache.http.ssl.SSLContexts;
-import org.apache.log4j.LogManager;
-import org.apache.log4j.Logger;
-import org.elasticsearch.core.Nullable;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.Closeable;
@@ -197,8 +197,9 @@ public class URLHttpClient implements Closeable {
 
     private boolean isValidContentTypeToParseError(HttpEntity httpEntity) {
         Header contentType = httpEntity.getContentType();
-        return contentType != null && httpEntity.getContentLength() > 0 &&
-            (contentType.getValue().startsWith("text/") || contentType.getValue().startsWith("application/"));
+        return contentType != null
+            && httpEntity.getContentLength() > 0
+            && (contentType.getValue().startsWith("text/") || contentType.getValue().startsWith("application/"));
     }
 
     private boolean isSuccessful(int statusCode) {

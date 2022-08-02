@@ -47,3 +47,5 @@ If your field mappings contain a large, arbitrary set of keys, consider using th
     It usually shouldn't be necessary to set this setting. The default is okay
     unless a user starts to add a huge number of fields with really long names. Default is
     `Long.MAX_VALUE` (no limit).
+
+include::{es-repo-dir}/data-streams/tsds-index-settings.asciidoc[tag=dimensions-limit]

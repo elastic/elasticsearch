@@ -6,13 +6,12 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.action.AbstractGetResourcesRequest;
 import org.elasticsearch.xpack.core.action.AbstractGetResourcesResponse;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
@@ -26,6 +25,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
+import static org.elasticsearch.core.Strings.format;
 
 public class GetTrainedModelsAction extends ActionType<GetTrainedModelsAction.Response> {
 
@@ -37,7 +37,7 @@ public class GetTrainedModelsAction extends ActionType<GetTrainedModelsAction.Re
     }
 
     public static class Includes implements Writeable {
-        static final String DEFINITION = "definition";
+        public static final String DEFINITION = "definition";
         static final String TOTAL_FEATURE_IMPORTANCE = "total_feature_importance";
         static final String FEATURE_IMPORTANCE_BASELINE = "feature_importance_baseline";
         static final String HYPERPARAMETERS = "hyperparameters";
@@ -73,7 +73,8 @@ public class GetTrainedModelsAction extends ActionType<GetTrainedModelsAction.Re
                 throw ExceptionsHelper.badRequestException(
                     "unknown [include] parameters {}. Valid options are {}",
                     unknownIncludes,
-                    KNOWN_INCLUDES);
+                    KNOWN_INCLUDES
+                );
             }
         }
 
@@ -119,24 +120,11 @@ public class GetTrainedModelsAction extends ActionType<GetTrainedModelsAction.Re
     public static class Request extends AbstractGetResourcesRequest {
 
         public static final ParseField INCLUDE = new ParseField("include");
-        public static final String DEFINITION = "definition";
         public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match");
         public static final ParseField TAGS = new ParseField("tags");
 
         private final Includes includes;
         private final List<String> tags;
-
-        @Deprecated
-        public Request(String id, boolean includeModelDefinition, List<String> tags) {
-            setResourceId(id);
-            setAllowNoResources(true);
-            this.tags = tags == null ? Collections.emptyList() : tags;
-            if (includeModelDefinition) {
-                this.includes = Includes.forModelDefinition();
-            } else {
-                this.includes = Includes.empty();
-            }
-        }
 
         public Request(String id) {
             this(id, null, null);
@@ -151,11 +139,7 @@ public class GetTrainedModelsAction extends ActionType<GetTrainedModelsAction.Re
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
-                this.includes = new Includes(in);
-            } else {
-                this.includes = in.readBoolean() ? Includes.forModelDefinition() : Includes.empty();
-            }
+            this.includes = new Includes(in);
             this.tags = in.readStringList();
         }
 
@@ -175,11 +159,7 @@ public class GetTrainedModelsAction extends ActionType<GetTrainedModelsAction.Re
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
-                this.includes.writeTo(out);
-            } else {
-                out.writeBoolean(this.includes.isIncludeModelDefinition());
-            }
+            this.includes.writeTo(out);
             out.writeStringCollection(tags);
         }
 
@@ -198,6 +178,11 @@ public class GetTrainedModelsAction extends ActionType<GetTrainedModelsAction.Re
             }
             Request other = (Request) obj;
             return super.equals(obj) && this.includes.equals(other.includes) && Objects.equals(tags, other.tags);
+        }
+
+        @Override
+        public String getCancelableTaskDescription() {
+            return format("get_trained_models[%s]", getResourceId());
         }
     }
 
@@ -227,16 +212,15 @@ public class GetTrainedModelsAction extends ActionType<GetTrainedModelsAction.Re
             private long totalCount;
             private List<TrainedModelConfig> configs = Collections.emptyList();
 
-            private Builder() {
-            }
+            private Builder() {}
 
             public Builder setTotalCount(long totalCount) {
                 this.totalCount = totalCount;
                 return this;
             }
 
-            public Builder setModels(List<TrainedModelConfig> configs) {
-                this.configs = configs;
+            public Builder setModels(List<TrainedModelConfig> models) {
+                this.configs = models;
                 return this;
             }
 

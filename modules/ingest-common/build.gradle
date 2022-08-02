@@ -16,7 +16,7 @@ esplugin {
 }
 
 dependencies {
-  compileOnly project(':modules:lang-painless')
+  compileOnly project(':modules:lang-painless:spi')
   api project(':libs:elasticsearch-grok')
   api project(':libs:elasticsearch-dissect')
   implementation "org.apache.httpcomponents:httpclient:${versions.httpclient}"
@@ -29,7 +29,7 @@ restResources {
   }
 }
 
-testClusters.all {
+testClusters.configureEach {
   // Needed in order to test ingest pipeline templating:
   // (this is because the integTest node is not using default distribution, but only the minimal number of required modules)
   module ':modules:lang-mustache'

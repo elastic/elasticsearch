@@ -8,13 +8,14 @@
 
 package org.elasticsearch.operateAllIndices;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.After;
+
+import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock.WRITE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -24,15 +25,13 @@ public class DestructiveOperationsIT extends ESIntegTestCase {
 
     @After
     public void afterTest() {
-        Settings settings = Settings.builder().put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), (String)null).build();
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
+        Settings settings = Settings.builder().put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), (String) null).build();
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
     }
 
     public void testDeleteIndexIsRejected() throws Exception {
-        Settings settings = Settings.builder()
-                .put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), true)
-                .build();
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
+        Settings settings = Settings.builder().put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), true).build();
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
 
         createIndex("index1", "1index");
 
@@ -47,10 +46,8 @@ public class DestructiveOperationsIT extends ESIntegTestCase {
 
     public void testDeleteIndexDefaultBehaviour() throws Exception {
         if (randomBoolean()) {
-            Settings settings = Settings.builder()
-                    .put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), false)
-                    .build();
-            assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
+            Settings settings = Settings.builder().put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), false).build();
+            assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
         }
 
         createIndex("index1", "1index");
@@ -65,10 +62,8 @@ public class DestructiveOperationsIT extends ESIntegTestCase {
     }
 
     public void testCloseIndexIsRejected() throws Exception {
-        Settings settings = Settings.builder()
-                .put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), true)
-                .build();
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
+        Settings settings = Settings.builder().put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), true).build();
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
 
         createIndex("index1", "1index");
 
@@ -83,10 +78,8 @@ public class DestructiveOperationsIT extends ESIntegTestCase {
 
     public void testCloseIndexDefaultBehaviour() throws Exception {
         if (randomBoolean()) {
-            Settings settings = Settings.builder()
-                    .put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), false)
-                    .build();
-            assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
+            Settings settings = Settings.builder().put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), false).build();
+            assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
         }
 
         createIndex("index1", "1index");
@@ -98,16 +91,14 @@ public class DestructiveOperationsIT extends ESIntegTestCase {
         }
 
         ClusterState state = client().admin().cluster().prepareState().get().getState();
-        for (ObjectObjectCursor<String, IndexMetadata> indexMetadataObjectObjectCursor : state.getMetadata().indices()) {
-            assertEquals(IndexMetadata.State.CLOSE, indexMetadataObjectObjectCursor.value.getState());
+        for (Map.Entry<String, IndexMetadata> indexMetadataEntry : state.getMetadata().indices().entrySet()) {
+            assertEquals(IndexMetadata.State.CLOSE, indexMetadataEntry.getValue().getState());
         }
     }
 
     public void testOpenIndexIsRejected() throws Exception {
-        Settings settings = Settings.builder()
-                .put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), true)
-                .build();
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
+        Settings settings = Settings.builder().put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), true).build();
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
 
         createIndex("index1", "1index");
         assertAcked(client().admin().indices().prepareClose("1index", "index1").get());
@@ -121,10 +112,8 @@ public class DestructiveOperationsIT extends ESIntegTestCase {
 
     public void testOpenIndexDefaultBehaviour() throws Exception {
         if (randomBoolean()) {
-            Settings settings = Settings.builder()
-                    .put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), false)
-                    .build();
-            assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
+            Settings settings = Settings.builder().put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), false).build();
+            assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
         }
 
         createIndex("index1", "1index");
@@ -137,36 +126,30 @@ public class DestructiveOperationsIT extends ESIntegTestCase {
         }
 
         ClusterState state = client().admin().cluster().prepareState().get().getState();
-        for (ObjectObjectCursor<String, IndexMetadata> indexMetadataObjectObjectCursor : state.getMetadata().indices()) {
-            assertEquals(IndexMetadata.State.OPEN, indexMetadataObjectObjectCursor.value.getState());
+        for (Map.Entry<String, IndexMetadata> indexMetadataEntry : state.getMetadata().indices().entrySet()) {
+            assertEquals(IndexMetadata.State.OPEN, indexMetadataEntry.getValue().getState());
         }
     }
 
     public void testAddIndexBlockIsRejected() throws Exception {
-        Settings settings = Settings.builder()
-            .put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), true)
-            .build();
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
+        Settings settings = Settings.builder().put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), true).build();
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
 
         createIndex("index1", "1index");
 
         // Should succeed, since no wildcards
-        assertAcked(client().admin().indices().prepareAddBlock(WRITE,"1index").get());
+        assertAcked(client().admin().indices().prepareAddBlock(WRITE, "1index").get());
         // Special "match none" pattern succeeds, since non-destructive
-        assertAcked(client().admin().indices().prepareAddBlock(WRITE,"*", "-*").get());
+        assertAcked(client().admin().indices().prepareAddBlock(WRITE, "*", "-*").get());
 
-        expectThrows(IllegalArgumentException.class,
-            () -> client().admin().indices().prepareAddBlock(WRITE,"i*").get());
-        expectThrows(IllegalArgumentException.class,
-            () -> client().admin().indices().prepareAddBlock(WRITE, "_all").get());
+        expectThrows(IllegalArgumentException.class, () -> client().admin().indices().prepareAddBlock(WRITE, "i*").get());
+        expectThrows(IllegalArgumentException.class, () -> client().admin().indices().prepareAddBlock(WRITE, "_all").get());
     }
 
     public void testAddIndexBlockDefaultBehaviour() throws Exception {
         if (randomBoolean()) {
-            Settings settings = Settings.builder()
-                .put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), false)
-                .build();
-            assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
+            Settings settings = Settings.builder().put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), false).build();
+            assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
         }
 
         createIndex("index1", "1index");
@@ -178,9 +161,7 @@ public class DestructiveOperationsIT extends ESIntegTestCase {
         }
 
         ClusterState state = client().admin().cluster().prepareState().get().getState();
-        assertTrue("write block is set on index1",
-            state.getBlocks().hasIndexBlock("index1", IndexMetadata.INDEX_WRITE_BLOCK));
-        assertTrue("write block is set on 1index",
-            state.getBlocks().hasIndexBlock("1index", IndexMetadata.INDEX_WRITE_BLOCK));
+        assertTrue("write block is set on index1", state.getBlocks().hasIndexBlock("index1", IndexMetadata.INDEX_WRITE_BLOCK));
+        assertTrue("write block is set on 1index", state.getBlocks().hasIndexBlock("1index", IndexMetadata.INDEX_WRITE_BLOCK));
     }
 }

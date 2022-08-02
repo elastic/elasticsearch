@@ -29,11 +29,12 @@ public class MoveDecisionTests extends ESTestCase {
 
     public void testCachedDecisions() {
         // cached stay decision
-        MoveDecision stay1 = MoveDecision.stay(null);
-        MoveDecision stay2 = MoveDecision.stay(null);
+        MoveDecision stay1 = MoveDecision.stay(Decision.YES);
+        MoveDecision stay2 = MoveDecision.stay(Decision.YES);
         assertSame(stay1, stay2); // not in explain mode, so should use cached decision
-        stay1 = MoveDecision.stay(Decision.YES);
-        stay2 = MoveDecision.stay(Decision.YES);
+
+        stay1 = MoveDecision.stay(new Decision.Single(Type.YES, null, null, (Object[]) null));
+        stay2 = MoveDecision.stay(new Decision.Single(Type.YES, null, null, (Object[]) null));
         assertNotSame(stay1, stay2);
 
         // cached cannot move decision
@@ -97,10 +98,19 @@ public class MoveDecisionTests extends ESTestCase {
         Type finalDecision = randomFrom(Type.values());
         DiscoveryNode assignedNode = finalDecision == Type.YES ? node1 : null;
         nodeDecisions.add(new NodeAllocationResult(node1, Decision.NO, 2));
-        nodeDecisions.add(new NodeAllocationResult(node2, finalDecision == Type.YES ? Decision.YES :
-                                                              randomFrom(Decision.NO, Decision.THROTTLE, Decision.YES), 1));
-        MoveDecision moveDecision = MoveDecision.cannotRemain(Decision.NO, AllocationDecision.fromDecisionType(finalDecision),
-            assignedNode, nodeDecisions);
+        nodeDecisions.add(
+            new NodeAllocationResult(
+                node2,
+                finalDecision == Type.YES ? Decision.YES : randomFrom(Decision.NO, Decision.THROTTLE, Decision.YES),
+                1
+            )
+        );
+        MoveDecision moveDecision = MoveDecision.cannotRemain(
+            Decision.NO,
+            AllocationDecision.fromDecisionType(finalDecision),
+            assignedNode,
+            nodeDecisions
+        );
         BytesStreamOutput output = new BytesStreamOutput();
         moveDecision.writeTo(output);
         MoveDecision readDecision = new MoveDecision(output.bytes().streamInput());

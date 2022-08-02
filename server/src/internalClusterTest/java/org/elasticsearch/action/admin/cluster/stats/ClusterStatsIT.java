@@ -12,7 +12,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
-import org.elasticsearch.client.Requests;
+import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Priority;
@@ -29,10 +29,10 @@ import org.hamcrest.Matchers;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -47,9 +47,10 @@ public class ClusterStatsIT extends ESIntegTestCase {
     }
 
     private void waitForNodes(int numNodes) {
-        ClusterHealthResponse actionGet = client().admin().cluster()
-                .health(Requests.clusterHealthRequest().waitForEvents(Priority.LANGUID)
-                    .waitForNodes(Integer.toString(numNodes))).actionGet();
+        ClusterHealthResponse actionGet = client().admin()
+            .cluster()
+            .health(Requests.clusterHealthRequest().waitForEvents(Priority.LANGUID).waitForNodes(Integer.toString(numNodes)))
+            .actionGet();
         assertThat(actionGet.isTimedOut(), is(false));
     }
 
@@ -94,10 +95,7 @@ public class ClusterStatsIT extends ESIntegTestCase {
                 roles.add(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE);
             }
             Settings settings = Settings.builder()
-                .putList(
-                    NodeRoleSettings.NODE_ROLES_SETTING.getKey(),
-                    roles.stream().map(DiscoveryNodeRole::roleName).collect(Collectors.toList())
-                )
+                .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), roles.stream().map(DiscoveryNodeRole::roleName).toList())
                 .build();
             internalCluster().startNode(settings);
             total++;
@@ -253,13 +251,29 @@ public class ClusterStatsIT extends ESIntegTestCase {
         assertThat(response.getStatus(), Matchers.equalTo(ClusterHealthStatus.GREEN));
         assertTrue(response.getIndicesStats().getMappings().getFieldTypeStats().isEmpty());
 
-        client().admin().indices().prepareCreate("test1").setMapping("{\"properties\":{\"foo\":{\"type\": \"keyword\"}}}").get();
-        client().admin().indices().prepareCreate("test2")
-            .setMapping("{\"properties\":{\"foo\":{\"type\": \"keyword\"},\"bar\":{\"properties\":{\"baz\":{\"type\":\"keyword\"}," +
-                "\"eggplant\":{\"type\":\"integer\"}}}}}").get();
+        client().admin().indices().prepareCreate("test1").setMapping("""
+            {"properties":{"foo":{"type": "keyword"}}}""").get();
+        client().admin().indices().prepareCreate("test2").setMapping("""
+            {
+              "properties": {
+                "foo": {
+                  "type": "keyword"
+                },
+                "bar": {
+                  "properties": {
+                    "baz": {
+                      "type": "keyword"
+                    },
+                    "eggplant": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }""").get();
         response = client().admin().cluster().prepareClusterStats().get();
         assertThat(response.getIndicesStats().getMappings().getFieldTypeStats().size(), equalTo(3));
-        Set<FieldStats> stats = response.getIndicesStats().getMappings().getFieldTypeStats();
+        List<FieldStats> stats = response.getIndicesStats().getMappings().getFieldTypeStats();
         for (FieldStats stat : stats) {
             if (stat.getName().equals("integer")) {
                 assertThat(stat.getCount(), greaterThanOrEqualTo(1));

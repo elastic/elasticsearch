@@ -48,28 +48,27 @@ public class RegressionEvaluationIT extends MlNativeDataFrameAnalyticsIntegTestC
     }
 
     public void testEvaluate_DefaultMetrics() {
-        EvaluateDataFrameAction.Response evaluateDataFrameResponse =
-            evaluateDataFrame(HOUSES_DATA_INDEX, new Regression(PRICE_FIELD, PRICE_PREDICTION_FIELD, null));
+        EvaluateDataFrameAction.Response evaluateDataFrameResponse = evaluateDataFrame(
+            HOUSES_DATA_INDEX,
+            new Regression(PRICE_FIELD, PRICE_PREDICTION_FIELD, null)
+        );
 
         assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Regression.NAME.getPreferredName()));
         assertThat(
             evaluateDataFrameResponse.getMetrics().stream().map(EvaluationMetricResult::getMetricName).collect(toList()),
-            containsInAnyOrder(
-                MeanSquaredError.NAME.getPreferredName(),
-                RSquared.NAME.getPreferredName(),
-                Huber.NAME.getPreferredName()
-            )
+            containsInAnyOrder(MeanSquaredError.NAME.getPreferredName(), RSquared.NAME.getPreferredName(), Huber.NAME.getPreferredName())
         );
     }
 
     public void testEvaluate_AllMetrics() {
-        EvaluateDataFrameAction.Response evaluateDataFrameResponse =
-            evaluateDataFrame(
-                HOUSES_DATA_INDEX,
-                new Regression(
-                    PRICE_FIELD,
-                    PRICE_PREDICTION_FIELD,
-                    List.of(new MeanSquaredError(), new MeanSquaredLogarithmicError((Double) null), new RSquared())));
+        EvaluateDataFrameAction.Response evaluateDataFrameResponse = evaluateDataFrame(
+            HOUSES_DATA_INDEX,
+            new Regression(
+                PRICE_FIELD,
+                PRICE_PREDICTION_FIELD,
+                List.of(new MeanSquaredError(), new MeanSquaredLogarithmicError((Double) null), new RSquared())
+            )
+        );
 
         assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Regression.NAME.getPreferredName()));
         assertThat(
@@ -77,12 +76,16 @@ public class RegressionEvaluationIT extends MlNativeDataFrameAnalyticsIntegTestC
             contains(
                 MeanSquaredError.NAME.getPreferredName(),
                 MeanSquaredLogarithmicError.NAME.getPreferredName(),
-                RSquared.NAME.getPreferredName()));
+                RSquared.NAME.getPreferredName()
+            )
+        );
     }
 
     public void testEvaluate_MeanSquaredError() {
-        EvaluateDataFrameAction.Response evaluateDataFrameResponse =
-            evaluateDataFrame(HOUSES_DATA_INDEX, new Regression(PRICE_FIELD, PRICE_PREDICTION_FIELD, List.of(new MeanSquaredError())));
+        EvaluateDataFrameAction.Response evaluateDataFrameResponse = evaluateDataFrame(
+            HOUSES_DATA_INDEX,
+            new Regression(PRICE_FIELD, PRICE_PREDICTION_FIELD, List.of(new MeanSquaredError()))
+        );
 
         assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Regression.NAME.getPreferredName()));
         assertThat(evaluateDataFrameResponse.getMetrics(), hasSize(1));
@@ -93,10 +96,10 @@ public class RegressionEvaluationIT extends MlNativeDataFrameAnalyticsIntegTestC
     }
 
     public void testEvaluate_MeanSquaredLogarithmicError() {
-        EvaluateDataFrameAction.Response evaluateDataFrameResponse =
-            evaluateDataFrame(
-                HOUSES_DATA_INDEX,
-                new Regression(PRICE_FIELD, PRICE_PREDICTION_FIELD, List.of(new MeanSquaredLogarithmicError((Double) null))));
+        EvaluateDataFrameAction.Response evaluateDataFrameResponse = evaluateDataFrame(
+            HOUSES_DATA_INDEX,
+            new Regression(PRICE_FIELD, PRICE_PREDICTION_FIELD, List.of(new MeanSquaredLogarithmicError((Double) null)))
+        );
 
         assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Regression.NAME.getPreferredName()));
         assertThat(evaluateDataFrameResponse.getMetrics(), hasSize(1));
@@ -107,10 +110,10 @@ public class RegressionEvaluationIT extends MlNativeDataFrameAnalyticsIntegTestC
     }
 
     public void testEvaluate_Huber() {
-        EvaluateDataFrameAction.Response evaluateDataFrameResponse =
-            evaluateDataFrame(
-                HOUSES_DATA_INDEX,
-                new Regression(PRICE_FIELD, PRICE_PREDICTION_FIELD, List.of(new Huber((Double) null))));
+        EvaluateDataFrameAction.Response evaluateDataFrameResponse = evaluateDataFrame(
+            HOUSES_DATA_INDEX,
+            new Regression(PRICE_FIELD, PRICE_PREDICTION_FIELD, List.of(new Huber((Double) null)))
+        );
 
         assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Regression.NAME.getPreferredName()));
         assertThat(evaluateDataFrameResponse.getMetrics(), hasSize(1));
@@ -121,8 +124,10 @@ public class RegressionEvaluationIT extends MlNativeDataFrameAnalyticsIntegTestC
     }
 
     public void testEvaluate_RSquared() {
-        EvaluateDataFrameAction.Response evaluateDataFrameResponse =
-            evaluateDataFrame(HOUSES_DATA_INDEX, new Regression(PRICE_FIELD, PRICE_PREDICTION_FIELD, List.of(new RSquared())));
+        EvaluateDataFrameAction.Response evaluateDataFrameResponse = evaluateDataFrame(
+            HOUSES_DATA_INDEX,
+            new Regression(PRICE_FIELD, PRICE_PREDICTION_FIELD, List.of(new RSquared()))
+        );
 
         assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Regression.NAME.getPreferredName()));
         assertThat(evaluateDataFrameResponse.getMetrics(), hasSize(1));
@@ -133,22 +138,17 @@ public class RegressionEvaluationIT extends MlNativeDataFrameAnalyticsIntegTestC
     }
 
     private static void createHousesIndex(String indexName) {
-        client().admin().indices().prepareCreate(indexName)
-            .setMapping(
-                PRICE_FIELD, "type=double",
-                PRICE_PREDICTION_FIELD, "type=double")
+        client().admin()
+            .indices()
+            .prepareCreate(indexName)
+            .setMapping(PRICE_FIELD, "type=double", PRICE_PREDICTION_FIELD, "type=double")
             .get();
     }
 
     private static void indexHousesData(String indexName) {
-        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         for (int i = 0; i < 100; i++) {
-            bulkRequestBuilder.add(
-                new IndexRequest(indexName)
-                    .source(
-                        PRICE_FIELD, 1000,
-                        PRICE_PREDICTION_FIELD, 0));
+            bulkRequestBuilder.add(new IndexRequest(indexName).source(PRICE_FIELD, 1000, PRICE_PREDICTION_FIELD, 0));
         }
         BulkResponse bulkResponse = bulkRequestBuilder.get();
         if (bulkResponse.hasFailures()) {

@@ -9,12 +9,12 @@ package org.elasticsearch.xpack.idp.saml.support;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.idp.saml.test.IdpSamlTestCase;
 import org.hamcrest.MatcherAssert;
 import org.opensaml.saml.saml2.core.NameID;
@@ -68,8 +68,14 @@ public class SamlAuthenticationStateTests extends IdpSamlTestCase {
         final XContentType xContentType = randomFrom(XContentType.values());
         final boolean humanReadable = randomBoolean();
         final BytesReference bytes1 = XContentHelper.toXContent(obj1, xContentType, humanReadable);
-        try (XContentParser parser = XContentHelper.createParser(
-            NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, bytes1, xContentType)) {
+        try (
+            XContentParser parser = XContentHelper.createParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                bytes1,
+                xContentType
+            )
+        ) {
             final SamlAuthenticationState obj2 = SamlAuthenticationState.fromXContent(parser);
             assertThat(obj2, equalTo(obj1));
 
@@ -82,8 +88,12 @@ public class SamlAuthenticationStateTests extends IdpSamlTestCase {
 
     private SamlAuthenticationState assertSerializationRoundTrip(SamlAuthenticationState state) throws IOException {
         final Version version = VersionUtils.randomVersionBetween(random(), Version.V_7_7_0, Version.CURRENT);
-        final SamlAuthenticationState read = copyWriteable(state, new NamedWriteableRegistry(List.of()),
-            SamlAuthenticationState::new, version);
+        final SamlAuthenticationState read = copyWriteable(
+            state,
+            new NamedWriteableRegistry(List.of()),
+            SamlAuthenticationState::new,
+            version
+        );
         MatcherAssert.assertThat("Serialized state with version [" + version + "] does not match original object", read, equalTo(state));
         return read;
     }

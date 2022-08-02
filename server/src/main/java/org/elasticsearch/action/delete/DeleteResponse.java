@@ -10,9 +10,9 @@ package org.elasticsearch.action.delete;
 
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
@@ -22,7 +22,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
  * The response of the delete action.
  *
  * @see org.elasticsearch.action.delete.DeleteRequest
- * @see org.elasticsearch.client.Client#delete(DeleteRequest)
+ * @see org.elasticsearch.client.internal.Client#delete(DeleteRequest)
  */
 public class DeleteResponse extends DocWriteResponse {
 

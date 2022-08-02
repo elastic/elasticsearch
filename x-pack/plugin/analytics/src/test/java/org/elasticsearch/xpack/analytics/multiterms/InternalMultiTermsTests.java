@@ -7,32 +7,37 @@
 
 package org.elasticsearch.xpack.analytics.multiterms;
 
+import org.apache.lucene.document.InetAddressPoint;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.BucketOrder;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.test.InternalAggregationTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
+import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.search.DocValueFormat.UNSIGNED_LONG_SHIFTED;
 import static org.elasticsearch.xpack.analytics.multiterms.InternalMultiTerms.KeyConverter.DOUBLE;
 import static org.elasticsearch.xpack.analytics.multiterms.InternalMultiTerms.KeyConverter.LONG;
@@ -41,6 +46,7 @@ import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
+import static org.mockito.Mockito.mock;
 
 public class InternalMultiTermsTests extends InternalAggregationTestCase<InternalMultiTerms> {
 
@@ -76,40 +82,126 @@ public class InternalMultiTermsTests extends InternalAggregationTestCase<Interna
         return null;
     }
 
-    private List<DocValueFormat> randomFormats(int size) {
-        return randomList(size, size, InternalAggregationTestCase::randomNumericDocValueFormat);
+    private List<DocValueFormat> randomFormats(List<InternalMultiTerms.KeyConverter> converters) {
+        return converters.stream().map(this::randomFormat).collect(toList());
+    }
+
+    private DocValueFormat randomFormat(InternalMultiTerms.KeyConverter converter) {
+        return switch (converter) {
+            case UNSIGNED_LONG, LONG, DOUBLE -> randomNumericDocValueFormat();
+            case IP -> DocValueFormat.IP;
+            case STRING -> DocValueFormat.RAW;
+        };
     }
 
     private List<InternalMultiTerms.KeyConverter> randomKeyConverters(int size) {
         return randomList(size, size, () -> randomFrom(InternalMultiTerms.KeyConverter.values()));
     }
 
-    private List<InternalMultiTerms.Bucket> randomBuckets() {
-        return Collections.emptyList();
+    private List<List<Object>> randomBucketKeys(int shardSize, List<InternalMultiTerms.KeyConverter> converters) {
+        List<List<Object>> bucketKeys = new ArrayList<>(shardSize);
+        for (int i = 0; i < shardSize; i++) {
+            List<Object> key = new ArrayList<>();
+            do {
+                key.clear();
+                for (int k = 0; k < converters.size(); k++) {
+                    key.add(randomKey(converters.get(k)));
+                }
+            } while (bucketKeys.contains(key));
+            bucketKeys.add(key);
+        }
+        return bucketKeys;
+    }
+
+    private Object randomKey(InternalMultiTerms.KeyConverter converter) {
+        return switch (converter) {
+            case UNSIGNED_LONG, LONG -> randomLong();
+            case DOUBLE -> randomDouble();
+            case IP -> new BytesRef(InetAddressPoint.encode(randomIp(randomBoolean())));
+            case STRING -> new BytesRef(randomAlphaOfLength(5));
+        };
+    }
+
+    private List<InternalMultiTerms.Bucket> randomBuckets(
+        int shardSize,
+        List<List<Object>> bucketKeys,
+        boolean showTermDocCountError,
+        int size,
+        List<DocValueFormat> formats,
+        List<InternalMultiTerms.KeyConverter> keyConverters
+
+    ) {
+        int numberOfBuckets = randomIntBetween(0, shardSize);
+        List<InternalMultiTerms.Bucket> bucketList = new ArrayList<>(numberOfBuckets);
+        List<List<Object>> visitedKeys = new ArrayList<>(randomSubsetOf(numberOfBuckets, bucketKeys));
+        visitedKeys.sort(InternalMultiTerms.TERMS_COMPARATOR);
+        for (int j = 0; j < numberOfBuckets; j++) {
+            long docCount = randomLongBetween(0, Long.MAX_VALUE / (size * numberOfBuckets));
+            long docCountError = showTermDocCountError ? randomLongBetween(0, Long.MAX_VALUE / (size * numberOfBuckets)) : -1;
+            bucketList.add(
+                new InternalMultiTerms.Bucket(
+                    visitedKeys.get(j),
+                    docCount,
+                    InternalAggregations.EMPTY,
+                    showTermDocCountError,
+                    docCountError,
+                    formats,
+                    keyConverters
+                )
+            );
+        }
+        return bucketList;
+    }
+
+    @Override
+    protected boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
+    protected void assertSampled(InternalMultiTerms sampled, InternalMultiTerms reduced, SamplingContext samplingContext) {
+        assertBucketCountsScaled(sampled.getBuckets(), reduced.getBuckets(), samplingContext);
+    }
+
+    protected void assertBucketCountsScaled(
+        List<InternalMultiTerms.Bucket> sampled,
+        List<InternalMultiTerms.Bucket> reduced,
+        SamplingContext samplingContext
+    ) {
+        assertEquals(sampled.size(), reduced.size());
+        Iterator<InternalMultiTerms.Bucket> sampledIt = sampled.iterator();
+        for (InternalMultiTerms.Bucket reducedBucket : reduced) {
+            InternalMultiTerms.Bucket sampledBucket = sampledIt.next();
+            assertEquals(sampledBucket.getDocCount(), samplingContext.scaleUp(reducedBucket.getDocCount()));
+        }
     }
 
     @Override
     protected InternalMultiTerms createTestInstance(String name, Map<String, Object> metadata) {
-        int termSize = randomIntBetween(1, 10);
+        int shardSize = randomIntBetween(1, 1000);
+        int fieldCount = randomIntBetween(1, 10);
+        boolean showTermDocCountError = randomBoolean();
+        List<InternalMultiTerms.KeyConverter> keyConverters = randomKeyConverters(fieldCount);
+        List<DocValueFormat> formats = randomFormats(keyConverters);
         return new InternalMultiTerms(
             name,
             randomBucketOrder(),
             randomBucketOrder(),
             randomIntBetween(1, 1000),
             randomIntBetween(0, 1000),
-            randomIntBetween(1, 1000),
-            randomBoolean(),
+            shardSize,
+            showTermDocCountError,
             randomNonNegativeLong(),
-            randomBuckets(),
+            randomBuckets(shardSize, randomBucketKeys(shardSize, keyConverters), showTermDocCountError, 1, formats, keyConverters),
             randomNonNegativeLong(),
-            randomFormats(termSize),
-            randomKeyConverters(termSize),
+            formats,
+            keyConverters,
             metadata
         );
     }
 
     @Override
-    protected List<InternalMultiTerms> randomResultsToReduce(String name, int size) {
+    protected BuilderAndToReduce<InternalMultiTerms> randomResultsToReduce(String name, int size) {
         List<InternalMultiTerms> terms = new ArrayList<>();
         BucketOrder reduceOrder = BucketOrder.key(true);
         BucketOrder order = BucketOrder.key(true);
@@ -118,38 +210,20 @@ public class InternalMultiTermsTests extends InternalAggregationTestCase<Interna
         int shardSize = 10;
         boolean showTermDocCountError = randomBoolean();
         int fieldCount = randomIntBetween(1, 10);
-        List<DocValueFormat> formats = randomFormats(fieldCount);
         List<InternalMultiTerms.KeyConverter> keyConverters = Collections.nCopies(fieldCount, LONG);
-        List<List<Object>> bucketKeys = new ArrayList<>();
-        for (int i = 0; i < shardSize; i++) {
-            List<Object> key;
-            do {
-                key = randomList(fieldCount, fieldCount, ESTestCase::randomLong);
-            } while (bucketKeys.contains(key));
-            bucketKeys.add(key);
-        }
+        List<DocValueFormat> formats = randomFormats(keyConverters);
+        List<List<Object>> bucketKeys = randomBucketKeys(shardSize, keyConverters);
 
         for (int i = 0; i < size; i++) {
             long otherDocCount = randomLongBetween(0, Long.MAX_VALUE / size);
-            List<InternalMultiTerms.Bucket> bucketList = new ArrayList<>();
-            int numberOfBuckets = randomIntBetween(0, shardSize);
-            List<List<Object>> visitedKeys = new ArrayList<>(randomSubsetOf(numberOfBuckets, bucketKeys));
-            visitedKeys.sort(InternalMultiTerms.TERMS_COMPARATOR);
-            for (int j = 0; j < numberOfBuckets; j++) {
-                long docCount = randomLongBetween(0, Long.MAX_VALUE / (size * numberOfBuckets));
-                long docCountError = showTermDocCountError ? randomLongBetween(0, Long.MAX_VALUE / (size * numberOfBuckets)) : -1;
-                bucketList.add(
-                    new InternalMultiTerms.Bucket(
-                        visitedKeys.get(j),
-                        docCount,
-                        InternalAggregations.EMPTY,
-                        showTermDocCountError,
-                        docCountError,
-                        formats,
-                        keyConverters
-                    )
-                );
-            }
+            List<InternalMultiTerms.Bucket> bucketList = randomBuckets(
+                shardSize,
+                bucketKeys,
+                showTermDocCountError,
+                size,
+                formats,
+                keyConverters
+            );
             long docErrorCount = -1;
             terms.add(
                 new InternalMultiTerms(
@@ -169,7 +243,7 @@ public class InternalMultiTermsTests extends InternalAggregationTestCase<Interna
                 )
             );
         }
-        return terms;
+        return new BuilderAndToReduce<>(mock(AggregationBuilder.class), terms);
     }
 
     @Override
@@ -202,22 +276,17 @@ public class InternalMultiTermsTests extends InternalAggregationTestCase<Interna
         Map<String, Object> metadata = instance.getMetadata();
         BucketOrder order = instance.order;
         switch (between(0, 2)) {
-            case 0:
-                name += randomAlphaOfLength(5);
-                break;
-            case 1:
-                order = randomValueOtherThan(order, InternalMultiTermsTests::randomBucketOrder);
-                break;
-            case 2:
+            case 0 -> name += randomAlphaOfLength(5);
+            case 1 -> order = randomValueOtherThan(order, InternalMultiTermsTests::randomBucketOrder);
+            case 2 -> {
                 if (metadata == null) {
-                    metadata = new HashMap<>(1);
+                    metadata = Maps.newMapWithExpectedSize(1);
                 } else {
                     metadata = new HashMap<>(instance.getMetadata());
                 }
                 metadata.put(randomAlphaOfLength(15), randomInt());
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            }
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalMultiTerms(
             name,
@@ -310,10 +379,11 @@ public class InternalMultiTermsTests extends InternalAggregationTestCase<Interna
             keyConverters2,
             null
         );
-        InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forPartialReduction(
+        AggregationReduceContext context = new AggregationReduceContext.ForPartial(
             bigArrays,
             mockScriptService,
-            () -> PipelineAggregator.PipelineTree.EMPTY
+            () -> false,
+            mock(AggregationBuilder.class)
         );
 
         InternalMultiTerms result = (InternalMultiTerms) terms1.reduce(List.of(terms1, terms2), context);

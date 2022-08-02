@@ -11,8 +11,9 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+
 import java.io.IOException;
 import java.util.Objects;
 
@@ -35,30 +36,40 @@ public final class KibanaEnrollmentResponse extends ActionResponse implements To
         this.httpCa = httpCa;
     }
 
-    public String getTokenName() { return tokenName; }
-    public SecureString getTokenValue() { return tokenValue; }
+    public String getTokenName() {
+        return tokenName;
+    }
+
+    public SecureString getTokenValue() {
+        return tokenValue;
+    }
+
     public String getHttpCa() {
         return httpCa;
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         out.writeString(tokenName);
         out.writeSecureString(tokenValue);
         out.writeString(httpCa);
     }
 
-    @Override public boolean equals(Object o) {
+    @Override
+    public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         KibanaEnrollmentResponse that = (KibanaEnrollmentResponse) o;
         return tokenName.equals(that.tokenName) && tokenValue.equals(that.tokenValue) && httpCa.equals(that.httpCa);
     }
 
-    @Override public int hashCode() {
+    @Override
+    public int hashCode() {
         return Objects.hash(tokenName, tokenValue, httpCa);
     }
 
-    @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject()
             .startObject("token")
             .field("name", tokenName)

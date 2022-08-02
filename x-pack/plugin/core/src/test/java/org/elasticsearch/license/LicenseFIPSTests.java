@@ -14,7 +14,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 
 public class LicenseFIPSTests extends AbstractLicenseServiceTestCase {
@@ -40,7 +40,7 @@ public class LicenseFIPSTests extends AbstractLicenseServiceTestCase {
             // In which case, this `actionGet` should throw a more useful exception than the verify below.
             responseFuture.actionGet();
         }
-        verify(clusterService).submitStateUpdateTask(any(String.class), any(ClusterStateUpdateTask.class));
+        verify(clusterService).submitUnbatchedStateUpdateTask(any(String.class), any(ClusterStateUpdateTask.class));
     }
 
     public void testFIPSCheckWithoutAllowedLicense() throws Exception {
@@ -59,8 +59,10 @@ public class LicenseFIPSTests extends AbstractLicenseServiceTestCase {
         licenseService.start();
         PlainActionFuture<PutLicenseResponse> responseFuture = new PlainActionFuture<>();
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> licenseService.registerLicense(request, responseFuture));
-        assertThat(e.getMessage(),
-            containsString("Cannot install a [" + newLicense.operationMode() + "] license unless FIPS mode is disabled"));
+        assertThat(
+            e.getMessage(),
+            containsString("Cannot install a [" + newLicense.operationMode() + "] license unless FIPS mode is disabled")
+        );
         licenseService.stop();
 
         settings = Settings.builder()
@@ -78,6 +80,6 @@ public class LicenseFIPSTests extends AbstractLicenseServiceTestCase {
             // In which case, this `actionGet` should throw a more useful exception than the verify below.
             responseFuture.actionGet();
         }
-        verify(clusterService).submitStateUpdateTask(any(String.class), any(ClusterStateUpdateTask.class));
+        verify(clusterService).submitUnbatchedStateUpdateTask(any(String.class), any(ClusterStateUpdateTask.class));
     }
 }

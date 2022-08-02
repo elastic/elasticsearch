@@ -15,9 +15,9 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
@@ -27,6 +27,7 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public class PutTrainedModelDefinitionPartAction extends ActionType<AcknowledgedResponse> {
+    public static final int MAX_NUM_NATIVE_DEFINITION_PARTS = 10_000;
 
     public static final PutTrainedModelDefinitionPartAction INSTANCE = new PutTrainedModelDefinitionPartAction();
     public static final String NAME = "cluster:admin/xpack/ml/trained_models/part/put";
@@ -87,6 +88,12 @@ public class PutTrainedModelDefinitionPartAction extends ActionType<Acknowledged
             }
             if (totalParts <= 0) {
                 validationException = addValidationError("[total_parts] must be greater than 0", validationException);
+            }
+            if (totalParts > MAX_NUM_NATIVE_DEFINITION_PARTS) {
+                validationException = addValidationError(
+                    "[total_parts] must be less than or equal to " + MAX_NUM_NATIVE_DEFINITION_PARTS,
+                    validationException
+                );
             }
             if (totalDefinitionLength <= 0) {
                 validationException = addValidationError("[total_definition_length] must be greater than 0", validationException);

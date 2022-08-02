@@ -21,7 +21,7 @@ public class EstonianAnalyzerProvider extends AbstractIndexAnalyzerProvider<Esto
     private final EstonianAnalyzer analyzer;
 
     EstonianAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-        super(indexSettings, name, settings);
+        super(name, settings);
         analyzer = new EstonianAnalyzer(
             Analysis.parseStopWords(env, settings, EstonianAnalyzer.getDefaultStopSet()),
             Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)
@@ -29,5 +29,7 @@ public class EstonianAnalyzerProvider extends AbstractIndexAnalyzerProvider<Esto
     }
 
     @Override
-    public EstonianAnalyzer get() { return this.analyzer; }
+    public EstonianAnalyzer get() {
+        return this.analyzer;
+    }
 }

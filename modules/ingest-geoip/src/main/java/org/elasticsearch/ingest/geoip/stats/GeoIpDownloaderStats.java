@@ -8,16 +8,15 @@
 
 package org.elasticsearch.ingest.geoip.stats;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.ingest.geoip.GeoIpDownloader;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -27,8 +26,9 @@ public class GeoIpDownloaderStats implements Task.Status {
     public static final GeoIpDownloaderStats EMPTY = new GeoIpDownloaderStats(0, 0, 0, 0, 0, 0);
 
     public static final ConstructingObjectParser<GeoIpDownloaderStats, Void> PARSER = new ConstructingObjectParser<>(
-        "geoip_downloader_stats", a -> new GeoIpDownloaderStats((int) a[0], (int) a[1], (long) a[2], (int) a[3], (int) a[4],
-        a[5] == null ? 0 : (int) a[5]));
+        "geoip_downloader_stats",
+        a -> new GeoIpDownloaderStats((int) a[0], (int) a[1], (long) a[2], (int) a[3], (int) a[4], a[5] == null ? 0 : (int) a[5])
+    );
 
     private static final ParseField SUCCESSFUL_DOWNLOADS = new ParseField("successful_downloads");
     private static final ParseField FAILED_DOWNLOADS = new ParseField("failed_downloads");
@@ -59,15 +59,17 @@ public class GeoIpDownloaderStats implements Task.Status {
         totalDownloadTime = in.readVLong();
         databasesCount = in.readVInt();
         skippedDownloads = in.readVInt();
-        if (in.getVersion().onOrAfter(Version.V_7_14_0)) {
-            expiredDatabases = in.readVInt();
-        } else {
-            expiredDatabases = 0;
-        }
+        expiredDatabases = in.readVInt();
     }
 
-    private GeoIpDownloaderStats(int successfulDownloads, int failedDownloads, long totalDownloadTime, int databasesCount,
-                                 int skippedDownloads, int expiredDatabases) {
+    private GeoIpDownloaderStats(
+        int successfulDownloads,
+        int failedDownloads,
+        long totalDownloadTime,
+        int databasesCount,
+        int skippedDownloads,
+        int expiredDatabases
+    ) {
         this.successfulDownloads = successfulDownloads;
         this.failedDownloads = failedDownloads;
         this.totalDownloadTime = totalDownloadTime;
@@ -101,28 +103,58 @@ public class GeoIpDownloaderStats implements Task.Status {
     }
 
     public GeoIpDownloaderStats skippedDownload() {
-        return new GeoIpDownloaderStats(successfulDownloads, failedDownloads, totalDownloadTime, databasesCount, skippedDownloads + 1,
-            expiredDatabases);
+        return new GeoIpDownloaderStats(
+            successfulDownloads,
+            failedDownloads,
+            totalDownloadTime,
+            databasesCount,
+            skippedDownloads + 1,
+            expiredDatabases
+        );
     }
 
     public GeoIpDownloaderStats successfulDownload(long downloadTime) {
-        return new GeoIpDownloaderStats(successfulDownloads + 1, failedDownloads, totalDownloadTime + Math.max(downloadTime, 0),
-            databasesCount, skippedDownloads, expiredDatabases);
+        return new GeoIpDownloaderStats(
+            successfulDownloads + 1,
+            failedDownloads,
+            totalDownloadTime + Math.max(downloadTime, 0),
+            databasesCount,
+            skippedDownloads,
+            expiredDatabases
+        );
     }
 
     public GeoIpDownloaderStats failedDownload() {
-        return new GeoIpDownloaderStats(successfulDownloads, failedDownloads + 1, totalDownloadTime, databasesCount, skippedDownloads,
-            expiredDatabases);
+        return new GeoIpDownloaderStats(
+            successfulDownloads,
+            failedDownloads + 1,
+            totalDownloadTime,
+            databasesCount,
+            skippedDownloads,
+            expiredDatabases
+        );
     }
 
-    public GeoIpDownloaderStats count(int databasesCount) {
-        return new GeoIpDownloaderStats(successfulDownloads, failedDownloads, totalDownloadTime, databasesCount, skippedDownloads,
-            expiredDatabases);
+    public GeoIpDownloaderStats databasesCount(int databasesCount) {
+        return new GeoIpDownloaderStats(
+            successfulDownloads,
+            failedDownloads,
+            totalDownloadTime,
+            databasesCount,
+            skippedDownloads,
+            expiredDatabases
+        );
     }
 
     public GeoIpDownloaderStats expiredDatabases(int expiredDatabases) {
-        return new GeoIpDownloaderStats(successfulDownloads, failedDownloads, totalDownloadTime, databasesCount, skippedDownloads,
-            expiredDatabases);
+        return new GeoIpDownloaderStats(
+            successfulDownloads,
+            failedDownloads,
+            totalDownloadTime,
+            databasesCount,
+            skippedDownloads,
+            expiredDatabases
+        );
     }
 
     @Override
@@ -149,9 +181,7 @@ public class GeoIpDownloaderStats implements Task.Status {
         out.writeVLong(totalDownloadTime);
         out.writeVInt(databasesCount);
         out.writeVInt(skippedDownloads);
-        if (out.getVersion().onOrAfter(Version.V_7_14_0)) {
-            out.writeVInt(expiredDatabases);
-        }
+        out.writeVInt(expiredDatabases);
     }
 
     @Override
@@ -159,12 +189,12 @@ public class GeoIpDownloaderStats implements Task.Status {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         GeoIpDownloaderStats that = (GeoIpDownloaderStats) o;
-        return successfulDownloads == that.successfulDownloads &&
-            failedDownloads == that.failedDownloads &&
-            totalDownloadTime == that.totalDownloadTime &&
-            databasesCount == that.databasesCount &&
-            skippedDownloads == that.skippedDownloads &&
-            expiredDatabases == that.expiredDatabases;
+        return successfulDownloads == that.successfulDownloads
+            && failedDownloads == that.failedDownloads
+            && totalDownloadTime == that.totalDownloadTime
+            && databasesCount == that.databasesCount
+            && skippedDownloads == that.skippedDownloads
+            && expiredDatabases == that.expiredDatabases;
     }
 
     @Override

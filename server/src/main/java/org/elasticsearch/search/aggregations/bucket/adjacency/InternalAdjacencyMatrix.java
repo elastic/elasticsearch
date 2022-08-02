@@ -10,10 +10,13 @@ package org.elasticsearch.search.aggregations.bucket.adjacency;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -103,6 +106,15 @@ public class InternalAdjacencyMatrix extends InternalMultiBucketAggregation<Inte
         public int hashCode() {
             return Objects.hash(getClass(), key, docCount, aggregations);
         }
+
+        InternalBucket finalizeSampling(SamplingContext samplingContext) {
+            return new InternalBucket(
+                key,
+                samplingContext.scaleUp(docCount),
+                InternalAggregations.finalizeSampling(aggregations, samplingContext)
+            );
+        }
+
     }
 
     private final List<InternalBucket> buckets;
@@ -129,10 +141,7 @@ public class InternalAdjacencyMatrix extends InternalMultiBucketAggregation<Inte
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeVInt(buckets.size());
-        for (InternalBucket bucket : buckets) {
-            bucket.writeTo(out);
-        }
+        out.writeCollection(buckets);
     }
 
     @Override
@@ -158,7 +167,7 @@ public class InternalAdjacencyMatrix extends InternalMultiBucketAggregation<Inte
     @Override
     public InternalBucket getBucketByKey(String key) {
         if (bucketMap == null) {
-            bucketMap = new HashMap<>(buckets.size());
+            bucketMap = Maps.newMapWithExpectedSize(buckets.size());
             for (InternalBucket bucket : buckets) {
                 bucketMap.put(bucket.getKey(), bucket);
             }
@@ -167,7 +176,7 @@ public class InternalAdjacencyMatrix extends InternalMultiBucketAggregation<Inte
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
         Map<String, List<InternalBucket>> bucketsMap = new HashMap<>();
         for (InternalAggregation aggregation : aggregations) {
             InternalAdjacencyMatrix filters = (InternalAdjacencyMatrix) aggregation;
@@ -197,7 +206,12 @@ public class InternalAdjacencyMatrix extends InternalMultiBucketAggregation<Inte
     }
 
     @Override
-    protected InternalBucket reduceBucket(List<InternalBucket> buckets, ReduceContext context) {
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        return new InternalAdjacencyMatrix(name, buckets.stream().map(b -> b.finalizeSampling(samplingContext)).toList(), getMetadata());
+    }
+
+    @Override
+    protected InternalBucket reduceBucket(List<InternalBucket> buckets, AggregationReduceContext context) {
         assert buckets.size() > 0;
         InternalBucket reduced = null;
         List<InternalAggregations> aggregationsList = new ArrayList<>(buckets.size());

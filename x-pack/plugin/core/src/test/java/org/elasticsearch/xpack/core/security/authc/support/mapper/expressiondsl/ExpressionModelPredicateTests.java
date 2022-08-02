@@ -85,8 +85,11 @@ public class ExpressionModelPredicateTests extends ESTestCase {
         final FieldValue fieldValue = new FieldValue("/.*" + substring + ".*/");
 
         assertThat(ExpressionModel.buildPredicate(substring).test(fieldValue), is(true));
-        assertThat(ExpressionModel.buildPredicate(randomAlphaOfLengthBetween(2, 4) + substring + randomAlphaOfLengthBetween(1, 5))
-                        .test(fieldValue), is(true));
+        assertThat(
+            ExpressionModel.buildPredicate(randomAlphaOfLengthBetween(2, 4) + substring + randomAlphaOfLengthBetween(1, 5))
+                .test(fieldValue),
+            is(true)
+        );
 
         assertThat(ExpressionModel.buildPredicate(substring.substring(1, 3)).test(fieldValue), is(false));
 

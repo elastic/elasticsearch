@@ -31,9 +31,9 @@ public class TransportFollowInfoActionTests extends ESTestCase {
 
     public void testGetFollowInfos() {
         ClusterState state = createCS(
-            new String[] {"follower1", "follower2", "follower3", "index4"},
-            new boolean[]{true, true, true, false},
-            new boolean[]{true, true, false, false}
+            new String[] { "follower1", "follower2", "follower3", "index4" },
+            new boolean[] { true, true, true, false },
+            new boolean[] { true, true, false, false }
         );
         List<String> concreteIndices = Arrays.asList("follower1", "follower3");
 
@@ -61,17 +61,19 @@ public class TransportFollowInfoActionTests extends ESTestCase {
             if (isFollowIndex) {
                 imdBuilder.putCustom(Ccr.CCR_CUSTOM_METADATA_KEY, new HashMap<>());
                 if (active) {
-                    persistentTasks.addTask(Integer.toString(i), ShardFollowTask.NAME,
-                        createShardFollowTask(new Index(index, IndexMetadata.INDEX_UUID_NA_VALUE)), null);
+                    persistentTasks.addTask(
+                        Integer.toString(i),
+                        ShardFollowTask.NAME,
+                        createShardFollowTask(new Index(index, IndexMetadata.INDEX_UUID_NA_VALUE)),
+                        null
+                    );
                 }
             }
             mdBuilder.put(imdBuilder);
         }
 
         mdBuilder.putCustom(PersistentTasksCustomMetadata.TYPE, persistentTasks.build());
-        return ClusterState.builder(new ClusterName("_cluster"))
-            .metadata(mdBuilder.build())
-            .build();
+        return ClusterState.builder(new ClusterName("_cluster")).metadata(mdBuilder.build()).build();
     }
 
 }

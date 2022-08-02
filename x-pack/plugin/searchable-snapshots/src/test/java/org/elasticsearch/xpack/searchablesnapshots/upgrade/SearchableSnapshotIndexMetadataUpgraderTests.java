@@ -18,9 +18,6 @@ import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants;
-
-import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE;
 import static org.hamcrest.Matchers.equalTo;
@@ -72,16 +69,16 @@ public class SearchableSnapshotIndexMetadataUpgraderTests extends ESTestCase {
         assertThat(upgradedState, not(sameInstance(originalState)));
         assertThat(upgradedState.metadata().indices().size(), equalTo(originalState.metadata().indices().size()));
 
-        assertTrue(StreamSupport.stream(upgradedState.metadata().spliterator(), false).anyMatch(upgraded -> {
+        assertTrue(upgradedState.metadata().stream().anyMatch(upgraded -> {
             IndexMetadata original = originalState.metadata().index(upgraded.getIndex());
             assertThat(original, notNullValue());
-            if (isPartial(upgraded) == false
+            if (upgraded.isPartialSearchableSnapshot() == false
                 || ShardLimitValidator.INDEX_SETTING_SHARD_LIMIT_GROUP.get(original.getSettings())
                     .equals(ShardLimitValidator.FROZEN_GROUP)) {
                 assertThat(upgraded, sameInstance(original));
                 return false;
             } else {
-                assertThat(isPartial(upgraded), is(isPartial(original)));
+                assertThat(upgraded.isPartialSearchableSnapshot(), is(original.isPartialSearchableSnapshot()));
                 assertThat(upgraded.getNumberOfShards(), equalTo(original.getNumberOfShards()));
                 assertThat(upgraded.getNumberOfReplicas(), equalTo(original.getNumberOfReplicas()));
                 assertThat(
@@ -148,7 +145,7 @@ public class SearchableSnapshotIndexMetadataUpgraderTests extends ESTestCase {
         Settings.Builder settings = settings(version);
         settings.put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SEARCHABLE_SNAPSHOT_STORE_TYPE);
         if (partial || randomBoolean()) {
-            settings.put(SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING.getKey(), partial);
+            settings.put(SearchableSnapshotsSettings.SNAPSHOT_PARTIAL_SETTING.getKey(), partial);
         }
         return settings.build();
     }
@@ -190,7 +187,4 @@ public class SearchableSnapshotIndexMetadataUpgraderTests extends ESTestCase {
         return ClusterState.builder(ClusterName.DEFAULT).metadata(metadataBuilder).build();
     }
 
-    private boolean isPartial(IndexMetadata upgraded) {
-        return SearchableSnapshotsSettings.isPartialSearchableSnapshotIndex(upgraded.getSettings());
-    }
 }

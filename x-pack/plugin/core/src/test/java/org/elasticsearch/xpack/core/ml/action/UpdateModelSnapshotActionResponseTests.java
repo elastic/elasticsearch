@@ -11,8 +11,7 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.action.UpdateModelSnapshotAction.Response;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshotTests;
 
-public class UpdateModelSnapshotActionResponseTests
-        extends AbstractWireSerializingTestCase<UpdateModelSnapshotAction.Response> {
+public class UpdateModelSnapshotActionResponseTests extends AbstractWireSerializingTestCase<UpdateModelSnapshotAction.Response> {
 
     @Override
     protected Response createTestInstance() {

@@ -24,8 +24,7 @@ public class ProfileConfigurationsTests extends ESTestCase {
 
     public void testGetSecureTransportProfileConfigurations() {
         assumeFalse("Can't run in a FIPS JVM, uses JKS/PKCS12 keystores", inFipsJvm());
-        final Settings settings = getBaseSettings()
-            .put("path.home", createTempDir())
+        final Settings settings = getBaseSettings().put("path.home", createTempDir())
             .put("xpack.security.transport.ssl.verification_mode", SslVerificationMode.CERTIFICATE.name())
             .put("xpack.security.transport.ssl.verification_mode", SslVerificationMode.CERTIFICATE.name())
             .put("transport.profiles.full.xpack.security.ssl.verification_mode", SslVerificationMode.FULL.name())
@@ -37,15 +36,14 @@ public class ProfileConfigurationsTests extends ESTestCase {
         final Map<String, SslConfiguration> profileConfigurations = ProfileConfigurations.get(settings, sslService, defaultConfig);
         assertThat(profileConfigurations.size(), Matchers.equalTo(3));
         assertThat(profileConfigurations.keySet(), Matchers.containsInAnyOrder("full", "cert", "default"));
-        assertThat(profileConfigurations.get("full").getVerificationMode(), Matchers.equalTo(SslVerificationMode.FULL));
-        assertThat(profileConfigurations.get("cert").getVerificationMode(), Matchers.equalTo(SslVerificationMode.CERTIFICATE));
+        assertThat(profileConfigurations.get("full").verificationMode(), Matchers.equalTo(SslVerificationMode.FULL));
+        assertThat(profileConfigurations.get("cert").verificationMode(), Matchers.equalTo(SslVerificationMode.CERTIFICATE));
         assertThat(profileConfigurations.get("default"), Matchers.sameInstance(defaultConfig));
     }
 
     public void testGetInsecureTransportProfileConfigurations() {
         assumeFalse("Can't run in a FIPS JVM with verification mode None", inFipsJvm());
-        final Settings settings = getBaseSettings()
-            .put("path.home", createTempDir())
+        final Settings settings = getBaseSettings().put("path.home", createTempDir())
             .put("xpack.security.transport.ssl.verification_mode", SslVerificationMode.CERTIFICATE.name())
             .put("transport.profiles.none.xpack.security.ssl.verification_mode", SslVerificationMode.NONE.name())
             .build();
@@ -55,7 +53,7 @@ public class ProfileConfigurationsTests extends ESTestCase {
         final Map<String, SslConfiguration> profileConfigurations = ProfileConfigurations.get(settings, sslService, defaultConfig);
         assertThat(profileConfigurations.size(), Matchers.equalTo(2));
         assertThat(profileConfigurations.keySet(), Matchers.containsInAnyOrder("none", "default"));
-        assertThat(profileConfigurations.get("none").getVerificationMode(), Matchers.equalTo(SslVerificationMode.NONE));
+        assertThat(profileConfigurations.get("none").verificationMode(), Matchers.equalTo(SslVerificationMode.NONE));
         assertThat(profileConfigurations.get("default"), Matchers.sameInstance(defaultConfig));
     }
 

@@ -57,7 +57,8 @@ public final class ReloadableCustomAnalyzer extends Analyzer implements Analyzer
         super(UPDATE_STRATEGY);
         if (components.analysisMode().equals(AnalysisMode.SEARCH_TIME) == false) {
             throw new IllegalArgumentException(
-                    "ReloadableCustomAnalyzer must only be initialized with analysis components in AnalysisMode.SEARCH_TIME mode");
+                "ReloadableCustomAnalyzer must only be initialized with analysis components in AnalysisMode.SEARCH_TIME mode"
+            );
         }
         this.components = components;
         this.positionIncrementGap = positionIncrementGap;
@@ -105,11 +106,13 @@ public final class ReloadableCustomAnalyzer extends Analyzer implements Analyzer
         return result;
     }
 
-    public synchronized void reload(String name,
-                                    Settings settings,
-                                    final Map<String, TokenizerFactory> tokenizers,
-                                    final Map<String, CharFilterFactory> charFilters,
-                                    final Map<String, TokenFilterFactory> tokenFilters) {
+    public synchronized void reload(
+        String name,
+        Settings settings,
+        final Map<String, TokenizerFactory> tokenizers,
+        final Map<String, CharFilterFactory> charFilters,
+        final Map<String, TokenFilterFactory> tokenFilters
+    ) {
         AnalyzerComponents components = AnalyzerComponents.createComponents(name, settings, tokenizers, charFilters, tokenFilters);
         this.components = components;
     }

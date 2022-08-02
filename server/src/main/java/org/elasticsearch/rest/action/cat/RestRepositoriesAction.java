@@ -10,7 +10,7 @@ package org.elasticsearch.rest.action.cat;
 
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRequest;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.rest.RestRequest;
@@ -37,15 +37,14 @@ public class RestRepositoriesAction extends AbstractCatAction {
         getRepositoriesRequest.local(request.paramAsBoolean("local", getRepositoriesRequest.local()));
         getRepositoriesRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getRepositoriesRequest.masterNodeTimeout()));
 
-        return channel ->
-                client.admin()
-                        .cluster()
-                        .getRepositories(getRepositoriesRequest, new RestResponseListener<GetRepositoriesResponse>(channel) {
-                            @Override
-                            public RestResponse buildResponse(GetRepositoriesResponse getRepositoriesResponse) throws Exception {
-                                return RestTable.buildResponse(buildTable(request, getRepositoriesResponse), channel);
-                            }
-                        });
+        return channel -> client.admin()
+            .cluster()
+            .getRepositories(getRepositoriesRequest, new RestResponseListener<GetRepositoriesResponse>(channel) {
+                @Override
+                public RestResponse buildResponse(GetRepositoriesResponse getRepositoriesResponse) throws Exception {
+                    return RestTable.buildResponse(buildTable(request, getRepositoriesResponse), channel);
+                }
+            });
     }
 
     @Override
@@ -60,11 +59,10 @@ public class RestRepositoriesAction extends AbstractCatAction {
 
     @Override
     protected Table getTableWithHeader(RestRequest request) {
-        return new Table()
-                .startHeaders()
-                .addCell("id", "alias:id,repoId;desc:unique repository id")
-                .addCell("type", "alias:t,type;text-align:right;desc:repository type")
-                .endHeaders();
+        return new Table().startHeaders()
+            .addCell("id", "alias:id,repoId;desc:unique repository id")
+            .addCell("type", "alias:t,type;text-align:right;desc:repository type")
+            .endHeaders();
     }
 
     private Table buildTable(RestRequest req, GetRepositoriesResponse getRepositoriesResponse) {

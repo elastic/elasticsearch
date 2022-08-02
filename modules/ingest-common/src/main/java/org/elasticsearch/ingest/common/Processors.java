@@ -108,7 +108,8 @@ public final class Processors {
         Object destinationPort,
         Object icmpType,
         Object icmpCode,
-        int seed) {
+        int seed
+    ) {
         return CommunityIdProcessor.apply(
             sourceIpAddrString,
             destIpAddrString,
@@ -143,15 +144,18 @@ public final class Processors {
         Object sourcePort,
         Object destinationPort,
         Object icmpType,
-        Object icmpCode) {
-        return CommunityIdProcessor.apply(sourceIpAddrString,
+        Object icmpCode
+    ) {
+        return CommunityIdProcessor.apply(
+            sourceIpAddrString,
             destIpAddrString,
             ianaNumber,
             transport,
             sourcePort,
             destinationPort,
             icmpType,
-            icmpCode);
+            icmpCode
+        );
     }
 
     /*

@@ -67,7 +67,6 @@ such as:
 
 * <<indices-clone-index,Clone>>
 * <<indices-delete-index,Delete>>
-* <<freeze-index-api,Freeze>>
 * <<indices-shrink-index,Shrink>>
 * <<indices-split-index,Split>>
 
@@ -127,3 +126,4 @@ alias with a write index instead of a data stream. See
 include::set-up-a-data-stream.asciidoc[]
 include::use-a-data-stream.asciidoc[]
 include::change-mappings-and-settings.asciidoc[]
+include::tsds.asciidoc[]

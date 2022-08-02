@@ -163,10 +163,19 @@ public class ExpressionTests extends ESTestCase {
         int randomSecond = randomInt(59);
         int randomMilli = randomInt(999);
 
-        String value = format(Locale.ROOT, "INTERVAL '%d %d:%d:%d.%03d' DAY TO SECOND", randomDay, randomHour, randomMinute, randomSecond,
-                randomMilli);
-        assertEquals(Duration.ofDays(randomDay).plusHours(randomHour).plusMinutes(randomMinute).plusSeconds(randomSecond)
-                .plusMillis(randomMilli), intervalOf(value));
+        String value = format(
+            Locale.ROOT,
+            "INTERVAL '%d %d:%d:%d.%03d' DAY TO SECOND",
+            randomDay,
+            randomHour,
+            randomMinute,
+            randomSecond,
+            randomMilli
+        );
+        assertEquals(
+            Duration.ofDays(randomDay).plusHours(randomHour).plusMinutes(randomMinute).plusSeconds(randomSecond).plusMillis(randomMilli),
+            intervalOf(value)
+        );
     }
 
     public void testNegativeStringInterval() {
@@ -176,10 +185,24 @@ public class ExpressionTests extends ESTestCase {
         int randomSecond = randomInt(59);
         int randomMilli = randomInt(999);
 
-        String value = format(Locale.ROOT, "INTERVAL -'%d %d:%d:%d.%03d' DAY TO SECOND", randomDay, randomHour, randomMinute, randomSecond,
-                randomMilli);
-        assertEquals(Duration.ofDays(randomDay).plusHours(randomHour).plusMinutes(randomMinute).plusSeconds(randomSecond)
-                .plusMillis(randomMilli).negated(), intervalOf(value));
+        String value = format(
+            Locale.ROOT,
+            "INTERVAL -'%d %d:%d:%d.%03d' DAY TO SECOND",
+            randomDay,
+            randomHour,
+            randomMinute,
+            randomSecond,
+            randomMilli
+        );
+        assertEquals(
+            Duration.ofDays(randomDay)
+                .plusHours(randomHour)
+                .plusMinutes(randomMinute)
+                .plusSeconds(randomSecond)
+                .plusMillis(randomMilli)
+                .negated(),
+            intervalOf(value)
+        );
     }
 
     private TemporalAmount intervalOf(String query) {
@@ -253,7 +276,7 @@ public class ExpressionTests extends ESTestCase {
         expr = parser.createExpression(sb.toString());
         assertEquals(Literal.class, expr.getClass());
         assertEquals(sb.toString(), expr.sourceText());
-        assertEquals(numberOfMinuses % 2  == 0 ? value : - value, expr.fold());
+        assertEquals(numberOfMinuses % 2 == 0 ? value : -value, expr.fold());
     }
 
     public void testComplexArithmetic() {
@@ -505,10 +528,8 @@ public class ExpressionTests extends ESTestCase {
 
     public void testCaseWithoutOperand() {
         Expression expr = parser.createExpression(
-            "CASE WHEN a = 1 THEN 'one'" +
-            "     WHEN a > 2 THEN 'a few'" +
-            "     WHEN a > 10 THEN 'many' " +
-            "END");
+            "CASE WHEN a = 1 THEN 'one'" + "     WHEN a > 2 THEN 'a few'" + "     WHEN a > 10 THEN 'many' " + "END"
+        );
 
         assertEquals(Case.class, expr.getClass());
         Case c = (Case) expr;
@@ -519,11 +540,7 @@ public class ExpressionTests extends ESTestCase {
         assertEquals("one", ifc.result().toString());
         assertEquals(Literal.NULL, c.elseResult());
 
-        expr = parser.createExpression(
-            "CASE WHEN a = 1 THEN 'one'" +
-            "     WHEN a <= 2 THEN 'a few'" +
-            "ELSE 'many' " +
-            "END");
+        expr = parser.createExpression("CASE WHEN a = 1 THEN 'one'" + "     WHEN a <= 2 THEN 'a few'" + "ELSE 'many' " + "END");
 
         assertEquals(Case.class, expr.getClass());
         c = (Case) expr;
@@ -535,10 +552,8 @@ public class ExpressionTests extends ESTestCase {
 
     public void testCaseWithOperand() {
         Expression expr = parser.createExpression(
-            "CASE a WHEN 1 THEN 'one'" +
-            "       WHEN 2 THEN 'two'" +
-            "       WHEN 3 THEN 'three' " +
-            "END");
+            "CASE a WHEN 1 THEN 'one'" + "       WHEN 2 THEN 'two'" + "       WHEN 3 THEN 'three' " + "END"
+        );
 
         assertEquals(Case.class, expr.getClass());
         Case c = (Case) expr;
@@ -549,11 +564,7 @@ public class ExpressionTests extends ESTestCase {
         assertEquals("one", ifc.result().toString());
         assertEquals(Literal.NULL, c.elseResult());
 
-        expr = parser.createExpression(
-            "CASE a WHEN 1 THEN 'one'" +
-            "       WHEN 2 THEN 'two'" +
-            "ELSE 'many' " +
-            "END");
+        expr = parser.createExpression("CASE a WHEN 1 THEN 'one'" + "       WHEN 2 THEN 'two'" + "ELSE 'many' " + "END");
         assertEquals(Case.class, expr.getClass());
         c = (Case) expr;
         assertEquals(2, c.conditions().size());
@@ -563,9 +574,10 @@ public class ExpressionTests extends ESTestCase {
     }
 
     public void testLikePatternWithNullParameterNotAllowed() {
-        ParsingException e = expectThrows(ParsingException.class,
-                () -> parser.createExpression("a LIKE ?",
-                    Collections.singletonList(new SqlTypedParamValue(KEYWORD.typeName(), null))));
+        ParsingException e = expectThrows(
+            ParsingException.class,
+            () -> parser.createExpression("a LIKE ?", Collections.singletonList(new SqlTypedParamValue(KEYWORD.typeName(), null)))
+        );
         assertEquals("line 1:9: Pattern must not be [null]", e.getMessage());
     }
 }

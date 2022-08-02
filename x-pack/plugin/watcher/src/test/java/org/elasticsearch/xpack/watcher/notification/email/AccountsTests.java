@@ -22,11 +22,14 @@ import static org.mockito.Mockito.mock;
 
 public class AccountsTests extends ESTestCase {
     public void testSingleAccount() throws Exception {
-        Settings.Builder builder = Settings.builder()
-                .put("default_account", "account1");
+        Settings.Builder builder = Settings.builder().put("default_account", "account1");
         addAccountSettings("account1", builder);
-        EmailService service = new EmailService(builder.build(), null, mock(SSLService.class),
-                new ClusterSettings(Settings.EMPTY, new HashSet<>(EmailService.getSettings())));
+        EmailService service = new EmailService(
+            builder.build(),
+            null,
+            mock(SSLService.class),
+            new ClusterSettings(Settings.EMPTY, new HashSet<>(EmailService.getSettings()))
+        );
         Account account = service.getAccount("account1");
         assertThat(account, notNullValue());
         assertThat(account.name(), equalTo("account1"));
@@ -38,8 +41,12 @@ public class AccountsTests extends ESTestCase {
     public void testSingleAccountNoExplicitDefault() throws Exception {
         Settings.Builder builder = Settings.builder();
         addAccountSettings("account1", builder);
-        EmailService service = new EmailService(builder.build(), null, mock(SSLService.class),
-                new ClusterSettings(Settings.EMPTY, new HashSet<>(EmailService.getSettings())));
+        EmailService service = new EmailService(
+            builder.build(),
+            null,
+            mock(SSLService.class),
+            new ClusterSettings(Settings.EMPTY, new HashSet<>(EmailService.getSettings()))
+        );
         Account account = service.getAccount("account1");
         assertThat(account, notNullValue());
         assertThat(account.name(), equalTo("account1"));
@@ -49,13 +56,16 @@ public class AccountsTests extends ESTestCase {
     }
 
     public void testMultipleAccounts() throws Exception {
-        Settings.Builder builder = Settings.builder()
-                .put("xpack.notification.email.default_account", "account1");
+        Settings.Builder builder = Settings.builder().put("xpack.notification.email.default_account", "account1");
         addAccountSettings("account1", builder);
         addAccountSettings("account2", builder);
 
-        EmailService service = new EmailService(builder.build(), null, mock(SSLService.class),
-                new ClusterSettings(Settings.EMPTY, new HashSet<>(EmailService.getSettings())));
+        EmailService service = new EmailService(
+            builder.build(),
+            null,
+            mock(SSLService.class),
+            new ClusterSettings(Settings.EMPTY, new HashSet<>(EmailService.getSettings()))
+        );
         Account account = service.getAccount("account1");
         assertThat(account, notNullValue());
         assertThat(account.name(), equalTo("account1"));
@@ -68,13 +78,16 @@ public class AccountsTests extends ESTestCase {
     }
 
     public void testMultipleAccountsNoExplicitDefault() throws Exception {
-        Settings.Builder builder = Settings.builder()
-                .put("default_account", "account1");
+        Settings.Builder builder = Settings.builder().put("default_account", "account1");
         addAccountSettings("account1", builder);
         addAccountSettings("account2", builder);
 
-        EmailService service = new EmailService(builder.build(), null, mock(SSLService.class),
-                new ClusterSettings(Settings.EMPTY, new HashSet<>(EmailService.getSettings())));
+        EmailService service = new EmailService(
+            builder.build(),
+            null,
+            mock(SSLService.class),
+            new ClusterSettings(Settings.EMPTY, new HashSet<>(EmailService.getSettings()))
+        );
         Account account = service.getAccount("account1");
         assertThat(account, notNullValue());
         assertThat(account.name(), equalTo("account1"));
@@ -91,23 +104,31 @@ public class AccountsTests extends ESTestCase {
         addAccountSettings("account1", builder);
         addAccountSettings("account2", builder);
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(EmailService.getSettings()));
-        SettingsException e = expectThrows(SettingsException.class,
-            () -> new EmailService(builder.build(), null, mock(SSLService.class), clusterSettings));
+        SettingsException e = expectThrows(
+            SettingsException.class,
+            () -> new EmailService(builder.build(), null, mock(SSLService.class), clusterSettings)
+        );
         assertThat(e.getMessage(), is("could not find default account [unknown]"));
     }
 
     public void testNoAccount() throws Exception {
         Settings.Builder builder = Settings.builder();
-        EmailService service = new EmailService(builder.build(), null, mock(SSLService.class),
-                new ClusterSettings(Settings.EMPTY, new HashSet<>(EmailService.getSettings())));
+        EmailService service = new EmailService(
+            builder.build(),
+            null,
+            mock(SSLService.class),
+            new ClusterSettings(Settings.EMPTY, new HashSet<>(EmailService.getSettings()))
+        );
         expectThrows(IllegalArgumentException.class, () -> service.getAccount(null));
     }
 
     public void testNoAccountWithDefaultAccount() throws Exception {
         Settings settings = Settings.builder().put("xpack.notification.email.default_account", "unknown").build();
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(EmailService.getSettings()));
-        SettingsException e = expectThrows(SettingsException.class,
-            () -> new EmailService(settings, null, mock(SSLService.class), clusterSettings));
+        SettingsException e = expectThrows(
+            SettingsException.class,
+            () -> new EmailService(settings, null, mock(SSLService.class), clusterSettings)
+        );
         assertThat(e.getMessage(), is("could not find default account [unknown]"));
     }
 

@@ -16,8 +16,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.AfterClass;
@@ -28,6 +28,7 @@ import java.util.Collections;
 
 import static org.elasticsearch.common.Strings.hasText;
 
+@SuppressWarnings("removal")
 public abstract class RemoteClusterAwareEqlRestTestCase extends ESRestTestCase {
 
     private static final long CLIENT_TIMEOUT = 40L; // upped from 10s to accomodate for max measured throughput decline
@@ -61,11 +62,7 @@ public abstract class RemoteClusterAwareEqlRestTestCase extends ESRestTestCase {
     }
 
     protected static RestHighLevelClient highLevelClient(RestClient client) {
-        return new RestHighLevelClient(
-                client,
-                ignore -> {
-                },
-                Collections.emptyList()) {
+        return new RestHighLevelClient(client, ignore -> {}, Collections.emptyList()) {
         };
     }
 
@@ -116,7 +113,7 @@ public abstract class RemoteClusterAwareEqlRestTestCase extends ESRestTestCase {
         provisioningClient().performRequest(request);
     }
 
-    protected static void deleteIndex(String name) throws IOException {
+    protected static void deleteIndexWithProvisioningClient(String name) throws IOException {
         deleteIndex(provisioningClient(), name);
     }
 
@@ -130,9 +127,7 @@ public abstract class RemoteClusterAwareEqlRestTestCase extends ESRestTestCase {
         String pass = System.getProperty("tests.rest.cluster.remote.password");
         if (hasText(user) && hasText(pass)) {
             String token = basicAuthHeaderValue(user, new SecureString(pass.toCharArray()));
-            return Settings.builder()
-                .put(ThreadContext.PREFIX + ".Authorization", token)
-                .build();
+            return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
         }
         return Settings.EMPTY;
     }

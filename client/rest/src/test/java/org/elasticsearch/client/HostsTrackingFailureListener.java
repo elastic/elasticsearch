@@ -42,7 +42,7 @@ class HostsTrackingFailureListener extends RestClient.FailureListener {
 
     void assertCalled(List<Node> nodes) {
         HttpHost[] hosts = new HttpHost[nodes.size()];
-        for (int i = 0 ; i < nodes.size(); i++) {
+        for (int i = 0; i < nodes.size(); i++) {
             hosts[i] = nodes.get(i).getHost();
         }
         assertCalled(hosts);

@@ -37,8 +37,16 @@ public final class GrokProcessor extends AbstractProcessor {
     private final boolean traceMatch;
     private final boolean ignoreMissing;
 
-    GrokProcessor(String tag, String description, Map<String, String> patternBank, List<String> matchPatterns, String matchField,
-                  boolean traceMatch, boolean ignoreMissing, MatcherWatchdog matcherWatchdog) {
+    GrokProcessor(
+        String tag,
+        String description,
+        Map<String, String> patternBank,
+        List<String> matchPatterns,
+        String matchField,
+        boolean traceMatch,
+        boolean ignoreMissing,
+        MatcherWatchdog matcherWatchdog
+    ) {
         super(tag, description);
         this.matchField = matchField;
         this.matchPatterns = matchPatterns;
@@ -71,9 +79,7 @@ public final class GrokProcessor extends AbstractProcessor {
             if (matchPatterns.size() > 1) {
                 @SuppressWarnings("unchecked")
                 HashMap<String, String> matchMap = (HashMap<String, String>) ingestDocument.getFieldValue(PATTERN_MATCH_KEY, Object.class);
-                matchMap.keySet().stream().findFirst().ifPresent((index) -> {
-                    ingestDocument.setFieldValue(PATTERN_MATCH_KEY, index);
-                });
+                matchMap.keySet().stream().findFirst().ifPresent((index) -> { ingestDocument.setFieldValue(PATTERN_MATCH_KEY, index); });
             } else {
                 ingestDocument.setFieldValue(PATTERN_MATCH_KEY, "0");
             }
@@ -120,7 +126,7 @@ public final class GrokProcessor extends AbstractProcessor {
                     combinedPattern = combinedPattern + "|" + valueWrap;
                 }
             }
-        }  else {
+        } else {
             combinedPattern = patterns.get(0);
         }
 
@@ -136,14 +142,23 @@ public final class GrokProcessor extends AbstractProcessor {
         }
 
         @Override
-        public GrokProcessor create(Map<String, Processor.Factory> registry, String processorTag,
-                                    String description, Map<String, Object> config) throws Exception {
+        public GrokProcessor create(
+            Map<String, Processor.Factory> registry,
+            String processorTag,
+            String description,
+            Map<String, Object> config
+        ) throws Exception {
             String matchField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             List<String> matchPatterns = ConfigurationUtils.readList(TYPE, processorTag, config, "patterns");
             boolean traceMatch = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "trace_match", false);
             boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
-            String ecsCompatibility =
-                ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "ecs_compatibility", DEFAULT_ECS_COMPATIBILITY_MODE);
+            String ecsCompatibility = ConfigurationUtils.readStringProperty(
+                TYPE,
+                processorTag,
+                config,
+                "ecs_compatibility",
+                DEFAULT_ECS_COMPATIBILITY_MODE
+            );
             if (Grok.isValidEcsCompatibilityMode(ecsCompatibility) == false) {
                 throw newConfigurationException(TYPE, processorTag, "ecs_compatibility", "unsupported mode '" + ecsCompatibility + "'");
             }
@@ -152,19 +167,29 @@ public final class GrokProcessor extends AbstractProcessor {
                 throw newConfigurationException(TYPE, processorTag, "patterns", "List of patterns must not be empty");
             }
             Map<String, String> customPatternBank = ConfigurationUtils.readOptionalMap(TYPE, processorTag, config, "pattern_definitions");
-            Map<String, String> patternBank = new HashMap<>(
-                Grok.getBuiltinPatterns(ecsCompatibility)
-            );
+            Map<String, String> patternBank = new HashMap<>(Grok.getBuiltinPatterns(ecsCompatibility));
             if (customPatternBank != null) {
                 patternBank.putAll(customPatternBank);
             }
 
             try {
-                return new GrokProcessor(processorTag, description, patternBank, matchPatterns, matchField, traceMatch, ignoreMissing,
-                    matcherWatchdog);
+                return new GrokProcessor(
+                    processorTag,
+                    description,
+                    patternBank,
+                    matchPatterns,
+                    matchField,
+                    traceMatch,
+                    ignoreMissing,
+                    matcherWatchdog
+                );
             } catch (Exception e) {
-                throw newConfigurationException(TYPE, processorTag, "patterns",
-                    "Invalid regex pattern found in: " + matchPatterns + ". " + e.getMessage());
+                throw newConfigurationException(
+                    TYPE,
+                    processorTag,
+                    "patterns",
+                    "Invalid regex pattern found in: " + matchPatterns + ". " + e.getMessage()
+                );
             }
 
         }

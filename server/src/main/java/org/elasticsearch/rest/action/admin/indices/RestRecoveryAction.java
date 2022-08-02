@@ -10,7 +10,7 @@ package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.action.admin.indices.recovery.RecoveryRequest;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -29,9 +29,7 @@ public class RestRecoveryAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(GET, "/_recovery"),
-            new Route(GET, "/{index}/_recovery"));
+        return List.of(new Route(GET, "/_recovery"), new Route(GET, "/{index}/_recovery"));
     }
 
     @Override
@@ -51,8 +49,8 @@ public class RestRecoveryAction extends BaseRestHandler {
         recoveryRequest.detailed(request.paramAsBoolean("detailed", false));
         recoveryRequest.activeOnly(request.paramAsBoolean("active_only", false));
         recoveryRequest.indicesOptions(IndicesOptions.fromRequest(request, recoveryRequest.indicesOptions()));
-        return channel -> new RestCancellableNodeClient(client, request.getHttpChannel())
-                .admin().indices().recoveries(recoveryRequest, new RestToXContentListener<>(channel));
+        return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
+            .indices()
+            .recoveries(recoveryRequest, new RestToXContentListener<>(channel));
     }
 }
-

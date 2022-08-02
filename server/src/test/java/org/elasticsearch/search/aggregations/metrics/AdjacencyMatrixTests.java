@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -24,7 +25,7 @@ public class AdjacencyMatrixTests extends BaseAggregationTestCase<AdjacencyMatri
 
         int size = randomIntBetween(1, 20);
         AdjacencyMatrixAggregationBuilder factory;
-        Map<String, QueryBuilder> filters = new HashMap<>(size);
+        Map<String, QueryBuilder> filters = Maps.newMapWithExpectedSize(size);
         for (String key : randomUnique(() -> randomAlphaOfLengthBetween(1, 20), size)) {
             filters.put(key, QueryBuilders.termQuery(randomAlphaOfLengthBetween(5, 20), randomAlphaOfLengthBetween(5, 20)));
         }

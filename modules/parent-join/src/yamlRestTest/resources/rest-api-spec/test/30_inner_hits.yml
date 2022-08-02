@@ -18,27 +18,27 @@ setup:
   - do:
       index:
         index: test
-        id: 1
+        id: "1"
         body: { "join_field": { "name": "question" }, "entity_type": "question" }
 
   - do:
       index:
         index: test
-        id: 2
+        id: "2"
         routing: "1"
         body: { "join_field": { "name": "answer", "parent": 1} , "entity_type": "answer" }
 
   - do:
       index:
         index: test
-        id: 3
+        id: "3"
         body: { "join_field": { "name": "person" }, "entity_type": "person" }
 
   - do:
       index:
         index: test
         routing: "3"
-        id: 4
+        id: "4"
         body: { "join_field": { "name": "address", "parent": 3 }, "entity_type": "address" }
 
   - do:
@@ -53,7 +53,7 @@ teardown:
   - do:
       cluster.put_settings:
         body:
-          transient:
+          persistent:
             search.allow_expensive_queries: null
 
 ---
@@ -95,11 +95,11 @@ teardown:
   - do:
       cluster.put_settings:
         body:
-          transient:
+          persistent:
             search.allow_expensive_queries: "false"
         flat_settings: true
 
-  - match: {transient: {search.allow_expensive_queries: "false"}}
+  - match: {persistent: {search.allow_expensive_queries: "false"}}
 
   - do:
       catch: /\[joining\] queries cannot be executed when \'search.allow_expensive_queries\' is set to false./

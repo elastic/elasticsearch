@@ -81,7 +81,7 @@ public final class Request {
         }
     }
 
-    public void addParameters(Map<String, String> paramSource){
+    public void addParameters(Map<String, String> paramSource) {
         paramSource.forEach(this::addParameter);
     }
 
@@ -174,10 +174,10 @@ public final class Request {
 
         Request other = (Request) obj;
         return method.equals(other.method)
-                && endpoint.equals(other.endpoint)
-                && parameters.equals(other.parameters)
-                && Objects.equals(entity, other.entity)
-                && options.equals(other.options);
+            && endpoint.equals(other.endpoint)
+            && parameters.equals(other.parameters)
+            && Objects.equals(entity, other.entity)
+            && options.equals(other.options);
     }
 
     @Override

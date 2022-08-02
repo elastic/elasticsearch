@@ -30,8 +30,9 @@ public class PainlessSemanticHeaderPhase extends DefaultSemanticHeaderPhase {
             String functionKey = FunctionTable.buildLocalFunctionKey(functionName, scriptClassInfo.getExecuteArguments().size());
 
             if (functionTable.getFunction(functionKey) != null) {
-                throw userFunctionNode.createError(new IllegalArgumentException("invalid function definition: " +
-                        "found duplicate function [" + functionKey + "]."));
+                throw userFunctionNode.createError(
+                    new IllegalArgumentException("invalid function definition: " + "found duplicate function [" + functionKey + "].")
+                );
             }
 
             Class<?> returnType = scriptClassInfo.getExecuteMethodReturnType();

@@ -54,26 +54,24 @@ public class JobAndDatafeedResilienceIT extends MlNativeAutodetectIntegTestCase 
         assertThat(ex.getMessage(), equalTo("No known job with id 'job-with-missing-config'"));
 
         forceCloseJob(jobId);
-        assertBusy(() ->
-            assertThat(client().admin()
-                .cluster()
-                .prepareListTasks()
-                .setActions(MlTasks.JOB_TASK_NAME + "[c]")
-                .get()
-                .getTasks()
-                .size(), equalTo(0))
+        assertBusy(
+            () -> assertThat(
+                client().admin().cluster().prepareListTasks().setActions(MlTasks.JOB_TASK_NAME + "[c]").get().getTasks().size(),
+                equalTo(0)
+            )
         );
     }
 
     public void testStopStartedDatafeedWithMissingConfig() throws Exception {
-        client().admin().indices().prepareCreate(index)
-            .setMapping("time", "type=date", "value", "type=long")
-            .get();
+        client().admin().indices().prepareCreate(index).setMapping("time", "type=date", "value", "type=long").get();
         final String jobId = "job-with-missing-datafeed-with-config";
         Job.Builder job = createJob(jobId, TimeValue.timeValueMinutes(5), "count", null);
 
-        DatafeedConfig.Builder datafeedConfigBuilder =
-            createDatafeedBuilder(job.getId() + "-datafeed", job.getId(), Collections.singletonList(index));
+        DatafeedConfig.Builder datafeedConfigBuilder = createDatafeedBuilder(
+            job.getId() + "-datafeed",
+            job.getId(),
+            Collections.singletonList(index)
+        );
         DatafeedConfig datafeedConfig = datafeedConfigBuilder.build();
 
         putJob(job);
@@ -93,14 +91,11 @@ public class JobAndDatafeedResilienceIT extends MlNativeAutodetectIntegTestCase 
         assertThat(ex.getMessage(), equalTo("No datafeed with id [job-with-missing-datafeed-with-config-datafeed] exists"));
 
         forceStopDatafeed(datafeedConfig.getId());
-        assertBusy(() ->
-            assertThat(client().admin()
-                .cluster()
-                .prepareListTasks()
-                .setActions(MlTasks.DATAFEED_TASK_NAME + "[c]")
-                .get()
-                .getTasks()
-                .size(), equalTo(0))
+        assertBusy(
+            () -> assertThat(
+                client().admin().cluster().prepareListTasks().setActions(MlTasks.DATAFEED_TASK_NAME + "[c]").get().getTasks().size(),
+                equalTo(0)
+            )
         );
         closeJob(jobId);
         waitUntilJobIsClosed(jobId);
@@ -121,31 +116,25 @@ public class JobAndDatafeedResilienceIT extends MlNativeAutodetectIntegTestCase 
         client().prepareDelete(MlConfigIndex.indexName(), Job.documentId(jobId1)).get();
         client().admin().indices().prepareRefresh(MlConfigIndex.indexName()).get();
 
-        List<GetJobsStatsAction.Response.JobStats> jobStats = client().execute(GetJobsStatsAction.INSTANCE,
-            new GetJobsStatsAction.Request("*"))
-            .get()
-            .getResponse()
-            .results();
+        List<GetJobsStatsAction.Response.JobStats> jobStats = client().execute(
+            GetJobsStatsAction.INSTANCE,
+            new GetJobsStatsAction.Request("*")
+        ).get().getResponse().results();
         assertThat(jobStats.size(), equalTo(2));
         assertThat(jobStats.get(0).getJobId(), equalTo(jobId2));
         assertThat(jobStats.get(1).getJobId(), equalTo(jobId1));
         forceCloseJob(jobId1);
         closeJob(jobId2);
-        assertBusy(() ->
-            assertThat(client().admin()
-                .cluster()
-                .prepareListTasks()
-                .setActions(MlTasks.JOB_TASK_NAME + "[c]")
-                .get()
-                .getTasks()
-                .size(), equalTo(0))
+        assertBusy(
+            () -> assertThat(
+                client().admin().cluster().prepareListTasks().setActions(MlTasks.JOB_TASK_NAME + "[c]").get().getTasks().size(),
+                equalTo(0)
+            )
         );
     }
 
     public void testGetDatafeedStats() throws Exception {
-        client().admin().indices().prepareCreate(index)
-            .setMapping("time", "type=date", "value", "type=long")
-            .get();
+        client().admin().indices().prepareCreate(index).setMapping("time", "type=date", "value", "type=long").get();
         final String jobId1 = "job-with-datafeed-missing-config-stats";
         final String jobId2 = "job-with-datafeed-config-stats";
 
@@ -157,15 +146,21 @@ public class JobAndDatafeedResilienceIT extends MlNativeAutodetectIntegTestCase 
         putJob(job2);
         openJob(job2.getId());
 
-        DatafeedConfig.Builder datafeedConfigBuilder1 =
-            createDatafeedBuilder(job1.getId() + "-datafeed", job1.getId(), Collections.singletonList(index));
+        DatafeedConfig.Builder datafeedConfigBuilder1 = createDatafeedBuilder(
+            job1.getId() + "-datafeed",
+            job1.getId(),
+            Collections.singletonList(index)
+        );
         DatafeedConfig datafeedConfig1 = datafeedConfigBuilder1.build();
 
         putDatafeed(datafeedConfig1);
         startDatafeed(datafeedConfig1.getId(), 0L, null);
 
-        DatafeedConfig.Builder datafeedConfigBuilder2 =
-            createDatafeedBuilder(job2.getId() + "-datafeed", job2.getId(), Collections.singletonList(index));
+        DatafeedConfig.Builder datafeedConfigBuilder2 = createDatafeedBuilder(
+            job2.getId() + "-datafeed",
+            job2.getId(),
+            Collections.singletonList(index)
+        );
         DatafeedConfig datafeedConfig2 = datafeedConfigBuilder2.build();
 
         putDatafeed(datafeedConfig2);
@@ -174,25 +169,21 @@ public class JobAndDatafeedResilienceIT extends MlNativeAutodetectIntegTestCase 
         client().prepareDelete(MlConfigIndex.indexName(), DatafeedConfig.documentId(datafeedConfig1.getId())).get();
         client().admin().indices().prepareRefresh(MlConfigIndex.indexName()).get();
 
-        List<GetDatafeedsStatsAction.Response.DatafeedStats> dfStats = client().execute(GetDatafeedsStatsAction.INSTANCE,
-            new GetDatafeedsStatsAction.Request("*"))
-            .get()
-            .getResponse()
-            .results();
+        List<GetDatafeedsStatsAction.Response.DatafeedStats> dfStats = client().execute(
+            GetDatafeedsStatsAction.INSTANCE,
+            new GetDatafeedsStatsAction.Request("*")
+        ).get().getResponse().results();
         assertThat(dfStats.size(), equalTo(2));
         assertThat(dfStats.get(0).getDatafeedId(), equalTo(datafeedConfig2.getId()));
         assertThat(dfStats.get(1).getDatafeedId(), equalTo(datafeedConfig1.getId()));
 
         forceStopDatafeed(datafeedConfig1.getId());
         stopDatafeed(datafeedConfig2.getId());
-        assertBusy(() ->
-            assertThat(client().admin()
-                .cluster()
-                .prepareListTasks()
-                .setActions(MlTasks.DATAFEED_TASK_NAME + "[c]")
-                .get()
-                .getTasks()
-                .size(), equalTo(0))
+        assertBusy(
+            () -> assertThat(
+                client().admin().cluster().prepareListTasks().setActions(MlTasks.DATAFEED_TASK_NAME + "[c]").get().getTasks().size(),
+                equalTo(0)
+            )
         );
         closeJob(jobId1);
         closeJob(jobId2);

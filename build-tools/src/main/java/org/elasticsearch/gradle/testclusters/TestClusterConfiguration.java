@@ -9,9 +9,14 @@ package org.elasticsearch.gradle.testclusters;
 
 import org.elasticsearch.gradle.FileSupplier;
 import org.elasticsearch.gradle.PropertyNormalization;
+import org.elasticsearch.gradle.Version;
+import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.RegularFile;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.provider.Provider;
+import org.gradle.api.tasks.Sync;
+import org.gradle.api.tasks.TaskProvider;
+import org.gradle.api.tasks.bundling.Zip;
 import org.slf4j.Logger;
 
 import java.io.File;
@@ -34,9 +39,13 @@ public interface TestClusterConfiguration {
 
     void plugin(Provider<RegularFile> plugin);
 
+    void plugin(TaskProvider<Zip> plugin);
+
     void plugin(String pluginProjectPath);
 
     void module(Provider<RegularFile> module);
+
+    void module(TaskProvider<Sync> module);
 
     void module(String moduleProjectPath);
 
@@ -90,17 +99,27 @@ public interface TestClusterConfiguration {
 
     void extraConfigFile(String destination, File from, PropertyNormalization normalization);
 
-    void extraJarFile(File from);
+    void extraJarFiles(FileCollection from);
 
     void user(Map<String, String> userSpec);
+
+    void rolesFile(File rolesYml);
+
+    void requiresFeature(String feature, Version from);
+
+    void requiresFeature(String feature, Version from, Version until);
 
     String getHttpSocketURI();
 
     String getTransportPortURI();
 
+    String getReadinessPortURI();
+
     List<String> getAllHttpSocketURI();
 
     List<String> getAllTransportPortURI();
+
+    List<String> getAllReadinessPortURI();
 
     void stop(boolean tailLogs);
 

@@ -49,9 +49,7 @@ public class BooleanScriptMapperTests extends MapperScriptTestCase<BooleanFieldS
 
     @Override
     protected BooleanFieldScript.Factory errorThrowingScript() {
-        return factory(s -> {
-            throw new UnsupportedOperationException("Oops");
-        });
+        return factory(s -> { throw new UnsupportedOperationException("Oops"); });
     }
 
     @Override

@@ -9,17 +9,16 @@
 package org.elasticsearch.action.admin.indices.rollover;
 
 import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-
 
 /**
  * Response object for {@link RolloverRequest} API
@@ -49,7 +48,7 @@ public final class RolloverResponse extends ShardsAcknowledgedResponse implement
         oldIndex = in.readString();
         newIndex = in.readString();
         int conditionSize = in.readVInt();
-        conditionStatus = new HashMap<>(conditionSize);
+        conditionStatus = Maps.newMapWithExpectedSize(conditionSize);
         for (int i = 0; i < conditionSize; i++) {
             conditionStatus.put(in.readString(), in.readBoolean());
         }
@@ -58,8 +57,15 @@ public final class RolloverResponse extends ShardsAcknowledgedResponse implement
         shardsAcknowledged = in.readBoolean();
     }
 
-    public RolloverResponse(String oldIndex, String newIndex, Map<String, Boolean> conditionResults,
-                            boolean dryRun, boolean rolledOver, boolean acknowledged, boolean shardsAcknowledged) {
+    public RolloverResponse(
+        String oldIndex,
+        String newIndex,
+        Map<String, Boolean> conditionResults,
+        boolean dryRun,
+        boolean rolledOver,
+        boolean acknowledged,
+        boolean shardsAcknowledged
+    ) {
         super(acknowledged, shardsAcknowledged);
         this.oldIndex = oldIndex;
         this.newIndex = newIndex;
@@ -114,11 +120,7 @@ public final class RolloverResponse extends ShardsAcknowledgedResponse implement
         super.writeTo(out);
         out.writeString(oldIndex);
         out.writeString(newIndex);
-        out.writeVInt(conditionStatus.size());
-        for (Map.Entry<String, Boolean> entry : conditionStatus.entrySet()) {
-            out.writeString(entry.getKey());
-            out.writeBoolean(entry.getValue());
-        }
+        out.writeMap(conditionStatus, StreamOutput::writeString, StreamOutput::writeBoolean);
         out.writeBoolean(dryRun);
         out.writeBoolean(rolledOver);
         out.writeBoolean(shardsAcknowledged);
@@ -142,11 +144,11 @@ public final class RolloverResponse extends ShardsAcknowledgedResponse implement
     public boolean equals(Object o) {
         if (super.equals(o)) {
             RolloverResponse that = (RolloverResponse) o;
-            return dryRun == that.dryRun &&
-                    rolledOver == that.rolledOver &&
-                    Objects.equals(oldIndex, that.oldIndex) &&
-                    Objects.equals(newIndex, that.newIndex) &&
-                    Objects.equals(conditionStatus, that.conditionStatus);
+            return dryRun == that.dryRun
+                && rolledOver == that.rolledOver
+                && Objects.equals(oldIndex, that.oldIndex)
+                && Objects.equals(newIndex, that.newIndex)
+                && Objects.equals(conditionStatus, that.conditionStatus);
         }
         return false;
     }

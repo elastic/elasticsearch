@@ -13,14 +13,15 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.InvalidAggregationPathException;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
+import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentLocation;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -207,6 +208,12 @@ public class BucketHelpers {
                     value = ((Number) propertyValue).doubleValue();
                 } else if (propertyValue instanceof InternalNumericMetricsAggregation.SingleValue) {
                     value = ((InternalNumericMetricsAggregation.SingleValue) propertyValue).value();
+                } else if (propertyValue instanceof NumericMetricsAggregation.MultiValue) {
+                    try {
+                        value = ((NumericMetricsAggregation.MultiValue) propertyValue).value(aggPathAsList.get(aggPathAsList.size() - 1));
+                    } catch (NumberFormatException ex) {
+                        throw formatResolutionError(agg, aggPathAsList, propertyValue);
+                    }
                 } else {
                     throw formatResolutionError(agg, aggPathAsList, propertyValue);
                 }

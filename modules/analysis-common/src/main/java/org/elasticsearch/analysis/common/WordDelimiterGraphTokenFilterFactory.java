@@ -41,9 +41,9 @@ public class WordDelimiterGraphTokenFilterFactory extends AbstractTokenFilterFac
     private final CharArraySet protoWords;
     private final boolean adjustOffsets;
 
-    public WordDelimiterGraphTokenFilterFactory(IndexSettings indexSettings, Environment env,
-            String name, Settings settings) {
-        super(indexSettings, name, settings);
+    @SuppressWarnings("HiddenField")
+    public WordDelimiterGraphTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
+        super(name, settings);
 
         // Sample Format for the type table:
         // $ => DIGIT
@@ -95,7 +95,7 @@ public class WordDelimiterGraphTokenFilterFactory extends AbstractTokenFilterFac
         throw new IllegalArgumentException("Token filter [" + name() + "] cannot be used to parse synonyms");
     }
 
-    private int getFlag(int flag, Settings settings, String key, boolean defaultValue) {
+    private static int getFlag(int flag, Settings settings, String key, boolean defaultValue) {
         if (settings.getAsBoolean(key, defaultValue)) {
             return flag;
         }

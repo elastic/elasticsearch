@@ -10,7 +10,7 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -28,6 +28,7 @@ import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
+import org.elasticsearch.search.vectors.KnnSearchBuilder;
 
 import java.util.Arrays;
 import java.util.List;
@@ -135,6 +136,15 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
+     * Wait for checkpoints configured for a concrete index, will require that the search request only
+     * be executed after the checkpoints are available for search due to a refresh.
+     */
+    public SearchRequestBuilder setWaitForCheckpoints(Map<String, long[]> waitForCheckpoints) {
+        request.setWaitForCheckpoints(waitForCheckpoints);
+        return this;
+    }
+
+    /**
      * Specifies what type of requested indices to ignore and wildcard indices expressions.
      * <p>
      * For example indices that don't exist.
@@ -160,6 +170,15 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      */
     public SearchRequestBuilder setPostFilter(QueryBuilder postFilter) {
         sourceBuilder().postFilter(postFilter);
+        return this;
+    }
+
+    /**
+     * Defines a kNN search. If a query is also provided, the kNN hits
+     * are combined with the query hits.
+     */
+    public SearchRequestBuilder setKnnSearch(KnnSearchBuilder knnSearch) {
+        sourceBuilder().knnSearch(knnSearch);
         return this;
     }
 
@@ -509,7 +528,6 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
         request.requestCache(requestCache);
         return this;
     }
-
 
     /**
      * Sets if this request should allow partial results.  (If method is not called,

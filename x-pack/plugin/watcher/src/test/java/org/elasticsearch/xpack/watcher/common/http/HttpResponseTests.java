@@ -8,10 +8,10 @@ package org.elasticsearch.xpack.watcher.common.http;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
@@ -20,7 +20,7 @@ import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.hasEntry;
@@ -42,33 +42,21 @@ public class HttpResponseTests extends ESTestCase {
         final HttpResponse response;
         if (randomBoolean() && headers.isEmpty() && body == null) {
             response = new HttpResponse(status);
-        } else if (body != null ){
-            switch (randomIntBetween(0, 2)) {
-                case 0:
-                    response = new HttpResponse(status, body, headers);
-                    break;
-                case 1:
-                    response = new HttpResponse(status, body.getBytes(StandardCharsets.UTF_8), headers);
-                    break;
-                default: // 2
-                    response = new HttpResponse(status, new BytesArray(body), headers);
-                    break;
-            }
+        } else if (body != null) {
+            response = switch (randomIntBetween(0, 2)) {
+                case 0 -> new HttpResponse(status, body, headers);
+                case 1 -> new HttpResponse(status, body.getBytes(StandardCharsets.UTF_8), headers);
+                default -> // 2
+                    new HttpResponse(status, new BytesArray(body), headers);
+            };
         } else { // body is null
-            switch (randomIntBetween(0, 3)) {
-                case 0:
-                    response = new HttpResponse(status, (String) null, headers);
-                    break;
-                case 1:
-                    response = new HttpResponse(status, (byte[]) null, headers);
-                    break;
-                case 2:
-                    response = new HttpResponse(status, (BytesReference) null, headers);
-                    break;
-                default: //3
-                    response = new HttpResponse(status, headers);
-                    break;
-            }
+            response = switch (randomIntBetween(0, 3)) {
+                case 0 -> new HttpResponse(status, (String) null, headers);
+                case 1 -> new HttpResponse(status, (byte[]) null, headers);
+                case 2 -> new HttpResponse(status, (BytesReference) null, headers);
+                default -> // 3
+                    new HttpResponse(status, headers);
+            };
         }
 
         XContentBuilder builder = jsonBuilder().value(response);

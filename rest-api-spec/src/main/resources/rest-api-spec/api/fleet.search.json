@@ -1,0 +1,50 @@
+{
+  "fleet.search":{
+    "documentation":{
+      "url": null,
+      "description": "Search API where the search will only be executed after specified checkpoints are available due to a refresh. This API is designed for internal use by the fleet server project."
+    },
+    "stability":"experimental",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/{index}/_fleet/_fleet_search",
+          "methods":[
+            "GET",
+            "POST"
+          ],
+          "parts":{
+            "index":{
+              "type":"string",
+              "description":"The index name to search."
+            }
+          }
+        }
+      ]
+    },
+    "params":{
+      "wait_for_checkpoints":{
+        "type":"list",
+        "description":"Comma separated list of checkpoints, one per shard",
+        "default":""
+      },
+      "wait_for_checkpoints_timeout":{
+        "type":"time",
+        "description":"Explicit wait_for_checkpoints timeout"
+      },
+      "allow_partial_search_results":{
+        "type":"boolean",
+        "default":true,
+        "description":"Indicate if an error should be returned if there is a partial search failure or timeout"
+      }
+    },
+    "body":{
+      "description":"The search definition using the Query DSL"
+    }
+  }
+}

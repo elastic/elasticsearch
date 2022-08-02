@@ -105,8 +105,10 @@ public class GrokProcessorFactoryTests extends ESTestCase {
         config.put("patterns", Collections.singletonList("%{MY_PATTERN:name}!"));
         config.put("pattern_definitions", Collections.singletonMap("MY_PATTERN", "["));
         ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> factory.create(null, null, null, config));
-        assertThat(e.getMessage(),
-            equalTo("[patterns] Invalid regex pattern found in: [%{MY_PATTERN:name}!]. premature end of char-class"));
+        assertThat(
+            e.getMessage(),
+            equalTo("[patterns] Invalid regex pattern found in: [%{MY_PATTERN:name}!]. premature end of char-class")
+        );
     }
 
     public void testCreateWithInvalidEcsCompatibilityMode() throws Exception {

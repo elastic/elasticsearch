@@ -42,7 +42,7 @@ public final class SeqNoPrimaryTermPhase implements FetchSubPhase {
                 // we have to check the primary term field as it is only assigned for non-nested documents
                 if (primaryTermField != null && primaryTermField.advanceExact(docId)) {
                     boolean found = seqNoField.advanceExact(docId);
-                    assert found: "found seq no for " + docId + " but not a primary term";
+                    assert found : "found seq no for " + docId + " but not a primary term";
                     seqNo = seqNoField.longValue();
                     primaryTerm = primaryTermField.longValue();
                 }

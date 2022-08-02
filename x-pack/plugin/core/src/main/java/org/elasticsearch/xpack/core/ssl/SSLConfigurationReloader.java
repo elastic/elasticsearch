@@ -15,8 +15,6 @@ import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.watcher.ResourceWatcherService.Frequency;
 
-import javax.net.ssl.SSLContext;
-
 import java.io.IOException;
 import java.nio.file.Path;
 import java.security.AccessControlException;
@@ -31,6 +29,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
 
+import javax.net.ssl.SSLContext;
+
 /**
  * Ensures that the files backing an {@link SslConfiguration} are monitored for changes and the underlying key/trust material is reloaded
  * and the {@link SSLContext} has existing sessions invalidated to force the use of the new key/trust material
@@ -41,15 +41,16 @@ public final class SSLConfigurationReloader {
 
     private final CompletableFuture<SSLService> sslServiceFuture = new CompletableFuture<>();
 
-    public SSLConfigurationReloader(ResourceWatcherService resourceWatcherService,
-                                    Collection<SslConfiguration> sslConfigurations) {
+    public SSLConfigurationReloader(ResourceWatcherService resourceWatcherService, Collection<SslConfiguration> sslConfigurations) {
         startWatching(reloadConsumer(sslServiceFuture), resourceWatcherService, sslConfigurations);
     }
 
     // for testing
-    SSLConfigurationReloader(Consumer<SslConfiguration> reloadConsumer,
-                             ResourceWatcherService resourceWatcherService,
-                             Collection<SslConfiguration> sslConfigurations) {
+    SSLConfigurationReloader(
+        Consumer<SslConfiguration> reloadConsumer,
+        ResourceWatcherService resourceWatcherService,
+        Collection<SslConfiguration> sslConfigurations
+    ) {
         startWatching(reloadConsumer, resourceWatcherService, sslConfigurations);
     }
 
@@ -78,8 +79,11 @@ public final class SSLConfigurationReloader {
      * Collects all of the directories that need to be monitored for the provided {@link SslConfiguration} instances and ensures that
      * they are being watched for changes
      */
-    private static void startWatching(Consumer<SslConfiguration> reloadConsumer,
-                                      ResourceWatcherService resourceWatcherService, Collection<SslConfiguration> sslConfigurations) {
+    private static void startWatching(
+        Consumer<SslConfiguration> reloadConsumer,
+        ResourceWatcherService resourceWatcherService,
+        Collection<SslConfiguration> sslConfigurations
+    ) {
         Map<Path, List<SslConfiguration>> pathToConfigurationsMap = new HashMap<>();
         for (SslConfiguration sslConfiguration : sslConfigurations) {
             final Collection<Path> filesToMonitor = sslConfiguration.getDependentFiles();

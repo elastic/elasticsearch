@@ -19,7 +19,8 @@ public class NormalizerBuilderTests extends ESTestCase {
 
     public void testBuildNormalizerCommand() throws IOException {
         Environment env = TestEnvironment.newEnvironment(
-                Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build());
+            Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build()
+        );
         String jobId = "unit-test-job";
 
         List<String> command = new NormalizerBuilder(env, jobId, null, 300).build();

@@ -8,12 +8,12 @@
 
 package org.elasticsearch.search.profile;
 
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -31,7 +31,7 @@ public class SearchProfileResultsBuilder {
      * profiling information.
      */
     public SearchProfileResults build(Collection<? extends SearchPhaseResult> fetchResults) {
-        Map<String, SearchProfileShardResult> mergedShardResults = new HashMap<>(queryPhaseResults.size());
+        Map<String, SearchProfileShardResult> mergedShardResults = Maps.newMapWithExpectedSize(queryPhaseResults.size());
         for (SearchPhaseResult r : fetchResults) {
             FetchSearchResult fr = r.fetchResult();
             String key = fr.getSearchShardTarget().toString();

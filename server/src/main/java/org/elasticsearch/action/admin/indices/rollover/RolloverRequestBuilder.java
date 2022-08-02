@@ -10,14 +10,12 @@ package org.elasticsearch.action.admin.indices.rollover;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 
-
-public class RolloverRequestBuilder extends MasterNodeOperationRequestBuilder<RolloverRequest, RolloverResponse,
-    RolloverRequestBuilder> {
+public class RolloverRequestBuilder extends MasterNodeOperationRequestBuilder<RolloverRequest, RolloverResponse, RolloverRequestBuilder> {
     public RolloverRequestBuilder(ElasticsearchClient client, RolloverAction action) {
         super(client, action, new RolloverRequest());
     }
@@ -49,6 +47,36 @@ public class RolloverRequestBuilder extends MasterNodeOperationRequestBuilder<Ro
 
     public RolloverRequestBuilder addMaxPrimaryShardSizeCondition(ByteSizeValue size) {
         this.request.addMaxPrimaryShardSizeCondition(size);
+        return this;
+    }
+
+    public RolloverRequestBuilder addMaxPrimaryShardDocsCondition(long docs) {
+        this.request.addMaxPrimaryShardDocsCondition(docs);
+        return this;
+    }
+
+    public RolloverRequestBuilder addMinIndexAgeCondition(TimeValue age) {
+        this.request.addMinIndexAgeCondition(age);
+        return this;
+    }
+
+    public RolloverRequestBuilder addMinIndexDocsCondition(long docs) {
+        this.request.addMinIndexDocsCondition(docs);
+        return this;
+    }
+
+    public RolloverRequestBuilder addMinIndexSizeCondition(ByteSizeValue size) {
+        this.request.addMinIndexSizeCondition(size);
+        return this;
+    }
+
+    public RolloverRequestBuilder addMinPrimaryShardSizeCondition(ByteSizeValue size) {
+        this.request.addMinPrimaryShardSizeCondition(size);
+        return this;
+    }
+
+    public RolloverRequestBuilder addMinPrimaryShardDocsCondition(long docs) {
+        this.request.addMinPrimaryShardDocsCondition(docs);
         return this;
     }
 

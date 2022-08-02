@@ -9,11 +9,13 @@
 package org.elasticsearch.action.admin.indices.validate.query;
 
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.index.query.QueryBuilder;
 
-public class ValidateQueryRequestBuilder
-    extends BroadcastOperationRequestBuilder<ValidateQueryRequest, ValidateQueryResponse, ValidateQueryRequestBuilder> {
+public class ValidateQueryRequestBuilder extends BroadcastOperationRequestBuilder<
+    ValidateQueryRequest,
+    ValidateQueryResponse,
+    ValidateQueryRequestBuilder> {
 
     public ValidateQueryRequestBuilder(ElasticsearchClient client, ValidateQueryAction action) {
         super(client, action, new ValidateQueryRequest());

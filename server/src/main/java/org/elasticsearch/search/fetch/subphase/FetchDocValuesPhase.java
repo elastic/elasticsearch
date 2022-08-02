@@ -46,7 +46,7 @@ public final class FetchDocValuesPhase implements FetchSubPhase {
             }
             ValueFetcher fetcher = new DocValueFetcher(
                 ft.docValueFormat(fieldAndFormat.format, null),
-                context.searchLookup().getForField(ft)
+                context.searchLookup().getForField(ft, MappedFieldType.FielddataOperation.SEARCH)
             );
             fields.add(new DocValueField(fieldAndFormat.field, fetcher));
         }
@@ -69,7 +69,10 @@ public final class FetchDocValuesPhase implements FetchSubPhase {
                         // docValues fields will still be document fields, and put under "fields" section of a hit.
                         hit.hit().setDocumentField(f.field, hitField);
                     }
-                    hitField.getValues().addAll(f.fetcher.fetchValues(hit.sourceLookup()));
+                    List<Object> ignoredValues = new ArrayList<>();
+                    hitField.getValues().addAll(f.fetcher.fetchValues(hit.sourceLookup(), ignoredValues));
+                    // Doc value fetches should not return any ignored values
+                    assert ignoredValues.isEmpty();
                 }
             }
         };

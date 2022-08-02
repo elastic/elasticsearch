@@ -26,7 +26,7 @@ public class UUIDs {
     /** Returns a Base64 encoded version of a Version 4.0 compatible UUID as defined here: http://www.ietf.org/rfc/rfc4122.txt, using the
      *  provided {@code Random} instance */
     public static String randomBase64UUID(Random random) {
-        return RANDOM_UUID_GENERATOR.getBase64UUID(random);
+        return RandomBasedUUIDGenerator.getBase64UUID(random);
     }
 
     /** Returns a Base64 encoded version of a Version 4.0 compatible UUID as defined here: http://www.ietf.org/rfc/rfc4122.txt, using a
@@ -38,6 +38,6 @@ public class UUIDs {
     /** Returns a Base64 encoded {@link SecureString} of a Version 4.0 compatible UUID as defined here: http://www.ietf.org/rfc/rfc4122.txt,
      *  using a private {@code SecureRandom} instance */
     public static SecureString randomBase64UUIDSecureString() {
-        return RANDOM_UUID_GENERATOR.getBase64UUIDSecureString();
+        return RandomBasedUUIDGenerator.getBase64UUIDSecureString();
     }
 }

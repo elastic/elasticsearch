@@ -39,15 +39,16 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
     private final StarvationWatcher starvationWatcher;
 
     public PrioritizedEsThreadPoolExecutor(
-            String name,
-            int corePoolSize,
-            int maximumPoolSize,
-            long keepAliveTime,
-            TimeUnit unit,
-            ThreadFactory threadFactory,
-            ThreadContext contextHolder,
-            ScheduledExecutorService timer,
-            StarvationWatcher starvationWatcher) {
+        String name,
+        int corePoolSize,
+        int maximumPoolSize,
+        long keepAliveTime,
+        TimeUnit unit,
+        ThreadFactory threadFactory,
+        ThreadContext contextHolder,
+        ScheduledExecutorService timer,
+        StarvationWatcher starvationWatcher
+    ) {
         super(name, corePoolSize, maximumPoolSize, keepAliveTime, unit, new PriorityBlockingQueue<>(), threadFactory, contextHolder);
         this.timer = timer;
         this.starvationWatcher = starvationWatcher;
@@ -78,8 +79,10 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
         long oldestCreationDateInNanos = now;
         for (Runnable queuedRunnable : getQueue()) {
             if (queuedRunnable instanceof PrioritizedRunnable) {
-                oldestCreationDateInNanos = Math.min(oldestCreationDateInNanos,
-                        ((PrioritizedRunnable) queuedRunnable).getCreationDateInNanos());
+                oldestCreationDateInNanos = Math.min(
+                    oldestCreationDateInNanos,
+                    ((PrioritizedRunnable) queuedRunnable).getCreationDateInNanos()
+                );
             }
         }
 
@@ -88,8 +91,7 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
 
     private void addPending(List<Runnable> runnables, List<Pending> pending, boolean executing) {
         for (Runnable runnable : runnables) {
-            if (runnable instanceof TieBreakingPrioritizedRunnable) {
-                TieBreakingPrioritizedRunnable t = (TieBreakingPrioritizedRunnable) runnable;
+            if (runnable instanceof TieBreakingPrioritizedRunnable t) {
                 Runnable innerRunnable = t.runnable;
                 if (innerRunnable != null) {
                     /** innerRunnable can be null if task is finished but not removed from executor yet,
@@ -97,8 +99,7 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
                      */
                     pending.add(new Pending(super.unwrap(innerRunnable), t.priority(), t.insertionOrder, executing));
                 }
-            } else if (runnable instanceof PrioritizedFutureTask) {
-                PrioritizedFutureTask<?> t = (PrioritizedFutureTask<?>) runnable;
+            } else if (runnable instanceof PrioritizedFutureTask<?> t) {
                 Object task = t.task;
                 if (t.task instanceof Runnable) {
                     task = super.unwrap((Runnable) t.task);
@@ -179,7 +180,7 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
         if ((callable instanceof PrioritizedCallable) == false) {
             callable = PrioritizedCallable.wrap(callable, Priority.NORMAL);
         }
-        return new PrioritizedFutureTask<T>((PrioritizedCallable<T>)callable, insertionOrder.incrementAndGet());
+        return new PrioritizedFutureTask<T>((PrioritizedCallable<T>) callable, insertionOrder.incrementAndGet());
     }
 
     public static class Pending {
@@ -215,7 +216,7 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
         public void run() {
             synchronized (this) {
                 // make the task as stared. This is needed for synchronization with the timeout handling
-                // see  #scheduleTimeout()
+                // see #scheduleTimeout()
                 started = true;
                 FutureUtils.cancel(timeoutFuture);
             }
@@ -237,12 +238,9 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
                     throw new IllegalStateException("scheduleTimeout may only be called once");
                 }
                 if (started == false) {
-                    timeoutFuture = timer.schedule(new Runnable() {
-                        @Override
-                        public void run() {
-                            if (remove(TieBreakingPrioritizedRunnable.this)) {
-                                runAndClean(timeoutCallback);
-                            }
+                    timeoutFuture = timer.schedule(() -> {
+                        if (remove(TieBreakingPrioritizedRunnable.this)) {
+                            runAndClean(timeoutCallback);
                         }
                     }, timeValue.nanos(), TimeUnit.NANOSECONDS);
                 }
@@ -319,12 +317,10 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
 
         StarvationWatcher NOOP_STARVATION_WATCHER = new StarvationWatcher() {
             @Override
-            public void onEmptyQueue() {
-            }
+            public void onEmptyQueue() {}
 
             @Override
-            public void onNonemptyQueue() {
-            }
+            public void onNonemptyQueue() {}
         };
 
     }

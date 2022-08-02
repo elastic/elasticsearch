@@ -32,5 +32,26 @@ tasks.named("postProcessFixture").configure {
   }
 }
 
+
 project.ext.krb5Conf = { service -> file("$testFixturesDir/shared/${service}/krb5.conf") }
 project.ext.krb5Keytabs = { service, fileName -> file("$testFixturesDir/shared/${service}/keytabs/${fileName}") }
+
+configurations {
+  krb5ConfHdfsFile {
+    canBeConsumed = true
+    canBeResolved = false
+  }
+  krb5KeytabsHdfsDir {
+    canBeConsumed = true
+    canBeResolved = false
+  }
+}
+
+artifacts {
+  krb5ConfHdfsFile(krb5Conf('hdfs')) {
+    builtBy("postProcessFixture")
+  }
+  krb5KeytabsHdfsDir(file("$testFixturesDir/shared/hdfs/keytabs/")) {
+    builtBy("preProcessFixture")
+  }
+}

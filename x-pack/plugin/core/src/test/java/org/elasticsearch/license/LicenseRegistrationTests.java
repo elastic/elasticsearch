@@ -17,7 +17,7 @@ import org.mockito.Mockito;
 import java.util.UUID;
 
 import static org.elasticsearch.license.TestUtils.dateMath;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -31,15 +31,17 @@ public class LicenseRegistrationTests extends AbstractLicenseServiceTestCase {
 
         ClusterState state = ClusterState.builder(new ClusterName("a")).build();
         ArgumentCaptor<ClusterStateUpdateTask> stateUpdater = ArgumentCaptor.forClass(ClusterStateUpdateTask.class);
-        verify(clusterService, Mockito.times(1)).submitStateUpdateTask(any(), stateUpdater.capture());
+        verify(clusterService, Mockito.times(1)).submitUnbatchedStateUpdateTask(any(), stateUpdater.capture());
         ClusterState stateWithLicense = stateUpdater.getValue().execute(state);
         LicensesMetadata licenseMetadata = stateWithLicense.metadata().custom(LicensesMetadata.TYPE);
         assertNotNull(licenseMetadata);
         assertNotNull(licenseMetadata.getLicense());
         assertFalse(licenseMetadata.isEligibleForTrial());
         assertEquals("trial", licenseMetadata.getLicense().type());
-        assertEquals(clock.millis() + LicenseService.NON_BASIC_SELF_GENERATED_LICENSE_DURATION.millis(),
-                licenseMetadata.getLicense().expiryDate());
+        assertEquals(
+            clock.millis() + LicenseService.NON_BASIC_SELF_GENERATED_LICENSE_DURATION.millis(),
+            licenseMetadata.getLicense().expiryDate()
+        );
     }
 
     public void testSelfGeneratedBasicLicense() throws Exception {
@@ -50,7 +52,7 @@ public class LicenseRegistrationTests extends AbstractLicenseServiceTestCase {
 
         ClusterState state = ClusterState.builder(new ClusterName("a")).build();
         ArgumentCaptor<ClusterStateUpdateTask> stateUpdater = ArgumentCaptor.forClass(ClusterStateUpdateTask.class);
-        verify(clusterService, Mockito.times(1)).submitStateUpdateTask(any(), stateUpdater.capture());
+        verify(clusterService, Mockito.times(1)).submitUnbatchedStateUpdateTask(any(), stateUpdater.capture());
         ClusterState stateWithLicense = stateUpdater.getValue().execute(state);
         LicensesMetadata licenseMetadata = stateWithLicense.metadata().custom(LicensesMetadata.TYPE);
         assertNotNull(licenseMetadata);
@@ -64,15 +66,15 @@ public class LicenseRegistrationTests extends AbstractLicenseServiceTestCase {
         long now = System.currentTimeMillis();
         String uid = UUID.randomUUID().toString();
         final License.Builder builder = License.builder()
-                .uid(uid)
-                .version(License.VERSION_CURRENT)
-                .expiryDate(dateMath("now+2h", now))
-                .startDate(now)
-                .issueDate(now)
-                .type("basic")
-                .issuedTo("customer")
-                .issuer("elasticsearch")
-                .maxNodes(5);
+            .uid(uid)
+            .version(License.VERSION_CURRENT)
+            .expiryDate(dateMath("now+2h", now))
+            .startDate(now)
+            .issueDate(now)
+            .type("basic")
+            .issuedTo("customer")
+            .issuer("elasticsearch")
+            .maxNodes(5);
         License license = TestUtils.generateSignedLicense(builder);
 
         XPackLicenseState licenseState = TestUtils.newTestLicenseState();
@@ -84,7 +86,7 @@ public class LicenseRegistrationTests extends AbstractLicenseServiceTestCase {
         mdBuilder.putCustom(LicensesMetadata.TYPE, new LicensesMetadata(license, null));
         ClusterState state = ClusterState.builder(new ClusterName("a")).metadata(mdBuilder.build()).build();
         ArgumentCaptor<ClusterStateUpdateTask> stateUpdater = ArgumentCaptor.forClass(ClusterStateUpdateTask.class);
-        verify(clusterService, Mockito.times(1)).submitStateUpdateTask(any(), stateUpdater.capture());
+        verify(clusterService, Mockito.times(1)).submitUnbatchedStateUpdateTask(any(), stateUpdater.capture());
         ClusterState stateWithLicense = stateUpdater.getValue().execute(state);
         LicensesMetadata licenseMetadata = stateWithLicense.metadata().custom(LicensesMetadata.TYPE);
         assertNotNull(licenseMetadata);
@@ -99,12 +101,12 @@ public class LicenseRegistrationTests extends AbstractLicenseServiceTestCase {
         long now = System.currentTimeMillis();
         String uid = UUID.randomUUID().toString();
         License.Builder builder = License.builder()
-                .uid(uid)
-                .issuedTo("name")
-                .maxNodes(1000)
-                .issueDate(dateMath("now-10h", now))
-                .type("basic")
-                .expiryDate(dateMath("now-2h", now));
+            .uid(uid)
+            .issuedTo("name")
+            .maxNodes(1000)
+            .issueDate(dateMath("now-10h", now))
+            .type("basic")
+            .expiryDate(dateMath("now-2h", now));
         License license = SelfGeneratedLicense.create(builder, License.VERSION_CURRENT);
 
         XPackLicenseState licenseState = TestUtils.newTestLicenseState();
@@ -116,7 +118,7 @@ public class LicenseRegistrationTests extends AbstractLicenseServiceTestCase {
         mdBuilder.putCustom(LicensesMetadata.TYPE, new LicensesMetadata(license, null));
         ClusterState state = ClusterState.builder(new ClusterName("a")).metadata(mdBuilder.build()).build();
         ArgumentCaptor<ClusterStateUpdateTask> stateUpdater = ArgumentCaptor.forClass(ClusterStateUpdateTask.class);
-        verify(clusterService, Mockito.times(1)).submitStateUpdateTask(any(), stateUpdater.capture());
+        verify(clusterService, Mockito.times(1)).submitUnbatchedStateUpdateTask(any(), stateUpdater.capture());
         ClusterState stateWithLicense = stateUpdater.getValue().execute(state);
         LicensesMetadata licenseMetadata = stateWithLicense.metadata().custom(LicensesMetadata.TYPE);
         assertNotNull(licenseMetadata);

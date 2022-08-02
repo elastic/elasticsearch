@@ -163,7 +163,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
          * check that the value of the label (last value) matches the value
          * of the corresponding metric which uses a last_value metric type.
          */
-        client().admin()
+        var r = client().admin()
             .indices()
             .prepareCreate(sourceIndex)
             .setSettings(
@@ -214,6 +214,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
                 "type=double"
             )
             .get();
+        assertTrue("Source index was not created", r.isAcknowledged());
     }
 
     public void testRollupIndex() throws IOException {
@@ -361,7 +362,12 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         prepareSourceIndex(sourceIndex);
 
         // Create an empty index with the same name as the rollup index
-        client().admin().indices().prepareCreate(rollupIndex).get();
+        var r = client().admin()
+            .indices()
+            .prepareCreate(rollupIndex)
+            .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build())
+            .get();
+        assertTrue("Pre-existing index was not created", r.isAcknowledged());
         ResourceAlreadyExistsException exception = expectThrows(
             ResourceAlreadyExistsException.class,
             () -> rollup(sourceIndex, rollupIndex, config)

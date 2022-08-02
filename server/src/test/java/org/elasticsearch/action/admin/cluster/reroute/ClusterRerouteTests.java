@@ -122,7 +122,7 @@ public class ClusterRerouteTests extends ESAllocationTestCase {
                     randomBoolean()
                 )
             );
-            newState = allocationService.applyFailedShards(clusterState, failedShards);
+            newState = allocationService.applyFailedShards(clusterState, failedShards, List.of());
             assertThat(newState, not(equalTo(clusterState)));
             clusterState = newState;
             routingTable = clusterState.routingTable();

@@ -52,7 +52,7 @@ not accidentally map irrelevant strings as dates.
 
 The following tables lists all the defaults ISO formats supported:
 
-`epoch_millis`::
+[[epoch-millis]]`epoch_millis`::
 
     A formatter for the number of milliseconds since the epoch. Note, that
     this timestamp is subject to the limits of a Java `Long.MIN_VALUE` and

@@ -95,6 +95,7 @@ Only the following fields, which are commonly used for searching, filtering, and
 
 * {ecs-ref}/ecs-base.html#field-timestamp[`@timestamp`] +
   If not provided, will be set to the current time.
+  Can be provided as <<epoch-millis,`epoch_millis`>> or <<strict-date-time,`strict_date_optional_time`>> by default.
 * {ecs-ref}/ecs-data_stream.html#field-data-stream-dataset[`data_stream.dataset`] +
   Overrides the `data_stream.dataset` <<logs-api-path-params, path parameter>> on a per-event basis.
 * {ecs-ref}/ecs-data_stream.html#field-data-stream-namespace[`data_stream.namespace`] +
@@ -152,12 +153,13 @@ Status
 === {api-examples-title}
 
 Ingests a single log into the `logs-myapp-default` data stream.
+Specifies the timestamp in milliseconds since epoch.
 Provides global metadata via query parameters.
 
 [source,console]
 ------------------------------------------------------------
 POST _logs/myapp?service.name=myapp
-{"@timestamp": "2016-05-23T08:05:34.853Z", "message": "Hello World", "custom_field": "value"}
+{"@timestamp": 1463990734853, "message": "Hello World", "custom_field": "value"}
 ------------------------------------------------------------
 
 After a short while the logs will become searchable.
@@ -198,7 +200,7 @@ The API returns the following response:
         "_id": "FKgQT4IBWsM7OYMsIp0N",
         "_score": 1.0,
         "_source": {
-          "@timestamp": "2016-05-23T08:05:34.853Z",
+          "@timestamp": 1463990734853,
           "message": "Hello World",
           "custom_field": "value",
           "service": {
@@ -225,6 +227,7 @@ The API returns the following response:
 '''
 
 Ingests a single log into the `logs-myapp-default` data stream.
+Specifies the timestamp as an ISO date string.
 Provides global metadata via a metadata event.
 
 [source,console]

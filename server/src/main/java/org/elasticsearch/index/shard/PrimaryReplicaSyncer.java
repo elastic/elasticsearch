@@ -164,40 +164,66 @@ public class PrimaryReplicaSyncer {
         final TaskManager taskManager = transportService.getTaskManager();
 
         try (var ignored = transportService.getThreadPool().getThreadContext().newTraceContext()) {
-            ResyncTask resyncTask = (ResyncTask) taskManager.register("transport", "resync", request); // it's not transport :-)
-            ActionListener<Void> wrappedListener = new ActionListener<Void>() {
-                @Override
-                public void onResponse(Void ignore) {
-                    resyncTask.setPhase("finished");
-                    taskManager.unregister(resyncTask);
-                    listener.onResponse(resyncTask);
-                }
+            doResync(
+                shardId,
+                primaryAllocationId,
+                primaryTerm,
+                snapshot,
+                startingSeqNo,
+                maxSeqNo,
+                maxSeenAutoIdTimestamp,
+                listener,
+                request,
+                taskManager
+            );
+        }
+    }
 
-                @Override
-                public void onFailure(Exception e) {
-                    resyncTask.setPhase("finished");
-                    taskManager.unregister(resyncTask);
-                    listener.onFailure(e);
-                }
-            };
-            try {
-                new SnapshotSender(
-                    syncAction,
-                    resyncTask,
-                    shardId,
-                    primaryAllocationId,
-                    primaryTerm,
-                    snapshot,
-                    chunkSize.bytesAsInt(),
-                    startingSeqNo,
-                    maxSeqNo,
-                    maxSeenAutoIdTimestamp,
-                    transportService.getThreadPool().generic(),
-                    wrappedListener
-                ).run();
-            } catch (Exception e) {
-                wrappedListener.onFailure(e);
+    private void doResync(
+        ShardId shardId,
+        String primaryAllocationId,
+        long primaryTerm,
+        Translog.Snapshot snapshot,
+        long startingSeqNo,
+        long maxSeqNo,
+        long maxSeenAutoIdTimestamp,
+        ActionListener<ResyncTask> listener,
+        ResyncRequest request,
+        TaskManager taskManager
+    ) {
+        ResyncTask resyncTask = (ResyncTask) taskManager.register("transport", "resync", request); // it's not transport :-)
+        ActionListener<Void> wrappedListener = new ActionListener<Void>() {
+            @Override
+            public void onResponse(Void ignore) {
+                resyncTask.setPhase("finished");
+                taskManager.unregister(resyncTask);
+                listener.onResponse(resyncTask);
             }
+
+            @Override
+            public void onFailure(Exception e) {
+                resyncTask.setPhase("finished");
+                taskManager.unregister(resyncTask);
+                listener.onFailure(e);
+            }
+        };
+        try {
+            new SnapshotSender(
+                syncAction,
+                resyncTask,
+                shardId,
+                primaryAllocationId,
+                primaryTerm,
+                snapshot,
+                chunkSize.bytesAsInt(),
+                startingSeqNo,
+                maxSeqNo,
+                maxSeenAutoIdTimestamp,
+                transportService.getThreadPool().generic(),
+                wrappedListener
+            ).run();
+        } catch (Exception e) {
+            wrappedListener.onFailure(e);
         }
     }
 

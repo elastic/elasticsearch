@@ -1189,7 +1189,7 @@ public class IndexNameExpressionResolver {
                 }
                 if (Regex.isSimpleMatchPattern(expression) == false) {
                     // TODO why does wildcard resolver throw exceptions regarding non wildcarded expressions? This should not be done here.
-                    if (false == context.getOptions().ignoreUnavailable()) {
+                    if (context.getOptions().ignoreUnavailable() == false) {
                         aliasOrIndexExists(context, expression, true);
                     }
                     if (add) {
@@ -1202,7 +1202,7 @@ public class IndexNameExpressionResolver {
                 wildcardSeen = true;
 
                 final Map<String, IndexAbstraction> matches = matches(context, expression);
-                if (false == context.getOptions().allowNoIndices() && matches.isEmpty()) {
+                if (context.getOptions().allowNoIndices() == false && matches.isEmpty()) {
                     throw indexNotFoundException(expression);
                 }
                 Set<String> expand = expand(context, matches, expression);
@@ -1246,7 +1246,7 @@ public class IndexNameExpressionResolver {
                 return false;
             }
 
-            if (indexAbstraction.isDataStreamRelated() && false == context.includeDataStreams()) {
+            if (indexAbstraction.isDataStreamRelated() && context.includeDataStreams() == false) {
                 if (throwExceptionIfAbsent) {
                     throw indexNotFoundException(expression);
                 }

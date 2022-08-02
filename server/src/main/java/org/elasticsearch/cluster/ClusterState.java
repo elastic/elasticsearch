@@ -54,6 +54,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
@@ -349,6 +350,19 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         // we don't have any routing nodes for this state, likely because it's a temporary state in the reroute logic, don't compute an
         // immutable copy that will never be used and instead directly build a mutable copy
         return RoutingNodes.mutable(routingTable, this.nodes);
+    }
+
+    /**
+     * Initialize data structures that lazy computed for this instance in the background by using the giving executor.
+     * @param executor executor to run initialization tasks on
+     */
+    public void initializeAsync(Executor executor) {
+        if (routingNodes == null) {
+            executor.execute(this::getRoutingNodes);
+        }
+        if (metadata.indicesLookupInitialized() == false) {
+            executor.execute(metadata::getIndicesLookup);
+        }
     }
 
     @Override

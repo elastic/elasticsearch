@@ -66,20 +66,9 @@ public class XSearchAction extends BaseRestHandler {
                 .getMappings(getMappingsRequest, new ActionListener<>() {
                     @Override
                     public void onResponse(GetMappingsResponse getMappingsResponse) {
-                        Set<String> searchFields = new HashSet<>();
-                        for (MappingMetadata mappingMetadata : getMappingsResponse.mappings().values()) {
-                            @SuppressWarnings("unchecked") final Set<String> fields = ((Map<String, Map<String, Object>>) mappingMetadata.getSourceAsMap().get("properties"))
-                                .entrySet()
-                                .stream()
-                                .filter(entry -> "text".equals(entry.getValue().get("type")))
-                                .map(Map.Entry::getKey)
-                                .collect(Collectors.toSet());
-                            searchFields.addAll(fields);
-                        }
+                        Set<String> searchFields = getSearchFields(getMappingsResponse);
 
                         final QueryBuilder queryBuilder = XSearchQueryBuilder.getQueryBuilder(new XSearchQueryOptions(query, searchFields.toArray(new String[]{})));
-
-                        final Supplier<ThreadContext.StoredContext> supplier = client.threadPool().getThreadContext().newRestorableContext(false);
 
                         SearchRequest searchRequest = client.prepareSearch(index)
                             .setQuery(queryBuilder)
@@ -102,13 +91,22 @@ public class XSearchAction extends BaseRestHandler {
         };
     }
 
-    private static class XSearchRestChannelConsumer implements RestChannelConsumer {
-
-
-
-        @Override
-        public void accept(RestChannel restChannel) throws Exception {
-
+    private Set<String> getSearchFields(GetMappingsResponse getMappingsResponse) {
+        Set<String> searchFields = new HashSet<>();
+        for (MappingMetadata mappingMetadata : getMappingsResponse.mappings().values()) {
+            searchFields.addAll(getSearchFieldsFromMetadata(mappingMetadata));
         }
+        return searchFields;
+    }
+
+    private Set<String> getSearchFieldsFromMetadata(MappingMetadata mappingMetadata) {
+        @SuppressWarnings("unchecked")
+        final Set<String> searchFields = ((Map<String, Map<String, Object>>) mappingMetadata.getSourceAsMap().get("properties"))
+            .entrySet()
+            .stream()
+            .filter(entry -> "text".equals(entry.getValue().get("type")))
+            .map(Map.Entry::getKey)
+            .collect(Collectors.toSet());
+        return searchFields;
     }
 }

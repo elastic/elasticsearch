@@ -168,6 +168,17 @@ public class TestSecurityClient {
     }
 
     /**
+     * Uses the REST API to invalidate API Keys given their IDs.
+     * @see org.elasticsearch.xpack.security.rest.action.apikey.RestInvalidateApiKeyAction
+     */
+    public void invalidateApiKeys(final String... apiKeyIds) throws IOException {
+        final var endpoint = "/_security/api_key/";
+        final var request = new Request(HttpDelete.METHOD_NAME, endpoint);
+        request.setJsonEntity(XContentTestUtils.convertToXContent(Map.of("ids", apiKeyIds), XContentType.JSON).utf8ToString());
+        execute(request);
+    }
+
+    /**
      * Uses the REST API to get a Role descriptor
      * @see org.elasticsearch.xpack.security.rest.action.role.RestGetRolesAction
      */

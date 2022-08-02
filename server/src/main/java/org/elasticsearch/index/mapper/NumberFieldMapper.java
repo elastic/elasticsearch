@@ -36,6 +36,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
+import org.elasticsearch.index.fielddata.SourceValueFetcherSortedNumericIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedDoublesIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.mapper.TimeSeriesParams.MetricType;
@@ -54,6 +55,7 @@ import org.elasticsearch.script.field.ShortDocValuesField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
@@ -66,6 +68,7 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
@@ -706,6 +709,21 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
+            public IndexFieldData.Builder getValueFetcherFieldDataBuilder(
+                String name,
+                SourceLookup sourceLookup,
+                ValueFetcher valueFetcher
+            ) {
+                return new SourceValueFetcherSortedNumericIndexFieldData.Builder(
+                    name,
+                    numericType().getValuesSourceType(),
+                    valueFetcher,
+                    sourceLookup,
+                    ByteDocValuesField::new
+                );
+            }
+
+            @Override
             SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String fieldName, String fieldSimpleName) {
                 return NumberType.syntheticLongFieldLoader(fieldName, fieldSimpleName);
             }
@@ -776,6 +794,21 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             public IndexFieldData.Builder getFieldDataBuilder(String name) {
                 return new SortedNumericIndexFieldData.Builder(name, numericType(), ShortDocValuesField::new);
+            }
+
+            @Override
+            public IndexFieldData.Builder getValueFetcherFieldDataBuilder(
+                String name,
+                SourceLookup sourceLookup,
+                ValueFetcher valueFetcher
+            ) {
+                return new SourceValueFetcherSortedNumericIndexFieldData.Builder(
+                    name,
+                    numericType().getValuesSourceType(),
+                    valueFetcher,
+                    sourceLookup,
+                    ShortDocValuesField::new
+                );
             }
 
             @Override
@@ -919,6 +952,21 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
+            public IndexFieldData.Builder getValueFetcherFieldDataBuilder(
+                String name,
+                SourceLookup sourceLookup,
+                ValueFetcher valueFetcher
+            ) {
+                return new SourceValueFetcherSortedNumericIndexFieldData.Builder(
+                    name,
+                    numericType().getValuesSourceType(),
+                    valueFetcher,
+                    sourceLookup,
+                    IntegerDocValuesField::new
+                );
+            }
+
+            @Override
             SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String fieldName, String fieldSimpleName) {
                 return NumberType.syntheticLongFieldLoader(fieldName, fieldSimpleName);
             }
@@ -1026,6 +1074,21 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             public IndexFieldData.Builder getFieldDataBuilder(String name) {
                 return new SortedNumericIndexFieldData.Builder(name, numericType(), LongDocValuesField::new);
+            }
+
+            @Override
+            public IndexFieldData.Builder getValueFetcherFieldDataBuilder(
+                String name,
+                SourceLookup sourceLookup,
+                ValueFetcher valueFetcher
+            ) {
+                return new SourceValueFetcherSortedNumericIndexFieldData.Builder(
+                    name,
+                    numericType().getValuesSourceType(),
+                    valueFetcher,
+                    sourceLookup,
+                    LongDocValuesField::new
+                );
             }
 
             @Override
@@ -1253,6 +1316,10 @@ public class NumberFieldMapper extends FieldMapper {
 
         public abstract IndexFieldData.Builder getFieldDataBuilder(String name);
 
+        public IndexFieldData.Builder getValueFetcherFieldDataBuilder(String name, SourceLookup sourceLookup, ValueFetcher valueFetcher) {
+            throw new UnsupportedOperationException("not supported for source fallback");
+        }
+
         /**
          * Adjusts a value to the value it would have been had it been parsed by that mapper
          * and then cast up to a double. This is meant to be an entry point to manipulate values
@@ -1403,8 +1470,24 @@ public class NumberFieldMapper extends FieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
-            failIfNoDocValues();
-            return type.getFieldDataBuilder(name());
+            FielddataOperation operation = fieldDataContext.fielddataOperation();
+
+            if (fieldDataContext.fielddataOperation() == FielddataOperation.SEARCH) {
+                failIfNoDocValues();
+            }
+
+            if ((operation == FielddataOperation.SEARCH || operation == FielddataOperation.SCRIPT) && hasDocValues()) {
+                return type.getFieldDataBuilder(name());
+            }
+
+            if (operation == FielddataOperation.SCRIPT) {
+                SearchLookup searchLookup = fieldDataContext.lookupSupplier().get();
+                Set<String> sourcePaths = fieldDataContext.sourcePathsLookup().apply(name());
+
+                return type.getValueFetcherFieldDataBuilder(name(), searchLookup.source(), sourceValueFetcher(sourcePaths));
+            }
+
+            throw new IllegalStateException("unknown field data type [" + operation.name() + "]");
         }
 
         @Override
@@ -1423,7 +1506,11 @@ public class NumberFieldMapper extends FieldMapper {
             if (this.scriptValues != null) {
                 return FieldValues.valueFetcher(this.scriptValues, context);
             }
-            return new SourceValueFetcher(name(), context, nullValue) {
+            return sourceValueFetcher(context.isSourceEnabled() ? context.sourcePath(name()) : Collections.emptySet());
+        }
+
+        private SourceValueFetcher sourceValueFetcher(Set<String> sourcePaths) {
+            return new SourceValueFetcher(sourcePaths, nullValue) {
                 @Override
                 protected Object parseSourceValue(Object value) {
                     if (value.equals("")) {
@@ -1632,7 +1719,7 @@ public class NumberFieldMapper extends FieldMapper {
 
         @Override
         public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException {
-            SortedNumericDocValues dv = dv(reader);
+            SortedNumericDocValues dv = docValuesOrNull(reader, name);
             if (dv == null) {
                 return SourceLoader.SyntheticFieldLoader.NOTHING_LEAF;
             }
@@ -1743,12 +1830,12 @@ public class NumberFieldMapper extends FieldMapper {
          * an "empty" implementation if there aren't any doc values. We need to be able to
          * tell if there aren't any and return our empty leaf source loader.
          */
-        private SortedNumericDocValues dv(LeafReader reader) throws IOException {
-            SortedNumericDocValues dv = reader.getSortedNumericDocValues(name);
+        public static SortedNumericDocValues docValuesOrNull(LeafReader reader, String fieldName) throws IOException {
+            SortedNumericDocValues dv = reader.getSortedNumericDocValues(fieldName);
             if (dv != null) {
                 return dv;
             }
-            NumericDocValues single = reader.getNumericDocValues(name);
+            NumericDocValues single = reader.getNumericDocValues(fieldName);
             if (single != null) {
                 return DocValues.singleton(single);
             }

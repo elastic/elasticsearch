@@ -441,12 +441,12 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         bulkIndex(sourceSupplier);
         prepareSourceIndex(sourceIndex);
         var rollupListener = new ActionListener<AcknowledgedResponse>() {
-            boolean rollupFinished = false;
+            boolean success;
 
             @Override
             public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                 if (acknowledgedResponse.isAcknowledged()) {
-                    rollupFinished = true;
+                    success = true;
                 } else {
                     fail("Failed to receive rollup acknowledgement");
                 }
@@ -464,7 +464,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         );
         assertThat(exception.getMessage(), containsString(rollupIndex));
         // We must wait until the in-progress rollup ends, otherwise data will not be cleaned up
-        waitUntil(() -> rollupListener.rollupFinished, 60, TimeUnit.SECONDS);
+        assertBusy(() -> assertTrue("In progress rollup did not complete", rollupListener.success), 60, TimeUnit.SECONDS);
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/88800")

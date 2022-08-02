@@ -1382,7 +1382,7 @@ public class TimestampFormatFinderTests extends TextStructureTestCase {
         validateFindInFullMessage(
             "Aug 29, 2009 12:03:57 AM org.apache.tomcat.util.http.Parameters processParameters",
             "",
-            "CATALINA_DATESTAMP",
+            "CATALINA7_DATESTAMP",
             "\\b[A-Z]\\S{2} \\d{2}, \\d{4} \\d{1,2}:\\d{2}:\\d{2} [AP]M\\b",
             "MMM dd, yyyy h:mm:ss a"
         );
@@ -1719,7 +1719,13 @@ public class TimestampFormatFinderTests extends TextStructureTestCase {
             );
             timestampFormatFinder.addSample(message);
             timestampFormatFinder.selectBestMatch();
-            assertEquals(expectedGrokPatternName, timestampFormatFinder.getGrokPatternName());
+            if ("CATALINA7_DATESTAMP".equals(expectedGrokPatternName)) {
+                if (ecsCompatibility) {
+                    assertEquals(expectedGrokPatternName, timestampFormatFinder.getGrokPatternName());
+                } else {
+                    assertEquals("CATALINA_DATESTAMP", timestampFormatFinder.getGrokPatternName());
+                }
+            }
             assertEquals(expectedSimplePattern.pattern(), timestampFormatFinder.getSimplePattern().pattern());
             assertEquals(expectedJavaTimestampFormats, timestampFormatFinder.getJavaTimestampFormats());
             assertEquals(Collections.singletonList(expectedPreface), timestampFormatFinder.getPrefaces());

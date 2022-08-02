@@ -297,10 +297,14 @@ public final class TimestampFormatFinder {
     static {
         List<CandidateTimestampFormat> items = new ArrayList<>();
         // CATALINA8_DATESTAMP %{MONTHDAY}-%{MONTH}-%{YEAR} %{HOUR}:%{MINUTE}:%{SECOND}
+        // Where SECOND is defined as (?:(?:[0-5]?[0-9]|60)(?:[:.,][0-9]+)?)
+        // ('60' is a leap second in most time standards and thus is valid.)
         // 29-Aug-2021 12:03:33.578
         items.add(
             new CandidateTimestampFormat(
-                example -> Collections.singletonList("dd-MMM-yyyy hh:mm:ss"),
+                example -> Collections.singletonList(
+                    CandidateTimestampFormat.adjustFractionalSecondsFromEndOfExample(example, "dd-MMM-yyyy hh:mm:ss")
+                ),
                 "\\b\\d{2}-[A-Z]\\S{2}-\\d{4} \\d{2}:\\d{2}:\\d{2}[:.,]\\d{3}",
                 "\\b%{MONTHDAY}-%{MONTH}-%{YEAR} %{HOUR}:%{MINUTE}:%{SECOND}\\b",
                 "CATALINA8_DATESTAMP",
@@ -313,7 +317,7 @@ public final class TimestampFormatFinder {
         items.add(
             new CandidateTimestampFormat(
                 example -> Collections.singletonList("MMM dd, yyyy h:mm:ss a"),
-                "\\b[A-Z]\\S{2} \\d{2}, \\d{4} \\d{1,2}:\\d{2}:\\d{2} [AP]M",
+                "\\b[A-Z]\\S{2} \\d{2}, \\d{4} \\d{1,2}:\\d{2}:\\d{2} [AP]M\\b",
                 "\\b%{MONTH} %{MONTHDAY}, %{YEAR} %{HOUR}:%{MINUTE}:%{SECOND} (?:AM|PM)\\b",
                 "CATALINA7_DATESTAMP",
                 Arrays.asList("    11  1111 1 11 11", "    11  1111 11 11 11"),
@@ -321,8 +325,11 @@ public final class TimestampFormatFinder {
                 3
             )
         );
-        items.addAll(ORDERED_CANDIDATE_FORMATS);
-
+        items.addAll(
+            ORDERED_CANDIDATE_FORMATS.stream()
+                .filter(p -> "CATALINA_DATESTAMP".equals(p.outputGrokPatternName) == false)
+                .collect(Collectors.toList())
+        );
         ORDERED_CANDIDATE_FORMATS_ECS_V1 = Collections.unmodifiableList(items);
     }
 

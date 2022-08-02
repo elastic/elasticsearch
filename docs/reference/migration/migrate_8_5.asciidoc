@@ -35,7 +35,7 @@ enable <<deprecation-logging, deprecation logging>>.
 
 
 [discrete]
-[[deprecations_85_network_plugins]]
+[[deprecations_85_plugins]]
 ==== Plugin API deprecations
 
 [[network_plugins_deprecated]]
@@ -53,3 +53,21 @@ Discontinue using any plugins which extend NetworkPlugin. You can
 see if any plugins use deprecated functionality by checking
 the Elasticsearch deprecation log.
 ====
+
+[[discoveryplugin_joinvalidator_and_election_strategies_deprecated]]
+.Extending DiscoveryPlugin to override join validators or election strategies is deprecated
+[%collapsible]
+====
+*Details* +
+Plugins that extend DiscoveryPlugin may override getJoinValidator and
+getElectionStrategies. These methods are implementation details of the
+clustering mechanism within Elasticsearch. They should not be overriden.
+In the next major release, plugins overriding getJoinValidator or
+getElectionStrategies will fail to install.
+
+*Impact* +
+Discontinue using any plugins that override getJoinValidator or
+getElectionStrategies in DiscoveryPlugin. You can see if any plugins
+use deprecated functionality by checking the Elasticsearch deprecation log.
+====
+

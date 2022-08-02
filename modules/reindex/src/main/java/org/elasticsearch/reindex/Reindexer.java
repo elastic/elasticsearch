@@ -54,10 +54,9 @@ import org.elasticsearch.script.ReindexScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -323,8 +322,7 @@ public class Reindexer {
                 // we need to convert
                 try (
                     InputStream stream = doc.getSource().streamInput();
-                    XContentParser parser = sourceXContentType.xContent()
-                        .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, stream);
+                    XContentParser parser = sourceXContentType.xContent().createParser(XContentParserConfiguration.EMPTY, stream);
                     XContentBuilder builder = XContentBuilder.builder(mainRequestXContentType.xContent())
                 ) {
                     parser.nextToken();

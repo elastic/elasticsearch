@@ -7,19 +7,21 @@
 
 package org.elasticsearch.xpack.enterprisesearch.search;
 
-import org.elasticsearch.rest.RestRequest;
-
-import java.util.List;
-
 public class XSearchQueryOptions {
 
-    public final String queryString;
+    private final String query;
+    private final String[] fieldNames;
 
-    public XSearchQueryOptions(String queryParam) {
-        queryString = queryParam;
+    public XSearchQueryOptions(String query, String... fieldNames) {
+        this.query = query;
+        this.fieldNames = fieldNames;
     }
 
-    public XSearchQueryOptions(RestRequest request) {
-        this(request.param("query"));
+    public String[] getFieldNames() {
+        return fieldNames;
+    }
+
+    public String getQuery() {
+        return query;
     }
 }

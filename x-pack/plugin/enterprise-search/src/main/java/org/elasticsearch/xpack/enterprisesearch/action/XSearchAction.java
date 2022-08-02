@@ -7,21 +7,36 @@
  */
 package org.elasticsearch.xpack.enterprisesearch.action;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest;
+import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse;
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.xpack.enterprisesearch.search.XSearchQueryBuilder;
 import org.elasticsearch.xpack.enterprisesearch.search.XSearchQueryOptions;
 
+import java.io.IOException;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 
 public class XSearchAction extends BaseRestHandler {
 
@@ -38,16 +53,62 @@ public class XSearchAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) {
-        QueryBuilder query = XSearchQueryBuilder.getQueryBuilder(new XSearchQueryOptions(request));
 
-        final Supplier<ThreadContext.StoredContext> supplier = client.threadPool().getThreadContext().newRestorableContext(false);
+        final String index = request.param("index");
+        final String query = request.param("query");
 
-        SearchRequest searchRequest = client.prepareSearch(request.param("index"))
-            .setQuery(query)
-            .setSize(1000)
-            .setFetchSource(true)
-            .request();
+        final GetMappingsRequest getMappingsRequest = new GetMappingsRequest();
+        getMappingsRequest.indices(index);
+        return channel -> {
+            client
+                .admin()
+                .indices()
+                .getMappings(getMappingsRequest, new ActionListener<>() {
+                    @Override
+                    public void onResponse(GetMappingsResponse getMappingsResponse) {
+                        Set<String> searchFields = new HashSet<>();
+                        for (MappingMetadata mappingMetadata : getMappingsResponse.mappings().values()) {
+                            @SuppressWarnings("unchecked") final Set<String> fields = ((Map<String, Map<String, Object>>) mappingMetadata.getSourceAsMap().get("properties"))
+                                .entrySet()
+                                .stream()
+                                .filter(entry -> "text".equals(entry.getValue().get("type")))
+                                .map(Map.Entry::getKey)
+                                .collect(Collectors.toSet());
+                            searchFields.addAll(fields);
+                        }
 
-        return channel -> client.execute(SearchAction.INSTANCE, searchRequest, new RestStatusToXContentListener<>(channel));
+                        final QueryBuilder queryBuilder = XSearchQueryBuilder.getQueryBuilder(new XSearchQueryOptions(query, searchFields.toArray(new String[]{})));
+
+                        final Supplier<ThreadContext.StoredContext> supplier = client.threadPool().getThreadContext().newRestorableContext(false);
+
+                        SearchRequest searchRequest = client.prepareSearch(index)
+                            .setQuery(queryBuilder)
+                            .setSize(1000)
+                            .setFetchSource(true)
+                            .request();
+
+                        client.execute(SearchAction.INSTANCE, searchRequest, new RestStatusToXContentListener<>(channel));
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        try {
+                            channel.sendResponse(new RestResponse(channel, BAD_REQUEST, e));
+                        } catch (final IOException ex) {
+                            throw new AssertionError(e);
+                        }
+                    }
+                });
+        };
+    }
+
+    private static class XSearchRestChannelConsumer implements RestChannelConsumer {
+
+
+
+        @Override
+        public void accept(RestChannel restChannel) throws Exception {
+
+        }
     }
 }

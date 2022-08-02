@@ -16,9 +16,9 @@ import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 public class XSearchQueryBuilder {
 
     public static QueryBuilder getQueryBuilder(XSearchQueryOptions queryOptions) {
-        QueryBuilder multiMatchQuery = QueryBuilders
+        QueryBuilder multiMatchQueryOther = QueryBuilders
             .multiMatchQuery(
-                queryOptions.queryString,
+                queryOptions.getQuery(),
                 "world_heritage_site^1.0",
                 "world_heritage_site.stem^0.95",
                 "world_heritage_site.prefix^0.1",
@@ -50,7 +50,7 @@ public class XSearchQueryBuilder {
 
         QueryBuilder stemMultiMatch = QueryBuilders
             .multiMatchQuery(
-                queryOptions.queryString,
+                queryOptions.getQuery(),
                 "world_heritage_site.stem^0.1",
                 "description.stem^0.24",
                 "title.stem^0.5",
@@ -61,10 +61,14 @@ public class XSearchQueryBuilder {
             .type(MultiMatchQueryBuilder.Type.BEST_FIELDS)
             .prefixLength(2);
 
-        QueryBuilder boolQuery = QueryBuilders.boolQuery().should(multiMatchQuery).should(stemMultiMatch);
+        QueryBuilder multiMatchQuery = QueryBuilders
+            .multiMatchQuery(
+                queryOptions.getQuery(),
+                queryOptions.getFieldNames()
+            )
+            .minimumShouldMatch("1<-1 3<49%")
+            .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS);
 
-        //return QueryBuilders.boolQuery().must(boolQuery);
-
-        return QueryBuilders.matchAllQuery();
+        return QueryBuilders.boolQuery().should(multiMatchQuery);
     }
 }

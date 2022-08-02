@@ -26,6 +26,7 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues.DoublesSupplier;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -67,6 +68,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
@@ -699,6 +701,11 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         }
 
         @Override
+        public Stream<String> requiredStoredFields() {
+            return Stream.empty();
+        }
+
+        @Override
         public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException {
             Map<Metric, SortedNumericDocValues> metricDocValues = new EnumMap<>(Metric.class);
             for (Metric m : metrics) {
@@ -731,7 +738,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
             }
 
             @Override
-            public boolean advanceToDoc(int docId) throws IOException {
+            public boolean advanceToDoc(FieldsVisitor fieldsVisitor, int docId) throws IOException {
                 // It is required that all defined metrics must exist. In this case
                 // it is enough to check for the first docValue. However, in the future
                 // we may relax the requirement of all metrics existing. In this case

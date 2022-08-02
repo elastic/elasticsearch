@@ -83,6 +83,7 @@ Note that this currently doesn't apply for object/scalar mismatches, such as `"f
 
 Any provided query parameter will be added to each log line.
 For example, `/_logs?service.name=myapp` will add `"service.name": "myapp"` to all logs.
+
 [discrete]
 [[logs-api-request-body]]
 === {api-request-body-title}

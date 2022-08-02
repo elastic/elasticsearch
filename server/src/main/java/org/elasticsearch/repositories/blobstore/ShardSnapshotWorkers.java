@@ -147,11 +147,10 @@ public class ShardSnapshotWorkers {
         if (workersToCreate > 0) {
             logger.debug("starting {} shard snapshot workers", workersToCreate);
         }
-        while (workersToCreate > 0) {
-            workerCount++;
+        for (int i = 0; i < workersToCreate; i++) {
             startWorker(UUIDs.base64UUID());
-            workersToCreate--;
         }
+        workerCount += workersToCreate;
         logger.debug("worker pool size is {}", workerCount);
     }
 

@@ -28,6 +28,8 @@ import static org.elasticsearch.core.Strings.format;
  */
 public final class GrokPatternCreator {
 
+    private static final boolean ECS_COMPATIBILITY = true;
+
     private static final Logger logger = LogManager.getLogger(GrokPatternCreator.class);
 
     private static final String PREFACE = "preface";
@@ -51,8 +53,8 @@ public final class GrokPatternCreator {
         new GrokPatternCandidate("CISCOTIMESTAMP", "timestamp"),
         new GrokPatternCandidate("DATE", "date"),
         new GrokPatternCandidate("TIME", "time"),
-        new GrokPatternCandidate("LOGLEVEL", "loglevel"),
-        new GrokPatternCandidate("URI", "uri"),
+        new GrokPatternCandidate("LOGLEVEL", "log.level"),
+        new GrokPatternCandidate("URI", "url.original"),
         new GrokPatternCandidate("UUID", "uuid"),
         new GrokPatternCandidate("MAC", "macaddress"),
         // Can't use \b as the breaks, because slashes are not "word" characters
@@ -284,7 +286,7 @@ public final class GrokPatternCreator {
             this.grokPatternName = grokPatternName;
             this.fieldName = fieldName;
             this.grok = new Grok(
-                Grok.getBuiltinPatterns(false),
+                Grok.getBuiltinPatterns(ECS_COMPATIBILITY),
                 "%{DATA:" + PREFACE + "}" + preBreak + "%{" + grokPatternName + ":this}" + postBreak + "%{GREEDYDATA:" + EPILOGUE + "}",
                 logger::warn
             );

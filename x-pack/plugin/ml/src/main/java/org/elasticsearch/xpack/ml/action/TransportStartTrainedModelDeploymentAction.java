@@ -76,6 +76,7 @@ import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.Set;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
@@ -501,6 +502,15 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
                     RestStatus.TOO_MANY_REQUESTS,
                     detail
                 );
+                return true;
+            }
+
+            // We cannot add more nodes and the assignment is not satisfied
+            if (isScalingPossible == false
+                && trainedModelAssignment.isSatisfied(nodes.stream().map(DiscoveryNode::getId).collect(Collectors.toSet())) == false) {
+                String msg = "Could not start deployment because there are not enough resources to provide all requested allocations";
+                logger.debug(() -> format("[%s] %s", modelId, msg));
+                exception = new ElasticsearchStatusException(msg, RestStatus.TOO_MANY_REQUESTS);
                 return true;
             }
 

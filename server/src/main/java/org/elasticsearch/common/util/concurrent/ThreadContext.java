@@ -532,6 +532,18 @@ public final class ThreadContext implements Writeable {
      * <code>command</code> has already been passed through this method then it is returned unaltered rather than wrapped twice.
      */
     public Runnable preserveContext(Runnable command) {
+        return doPreserveContext(command, false);
+    }
+
+    /**
+     * Saves the current thread context and wraps command in a Runnable that restores that context before running command. Also
+     * starts a new tracing context durin executing. If <code>command</code> has already been wrapped then it is returned unaltered.
+     */
+    public Runnable preserveContextWithTracing(Runnable command) {
+        return doPreserveContext(command, true);
+    }
+
+    private Runnable doPreserveContext(Runnable command, boolean preserveContext) {
         if (command instanceof ContextPreservingAbstractRunnable) {
             return command;
         }
@@ -539,7 +551,7 @@ public final class ThreadContext implements Writeable {
             return command;
         }
         if (command instanceof AbstractRunnable abstractRunnable) {
-            return new ContextPreservingAbstractRunnable(abstractRunnable, abstractRunnable.useNewTraceContext());
+            return new ContextPreservingAbstractRunnable(abstractRunnable, preserveContext);
         }
         return new ContextPreservingRunnable(command);
     }

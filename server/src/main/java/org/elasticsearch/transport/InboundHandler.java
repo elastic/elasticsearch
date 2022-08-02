@@ -284,32 +284,28 @@ public class InboundHandler {
                             boolean success = false;
                             request.incRef();
                             try {
-                                threadPool.executor(executor).execute(new AbstractRunnable() {
-                                    @Override
-                                    protected void doRun() throws Exception {
-                                        reg.processMessageReceived(request, transportChannel);
-                                    }
+                                threadPool.executor(executor)
+                                    .execute(threadPool.getThreadContext().preserveContextWithTracing(new AbstractRunnable() {
+                                        @Override
+                                        protected void doRun() throws Exception {
+                                            reg.processMessageReceived(request, transportChannel);
+                                        }
 
-                                    @Override
-                                    public boolean isForceExecution() {
-                                        return reg.isForceExecution();
-                                    }
+                                        @Override
+                                        public boolean isForceExecution() {
+                                            return reg.isForceExecution();
+                                        }
 
-                                    @Override
-                                    public boolean useNewTraceContext() {
-                                        return true;
-                                    }
+                                        @Override
+                                        public void onFailure(Exception e) {
+                                            sendErrorResponse(reg.getAction(), transportChannel, e);
+                                        }
 
-                                    @Override
-                                    public void onFailure(Exception e) {
-                                        sendErrorResponse(reg.getAction(), transportChannel, e);
-                                    }
-
-                                    @Override
-                                    public void onAfter() {
-                                        request.decRef();
-                                    }
-                                });
+                                        @Override
+                                        public void onAfter() {
+                                            request.decRef();
+                                        }
+                                    }));
                                 success = true;
                             } finally {
                                 if (success == false) {

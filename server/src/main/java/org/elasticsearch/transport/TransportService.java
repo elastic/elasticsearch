@@ -956,7 +956,7 @@ public class TransportService extends AbstractLifecycleComponent
                 boolean success = false;
                 request.incRef();
                 try {
-                    threadPool.executor(executor).execute(new AbstractRunnable() {
+                    threadPool.executor(executor).execute(threadPool.getThreadContext().preserveContextWithTracing(new AbstractRunnable() {
                         @Override
                         protected void doRun() throws Exception {
                             reg.processMessageReceived(request, channel);
@@ -965,11 +965,6 @@ public class TransportService extends AbstractLifecycleComponent
                         @Override
                         public boolean isForceExecution() {
                             return reg.isForceExecution();
-                        }
-
-                        @Override
-                        public boolean useNewTraceContext() {
-                            return true;
                         }
 
                         @Override
@@ -986,7 +981,7 @@ public class TransportService extends AbstractLifecycleComponent
                         public void onAfter() {
                             request.decRef();
                         }
-                    });
+                    }));
                     success = true;
                 } finally {
                     if (success == false) {

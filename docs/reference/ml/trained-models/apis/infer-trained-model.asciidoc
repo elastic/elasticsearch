@@ -487,7 +487,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-text-similarit
 +
 .Properties of text_similarity inference
 [%collapsible%open]
-======
+=====
 `span_score_combination_function`::::
 (Optional, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-text-similarity-span-score-func]

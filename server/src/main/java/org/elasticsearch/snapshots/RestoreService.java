@@ -44,6 +44,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
@@ -1223,7 +1224,7 @@ public class RestoreService implements ClusterStateApplier {
 
         private final BiConsumer<ClusterState, Metadata.Builder> updater;
 
-        private final ActionListener<RestoreCompletionResponse> listener;
+        private final AllocationActionListener<RestoreCompletionResponse> listener;
 
         @Nullable
         private RestoreInfo restoreInfo;
@@ -1248,7 +1249,7 @@ public class RestoreService implements ClusterStateApplier {
             this.metadata = metadata;
             this.dataStreamsToRestore = dataStreamsToRestore;
             this.updater = updater;
-            this.listener = listener;
+            this.listener = new AllocationActionListener<>(listener);
         }
 
         @Override
@@ -1406,7 +1407,7 @@ public class RestoreService implements ClusterStateApplier {
             if (searchableSnapshotsIndices.isEmpty() == false) {
                 ensureSearchableSnapshotsRestorable(updatedClusterState, snapshotInfo, searchableSnapshotsIndices);
             }
-            return allocationService.reroute(updatedClusterState, "restored snapshot [" + snapshot + "]");
+            return allocationService.reroute(updatedClusterState, "restored snapshot [" + snapshot + "]", listener.reroute());
         }
 
         private void applyDataStreamRestores(ClusterState currentState, Metadata.Builder mdBuilder) {
@@ -1568,7 +1569,7 @@ public class RestoreService implements ClusterStateApplier {
         @Override
         public void onFailure(Exception e) {
             logger.warn(() -> "[" + snapshot + "] failed to restore snapshot", e);
-            listener.onFailure(e);
+            listener.clusterStateUpdate().onFailure(e);
         }
 
         @Override
@@ -1579,7 +1580,7 @@ public class RestoreService implements ClusterStateApplier {
                 snapshot,
                 snapshotInfo.indices()
             );
-            listener.onResponse(new RestoreCompletionResponse(restoreUUID, snapshot, restoreInfo));
+            listener.clusterStateUpdate().onResponse(new RestoreCompletionResponse(restoreUUID, snapshot, restoreInfo));
         }
     }
 

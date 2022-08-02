@@ -35,7 +35,6 @@ import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.StoreStats;
-import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
@@ -449,90 +448,20 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         }
     }
 
-    static void fillDiskUsagePerNode(
+    private static void fillDiskUsagePerNode(
         List<NodeStats> nodeStatsArray,
         Map<String, DiskUsage> newLeastAvailableUsages,
         Map<String, DiskUsage> newMostAvailableUsages
     ) {
         for (NodeStats nodeStats : nodeStatsArray) {
-            if (nodeStats.getFs() == null) {
-                logger.warn("node [{}/{}] did not return any filesystem stats", nodeStats.getNode().getName(), nodeStats.getNode().getId());
-                continue;
+            DiskUsage leastAvailableUsage = DiskUsage.findLeastAvailablePath(nodeStats);
+            if (leastAvailableUsage != null) {
+                newLeastAvailableUsages.put(nodeStats.getNode().getId(), leastAvailableUsage);
             }
-
-            FsInfo.Path leastAvailablePath = null;
-            FsInfo.Path mostAvailablePath = null;
-            for (FsInfo.Path info : nodeStats.getFs()) {
-                if (leastAvailablePath == null) {
-                    // noinspection ConstantConditions this assertion is for the benefit of readers, it's always true
-                    assert mostAvailablePath == null;
-                    mostAvailablePath = leastAvailablePath = info;
-                } else if (leastAvailablePath.getAvailable().getBytes() > info.getAvailable().getBytes()) {
-                    leastAvailablePath = info;
-                } else if (mostAvailablePath.getAvailable().getBytes() < info.getAvailable().getBytes()) {
-                    mostAvailablePath = info;
-                }
+            DiskUsage mostAvailableUsage = DiskUsage.findMostAvailable(nodeStats);
+            if (mostAvailableUsage != null) {
+                newMostAvailableUsages.put(nodeStats.getNode().getId(), mostAvailableUsage);
             }
-            if (leastAvailablePath == null) {
-                // noinspection ConstantConditions this assertion is for the benefit of readers, it's always true
-                assert mostAvailablePath == null;
-                logger.warn("node [{}/{}] did not return any filesystem stats", nodeStats.getNode().getName(), nodeStats.getNode().getId());
-                continue;
-            }
-
-            final String nodeId = nodeStats.getNode().getId();
-            final String nodeName = nodeStats.getNode().getName();
-            if (logger.isTraceEnabled()) {
-                logger.trace(
-                    "node [{}]: most available: total: {}, available: {} / least available: total: {}, available: {}",
-                    nodeId,
-                    mostAvailablePath.getTotal(),
-                    mostAvailablePath.getAvailable(),
-                    leastAvailablePath.getTotal(),
-                    leastAvailablePath.getAvailable()
-                );
-            }
-            if (leastAvailablePath.getTotal().getBytes() < 0) {
-                if (logger.isTraceEnabled()) {
-                    logger.trace(
-                        "node: [{}] least available path has less than 0 total bytes of disk [{}], skipping",
-                        nodeId,
-                        leastAvailablePath.getTotal().getBytes()
-                    );
-                }
-            } else {
-                newLeastAvailableUsages.put(
-                    nodeId,
-                    new DiskUsage(
-                        nodeId,
-                        nodeName,
-                        leastAvailablePath.getPath(),
-                        leastAvailablePath.getTotal().getBytes(),
-                        leastAvailablePath.getAvailable().getBytes()
-                    )
-                );
-            }
-            if (mostAvailablePath.getTotal().getBytes() < 0) {
-                if (logger.isTraceEnabled()) {
-                    logger.trace(
-                        "node: [{}] most available path has less than 0 total bytes of disk [{}], skipping",
-                        nodeId,
-                        mostAvailablePath.getTotal().getBytes()
-                    );
-                }
-            } else {
-                newMostAvailableUsages.put(
-                    nodeId,
-                    new DiskUsage(
-                        nodeId,
-                        nodeName,
-                        mostAvailablePath.getPath(),
-                        mostAvailablePath.getTotal().getBytes(),
-                        mostAvailablePath.getAvailable().getBytes()
-                    )
-                );
-            }
-
         }
     }
 

@@ -297,28 +297,28 @@ public final class TimestampFormatFinder {
     static {
         List<CandidateTimestampFormat> items = new ArrayList<>();
         // CATALINA8_DATESTAMP %{MONTHDAY}-%{MONTH}-%{YEAR} %{HOUR}:%{MINUTE}:%{SECOND}
-        // 29-Aug-2009 12:03:33
+        // 29-Aug-2021 12:03:33.578
         items.add(
             new CandidateTimestampFormat(
                 example -> Collections.singletonList("dd-MMM-yyyy hh:mm:ss"),
                 "\\b\\d{2}-[A-Z]\\S{2}-\\d{4} \\d{2}:\\d{2}:\\d{2}[:.,]\\d{3}",
                 "\\b%{MONTHDAY}-%{MONTH}-%{YEAR} %{HOUR}:%{MINUTE}:%{SECOND}\\b",
                 "CATALINA8_DATESTAMP",
-                "11     1111 11 11 11",
+                "11     1111 11 11 11 111",
                 0,
-                13
+                0
             )
         );
         // CATALINA7_DATESTAMP %{MONTH} %{MONTHDAY}, %{YEAR} %{HOUR}:%{MINUTE}:%{SECOND} (?:AM|PM)
         items.add(
             new CandidateTimestampFormat(
-                example -> Collections.singletonList("MMM dd, yyyy hh:mm:ss a"),
-                "\\b[A-Z]\\S{2} \\d{2}, \\d{2} \\d{4}:\\d{2}:\\d{2}[:.,]\\d{3}",
+                example -> Collections.singletonList("MMM dd, yyyy h:mm:ss a"),
+                "\\b[A-Z]\\S{2} \\d{2}, \\d{4} \\d{1,2}:\\d{2}:\\d{2} [AP]M",
                 "\\b%{MONTH} %{MONTHDAY}, %{YEAR} %{HOUR}:%{MINUTE}:%{SECOND} (?:AM|PM)\\b",
                 "CATALINA7_DATESTAMP",
-                "    11  1111 11 11 11 111",
+                Arrays.asList("    11  1111 1 11 11", "    11  1111 11 11 11"),
                 0,
-                13
+                0
             )
         );
         items.addAll(ORDERED_CANDIDATE_FORMATS);

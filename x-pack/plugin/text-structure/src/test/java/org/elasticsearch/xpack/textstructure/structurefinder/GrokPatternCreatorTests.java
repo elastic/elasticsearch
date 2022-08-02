@@ -491,13 +491,13 @@ public class GrokPatternCreatorTests extends TextStructureTestCase {
         // CATALINA_DATESTAMP (?:%{CATALINA8_DATESTAMP})|(?:%{CATALINA7_DATESTAMP})
         // CATALINALOG (?:%{CATALINA8_LOG})|(?:%{CATALINA7_LOG})
         Collection<String> sampleMessages = Arrays.asList(
-            "29-Aug-2009 12:03:33 WARNING [main] org.apache.tomcat.util.http.Parameters.processParameters Parameters: "
+            "29-Aug-2009 12:03:33.123 WARNING [main] org.apache.tomcat.util.http.Parameters.processParameters Parameters: "
                 + "Invalid chunk ignored.",
-            "29-Aug-2009 12:03:40 WARNING [main] org.apache.tomcat.util.http.Parameters.processParameters Parameters: "
+            "29-Aug-2009 12:03:40.234 WARNING [main] org.apache.tomcat.util.http.Parameters.processParameters Parameters: "
                 + "Invalid chunk ignored.",
-            "29-Aug-2009 12:03:45 WARNING [main] org.apache.tomcat.util.http.Parameters.processParameters Parameters: "
+            "29-Aug-2009 12:03:45.456 WARNING [main] org.apache.tomcat.util.http.Parameters.processParameters Parameters: "
                 + "Invalid chunk ignored.",
-            "29-Aug-2009 12:03:57 WARNING [main] org.apache.tomcat.util.http.Parameters.processParameters Parameters: "
+            "29-Aug-2009 12:03:57.567 WARNING [main] org.apache.tomcat.util.http.Parameters.processParameters Parameters: "
                 + "Invalid chunk ignored."
         );
 
@@ -524,7 +524,7 @@ public class GrokPatternCreatorTests extends TextStructureTestCase {
             );
 
             assertEquals(
-                "[%{CATALINA_DATESTAMP}] does not match snippet [29-Aug-2009 12:03:33 WARNING [main]"
+                "[%{CATALINA_DATESTAMP}] does not match snippet [29-Aug-2009 12:03:33.123 WARNING [main]"
                     + " org.apache.tomcat.util.http.Parameters.processParameters Parameters: Invalid chunk ignored.]",
                 e.getMessage()
             );

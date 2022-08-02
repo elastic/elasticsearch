@@ -495,7 +495,8 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
                 null,
                 null,
                 false,
-                false
+                false,
+                null
             )
         );
     }
@@ -510,6 +511,7 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
         );
         boolean needClientTimezone = randomBoolean();
         boolean needNanosecondPrecision = randomBoolean();
+        String ecsCompatibility = randomAlphaOfLength(80);
 
         Map<String, Object> pipeline = TextStructureUtils.makeIngestPipelineDefinition(
             null,
@@ -519,7 +521,8 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
             timestampField,
             timestampFormats,
             needClientTimezone,
-            needNanosecondPrecision
+            needNanosecondPrecision,
+            ecsCompatibility
         );
         assertNotNull(pipeline);
 
@@ -557,7 +560,8 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
             null,
             null,
             false,
-            false
+            false,
+            null
         );
         assertNotNull(pipeline);
 
@@ -596,7 +600,8 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
             null,
             null,
             false,
-            false
+            false,
+            null
         );
         assertNotNull(pipeline);
 
@@ -636,7 +641,8 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
             null,
             null,
             false,
-            false
+            false,
+            null
         );
         assertNotNull(pipeline);
 
@@ -681,6 +687,8 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
         boolean needClientTimezone = randomBoolean();
         boolean needNanosecondPrecision = randomBoolean();
 
+        String ecsCompatibility = randomAlphaOfLength(80);
+
         Map<String, Object> pipeline = TextStructureUtils.makeIngestPipelineDefinition(
             null,
             Collections.emptyMap(),
@@ -689,7 +697,8 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
             timestampField,
             timestampFormats,
             needClientTimezone,
-            needNanosecondPrecision
+            needNanosecondPrecision,
+            ecsCompatibility
         );
         assertNotNull(pipeline);
 
@@ -736,6 +745,8 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
         boolean needClientTimezone = randomBoolean();
         boolean needNanosecondPrecision = randomBoolean();
 
+        String ecsCompatibility = randomAlphaOfLength(80);
+
         Map<String, Object> pipeline = TextStructureUtils.makeIngestPipelineDefinition(
             grokPattern,
             Collections.emptyMap(),
@@ -744,7 +755,8 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
             timestampField,
             timestampFormats,
             needClientTimezone,
-            needNanosecondPrecision
+            needNanosecondPrecision,
+            ecsCompatibility
         );
         assertNotNull(pipeline);
 

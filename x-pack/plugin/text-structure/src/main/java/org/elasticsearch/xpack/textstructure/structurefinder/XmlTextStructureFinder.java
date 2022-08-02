@@ -120,7 +120,8 @@ public class XmlTextStructureFinder implements TextStructureFinder {
                         topLevelTag + "." + timeField.v1(),
                         timeField.v2().getJavaTimestampFormats(),
                         needClientTimeZone,
-                        timeField.v2().needNanosecondPrecision()
+                        timeField.v2().needNanosecondPrecision(),
+                        overrides.getEcsCompatibility()
                     )
                 );
         }

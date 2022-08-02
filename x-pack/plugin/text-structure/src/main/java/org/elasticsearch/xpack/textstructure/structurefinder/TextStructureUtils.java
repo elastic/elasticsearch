@@ -29,9 +29,6 @@ import java.util.stream.Stream;
 
 public final class TextStructureUtils {
 
-    // The value of the ecs_compatibility option indicating that ECS Grok patterns are desired.
-    private static final String ECS_COMPATIBILITY_V1 = "v1";
-
     // The ECS Grok pattern compatibility mode to use when no ecs_compatibility parameter is specified in the request.
     private static final boolean DEFAULT_ECS_COMPATIBILITY = false;
 
@@ -225,7 +222,7 @@ public final class TextStructureUtils {
                         true,
                         true,
                         timeoutChecker,
-                        ECS_COMPATIBILITY_V1.equalsIgnoreCase(overrides.getEcsCompatibility())
+                        Grok.ECS_COMPATIBILITY_MODES[1].equals(overrides.getEcsCompatibility())
                     );
                     try {
                         timestampFormatFinder.addSample(value.toString());
@@ -512,7 +509,8 @@ public final class TextStructureUtils {
         String timestampField,
         List<String> timestampFormats,
         boolean needClientTimezone,
-        boolean needNanosecondPrecision
+        boolean needNanosecondPrecision,
+        String ecsCompatibility
     ) {
 
         if (grokPattern == null && csvProcessorSettings == null && timestampField == null) {
@@ -531,6 +529,7 @@ public final class TextStructureUtils {
             if (customGrokPatternDefinitions.isEmpty() == false) {
                 grokProcessorSettings.put("pattern_definitions", customGrokPatternDefinitions);
             }
+            grokProcessorSettings.put("ecs_compatibility", ecsCompatibility);
             processors.add(Collections.singletonMap("grok", grokProcessorSettings));
         } else {
             assert customGrokPatternDefinitions.isEmpty();

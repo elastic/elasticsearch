@@ -10,6 +10,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.grok.Grok;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -30,9 +31,6 @@ import java.util.TreeMap;
  * Stores the determined file format.
  */
 public class TextStructure implements ToXContentObject, Writeable {
-
-    private static final String ECS_COMPATIBILITY_V1 = "v1";
-    private static final String ECS_COMPATIBILITY_DISABLED = "disabled";
 
     public enum Format {
 
@@ -761,16 +759,12 @@ public class TextStructure implements ToXContentObject, Writeable {
                     }
                     if (ecsCompatibility != null
                         && ecsCompatibility.isEmpty() == false
-                        && ECS_COMPATIBILITY_V1.equalsIgnoreCase(ecsCompatibility) == false
-                        && ECS_COMPATIBILITY_DISABLED.equalsIgnoreCase(ecsCompatibility) == false) {
+                        && Grok.isValidEcsCompatibilityMode(ecsCompatibility)) {
                         throw new IllegalArgumentException(
                             "ECS compatibility mode must be either "
-                                + ECS_COMPATIBILITY_V1
+                                + Grok.ECS_COMPATIBILITY_MODES[0]
                                 + " or "
-                                + ECS_COMPATIBILITY_DISABLED
-                                + " for ["
-                                + format
-                                + "] structures."
+                                + Grok.ECS_COMPATIBILITY_MODES[1]
                         );
                     }
                     break;

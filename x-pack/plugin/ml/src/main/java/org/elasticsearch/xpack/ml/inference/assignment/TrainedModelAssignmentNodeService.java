@@ -459,7 +459,8 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
         TrainedModelDeploymentTask task = (TrainedModelDeploymentTask) taskManager.register(
             TRAINED_MODEL_ASSIGNMENT_TASK_TYPE,
             TRAINED_MODEL_ASSIGNMENT_TASK_ACTION,
-            taskAwareRequest(taskParams)
+            taskAwareRequest(taskParams),
+            false
         );
         // threadsafe check to verify we are not loading/loaded the model
         if (modelIdToTask.putIfAbsent(taskParams.getModelId(), task) == null) {

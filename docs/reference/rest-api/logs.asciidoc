@@ -21,6 +21,8 @@ Provides a simple JSON API to ingest log events into {es}.
 === {api-prereq-title}
 * If the {es} {security-features} are enabled, you must have the `create`
 <<privileges-list-indices,index privileges>> for the target data stream.
+* As the target stream depends on routing rules and the data provided in the log events,
+it's recommended to grant permissions for `logs-*-*`.
 * Automatic data stream creation requires a matching index template with data
 stream enabled. See <<set-up-a-data-stream>>.
 

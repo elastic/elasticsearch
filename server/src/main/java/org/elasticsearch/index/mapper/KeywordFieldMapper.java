@@ -1313,9 +1313,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 @Override
                 public boolean advanceToDoc(FieldsVisitor fieldsVisitor, int docId) {
                     values = fieldsVisitor.fields().get(name);
-                    if (name.equals("ecs.version")) {
-                        org.elasticsearch.logging.LogManager.getLogger(FieldsVisitor.class).error("ADFADFDF from map {} {}", name, values);
-                    }
+                    org.elasticsearch.logging.LogManager.getLogger(FieldsVisitor.class).error("ADFADFDF from map {} {}", name, values, new Exception());
                     return values != null && false == values.isEmpty();
                 }
 
@@ -1324,6 +1322,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                     if (values == null || values.isEmpty()) {
                         return;
                     }
+                    org.elasticsearch.logging.LogManager.getLogger(FieldsVisitor.class).error("ADFADFDF load {} {}", name, values);
                     if (values.size() == 1) {
                         b.field(simpleName, values.get(0).toString());
                         return;

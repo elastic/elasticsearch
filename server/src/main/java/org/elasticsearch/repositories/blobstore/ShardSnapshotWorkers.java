@@ -153,7 +153,8 @@ public class ShardSnapshotWorkers {
         }
     }
 
-    public int size() {
+    // for testing
+    int size() {
         return workerCount;
     }
 

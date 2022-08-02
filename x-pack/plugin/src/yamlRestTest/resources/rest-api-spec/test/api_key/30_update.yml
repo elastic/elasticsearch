@@ -240,7 +240,7 @@ teardown:
     }
   }
 
-  # Check privileges auto-updated to owner user's
+  # Check privileges auto-updated based on owner user's
   - do:
       headers:
         Authorization: ApiKey ${login_creds}
@@ -329,7 +329,7 @@ teardown:
     "api_keys.0.metadata": { }
   }
 
-  # Check privileges auto-updated to owner user's
+  # Check privileges auto-updated based on owner user's
   - do:
       headers:
         Authorization: ApiKey ${login_creds}
@@ -557,6 +557,163 @@ teardown:
     }
   }
 ---
+"Test bulk update api key without request fields":
+
+  - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV91c2VyXzE6eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" # api_key_user_1
+      security.create_api_key:
+        body: >
+          {
+            "name": "api-key-1",
+            "role_descriptors": {
+              "role-a": {
+                "cluster": ["all"],
+                "index": [
+                  {
+                    "names": ["index-a"],
+                    "privileges": ["read"]
+                  }
+                ]
+              }
+            },
+            "metadata": {
+              "letter": "a",
+              "number": 42
+            }
+          }
+  - match: { name: "api-key-1" }
+  - is_true: id
+  - is_true: api_key
+  - set: { id: key_id_1 }
+  - transform_and_set: { login_creds_1: "#base64EncodeCredentials(id,api_key)" }
+  - match: { encoded: $login_creds_1 }
+
+  - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV91c2VyXzE6eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" # api_key_user_1
+      security.create_api_key:
+        body: >
+          {
+            "name": "api-key-2",
+            "role_descriptors": {
+              "role-a": {
+                "cluster": ["all"],
+                "index": [
+                  {
+                    "names": ["index-a"],
+                    "privileges": ["read"]
+                  }
+                ]
+              }
+            },
+            "metadata": {
+              "letter": "b",
+              "number": 43
+            }
+          }
+  - match: { name: "api-key-2" }
+  - is_true: id
+  - is_true: api_key
+  - set: { id: key_id_2 }
+  - transform_and_set: { login_creds_2: "#base64EncodeCredentials(id,api_key)" }
+  - match: { encoded: $login_creds_2 }
+
+  # Give user new cluster privilege to test auto update
+  - do:
+      security.put_role:
+        name: "user_role"
+        body: >
+          {
+            "cluster": ["all"],
+            "indices": [
+              {
+                "names": "index-a",
+                "privileges": ["all"]
+              }
+            ]
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV91c2VyXzE6eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" # api_key_user_1
+      security.bulk_update_api_keys:
+        body: >
+          {
+            "ids": ["${key_id_1}", "${key_id_2}"]
+          }
+  - length: { "noops": 0 }
+  - length: { "updated": 2 }
+  - match: {
+    "updated.0": "$key_id_1"
+  }
+  - match: {
+    "updated.1": "$key_id_2"
+  }
+
+  - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV91c2VyXzE6eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" # api_key_user_1
+      security.get_api_key:
+        id: "$key_id_1"
+        owner: true
+  - length: { "api_keys": 1 }
+  - match: {
+    "api_keys.0.metadata": {
+      "letter": "a",
+      "number": 42
+    }
+  }
+
+  - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV91c2VyXzE6eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" # api_key_user_1
+      security.get_api_key:
+        id: "$key_id_2"
+        owner: true
+  - length: { "api_keys": 1 }
+  - match: {
+    "api_keys.0.metadata": {
+      "letter": "b",
+      "number": 43
+    }
+  }
+
+  # Check privileges auto-updated based on owner user's
+  - do:
+      headers:
+        Authorization: ApiKey ${login_creds_1}
+      security.has_privileges:
+        user: null
+        body: >
+          {
+            "cluster": ["all"],
+            "index": [
+              {
+                "names": ["index-a"],
+                "privileges": ["read"]
+              }
+            ]
+          }
+  - match: { "has_all_requested": true }
+
+  - do:
+      headers:
+        Authorization: ApiKey ${login_creds_2}
+      security.has_privileges:
+        user: null
+        body: >
+          {
+            "cluster": ["all"],
+            "index": [
+              {
+                "names": ["index-a"],
+                "privileges": ["read"]
+              }
+            ]
+          }
+  - match: { "has_all_requested": true }
+---
 "Test bulk update api key with empty request fields":
 
   - do:
@@ -660,7 +817,7 @@ teardown:
     "api_keys.1.metadata": { }
   }
 
-  # Check privileges auto-updated to owner user's
+  # Check privileges auto-updated based on owner user's
   - do:
       headers:
         Authorization: ApiKey ${login_creds_1}

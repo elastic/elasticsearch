@@ -196,7 +196,10 @@ public class PyTorchResultProcessor {
         ErrorResult errorResult = result.errorResult();
         assert errorResult != null;
 
-        errorCount++;
+        // Only one result is processed at any time, but we need to stop this happening part way through another thread getting stats
+        synchronized (this) {
+            errorCount++;
+        }
 
         logger.trace(() -> format("[%s] Parsed error with id [%s]", deploymentId, result.requestId()));
         PendingResult pendingResult = pendingResults.remove(result.requestId());

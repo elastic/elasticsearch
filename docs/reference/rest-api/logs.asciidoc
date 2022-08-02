@@ -46,12 +46,12 @@ All other fields are not indexed by default.
 But you can still add any top-level fields and use them in searches and aggregations as the default index template for logs
 <<dynamic-mapping-runtime-fields, maps dynamic fields as runtime fields>>.
 
-If there are custom fields that you frequently use in searches or aggregations,
-you can <<create-index-template, create an index template>> for your dataset `logs-<dataset>-*` based on the built-in index template for `logs-*-*` and add your custom field to the mappings.
+If there are custom fields that you frequently use in searches or aggregations, you might want to leverage the speed benefits of indexing the field.
+This comes at the expense of a larger index size more processing at ingest time.
+To index a custom field, <<create-index-template, create an index template>> for your dataset `logs-<dataset>-*` based on the built-in index template for `logs-*-*` and add your custom field to the mappings.
 If wanted, you can <<manually-roll-over-a-data-stream, roll over the data stream>> to immediately apply the setting to the data stream’s write index.
 This affects any new data added to the stream after the rollover.
 However, it does not affect the data stream’s existing backing indices or existing data.
-This comes at the expense of a larger index size more processing at ingest time.
 
 All fields, aside from the `@timestamp` field, are configured to <<ignore-malformed, ignore malformed>> values.
 This means that if a log event contains a field whose type is incompatible with the type of the field that exists in the mapping,

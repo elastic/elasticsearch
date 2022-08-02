@@ -147,6 +147,18 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         DIAGNOSE_SHARDS_ACTION_GUIDE
     );
 
+    public static final String FIX_DELAYED_SHARDS_GUIDE = "http://ela.st/fix-delayed-shard-allocation";
+    public static final Diagnosis.Definition DIAGNOSIS_WAIT_FOR_OR_FIX_DELAYED_SHARDS = new Diagnosis.Definition(
+        "delayed_shard_allocations",
+        "Elasticsearch is not allocating some shards because they are marked for delayed allocation. Shards that are on nodes that leave "
+            + "the cluster are usually marked for delayed allocation because it is more efficient to see if the node returns to the "
+            + "cluster than to recover the shard immediately.",
+        "Restore the nodes that have left the cluster so that the shards can be restored. If this is not possible, Elasticsearch will "
+            + "allocate the shards when the delay has elapsed. If the shards must be made available immediately, configure the "
+            + "[index.unassigned.node_left.delayed_timeout] setting on the affected indices to 0 to force the allocation immediately.",
+        FIX_DELAYED_SHARDS_GUIDE
+    );
+
     public static final String ENABLE_INDEX_ALLOCATION_GUIDE = "http://ela.st/fix-index-allocation";
     public static final Diagnosis.Definition ACTION_ENABLE_INDEX_ROUTING_ALLOCATION = new Diagnosis.Definition(
         "enable_index_allocations",
@@ -413,9 +425,24 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                     actions.add(ACTION_RESTORE_FROM_SNAPSHOT);
                 }
                 break;
+            case NO_ATTEMPT:
+                if (shardRouting.unassignedInfo().isDelayed()) {
+                    actions.add(DIAGNOSIS_WAIT_FOR_OR_FIX_DELAYED_SHARDS);
+                } else {
+                    actions.addAll(explainAllocationsAndDiagnoseDeciders(shardRouting, state));
+                }
+                break;
             case DECIDERS_NO:
                 actions.addAll(explainAllocationsAndDiagnoseDeciders(shardRouting, state));
                 break;
+            case DELAYED_ALLOCATION:
+                // This is a rare case it seems - more frequently used when a node is restarting. We check for node restarts in an earlier
+                // part of the diagnosis code, but this is left here for sanity purposes should the status ever be expanded upon in the
+                // future.
+                actions.add(DIAGNOSIS_WAIT_FOR_OR_FIX_DELAYED_SHARDS);
+                break;
+            case DECIDERS_THROTTLED:
+            case FETCHING_SHARD_DATA:
             default:
                 break;
         }

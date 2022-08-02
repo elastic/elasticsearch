@@ -80,12 +80,12 @@ teardown:
       security.get_user_profile:
         uid: "u_eGdcwXYIE3LEOrqz6p-3DHQ4HrAtxuk_ttRNFh2m7rM_0,u_eZ75KhGvkY4_t0HfQpNPO1aO0tk6wd908bjUGieTKm8_0,does_not_exist"
 
-  - length: { profiles: 2 }
-  - set: { profiles.0: profile }
+  - length: { profiles : 2 }
+  - set: { profiles.0 : profile }
   - match: { $profile.uid : "$profile_uid_1" }
   - match: { $profile.user.username : "joe" }
   - match: { $profile.data : {} }
-  - set: { profiles.1: profile }
+  - set: { profiles.1 : profile }
   - match: { $profile.uid : "$profile_uid_2" }
   - match: { $profile.user.username : "doe" }
   - match: { $profile.data : {} }

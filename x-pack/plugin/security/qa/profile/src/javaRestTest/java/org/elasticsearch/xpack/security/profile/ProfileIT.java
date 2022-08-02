@@ -32,6 +32,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.nullValue;
 
 public class ProfileIT extends ESRestTestCase {
 
@@ -359,7 +360,7 @@ public class ProfileIT extends ESRestTestCase {
 
     private Map<String, Object> doGetProfile(String uid, @Nullable String dataKey) throws IOException {
         final Map<String, Object> responseMap = doGetProfiles(List.of(uid), dataKey);
-        assertThat(castToMap(responseMap.get("errors")), anEmptyMap());
+        assertThat(responseMap.get("errors"), nullValue());
 
         @SuppressWarnings("unchecked")
         final List<Map<String, Object>> profiles = (List<Map<String, Object>>) responseMap.get("profiles");

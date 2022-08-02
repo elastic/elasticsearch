@@ -17,6 +17,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.grok.Grok;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -32,6 +33,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public class FindStructureAction extends ActionType<FindStructureAction.Response> {
     public static final String ECS_COMPATIBILITY_DISABLED = "disabled";
+    public static final String ECS_COMPATIBILITY_V1 = "v1";
 
     public static final FindStructureAction INSTANCE = new FindStructureAction();
     public static final String NAME = "cluster:monitor/text_structure/findstructure";
@@ -112,10 +114,6 @@ public class FindStructureAction extends ActionType<FindStructureAction.Response
         public static final ParseField ECS_COMPATIBILITY = TextStructure.ECS_COMPATIBILITY;
 
         private static final String ARG_INCOMPATIBLE_WITH_FORMAT_TEMPLATE = "[%s] may only be specified if ["
-            + FORMAT.getPreferredName()
-            + "] is [%s]";
-
-        private static final String ARG_INCOMPATIBLE_WITH_FORMAT_AND_VALUE_TEMPLATE = "[%s=%s] may only be specified if ["
             + FORMAT.getPreferredName()
             + "] is [%s]";
 
@@ -321,18 +319,6 @@ public class FindStructureAction extends ActionType<FindStructureAction.Response
             );
         }
 
-        private static ActionRequestValidationException addIncompatibleArgErrorWithValue(
-            ParseField arg,
-            TextStructure.Format format,
-            ActionRequestValidationException validationException,
-            String value
-        ) {
-            return addValidationError(
-                String.format(Locale.ROOT, ARG_INCOMPATIBLE_WITH_FORMAT_AND_VALUE_TEMPLATE, arg.getPreferredName(), value, format),
-                validationException
-            );
-        }
-
         @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
@@ -373,14 +359,21 @@ public class FindStructureAction extends ActionType<FindStructureAction.Response
                         validationException
                     );
                 }
-                if (ECS_COMPATIBILITY_DISABLED.equalsIgnoreCase(ecsCompatibility) == false) {
-                    validationException = addIncompatibleArgErrorWithValue(
-                        ECS_COMPATIBILITY,
-                        TextStructure.Format.SEMI_STRUCTURED_TEXT,
-                        validationException,
-                        ecsCompatibility
-                    );
-                }
+            }
+
+            if (ecsCompatibility != null
+                && ecsCompatibility.isEmpty() == false
+                && Grok.isValidEcsCompatibilityMode(ecsCompatibility) == false) {
+                validationException = addValidationError(
+                    "["
+                        + ECS_COMPATIBILITY.getPreferredName()
+                        + "] must either ["
+                        + ECS_COMPATIBILITY_V1
+                        + "] or ["
+                        + ECS_COMPATIBILITY_DISABLED
+                        + "] if specified",
+                    validationException
+                );
             }
 
             if (sample == null || sample.length() == 0) {

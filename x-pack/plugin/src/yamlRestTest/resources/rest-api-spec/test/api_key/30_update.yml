@@ -640,7 +640,7 @@ teardown:
       security.bulk_update_api_keys:
         body: >
           {
-            "ids": ["${key_id_1}", "${key_id_2}"]
+            "ids": ["$key_id_1", "$key_id_2"]
           }
   - length: { "noops": 0 }
   - length: { "updated": 2 }
@@ -649,34 +649,6 @@ teardown:
   }
   - match: {
     "updated.1": "$key_id_2"
-  }
-
-  - do:
-      headers:
-        Authorization: "Basic YXBpX2tleV91c2VyXzE6eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" # api_key_user_1
-      security.get_api_key:
-        id: "$key_id_1"
-        owner: true
-  - length: { "api_keys": 1 }
-  - match: {
-    "api_keys.0.metadata": {
-      "letter": "a",
-      "number": 42
-    }
-  }
-
-  - do:
-      headers:
-        Authorization: "Basic YXBpX2tleV91c2VyXzE6eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" # api_key_user_1
-      security.get_api_key:
-        id: "$key_id_2"
-        owner: true
-  - length: { "api_keys": 1 }
-  - match: {
-    "api_keys.0.metadata": {
-      "letter": "b",
-      "number": 43
-    }
   }
 
   # Check privileges auto-updated based on owner user's
@@ -713,6 +685,33 @@ teardown:
             ]
           }
   - match: { "has_all_requested": true }
+
+  # Check that metadata was updated
+  - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV91c2VyXzE6eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" # api_key_user_1
+      security.get_api_key:
+        id: "$key_id_1"
+  - length: { "api_keys": 1 }
+  - match: {
+    "api_keys.0.metadata": {
+      "letter": "a",
+      "number": 42
+    }
+  }
+
+  - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV91c2VyXzE6eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" # api_key_user_1
+      security.get_api_key:
+        id: "$key_id_2"
+  - length: { "api_keys": 1 }
+  - match: {
+    "api_keys.0.metadata": {
+      "letter": "b",
+      "number": 43
+    }
+  }
 ---
 "Test bulk update api key with empty request fields":
 
@@ -791,7 +790,7 @@ teardown:
       security.bulk_update_api_keys:
         body: >
           {
-            "ids": ["${key_id_1}", "${key_id_2}"],
+            "ids": ["$key_id_1", "$key_id_2"],
             "role_descriptors": {},
             "metadata": {}
           }

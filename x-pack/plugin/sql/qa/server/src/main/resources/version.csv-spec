@@ -363,6 +363,7 @@ SELECT * FROM apps WHERE '1.2.0'::version < '1.11.0'::version ORDER BY id LIMIT 
 
 ;
 
+// left to right: string is converted to version
 filterByVersionConstant2
 SELECT * FROM apps WHERE '1.2.0'::version < '1.11.0' ORDER BY id LIMIT 1;
 
@@ -372,13 +373,12 @@ SELECT * FROM apps WHERE '1.2.0'::version < '1.11.0' ORDER BY id LIMIT 1;
 
 ;
 
-
+// left to right: version is converted to string
 filterByVersionConstant3
 SELECT * FROM apps WHERE '1.2.0' < '1.11.0'::version ORDER BY id LIMIT 1;
 
  id:i |  name:s   |  version:s
 ------+-----------+---------
-1     |aaaaa      |1
 
 ;
 

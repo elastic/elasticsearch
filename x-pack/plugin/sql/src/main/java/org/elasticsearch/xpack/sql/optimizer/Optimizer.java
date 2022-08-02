@@ -1300,7 +1300,11 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             DataType inType = in.value().dataType();
             boolean converted = false;
             for (Expression exp : in.list()) {
-                if (inType == exp.dataType() || exp.foldable() == false || DataTypes.areCompatible(inType, exp.dataType())) {
+                if (inType == exp.dataType()
+                    || exp.foldable() == false
+                    || DataTypes.areCompatible(inType, exp.dataType())
+                    || inType == DataTypes.VERSION) {
+                    // version cannot be autoconverted, as Server doesn't know how to (de)serialize it.
                     newRight.add(exp);
                 } else {
                     converted = true;
@@ -1384,6 +1388,10 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         }
 
         private Expression convertBinaryComparison(BinaryComparison predicate) {
+            if (predicate.left().dataType() == DataTypes.VERSION) {
+                // version cannot be automatically converted, Server doesn't know how to (de)serialize it
+                return predicate;
+            }
             Object rightValue = predicate.right().fold();
             if (rightValue == null && predicate instanceof NullEquals) {
                 return new IsNull(predicate.source(), predicate.left());
@@ -1437,6 +1445,10 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         }
 
         private Range convertRange(Range range) {
+            if (range.value().dataType() == DataTypes.VERSION) {
+                // version cannot be automatically converted, Server doesn't know how to (de)serialize it
+                return range;
+            }
             if (DataTypes.areCompatible(range.value().dataType(), range.lower().dataType()) == false && range.lower().foldable()) {
                 try {
                     Object lowerValue = range.lower().fold();

@@ -19,6 +19,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.logging.LogManager;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -97,6 +98,9 @@ public class FieldsVisitor extends FieldNamesProvidingStoredFieldsVisitor {
     }
 
     public void binaryField(FieldInfo fieldInfo, BytesRef value) {
+        if (fieldInfo.name.equals("ecs.version")) {
+            LogManager.getLogger(FieldsVisitor.class).error("ADFADFDF Binary {} {}", fieldInfo.name, value);
+        }
         if (sourceFieldName.equals(fieldInfo.name)) {
             source = new BytesArray(value);
         } else if (IdFieldMapper.NAME.equals(fieldInfo.name)) {
@@ -108,6 +112,9 @@ public class FieldsVisitor extends FieldNamesProvidingStoredFieldsVisitor {
 
     @Override
     public void stringField(FieldInfo fieldInfo, String value) {
+        if (fieldInfo.name.equals("ecs.version")) {
+            LogManager.getLogger(FieldsVisitor.class).error("ADFADFDF String {} {}", fieldInfo.name, value);
+        }
         assert sourceFieldName.equals(fieldInfo.name) == false : "source field must go through binaryField";
         if ("_uid".equals(fieldInfo.name)) {
             // 5.x-only
@@ -185,6 +192,9 @@ public class FieldsVisitor extends FieldNamesProvidingStoredFieldsVisitor {
     }
 
     void addValue(String name, Object value) {
+        if (name.equals("ecs.version")) {
+            LogManager.getLogger(FieldsVisitor.class).error("ADFADFDF {} {}", name, value);
+        }
         if (fieldsValues == null) {
             fieldsValues = new HashMap<>();
         }

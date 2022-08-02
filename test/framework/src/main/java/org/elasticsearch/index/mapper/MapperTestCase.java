@@ -855,6 +855,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                         if (visitor != null) {
                             visitor.reset();
                             leaf.reader().document(docId, visitor);
+                            visitor.postProcess(mapper.mappers().fieldTypesLookup()::get);
                         }
                         assertThat("doc " + docId, sourceLoaderLeaf.source(visitor, docId).utf8ToString(), equalTo(expected[i++]));
                     }

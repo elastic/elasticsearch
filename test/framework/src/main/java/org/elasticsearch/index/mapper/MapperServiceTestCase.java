@@ -698,17 +698,19 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         SourceLoader loader = mapper.sourceMapper().newSourceLoader(mapper.mapping());
         LeafReader leafReader = getOnlyLeafReader(reader);
         SourceLoader.Leaf leafLoader = loader.leaf(leafReader, new int[] { docId });
-        BytesReference syntheticSourceBytes = leafLoader.source(syntheticSourceStoredFieldsVisitor(leafReader, loader), docId);
+        BytesReference syntheticSourceBytes = leafLoader.source(syntheticSourceStoredFieldsVisitor(mapper, leafReader, loader), docId);
         return syntheticSourceBytes.utf8ToString();
     }
 
-    protected static FieldsVisitor syntheticSourceStoredFieldsVisitor(LeafReader leafReader, SourceLoader loader) throws IOException {
+    protected static FieldsVisitor syntheticSourceStoredFieldsVisitor(DocumentMapper mapper, LeafReader leafReader, SourceLoader loader)
+        throws IOException {
         Set<String> fields = loader.requiredStoredFields().collect(toSet());
         if (fields.isEmpty()) {
             return null;
         }
         FieldsVisitor fieldsVisitor = new CustomFieldsVisitor(fields, false);
         leafReader.document(0, fieldsVisitor);
+        fieldsVisitor.postProcess(mapper.mappers().fieldTypesLookup()::get);
         return fieldsVisitor;
     }
 

@@ -8,6 +8,8 @@
 
 package org.elasticsearch.index.mapper;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.StopFilter;
 import org.apache.lucene.analysis.TokenStream;
@@ -81,6 +83,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.core.Is.is;
 
+@Repeat(iterations=100)
 public class TextFieldMapperTests extends MapperTestCase {
 
     @Override
@@ -1095,15 +1098,15 @@ public class TextFieldMapperTests extends MapperTestCase {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
-        boolean store = randomBoolean();
-        String nullValue = store || usually() ? null : randomAlphaOfLength(2);
+        boolean storeTextField = randomBoolean();
+        boolean storedKeywordField = storeTextField || randomBoolean();
+        String nullValue = storeTextField || usually() ? null : randomAlphaOfLength(2);
         return new SyntheticSourceSupport() {
             @Override
             public SyntheticSourceExample example(int maxValues) {
-                SyntheticSourceExample delegate = new KeywordFieldMapperTests.KeywordSyntheticSourceSupport(store, nullValue).example(
-                    maxValues
-                );
-                if (store) {
+                SyntheticSourceExample delegate = new KeywordFieldMapperTests.KeywordSyntheticSourceSupport(storedKeywordField, nullValue)
+                    .example(maxValues);
+                if (storeTextField) {
                     return new SyntheticSourceExample(
                         delegate.inputValue(),
                         delegate.result(),
@@ -1126,7 +1129,7 @@ public class TextFieldMapperTests extends MapperTestCase {
             public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
                 Matcher<String> err = equalTo(
                     "field [field] of type [text] doesn't support synthetic source unless it is stored or"
-                        + " has a sub-field of type [keyword] with doc values enabled and without ignore_above or a normalizer"
+                        + " has a sub-field of type [keyword] with doc values or stored and without ignore_above or a normalizer"
                 );
                 return List.of(
                     new SyntheticSourceInvalidExample(err, TextFieldMapperTests.this::minimalMapping),

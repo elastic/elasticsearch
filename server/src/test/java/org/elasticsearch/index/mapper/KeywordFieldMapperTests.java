@@ -665,6 +665,9 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             }
             if (store) {
                 b.field("store", true);
+                if (randomBoolean()) {
+                    b.field("doc_values", false);
+                }
             }
         }
 

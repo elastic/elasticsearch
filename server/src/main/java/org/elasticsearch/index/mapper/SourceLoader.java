@@ -16,6 +16,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.Map;
 import java.util.stream.Stream;
 
 /**
@@ -166,6 +167,8 @@ public interface SourceLoader {
          */
         Stream<String> requiredStoredFields();
 
+        default Stream<Map.Entry<String, StoredFieldLeaf>> storedFieldsLeaves() { return null; }
+
         /**
          * Loads values for a field in a particular leaf.
          */
@@ -175,6 +178,18 @@ public interface SourceLoader {
              */
             boolean empty();
 
+            /**
+             * Position the loader at a document.
+             */
+            boolean advanceToDoc(FieldsVisitor fieldsVisitor, int docId) throws IOException;
+
+            /**
+             * Write values for this document.
+             */
+            void write(XContentBuilder b) throws IOException;
+        }
+
+        interface StoredFieldLeaf {
             /**
              * Position the loader at a document.
              */

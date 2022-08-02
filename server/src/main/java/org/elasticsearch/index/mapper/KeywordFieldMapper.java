@@ -1085,13 +1085,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             );
         }
         if (fieldType.stored()) {
-            return new KeywordFieldMapper.StoredFieldFieldLoader(name(), simpleName()) {
-                @Override
-                protected void writeValue(XContentBuilder b, Object v) throws IOException {
-                    BytesRef ref = (BytesRef) v;
-                    b.utf8Value(ref.bytes, ref.offset, ref.length);
-                }
-            };
+            return new KeywordFieldMapper.StoredFieldFieldLoader(name(), simpleName);
         }
         if (hasDocValues == false) {
             throw new IllegalArgumentException(
@@ -1292,7 +1286,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         protected abstract BytesRef preserve(BytesRef value);
     }
 
-    public abstract static class StoredFieldFieldLoader implements SourceLoader.SyntheticFieldLoader {
+    public static class StoredFieldFieldLoader implements SourceLoader.SyntheticFieldLoader {
         private final String name;
         private final String simpleName;
 
@@ -1300,8 +1294,6 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.name = name;
             this.simpleName = simpleName;
         }
-
-        protected abstract void writeValue(XContentBuilder b, Object v) throws IOException;
 
         @Override
         public final Stream<String> requiredStoredFields() {
@@ -1319,8 +1311,11 @@ public final class KeywordFieldMapper extends FieldMapper {
                 }
 
                 @Override
-                public boolean advanceToDoc(FieldsVisitor fieldsVisitor, int docId) throws IOException {
+                public boolean advanceToDoc(FieldsVisitor fieldsVisitor, int docId) {
                     values = fieldsVisitor.fields().get(name);
+                    if (name.equals("ecs.version")) {
+                        org.elasticsearch.logging.LogManager.getLogger(FieldsVisitor.class).error("ADFADFDF from map {} {}", name, values);
+                    }
                     return values != null && false == values.isEmpty();
                 }
 
@@ -1330,13 +1325,12 @@ public final class KeywordFieldMapper extends FieldMapper {
                         return;
                     }
                     if (values.size() == 1) {
-                        b.field(simpleName);
-                        writeValue(b, values.get(0));
+                        b.field(simpleName, values.get(0).toString());
                         return;
                     }
                     b.startArray(simpleName);
                     for (Object value : values) {
-                        writeValue(b, value);
+                        b.value(value.toString());
                     }
                     b.endArray();
                 }

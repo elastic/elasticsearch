@@ -1076,8 +1076,8 @@ as cross-encoding. This kind of task is useful for ranking document text when co
 end::inference-config-text-similarity[]
 
 tag::inference-config-text-similarity-span-score-func[]
-This identifies how to combine the resulting similarity score when a provided text passage is longer than `max_sequence_length` and must be
-automatically separated for multiple calls. This only is applicable when `truncate` is `none` and `span` is some non-negative
+Identifies how to combine the resulting similarity score when a provided text passage is longer than `max_sequence_length` and must be
+automatically separated for multiple calls. This only is applicable when `truncate` is `none` and `span` is a non-negative
 number. The default value is `max`. Available options are:
 +
 --

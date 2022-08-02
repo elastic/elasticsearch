@@ -118,6 +118,7 @@ public class CoordinationDiagnosticsServiceIT extends ESIntegTestCase {
          * resulting in the values we pass in being overwritten.
          */
         final List<String> nodeNames = internalCluster().startNodes(3);
+        ensureStableCluster(3);
 
         final String master = internalCluster().getMasterName();
         assertThat(nodeNames, hasItem(master));

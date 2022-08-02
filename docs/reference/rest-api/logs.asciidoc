@@ -153,7 +153,7 @@ Provides global metadata via query parameters.
 [source,console]
 ------------------------------------------------------------
 POST _logs/myapp?service.name=myapp
-{"@timestamp":"2016-05-23T08:05:34.853Z", "message":"Hello World", "custom_field": "value"}
+{"@timestamp": "2016-05-23T08:05:34.853Z", "message": "Hello World", "custom_field": "value"}
 ------------------------------------------------------------
 
 After a short while the logs will become searchable.
@@ -226,8 +226,8 @@ Provides global metadata via a metadata event.
 [source,console]
 ------------------------------------------------------------
 POST _logs/myapp
-{"_metadata": {"service.name":"myapp"}}
-{"@timestamp":"2016-05-23T08:05:34.853Z", "message":"Hello World"}
+{"_metadata": {"service.name": "myapp"}}
+{"@timestamp": "2016-05-23T08:05:34.853Z", "message": "Hello World"}
 ------------------------------------------------------------
 
 '''
@@ -239,8 +239,8 @@ Provides metadata via local metadata events.
 ------------------------------------------------------------
 POST _logs
 {"_metadata": {}}
-{"_metadata": {"data_stream.dataset":"myapp"}}
-{"@timestamp":"2016-05-23T08:05:34.853Z", "message":"Hello app"}
-{"_metadata": {"data_stream.dataset":"my_other_app"}}
-{"@timestamp":"2016-05-23T08:05:34.853Z", "message":"Hello other app"}
+{"_metadata": {"data_stream.dataset": "myapp"}}
+{"@timestamp": "2016-05-23T08:05:34.853Z", "message": "Hello app"}
+{"_metadata": {"data_stream.dataset": "my_other_app"}}
+{"@timestamp": "2016-05-23T08:05:34.853Z", "message": "Hello other app"}
 ------------------------------------------------------------

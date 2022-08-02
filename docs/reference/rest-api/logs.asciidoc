@@ -197,8 +197,8 @@ The API returns the following response:
           },
           "data_stream": {
             "type": "logs",
-            "dataset": "myapp"
-            "namespace": "default",
+            "dataset": "myapp",
+            "namespace": "default"
           }
         }
       }

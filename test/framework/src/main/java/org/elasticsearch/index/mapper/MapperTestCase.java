@@ -253,6 +253,13 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         return true;
     }
 
+    /**
+     * Override to disable testing {@code copy_to} in fields that don't support it.
+     */
+    protected boolean supportsCopyTo() {
+        return true;
+    }
+
     protected void metaMapping(XContentBuilder b) throws IOException {
         minimalMapping(b);
     }
@@ -893,15 +900,17 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     public final void testSyntheticSourceInvalid() throws IOException {
         List<SyntheticSourceInvalidExample> examples = new ArrayList<>(syntheticSourceSupport().invalidExample());
-        examples.add(
-            new SyntheticSourceInvalidExample(
-                matchesPattern("field \\[field] of type \\[.+] doesn't support synthetic source because it declares copy_to"),
-                b -> {
-                    syntheticSourceSupport().example(5).mapping().accept(b);
-                    b.field("copy_to", "bar");
-                }
-            )
-        );
+        if (supportsCopyTo()) {
+            examples.add(
+                new SyntheticSourceInvalidExample(
+                    matchesPattern("field \\[field] of type \\[.+] doesn't support synthetic source because it declares copy_to"),
+                    b -> {
+                        syntheticSourceSupport().example(5).mapping().accept(b);
+                        b.field("copy_to", "bar");
+                    }
+                )
+            );
+        }
         for (SyntheticSourceInvalidExample example : examples) {
             Exception e = expectThrows(
                 IllegalArgumentException.class,

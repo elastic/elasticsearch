@@ -52,7 +52,7 @@ public class ZeroShotClassificationProcessor extends NlpTask.Processor {
                 "zero_shot_classification requires [entailment] and [contradiction] in classification_labels"
             );
         }
-        this.labels = Optional.ofNullable(config.getLabels()).orElse(List.of()).toArray(String[]::new);
+        this.labels = config.getLabels().orElse(List.of()).toArray(String[]::new);
         this.hypothesisTemplate = config.getHypothesisTemplate();
         this.isMultiLabel = config.isMultiLabel();
         this.resultsField = config.getResultsField();

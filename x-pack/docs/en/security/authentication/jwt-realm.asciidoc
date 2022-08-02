@@ -4,16 +4,16 @@
 
 beta::[]
 
-{es} can be configured to trust JSON Web Tokens (JWTs) that are issued as an
-authentication credential from an external service.
+{es} can be configured to trust JSON Web Tokens (JWTs) issued from an external service
+as bearer tokens for authentication.
 
 When a JWT realm is used to authenticate with {es}, a distinction is made
 between the _client_ that is connecting to {es}, and the _user_ on whose behalf
-the request should run. The JWT identifies the user, and a separate credential
-is used to authenticate the client.
+the request should run. The JWT authenticates the user, and a separate credential
+authenticates the client.
 
 A common scenario for JWTs is when an existing front-end application uses
-OpenID Connect (OIDC) as an authentication method, and then accesses {es}
+OpenID Connect (OIDC) to authenticate and identify a user, and then accesses {es}
 on behalf of the authenticated user.
 
 TIP: If the front-end application does not exist, you can use the
@@ -24,7 +24,7 @@ TIP: If the front-end application does not exist, you can use the
 JWT authentication in {es} is derived from OIDC user workflows, where different
 tokens can be issued by an OIDC Provider (OP). One possible token is an
 _ID token_, which uses the JWT format. If the ID token is presented to a JWT
-realm, {es} can use it to authenticate, identify, and authorize an individual
+realm, {es} can use it as a bearer token to authenticate, identify, and authorize an individual
 user.
 
 NOTE: Because JWTs are obtained external to {es}, you can define a custom workflow
@@ -33,11 +33,11 @@ Web Signature (JWS). The JWS header and JWS signature are validated using OIDC
 ID token validation rules.
 
 {es} supports a separate <<oidc-realm,OpenID Connect realm>>, which provides
-stronger security guarantees than the JWT realm and is preferred for any
+stronger security guarantees than the JWT realm, and is preferred for any
 use case where {es} can act as an OIDC RP. The OIDC realm is the only supported
 way to enable OIDC authentication in {kib}.
 
-TIP: If JWTs are issued for the front-end application, the realm client is the JWT user.
+TIP: If JWTs are issued for the front-end application, the application is the realm client and JWT user.
 That is not supported by OIDC flows, but it may be supported by bespoke JWT issuers.
 In that case, use the client secret and JWT for the client application, and the
 `es-security-runas-user` HTTP request header for the different user. See <<jwt-realm-runas>>.

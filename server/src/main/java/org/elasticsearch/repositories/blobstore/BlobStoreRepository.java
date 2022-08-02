@@ -377,7 +377,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      */
     private final int maxSnapshotCount;
 
-    private ShardSnapshotWorkers shardSnapshotWorkerPool;
+    private final ShardSnapshotWorkers shardSnapshotWorkerPool;
 
     /**
      * Constructs new BlobStoreRepository
@@ -408,6 +408,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         this.basePath = basePath;
         this.maxSnapshotCount = MAX_SNAPSHOTS_SETTING.get(metadata.settings());
         this.repoDataDeduplicator = new ResultDeduplicator<>(threadPool.getThreadContext());
+        shardSnapshotWorkerPool = new ShardSnapshotWorkers(
+            threadPool.info(ThreadPool.Names.SNAPSHOT).getMax(),
+            threadPool.executor(ThreadPool.Names.SNAPSHOT),
+            this::doSnapshotShard,
+            this::snapshotFile
+        );
     }
 
     @Override
@@ -418,12 +424,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         if (chunkSize != null && chunkSize.getBytes() <= 0) {
             throw new IllegalArgumentException("the chunk size cannot be negative: [" + chunkSize + "]");
         }
-        shardSnapshotWorkerPool = new ShardSnapshotWorkers(
-            threadPool.info(ThreadPool.Names.SNAPSHOT).getMax(),
-            threadPool.executor(ThreadPool.Names.SNAPSHOT),
-            this::doSnapshotShard,
-            this::snapshotFile
-        );
     }
 
     @Override

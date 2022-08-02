@@ -1282,7 +1282,7 @@ public class IndexNameExpressionResolver {
             if (Regex.isMatchAllPattern(expression)) {
                 return filterIndicesLookup(indicesLookup, null, context.getOptions().ignoreAliases(), context.includeDataStreams());
             } else if (expression.indexOf("*") == expression.length() - 1) {
-                return suffixWildcard(context, indicesLookup, expression);
+                return suffixWildcard(indicesLookup, expression, context.getOptions().ignoreAliases(), context.includeDataStreams());
             } else {
                 return filterIndicesLookup(
                     indicesLookup,
@@ -1294,9 +1294,10 @@ public class IndexNameExpressionResolver {
         }
 
         private static Map<String, IndexAbstraction> suffixWildcard(
-            Context context,
             SortedMap<String, IndexAbstraction> indicesLookup,
-            String expression
+            String expression,
+            boolean ignoreAliases,
+            boolean includeDataStreams
         ) {
             assert expression.length() >= 2 : "expression [" + expression + "] should have at least a length of 2";
             String fromPrefix = expression.substring(0, expression.length() - 1);
@@ -1304,7 +1305,7 @@ public class IndexNameExpressionResolver {
             toPrefixCharArr[toPrefixCharArr.length - 1]++;
             String toPrefix = new String(toPrefixCharArr);
             SortedMap<String, IndexAbstraction> subMap = indicesLookup.subMap(fromPrefix, toPrefix);
-            return filterIndicesLookup(subMap, null, context.getOptions().ignoreAliases(), context.includeDataStreams());
+            return filterIndicesLookup(subMap, null, ignoreAliases, includeDataStreams);
         }
 
         private static Map<String, IndexAbstraction> filterIndicesLookup(

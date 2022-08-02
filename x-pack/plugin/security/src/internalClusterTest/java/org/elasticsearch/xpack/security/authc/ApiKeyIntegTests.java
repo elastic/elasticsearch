@@ -1675,7 +1675,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             Set.of(firstGenerationRoleDescriptor),
             firstGenerationApiKeyIds.stream().map(this::getApiKeyDocument).toList()
         );
-        // Update user's permissions and create new API keys for the user. The new API keys will have different limited by role descriptors
+        // Update user's permissions and create new API keys for the user. The new API keys will have different limited-by role descriptors
         final List<String> secondGenerationClusterPrivileges = randomValueOtherThan(firstGenerationClusterPrivileges, () -> {
             final List<String> privs = new ArrayList<>(randomSubsetOf(ClusterPrivilegeResolver.names()));
             // At a minimum include privilege to manage own API key to ensure no 403
@@ -1698,7 +1698,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             Set.of(secondGenerationRoleDescriptor),
             secondGenerationApiKeyIds.stream().map(this::getApiKeyDocument).toList()
         );
-        // Update user role then bulk update all API keys. This should result in new limited by role descriptors for all API keys
+        // Update user role then bulk update all API keys. This should result in new limited-by role descriptors for all API keys
         final List<String> allIds = Stream.concat(firstGenerationApiKeyIds.stream(), secondGenerationApiKeyIds.stream()).toList();
         final List<String> finalClusterPrivileges = randomValueOtherThanMany(
             p -> firstGenerationClusterPrivileges.equals(p) || secondGenerationClusterPrivileges.equals(p),

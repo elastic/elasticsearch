@@ -81,7 +81,6 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
-import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
 
 /**
  * {@link Metadata} is the part of the {@link ClusterState} which persists across restarts. This persistence is XContent-based, so a
@@ -223,7 +222,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
     private final String[] allClosedIndices;
     private final String[] visibleClosedIndices;
 
-    private SortedMap<String, IndexAbstraction> indicesLookup;
+    private volatile SortedMap<String, IndexAbstraction> indicesLookup;
     private final Map<String, MappingMetadata> mappingsByHash;
 
     private final Version oldestIndexVersion;
@@ -511,10 +510,21 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
     }
 
     public SortedMap<String, IndexAbstraction> getIndicesLookup() {
-        if (indicesLookup == null) {
-            indicesLookup = Builder.buildIndicesLookup(custom(DataStreamMetadata.TYPE, DataStreamMetadata.EMPTY), indices);
+        SortedMap<String, IndexAbstraction> lookup = indicesLookup;
+        if (lookup == null) {
+            lookup = buildIndicesLookup();
         }
-        return indicesLookup;
+        return lookup;
+    }
+
+    private synchronized SortedMap<String, IndexAbstraction> buildIndicesLookup() {
+        SortedMap<String, IndexAbstraction> i = indicesLookup;
+        if (i != null) {
+            return i;
+        }
+        i = Builder.buildIndicesLookup(custom(DataStreamMetadata.TYPE, DataStreamMetadata.EMPTY), indices);
+        indicesLookup = i;
+        return i;
     }
 
     public boolean sameIndicesLookup(Metadata other) {
@@ -1228,8 +1238,8 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             out.writeBoolean(clusterUUIDCommitted);
             out.writeLong(version);
             coordinationMetadata.writeTo(out);
-            Settings.writeSettingsToStream(transientSettings, out);
-            Settings.writeSettingsToStream(persistentSettings, out);
+            transientSettings.writeTo(out);
+            persistentSettings.writeTo(out);
             if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
                 hashesOfConsistentSettings.writeTo(out);
             }
@@ -1258,7 +1268,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             builder.templates(templates.apply(part.templates));
             builder.customs(customs.apply(part.customs));
             builder.put(reservedStateMetadata.apply(part.reservedStateMetadata));
-            return builder.build();
+            return builder.build(true);
         }
     }
 
@@ -1314,8 +1324,8 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         out.writeString(clusterUUID);
         out.writeBoolean(clusterUUIDCommitted);
         coordinationMetadata.writeTo(out);
-        writeSettingsToStream(transientSettings, out);
-        writeSettingsToStream(persistentSettings, out);
+        transientSettings.writeTo(out);
+        persistentSettings.writeTo(out);
         if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
             hashesOfConsistentSettings.writeTo(out);
         }

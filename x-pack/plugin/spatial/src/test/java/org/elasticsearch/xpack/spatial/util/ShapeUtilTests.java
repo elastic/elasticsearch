@@ -18,15 +18,15 @@ import static org.hamcrest.Matchers.lessThan;
 public class ShapeUtilTests extends ESTestCase {
     public void testBox() {
         XYRectangle geom = XShapeTestUtil.nextBox();
-        assertThat("Box minX should be less than maxX", geom.minX, lessThan(geom.maxX));
-        assertThat("Box minY should be less than maxY", geom.minY, lessThan(geom.maxY));
+        assertThat("Geometry minX should be less than maxX", geom.minX, lessThan(geom.maxX));
+        assertThat("Geometry minY should be less than maxY", geom.minY, lessThan(geom.maxY));
     }
 
     public void testPolygon() {
         XYPolygon geom = XShapeTestUtil.nextPolygon();
-        assertThat("Box minX should be less than maxX", geom.minX, lessThan(geom.maxX));
-        assertThat("Box minY should be less than maxY", geom.minY, lessThan(geom.maxY));
-        assertThat("Area should be non-zero", ShapeTestUtils.area(geom), greaterThan(0.0));
+        assertThat("Geometry minX should be less than maxX", geom.minX, lessThan(geom.maxX));
+        assertThat("Geometry minY should be less than maxY", geom.minY, lessThan(geom.maxY));
+        assertThat("Geometry area should be non-zero", ShapeTestUtils.area(geom), greaterThan(0.0));
     }
 
     public void testFlatRectangle() {
@@ -34,8 +34,8 @@ public class ShapeUtilTests extends ESTestCase {
             new float[] { 54.69f, 54.69f, 180.0f, 180.0f, 54.69f },
             new float[] { -2.80E-33f, 5.85E-33f, 5.85E-33f, -2.80E-33f, -2.80E-33f }
         );
-        assertThat("Box minX should be less than maxX", geom.minX, lessThan(geom.maxX));
-        assertThat("Box minY should be less than maxY", geom.minY, lessThan(geom.maxY));
+        assertThat("Geometry minX should be less than maxX", geom.minX, lessThan(geom.maxX));
+        assertThat("Geometry minY should be less than maxY", geom.minY, lessThan(geom.maxY));
         assertThat(
             "This flat rectangle has area less than allowed threshold",
             ShapeTestUtils.area(geom),

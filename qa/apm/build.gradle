@@ -22,7 +22,7 @@ dependencies {
 
 dockerCompose {
   environment.put 'STACK_VERSION', VersionProperties.elasticsearch
-  // retainContainersOnStartupFailure = true
+  retainContainersOnStartupFailure = true
 }
 
 elasticsearch_distributions {

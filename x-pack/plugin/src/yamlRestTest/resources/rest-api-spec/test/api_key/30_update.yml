@@ -162,7 +162,7 @@ teardown:
   }
 
 ---
-"Test update api key without request fields":
+"Test update api key without explicit field updates":
 
   - do:
       headers:
@@ -557,7 +557,7 @@ teardown:
     }
   }
 ---
-"Test bulk update api key without request fields":
+"Test bulk update api key without explicit field updates":
 
   - do:
       headers:
@@ -803,19 +803,6 @@ teardown:
     "updated.1": "$key_id_2"
   }
 
-  - do:
-      headers:
-        Authorization: "Basic YXBpX2tleV91c2VyXzE6eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" # api_key_user_1
-      security.get_api_key:
-        owner: true
-  - length: { "api_keys": 2 }
-  - match: {
-    "api_keys.0.metadata": { }
-  }
-  - match: {
-    "api_keys.1.metadata": { }
-  }
-
   # Check privileges auto-updated based on owner user's
   - do:
       headers:
@@ -850,3 +837,17 @@ teardown:
             ]
           }
   - match: { "has_all_requested": true }
+
+  # Check that metadata was updated
+  - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV91c2VyXzE6eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" # api_key_user_1
+      security.get_api_key:
+        owner: true
+  - length: { "api_keys": 2 }
+  - match: {
+    "api_keys.0.metadata": { }
+  }
+  - match: {
+    "api_keys.1.metadata": { }
+  }

@@ -29,8 +29,6 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassification
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassificationConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfigTests;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfig;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ZeroShotClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ZeroShotClassificationConfigTests;
 
@@ -57,8 +55,6 @@ public abstract class InferenceConfigItemTestCase<T extends VersionedNamedWritea
             return PassThroughConfigTests.mutateForVersion(passThroughConfig, version);
         } else if (inferenceConfig instanceof TextEmbeddingConfig textEmbeddingConfig) {
             return TextEmbeddingConfigTests.mutateForVersion(textEmbeddingConfig, version);
-        } else if (inferenceConfig instanceof TextSimilarityConfig textSimilarityConfig) {
-            return TextSimilarityConfigTests.mutateForVersion(textSimilarityConfig, version);
         } else if (inferenceConfig instanceof ZeroShotClassificationConfig zeroShotClassificationConfig) {
             return ZeroShotClassificationConfigTests.mutateForVersion(zeroShotClassificationConfig, version);
         } else {

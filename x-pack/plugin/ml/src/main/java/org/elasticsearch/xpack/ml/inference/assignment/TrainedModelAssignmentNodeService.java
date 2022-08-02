@@ -286,6 +286,10 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
         return deploymentManager.getStats(task);
     }
 
+    public void clearCache(TrainedModelDeploymentTask task, ActionListener<AcknowledgedResponse> listener) {
+        deploymentManager.clearCache(task, TimeValue.timeValueSeconds(60), listener);
+    }
+
     private TaskAwareRequest taskAwareRequest(StartTrainedModelDeploymentAction.TaskParams params) {
         final TrainedModelAssignmentNodeService trainedModelAssignmentNodeService = this;
         return new TaskAwareRequest() {

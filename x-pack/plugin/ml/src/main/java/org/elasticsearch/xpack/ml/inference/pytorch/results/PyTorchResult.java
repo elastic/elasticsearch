@@ -38,6 +38,7 @@ public record PyTorchResult(
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), PyTorchInferenceResult.PARSER, RESULT);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), ThreadSettings.PARSER, THREAD_SETTINGS);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), ErrorResult.PARSER, ErrorResult.ERROR);
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), Ack.PARSER, new ParseField("ack"));
     }
 
     public boolean isError() {
@@ -59,5 +60,23 @@ public record PyTorchResult(
 
         builder.endObject();
         return builder;
+    }
+
+    record Ack(String requestId) implements ToXContentObject {
+        public static ConstructingObjectParser<Ack, Void> PARSER = new ConstructingObjectParser<>("ack", a -> new Ack((String) a[0]));
+
+        static {
+            PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), PyTorchResult.REQUEST_ID);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            if (requestId != null) {
+                builder.field(PyTorchResult.REQUEST_ID.getPreferredName(), requestId);
+            }
+            builder.endObject();
+            return builder;
+        }
     }
 }

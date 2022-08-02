@@ -94,6 +94,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.mapper.TimeSeriesParams.TIME_SERIES_METRIC_PARAM;
@@ -439,12 +440,31 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             .endObject();
         bulkIndex(sourceSupplier);
         prepareSourceIndex(sourceIndex);
-        client().execute(RollupAction.INSTANCE, new RollupAction.Request(sourceIndex, rollupIndex, config), ActionListener.noop());
+        var rollupListener = new ActionListener<AcknowledgedResponse>() {
+            boolean rollupFinished = false;
+
+            @Override
+            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                if (acknowledgedResponse.isAcknowledged()) {
+                    rollupFinished = true;
+                } else {
+                    fail("Failed to receive rollup acknowledgement");
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail("Rollup failed");
+            }
+        };
+        client().execute(RollupAction.INSTANCE, new RollupAction.Request(sourceIndex, rollupIndex, config), rollupListener);
         ResourceAlreadyExistsException exception = expectThrows(
             ResourceAlreadyExistsException.class,
             () -> rollup(sourceIndex, rollupIndex, config)
         );
         assertThat(exception.getMessage(), containsString(rollupIndex));
+        // We must wait until the in-progress rollup ends, otherwise data will not be cleaned up
+        waitUntil(() -> rollupListener.rollupFinished, 60, TimeUnit.SECONDS);
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/88800")

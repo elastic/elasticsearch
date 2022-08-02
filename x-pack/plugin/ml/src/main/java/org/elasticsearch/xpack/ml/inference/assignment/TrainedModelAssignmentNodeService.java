@@ -456,17 +456,19 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
 
     void prepareModelToLoad(StartTrainedModelDeploymentAction.TaskParams taskParams) {
         logger.debug(() -> format("[%s] preparing to load model with task params: %s", taskParams.getModelId(), taskParams));
-        TrainedModelDeploymentTask task = (TrainedModelDeploymentTask) taskManager.register(
-            TRAINED_MODEL_ASSIGNMENT_TASK_TYPE,
-            TRAINED_MODEL_ASSIGNMENT_TASK_ACTION,
-            taskAwareRequest(taskParams)
-        );
-        // threadsafe check to verify we are not loading/loaded the model
-        if (modelIdToTask.putIfAbsent(taskParams.getModelId(), task) == null) {
-            loadingModels.add(task);
-        } else {
-            // If there is already a task for the model, unregister the new task
-            taskManager.unregister(task);
+        try (var ignored = threadPool.getThreadContext().newTraceContext()) {
+            TrainedModelDeploymentTask task = (TrainedModelDeploymentTask) taskManager.register(
+                TRAINED_MODEL_ASSIGNMENT_TASK_TYPE,
+                TRAINED_MODEL_ASSIGNMENT_TASK_ACTION,
+                taskAwareRequest(taskParams)
+            );
+            // threadsafe check to verify we are not loading/loaded the model
+            if (modelIdToTask.putIfAbsent(taskParams.getModelId(), task) == null) {
+                loadingModels.add(task);
+            } else {
+                // If there is already a task for the model, unregister the new task
+                taskManager.unregister(task);
+            }
         }
     }
 

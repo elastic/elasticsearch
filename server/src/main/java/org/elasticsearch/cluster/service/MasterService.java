@@ -333,7 +333,7 @@ public class MasterService extends AbstractLifecycleComponent {
                     // initialize routing nodes and the indices lookup concurrently, we will need both of them for the cluster state
                     // application and can compute them while we wait for the other nodes during publication
                     threadPool.generic().execute(newClusterState::getRoutingNodes);
-                    threadPool.generic().execute(() -> newClusterState.metadata().getIndicesLookup());
+                    threadPool.generic().execute(newClusterState.metadata()::getIndicesLookup);
                     publish(
                         clusterStatePublicationEvent,
                         new CompositeTaskAckListener(

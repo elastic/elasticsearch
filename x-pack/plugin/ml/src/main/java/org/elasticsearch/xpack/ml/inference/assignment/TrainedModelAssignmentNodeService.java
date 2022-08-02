@@ -225,14 +225,13 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
             } catch (Exception ex) {
                 logger.warn(() -> "[" + modelId + "] Start deployment failed", ex);
                 if (ExceptionsHelper.unwrapCause(ex) instanceof ResourceNotFoundException) {
-                    logger.warn(() -> "[" + modelId + "] Start deployment failed", ex);
+                    logger.debug(() -> "[" + modelId + "] Start deployment failed as model was not found", ex);
                     handleLoadFailure(loadingTask, ExceptionsHelper.missingTrainedModel(modelId, ex));
                 } else if (ExceptionsHelper.unwrapCause(ex) instanceof SearchPhaseExecutionException) {
-                    logger.trace(() -> "[" + modelId + "] Start deployment failed, will retry", ex);
+                    logger.debug(() -> "[" + modelId + "] Start deployment failed, will retry", ex);
                     // A search phase execution failure should be retried, push task back to the queue
                     loadingToRetry.add(loadingTask);
                 } else {
-                    logger.warn(() -> "[" + modelId + "] Start deployment failed", ex);
                     handleLoadFailure(loadingTask, ex);
                 }
             }
@@ -413,7 +412,7 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
         for (TrainedModelAssignment assignment : modelsToUpdate) {
             TrainedModelDeploymentTask task = modelIdToTask.get(assignment.getModelId());
             if (task == null) {
-                logger.debug(() -> format("[%s] task was removed whilst updating number of allocations", task.getModelId()));
+                logger.debug(() -> format("[%s] task was removed whilst updating number of allocations", assignment.getModelId()));
                 continue;
             }
             RoutingInfo routingInfo = assignment.getNodeRoutingTable().get(nodeId);

@@ -85,7 +85,7 @@ public record ServerArgs(
         out.writeBoolean(quiet);
         out.writeOptionalString(pidFile == null ? null : pidFile.toString());
         out.writeSecureString(keystorePassword);
-        Settings.writeSettingsToStream(nodeSettings, out);
+        nodeSettings.writeTo(out);
         out.writeString(configDir.toString());
     }
 }

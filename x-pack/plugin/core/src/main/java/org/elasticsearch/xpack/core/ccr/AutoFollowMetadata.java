@@ -367,7 +367,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<Metadata.Custom> i
             out.writeStringCollection(leaderIndexPatterns);
             out.writeOptionalString(followIndexPattern);
             if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
-                Settings.writeSettingsToStream(settings, out);
+                settings.writeTo(out);
             }
             super.writeTo(out);
             if (out.getVersion().onOrAfter(Version.V_7_5_0)) {

@@ -117,8 +117,8 @@ public class ShardSnapshotWorkers {
 
     public void enqueueShardSnapshot(final SnapshotShardContext context) {
         logger.trace("enqueuing shard snapshot task [snapshotID={}, indexID={}]", context.snapshotId(), context.indexId());
+        snapshotTasks.add(new ShardSnapshotTask(context));
         synchronized (mutex) {
-            snapshotTasks.add(new ShardSnapshotTask(context));
             ensureEnoughWorkers();
         }
     }
@@ -134,8 +134,8 @@ public class ShardSnapshotWorkers {
             context.indexId(),
             fileInfo.name()
         );
+        snapshotTasks.add(new FileSnapshotTask(context, fileInfo, fileUploadListener));
         synchronized (mutex) {
-            snapshotTasks.add(new FileSnapshotTask(context, fileInfo, fileUploadListener));
             ensureEnoughWorkers();
         }
     }

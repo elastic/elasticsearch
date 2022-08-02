@@ -318,7 +318,7 @@ public final class TimestampFormatFinder {
                 "CATALINA7_DATESTAMP",
                 Arrays.asList("    11  1111 1 11 11", "    11  1111 11 11 11"),
                 0,
-                0
+                3
             )
         );
         items.addAll(ORDERED_CANDIDATE_FORMATS);

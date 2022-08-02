@@ -32,6 +32,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Stream;
 
+import static java.util.stream.Collectors.toMap;
+
 public class ObjectMapper extends Mapper implements Cloneable {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ObjectMapper.class);
 
@@ -568,9 +570,25 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
     private class SyntheticSourceFieldLoader implements SourceLoader.SyntheticFieldLoader {
         private final List<SourceLoader.SyntheticFieldLoader> fields;
+        private final Map<String, StoredFieldLoader> storedFieldLoaders;
+        private boolean hasValue;
 
         private SyntheticSourceFieldLoader(List<SourceLoader.SyntheticFieldLoader> fields) {
             this.fields = fields;
+            this.storedFieldLoaders = fields.stream()
+                .flatMap(SourceLoader.SyntheticFieldLoader::storedFieldsLeaves)
+                .collect(toMap(Map.Entry::getKey, e -> new StoredFieldLoader() {
+                    @Override
+                    public void loadedStoredField(List<Object> values) {
+                        hasValue = true;
+                        e.getValue().loadedStoredField(values);
+                    }
+
+                    @Override
+                    public void write(XContentBuilder b) throws IOException {
+                        e.getValue().write(b);
+                    }
+                }));
         }
 
         @Override
@@ -579,37 +597,58 @@ public class ObjectMapper extends Mapper implements Cloneable {
         }
 
         @Override
+        public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldsLeaves() {
+            return storedFieldLoaders.entrySet().stream();
+        }
+
+        @Override
         public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException {
-            List<SourceLoader.SyntheticFieldLoader.Leaf> l = new ArrayList<>();
-            for (SourceLoader.SyntheticFieldLoader field : fields) {
-                SourceLoader.SyntheticFieldLoader.Leaf leaf = field.leaf(reader, docIdsInLeaf);
-                if (false == leaf.empty()) {
-                    l.add(leaf);
-                }
-            }
-            return new SyntheticSourceFieldLoaderLeaf(l.toArray(SourceLoader.SyntheticFieldLoader.Leaf[]::new));
+
+            return new SyntheticSourceFieldLoaderLeaf(
+                fieldWriters.toArray(SourceLoader.SyntheticFieldLoader.RenameMe[]::new),
+                docValueLoaders.toArray(SourceLoader.SyntheticFieldLoader.Leaf[]::new)
+            );
         }
     }
 
     private class SyntheticSourceFieldLoaderLeaf implements SourceLoader.SyntheticFieldLoader.Leaf {
-        private final SourceLoader.SyntheticFieldLoader.Leaf[] leaves;
-        private boolean hasValue;
+        private final SyntheticSourceFieldLoader parent;
+        private final SourceLoader.SyntheticFieldLoader.RenameMe[] fieldWriters;
+        private final SourceLoader.SyntheticFieldLoader.Leaf[] docValueLoaders;
 
-        private SyntheticSourceFieldLoaderLeaf(SourceLoader.SyntheticFieldLoader.Leaf[] leaves) {
-            this.leaves = leaves;
+        private SyntheticSourceFieldLoaderLeaf(SyntheticSourceFieldLoader parent, LeafReader reader, int[] docIdsInLeaf)
+            throws IOException {
+
+            this.parent = parent;
+            List<SourceLoader.SyntheticFieldLoader.RenameMe> fieldWriters = new ArrayList<>();
+            List<SourceLoader.SyntheticFieldLoader.Leaf> docValueLoaders = new ArrayList<>();
+            for (SourceLoader.SyntheticFieldLoader field : parent.fields) {
+                SourceLoader.SyntheticFieldLoader.Leaf leaf = field.leaf(reader, docIdsInLeaf);
+                if (false == leaf.empty()) {
+                    docValueLoaders.add(leaf);
+                    fieldWriters.add(leaf);
+                    continue;
+                }
+                SourceLoader.SyntheticFieldLoader.RenameMe fieldWriter = field.writer();
+                if (fieldWriter != null) {
+                    fieldWriters.add(fieldWriter);
+                }
+            }
+            this.fieldWriters = fieldWriters.toArray(SourceLoader.SyntheticFieldLoader.RenameMe[]::new);
+            this.docValueLoaders = docValueLoaders.toArray(SourceLoader.SyntheticFieldLoader.Leaf[]::new);
         }
 
         @Override
         public boolean empty() {
-            return leaves.length == 0;
+            return docValueLoaders.length == 0;
         }
 
         @Override
         public boolean advanceToDoc(FieldsVisitor fieldsVisitor, int docId) throws IOException {
-            hasValue = false;
-            for (SourceLoader.SyntheticFieldLoader.Leaf leaf : leaves) {
-                boolean leafHasValue = leaf.advanceToDoc(fieldsVisitor, docId);
-                hasValue |= leafHasValue;
+            parent.hasValue = false;
+            for (SourceLoader.SyntheticFieldLoader.Leaf docValueLoader : docValueLoaders) {
+                boolean leafHasValue = docValueLoader.advanceToDoc(fieldsVisitor, docId);
+                parent.hasValue |= leafHasValue;
             }
             return hasValue;
         }
@@ -620,8 +659,8 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 return;
             }
             startSyntheticField(b);
-            for (SourceLoader.SyntheticFieldLoader.Leaf leaf : leaves) {
-                leaf.write(b);
+            for (SourceLoader.SyntheticFieldLoader.RenameMe fieldWriter : fieldWriters) {
+                fieldWriter.write(b);
             }
             b.endObject();
         }

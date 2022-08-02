@@ -16,6 +16,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 
@@ -84,9 +85,11 @@ public interface SourceLoader {
      */
     class Synthetic implements SourceLoader {
         private final SyntheticFieldLoader loader;
+        private final Map<String, SyntheticFieldLoader.StoredFieldLoader> storedFieldLeaves;
 
         public Synthetic(Mapping mapping) {
             loader = mapping.getRoot().syntheticFieldLoader();
+            storedFieldLeaves = Map.ofEntries(loader.storedFieldsLeaves().toArray(Map.Entry[]::new));
         }
 
         @Override
@@ -106,6 +109,12 @@ public interface SourceLoader {
                 return Leaf.EMPTY_OBJECT;
             }
             return (fieldsVisitor, docId) -> {
+                for (Map.Entry<String, List<Object>> e : fieldsVisitor.fields().entrySet()) {
+                    SyntheticFieldLoader.StoredFieldLoader storedFieldLeaf = storedFieldLeaves.get(e.getKey());
+                    if (storedFieldLeaf != null) {
+                        storedFieldLeaf.loadedStoredField(e.getValue());
+                    }
+                }
                 // TODO accept a requested xcontent type
                 try (XContentBuilder b = new XContentBuilder(JsonXContent.jsonXContent, new ByteArrayOutputStream())) {
                     if (leaf.advanceToDoc(fieldsVisitor, docId)) {
@@ -133,12 +142,12 @@ public interface SourceLoader {
             }
 
             @Override
-            public boolean advanceToDoc(FieldsVisitor fieldsVisitor, int docId) throws IOException {
+            public boolean advanceToDoc(FieldsVisitor fieldsVisitor, int docId) {
                 return false;
             }
 
             @Override
-            public void write(XContentBuilder b) throws IOException {}
+            public void write(XContentBuilder b) {}
         };
 
         /**
@@ -151,7 +160,7 @@ public interface SourceLoader {
             }
 
             @Override
-            public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException {
+            public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) {
                 return NOTHING_LEAF;
             }
         };
@@ -161,18 +170,24 @@ public interface SourceLoader {
          */
         Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException;
 
+        default RenameMe writer() {
+            return null;
+        }
+
         /**
          * Stream containing all non-{@code _source} stored fields required
          * to build the {@code _source}.
          */
         Stream<String> requiredStoredFields();
 
-        default Stream<Map.Entry<String, StoredFieldLeaf>> storedFieldsLeaves() { return null; }
+        default Stream<Map.Entry<String, StoredFieldLoader>> storedFieldsLeaves() {
+            return Stream.empty();
+        }
 
         /**
          * Loads values for a field in a particular leaf.
          */
-        interface Leaf {
+        interface Leaf extends RenameMe {
             /**
              * Is this entirely empty?
              */
@@ -182,23 +197,17 @@ public interface SourceLoader {
              * Position the loader at a document.
              */
             boolean advanceToDoc(FieldsVisitor fieldsVisitor, int docId) throws IOException;
+        }
 
+        interface RenameMe {
             /**
              * Write values for this document.
              */
             void write(XContentBuilder b) throws IOException;
         }
 
-        interface StoredFieldLeaf {
-            /**
-             * Position the loader at a document.
-             */
-            boolean advanceToDoc(FieldsVisitor fieldsVisitor, int docId) throws IOException;
-
-            /**
-             * Write values for this document.
-             */
-            void write(XContentBuilder b) throws IOException;
+        interface StoredFieldLoader extends RenameMe {
+            void loadedStoredField(List<Object> values);
         }
     }
 

@@ -80,6 +80,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static org.apache.lucene.index.IndexWriter.MAX_TERM_LENGTH;
@@ -1301,6 +1302,20 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         @Override
+        public Stream<Map.Entry<String, Function<List<Object>, StoredFieldLoader>>> storedFieldsLeaves() {
+            return Stream.of(Map.entry(name, values -> b -> {
+                if (values.size() == 1) {
+                    b.field(simpleName, values.get(0).toString());
+                    return;
+                }
+                b.startArray(simpleName);
+                for (Object value : values) {
+                    b.value(value.toString());
+                }
+            }));
+        }
+
+        @Override
         public final Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException {
             return new SourceLoader.SyntheticFieldLoader.Leaf() {
                 List<Object> values = null;
@@ -1313,7 +1328,8 @@ public final class KeywordFieldMapper extends FieldMapper {
                 @Override
                 public boolean advanceToDoc(FieldsVisitor fieldsVisitor, int docId) {
                     values = fieldsVisitor.fields().get(name);
-                    org.elasticsearch.logging.LogManager.getLogger(FieldsVisitor.class).error("ADFADFDF from map {} {}", name, values, new Exception());
+                    org.elasticsearch.logging.LogManager.getLogger(FieldsVisitor.class)
+                        .error("ADFADFDF from map {} {}", name, values, new Exception());
                     return values != null && false == values.isEmpty();
                 }
 

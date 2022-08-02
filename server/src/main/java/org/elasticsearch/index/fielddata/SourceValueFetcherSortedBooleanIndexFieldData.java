@@ -63,7 +63,7 @@ public class SourceValueFetcherSortedBooleanIndexFieldData extends SourceValueFe
 
     private static class SourceValueFetcherSortedBooleanLeafFieldData extends SourceValueFetcherLeafFieldData<SortedNumericDocValues> {
 
-        public SourceValueFetcherSortedBooleanLeafFieldData(
+        private SourceValueFetcherSortedBooleanLeafFieldData(
             ToScriptFieldFactory<SortedNumericDocValues> toScriptFieldFactory,
             LeafReaderContext leafReaderContext,
             ValueFetcher valueFetcher,
@@ -83,16 +83,16 @@ public class SourceValueFetcherSortedBooleanIndexFieldData extends SourceValueFe
 
     private static class SourceValueFetcherSortedBooleanDocValues extends SortedNumericDocValues implements ValueFetcherDocValues {
 
-        protected final LeafReaderContext leafReaderContext;
+        private final LeafReaderContext leafReaderContext;
 
-        protected final ValueFetcher valueFetcher;
-        protected final SourceLookup sourceLookup;
+        private final ValueFetcher valueFetcher;
+        private final SourceLookup sourceLookup;
 
-        protected int trueCount;
-        protected int falseCount;
-        protected int iteratorIndex;
+        private int trueCount;
+        private int falseCount;
+        private int iteratorIndex;
 
-        public SourceValueFetcherSortedBooleanDocValues(
+        private SourceValueFetcherSortedBooleanDocValues(
             LeafReaderContext leafReaderContext,
             ValueFetcher valueFetcher,
             SourceLookup sourceLookup

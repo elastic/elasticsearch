@@ -75,7 +75,7 @@
           query:
             range:
               number:
-                - gte: 4
+                gte: 4
 
   - match: {updated: 2}
   - match: {version_conflicts: 0}

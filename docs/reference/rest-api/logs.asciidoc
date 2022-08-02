@@ -161,7 +161,7 @@ POST _logs/myapp?service.name=myapp
 
 After a short while the logs will become searchable.
 Event though `custom_field` is not among the <<logs-api-request-body, list of fields that are indexed by default>>,
-you can use it in searches and aggregations via <<dynamic-mapping-runtime-fields, dynamically mapped runtime fields>>.
+you can use it in searches and aggregations as it is mapped as a <<dynamic-mapping-runtime-fields, dynamic runtime field>>.
 
 [source,console]
 ------------------------------------------------------------

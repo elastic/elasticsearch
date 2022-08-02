@@ -187,7 +187,7 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
     }
 
     protected static FieldDataContext mockFielddataContext() {
-        return new FieldDataContext("test", mockContext()::lookup);
+        return new FieldDataContext("test", mockContext()::lookup, mockContext()::sourcePath, MappedFieldType.FielddataOperation.SCRIPT);
     }
 
     protected static SearchExecutionContext mockContext(boolean allowExpensiveQueries) {
@@ -210,12 +210,14 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         when(context.allowExpensiveQueries()).thenReturn(allowExpensiveQueries);
         SearchLookup lookup = new SearchLookup(
             context::getFieldType,
-            (mft, lookupSupplier) -> mft.fielddataBuilder(new FieldDataContext("test", lookupSupplier)).build(null, null)
+            (mft, lookupSupplier, fdo) -> mft.fielddataBuilder(new FieldDataContext("test", lookupSupplier, context::sourcePath, fdo))
+                .build(null, null)
         );
         when(context.lookup()).thenReturn(lookup);
-        when(context.getForField(any())).then(args -> {
+        when(context.getForField(any(), any())).then(args -> {
             MappedFieldType ft = args.getArgument(0);
-            return ft.fielddataBuilder(new FieldDataContext("test", context::lookup))
+            MappedFieldType.FielddataOperation fdo = args.getArgument(1);
+            return ft.fielddataBuilder(new FieldDataContext("test", context::lookup, context::sourcePath, fdo))
                 .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
         });
         return context;

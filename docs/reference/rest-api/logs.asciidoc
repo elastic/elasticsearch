@@ -156,17 +156,18 @@ POST _logs/myapp?service.name=myapp
 {"@timestamp":"2016-05-23T08:05:34.853Z", "message":"Hello World", "custom_field": "value"}
 ------------------------------------------------------------
 
+After a short while the logs will become searchable.
 Event though `custom_field` is not among the <<logs-api-request-body, list of fields that are indexed by default>>,
 you can use it in searches and aggregations via <<dynamic-mapping-runtime-fields, dynamically mapped runtime fields>>.
 
 [source,console]
 ------------------------------------------------------------
-POST logs-myapp-default/_refresh <1>
 POST logs-myapp-default/_search?q=custom_field:value
 ------------------------------------------------------------
 // TEST[continued]
-
-<1> Do a <<indices-refresh, refresh>> to ensure the logs are searchable
+// TEST[s/^/POST logs-myapp-default\/_refresh\n/]
+// avoid documenting that a _refresh will always be sufficient to make the logs searchable
+// in the future, logs may be buffered and asynchronously processed
 
 The API returns the following response:
 
@@ -214,6 +215,8 @@ The API returns the following response:
 // TESTRESPONSE[s/"_index": ".*"/"_index": $body.hits.hits.0._index/]
 // TESTRESPONSE[s/"_id": ".*"/"_id": $body.hits.hits.0._id/]
 // TESTRESPONSE[s/"_source": \{\n/"_source": \{\n"error_trace": "true",\n/]
+// The test system adds an error_trace:true parameter to all requests,
+// including the logs API which interprets it as global metadata that's added to every event
 
 '''
 

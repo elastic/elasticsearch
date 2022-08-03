@@ -40,7 +40,6 @@ import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotDeleteListener;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
@@ -58,19 +57,17 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.isA;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 public class RepositoriesServiceTests extends ESTestCase {
 
     private RepositoriesService repositoriesService;
-    private ThreadPool threadPool;
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        threadPool = spy(new TestThreadPool("test"));
+        ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
         final TransportService transportService = new TransportService(
             Settings.EMPTY,
@@ -105,12 +102,6 @@ public class RepositoriesServiceTests extends ESTestCase {
             List.of()
         );
         repositoriesService.start();
-    }
-
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
-        terminate(threadPool);
     }
 
     public void testRegisterInternalRepository() {

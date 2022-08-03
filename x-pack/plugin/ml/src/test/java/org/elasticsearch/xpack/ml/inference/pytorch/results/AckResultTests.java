@@ -12,20 +12,20 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class ErrorResultTests extends AbstractXContentTestCase<ErrorResult> {
+public class AckResultTests extends AbstractXContentTestCase<AckResult> {
 
-    public static ErrorResult createRandom() {
-        return new ErrorResult(randomAlphaOfLength(50));
+    public static AckResult createRandom() {
+        return new AckResult(randomBoolean());
     }
 
     @Override
-    protected ErrorResult createTestInstance() {
+    protected AckResult createTestInstance() {
         return createRandom();
     }
 
     @Override
-    protected ErrorResult doParseInstance(XContentParser parser) throws IOException {
-        return ErrorResult.PARSER.parse(parser, null);
+    protected AckResult doParseInstance(XContentParser parser) throws IOException {
+        return AckResult.PARSER.parse(parser, null);
     }
 
     @Override

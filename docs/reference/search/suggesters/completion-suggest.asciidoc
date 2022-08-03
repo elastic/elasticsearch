@@ -17,6 +17,7 @@ but are costly to build and are stored in-memory.
 ===== Mapping
 include::../../mapping/types/completion.asciidoc[tag=completion-mapping]
 
+
 [[indexing]]
 ===== Indexing
 
@@ -24,6 +25,23 @@ You index suggestions like any other field. A suggestion is made of an
 `input` and an optional `weight` attribute. An `input` is the expected
 text to be matched by a suggestion query and the `weight` determines how
 the suggestions will be scored. Indexing a suggestion is as follows:
+
+////
+[source,console]
+--------------------------------------------------
+PUT music
+{
+  "mappings": {
+    "properties": {
+      "suggest": {
+        "type": "completion"
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TESTSETUP
+////
 
 [source,console]
 --------------------------------------------------

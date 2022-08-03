@@ -21,7 +21,6 @@ PUT music
   }
 }
 --------------------------------------------------
-// TESTSETUP
 
 ==== Parameters for `completion` fields
 

@@ -50,7 +50,11 @@ public class ExpressionFieldScriptTests extends ESTestCase {
         when(fieldData.load(any())).thenReturn(atomicFieldData);
 
         service = new ExpressionScriptEngine();
-        lookup = new SearchLookup(field -> field.equals("field") ? fieldType : null, (ignored, _lookup, fdt) -> fieldData, new SourceLookup.ReaderSourceProvider());
+        lookup = new SearchLookup(
+            field -> field.equals("field") ? fieldType : null,
+            (ignored, _lookup, fdt) -> fieldData,
+            new SourceLookup.ReaderSourceProvider()
+        );
     }
 
     private FieldScript.LeafFactory compile(String expression) {

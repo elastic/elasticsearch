@@ -121,9 +121,13 @@ public class AggregateDoubleMetricFieldTypeTests extends FieldTypeTestCase {
                 SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
                 when(searchExecutionContext.getFieldType(anyString())).thenReturn(mappedFieldType);
                 when(searchExecutionContext.allowExpensiveQueries()).thenReturn(true);
-                SearchLookup lookup = new SearchLookup(searchExecutionContext::getFieldType, (mft, lookupSupplier, fdo) -> mft.fielddataBuilder(
-                                        new FieldDataContext("test", lookupSupplier, searchExecutionContext::sourcePath, fdo)
-                                    ).build(null, null), new SourceLookup.ReaderSourceProvider());
+                SearchLookup lookup = new SearchLookup(
+                    searchExecutionContext::getFieldType,
+                    (mft, lookupSupplier, fdo) -> mft.fielddataBuilder(
+                        new FieldDataContext("test", lookupSupplier, searchExecutionContext::sourcePath, fdo)
+                    ).build(null, null),
+                    new SourceLookup.ReaderSourceProvider()
+                );
                 when(searchExecutionContext.lookup()).thenReturn(lookup);
                 IndexSearcher searcher = newSearcher(reader);
                 assertThat(searcher.count(new ScriptScoreQuery(new MatchAllDocsQuery(), new Script("test"), new ScoreScript.LeafFactory() {

@@ -196,7 +196,7 @@ public class GetSnapshotsResponse extends ActionResponse implements ChunkedToXCo
         }
 
         @Override
-        public XContentBuilder writeChunk() throws IOException {
+        public boolean writeChunk() throws IOException {
             if (wroteStart == false) {
                 builder.startObject();
                 builder.startArray("snapshots");
@@ -205,7 +205,7 @@ public class GetSnapshotsResponse extends ActionResponse implements ChunkedToXCo
             if (snapshotsIter.hasNext()) {
                 // write one snapshot info per invocation
                 snapshotsIter.next().toXContentExternal(builder, params);
-                return null;
+                return false;
             }
             // no more snapshot infos to write, close array and write the remaining fields in the last invocation
             builder.endArray();
@@ -233,7 +233,7 @@ public class GetSnapshotsResponse extends ActionResponse implements ChunkedToXCo
             builder.endObject();
             final XContentBuilder b = builder;
             builder = null;
-            return b;
+            return true;
         }
     }
 

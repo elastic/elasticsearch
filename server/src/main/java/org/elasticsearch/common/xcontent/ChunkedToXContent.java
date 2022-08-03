@@ -8,7 +8,6 @@
 
 package org.elasticsearch.common.xcontent;
 
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -33,11 +32,9 @@ public interface ChunkedToXContent extends ToXContent {
     @Override
     default XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         ChunkedXContentSerialization serialization = toXContentChunked(builder, params);
-        XContentBuilder b = null;
-        while (b == null) {
-            b = serialization.writeChunk();
-        }
-        return b;
+        while (serialization.writeChunk() == false)
+            ;
+        return builder;
     }
 
     /**
@@ -46,13 +43,12 @@ public interface ChunkedToXContent extends ToXContent {
     interface ChunkedXContentSerialization {
 
         /**
-         * Writes a single chunk to the underlying {@link XContentBuilder}. Must be called repeatedly until a non-null return to complete
-         * the serialization.
+         * Writes a single chunk to the underlying {@link XContentBuilder}. Must be called repeatedly until a {@code true} return to
+         * complete the serialization.
          *
-         * @return the {@link XContentBuilder} that was used for this serialization once finished
+         * @return {@code true} once the serialization has completed
          * @throws IOException on serialization failure
          */
-        @Nullable
-        XContentBuilder writeChunk() throws IOException;
+        boolean writeChunk() throws IOException;
     }
 }

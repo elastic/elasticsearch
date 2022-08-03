@@ -68,8 +68,15 @@ public interface ChunkedRestResponseBody {
                 }
             };
 
+            private final XContentBuilder builder = channel.newBuilder(
+                channel.request().getXContentType(),
+                null,
+                true,
+                Streams.noCloseStream(out)
+            );
+
             private final ChunkedToXContent.ChunkedXContentSerialization serialization = chunkedToXContent.toXContentChunked(
-                channel.newBuilder(channel.request().getXContentType(), null, true, Streams.noCloseStream(out)),
+                builder,
                 params
             );
 
@@ -87,15 +94,13 @@ public interface ChunkedRestResponseBody {
                 final RecyclerBytesStreamOutput chunkStream = new RecyclerBytesStreamOutput(recycler);
                 assert this.target == null;
                 this.target = chunkStream;
-                XContentBuilder b;
-                while ((b = serialization.writeChunk()) == null) {
+                while ((done = serialization.writeChunk()) == false) {
                     if (chunkStream.size() > sizeHint) {
                         break;
                     }
                 }
-                if (b != null) {
-                    done = true;
-                    b.close();
+                if (done) {
+                    builder.close();
                 }
                 this.target = null;
                 return new ReleasableBytesReference(chunkStream.bytes(), () -> IOUtils.closeWhileHandlingException(chunkStream));

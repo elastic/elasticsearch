@@ -1,7 +1,7 @@
 setup:
   - skip:
-      version: " - 8.3.99"
-      reason: metric params only on time series indexes introduced in 8.4.0
+      version: " - 8.4.99"
+      reason: metric params only on time series indexes introduced in 8.5.0
 
   - do:
       indices.create:
@@ -56,8 +56,8 @@ setup:
 ---
 field caps on rollup indices:
   - skip:
-      version: " - 8.3.99"
-      reason: metric params only on time series indexes introduced in 8.4.0
+      version: " - 8.4.99"
+      reason: metric params only on time series indexes introduced in 8.5.0
 
   - do:
       field_caps:
@@ -78,8 +78,8 @@ field caps on rollup indices:
 ---
 field caps on time series indices:
   - skip:
-      version: " - 8.3.99"
-      reason: metric params only on time series indexes introduced in 8.4.0
+      version: " - 8.4.99"
+      reason: metric params only on time series indexes introduced in 8.5.0
 
   - do:
       field_caps:

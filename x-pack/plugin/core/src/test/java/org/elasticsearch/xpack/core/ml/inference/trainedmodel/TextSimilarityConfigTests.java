@@ -18,6 +18,15 @@ import java.util.function.Predicate;
 
 public class TextSimilarityConfigTests extends InferenceConfigItemTestCase<TextSimilarityConfig> {
 
+    public static TextSimilarityConfig mutateForVersion(TextSimilarityConfig instance, Version version) {
+        return new TextSimilarityConfig(
+            instance.getVocabularyConfig(),
+            InferenceConfigTestScaffolding.mutateTokenizationForVersion(instance.getTokenization(), version),
+            instance.getResultsField(),
+            instance.getSpanScoreFunction().toString()
+        );
+    }
+
     @Override
     protected boolean supportsUnknownFields() {
         return true;
@@ -45,7 +54,7 @@ public class TextSimilarityConfigTests extends InferenceConfigItemTestCase<TextS
 
     @Override
     protected TextSimilarityConfig mutateInstanceForVersion(TextSimilarityConfig instance, Version version) {
-        return instance;
+        return mutateForVersion(instance, version);
     }
 
     public static TextSimilarityConfig createRandom() {

@@ -51,7 +51,7 @@ public abstract class TransportGrantAction<Request extends GrantRequest, Respons
     }
 
     @Override
-    public void doExecute(Task task, Request request, ActionListener<Response> listener) {
+    public final void doExecute(Task task, Request request, ActionListener<Response> listener) {
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             final AuthenticationToken authenticationToken = request.getGrant().getAuthenticationToken();
             assert authenticationToken != null : "authentication token must not be null";
@@ -81,7 +81,7 @@ public abstract class TransportGrantAction<Request extends GrantRequest, Respons
                             AuthenticateAction.NAME,
                             new AuthenticateRequest(effectiveUsername),
                             ActionListener.wrap(
-                                ignore2 -> doExecuteOnGrantAuthenticationSuccess(task, request, authentication, listener),
+                                ignore2 -> doExecuteWithGrantAuthentication(task, request, authentication, listener),
                                 listener::onFailure
                             )
                         );
@@ -93,7 +93,7 @@ public abstract class TransportGrantAction<Request extends GrantRequest, Respons
                             new ElasticsearchStatusException("the provided grant credentials do not support run-as", RestStatus.BAD_REQUEST)
                         );
                     } else {
-                        doExecuteOnGrantAuthenticationSuccess(task, request, authentication, listener);
+                        doExecuteWithGrantAuthentication(task, request, authentication, listener);
                     }
                 }
             }, listener::onFailure);
@@ -112,7 +112,7 @@ public abstract class TransportGrantAction<Request extends GrantRequest, Respons
         }
     }
 
-    protected abstract void doExecuteOnGrantAuthenticationSuccess(
+    protected abstract void doExecuteWithGrantAuthentication(
         Task task,
         Request request,
         Authentication authentication,

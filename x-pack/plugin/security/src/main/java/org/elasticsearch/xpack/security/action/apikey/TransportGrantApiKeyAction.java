@@ -79,7 +79,7 @@ public final class TransportGrantApiKeyAction extends TransportGrantAction<Grant
     }
 
     @Override
-    protected void doExecuteOnGrantAuthenticationSuccess(
+    protected void doExecuteWithGrantAuthentication(
         Task task,
         GrantApiKeyRequest request,
         Authentication authentication,

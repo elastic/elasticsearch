@@ -981,7 +981,7 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
         }
     }
 
-    public void testBeginPollingRemoteStableMasterHealthIndicatorService() throws Exception {
+    public void testBeginPollingRemoteMasterStabilityDiagnostic() throws Exception {
         MasterHistoryService masterHistoryService = createMasterHistoryService();
         var clusterService = mock(ClusterService.class);
         when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
@@ -1009,10 +1009,10 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
             masterHistoryService
         );
 
-        coordinationDiagnosticsService.beginPollingRemoteStableMasterHealthIndicatorService();
+        coordinationDiagnosticsService.beginPollingRemoteMasterStabilityDiagnostic();
         assertNotNull(coordinationDiagnosticsService.remoteStableMasterHealthIndicatorTask);
         assertNotNull(coordinationDiagnosticsService.remoteStableMasterHealthIndicatorTask.get());
-        coordinationDiagnosticsService.cancelPollingRemoteStableMasterHealthIndicatorService();
+        coordinationDiagnosticsService.cancelPollingRemoteMasterStabilityDiagnostic();
         assertThat(coordinationDiagnosticsService.remoteStableMasterHealthIndicatorTask, Matchers.nullValue());
         coordinationDiagnosticsService.clusterChanged(
             new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, node1MasterClusterState)
@@ -1030,9 +1030,9 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
          */
     }
 
-    public void testBeginPollingRemoteStableMasterHealthIndicatorServiceCancel() {
+    public void testBeginPollingRemoteMasterStabilityDiagnosticCancel() {
         /*
-         * This test sets up a 5-node cluster (3 master eligible). We call beginPollingRemoteStableMasterHealthIndicatorService() on each
+         * This test sets up a 5-node cluster (3 master eligible). We call beginPollingRemoteMasterStabilityDiagnostic() on each
          * non-master-eligible node. But we immediately call cancel, which is what will happen in practice most often since usually the
          * master becomes null and then is immediately non-null when a new master is elected. This means that polling will not be started
          *  since there is a 10-second delay, and we expect no results.
@@ -1049,10 +1049,7 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
             cluster.clusterNodes.stream().filter(node -> node.getLocalNode().isMasterNode() == false).forEach(node -> {
                 List<CoordinationDiagnosticsService.RemoteMasterHealthResult> healthResults = new ArrayList<>();
                 AtomicReference<Scheduler.Cancellable> cancellableReference = new AtomicReference<>();
-                node.coordinationDiagnosticsService.beginPollingRemoteStableMasterHealthIndicatorService(
-                    healthResults::add,
-                    cancellableReference
-                );
+                node.coordinationDiagnosticsService.beginPollingRemoteMasterStabilityDiagnostic(healthResults::add, cancellableReference);
                 cancellableReference.get().cancel();
                 cluster.runRandomly(false, true, EXTREME_DELAY_VARIABILITY);
                 cluster.stabilise();

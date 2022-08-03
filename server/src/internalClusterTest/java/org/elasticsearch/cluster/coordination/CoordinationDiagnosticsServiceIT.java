@@ -115,7 +115,7 @@ public class CoordinationDiagnosticsServiceIT extends ESIntegTestCase {
     public void testBeginPollingRemoteStableMasterHealthIndicatorService() throws Exception {
         /*
          * This test picks a node that is not elected master, and then blocks cluster state processing on it. The reason is so that we
-         * can call CoordinationDiagnosticsService#beginPollingRemoteStableMasterHealthIndicatorService without a cluster changed event
+         * can call CoordinationDiagnosticsService#beginPollingRemoteMasterStabilityDiagnostic without a cluster changed event
          * resulting in the values we pass in being overwritten.
          */
         final List<String> nodeNames = internalCluster().startNodes(3);
@@ -148,7 +148,7 @@ public class CoordinationDiagnosticsServiceIT extends ESIntegTestCase {
         diagnosticsOnBlockedNode.remoteStableMasterHealthIndicatorTask = cancellable;
 
         diagnosticsOnBlockedNode.remoteRequestInitialDelay = TimeValue.ZERO;
-        diagnosticsOnBlockedNode.beginPollingRemoteStableMasterHealthIndicatorService(result::set, cancellable);
+        diagnosticsOnBlockedNode.beginPollingRemoteMasterStabilityDiagnostic(result::set, cancellable);
 
         // while the node is blocked from processing cluster state changes it should reach out to the other 2
         // master eligible nodes and get a successful response

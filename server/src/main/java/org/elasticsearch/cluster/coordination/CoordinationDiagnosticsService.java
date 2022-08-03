@@ -643,9 +643,9 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
         }
         if (clusterService.localNode().isMasterNode() == false) {
             if (currentMaster == null) {
-                beginPollingRemoteStableMasterHealthIndicatorService();
+                beginPollingRemoteMasterStabilityDiagnostic();
             } else {
-                cancelPollingRemoteStableMasterHealthIndicatorService();
+                cancelPollingRemoteMasterStabilityDiagnostic();
             }
         }
     }
@@ -840,25 +840,25 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
         }, remoteRequestInitialDelay, ThreadPool.Names.SAME);
     }
 
-    void beginPollingRemoteStableMasterHealthIndicatorService() {
+    void beginPollingRemoteMasterStabilityDiagnostic() {
         assert ThreadPool.assertCurrentThreadPool(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME);
         AtomicReference<Scheduler.Cancellable> cancellableReference = new AtomicReference<>();
         AtomicReference<RemoteMasterHealthResult> resultReference = new AtomicReference<>();
         remoteStableMasterHealthIndicatorTask = cancellableReference;
         remoteCoordinationDiagnosisResult = resultReference;
-        beginPollingRemoteStableMasterHealthIndicatorService(resultReference::set, cancellableReference);
+        beginPollingRemoteMasterStabilityDiagnostic(resultReference::set, cancellableReference);
     }
 
     /**
      * This method returns quickly, but in the background schedules to query a remote master node's cluster diagnostics in 10 seconds, and
      * repeats doing that until cancelPollingRemoteStableMasterHealthIndicatorService() is called. This method
-     * exists (rather than being just part of the beginPollingRemoteStableMasterHealthIndicatorService() above) in order to facilitate
+     * exists (rather than being just part of the beginPollingRemoteMasterStabilityDiagnostic() above) in order to facilitate
      * unit testing.
      * @param responseConsumer A consumer for any results produced for a node by this method
      * @param cancellableReference The Cancellable reference to assign the current Cancellable for this polling attempt
      */
     // Non-private for testing
-    void beginPollingRemoteStableMasterHealthIndicatorService(
+    void beginPollingRemoteMasterStabilityDiagnostic(
         Consumer<RemoteMasterHealthResult> responseConsumer,
         AtomicReference<Scheduler.Cancellable> cancellableReference
     ) {
@@ -1023,7 +1023,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
         }, remoteRequestInitialDelay, ThreadPool.Names.SAME);
     }
 
-    void cancelPollingRemoteStableMasterHealthIndicatorService() {
+    void cancelPollingRemoteMasterStabilityDiagnostic() {
         assert ThreadPool.assertCurrentThreadPool(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME);
         if (remoteStableMasterHealthIndicatorTask != null) {
             remoteStableMasterHealthIndicatorTask.get().cancel();

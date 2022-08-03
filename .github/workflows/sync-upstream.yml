@@ -36,10 +36,12 @@ jobs:
            base: esql/lang
            title: "🤖 ESQL: Merge upstream"
            body: ":robot: Generated PR to keep ESQL development branch up to date"
-           labels: "upstream-sync,auto-merge,esql"
+           labels: "upstream-sync,esql"
            github_token: ${{ secrets.ELASTICSEARCHMACHINE }}
 
 ## Merging done by bot on CI check completion 
+## -- auto-merge label removed, since bot squash-merges, later resulting in
+##    conflicts
 ##
 #      - name: Merge ESQL PR
 #        id: pr-merge-esql

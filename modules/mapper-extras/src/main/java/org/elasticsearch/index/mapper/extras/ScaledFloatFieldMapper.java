@@ -704,29 +704,25 @@ public class ScaledFloatFieldMapper extends FieldMapper {
      *   assert scaled2 != Long.MAX_VALUE;
      * }</pre>
      * <p>
-     * We work around this by detecting such cases and artificially bumping them
-     * up by a single digit in the last place, forcing them to always saturate
-     * the {@link Math#round} call.
+     * This can happen sometimes with regular old rounding too, in situations that
+     * aren't entirely clear at the moment. We work around this by detecting when
+     * the round trip wouldn't produce the same encoded value and artificially
+     * bumping them up by a single digit in the last place towards the direction
+     * that would make the round trip consistent. Bumping by a single digit in
+     * the last place is always enough to correct the tiny errors that can sneak
+     * in from the unexpected rounding.
      */
     static double decodeForSyntheticSource(long scaledValue, double scalingFactor) {
-        if (scaledValue == Long.MAX_VALUE) {
-            double max = Long.MAX_VALUE / scalingFactor;
-            if (Math.round(max * scalingFactor) != Long.MAX_VALUE) {
-                double v = max + Math.ulp(max);
-                assert Math.round(v * scalingFactor) == Long.MAX_VALUE;
-                return v;
+        double v = scaledValue / scalingFactor;
+        long reenc = Math.round(v * scalingFactor);
+        if (reenc != scaledValue) {
+            if (reenc > scaledValue) {
+                v -= Math.ulp(v);
+            } else {
+                v += Math.ulp(v);
             }
-            return max;
+            assert Math.round(v * scalingFactor) == scaledValue : Math.round(v * scalingFactor) + " != " + scaledValue;
         }
-        if (scaledValue == Long.MIN_VALUE) {
-            double min = Long.MIN_VALUE / scalingFactor;
-            if (Math.round(min * scalingFactor) != Long.MIN_VALUE) {
-                double v = min - Math.ulp(min);
-                assert Math.round(v * scalingFactor) == Long.MIN_VALUE;
-                return v;
-            }
-            return min;
-        }
-        return scaledValue / scalingFactor;
+        return v;
     }
 }

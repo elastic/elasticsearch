@@ -71,6 +71,10 @@ grant codeBase "${codebase.jna}" {
   permission java.lang.RuntimePermission "accessDeclaredMembers";
 };
 
+grant codeBase "${codebase.log4j-api}" {
+  permission java.lang.RuntimePermission "getClassLoader";
+};
+
 //// Everything else:
 
 grant {

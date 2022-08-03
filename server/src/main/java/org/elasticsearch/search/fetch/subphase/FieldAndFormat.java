@@ -165,4 +165,9 @@ public final class FieldAndFormat implements Writeable, ToXContentObject {
         FieldAndFormat other = (FieldAndFormat) obj;
         return field.equals(other.field) && Objects.equals(format, other.format) && Objects.equals(includeUnmapped, other.includeUnmapped);
     }
+
+    @Override
+    public String toString() {
+        return "FieldAndFormat{" + "field='" + field + '\'' + ", format='" + format + '\'' + ", includeUnmapped=" + includeUnmapped + '}';
+    }
 }

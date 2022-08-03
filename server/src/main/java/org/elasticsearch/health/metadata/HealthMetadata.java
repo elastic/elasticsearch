@@ -177,6 +177,25 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
             return builder;
         }
 
+        private ByteSizeValue getFreeBytes(ByteSizeValue total, RelativeByteSizeValue watermark, ByteSizeValue maxHeadroom) {
+            if (watermark.isAbsolute()) {
+                return watermark.getAbsolute();
+            }
+            return ByteSizeValue.ofBytes(total.getBytes() - watermark.calculateValue(total, maxHeadroom).getBytes());
+        }
+
+        public ByteSizeValue getFreeBytesHighWatermark(ByteSizeValue total) {
+            return getFreeBytes(total, highWatermark, ByteSizeValue.MINUS_ONE);
+        }
+
+        public ByteSizeValue getFreeBytesFloodStageWatermark(ByteSizeValue total) {
+            return getFreeBytes(total, floodStageWatermark, ByteSizeValue.MINUS_ONE);
+        }
+
+        public ByteSizeValue getFreeBytesFrozenFloodStageWatermark(ByteSizeValue total) {
+            return getFreeBytes(total, frozenFloodStageWatermark, frozenFloodStageMaxHeadroom);
+        }
+
         private String getThresholdStringRep(RelativeByteSizeValue relativeByteSizeValue) {
             if (relativeByteSizeValue.isAbsolute()) {
                 return relativeByteSizeValue.getAbsolute().getStringRep();
@@ -222,11 +241,11 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
             );
         }
 
-        static Builder newBuilder() {
+        public static Builder newBuilder() {
             return new Builder();
         }
 
-        static Builder newBuilder(Disk disk) {
+        public static Builder newBuilder(Disk disk) {
             return new Builder(disk);
         }
 
@@ -250,12 +269,12 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
 
             private Builder() {}
 
-            Builder highWatermark(RelativeByteSizeValue highWatermark) {
+            public Disk.Builder highWatermark(RelativeByteSizeValue highWatermark) {
                 this.highWatermark = highWatermark;
                 return this;
             }
 
-            Builder highWatermark(String highWatermark, String setting) {
+            public Disk.Builder highWatermark(String highWatermark, String setting) {
                 return highWatermark(RelativeByteSizeValue.parseRelativeByteSizeValue(highWatermark, setting));
             }
 
@@ -291,20 +310,20 @@ public final class HealthMetadata extends AbstractNamedDiffable<ClusterState.Cus
                 return this;
             }
 
-            Builder frozenFloodStageWatermark(String frozenFloodStageWatermark, String setting) {
+            public Disk.Builder frozenFloodStageWatermark(String frozenFloodStageWatermark, String setting) {
                 return frozenFloodStageWatermark(RelativeByteSizeValue.parseRelativeByteSizeValue(frozenFloodStageWatermark, setting));
             }
 
-            Builder frozenFloodStageMaxHeadroom(ByteSizeValue frozenFloodStageMaxHeadroom) {
+            public Disk.Builder frozenFloodStageMaxHeadroom(ByteSizeValue frozenFloodStageMaxHeadroom) {
                 this.frozenFloodStageMaxHeadroom = frozenFloodStageMaxHeadroom;
                 return this;
             }
 
-            Builder frozenFloodStageMaxHeadroom(String frozenFloodStageMaxHeadroom, String setting) {
+            public Disk.Builder frozenFloodStageMaxHeadroom(String frozenFloodStageMaxHeadroom, String setting) {
                 return frozenFloodStageMaxHeadroom(ByteSizeValue.parseBytesSizeValue(frozenFloodStageMaxHeadroom, setting));
             }
 
-            Disk build() {
+            public Disk build() {
                 return new Disk(
                     highWatermark,
                     highMaxHeadroom,

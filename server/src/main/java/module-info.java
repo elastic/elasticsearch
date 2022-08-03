@@ -213,6 +213,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.env;
     exports org.elasticsearch.gateway;
     exports org.elasticsearch.health;
+    exports org.elasticsearch.health.node;
     exports org.elasticsearch.health.node.selection;
     exports org.elasticsearch.http;
     exports org.elasticsearch.index;

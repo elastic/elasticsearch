@@ -532,14 +532,26 @@ public final class ThreadContext implements Writeable {
      * <code>command</code> has already been passed through this method then it is returned unaltered rather than wrapped twice.
      */
     public Runnable preserveContext(Runnable command) {
+        return doPreserveContext(command, false);
+    }
+
+    /**
+     * Saves the current thread context and wraps command in a Runnable that restores that context before running command. Also
+     * starts a new tracing context durin executing. If <code>command</code> has already been wrapped then it is returned unaltered.
+     */
+    public Runnable preserveContextWithTracing(Runnable command) {
+        return doPreserveContext(command, true);
+    }
+
+    private Runnable doPreserveContext(Runnable command, boolean preserveContext) {
         if (command instanceof ContextPreservingAbstractRunnable) {
             return command;
         }
         if (command instanceof ContextPreservingRunnable) {
             return command;
         }
-        if (command instanceof AbstractRunnable) {
-            return new ContextPreservingAbstractRunnable((AbstractRunnable) command);
+        if (command instanceof AbstractRunnable abstractRunnable) {
+            return new ContextPreservingAbstractRunnable(abstractRunnable, preserveContext);
         }
         return new ContextPreservingRunnable(command);
     }
@@ -821,17 +833,20 @@ public final class ThreadContext implements Writeable {
     }
 
     /**
-     * Wraps an AbstractRunnable to preserve the thread context.
+     * Wraps an AbstractRunnable to preserve the thread context, optionally creating a new trace context before
+     * executing.
      */
     private class ContextPreservingAbstractRunnable extends AbstractRunnable implements WrappedRunnable {
         private final AbstractRunnable in;
         private final ThreadContext.StoredContext creatorsContext;
+        private final boolean useNewTraceContext;
 
         private ThreadContext.StoredContext threadsOriginalContext = null;
 
-        private ContextPreservingAbstractRunnable(AbstractRunnable in) {
+        private ContextPreservingAbstractRunnable(AbstractRunnable in, boolean useNewTraceContext) {
             creatorsContext = newStoredContext(false);
             this.in = in;
+            this.useNewTraceContext = useNewTraceContext;
         }
 
         @Override
@@ -864,6 +879,11 @@ public final class ThreadContext implements Writeable {
         protected void doRun() throws Exception {
             threadsOriginalContext = stashContext();
             creatorsContext.restore();
+            if (useNewTraceContext) {
+                // Discard the return value - we'll restore threadsOriginalContext in `onAfter()`.
+                // noinspection resource
+                newTraceContext();
+            }
             in.doRun();
         }
 

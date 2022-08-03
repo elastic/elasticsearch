@@ -1,6 +1,0 @@
-pr: 89070
-summary: "Fix: do not generate empty buckets for the date histogram"
-area: "Rollup"
-type: bug
-issues:
- - 88800

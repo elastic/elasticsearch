@@ -93,12 +93,12 @@ public class RestLogsActionTests extends RestActionTestCase {
     }
 
     public void testInvalidJson() {
-        RestRequest req = createLogsRequest("/_logs/foo", "{\"message\": \"missing end quote}");
+        RestRequest req = createLogsRequest("/_logs/foo", "{}\n{\"message\": \"missing end quote}");
         verifyingClient.setExecuteVerifier((BiFunction<ActionType<BulkResponse>, BulkRequest, BulkResponse>) (actionType, request) -> {
-            assertEquals(1, request.requests().size());
-            IndexRequest indexRequest = (IndexRequest) request.requests().get(0);
+            assertEquals(2, request.requests().size());
+            IndexRequest indexRequest = (IndexRequest) request.requests().get(1);
             assertDataStreamFields("dlq", "default", indexRequest);
-            Map<String, Object> doc = ((IndexRequest) request.requests().get(0)).sourceAsMap();
+            Map<String, Object> doc = ((IndexRequest) request.requests().get(1)).sourceAsMap();
             assertEquals("foo", getPath(doc, "event.original.data_stream.dataset"));
             assertEquals("{\"message\": \"missing end quote}", getPath(doc, "event.original.message"));
             assertEquals("json_e_o_f_exception", getPath(doc, "error.type"));

@@ -84,7 +84,7 @@ public class RestLogsAction extends BaseRestHandler {
             if (endOfEvent == -1) {
                 endOfEvent = content.length();
             }
-            try (XContentParser parser = xContent.createParser(EMPTY, content.array(), offset, endOfEvent)) {
+            try (XContentParser parser = xContent.createParser(EMPTY, content.array(), offset, endOfEvent - offset)) {
                 Map<String, Object> event = null;
                 try {
                     event = parser.map();
@@ -104,7 +104,7 @@ public class RestLogsAction extends BaseRestHandler {
                     }
                 } catch (Exception e) {
                     event = mergeMetadata(Map.of(), globalMetadata, localMetadata);
-                    event.put("message", content.slice(offset, endOfEvent).utf8ToString());
+                    event.put("message", content.slice(offset, endOfEvent - offset).utf8ToString());
                     event = createDlqDoc(event, e);
                 }
                 indexRequests.add(Requests.indexRequest(routeToDataStream(event)).opType(DocWriteRequest.OpType.CREATE).source(event));

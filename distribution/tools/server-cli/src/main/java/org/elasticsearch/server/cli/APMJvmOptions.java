@@ -30,8 +30,10 @@ import java.util.Properties;
 import java.util.Set;
 
 /**
- * This class is responsible for working out if APM tracing is enabled, and if so, preparing
+ * This class is responsible for working out if APM tracing is configured and if so, preparing
  * a temporary config file for the APM Java agent and CLI options to the JVM to configure APM.
+ * APM doesn't need to be enabled, as that can be toggled at runtime, but some configuration e.g.
+ * server URL and secret key can only be provided when Elasticsearch starts.
  */
 class APMJvmOptions {
     /**

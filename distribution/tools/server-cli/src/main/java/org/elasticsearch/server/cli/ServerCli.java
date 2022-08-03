@@ -87,8 +87,8 @@ class ServerCli extends EnvironmentAwareCommand {
             // install/remove plugins from elasticsearch-plugins.yml
             syncPlugins(terminal, env, processInfo);
 
-            ServerArgs args = createArgs(options, env, keystore, keystorePassword, processInfo);
-            this.server = startServer(terminal, processInfo, args);
+            ServerArgs args = createArgs(options, env, keystorePassword, processInfo);
+            this.server = startServer(terminal, processInfo, args, keystore);
         }
 
         if (options.has(daemonizeOption)) {
@@ -201,13 +201,8 @@ class ServerCli extends EnvironmentAwareCommand {
         }
     }
 
-    private ServerArgs createArgs(
-        OptionSet options,
-        Environment env,
-        KeyStoreWrapper keystore,
-        SecureString keystorePassword,
-        ProcessInfo processInfo
-    ) throws UserException {
+    private ServerArgs createArgs(OptionSet options, Environment env, SecureString keystorePassword, ProcessInfo processInfo)
+        throws UserException {
         boolean daemonize = options.has(daemonizeOption);
         boolean quiet = options.has(quietOption);
         Path pidFile = null;
@@ -218,7 +213,7 @@ class ServerCli extends EnvironmentAwareCommand {
             }
             validatePidFile(pidFile);
         }
-        return new ServerArgs(daemonize, quiet, pidFile, keystore, keystorePassword, env.settings(), env.configFile());
+        return new ServerArgs(daemonize, quiet, pidFile, keystorePassword, env.settings(), env.configFile());
     }
 
     @Override
@@ -234,7 +229,8 @@ class ServerCli extends EnvironmentAwareCommand {
     }
 
     // protected to allow tests to override
-    protected ServerProcess startServer(Terminal terminal, ProcessInfo processInfo, ServerArgs args) throws UserException {
-        return ServerProcess.start(terminal, processInfo, args);
+    protected ServerProcess startServer(Terminal terminal, ProcessInfo processInfo, ServerArgs args, KeyStoreWrapper keystore)
+        throws UserException {
+        return ServerProcess.start(terminal, processInfo, args, keystore);
     }
 }

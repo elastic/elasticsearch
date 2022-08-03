@@ -34,7 +34,6 @@ public record ServerArgs(
     boolean daemonize,
     boolean quiet,
     Path pidFile,
-    KeyStoreWrapper keystore,
     SecureString keystorePassword,
     Settings nodeSettings,
     Path configDir
@@ -62,7 +61,6 @@ public record ServerArgs(
             in.readBoolean(),
             in.readBoolean(),
             readPidFile(in),
-            null,
             in.readSecureString(),
             Settings.readSettingsFromStream(in),
             resolvePath(in.readString())

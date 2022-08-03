@@ -36,6 +36,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
+import org.elasticsearch.index.fielddata.SourceValueFetcherSortedDoubleIndexFieldData;
 import org.elasticsearch.index.fielddata.SourceValueFetcherSortedNumericIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedDoublesIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
@@ -372,6 +373,21 @@ public class NumberFieldMapper extends FieldMapper {
                 return new SortedDoublesIndexFieldData.Builder(name, numericType(), HalfFloatDocValuesField::new);
             }
 
+            @Override
+            public IndexFieldData.Builder getValueFetcherFieldDataBuilder(
+                String name,
+                SourceLookup sourceLookup,
+                ValueFetcher valueFetcher
+            ) {
+                return new SourceValueFetcherSortedDoubleIndexFieldData.Builder(
+                    name,
+                    numericType().getValuesSourceType(),
+                    valueFetcher,
+                    sourceLookup,
+                    HalfFloatDocValuesField::new
+                );
+            }
+
             private static void validateParsed(float value) {
                 if (Float.isFinite(HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(value))) == false) {
                     throw new IllegalArgumentException("[half_float] supports only finite values, but got [" + value + "]");
@@ -507,6 +523,21 @@ public class NumberFieldMapper extends FieldMapper {
                 return new SortedDoublesIndexFieldData.Builder(name, numericType(), FloatDocValuesField::new);
             }
 
+            @Override
+            public IndexFieldData.Builder getValueFetcherFieldDataBuilder(
+                String name,
+                SourceLookup sourceLookup,
+                ValueFetcher valueFetcher
+            ) {
+                return new SourceValueFetcherSortedDoubleIndexFieldData.Builder(
+                    name,
+                    numericType().getValuesSourceType(),
+                    valueFetcher,
+                    sourceLookup,
+                    FloatDocValuesField::new
+                );
+            }
+
             private static void validateParsed(float value) {
                 if (Float.isFinite(value) == false) {
                     throw new IllegalArgumentException("[float] supports only finite values, but got [" + value + "]");
@@ -618,6 +649,21 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             public IndexFieldData.Builder getFieldDataBuilder(String name) {
                 return new SortedDoublesIndexFieldData.Builder(name, numericType(), DoubleDocValuesField::new);
+            }
+
+            @Override
+            public IndexFieldData.Builder getValueFetcherFieldDataBuilder(
+                String name,
+                SourceLookup sourceLookup,
+                ValueFetcher valueFetcher
+            ) {
+                return new SourceValueFetcherSortedDoubleIndexFieldData.Builder(
+                    name,
+                    numericType().getValuesSourceType(),
+                    valueFetcher,
+                    sourceLookup,
+                    DoubleDocValuesField::new
+                );
             }
 
             private static void validateParsed(double value) {
@@ -1719,7 +1765,7 @@ public class NumberFieldMapper extends FieldMapper {
 
         @Override
         public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException {
-            SortedNumericDocValues dv = dv(reader);
+            SortedNumericDocValues dv = docValuesOrNull(reader, name);
             if (dv == null) {
                 return SourceLoader.SyntheticFieldLoader.NOTHING_LEAF;
             }
@@ -1830,12 +1876,12 @@ public class NumberFieldMapper extends FieldMapper {
          * an "empty" implementation if there aren't any doc values. We need to be able to
          * tell if there aren't any and return our empty leaf source loader.
          */
-        private SortedNumericDocValues dv(LeafReader reader) throws IOException {
-            SortedNumericDocValues dv = reader.getSortedNumericDocValues(name);
+        public static SortedNumericDocValues docValuesOrNull(LeafReader reader, String fieldName) throws IOException {
+            SortedNumericDocValues dv = reader.getSortedNumericDocValues(fieldName);
             if (dv != null) {
                 return dv;
             }
-            NumericDocValues single = reader.getNumericDocValues(name);
+            NumericDocValues single = reader.getNumericDocValues(fieldName);
             if (single != null) {
                 return DocValues.singleton(single);
             }

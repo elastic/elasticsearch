@@ -156,14 +156,15 @@ Status
 === {api-examples-title}
 
 Ingests a single log into the `logs-myapp-default` data stream.
-Specifies the timestamp in milliseconds since epoch.
-Provides global metadata via query parameters.
 
 [source,console]
 ------------------------------------------------------------
-POST _logs/myapp?service.name=myapp
-{"@timestamp": 1463990734853, "message": "Hello World", "custom_field": "value"}
+POST _logs/myapp?service.name=myapp <1>
+{"@timestamp": 1463990734853, "message": "Hello World", "custom_field": "value"} <2>
 ------------------------------------------------------------
+
+<1> Provides global metadata that applies to all log events in the request via query parameters.
+<2> Specifies the timestamp in milliseconds since epoch.
 
 After a short while the logs will become searchable.
 Event though `custom_field` is not among the <<logs-api-request-body, list of fields that are indexed by default>>,
@@ -237,15 +238,16 @@ The API returns the following response:
 '''
 
 Ingests a single log into the `logs-myapp-default` data stream.
-Specifies the timestamp as an ISO date string.
-Provides global metadata via a metadata event.
 
 [source,console]
 ------------------------------------------------------------
 POST _logs/myapp
-{"_metadata": {"service.name": "myapp"}}
-{"@timestamp": "2016-05-23T08:05:34.853Z", "message": "Hello World"}
+{"_metadata": {"service.name": "myapp"}} <1>
+{"@timestamp": "2016-05-23T08:05:34.853Z", "message": "Hello World"} <2>
 ------------------------------------------------------------
+
+<1> Provides global metadata that applies to all log events in the request via a global metadata event.
+<2> Specifies the timestamp as an ISO date string.
 
 '''
 
@@ -255,9 +257,22 @@ Provides metadata via local metadata events.
 [source,console]
 ------------------------------------------------------------
 POST _logs
-{"_metadata": {}}
-{"_metadata": {"data_stream.dataset": "myapp"}}
-{"@timestamp": "2016-05-23T08:05:34.853Z", "message": "Hello app"}
-{"_metadata": {"data_stream.dataset": "my_other_app"}}
-{"@timestamp": "2016-05-23T08:05:34.853Z", "message": "Hello other app"}
+{"_metadata": {"service.name": "myapp"}} <1>
+{"_metadata": {"data_stream.dataset": "myapp"}} <2>
+{"@timestamp": "2016-05-23T08:05:34.853Z", "message": "Hello app"} <3>
+{"_metadata": {"data_stream.dataset": "my_other_app"}} <4>
+{"@timestamp": "2016-05-23T08:05:34.853Z", "message": "Hello other app"} <5>
 ------------------------------------------------------------
+
+<1> Provides global metadata that applies to all log events in the request via a global metadata event.
+<2> Provides local metadata that gets merged into all subsequent log lines until the next local metadata object is provided.
+In this case, the metadata applies to the next event.
+<3> This log event will have the following metadata:
+`"service.name": "myapp"` (from the global metadata object) and
+`"data_stream.dataset": "myapp"` (from the first local metadata object)
+<4> Provides local metadata that invalidates the previous local metadata.
+It gets merged into all subsequent log lines until the next local metadata object is provided.
+In this case, the metadata applies to the last event.
+<5> This log event will have the following metadata:
+`"service.name": "myapp"` (from the global metadata object) and
+`"data_stream.dataset": "my_other_app"` (from the second local metadata object)

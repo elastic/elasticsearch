@@ -503,7 +503,8 @@ be set to `true` in the response.
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"took": 3/"took": $body.took/]
-
+// TESTRESPONSE[s/"value": 1/"value": $body.hits.total.value/]
+// TESTRESPONSE[s/"relation": "eq"/"relation": $body.hits.total.relation/]
 
 The `took` time in the response contains the milliseconds that this request
 took for processing, beginning quickly after the node received the query, up

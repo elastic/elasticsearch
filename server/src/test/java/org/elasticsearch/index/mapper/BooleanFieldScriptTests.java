@@ -57,13 +57,13 @@ public class BooleanFieldScriptTests extends FieldScriptTestCase<BooleanFieldScr
                 BooleanFieldScript script = new BooleanFieldScript(
                     "test",
                     Map.of(),
-                    new SearchLookup(field -> null, (ft, lookup) -> null),
+                    new SearchLookup(field -> null, (ft, lookup, fdt) -> null),
                     reader.leaves().get(0)
                 ) {
                     @Override
                     public void execute() {
                         for (int i = 0; i <= AbstractFieldScript.MAX_VALUES * 1000; i++) {
-                            emit(i % 2 == 0);
+                            new Emit(this).value(i % 2 == 0);
                         }
                     }
                 };

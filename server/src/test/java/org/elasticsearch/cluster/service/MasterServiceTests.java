@@ -42,10 +42,14 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.test.tasks.MockTaskManager;
+import org.elasticsearch.test.tasks.MockTaskManagerListener;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.AfterClass;
@@ -69,6 +73,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -109,14 +114,25 @@ public class MasterServiceTests extends ESTestCase {
     }
 
     private MasterService createMasterService(boolean makeMaster) {
+        return createMasterService(makeMaster, null);
+    }
+
+    private MasterService createMasterService(boolean makeMaster, TaskManager taskManager) {
         final DiscoveryNode localNode = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        final Settings settings = Settings.builder()
+            .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), MasterServiceTests.class.getSimpleName())
+            .put(Node.NODE_NAME_SETTING.getKey(), "test_node")
+            .build();
+
+        if (taskManager == null) {
+            taskManager = new TaskManager(settings, threadPool, emptySet());
+        }
+
         final MasterService masterService = new MasterService(
-            Settings.builder()
-                .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), MasterServiceTests.class.getSimpleName())
-                .put(Node.NODE_NAME_SETTING.getKey(), "test_node")
-                .build(),
+            settings,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            threadPool
+            threadPool,
+            taskManager
         );
         final ClusterState initialClusterState = ClusterState.builder(new ClusterName(MasterServiceTests.class.getSimpleName()))
             .nodes(
@@ -175,6 +191,55 @@ public class MasterServiceTests extends ESTestCase {
         assertFalse("non-master cluster state update task was not executed", taskFailed[0]);
 
         nonMaster.close();
+    }
+
+    /**
+     * Check that when the master service publishes a cluster state update, it uses a dedicated task.
+     */
+    public void testCreatesChildTaskForPublishingClusterState() throws Exception {
+        final MockTaskManager taskManager = new MockTaskManager(Settings.EMPTY, threadPool, emptySet());
+
+        final List<String> registeredActions = new ArrayList<>();
+        taskManager.addListener(new MockTaskManagerListener() {
+            @Override
+            public void onTaskRegistered(Task task) {
+                registeredActions.add(task.getAction());
+            }
+
+            @Override
+            public void onTaskUnregistered(Task task) {}
+
+            @Override
+            public void waitForTaskCompletion(Task task) {}
+        });
+
+        final CountDownLatch latch = new CountDownLatch(1);
+
+        try (MasterService masterService = createMasterService(true, taskManager)) {
+            masterService.submitStateUpdateTask(
+                "testCreatesChildTaskForPublishingClusterState",
+                new ExpectSuccessTask(),
+                ClusterStateTaskConfig.build(Priority.NORMAL),
+                new ClusterStateTaskExecutor<>() {
+                    @Override
+                    public ClusterState execute(ClusterState currentState, List<TaskContext<ExpectSuccessTask>> taskContexts) {
+                        for (final var taskContext : taskContexts) {
+                            taskContext.success(() -> {});
+                        }
+                        return ClusterState.builder(currentState).build();
+                    }
+
+                    @Override
+                    public void clusterStatePublished(ClusterState newClusterState) {
+                        latch.countDown();
+                    }
+                }
+            );
+
+            assertTrue(latch.await(10, TimeUnit.SECONDS));
+        }
+
+        assertThat(registeredActions.toString(), registeredActions, contains(MasterService.STATE_UPDATE_ACTION_NAME));
     }
 
     public void testThreadContext() throws InterruptedException {
@@ -1062,17 +1127,18 @@ public class MasterServiceTests extends ESTestCase {
 
         Logger clusterLogger = LogManager.getLogger(MasterService.class);
         Loggers.addAppender(clusterLogger, mockAppender);
+        final Settings settings = Settings.builder()
+            .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), MasterServiceTests.class.getSimpleName())
+            .put(Node.NODE_NAME_SETTING.getKey(), "test_node")
+            .build();
         try (
             MasterService masterService = new MasterService(
-                Settings.builder()
-                    .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), MasterServiceTests.class.getSimpleName())
-                    .put(Node.NODE_NAME_SETTING.getKey(), "test_node")
-                    .build(),
+                settings,
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                threadPool
+                threadPool,
+                new TaskManager(settings, threadPool, emptySet())
             )
         ) {
-
             final DiscoveryNode localNode = new DiscoveryNode(
                 "node1",
                 buildNewFakeTransportAddress(),
@@ -1243,14 +1309,16 @@ public class MasterServiceTests extends ESTestCase {
         final DiscoveryNode node1 = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         final DiscoveryNode node2 = new DiscoveryNode("node2", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         final DiscoveryNode node3 = new DiscoveryNode("node3", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        final Settings settings = Settings.builder()
+            .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), MasterServiceTests.class.getSimpleName())
+            .put(Node.NODE_NAME_SETTING.getKey(), "test_node")
+            .build();
         try (
             MasterService masterService = new MasterService(
-                Settings.builder()
-                    .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), MasterServiceTests.class.getSimpleName())
-                    .put(Node.NODE_NAME_SETTING.getKey(), "test_node")
-                    .build(),
+                settings,
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                threadPool
+                threadPool,
+                new TaskManager(settings, threadPool, emptySet())
             )
         ) {
 

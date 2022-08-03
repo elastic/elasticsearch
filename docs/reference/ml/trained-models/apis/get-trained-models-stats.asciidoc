@@ -97,6 +97,10 @@ The detailed allocation status given the deployment configuration.
 (integer)
 The current number of nodes where the model is allocated.
 
+`cache_size`:::
+(<<byte-units,byte value>>)
+The inference cache size (in memory outside the JVM heap) per node for the model.
+
 `state`:::
 (string)
 The detailed allocation state related to the nodes.
@@ -144,6 +148,16 @@ in the last minute.
 `error_count`:::
 (integer)
 The number of errors when evaluating the trained model.
+
+`inference_cache_hit_count`:::
+(integer)
+The total number of inference calls made against this node for this
+model that were served from the inference cache.
+
+`inference_cache_hit_count_last_minute`:::
+(integer)
+The number of inference calls made against this node for this model
+in the last minute that were served from the inference cache.
 
 `inference_count`:::
 (integer)

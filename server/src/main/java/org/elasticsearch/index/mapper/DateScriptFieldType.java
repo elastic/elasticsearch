@@ -17,6 +17,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.fielddata.DateScriptFieldData;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -41,7 +42,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript.LeafFactory> {
 
@@ -159,8 +159,12 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
     }
 
     @Override
-    public DateScriptFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> lookup) {
-        return new DateScriptFieldData.Builder(name(), leafFactory(lookup.get()), Resolution.MILLISECONDS.getDefaultToScriptFieldFactory());
+    public DateScriptFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
+        return new DateScriptFieldData.Builder(
+            name(),
+            leafFactory(fieldDataContext.lookupSupplier().get()),
+            Resolution.MILLISECONDS.getDefaultToScriptFieldFactory()
+        );
     }
 
     @Override

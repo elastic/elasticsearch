@@ -65,6 +65,7 @@ import java.io.LineNumberReader;
 import java.io.UncheckedIOException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.DirectoryNotEmptyException;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
@@ -1192,9 +1193,64 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         }
     }
 
+    private static final int RETRY_DELETE_MILLIS = OS.current() == OS.WINDOWS ? 500 : 0;
+    private static final int MAX_RETRY_DELETE_TIMES = OS.current() == OS.WINDOWS ? 15 : 0;
+
+    /**
+     * Deletes a file, retrying if necessary.
+     *
+     * @param path  the file to delete
+     *
+     * @throws NoSuchFileException
+     *         if the file does not exist
+     * @throws IOException
+     *         if an I/O error occurs
+     */
+    void deleteFileWithRetry(Path path) throws IOException {
+        try {
+            deleteFileWithRetry0(path);
+        } catch (InterruptedException x) {
+            throw new IOException("Interrupted while deleting.", x);
+        }
+    }
+
+    private void deleteFileWithRetry0(Path path) throws IOException, InterruptedException {
+        int times = 0;
+        IOException ioe = null;
+        while (true) {
+            try {
+                fileSystemOperations.delete(d -> d.delete(path));
+                // Checks for absence of the file. Semantics of Files.exists() is not the same.
+                while (Files.notExists(path) == false) {
+                    times++;
+                    if (times > MAX_RETRY_DELETE_TIMES) {
+                        throw new IOException("File still exists after " + times + " waits.");
+                    }
+                    Thread.sleep(RETRY_DELETE_MILLIS);
+                }
+                break;
+            } catch (NoSuchFileException x) {
+                throw x;
+            } catch (IOException x) {
+                // Backoff/retry in case another process is accessing the file
+                times++;
+                if (ioe == null) {
+                    ioe = x;
+                } else {
+                    ioe.addSuppressed(x);
+                }
+
+                if (times > MAX_RETRY_DELETE_TIMES) {
+                    throw ioe;
+                }
+                Thread.sleep(RETRY_DELETE_MILLIS);
+            }
+        }
+    }
+
     private void createWorkingDir() throws IOException {
         // Start configuration from scratch in case of a restart
-        fileSystemOperations.delete(d -> d.delete(configFile.getParent()));
+        deleteFileWithRetry(configFile.getParent());
         Files.createDirectories(configFile.getParent());
         Files.createDirectories(confPathRepo);
         Files.createDirectories(confPathData);

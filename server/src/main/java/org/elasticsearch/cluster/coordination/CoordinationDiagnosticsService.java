@@ -1016,7 +1016,10 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
     void cancelPollingRemoteMasterStabilityDiagnostic() {
         assert ThreadPool.assertCurrentThreadPool(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME);
         if (remoteCoordinationDiagnosisTask != null) {
-            remoteCoordinationDiagnosisTask.get().cancel();
+            Scheduler.Cancellable task = remoteCoordinationDiagnosisTask.get();
+            if (task != null) {
+                task.cancel();
+            }
             remoteCoordinationDiagnosisResult = null;
             remoteCoordinationDiagnosisTask = null;
         }

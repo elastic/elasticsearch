@@ -61,6 +61,15 @@ setup:
               }
             }
           }
+  - do:
+      cluster.put_settings:
+        body: >
+          {
+            "persistent": {
+              "logger.org.elasticsearch.xpack.transform.action": "DEBUG"
+            }
+          }
+
 
 ---
 teardown:

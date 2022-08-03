@@ -49,7 +49,8 @@ Elasticsearch is an [official image on Docker
 Hub](https://hub.docker.com/_/elasticsearch). On release day, we build the ES
 Docker image and upload it to [Elastic's Docker
 registry](https://www.docker.elastic.co/). Separately, we submit a build context
-to Docker. They then build the image, and upload it to Docker Hub.
+to Docker via the [elastic/dockerfiles](https://github.com/elastic/dockerfiles)
+repository. Docker then builds the image, and uploads it to Docker Hub.
 Unfortunately, this is an asynchronous process, and we don't hear back if
 there's a failure, so even when everything works, there's a lag between
 releasing a new version of Elasticsearch, and the image being available on
@@ -63,10 +64,10 @@ image is built.
      context.
    * It must be platform-independent i.e. it can build on ARM and x64
 
-
-Step (2) in the build strategy above replaces the `curl` command in the
-`Dockerfile` that fetches an Elasticsearch `.tar.gz` distribution with a `COPY`
-command, so that it is possible to build the ES image locally.
+The transform step in the [build strategy](#build-strategy) above replaces the
+`curl` command in the `Dockerfile` that fetches an Elasticsearch `.tar.gz`
+distribution with a `COPY` command, so that it is possible to build the ES image
+locally.
 
 ## Iron Bank release process
 

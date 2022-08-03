@@ -1,0 +1,12 @@
+pr: 88589
+summary: Make composite aggs in datafeeds Generally Available
+area: Machine Learning
+type: feature
+issues: []
+highlight:
+  title: Composite aggregations in datafeeds are Generally Available
+  body: |-
+    The support for 
+    {ml-docs}/ml-configuring-aggregation.html#aggs-using-composite[composite aggregations]
+    in datafeeds is now generally available.
+  notable: true

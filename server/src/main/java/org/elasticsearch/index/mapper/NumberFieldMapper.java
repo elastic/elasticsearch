@@ -1725,7 +1725,7 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException {
+        public DocValuesLoader docValuesLoader(LeafReader reader, int[] docIdsInLeaf) throws IOException {
             SortedNumericDocValues dv = docValuesOrNull(reader, name);
             if (dv == null) {
                 return SourceLoader.SyntheticFieldLoader.NOTHING_LEAF;
@@ -1744,7 +1744,7 @@ public class NumberFieldMapper extends FieldMapper {
             return new ImmediateLeaf(dv);
         }
 
-        private class ImmediateLeaf implements Leaf {
+        private class ImmediateLeaf implements DocValuesLoader {
             private final SortedNumericDocValues dv;
             private boolean hasValue;
 
@@ -1785,7 +1785,7 @@ public class NumberFieldMapper extends FieldMapper {
          * disk and cpu-friendly than {@link ImmediateLeaf} because it resolves
          * the values all at once, always scanning forwards on the disk.
          */
-        private Leaf singletonLeaf(NumericDocValues singleton, int[] docIdsInLeaf) throws IOException {
+        private DocValuesLoader singletonLeaf(NumericDocValues singleton, int[] docIdsInLeaf) throws IOException {
             long[] values = new long[docIdsInLeaf.length];
             boolean[] hasValue = new boolean[docIdsInLeaf.length];
             boolean found = false;
@@ -1801,7 +1801,7 @@ public class NumberFieldMapper extends FieldMapper {
             if (found == false) {
                 return SourceLoader.SyntheticFieldLoader.NOTHING_LEAF;
             }
-            return new Leaf() {
+            return new DocValuesLoader() {
                 private int idx = -1;
 
                 @Override

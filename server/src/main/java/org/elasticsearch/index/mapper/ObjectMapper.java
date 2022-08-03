@@ -577,17 +577,9 @@ public class ObjectMapper extends Mapper implements Cloneable {
             this.fields = fields;
             this.storedFieldLoaders = fields.stream()
                 .flatMap(SourceLoader.SyntheticFieldLoader::storedFieldsLeaves)
-                .collect(toMap(Map.Entry::getKey, e -> new StoredFieldLoader() {
-                    @Override
-                    public void loadedStoredField(List<Object> values) {
-                        hasValue = true;
-                        e.getValue().loadedStoredField(values);
-                    }
-
-                    @Override
-                    public void write(XContentBuilder b) throws IOException {
-                        e.getValue().write(b);
-                    }
+                .collect(toMap(Map.Entry::getKey, e -> values -> {
+                    hasValue = true;
+                    e.getValue().loadedStoredField(values);
                 }));
         }
 
@@ -602,40 +594,57 @@ public class ObjectMapper extends Mapper implements Cloneable {
         }
 
         @Override
-        public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException {
+        public DocValuesLoader docValuesLoader(LeafReader reader, int[] docIdsInLeaf) throws IOException {
+            return new SyntheticSourceFieldLoaderLeaf(this, reader, docIdsInLeaf);
+        }
 
-            return new SyntheticSourceFieldLoaderLeaf(
-                fieldWriters.toArray(SourceLoader.SyntheticFieldLoader.RenameMe[]::new),
-                docValueLoaders.toArray(SourceLoader.SyntheticFieldLoader.Leaf[]::new)
-            );
+        @Override public Writer writer() {
+            List<Writer> fieldWriters = new ArrayList<>();
+            for (SourceLoader.SyntheticFieldLoader field : fields) {
+                Writer fieldWriter = field.writer();
+                if (fieldWriter != null) {
+                    fieldWriters.add(fieldWriter);
+                }
+            }
+            return b -> {
+                if (hasValue == false) {
+                    return;
+                }
+                startSyntheticField(b);
+                for (Writer fieldWriter : fieldWriters) {
+                    fieldWriter.write(b);
+                }
+                b.endObject();
+                hasValue = false;
+            };
         }
     }
 
-    private class SyntheticSourceFieldLoaderLeaf implements SourceLoader.SyntheticFieldLoader.Leaf {
+    private class SyntheticSourceFieldLoaderLeaf implements SourceLoader.SyntheticFieldLoader.DocValuesLoader {
         private final SyntheticSourceFieldLoader parent;
-        private final SourceLoader.SyntheticFieldLoader.RenameMe[] fieldWriters;
-        private final SourceLoader.SyntheticFieldLoader.Leaf[] docValueLoaders;
+        private final SourceLoader.SyntheticFieldLoader.Writer[] fieldWriters;
+        private final SourceLoader.SyntheticFieldLoader.DocValuesLoader[] docValueLoaders;
 
         private SyntheticSourceFieldLoaderLeaf(SyntheticSourceFieldLoader parent, LeafReader reader, int[] docIdsInLeaf)
             throws IOException {
 
             this.parent = parent;
-            List<SourceLoader.SyntheticFieldLoader.RenameMe> fieldWriters = new ArrayList<>();
-            List<SourceLoader.SyntheticFieldLoader.Leaf> docValueLoaders = new ArrayList<>();
+            List<SourceLoader.SyntheticFieldLoader.Writer> fieldWriters = new ArrayList<>();
+            List<SourceLoader.SyntheticFieldLoader.DocValuesLoader> docValueLoaders = new ArrayList<>();
             for (SourceLoader.SyntheticFieldLoader field : parent.fields) {
-                SourceLoader.SyntheticFieldLoader.Leaf leaf = field.leaf(reader, docIdsInLeaf);
+                SourceLoader.SyntheticFieldLoader.DocValuesLoader leaf = field.docValuesLoader(reader, docIdsInLeaf);
                 if (false == leaf.empty()) {
                     docValueLoaders.add(leaf);
                     fieldWriters.add(leaf);
                     continue;
                 }
-                SourceLoader.SyntheticFieldLoader.RenameMe fieldWriter = field.writer();
+                SourceLoader.SyntheticFieldLoader.Writer fieldWriter = field.writer();
                 if (fieldWriter != null) {
                     fieldWriters.add(fieldWriter);
                 }
             }
-            this.fieldWriters = fieldWriters.toArray(SourceLoader.SyntheticFieldLoader.RenameMe[]::new);
-            this.docValueLoaders = docValueLoaders.toArray(SourceLoader.SyntheticFieldLoader.Leaf[]::new);
+            this.fieldWriters = fieldWriters.toArray(SourceLoader.SyntheticFieldLoader.Writer[]::new);
+            this.docValueLoaders = docValueLoaders.toArray(SourceLoader.SyntheticFieldLoader.DocValuesLoader[]::new);
         }
 
         @Override
@@ -645,24 +654,24 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
         @Override
         public boolean advanceToDoc(FieldsVisitor fieldsVisitor, int docId) throws IOException {
-            parent.hasValue = false;
-            for (SourceLoader.SyntheticFieldLoader.Leaf docValueLoader : docValueLoaders) {
+            for (SourceLoader.SyntheticFieldLoader.DocValuesLoader docValueLoader : docValueLoaders) {
                 boolean leafHasValue = docValueLoader.advanceToDoc(fieldsVisitor, docId);
                 parent.hasValue |= leafHasValue;
             }
-            return hasValue;
+            return parent.hasValue;
         }
 
         @Override
         public void write(XContentBuilder b) throws IOException {
-            if (hasValue == false) {
+            if (parent.hasValue == false) {
                 return;
             }
             startSyntheticField(b);
-            for (SourceLoader.SyntheticFieldLoader.RenameMe fieldWriter : fieldWriters) {
+            for (SourceLoader.SyntheticFieldLoader.Writer fieldWriter : fieldWriters) {
                 fieldWriter.write(b);
             }
             b.endObject();
+            parent.hasValue = false;
         }
     }
 

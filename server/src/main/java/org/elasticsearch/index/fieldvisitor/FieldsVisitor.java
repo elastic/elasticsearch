@@ -83,15 +83,12 @@ public class FieldsVisitor extends FieldNamesProvidingStoredFieldsVisitor {
     }
 
     public final void postProcess(Function<String, MappedFieldType> fieldTypeLookup) {
-        LogManager.getLogger(FieldsVisitor.class).error("ADFADFDF post process {}", fieldTypeLookup, new Exception());
         for (Map.Entry<String, List<Object>> entry : fields().entrySet()) {
             MappedFieldType fieldType = fieldTypeLookup.apply(entry.getKey());
             List<Object> fieldValues = entry.getValue();
-            LogManager.getLogger(FieldsVisitor.class).error("ADFADFDF post process {} {} {}", entry.getKey(), fieldType, entry.getValue());
             for (int i = 0; i < fieldValues.size(); i++) {
                 fieldValues.set(i, fieldType.valueForDisplay(fieldValues.get(i)));
             }
-            LogManager.getLogger(FieldsVisitor.class).error("ADFADFDF post process {} {} {}", entry.getKey(), fieldType, entry.getValue());
         }
     }
 
@@ -101,9 +98,6 @@ public class FieldsVisitor extends FieldNamesProvidingStoredFieldsVisitor {
     }
 
     public void binaryField(FieldInfo fieldInfo, BytesRef value) {
-        if (fieldInfo.name.equals("ecs.version")) {
-            LogManager.getLogger(FieldsVisitor.class).error("ADFADFDF Binary {} {}", fieldInfo.name, value);
-        }
         if (sourceFieldName.equals(fieldInfo.name)) {
             source = new BytesArray(value);
         } else if (IdFieldMapper.NAME.equals(fieldInfo.name)) {

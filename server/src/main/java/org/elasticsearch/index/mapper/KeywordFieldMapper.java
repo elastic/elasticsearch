@@ -80,7 +80,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static org.apache.lucene.index.IndexWriter.MAX_TERM_LENGTH;
@@ -1126,7 +1125,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException {
+        public DocValuesLoader docValuesLoader(LeafReader reader, int[] docIdsInLeaf) throws IOException {
             SortedSetDocValues dv = DocValues.getSortedSet(reader, name);
             if (dv.getValueCount() == 0) {
                 return SourceLoader.SyntheticFieldLoader.NOTHING_LEAF;
@@ -1152,7 +1151,7 @@ public final class KeywordFieldMapper extends FieldMapper {
          * {@link ImmediateLeaf} because it resolves the ordinals in order and
          * marginally more cpu friendly because it resolves the ordinals one time.
          */
-        private Leaf singletonLeaf(SortedDocValues singleton, int[] docIdsInLeaf) throws IOException {
+        private DocValuesLoader singletonLeaf(SortedDocValues singleton, int[] docIdsInLeaf) throws IOException {
             int[] ords = new int[docIdsInLeaf.length];
             int found = 0;
             for (int d = 0; d < docIdsInLeaf.length; d++) {
@@ -1189,7 +1188,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 }
             }
             logger.debug("loading [{}] on [{}] docs covering [{}] ords", name, docIdsInLeaf.length, uniqueOrds.length);
-            return new SourceLoader.SyntheticFieldLoader.Leaf() {
+            return new DocValuesLoader() {
                 private int idx = -1;
 
                 @Override
@@ -1229,7 +1228,7 @@ public final class KeywordFieldMapper extends FieldMapper {
          * Load ordinals in line with populating the doc and immediately
          * convert from ordinals into {@link BytesRef}s.
          */
-        private class ImmediateLeaf implements Leaf {
+        private class ImmediateLeaf implements DocValuesLoader {
             private final SortedSetDocValues dv;
             private boolean hasValue;
 
@@ -1287,9 +1286,13 @@ public final class KeywordFieldMapper extends FieldMapper {
         protected abstract BytesRef preserve(BytesRef value);
     }
 
-    public static class StoredFieldFieldLoader implements SourceLoader.SyntheticFieldLoader {
+    public static class StoredFieldFieldLoader
+        implements
+            SourceLoader.SyntheticFieldLoader,
+            SourceLoader.SyntheticFieldLoader.StoredFieldLoader, SourceLoader.SyntheticFieldLoader.Writer {
         private final String name;
         private final String simpleName;
+        private List<Object> values;
 
         public StoredFieldFieldLoader(String name, String simpleName) {
             this.name = name;
@@ -1302,54 +1305,74 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Stream<Map.Entry<String, Function<List<Object>, StoredFieldLoader>>> storedFieldsLeaves() {
-            return Stream.of(Map.entry(name, values -> b -> {
-                if (values.size() == 1) {
-                    b.field(simpleName, values.get(0).toString());
-                    return;
-                }
-                b.startArray(simpleName);
-                for (Object value : values) {
-                    b.value(value.toString());
-                }
-            }));
+        public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldsLeaves() {
+            return Stream.of(Map.entry(name, this));
         }
 
         @Override
-        public final Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException {
-            return new SourceLoader.SyntheticFieldLoader.Leaf() {
-                List<Object> values = null;
+        public Writer writer() {
+            return this;
+        }
 
-                @Override
-                public boolean empty() {
-                    return false; // TODO this could be quite inefficient if there are many of these
-                }
+        @Override
+        public void loadedStoredField(List<Object> values) {
+            this.values = values;
+        }
 
-                @Override
-                public boolean advanceToDoc(FieldsVisitor fieldsVisitor, int docId) {
-                    values = fieldsVisitor.fields().get(name);
-                    org.elasticsearch.logging.LogManager.getLogger(FieldsVisitor.class)
-                        .error("ADFADFDF from map {} {}", name, values, new Exception());
-                    return values != null && false == values.isEmpty();
-                }
+        @Override
+        public void write(XContentBuilder b) throws IOException {
+            if (values == null || values.isEmpty()) {
+                return;
+            }
+            if (values.size() == 1) {
+                b.field(simpleName, values.get(0).toString());
+                values = null;
+                return;
+            }
+            b.startArray(simpleName);
+            for (Object value : values) {
+                b.value(value.toString());
+            }
+            b.endArray();
+            values = null;
+        }
 
-                @Override
-                public void write(XContentBuilder b) throws IOException {
-                    if (values == null || values.isEmpty()) {
-                        return;
-                    }
-                    org.elasticsearch.logging.LogManager.getLogger(FieldsVisitor.class).error("ADFADFDF load {} {}", name, values);
-                    if (values.size() == 1) {
-                        b.field(simpleName, values.get(0).toString());
-                        return;
-                    }
-                    b.startArray(simpleName);
-                    for (Object value : values) {
-                        b.value(value.toString());
-                    }
-                    b.endArray();
-                }
-            };
+        @Override
+        public final DocValuesLoader docValuesLoader(LeafReader reader, int[] docIdsInLeaf) throws IOException {
+            return StoredFieldFieldLoader.NOTHING_LEAF;
+            // return new SourceLoader.SyntheticFieldLoader.Leaf() {
+            // List<Object> values = null;
+            //
+            // @Override
+            // public boolean empty() {
+            // return false; // TODO this could be quite inefficient if there are many of these
+            // }
+            //
+            // @Override
+            // public boolean advanceToDoc(FieldsVisitor fieldsVisitor, int docId) {
+            // values = fieldsVisitor.fields().get(name);
+            // org.elasticsearch.logging.LogManager.getLogger(FieldsVisitor.class)
+            // .error("ADFADFDF from map {} {}", name, values, new Exception());
+            // return values != null && false == values.isEmpty();
+            // }
+            //
+            // @Override
+            // public void write(XContentBuilder b) throws IOException {
+            // if (values == null || values.isEmpty()) {
+            // return;
+            // }
+            // org.elasticsearch.logging.LogManager.getLogger(FieldsVisitor.class).error("ADFADFDF load {} {}", name, values);
+            // if (values.size() == 1) {
+            // b.field(simpleName, values.get(0).toString());
+            // return;
+            // }
+            // b.startArray(simpleName);
+            // for (Object value : values) {
+            // b.value(value.toString());
+            // }
+            // b.endArray();
+            // }
+            // };
         }
     }
 }

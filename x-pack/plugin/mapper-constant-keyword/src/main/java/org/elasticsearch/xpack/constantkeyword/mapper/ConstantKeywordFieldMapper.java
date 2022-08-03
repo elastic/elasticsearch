@@ -319,8 +319,8 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
             }
 
             @Override
-            public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException {
-                return new SourceLoader.SyntheticFieldLoader.Leaf() {
+            public DocValuesLoader docValuesLoader(LeafReader reader, int[] docIdsInLeaf) throws IOException {
+                return new DocValuesLoader() {
                     @Override
                     public boolean empty() {
                         return fieldType().value == null;

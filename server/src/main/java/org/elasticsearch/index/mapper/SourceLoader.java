@@ -18,6 +18,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -89,7 +90,9 @@ public interface SourceLoader {
 
         public Synthetic(Mapping mapping) {
             loader = mapping.getRoot().syntheticFieldLoader();
-            storedFieldLeaves = Map.ofEntries(loader.storedFieldsLeaves().toArray(Map.Entry[]::new));
+            storedFieldLeaves = Map.copyOf(
+                loader.storedFieldsLeaves().collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
+            ); // NOCOMMIT gotta be a better way to make the map
         }
 
         @Override
@@ -104,15 +107,17 @@ public interface SourceLoader {
 
         @Override
         public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException {
-            SyntheticFieldLoader.Leaf leaf = loader.leaf(reader, docIdsInLeaf);
-            if (leaf.empty()) {
-                return Leaf.EMPTY_OBJECT;
-            }
+            SyntheticFieldLoader.DocValuesLoader leaf = loader.docValuesLoader(reader, docIdsInLeaf);
+            // if (leaf.empty()) {
+            // return Leaf.EMPTY_OBJECT;
+            // }
             return (fieldsVisitor, docId) -> {
-                for (Map.Entry<String, List<Object>> e : fieldsVisitor.fields().entrySet()) {
-                    SyntheticFieldLoader.StoredFieldLoader storedFieldLeaf = storedFieldLeaves.get(e.getKey());
-                    if (storedFieldLeaf != null) {
-                        storedFieldLeaf.loadedStoredField(e.getValue());
+                if (fieldsVisitor != null) {
+                    for (Map.Entry<String, List<Object>> e : fieldsVisitor.fields().entrySet()) {
+                        SyntheticFieldLoader.StoredFieldLoader storedFieldLeaf = storedFieldLeaves.get(e.getKey());
+                        if (storedFieldLeaf != null) {
+                            storedFieldLeaf.loadedStoredField(e.getValue());
+                        }
                     }
                 }
                 // TODO accept a requested xcontent type
@@ -135,7 +140,7 @@ public interface SourceLoader {
         /**
          * Load no values.
          */
-        SyntheticFieldLoader.Leaf NOTHING_LEAF = new Leaf() {
+        DocValuesLoader NOTHING_LEAF = new DocValuesLoader() {
             @Override
             public boolean empty() {
                 return true;
@@ -160,7 +165,7 @@ public interface SourceLoader {
             }
 
             @Override
-            public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) {
+            public DocValuesLoader docValuesLoader(LeafReader reader, int[] docIdsInLeaf) {
                 return NOTHING_LEAF;
             }
         };
@@ -168,9 +173,9 @@ public interface SourceLoader {
         /**
          * Build a loader for this field in the provided segment.
          */
-        Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException;
+        DocValuesLoader docValuesLoader(LeafReader reader, int[] docIdsInLeaf) throws IOException;
 
-        default RenameMe writer() {
+        default Writer writer() {
             return null;
         }
 
@@ -187,7 +192,7 @@ public interface SourceLoader {
         /**
          * Loads values for a field in a particular leaf.
          */
-        interface Leaf extends RenameMe {
+        interface DocValuesLoader extends Writer {
             /**
              * Is this entirely empty?
              */
@@ -199,15 +204,15 @@ public interface SourceLoader {
             boolean advanceToDoc(FieldsVisitor fieldsVisitor, int docId) throws IOException;
         }
 
-        interface RenameMe {
+        interface StoredFieldLoader {
+            void loadedStoredField(List<Object> values);
+        }
+
+        interface Writer {
             /**
              * Write values for this document.
              */
             void write(XContentBuilder b) throws IOException;
-        }
-
-        interface StoredFieldLoader extends RenameMe {
-            void loadedStoredField(List<Object> values);
         }
     }
 

@@ -706,7 +706,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException {
+        public DocValuesLoader docValuesLoader(LeafReader reader, int[] docIdsInLeaf) throws IOException {
             Map<Metric, SortedNumericDocValues> metricDocValues = new EnumMap<>(Metric.class);
             for (Metric m : metrics) {
                 String fieldName = subfieldName(name, m);
@@ -723,7 +723,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
             return new AggregateMetricSyntheticFieldLoader.ImmediateLeaf(metricDocValues);
         }
 
-        private class ImmediateLeaf implements Leaf {
+        private class ImmediateLeaf implements DocValuesLoader {
             private final Map<Metric, SortedNumericDocValues> metricDocValues;
             private final Set<Metric> metricHasValue = EnumSet.noneOf(Metric.class);
 

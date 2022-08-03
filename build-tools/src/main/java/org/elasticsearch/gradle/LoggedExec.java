@@ -150,7 +150,7 @@ public abstract class LoggedExec extends DefaultTask implements FileSystemOperat
             if (getWorkingDir().isPresent()) {
                 maybeRunCleanSpec();
                 File workingDir = getWorkingDir().get();
-                workingDir.mkdirs()
+                workingDir.mkdirs();
                 execSpec.setWorkingDir(workingDir);
             }
             if (getStandardInput().isPresent()) {

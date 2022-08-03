@@ -102,7 +102,6 @@ public class OldElasticsearch {
         Pattern httpPortPattern = Pattern.compile(
             "(\\[http\\s+\\]|Netty4HttpServerTransport|HttpServer).+bound_address.+127\\.0\\.0\\.1:(\\d+)"
         );
-        System.out.println("CAME TILL HERE = ");
         try (BufferedReader stdout = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
             String line;
             while ((line = stdout.readLine()) != null && (pid == 0 || port == 0)) {
@@ -127,7 +126,6 @@ public class OldElasticsearch {
             System.exit(1);
         }
 
-        System.out.println("baseDir = " + baseDir + " -- exists: " + baseDir.toFile().exists());
         Path tmp = Files.createTempFile(baseDir, null, null);
         Files.write(tmp, Integer.toString(port).getBytes(StandardCharsets.UTF_8));
         Files.move(tmp, baseDir.resolve("ports"), StandardCopyOption.ATOMIC_MOVE);

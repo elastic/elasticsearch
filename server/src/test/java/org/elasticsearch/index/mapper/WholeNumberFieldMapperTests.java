@@ -92,19 +92,6 @@ public abstract class WholeNumberFieldMapperTests extends NumberFieldMapperTests
         );
     }
 
-    public void testSingleValuedField() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
-            minimalMapping(b);
-            b.field("allow_multiple_values", false);
-        }));
-
-        Exception e = expectThrows(
-            MapperParsingException.class,
-            () -> mapper.parse(source(b -> b.array("field", randomNumber(), randomNumber(), randomNumber())))
-        );
-        assertThat(e.getCause().getMessage(), containsString("Only one field can be stored per key"));
-    }
-
     @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
         super.registerParameters(checker);

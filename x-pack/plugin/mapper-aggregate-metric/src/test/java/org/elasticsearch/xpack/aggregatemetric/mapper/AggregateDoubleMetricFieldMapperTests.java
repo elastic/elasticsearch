@@ -342,7 +342,10 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
                 source(b -> b.startObject("field").field("min", 10.0).field("max", 50.0).field("value_count", 77.33).endObject())
             )
         );
-        assertThat(e.getCause().getMessage(), containsString("77.33 cannot be converted to Integer without data loss"));
+        assertThat(
+            e.getCause().getMessage(),
+            containsString("failed to parse field [field.value_count] of type [integer] in document with id '1'.")
+        );
     }
 
     /**
@@ -363,7 +366,7 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
                         .startObject()
                         .field("min", 11.0)
                         .field("max", 51.0)
-                        .field("value_count", 3)
+                        .field("value_count", 2)
                         .endObject()
                         .endArray()
                 )
@@ -372,7 +375,8 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
         assertThat(
             e.getCause().getMessage(),
             containsString(
-                "failed to parse field [field.value_count] of type [integer] in document with id '1'. Preview of field's value: '3'"
+                "Field [field] of type [aggregate_metric_double] "
+                    + "does not support indexing multiple values for the same field in the same document"
             )
         );
     }

@@ -610,8 +610,19 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                 try {
                     delegateFieldMapper.parse(context);
                 } catch (MapperParsingException e) {
-                    if (e.getCause() instanceof IllegalArgumentException) {
-                        throw (IllegalArgumentException) e.getCause();
+                    // when parse multiple values, it will throw IllegalStateException
+                    // in org.apache.lucene.document.Document.onlyAddKey
+                    if (e.getCause() instanceof IllegalStateException) {
+                        throw new IllegalArgumentException(
+                            "Field ["
+                                + name()
+                                + "] of type ["
+                                + typeName()
+                                + "] does not support indexing multiple values for the same field in the same document"
+                        );
+                    } else if (e.getCause()instanceof IOException exception) {
+                        // throw the cause of the exception
+                        throw exception;
                     } else {
                         throw e;
                     }

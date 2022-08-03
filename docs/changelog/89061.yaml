@@ -1,0 +1,5 @@
+pr: 89061
+summary: "[7.17] Fix mount snapshot api ignoring unknown request parameter"
+area: "Snapshot/Restore, Java High Level REST Client"
+type: bug
+issues: []

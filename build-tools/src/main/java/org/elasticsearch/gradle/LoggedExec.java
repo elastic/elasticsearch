@@ -7,9 +7,11 @@
  */
 package org.elasticsearch.gradle;
 
+import org.apache.commons.io.FileUtils;
 import org.gradle.api.Action;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
+import org.gradle.api.file.DeleteSpec;
 import org.gradle.api.file.FileSystemOperations;
 import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.logging.Logger;
@@ -86,6 +88,10 @@ public abstract class LoggedExec extends DefaultTask implements FileSystemOperat
     @Internal
     abstract public Property<Boolean> getSpoolOutput();
 
+    @Input
+    @Optional
+    abstract public Property<Action<DeleteSpec>> getCleanSpec();
+
     private String output;
 
     @Inject
@@ -142,6 +148,7 @@ public abstract class LoggedExec extends DefaultTask implements FileSystemOperat
                 execSpec.setArgs(getArgs().get());
             }
             if (getWorkingDir().isPresent()) {
+                maybeRunCleanSpec();
                 execSpec.setWorkingDir(getWorkingDir().get());
             }
             if (getStandardInput().isPresent()) {
@@ -172,7 +179,15 @@ public abstract class LoggedExec extends DefaultTask implements FileSystemOperat
                 );
             }
         }
+    }
 
+    private void maybeRunCleanSpec() {
+        if(getCleanSpec().isPresent()){
+            fileSystemOperations.delete(getCleanSpec().get());
+            File workingDir = getWorkingDir().get();
+            FileUtils.deleteQuietly(workingDir);
+            workingDir.mkdirs();
+        }
     }
 
     private String byteStreamToString(OutputStream out) {

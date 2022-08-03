@@ -11,7 +11,6 @@ import org.elasticsearch.gradle.Architecture
 import org.elasticsearch.gradle.OS
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.internal.info.BuildParams
-import org.elasticsearch.gradle.internal.test.AntFixture
 import org.elasticsearch.gradle.internal.test.LoggedExecFixture
 import org.elasticsearch.gradle.transform.UnzipTransform
 import org.gradle.api.internal.artifacts.ArtifactAttributes
@@ -135,7 +134,7 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
       getExecutable().set("${BuildParams.runtimeJavaHome}/bin/java")
       getEnvironment().put('CLASSPATH', "${-> project.configurations.oldesFixture.asPath}")
       // old versions of Elasticsearch need JAVA_HOME
-      getEnvironment().put('JAVA_HOME', jdks.legacy.javaHomePath)
+      getEnvironment().put('JAVA_HOME', jdks.legacy.javaHomePath.toString())
       // If we are running on certain arm systems we need to explicitly set the stack size to overcome JDK page size bug
       if (Architecture.current() == Architecture.AARCH64) {
         getEnvironment().put('ES_JAVA_OPTS', '-Xss512k')
@@ -145,7 +144,7 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
         "${ -> oldEsDependency.singleFile.getPath()}",
         version == '090'
       )
-      waitCondition = { fixture, ant ->
+      waitingCondition { fixture, ant ->
         // the fixture writes the ports file when Elasticsearch's HTTP service
         // is ready, so we can just wait for the file to exist
         return fixture.portsFile.exists()

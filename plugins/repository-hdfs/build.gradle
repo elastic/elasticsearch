@@ -115,14 +115,13 @@ for (int hadoopVersion = minTestedHadoopVersion; hadoopVersion <= maxTestedHadoo
     dependencies.add("hdfs" + hadoopVersion + "Fixture", project(':test:fixtures:hdfs' + hadoopVersion + '-fixture'))
 
     for (String fixtureName : ['hdfs' + hadoopVersion + 'Fixture', 'haHdfs' + hadoopVersion + 'Fixture', 'secureHdfs' + hadoopVersion + 'Fixture', 'secureHaHdfs' + hadoopVersion + 'Fixture']) {
-        project.tasks.register(fixtureName, org.elasticsearch.gradle.internal.test.AntFixture) {
-            executable = "${BuildParams.runtimeJavaHome}/bin/java"
+        project.tasks.register(fixtureName, org.elasticsearch.gradle.internal.test.LoggedExecFixture) {
+            getExecutable().set("${BuildParams.runtimeJavaHome}/bin/java")
             dependsOn project.configurations.getByName("hdfs" + hadoopVer + "Fixture"), project.configurations.krb5Config, project.configurations.krb5Keytabs
-            env 'CLASSPATH', "${-> project.configurations.getByName("hdfs" + hadoopVer + "Fixture").asPath}"
-
-            maxWaitInSeconds 60
+            getEnvironment().put('CLASSPATH', "${-> project.configurations.getByName("hdfs" + hadoopVer + "Fixture").asPath}")
+            getMaxWaitInSeconds().set(60)
             onlyIf { BuildParams.inFipsJvm == false }
-            waitCondition = { fixture, ant ->
+            waitingCondition { fixture
                 // the hdfs.MiniHDFS fixture writes the ports file when
                 // it's ready, so we can just wait for the file to exist
                 return fixture.portsFile.exists()
@@ -151,8 +150,7 @@ for (int hadoopVersion = minTestedHadoopVersion; hadoopVersion <= maxTestedHadoo
                 miniHDFSArgs.add("hdfs/hdfs.build.elastic.co@${realm}")
                 miniHDFSArgs.add(new File(project.configurations.krb5Keytabs.singleFile, "hdfs_hdfs.build.elastic.co.keytab").getPath())
             }
-
-            args miniHDFSArgs.toArray()
+            getArgs().addAll(miniHDFSArgs)
         }
     }
 

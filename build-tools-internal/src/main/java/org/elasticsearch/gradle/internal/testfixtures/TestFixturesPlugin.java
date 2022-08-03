@@ -153,7 +153,7 @@ public class TestFixturesPlugin implements Plugin<Project> {
         // Skip docker compose tasks if it is unavailable
         maybeSkipTasks(tasks, dockerSupport, Test.class);
         maybeSkipTasks(tasks, dockerSupport, getTaskClass("org.elasticsearch.gradle.internal.test.RestIntegTestTask"));
-        maybeSkipTasks(tasks, dockerSupport, getTaskClass("org.elasticsearch.gradle.internal.test.AntFixture"));
+        maybeSkipTasks(tasks, dockerSupport, getTaskClass("org.elasticsearch.gradle.internal.test.LoggedExecFixture"));
         maybeSkipTasks(tasks, dockerSupport, ComposeUp.class);
         maybeSkipTasks(tasks, dockerSupport, ComposePull.class);
         maybeSkipTasks(tasks, dockerSupport, ComposeDown.class);

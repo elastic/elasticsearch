@@ -8,7 +8,7 @@
 
 import org.apache.tools.ant.filters.ReplaceTokens
 import org.elasticsearch.gradle.internal.info.BuildParams
-import org.elasticsearch.gradle.internal.test.AntFixture
+import org.elasticsearch.gradle.internal.test.LoggedExecFixture
 import org.elasticsearch.gradle.internal.test.RestIntegTestTask
 import org.elasticsearch.gradle.internal.test.rest.InternalYamlRestTestPlugin
 
@@ -52,11 +52,11 @@ tasks.named("yamlRestTest").configure { enabled = false }
  * custom Java security policy to work.
  */
 ['KeyStore', 'EnvVariables', 'SystemProperties', 'ContainerCredentials', 'InstanceProfile'].forEach { action ->
-  TaskProvider<AntFixture> fixture = tasks.register("ec2Fixture${action}", AntFixture) {
+  TaskProvider<LoggedExecFixture> fixture = tasks.register("ec2Fixture${action}", LoggedExecFixture) {
     dependsOn project.sourceSets.yamlRestTest.runtimeClasspath
-    env 'CLASSPATH', "${-> project.sourceSets.yamlRestTest.runtimeClasspath.asPath}"
-    executable = "${BuildParams.runtimeJavaHome}/bin/java"
-    args 'org.elasticsearch.discovery.ec2.AmazonEC2Fixture', baseDir, "${buildDir}/testclusters/yamlRestTest${action}-1/config/unicast_hosts.txt"
+    getEnvironment().put('CLASSPATH', "${-> project.sourceSets.yamlRestTest.runtimeClasspath.asPath}")
+    getExecutable().set("${BuildParams.runtimeJavaHome}/bin/java")
+    getArgs().addAll('org.elasticsearch.discovery.ec2.AmazonEC2Fixture', baseDir, "${buildDir}/testclusters/yamlRestTest${action}-1/config/unicast_hosts.txt")
   }
 
   def yamlRestTestTask = tasks.register("yamlRestTest${action}", RestIntegTestTask) {
@@ -103,7 +103,7 @@ testClusters.matching { it.name == "yamlRestTestSystemProperties" }.configureEac
 
 // Extra config for ContainerCredentials
 tasks.named("ec2FixtureContainerCredentials").configure {
-  env 'ACTIVATE_CONTAINER_CREDENTIALS', true
+  getEnvironment().addAll('ACTIVATE_CONTAINER_CREDENTIALS', true)
 }
 
 testClusters.matching { it.name == "yamlRestTestContainerCredentials" }.configureEach {
@@ -113,5 +113,5 @@ testClusters.matching { it.name == "yamlRestTestContainerCredentials" }.configur
 
 // Extra config for InstanceProfile
 tasks.named("ec2FixtureInstanceProfile").configure {
-  env 'ACTIVATE_INSTANCE_PROFILE', true
+  getEnvironment().addAll('ACTIVATE_INSTANCE_PROFILE', true)
 }

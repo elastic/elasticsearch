@@ -9,7 +9,7 @@
 
 import org.apache.tools.ant.filters.ReplaceTokens
 import org.elasticsearch.gradle.internal.info.BuildParams
-import org.elasticsearch.gradle.internal.test.AntFixture
+import org.elasticsearch.gradle.internal.test.LoggedExecFixture
 
 import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 
@@ -28,11 +28,11 @@ restResources {
 }
 
 /** A task to start the GCEFixture which emulates a GCE service **/
-def gceFixtureProvider = tasks.register("gceFixture", AntFixture) {
+def gceFixtureProvider = tasks.register("gceFixture", LoggedExecFixture) {
   dependsOn project.sourceSets.yamlRestTest.runtimeClasspath
-  env 'CLASSPATH', "${-> project.sourceSets.yamlRestTest.runtimeClasspath.asPath}"
-  executable = "${BuildParams.runtimeJavaHome}/bin/java"
-  args 'org.elasticsearch.cloud.gce.GCEFixture', baseDir, "${buildDir}/testclusters/yamlRestTest-1/config/unicast_hosts.txt"
+  getEnvironment().putAll('CLASSPATH', "${-> project.sourceSets.yamlRestTest.runtimeClasspath.asPath}")
+  getExecutable().set("${BuildParams.runtimeJavaHome}/bin/java")
+  getArgs().addAll('org.elasticsearch.cloud.gce.GCEFixture', baseDir, "${buildDir}/testclusters/yamlRestTest-1/config/unicast_hosts.txt")
 }
 
 Map<String, Object> expansions = [

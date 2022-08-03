@@ -65,13 +65,13 @@ String krb5conf = krbFixtureProject.ext.krb5Conf("hdfs")
 
 // Create HDFS File System Testing Fixtures
 for (String fixtureName : ['hdfsFixture', 'secureHdfsFixture']) {
-  project.tasks.register(fixtureName, org.elasticsearch.gradle.internal.test.AntFixture) {
+  project.tasks.register(fixtureName, org.elasticsearch.gradle.internal.test.LoggedExecFixture) {
     dependsOn project.configurations.hdfsFixture, krbFixtureProject.tasks.postProcessFixture
-    executable = "${BuildParams.runtimeJavaHome}/bin/java"
-    env 'CLASSPATH', "${-> project.configurations.hdfsFixture.asPath}"
-    maxWaitInSeconds 60
+    getExecutable().set("${BuildParams.runtimeJavaHome}/bin/java")
+    getEnvironment().putAll('CLASSPATH', "${-> project.configurations.hdfsFixture.asPath}")
+    getMaxWaitInSeconds().set(60)
     onlyIf { BuildParams.inFipsJvm == false }
-    waitCondition = { fixture, ant ->
+    waitingCondition { fixture
       // the hdfs.MiniHDFS fixture writes the ports file when
       // it's ready, so we can just wait for the file to exist
       return fixture.portsFile.exists()
@@ -97,7 +97,7 @@ for (String fixtureName : ['hdfsFixture', 'secureHdfsFixture']) {
       miniHDFSArgs.add(project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("hdfs", "hdfs_hdfs.build.elastic.co.keytab"))
     }
 
-    args miniHDFSArgs.toArray()
+    getArgs().addAll(miniHDFSArgs)
   }
 }
 

@@ -123,7 +123,7 @@ public class ShardSnapshotWorkers {
         }
     }
 
-    public void enqueueFileUpload(
+    public void enqueueFileSnapshot(
         final SnapshotShardContext context,
         final FileInfo fileInfo,
         final ActionListener<Void> fileUploadListener

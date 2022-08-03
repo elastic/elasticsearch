@@ -90,7 +90,7 @@ public class ShardSnapshotWorkersTests extends ESTestCase {
                     filesToUpload
                 );
                 for (int i = 0; i < filesToUpload; i++) {
-                    workers.enqueueFileUpload(context, createDummyFileInfo(), uploadListener);
+                    workers.enqueueFileSnapshot(context, createDummyFileInfo(), uploadListener);
                 }
             }
             finishedShardSnapshotTasks.incrementAndGet();

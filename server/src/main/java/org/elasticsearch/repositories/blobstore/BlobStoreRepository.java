@@ -377,7 +377,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      */
     private final int maxSnapshotCount;
 
-    private final ShardSnapshotWorkers shardSnapshotWorkerPool;
+    private final ShardSnapshotWorkers shardSnapshotWorkers;
 
     /**
      * Constructs new BlobStoreRepository
@@ -408,7 +408,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         this.basePath = basePath;
         this.maxSnapshotCount = MAX_SNAPSHOTS_SETTING.get(metadata.settings());
         this.repoDataDeduplicator = new ResultDeduplicator<>(threadPool.getThreadContext());
-        shardSnapshotWorkerPool = new ShardSnapshotWorkers(
+        shardSnapshotWorkers = new ShardSnapshotWorkers(
             threadPool.info(ThreadPool.Names.SNAPSHOT).getMax(),
             threadPool.executor(ThreadPool.Names.SNAPSHOT),
             this::doSnapshotShard,
@@ -2619,7 +2619,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     @Override
     public void snapshotShard(SnapshotShardContext context) {
-        shardSnapshotWorkerPool.enqueueShardSnapshot(context);
+        shardSnapshotWorkers.enqueueShardSnapshot(context);
     }
 
     private void doSnapshotShard(SnapshotShardContext context) {
@@ -2889,7 +2889,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }
             final ActionListener<Void> filesListener = fileQueueListener(filesToSnapshot, filesToSnapshot.size(), allFilesUploadedListener);
             for (FileInfo fileInfo : filesToSnapshot) {
-                shardSnapshotWorkerPool.enqueueFileUpload(context, fileInfo, filesListener);
+                shardSnapshotWorkers.enqueueFileSnapshot(context, fileInfo, filesListener);
             }
         } catch (Exception e) {
             context.onFailure(e);

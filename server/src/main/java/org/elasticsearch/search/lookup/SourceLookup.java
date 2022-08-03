@@ -66,9 +66,7 @@ public class SourceLookup {
     }
 
     public void setSegmentAndDocument(LeafReaderContext context, int docId) {
-        if (sourceProvider instanceof ReaderSourceProvider) {
-            ((ReaderSourceProvider) sourceProvider).setSegmentAndDocument(context, docId);
-        }
+        sourceProvider.setSegmentAndDocument(context, docId);
         this.docId = docId;
     }
 
@@ -153,6 +151,8 @@ public class SourceLookup {
         List<Object> extractRawValuesWithoutCaching(String path);
 
         boolean hasSourceAsMap();
+
+        void setSegmentAndDocument(LeafReaderContext context, int docId);
     }
 
     /**
@@ -183,6 +183,11 @@ public class SourceLookup {
         @Override
         public boolean hasSourceAsMap() {
             return false;
+        }
+
+        @Override
+        public void setSegmentAndDocument(LeafReaderContext context, int docId) {
+            //
         }
     }
 
@@ -225,6 +230,11 @@ public class SourceLookup {
         @Override
         public boolean hasSourceAsMap() {
             return true;
+        }
+
+        @Override
+        public void setSegmentAndDocument(LeafReaderContext context, int docId) {
+            //
         }
     }
 
@@ -281,6 +291,11 @@ public class SourceLookup {
         @Override
         public boolean hasSourceAsMap() {
             return source != null;
+        }
+
+        @Override
+        public void setSegmentAndDocument(LeafReaderContext context, int docId) {
+            //
         }
     }
 

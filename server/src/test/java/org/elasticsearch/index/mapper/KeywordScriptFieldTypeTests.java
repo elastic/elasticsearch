@@ -303,12 +303,7 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
                 expectThrows(
                     IllegalArgumentException.class,
                     () -> {
-                        searcher.count(
-                            fieldType.termQuery(
-                                "1-suffix",
-                                mockContext(true, null, new SourceLookup.NullSourceProvider())
-                            )
-                        );
+                        searcher.count(fieldType.termQuery("1-suffix", mockContext(true, null, new SourceLookup.NullSourceProvider())));
                     }
                 );
             }

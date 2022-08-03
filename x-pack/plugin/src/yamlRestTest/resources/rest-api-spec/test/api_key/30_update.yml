@@ -171,17 +171,6 @@ teardown:
         body: >
           {
             "name": "user1-api-key",
-            "role_descriptors": {
-              "role-a": {
-                "cluster": ["all"],
-                "index": [
-                  {
-                    "names": ["index-a"],
-                    "privileges": ["read"]
-                  }
-                ]
-              }
-            },
             "metadata": {
               "letter": "a",
               "number": 42
@@ -485,6 +474,7 @@ teardown:
           {
             "ids": ["$key_id_1", "$key_id_2"]
           }
+  - is_false: errors
   - length: { "updated": 0 }
   - length: { "noops": 2 }
   - match: {
@@ -566,17 +556,6 @@ teardown:
         body: >
           {
             "name": "api-key-1",
-            "role_descriptors": {
-              "role-a": {
-                "cluster": ["all"],
-                "index": [
-                  {
-                    "names": ["index-a"],
-                    "privileges": ["read"]
-                  }
-                ]
-              }
-            },
             "metadata": {
               "letter": "a",
               "number": 42
@@ -596,17 +575,6 @@ teardown:
         body: >
           {
             "name": "api-key-2",
-            "role_descriptors": {
-              "role-a": {
-                "cluster": ["all"],
-                "index": [
-                  {
-                    "names": ["index-a"],
-                    "privileges": ["read"]
-                  }
-                ]
-              }
-            },
             "metadata": {
               "letter": "b",
               "number": 43
@@ -642,6 +610,7 @@ teardown:
           {
             "ids": ["$key_id_1", "$key_id_2"]
           }
+  - is_false: errors
   - length: { "noops": 0 }
   - length: { "updated": 2 }
   - match: {
@@ -686,7 +655,7 @@ teardown:
           }
   - match: { "has_all_requested": true }
 
-  # Check that metadata was updated
+  # Check that metadata was not updated
   - do:
       headers:
         Authorization: "Basic YXBpX2tleV91c2VyXzE6eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" # api_key_user_1
@@ -794,6 +763,7 @@ teardown:
             "role_descriptors": {},
             "metadata": {}
           }
+  - is_false: errors
   - length: { "noops": 0 }
   - length: { "updated": 2 }
   - match: {

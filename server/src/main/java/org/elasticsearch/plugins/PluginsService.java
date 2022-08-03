@@ -90,6 +90,8 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         }
     }
 
+
+
     private static final Logger logger = LogManager.getLogger(PluginsService.class);
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(PluginsService.class);
 
@@ -101,6 +103,8 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
      */
     private final List<LoadedPlugin> plugins;
     private final PluginsAndModules info;
+
+    private final StablePluginsRegistry stablePluginsRegistry = new StablePluginsRegistry();
 
     public static final Setting<List<String>> MANDATORY_SETTING = Setting.listSetting(
         "plugin.mandatory",
@@ -409,7 +413,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         return "constructor for extension [" + extensionClass.getName() + "] of type [" + extensionPointType.getName() + "]";
     }
 
-    private Plugin loadBundle(PluginBundle bundle, Map<String, LoadedPlugin> loaded) {
+    private void loadBundle(PluginBundle bundle, Map<String, LoadedPlugin> loaded) {
         String name = bundle.plugin.getName();
         logger.debug(() -> "Loading bundle: " + name);
 
@@ -457,25 +461,36 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             // that have dependencies with their own SPI endpoints have a chance to load
             // and initialize them appropriately.
             privilegedSetContextClassLoader(pluginClassLoader);
+            findStablePlugins(bundle, pluginClassLoader);
 
-            Class<? extends Plugin> pluginClass = loadPluginClass(bundle.plugin.getClassname(), pluginClassLoader);
-            if (pluginClassLoader != pluginClass.getClassLoader()) {
-                throw new IllegalStateException(
-                    "Plugin ["
-                        + name
-                        + "] must reference a class loader local Plugin class ["
-                        + bundle.plugin.getClassname()
-                        + "] (class loader ["
-                        + pluginClass.getClassLoader()
-                        + "])"
-                );
+            if(bundle.pluginDescriptor().isStable() == false) {
+                Class<? extends Plugin> pluginClass = loadPluginClass(bundle.plugin.getClassname(), pluginClassLoader);
+                if (pluginClassLoader != pluginClass.getClassLoader()) {
+                    throw new IllegalStateException(
+                        "Plugin ["
+                            + name
+                            + "] must reference a class loader local Plugin class ["
+                            + bundle.plugin.getClassname()
+                            + "] (class loader ["
+                            + pluginClass.getClassLoader()
+                            + "])"
+                    );
+                }
+                Plugin plugin = loadPlugin(pluginClass, settings, configPath);
+                loaded.put(name, new LoadedPlugin(bundle.plugin, plugin, spiLayerAndLoader.loader(), spiLayerAndLoader.layer()));
+              //  return plugin;
             }
-            Plugin plugin = loadPlugin(pluginClass, settings, configPath);
-            loaded.put(name, new LoadedPlugin(bundle.plugin, plugin, spiLayerAndLoader.loader(), spiLayerAndLoader.layer()));
-            return plugin;
         } finally {
             privilegedSetContextClassLoader(cl);
         }
+    }
+
+    private void findStablePlugins(PluginBundle bundle, ClassLoader pluginClassLoader) {
+        AnnotationScanner annotationScanner = new AnnotationScanner(bundle, pluginClassLoader);
+
+
+//        ClassTraversal ct = new ClassTraversal(annotationScanner.getClassNameToAnnotatedName(), interfaceScanner.getClassHierarchy());
+//        analysisInterfaceToNameComponentClassnameMap .putAll(ct.getResult(pluginClassLoader));
     }
 
     static LayerAndLoader createSPI(PluginBundle bundle, ClassLoader parentLoader, List<LoadedPlugin> extendedPlugins) {

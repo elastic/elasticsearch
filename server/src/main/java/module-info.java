@@ -22,6 +22,8 @@ module org.elasticsearch.server {
     requires org.elasticsearch.securesm;
     requires org.elasticsearch.xcontent;
     requires org.elasticsearch.logging;
+    requires org.elasticsearch.plugin.api;
+    requires org.elasticsearch.analysis.plugin.api;
 
     requires com.sun.jna;
     requires hppc;
@@ -46,6 +48,7 @@ module org.elasticsearch.server {
     requires org.apache.lucene.queryparser;
     requires org.apache.lucene.sandbox;
     requires org.apache.lucene.suggest;
+    requires org.objectweb.asm;
 
     exports org.elasticsearch;
     exports org.elasticsearch.action;

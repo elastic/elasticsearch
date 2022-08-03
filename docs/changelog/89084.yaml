@@ -1,0 +1,6 @@
+pr: 89084
+summary: Add queries section into the _nodes/usage API
+area: "Search, Vector Search"
+type: enhancement
+issues:
+ - 88908

@@ -111,28 +111,28 @@ final class CountingItemSetTraverser implements Releasable {
             // we recalculate the row for this depth, so we have to clear the bits first
             transactionSkipList.clear((depth - 1) * cacheNumberOfTransactions, ((depth) * cacheNumberOfTransactions));
 
-            int transactionId = 0;
+            int topTransactionPos = 0;
             long occurrences = 0;
 
             // for whatever reason this turns out to be faster than a for loop
-            while (transactionId < topTransactionIds.size()) {
+            while (topTransactionPos < topTransactionIds.size()) {
                 // caching: if the transaction is already marked for skipping, quickly continue
-                if (transactionId < cacheNumberOfTransactions
-                    && transactionSkipList.get(cacheNumberOfTransactions * (depth - 2) + transactionId)) {
+                if (topTransactionPos < cacheNumberOfTransactions
+                    && transactionSkipList.get(cacheNumberOfTransactions * (depth - 2) + topTransactionPos)) {
                     // set the bit for the next iteration
-                    transactionSkipList.set(cacheNumberOfTransactions * (depth - 1) + transactionId);
-                    transactionId++;
+                    transactionSkipList.set(cacheNumberOfTransactions * (depth - 1) + topTransactionPos);
+                    topTransactionPos++;
                     continue;
                 }
 
-                long transactionCount = transactionStore.getTransactionCount(topTransactionIds.getItemIdAt(transactionId));
+                long transactionCount = transactionStore.getTransactionCount(topTransactionIds.getItemIdAt(topTransactionPos));
 
-                if (transactionsLookupTable.isSubsetOf(transactionId, topItemSetTraverser.getItemSetBitSet())) {
+                if (transactionsLookupTable.isSubsetOf(topTransactionPos, topItemSetTraverser.getItemSetBitSet())) {
                     occurrences += transactionCount;
-                } else if (transactionId < cacheNumberOfTransactions) {
+                } else if (topTransactionPos < cacheNumberOfTransactions) {
                     // put this transaction to the skip list
                     skipCount += transactionCount;
-                    transactionSkipList.set(cacheNumberOfTransactions * (depth - 1) + transactionId);
+                    transactionSkipList.set(cacheNumberOfTransactions * (depth - 1) + topTransactionPos);
                 }
 
                 maxReachableTransactionCount -= transactionCount;
@@ -141,7 +141,7 @@ final class CountingItemSetTraverser implements Releasable {
                     break;
                 }
 
-                transactionId++;
+                topTransactionPos++;
             }
             transactionSkipCounts[depth - 1] = skipCount;
 

@@ -34,6 +34,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.TaskTransportChannel;
 import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.TcpTransportChannel;
@@ -88,14 +89,22 @@ public class TaskManager implements ClusterStateApplier {
 
     private DiscoveryNodes lastDiscoveryNodes = DiscoveryNodes.EMPTY_NODES;
 
+    private final Tracer tracer;
+
     private final ByteSizeValue maxHeaderSize;
     private final Map<TcpChannel, ChannelPendingTaskTracker> channelPendingTaskTrackers = ConcurrentCollections.newConcurrentMap();
     private final SetOnce<TaskCancellationService> cancellationService = new SetOnce<>();
 
+    // For testing
     public TaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {
+        this(settings, threadPool, taskHeaders, Tracer.NOOP);
+    }
+
+    public TaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders, Tracer tracer) {
         this.threadPool = threadPool;
         this.taskHeaders = taskHeaders.toArray(Strings.EMPTY_ARRAY);
         this.maxHeaderSize = SETTING_HTTP_MAX_HEADER_SIZE.get(settings);
+        this.tracer = tracer;
     }
 
     public void setTaskResultsService(TaskResultsService taskResultsService) {
@@ -111,10 +120,22 @@ public class TaskManager implements ClusterStateApplier {
      * Registers a task without parent task
      */
     public Task register(String type, String action, TaskAwareRequest request) {
+        return register(type, action, request, true);
+    }
+
+    /**
+     * Registers a task without a parent task, and specifies whether to trace the request. You should prefer
+     * to call {@link #register(String, String, TaskAwareRequest)}, since it is rare to want to avoid
+     * tracing a task.
+     */
+    public Task register(String type, String action, TaskAwareRequest request, boolean traceRequest) {
         Map<String, String> headers = new HashMap<>();
         long headerSize = 0;
         long maxSize = maxHeaderSize.getBytes();
         ThreadContext threadContext = threadPool.getThreadContext();
+
+        assert threadContext.hasTraceContext() == false : "Expected threadContext to have no traceContext fields";
+
         for (String key : taskHeaders) {
             String httpHeader = threadContext.getHeader(key);
             if (httpHeader != null) {
@@ -137,8 +158,22 @@ public class TaskManager implements ClusterStateApplier {
         } else {
             Task previousTask = tasks.put(task.getId(), task);
             assert previousTask == null;
+            if (traceRequest) {
+                startTrace(threadContext, task);
+            }
         }
         return task;
+    }
+
+    private void startTrace(ThreadContext threadContext, Task task) {
+        TaskId parentTask = task.getParentTaskId();
+        Map<String, Object> attributes = Map.of(
+            Tracer.AttributeKeys.TASK_ID,
+            task.getId(),
+            Tracer.AttributeKeys.PARENT_TASK_ID,
+            parentTask.toString()
+        );
+        tracer.startTrace(threadContext, "task-" + task.getId(), task.getAction(), attributes);
     }
 
     public <Request extends ActionRequest, Response extends ActionResponse> Task registerAndExecute(
@@ -154,49 +189,52 @@ public class TaskManager implements ClusterStateApplier {
         } else {
             unregisterChildNode = null;
         }
-        final Task task;
-        try {
-            task = register(type, action.actionName, request);
-        } catch (TaskCancelledException e) {
-            Releasables.close(unregisterChildNode);
-            throw e;
+
+        try (var ignored = threadPool.getThreadContext().newTraceContext()) {
+            final Task task;
+            try {
+                task = register(type, action.actionName, request);
+            } catch (TaskCancelledException e) {
+                Releasables.close(unregisterChildNode);
+                throw e;
+            }
+            action.execute(task, request, new ActionListener<>() {
+                @Override
+                public void onResponse(Response response) {
+                    try {
+                        release();
+                    } finally {
+                        taskListener.onResponse(response);
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    try {
+                        release();
+                    } finally {
+                        taskListener.onFailure(e);
+                    }
+                }
+
+                @Override
+                public String toString() {
+                    return this.getClass().getName() + "{" + taskListener + "}{" + task + "}";
+                }
+
+                private void release() {
+                    Releasables.close(unregisterChildNode, () -> unregister(task));
+                }
+            });
+            return task;
         }
-        // NOTE: ActionListener cannot infer Response, see https://bugs.openjdk.java.net/browse/JDK-8203195
-        action.execute(task, request, new ActionListener<Response>() {
-            @Override
-            public void onResponse(Response response) {
-                try {
-                    release();
-                } finally {
-                    taskListener.onResponse(response);
-                }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                try {
-                    release();
-                } finally {
-                    taskListener.onFailure(e);
-                }
-            }
-
-            @Override
-            public String toString() {
-                return this.getClass().getName() + "{" + taskListener + "}{" + task + "}";
-            }
-
-            private void release() {
-                Releasables.close(unregisterChildNode, () -> unregister(task));
-            }
-        });
-        return task;
     }
 
     private void registerCancellableTask(Task task) {
         CancellableTask cancellableTask = (CancellableTask) task;
         CancellableTaskHolder holder = new CancellableTaskHolder(cancellableTask);
         cancellableTasks.put(task, holder);
+        startTrace(threadPool.getThreadContext(), task);
         // Check if this task was banned before we start it. The empty check is used to avoid
         // computing the hash code of the parent taskId as most of the time bannedParents is empty.
         if (task.getParentTaskId().isSet() && bannedParents.isEmpty() == false) {
@@ -235,19 +273,23 @@ public class TaskManager implements ClusterStateApplier {
      */
     public Task unregister(Task task) {
         logger.trace("unregister task for id: {}", task.getId());
-        if (task instanceof CancellableTask) {
-            CancellableTaskHolder holder = cancellableTasks.remove(task);
-            if (holder != null) {
-                holder.finish();
-                assert holder.task == task;
-                return holder.getTask();
+        try {
+            if (task instanceof CancellableTask) {
+                CancellableTaskHolder holder = cancellableTasks.remove(task);
+                if (holder != null) {
+                    holder.finish();
+                    assert holder.task == task;
+                    return holder.getTask();
+                } else {
+                    return null;
+                }
             } else {
-                return null;
+                final Task removedTask = tasks.remove(task.getId());
+                assert removedTask == null || removedTask == task;
+                return removedTask;
             }
-        } else {
-            final Task removedTask = tasks.remove(task.getId());
-            assert removedTask == null || removedTask == task;
-            return removedTask;
+        } finally {
+            tracer.stopTrace("task-" + task.getId());
         }
     }
 

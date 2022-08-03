@@ -30,7 +30,7 @@ import static org.elasticsearch.core.Strings.format;
 
 public class PyTorchResultProcessor {
 
-    public record RecentStats(long requestsProcessed, Double avgInferenceTime) {}
+    public record RecentStats(long requestsProcessed, Double avgInferenceTime, long cacheHitCount) {}
 
     public record ResultStats(
         LongSummaryStatistics timingStats,
@@ -55,6 +55,7 @@ public class PyTorchResultProcessor {
     private long peakThroughput;
 
     private LongSummaryStatistics lastPeriodSummaryStats;
+    private long lastPeriodCacheHitCount;
     private RecentStats lastPeriodStats;
     private long currentPeriodEndTimeMs;
     private long lastResultTimeMs;
@@ -197,13 +198,13 @@ public class PyTorchResultProcessor {
             // there was a result in the last period but not one
             // in this period to close off the last period stats.
             // The stats are valid return them here
-            rs = new RecentStats(lastPeriodSummaryStats.getCount(), lastPeriodSummaryStats.getAverage());
+            rs = new RecentStats(lastPeriodSummaryStats.getCount(), lastPeriodSummaryStats.getAverage(), lastPeriodCacheHitCount);
             peakThroughput = Math.max(peakThroughput, lastPeriodSummaryStats.getCount());
         }
 
         if (rs == null) {
             // no results processed in the previous period
-            rs = new RecentStats(0L, null);
+            rs = new RecentStats(0L, null, 0L);
         }
 
         return new ResultStats(
@@ -219,9 +220,6 @@ public class PyTorchResultProcessor {
 
     private synchronized void processResult(PyTorchInferenceResult result) {
         timingStats.accept(result.getTimeMs());
-        if (result.isCacheHit()) {
-            cacheHitCount++;
-        }
 
         lastResultTimeMs = currentTimeMsSupplier.getAsLong();
         if (lastResultTimeMs > currentPeriodEndTimeMs) {
@@ -233,9 +231,14 @@ public class PyTorchResultProcessor {
                 // there is no data for the last period
                 lastPeriodStats = null;
             } else {
-                lastPeriodStats = new RecentStats(lastPeriodSummaryStats.getCount(), lastPeriodSummaryStats.getAverage());
+                lastPeriodStats = new RecentStats(
+                    lastPeriodSummaryStats.getCount(),
+                    lastPeriodSummaryStats.getAverage(),
+                    lastPeriodCacheHitCount
+                );
             }
 
+            lastPeriodCacheHitCount = 0;
             lastPeriodSummaryStats = new LongSummaryStatistics();
             lastPeriodSummaryStats.accept(result.getTimeMs());
 
@@ -243,6 +246,11 @@ public class PyTorchResultProcessor {
             currentPeriodEndTimeMs = startTime + Intervals.alignToCeil(lastResultTimeMs - startTime, REPORTING_PERIOD_MS);
         } else {
             lastPeriodSummaryStats.accept(result.getTimeMs());
+        }
+
+        if (result.isCacheHit()) {
+            cacheHitCount++;
+            lastPeriodCacheHitCount++;
         }
     }
 

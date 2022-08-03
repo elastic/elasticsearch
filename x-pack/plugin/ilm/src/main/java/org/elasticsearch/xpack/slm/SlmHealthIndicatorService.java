@@ -8,23 +8,28 @@
 package org.elasticsearch.xpack.slm;
 
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
-import org.elasticsearch.health.UserAction;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
+import org.elasticsearch.xpack.core.slm.SnapshotInvocationRecord;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
+import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
 
+import java.util.Collection;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
-import static org.elasticsearch.health.ServerHealthComponents.SNAPSHOT;
+import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.SLM_HEALTH_FAILED_SNAPSHOT_WARN_THRESHOLD_SETTING;
 
 /**
  * This indicator reports health for snapshot lifecycle management component.
@@ -39,30 +44,41 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
     public static final String NAME = "slm";
 
     public static final String HELP_URL = "https://ela.st/fix-slm";
-    public static final UserAction SLM_NOT_RUNNING = new UserAction(
-        new UserAction.Definition("slm-not-running", "Start Snapshot Lifecycle Management using [POST /_slm/start].", HELP_URL),
+    public static final Diagnosis SLM_NOT_RUNNING = new Diagnosis(
+        new Diagnosis.Definition(
+            "slm-not-running",
+            "Snapshot Lifecycle Management is stopped",
+            "Start Snapshot Lifecycle Management using [POST /_slm/start].",
+            HELP_URL
+        ),
         null
     );
 
+    public static final String ACTION_CHECK_RECENTLY_FAILED_SNAPSHOTS_HELP_URL = "https://ela.st/fix-recent-snapshot-failures";
+    public static final Diagnosis.Definition ACTION_CHECK_RECENTLY_FAILED_SNAPSHOTS = new Diagnosis.Definition(
+        "check_recent_snapshot_failures",
+        "The following snapshot lifecycle policies have exceeded the warning threshold for repeat failures without a successful execution.",
+        "Check the snapshot lifecycle policies [/_slm/policy/<policy_name>?human] for detailed failure info.",
+        ACTION_CHECK_RECENTLY_FAILED_SNAPSHOTS_HELP_URL
+    );
+
     private final ClusterService clusterService;
+    private volatile long failedSnapshotWarnThreshold;
 
     public SlmHealthIndicatorService(ClusterService clusterService) {
         this.clusterService = clusterService;
+        this.failedSnapshotWarnThreshold = clusterService.getClusterSettings().get(SLM_HEALTH_FAILED_SNAPSHOT_WARN_THRESHOLD_SETTING);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(SLM_HEALTH_FAILED_SNAPSHOT_WARN_THRESHOLD_SETTING, this::setFailedSnapshotWarnThreshold);
+    }
+
+    public void setFailedSnapshotWarnThreshold(long value) {
+        this.failedSnapshotWarnThreshold = value;
     }
 
     @Override
     public String name() {
         return NAME;
-    }
-
-    @Override
-    public String component() {
-        return SNAPSHOT;
-    }
-
-    @Override
-    public String helpURL() {
-        return HELP_URL;
     }
 
     @Override
@@ -72,7 +88,7 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
             return createIndicator(
                 GREEN,
                 "No Snapshot Lifecycle Management policies configured",
-                createDetails(explain, slmMetadata),
+                createDetails(explain, Collections.emptyList(), slmMetadata),
                 Collections.emptyList(),
                 Collections.emptyList()
             );
@@ -87,26 +103,95 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
             return createIndicator(
                 YELLOW,
                 "Snapshot Lifecycle Management is not running",
-                createDetails(explain, slmMetadata),
+                createDetails(explain, Collections.emptyList(), slmMetadata),
                 impacts,
                 List.of(SLM_NOT_RUNNING)
             );
         } else {
+            List<SnapshotLifecyclePolicyMetadata> unhealthyPolicies = slmMetadata.getSnapshotConfigurations()
+                .values()
+                .stream()
+                .filter(metadata -> snapshotFailuresExceedWarningCount(failedSnapshotWarnThreshold, metadata))
+                .toList();
+
+            if (unhealthyPolicies.size() > 0) {
+                List<HealthIndicatorImpact> impacts = Collections.singletonList(
+                    new HealthIndicatorImpact(
+                        2,
+                        "Some automated snapshots have not had a successful execution recently. Indices restored from affected "
+                            + "snapshots may not contain recent changes.",
+                        List.of(ImpactArea.BACKUP)
+                    )
+                );
+
+                return createIndicator(
+                    YELLOW,
+                    "Encountered [" + unhealthyPolicies.size() + "] unhealthy snapshot lifecycle management policies.",
+                    createDetails(explain, unhealthyPolicies, slmMetadata),
+                    impacts,
+                    List.of(
+                        new Diagnosis(
+                            ACTION_CHECK_RECENTLY_FAILED_SNAPSHOTS,
+                            unhealthyPolicies.stream().map(SnapshotLifecyclePolicyMetadata::getName).toList()
+                        )
+                    )
+                );
+            }
+
             return createIndicator(
                 GREEN,
                 "Snapshot Lifecycle Management is running",
-                createDetails(explain, slmMetadata),
+                createDetails(explain, Collections.emptyList(), slmMetadata),
                 Collections.emptyList(),
                 Collections.emptyList()
             );
         }
     }
 
-    private static HealthIndicatorDetails createDetails(boolean explain, SnapshotLifecycleMetadata metadata) {
+    static boolean snapshotFailuresExceedWarningCount(long failedSnapshotWarnThreshold, SnapshotLifecyclePolicyMetadata policyMetadata) {
+        SnapshotInvocationRecord lastFailure = policyMetadata.getLastFailure();
+        if (lastFailure == null) {
+            // No failures yet to act on
+            return false;
+        }
+
+        // Determine if the most recent snapshot is a failure
+        SnapshotInvocationRecord lastSuccess = policyMetadata.getLastSuccess();
+        if (lastSuccess != null && policyMetadata.getInvocationsSinceLastSuccess() == 0) {
+            // Success was more recent than last failure
+            return false;
+        }
+
+        return policyMetadata.getInvocationsSinceLastSuccess() >= failedSnapshotWarnThreshold;
+    }
+
+    private static HealthIndicatorDetails createDetails(
+        boolean explain,
+        Collection<SnapshotLifecyclePolicyMetadata> unhealthyPolicies,
+        SnapshotLifecycleMetadata metadata
+    ) {
         if (explain) {
-            return new SimpleHealthIndicatorDetails(
-                Map.of("slm_status", metadata.getOperationMode(), "policies", metadata.getSnapshotConfigurations().size())
-            );
+            Map<String, Object> details = new LinkedHashMap<>();
+            details.put("slm_status", metadata.getOperationMode());
+            details.put("policies", metadata.getSnapshotConfigurations().size());
+            if (unhealthyPolicies.size() > 0) {
+                details.put(
+                    "unhealthy_policies",
+                    Map.of(
+                        "count",
+                        unhealthyPolicies.size(),
+                        "invocations_since_last_success",
+                        unhealthyPolicies.stream()
+                            .collect(
+                                Collectors.toMap(
+                                    SnapshotLifecyclePolicyMetadata::getName,
+                                    SnapshotLifecyclePolicyMetadata::getInvocationsSinceLastSuccess
+                                )
+                            )
+                    )
+                );
+            }
+            return new SimpleHealthIndicatorDetails(details);
         } else {
             return HealthIndicatorDetails.EMPTY;
         }

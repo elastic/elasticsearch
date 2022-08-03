@@ -142,7 +142,7 @@ public class TrainedModelAssignment implements SimpleDiffable<TrainedModelAssign
         this.assignmentState = in.readEnum(AssignmentState.class);
         this.reason = in.readOptionalString();
         this.startTime = in.readInstant();
-        if (in.getVersion().onOrAfter(Version.V_8_5_0)) {
+        if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
             this.maxAssignedAllocations = in.readVInt();
         } else {
             this.maxAssignedAllocations = totalCurrentAllocations();
@@ -273,7 +273,7 @@ public class TrainedModelAssignment implements SimpleDiffable<TrainedModelAssign
         out.writeEnum(assignmentState);
         out.writeOptionalString(reason);
         out.writeInstant(startTime);
-        if (out.getVersion().onOrAfter(Version.V_8_5_0)) {
+        if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
             out.writeVInt(maxAssignedAllocations);
         }
     }

@@ -31,6 +31,7 @@ import static org.elasticsearch.client.WarningsHandler.PERMISSIVE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
+@AbstractFullClusterRestartTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/ml-cpp/pull/2376")
 public class MLModelDeploymentFullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
     // See PyTorchModelIT for how this model was created

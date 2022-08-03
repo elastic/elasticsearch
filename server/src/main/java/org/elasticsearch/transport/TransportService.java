@@ -956,18 +956,10 @@ public class TransportService extends AbstractLifecycleComponent
                 boolean success = false;
                 request.incRef();
                 try {
-                    threadPool.executor(executor).execute(new AbstractRunnable() {
+                    threadPool.executor(executor).execute(threadPool.getThreadContext().preserveContextWithTracing(new AbstractRunnable() {
                         @Override
-                        protected void doRun() {
-                            // This is a hack - `AbstractRunnable#run()` is final, which means we can't
-                            // override it to wrap the entire execution in its own context
-                            try (var ignored = threadPool.getThreadContext().newTraceContext()) {
-                                try {
-                                    reg.processMessageReceived(request, channel);
-                                } catch (Exception e) {
-                                    handleSendToLocalException(channel, e, action);
-                                }
-                            }
+                        protected void doRun() throws Exception {
+                            reg.processMessageReceived(request, channel);
                         }
 
                         @Override
@@ -976,13 +968,20 @@ public class TransportService extends AbstractLifecycleComponent
                         }
 
                         @Override
-                        public void onFailure(Exception e) {}
+                        public void onFailure(Exception e) {
+                            handleSendToLocalException(channel, e, action);
+                        }
 
                         @Override
                         public String toString() {
                             return "processing of [" + requestId + "][" + action + "]: " + request;
                         }
-                    });
+
+                        @Override
+                        public void onAfter() {
+                            request.decRef();
+                        }
+                    }));
                     success = true;
                 } finally {
                     if (success == false) {

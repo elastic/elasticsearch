@@ -111,7 +111,8 @@ class TrainedModelAssignmentRebalancer {
                 assignment.getTaskParams().estimateMemoryUsageBytes(),
                 assignment.getTaskParams().getNumberOfAllocations(),
                 assignment.getTaskParams().getThreadsPerAllocation(),
-                currentAssignments
+                currentAssignments,
+                assignment.getMaxAssignedAllocations()
             );
         }).forEach(planModels::add);
         modelToAdd.ifPresent(
@@ -121,7 +122,8 @@ class TrainedModelAssignmentRebalancer {
                     taskParams.estimateMemoryUsageBytes(),
                     taskParams.getNumberOfAllocations(),
                     taskParams.getThreadsPerAllocation(),
-                    Map.of()
+                    Map.of(),
+                    0
                 )
             )
         );
@@ -157,6 +159,7 @@ class TrainedModelAssignmentRebalancer {
             );
             if (existingAssignment != null) {
                 assignmentBuilder.setStartTime(existingAssignment.getStartTime());
+                assignmentBuilder.setMaxAssignedAllocations(existingAssignment.getMaxAssignedAllocations());
             }
 
             Map<AssignmentPlan.Node, Integer> assignments = assignmentPlan.assignments(model).orElseGet(Map::of);

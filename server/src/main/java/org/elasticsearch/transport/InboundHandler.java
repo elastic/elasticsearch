@@ -284,30 +284,28 @@ public class InboundHandler {
                             boolean success = false;
                             request.incRef();
                             try {
-                                threadPool.executor(executor).execute(new AbstractRunnable() {
-                                    @Override
-                                    protected void doRun() {
-                                        // This is a hack - `AbstractRunnable#run()` is final, which means we can't
-                                        // override it to wrap the entire execution in its own context
-                                        try (var ignored = threadPool.getThreadContext().newTraceContext()) {
-                                            try {
-                                                reg.processMessageReceived(request, transportChannel);
-                                            } catch (Exception e) {
-                                                sendErrorResponse(reg.getAction(), transportChannel, e);
-                                            } finally {
-                                                request.decRef();
-                                            }
+                                threadPool.executor(executor)
+                                    .execute(threadPool.getThreadContext().preserveContextWithTracing(new AbstractRunnable() {
+                                        @Override
+                                        protected void doRun() throws Exception {
+                                            reg.processMessageReceived(request, transportChannel);
                                         }
-                                    }
 
-                                    @Override
-                                    public boolean isForceExecution() {
-                                        return reg.isForceExecution();
-                                    }
+                                        @Override
+                                        public boolean isForceExecution() {
+                                            return reg.isForceExecution();
+                                        }
 
-                                    @Override
-                                    public void onFailure(Exception e) {}
-                                });
+                                        @Override
+                                        public void onFailure(Exception e) {
+                                            sendErrorResponse(reg.getAction(), transportChannel, e);
+                                        }
+
+                                        @Override
+                                        public void onAfter() {
+                                            request.decRef();
+                                        }
+                                    }));
                                 success = true;
                             } finally {
                                 if (success == false) {

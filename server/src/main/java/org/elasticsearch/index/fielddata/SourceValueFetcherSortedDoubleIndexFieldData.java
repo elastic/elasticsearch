@@ -9,7 +9,6 @@
 package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
@@ -19,27 +18,26 @@ import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.util.Iterator;
 import java.util.TreeSet;
 
-public class SourceValueFetcherMultiGeoPointIndexFieldData extends SourceValueFetcherIndexFieldData<MultiGeoPointValues> {
+public class SourceValueFetcherSortedDoubleIndexFieldData extends SourceValueFetcherIndexFieldData<SortedNumericDoubleValues> {
 
-    public static class Builder extends SourceValueFetcherIndexFieldData.Builder<MultiGeoPointValues> {
+    public static class Builder extends SourceValueFetcherIndexFieldData.Builder<SortedNumericDoubleValues> {
 
         public Builder(
             String fieldName,
             ValuesSourceType valuesSourceType,
             ValueFetcher valueFetcher,
             SourceLookup sourceLookup,
-            ToScriptFieldFactory<MultiGeoPointValues> toScriptFieldFactory
+            ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory
         ) {
             super(fieldName, valuesSourceType, valueFetcher, sourceLookup, toScriptFieldFactory);
         }
 
         @Override
-        public SourceValueFetcherMultiGeoPointIndexFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
-            return new SourceValueFetcherMultiGeoPointIndexFieldData(
+        public SourceValueFetcherSortedDoubleIndexFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
+            return new SourceValueFetcherSortedDoubleIndexFieldData(
                 fieldName,
                 valuesSourceType,
                 valueFetcher,
@@ -49,26 +47,25 @@ public class SourceValueFetcherMultiGeoPointIndexFieldData extends SourceValueFe
         }
     }
 
-    protected SourceValueFetcherMultiGeoPointIndexFieldData(
+    protected SourceValueFetcherSortedDoubleIndexFieldData(
         String fieldName,
         ValuesSourceType valuesSourceType,
         ValueFetcher valueFetcher,
         SourceLookup sourceLookup,
-        ToScriptFieldFactory<MultiGeoPointValues> toScriptFieldFactory
+        ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory
     ) {
         super(fieldName, valuesSourceType, valueFetcher, sourceLookup, toScriptFieldFactory);
     }
 
     @Override
-    public SourceValueFetcherMultiGeoPointLeafFieldData loadDirect(LeafReaderContext context) throws Exception {
-        return new SourceValueFetcherMultiGeoPointLeafFieldData(toScriptFieldFactory, context, valueFetcher, sourceLookup);
+    public SourceValueFetcherLeafFieldData<SortedNumericDoubleValues> loadDirect(LeafReaderContext context) throws Exception {
+        return new SourceValueFetcherSortedDoubleLeafFieldData(toScriptFieldFactory, context, valueFetcher, sourceLookup);
     }
 
-    public static class SourceValueFetcherMultiGeoPointLeafFieldData extends
-        SourceValueFetcherIndexFieldData.SourceValueFetcherLeafFieldData<MultiGeoPointValues> {
+    private static class SourceValueFetcherSortedDoubleLeafFieldData extends SourceValueFetcherLeafFieldData<SortedNumericDoubleValues> {
 
-        public SourceValueFetcherMultiGeoPointLeafFieldData(
-            ToScriptFieldFactory<MultiGeoPointValues> toScriptFieldFactory,
+        private SourceValueFetcherSortedDoubleLeafFieldData(
+            ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory,
             LeafReaderContext leafReaderContext,
             ValueFetcher valueFetcher,
             SourceLookup sourceLookup
@@ -79,41 +76,56 @@ public class SourceValueFetcherMultiGeoPointIndexFieldData extends SourceValueFe
         @Override
         public DocValuesScriptFieldFactory getScriptFieldFactory(String name) {
             return toScriptFieldFactory.getScriptFieldFactory(
-                new MultiGeoPointValues(new SourceValueFetcherMultiGeoPointDocValues(leafReaderContext, valueFetcher, sourceLookup)),
+                new SourceValueFetcherSortedNumericDoubleValues(leafReaderContext, valueFetcher, sourceLookup),
                 name
             );
         }
     }
 
-    public static class SourceValueFetcherMultiGeoPointDocValues extends
-        SourceValueFetcherSortedNumericIndexFieldData.SourceValueFetcherSortedNumericDocValues {
+    private static class SourceValueFetcherSortedNumericDoubleValues extends SortedNumericDoubleValues implements ValueFetcherDocValues {
 
-        public SourceValueFetcherMultiGeoPointDocValues(
+        private final LeafReaderContext leafReaderContext;
+
+        private final ValueFetcher valueFetcher;
+        private final SourceLookup sourceLookup;
+
+        private TreeSet<Double> values;
+        private Iterator<Double> iterator;
+
+        private SourceValueFetcherSortedNumericDoubleValues(
             LeafReaderContext leafReaderContext,
             ValueFetcher valueFetcher,
             SourceLookup sourceLookup
         ) {
-            super(leafReaderContext, valueFetcher, sourceLookup);
+            this.leafReaderContext = leafReaderContext;
+            this.valueFetcher = valueFetcher;
+            this.sourceLookup = sourceLookup;
         }
 
         @Override
-        @SuppressWarnings("unchecked")
         public boolean advanceExact(int doc) throws IOException {
             sourceLookup.setSegmentAndDocument(leafReaderContext, doc);
             values = new TreeSet<>();
 
             for (Object value : valueFetcher.fetchValues(sourceLookup, Collections.emptyList())) {
-                assert value instanceof Map && ((Map<Object, Object>) value).get("coordinates") instanceof List;
-                List<Object> coordinates = ((Map<String, List<Object>>) value).get("coordinates");
-                assert coordinates.size() == 2 && coordinates.get(1) instanceof Number && coordinates.get(0) instanceof Number;
-                values.add(
-                    new GeoPoint(((Number) coordinates.get(1)).doubleValue(), ((Number) coordinates.get(0)).doubleValue()).getEncoded()
-                );
+                assert value instanceof Number;
+                values.add(((Number) value).doubleValue());
             }
 
             iterator = values.iterator();
 
             return true;
+        }
+
+        @Override
+        public int docValueCount() {
+            return values.size();
+        }
+
+        @Override
+        public double nextValue() throws IOException {
+            assert iterator.hasNext();
+            return iterator.next();
         }
     }
 }

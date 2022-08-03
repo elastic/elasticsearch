@@ -187,57 +187,65 @@ public class PersistentTasksNodeService implements ClusterStateListener {
         };
 
         try (var ignored = threadPool.getThreadContext().newTraceContext()) {
-            AllocatedPersistentTask task;
-            try {
-                task = (AllocatedPersistentTask) taskManager.register("persistent", taskInProgress.getTaskName() + "[c]", request);
-            } catch (Exception e) {
-                logger.error(
-                    "Fatal error registering persistent task ["
-                        + taskInProgress.getTaskName()
-                        + "] with id ["
-                        + taskInProgress.getId()
-                        + "] and allocation id ["
-                        + taskInProgress.getAllocationId()
-                        + "], removing from persistent tasks",
-                    e
-                );
-                notifyMasterOfFailedTask(taskInProgress, e);
-                return;
-            }
+            doStartTask(taskInProgress, executor, request);
+        }
+    }
 
-            boolean processed = false;
-            Exception initializationException = null;
+    private <Params extends PersistentTaskParams> void doStartTask(
+        PersistentTask<Params> taskInProgress,
+        PersistentTasksExecutor<Params> executor,
+        TaskAwareRequest request
+    ) {
+        AllocatedPersistentTask task;
+        try {
+            task = (AllocatedPersistentTask) taskManager.register("persistent", taskInProgress.getTaskName() + "[c]", request);
+        } catch (Exception e) {
+            logger.error(
+                "Fatal error registering persistent task ["
+                    + taskInProgress.getTaskName()
+                    + "] with id ["
+                    + taskInProgress.getId()
+                    + "] and allocation id ["
+                    + taskInProgress.getAllocationId()
+                    + "], removing from persistent tasks",
+                e
+            );
+            notifyMasterOfFailedTask(taskInProgress, e);
+            return;
+        }
+
+        boolean processed = false;
+        Exception initializationException = null;
+        try {
+            task.init(persistentTasksService, taskManager, taskInProgress.getId(), taskInProgress.getAllocationId());
+            logger.trace(
+                "Persistent task [{}] with id [{}] and allocation id [{}] was created",
+                task.getAction(),
+                task.getPersistentTaskId(),
+                task.getAllocationId()
+            );
             try {
-                task.init(persistentTasksService, taskManager, taskInProgress.getId(), taskInProgress.getAllocationId());
-                logger.trace(
-                    "Persistent task [{}] with id [{}] and allocation id [{}] was created",
+                runningTasks.put(taskInProgress.getAllocationId(), task);
+                nodePersistentTasksExecutor.executeTask(taskInProgress.getParams(), taskInProgress.getState(), task, executor);
+            } catch (Exception e) {
+                // Submit task failure
+                task.markAsFailed(e);
+            }
+            processed = true;
+        } catch (Exception e) {
+            initializationException = e;
+        } finally {
+            if (processed == false) {
+                // something went wrong - unregistering task
+                logger.warn(
+                    "Persistent task [{}] with id [{}] and allocation id [{}] failed to create",
                     task.getAction(),
                     task.getPersistentTaskId(),
                     task.getAllocationId()
                 );
-                try {
-                    runningTasks.put(taskInProgress.getAllocationId(), task);
-                    nodePersistentTasksExecutor.executeTask(taskInProgress.getParams(), taskInProgress.getState(), task, executor);
-                } catch (Exception e) {
-                    // Submit task failure
-                    task.markAsFailed(e);
-                }
-                processed = true;
-            } catch (Exception e) {
-                initializationException = e;
-            } finally {
-                if (processed == false) {
-                    // something went wrong - unregistering task
-                    logger.warn(
-                        "Persistent task [{}] with id [{}] and allocation id [{}] failed to create",
-                        task.getAction(),
-                        task.getPersistentTaskId(),
-                        task.getAllocationId()
-                    );
-                    taskManager.unregister(task);
-                    if (initializationException != null) {
-                        notifyMasterOfFailedTask(taskInProgress, initializationException);
-                    }
+                taskManager.unregister(task);
+                if (initializationException != null) {
+                    notifyMasterOfFailedTask(taskInProgress, initializationException);
                 }
             }
         }

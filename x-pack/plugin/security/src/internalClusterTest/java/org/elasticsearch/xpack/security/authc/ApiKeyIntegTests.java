@@ -1645,6 +1645,90 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertThat(response.getNoops(), empty());
     }
 
+    public void testBulkUpdateApiKeysWithDifferentLimitedByRoleDescriptorsForSameUser() throws ExecutionException, InterruptedException,
+        IOException {
+        // Create separate native realm user and role for user role change test
+        final var nativeRealmUser = randomAlphaOfLengthBetween(5, 10);
+        final var nativeRealmRole = randomAlphaOfLengthBetween(5, 10);
+        createNativeRealmUser(
+            nativeRealmUser,
+            nativeRealmRole,
+            new String(HASHER.hash(TEST_PASSWORD_SECURE_STRING)),
+            Collections.singletonMap("Authorization", basicAuthHeaderValue(TEST_USER_NAME, TEST_PASSWORD_SECURE_STRING))
+        );
+        final List<String> firstGenerationClusterPrivileges = new ArrayList<>(randomSubsetOf(ClusterPrivilegeResolver.names()));
+        // At a minimum include privilege to manage own API key to ensure no 403
+        firstGenerationClusterPrivileges.add(randomFrom("manage_api_key", "manage_own_api_key"));
+        final RoleDescriptor firstGenerationRoleDescriptor = putRoleWithClusterPrivileges(
+            nativeRealmRole,
+            firstGenerationClusterPrivileges.toArray(new String[0])
+        );
+        final Tuple<List<CreateApiKeyResponse>, List<Map<String, Object>>> firstGenerationApiKeys = createApiKeys(
+            Collections.singletonMap("Authorization", basicAuthHeaderValue(nativeRealmUser, TEST_PASSWORD_SECURE_STRING)),
+            randomIntBetween(1, 5),
+            null,
+            "all"
+        );
+        final List<String> firstGenerationApiKeyIds = firstGenerationApiKeys.v1().stream().map(CreateApiKeyResponse::getId).toList();
+        expectRoleDescriptorsForApiKeys(
+            "limited_by_role_descriptors",
+            Set.of(firstGenerationRoleDescriptor),
+            firstGenerationApiKeyIds.stream().map(this::getApiKeyDocument).toList()
+        );
+        // Update user's permissions and create new API keys for the user. The new API keys will have different limited-by role descriptors
+        final List<String> secondGenerationClusterPrivileges = randomValueOtherThan(firstGenerationClusterPrivileges, () -> {
+            final List<String> privs = new ArrayList<>(randomSubsetOf(ClusterPrivilegeResolver.names()));
+            // At a minimum include privilege to manage own API key to ensure no 403
+            privs.add(randomFrom("manage_api_key", "manage_own_api_key"));
+            return privs;
+        });
+        final RoleDescriptor secondGenerationRoleDescriptor = putRoleWithClusterPrivileges(
+            nativeRealmRole,
+            secondGenerationClusterPrivileges.toArray(new String[0])
+        );
+        final Tuple<List<CreateApiKeyResponse>, List<Map<String, Object>>> secondGenerationApiKeys = createApiKeys(
+            Collections.singletonMap("Authorization", basicAuthHeaderValue(nativeRealmUser, TEST_PASSWORD_SECURE_STRING)),
+            randomIntBetween(1, 5),
+            null,
+            "all"
+        );
+        final List<String> secondGenerationApiKeyIds = secondGenerationApiKeys.v1().stream().map(CreateApiKeyResponse::getId).toList();
+        expectRoleDescriptorsForApiKeys(
+            "limited_by_role_descriptors",
+            Set.of(secondGenerationRoleDescriptor),
+            secondGenerationApiKeyIds.stream().map(this::getApiKeyDocument).toList()
+        );
+        // Update user role then bulk update all API keys. This should result in new limited-by role descriptors for all API keys
+        final List<String> allIds = Stream.concat(firstGenerationApiKeyIds.stream(), secondGenerationApiKeyIds.stream()).toList();
+        final List<String> finalClusterPrivileges = randomValueOtherThanMany(
+            p -> firstGenerationClusterPrivileges.equals(p) || secondGenerationClusterPrivileges.equals(p),
+            () -> {
+                final List<String> privs = new ArrayList<>(randomSubsetOf(ClusterPrivilegeResolver.names()));
+                // At a minimum include privilege to manage own API key to ensure no 403
+                privs.add(randomFrom("manage_api_key", "manage_own_api_key"));
+                return privs;
+            }
+        );
+        final RoleDescriptor finalRoleDescriptor = putRoleWithClusterPrivileges(
+            nativeRealmRole,
+            finalClusterPrivileges.toArray(new String[0])
+        );
+
+        final var response = executeBulkUpdateApiKey(
+            nativeRealmUser,
+            BulkUpdateApiKeyRequest.usingApiKeyIds(allIds.toArray(String[]::new))
+        );
+
+        assertThat(response.getErrorDetails(), anEmptyMap());
+        assertThat(response.getNoops(), empty());
+        assertThat(response.getUpdated(), containsInAnyOrder(allIds.toArray()));
+        expectRoleDescriptorsForApiKeys(
+            "limited_by_role_descriptors",
+            Set.of(finalRoleDescriptor),
+            allIds.stream().map(this::getApiKeyDocument).toList()
+        );
+    }
+
     public void testUpdateApiKeysAutoUpdatesUserFields() throws Exception {
         // Create separate native realm user and role for user role change test
         final var nativeRealmUser = randomAlphaOfLengthBetween(5, 10);
@@ -2176,6 +2260,16 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 XContentType.JSON
             );
             assertEquals(expectedRoleDescriptor, roleDescriptor);
+        }
+    }
+
+    private void expectRoleDescriptorsForApiKeys(
+        final String roleDescriptorType,
+        final Collection<RoleDescriptor> expectedRoleDescriptors,
+        final List<Map<String, Object>> actualRawApiKeyDocs
+    ) throws IOException {
+        for (Map<String, Object> actualDoc : actualRawApiKeyDocs) {
+            expectRoleDescriptorsForApiKey(roleDescriptorType, expectedRoleDescriptors, actualDoc);
         }
     }
 

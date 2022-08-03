@@ -149,7 +149,9 @@ public abstract class LoggedExec extends DefaultTask implements FileSystemOperat
             }
             if (getWorkingDir().isPresent()) {
                 maybeRunCleanSpec();
-                execSpec.setWorkingDir(getWorkingDir().get());
+                File workingDir = getWorkingDir().get();
+                workingDir.mkdirs()
+                execSpec.setWorkingDir(workingDir);
             }
             if (getStandardInput().isPresent()) {
                 try {
@@ -184,9 +186,6 @@ public abstract class LoggedExec extends DefaultTask implements FileSystemOperat
     private void maybeRunCleanSpec() {
         if(getCleanSpec().isPresent()){
             fileSystemOperations.delete(getCleanSpec().get());
-            File workingDir = getWorkingDir().get();
-            FileUtils.deleteQuietly(workingDir);
-            workingDir.mkdirs();
         }
     }
 

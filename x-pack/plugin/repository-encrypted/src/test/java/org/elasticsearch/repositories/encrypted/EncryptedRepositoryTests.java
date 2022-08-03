@@ -17,16 +17,15 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -57,9 +56,11 @@ public class EncryptedRepositoryTests extends ESTestCase {
     private EncryptedRepository encryptedRepository;
     private EncryptedRepository.EncryptedBlobStore encryptedBlobStore;
     private Map<BlobPath, byte[]> blobsMap;
+    private ThreadPool threadPool;
 
-    @Before
-    public void setUpMocks() throws Exception {
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
         this.repoPassword = new SecureString(randomAlphaOfLength(20).toCharArray());
         this.delegatedPath = randomFrom(
             BlobPath.EMPTY,
@@ -76,9 +77,7 @@ public class EncryptedRepositoryTests extends ESTestCase {
             Settings.EMPTY
         );
         ClusterApplierService clusterApplierService = mock(ClusterApplierService.class);
-        final var threadContext = new ThreadContext(Settings.EMPTY);
-        final var threadPool = mock(ThreadPool.class);
-        when(threadPool.getThreadContext()).thenReturn(threadContext);
+        threadPool = new TestThreadPool("test");
         when(clusterApplierService.threadPool()).thenReturn(threadPool);
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getClusterApplierService()).thenReturn(clusterApplierService);
@@ -111,6 +110,12 @@ public class EncryptedRepositoryTests extends ESTestCase {
             }).when(blobContainer).readBlob(any(String.class));
             return blobContainer;
         }).when(this.delegatedBlobStore).blobContainer(any(BlobPath.class));
+    }
+
+    @Override
+    public void tearDown() throws Exception {
+        super.tearDown();
+        terminate(threadPool);
     }
 
     public void testStoreDEKSuccess() throws Exception {

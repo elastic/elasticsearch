@@ -55,6 +55,10 @@ public enum AnalysisMode {
         this.readableName = name;
     }
 
+    /**
+     * Returns a readable name of the analysis mode
+     * @return a name
+     */
     public String getReadableName() {
         return this.readableName;
     }

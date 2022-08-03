@@ -16,5 +16,9 @@ import org.elasticsearch.plugin.api.Nameable;
  */
 public interface TokenizerFactory extends Nameable {
 
+    /**
+     * Creates a Tokenizer instance
+     * @return a tokenizer
+     */
     Tokenizer create();
 }

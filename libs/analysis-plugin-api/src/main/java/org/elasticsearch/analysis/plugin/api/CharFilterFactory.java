@@ -19,6 +19,8 @@ import java.io.Reader;
 public interface CharFilterFactory extends Nameable {
     /**
      * Wraps the given Reader with a CharFilter.
+     * @param reader reader to be wrapped
+     * @return a reader wrapped with CharFilter
      */
     Reader create(Reader reader);
 

@@ -16,6 +16,7 @@ import org.elasticsearch.plugin.api.Nameable;
 public interface AnalyzerFactory<T extends org.apache.lucene.analysis.Analyzer> extends Nameable {
     /**
      * Returns a lucene org.apache.lucene.analysis.Analyzer instance
+     * @return an analyzer
      */
     T create();
 

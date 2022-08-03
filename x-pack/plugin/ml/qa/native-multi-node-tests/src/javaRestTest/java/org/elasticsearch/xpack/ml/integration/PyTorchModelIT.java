@@ -75,7 +75,6 @@ import static org.hamcrest.Matchers.nullValue;
  * torch.jit.save(traced_model, "simplemodel.pt")
  * ## End Python
  */
-@ESRestTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/ml-cpp/pull/2376")
 public class PyTorchModelIT extends ESRestTestCase {
 
     private static final String BASIC_AUTH_VALUE_SUPER_USER = UsernamePasswordToken.basicAuthHeaderValue(

@@ -913,7 +913,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
             new CoordinationDiagnosticsAction.Request(true),
             e -> new RemoteMasterHealthResult(masterEligibleNode, null, e),
             response -> new RemoteMasterHealthResult(masterEligibleNode, response.getCoordinationDiagnosticsResult(), null),
-            Version.V_8_5_0
+            Version.V_8_4_0
         );
     }
 

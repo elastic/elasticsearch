@@ -13,7 +13,7 @@ import org.elasticsearch.plugin.api.Nameable;
 /**
  * An analysis component used to create Analyzers
  */
-public interface Analyzer<T extends org.apache.lucene.analysis.Analyzer> extends Nameable {
+public interface AnalyzerFactory<T extends org.apache.lucene.analysis.Analyzer> extends Nameable {
     /**
      * Returns a lucene org.apache.lucene.analysis.Analyzer instance
      */

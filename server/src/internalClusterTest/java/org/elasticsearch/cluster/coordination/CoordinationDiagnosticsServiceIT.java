@@ -145,7 +145,7 @@ public class CoordinationDiagnosticsServiceIT extends ESIntegTestCase {
         AtomicReference<CoordinationDiagnosticsService.RemoteMasterHealthResult> result = new AtomicReference<>();
         AtomicReference<Scheduler.Cancellable> cancellable = new AtomicReference<>();
         diagnosticsOnBlockedNode.remoteCoordinationDiagnosisResult = result;
-        diagnosticsOnBlockedNode.remoteStableMasterHealthIndicatorTask = cancellable;
+        diagnosticsOnBlockedNode.remoteCoordinationDiagnosisTask = cancellable;
 
         diagnosticsOnBlockedNode.remoteRequestInitialDelay = TimeValue.ZERO;
         diagnosticsOnBlockedNode.beginPollingRemoteMasterStabilityDiagnostic(result::set, cancellable);

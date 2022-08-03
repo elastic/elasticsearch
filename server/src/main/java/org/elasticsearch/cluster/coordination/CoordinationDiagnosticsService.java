@@ -106,10 +106,10 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
      * for diagnosis. It is null when no polling is occurring.
      * The field is accessed (reads/writes) from multiple threads, and is also reassigned on multiple threads.
      */
-    volatile AtomicReference<Scheduler.Cancellable> remoteStableMasterHealthIndicatorTask = null;
+    volatile AtomicReference<Scheduler.Cancellable> remoteCoordinationDiagnosisTask = null;
     /*
-     * This field holds the result of the task in the remoteStableMasterHealthIndicatorTask field above. The field is accessed
-     * (reads/writes) from multiple threads, and is also reassigned on multiple threads.
+     * This field holds the result of the task in the remoteCoordinationDiagnosisTask field above. The field is accessed
+     * (reads/writes) from multiple threads, but is only ever reassigned on a single thread (the cluster change event thread).
      */
     volatile AtomicReference<RemoteMasterHealthResult> remoteCoordinationDiagnosisResult = null;
 
@@ -705,7 +705,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
 
     /**
      * This wraps the responseConsumer in a Consumer that will run rescheduleClusterFormationFetchConsumer() after responseConsumer has
-     * completed, adding the resulting Cancellable to cancellableConsumer.
+     * completed, adding the resulting Cancellable to cancellables.
      * @param masterEligibleNode The node being polled
      * @param responseConsumer The response consumer to be wrapped
      * @param cancellables The Map of Cancellables, one for each node being polled
@@ -844,14 +844,14 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
         assert ThreadPool.assertCurrentThreadPool(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME);
         AtomicReference<Scheduler.Cancellable> cancellableReference = new AtomicReference<>();
         AtomicReference<RemoteMasterHealthResult> resultReference = new AtomicReference<>();
-        remoteStableMasterHealthIndicatorTask = cancellableReference;
+        remoteCoordinationDiagnosisTask = cancellableReference;
         remoteCoordinationDiagnosisResult = resultReference;
         beginPollingRemoteMasterStabilityDiagnostic(resultReference::set, cancellableReference);
     }
 
     /**
      * This method returns quickly, but in the background schedules to query a remote master node's cluster diagnostics in 10 seconds, and
-     * repeats doing that until cancelPollingRemoteStableMasterHealthIndicatorService() is called. This method
+     * repeats doing that until cancelPollingRemoteMasterStabilityDiagnostic() is called. This method
      * exists (rather than being just part of the beginPollingRemoteMasterStabilityDiagnostic() above) in order to facilitate
      * unit testing.
      * @param responseConsumer A consumer for any results produced for a node by this method
@@ -892,17 +892,17 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
     ) {
         return response -> {
             /*
-             * If the cancellableReference for this poll attempt is equal to remoteStableMasterHealthIndicatorTask, then that means that
+             * If the cancellableReference for this poll attempt is equal to remoteCoordinationDiagnosisTask, then that means that
              * this poll attempt is the current one. If they are not equal, that means that
-             * cancelPollingRemoteStableMasterHealthIndicatorService() has been called on this poll attempt but this thread is not yet
+             * cancelPollingRemoteMasterStabilityDiagnostic() has been called on this poll attempt but this thread is not yet
              * aware. So we cancel the Cancellable in cancellableReference if it is not null. Note that
-             * remoteStableMasterHealthIndicatorTask can be null.
+             * remoteCoordinationDiagnosisTask can be null.
              */
-            if (cancellableReference.equals(remoteStableMasterHealthIndicatorTask)) {
+            if (cancellableReference.equals(remoteCoordinationDiagnosisTask)) {
                 /*
-                 * Because this is not synchronized with the cancelPollingRemoteStableMasterHealthIndicatorService() method, there is a
+                 * Because this is not synchronized with the cancelPollingRemoteMasterStabilityDiagnostic() method, there is a
                  * slim chance that we will add a task here for a poll that has already been cancelled. But when it completes and runs
-                 * rescheduleDiagnosticsFetchConsumer() we will then see that remoteStableMasterHealthIndicatorTask does not equal
+                 * rescheduleDiagnosticsFetchConsumer() we will then see that remoteCoordinationDiagnosisTask does not equal
                  * cancellableReference, so it will not be run again.
                  */
                 try {
@@ -949,11 +949,6 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
             if (masterEligibleNode == null) {
                 responseConsumer.accept(null);
             } else {
-                /*
-                 * Since this block is not synchronized it is possible that this task is cancelled between the check above and when the
-                 * code below is run, but this is harmless and not worth the additional synchronization in the normal case. The result
-                 * will just be ignored.
-                 */
                 logger.trace("Opened connection to {}, making master stability request", masterEligibleNode);
                 // If we don't get a response in 10 seconds that is a failure worth capturing on its own:
                 final TimeValue transportTimeout = TimeValue.timeValueSeconds(10);
@@ -1007,11 +1002,6 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                         minSupportedVersion
                     );
                 } else {
-                    /*
-                     * Since this block is not synchronized it is possible that this task is cancelled between the check above and when the
-                     * code below is run, but this is harmless and not worth the additional synchronization in the normal case. In that case
-                     * the connection will just be closed and the transport request will not be made.
-                     */
                     transportService.connectToNode(
                         // Note: This connection must be explicitly closed in the connectionListener
                         masterEligibleNode,
@@ -1025,10 +1015,10 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
 
     void cancelPollingRemoteMasterStabilityDiagnostic() {
         assert ThreadPool.assertCurrentThreadPool(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME);
-        if (remoteStableMasterHealthIndicatorTask != null) {
-            remoteStableMasterHealthIndicatorTask.get().cancel();
+        if (remoteCoordinationDiagnosisTask != null) {
+            remoteCoordinationDiagnosisTask.get().cancel();
             remoteCoordinationDiagnosisResult = null;
-            remoteStableMasterHealthIndicatorTask = null;
+            remoteCoordinationDiagnosisTask = null;
         }
     }
 

@@ -1010,19 +1010,19 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
         );
 
         coordinationDiagnosticsService.beginPollingRemoteMasterStabilityDiagnostic();
-        assertNotNull(coordinationDiagnosticsService.remoteStableMasterHealthIndicatorTask);
-        assertNotNull(coordinationDiagnosticsService.remoteStableMasterHealthIndicatorTask.get());
+        assertNotNull(coordinationDiagnosticsService.remoteCoordinationDiagnosisTask);
+        assertNotNull(coordinationDiagnosticsService.remoteCoordinationDiagnosisTask.get());
         coordinationDiagnosticsService.cancelPollingRemoteMasterStabilityDiagnostic();
-        assertThat(coordinationDiagnosticsService.remoteStableMasterHealthIndicatorTask, Matchers.nullValue());
+        assertThat(coordinationDiagnosticsService.remoteCoordinationDiagnosisTask, Matchers.nullValue());
         coordinationDiagnosticsService.clusterChanged(
             new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, node1MasterClusterState)
         );
-        assertNotNull(coordinationDiagnosticsService.remoteStableMasterHealthIndicatorTask);
-        assertNotNull(coordinationDiagnosticsService.remoteStableMasterHealthIndicatorTask.get());
+        assertNotNull(coordinationDiagnosticsService.remoteCoordinationDiagnosisTask);
+        assertNotNull(coordinationDiagnosticsService.remoteCoordinationDiagnosisTask.get());
         coordinationDiagnosticsService.clusterChanged(
             new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, nullMasterClusterState)
         );
-        assertThat(coordinationDiagnosticsService.remoteStableMasterHealthIndicatorTask, Matchers.nullValue());
+        assertThat(coordinationDiagnosticsService.remoteCoordinationDiagnosisTask, Matchers.nullValue());
         /*
          * Note that in this test we will never find any values in remoteCoordinationDiagnosisResult because transportService is mocked out.
          * There is not a reasonable way to plug in a transportService to this simple unit test, so testing that is left to an

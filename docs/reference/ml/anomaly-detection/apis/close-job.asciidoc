@@ -30,10 +30,6 @@ A job can be opened and closed multiple times throughout its lifecycle.
 A closed job cannot receive data or perform analysis operations, but you can
 still explore and navigate results.
 
-You can close multiple {anomaly-jobs} in a single API request by using a group
-name, a comma-separated list of jobs, or a wildcard expression. You can close
-all jobs by using `_all` or by specifying `*` as the `<job_id>`.
-
 If you close an {anomaly-job} whose {dfeed} is running, the request first tries
 to stop the {dfeed}. This behavior is equivalent to calling
 <<ml-stop-datafeed,stop {dfeed}>> with the same `timeout` and `force` parameters
@@ -64,13 +60,16 @@ results the job might have recently produced or might produce in the future.
 `<job_id>`::
 (Required, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection-wildcard]
++
+You can close all jobs by using `_all` or by specifying `*` as the job
+identifier.
 
 [[ml-close-job-query-parms]]
 == {api-query-parms-title}
 
 `allow_no_match`::
 (Optional, Boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-jobs]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-match-jobs]
 
 `force`::
   (Optional, Boolean) Use to close a failed job, or to forcefully close a job
@@ -79,6 +78,12 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-jobs]
 `timeout`::
   (Optional, <<time-units, time units>>) Controls the time to wait until a job 
   has closed. The default value is 30 minutes.
+
+[[ml-close-job-request-body]]
+== {api-request-body-title}
+
+You can also specify the query parameters (such as `allow_no_match` and `force`)
+in the request body.
 
 [[ml-close-job-response-codes]]
 == {api-response-codes-title}

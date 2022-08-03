@@ -317,8 +317,8 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
         }
 
         Map<String, LinkedHashSet<String>> inputFields = inputFieldMap();
-        for (String fieldName : inputFields.keySet()) {
-            builder.field(fieldName, inputFields.get(fieldName));
+        for (String inputFieldName : inputFields.keySet()) {
+            builder.field(inputFieldName, inputFields.get(inputFieldName));
         }
         builder.endObject();
         return builder;
@@ -334,19 +334,19 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
 
         if (influences != null) {
             for (Influence inf : influences) {
-                String fieldName = inf.getInfluencerFieldName();
+                String influencerFieldName = inf.getInfluencerFieldName();
                 for (String fieldValue : inf.getInfluencerFieldValues()) {
-                    addInputFieldsToMap(result, fieldName, fieldValue);
+                    addInputFieldsToMap(result, influencerFieldName, fieldValue);
                 }
             }
         }
         return result;
     }
 
-    private void addInputFieldsToMap(Map<String, LinkedHashSet<String>> inputFields, String fieldName, String fieldValue) {
-        if (Strings.isNullOrEmpty(fieldName) == false && fieldValue != null) {
-            if (ReservedFieldNames.isValidFieldName(fieldName)) {
-                inputFields.computeIfAbsent(fieldName, k -> new LinkedHashSet<>()).add(fieldValue);
+    private void addInputFieldsToMap(Map<String, LinkedHashSet<String>> inputFields, String inputFieldName, String fieldValue) {
+        if (Strings.isNullOrEmpty(inputFieldName) == false && fieldValue != null) {
+            if (ReservedFieldNames.isValidFieldName(inputFieldName)) {
+                inputFields.computeIfAbsent(inputFieldName, k -> new LinkedHashSet<>()).add(fieldValue);
             }
         }
     }
@@ -509,8 +509,8 @@ public class AnomalyRecord implements ToXContentObject, Writeable {
         return isInterim;
     }
 
-    public void setInterim(boolean isInterim) {
-        this.isInterim = isInterim;
+    public void setInterim(boolean interim) {
+        this.isInterim = interim;
     }
 
     public String getFieldName() {

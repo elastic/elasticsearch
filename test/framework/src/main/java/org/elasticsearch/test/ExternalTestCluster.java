@@ -15,21 +15,20 @@ import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.transport.TransportSettings;
-import org.elasticsearch.transport.nio.MockNioTransportPlugin;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -43,6 +42,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.test.ESTestCase.getTestTransportPlugin;
 import static org.elasticsearch.test.ESTestCase.getTestTransportType;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertThat;
@@ -97,19 +97,19 @@ public final class ExternalTestCluster extends TestCluster {
         if (addMockTcpTransport) {
             String transport = getTestTransportType();
             clientSettingsBuilder.put(NetworkModule.TRANSPORT_TYPE_KEY, transport);
-            if (pluginClasses.contains(MockNioTransportPlugin.class) == false) {
+            if (pluginClasses.contains(getTestTransportPlugin()) == false) {
                 pluginClasses = new ArrayList<>(pluginClasses);
-                pluginClasses.add(MockNioTransportPlugin.class);
+                pluginClasses.add(getTestTransportPlugin());
             }
         }
         pluginClasses = new ArrayList<>(pluginClasses);
         pluginClasses.add(MockHttpTransport.TestPlugin.class);
         Settings clientSettings = clientSettingsBuilder.build();
-        MockNode node = new MockNode(clientSettings, pluginClasses);
-        Client client = clientWrapper.apply(node.client());
+        MockNode mockNode = new MockNode(clientSettings, pluginClasses);
+        Client wrappedClient = clientWrapper.apply(mockNode.client());
         try {
-            node.start();
-            NodesInfoResponse nodeInfos = client.admin().cluster().prepareNodesInfo().clear().setSettings(true).setHttp(true).get();
+            mockNode.start();
+            NodesInfoResponse nodeInfos = wrappedClient.admin().cluster().prepareNodesInfo().clear().setSettings(true).setHttp(true).get();
             httpAddresses = new InetSocketAddress[nodeInfos.getNodes().size()];
             int dataNodes = 0;
             int masterAndDataNodes = 0;
@@ -125,20 +125,20 @@ public final class ExternalTestCluster extends TestCluster {
             }
             this.numDataNodes = dataNodes;
             this.numMasterAndDataNodes = masterAndDataNodes;
-            this.client = client;
-            this.node = node;
+            this.client = wrappedClient;
+            this.node = mockNode;
 
             logger.info("Setup ExternalTestCluster [{}] made of [{}] nodes", nodeInfos.getClusterName().value(), size());
         } catch (NodeValidationException e) {
             try {
-                IOUtils.close(client, node);
+                IOUtils.close(wrappedClient, mockNode);
             } catch (IOException e1) {
                 e.addSuppressed(e1);
             }
             throw new ElasticsearchException(e);
         } catch (Exception e) {
             try {
-                IOUtils.close(client, node);
+                IOUtils.close(wrappedClient, mockNode);
             } catch (IOException e1) {
                 e.addSuppressed(e1);
             }

@@ -17,7 +17,7 @@ import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
-import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -33,6 +33,7 @@ import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.gateway.LocalAllocateDangledIndices;
 import org.elasticsearch.gateway.MetaStateWriterUtils;
+import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
@@ -72,12 +73,10 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createBackingIndex;
-import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
 import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolverTests.indexBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -107,7 +106,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return Stream.concat(super.getPlugins().stream(), Stream.of(TestPlugin.class, FooEnginePlugin.class, BarEnginePlugin.class))
-            .collect(Collectors.toList());
+            .toList();
     }
 
     public static class FooEnginePlugin extends Plugin implements EnginePlugin {
@@ -195,6 +194,12 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
     @Override
     protected boolean resetNodeAfterTest() {
         return true;
+    }
+
+    @Override
+    protected Settings nodeSettings() {
+        // Disable the health node selection so the task assignment does not interfere with the cluster state during the test
+        return Settings.builder().put(HealthNodeTaskExecutor.ENABLED_SETTING.getKey(), false).build();
     }
 
     public void testCanDeleteShardContent() {
@@ -474,7 +479,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
     }
 
     /**
-     * Tests that teh {@link MapperService} created by {@link IndicesService#createIndexMapperService(IndexMetadata)} contains
+     * Tests that teh {@link MapperService} created by {@link IndicesService#createIndexMapperServiceForValidation(IndexMetadata)} contains
      * custom types and similarities registered by plugins
      */
     public void testStandAloneMapperServiceWithPlugins() throws IOException {
@@ -490,7 +495,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
-        MapperService mapperService = indicesService.createIndexMapperService(indexMetadata);
+        MapperService mapperService = indicesService.createIndexMapperServiceForValidation(indexMetadata);
         assertNotNull(mapperService.parserContext().typeParser("fake-mapper"));
         Similarity sim = mapperService.parserContext().getSimilarity("test").get();
         assertThat(sim, instanceOf(NonNegativeScoresSimilarity.class));
@@ -545,7 +550,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         // real one, which has a logger defined
         final IndicesService indicesService = getIndicesService();
 
-        final Map<Index, List<IndexShardStats>> indexStats = indicesService.statsByShard(mockIndicesService, CommonStatsFlags.ALL);
+        final Map<Index, List<IndexShardStats>> indexStats = IndicesService.statsByShard(mockIndicesService, CommonStatsFlags.ALL);
 
         assertThat(indexStats.isEmpty(), equalTo(false));
         assertThat("index not defined", indexStats.containsKey(index), equalTo(true));
@@ -651,7 +656,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         IndexMetadata backingIndex1 = createBackingIndex(dataStreamName1, 1).build();
         Metadata.Builder mdBuilder = Metadata.builder()
             .put(backingIndex1, false)
-            .put(new DataStream(dataStreamName1, createTimestampField("@timestamp"), List.of(backingIndex1.getIndex())));
+            .put(DataStreamTestHelper.newInstance(dataStreamName1, List.of(backingIndex1.getIndex())));
         mdBuilder.put("logs_foo", dataStreamName1, null, Strings.toString(QueryBuilders.termQuery("foo", "bar")));
         mdBuilder.put("logs", dataStreamName1, null, Strings.toString(QueryBuilders.termQuery("foo", "baz")));
         mdBuilder.put("logs_bar", dataStreamName1, null, null);

@@ -9,13 +9,12 @@ package org.elasticsearch.xpack.ml.dataframe.steps;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
-import org.elasticsearch.client.ParentTaskAssigningClient;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsTask;
@@ -23,6 +22,7 @@ import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 
 import java.util.Objects;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeWithHeadersAsync;
 
@@ -61,9 +61,9 @@ abstract class AbstractDataFrameAnalyticsStep implements DataFrameAnalyticsStep 
 
     @Override
     public final void execute(ActionListener<StepResponse> listener) {
-        logger.debug(() -> new ParameterizedMessage("[{}] Executing step [{}]", config.getId(), name()));
+        logger.debug(() -> format("[%s] Executing step [%s]", config.getId(), name()));
         if (task.isStopping() && shouldSkipIfTaskIsStopping()) {
-            logger.debug(() -> new ParameterizedMessage("[{}] task is stopping before starting [{}] step", config.getId(), name()));
+            logger.debug(() -> format("[%s] task is stopping before starting [%s] step", config.getId(), name()));
             listener.onResponse(new StepResponse(true));
             return;
         }

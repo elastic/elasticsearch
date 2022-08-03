@@ -149,12 +149,12 @@ public class OperationModeUpdateTask extends ClusterStateUpdateTask {
     }
 
     @Override
-    public void onFailure(String source, Exception e) {
+    public void onFailure(Exception e) {
         logger.error("unable to update lifecycle metadata with new ilm mode [" + ilmMode + "], slm mode [" + slmMode + "]", e);
     }
 
     @Override
-    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+    public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
         if (ilmMode != null) {
             logger.info("ILM operation mode updated to {}", ilmMode);
         }

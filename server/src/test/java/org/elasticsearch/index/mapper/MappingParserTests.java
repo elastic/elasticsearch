@@ -36,7 +36,7 @@ public class MappingParserTests extends MapperServiceTestCase {
         MapperRegistry mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();
         Supplier<MappingParserContext> parserContextSupplier = () -> new MappingParserContext(
             similarityService::getSimilarity,
-            mapperRegistry.getMapperParsers()::get,
+            type -> mapperRegistry.getMapperParser(type, indexSettings.getIndexVersionCreated()),
             mapperRegistry.getRuntimeFieldParsers()::get,
             indexSettings.getIndexVersionCreated(),
             () -> { throw new UnsupportedOperationException(); },
@@ -44,16 +44,17 @@ public class MappingParserTests extends MapperServiceTestCase {
             scriptService,
             indexAnalyzers,
             indexSettings,
-            IdFieldMapper.NO_FIELD_DATA
+            indexSettings.getMode().idFieldMapperWithoutFieldData()
         );
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = mapperRegistry.getMetadataMapperParsers(
             indexSettings.getIndexVersionCreated()
         );
         Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = new LinkedHashMap<>();
-        metadataMapperParsers.values()
-            .stream()
-            .map(parser -> parser.getDefault(parserContextSupplier.get()))
-            .forEach(m -> metadataMappers.put(m.getClass(), m));
+        metadataMapperParsers.values().stream().map(parser -> parser.getDefault(parserContextSupplier.get())).forEach(m -> {
+            if (m != null) {
+                metadataMappers.put(m.getClass(), m);
+            }
+        });
         return new MappingParser(
             parserContextSupplier,
             metadataMapperParsers,
@@ -62,7 +63,7 @@ public class MappingParserTests extends MapperServiceTestCase {
         );
     }
 
-    public void testFieldNameWithDots() throws Exception {
+    public void testFieldNameWithDotsDisallowed() throws Exception {
         XContentBuilder builder = mapping(b -> {
             b.startObject("foo.bar").field("type", "text").endObject();
             b.startObject("foo.baz").field("type", "keyword").endObject();
@@ -96,7 +97,7 @@ public class MappingParserTests extends MapperServiceTestCase {
         assertNotNull(mappingLookup.objectMappers().get("foo"));
     }
 
-    public void testFieldNameWithDotsConflict() throws IOException {
+    public void testFieldNameWithDotPrefixDisallowed() throws IOException {
         XContentBuilder builder = mapping(b -> {
             b.startObject("foo").field("type", "text").endObject();
             b.startObject("foo.baz").field("type", "keyword").endObject();

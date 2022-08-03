@@ -8,8 +8,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import com.fasterxml.jackson.core.JsonParseException;
-
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -18,13 +16,14 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.PutRequest;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.EmptySystemIndices;
@@ -35,6 +34,7 @@ import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParseException;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -49,7 +49,6 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DEFAULT_TIMESTAMP_FIELD;
@@ -72,6 +71,12 @@ import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 
 public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
+
+    @Override
+    protected Settings nodeSettings() {
+        // Disable the health node selection so the task assignment does not interfere with the cluster state during the test
+        return Settings.builder().put(HealthNodeTaskExecutor.ENABLED_SETTING.getKey(), false).build();
+    }
 
     public void testLegacyNoopUpdate() throws IOException {
         ClusterState state = ClusterState.EMPTY_STATE;
@@ -242,7 +247,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         final Metadata metadata = client().admin().cluster().prepareState().get().getState().metadata();
         IndexTemplateMetadata template = metadata.templates().get(templateName);
-        ImmutableOpenMap<String, AliasMetadata> aliasMap = template.getAliases();
+        Map<String, AliasMetadata> aliasMap = template.getAliases();
         assertThat(aliasMap.size(), equalTo(1));
         AliasMetadata metaAlias = aliasMap.get(aliasName);
         String filterString = metaAlias.filter() == null ? null : metaAlias.filter().string();
@@ -263,14 +268,14 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             MetadataIndexTemplateService.findV1Templates(state.metadata(), "foo-1234", randomBoolean())
                 .stream()
                 .map(IndexTemplateMetadata::name)
-                .collect(Collectors.toList()),
+                .toList(),
             contains("foo-2", "foo-1")
         );
         assertThat(
             MetadataIndexTemplateService.findV1Templates(state.metadata(), "bar-xyz", randomBoolean())
                 .stream()
                 .map(IndexTemplateMetadata::name)
-                .collect(Collectors.toList()),
+                .toList(),
             contains("bar")
         );
         assertThat(MetadataIndexTemplateService.findV1Templates(state.metadata(), "baz", randomBoolean()), empty());
@@ -295,14 +300,14 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             MetadataIndexTemplateService.findV1Templates(state.metadata(), "foo-1234", true)
                 .stream()
                 .map(IndexTemplateMetadata::name)
-                .collect(Collectors.toList()),
+                .toList(),
             containsInAnyOrder("foo-2", "foo-1")
         );
         assertThat(
             MetadataIndexTemplateService.findV1Templates(state.metadata(), "bar-xyz", true)
                 .stream()
                 .map(IndexTemplateMetadata::name)
-                .collect(Collectors.toList()),
+                .toList(),
             contains("bar")
         );
         assertThat(MetadataIndexTemplateService.findV1Templates(state.metadata(), "baz", true), empty());
@@ -310,7 +315,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             MetadataIndexTemplateService.findV1Templates(state.metadata(), "sneaky1", true)
                 .stream()
                 .map(IndexTemplateMetadata::name)
-                .collect(Collectors.toList()),
+                .toList(),
             contains("sneaky-hidden")
         );
 
@@ -319,28 +324,25 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             MetadataIndexTemplateService.findV1Templates(state.metadata(), "foo-1234", false)
                 .stream()
                 .map(IndexTemplateMetadata::name)
-                .collect(Collectors.toList()),
+                .toList(),
             containsInAnyOrder("foo-2", "foo-1", "global")
         );
         assertThat(
             MetadataIndexTemplateService.findV1Templates(state.metadata(), "bar-xyz", false)
                 .stream()
                 .map(IndexTemplateMetadata::name)
-                .collect(Collectors.toList()),
+                .toList(),
             containsInAnyOrder("bar", "global")
         );
         assertThat(
-            MetadataIndexTemplateService.findV1Templates(state.metadata(), "baz", false)
-                .stream()
-                .map(IndexTemplateMetadata::name)
-                .collect(Collectors.toList()),
+            MetadataIndexTemplateService.findV1Templates(state.metadata(), "baz", false).stream().map(IndexTemplateMetadata::name).toList(),
             contains("global")
         );
         assertThat(
             MetadataIndexTemplateService.findV1Templates(state.metadata(), "sneaky1", false)
                 .stream()
                 .map(IndexTemplateMetadata::name)
-                .collect(Collectors.toList()),
+                .toList(),
             containsInAnyOrder("global", "sneaky-hidden")
         );
 
@@ -349,28 +351,25 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             MetadataIndexTemplateService.findV1Templates(state.metadata(), "foo-1234", null)
                 .stream()
                 .map(IndexTemplateMetadata::name)
-                .collect(Collectors.toList()),
+                .toList(),
             containsInAnyOrder("foo-2", "foo-1", "global")
         );
         assertThat(
             MetadataIndexTemplateService.findV1Templates(state.metadata(), "bar-xyz", null)
                 .stream()
                 .map(IndexTemplateMetadata::name)
-                .collect(Collectors.toList()),
+                .toList(),
             containsInAnyOrder("bar", "global")
         );
         assertThat(
-            MetadataIndexTemplateService.findV1Templates(state.metadata(), "baz", null)
-                .stream()
-                .map(IndexTemplateMetadata::name)
-                .collect(Collectors.toList()),
+            MetadataIndexTemplateService.findV1Templates(state.metadata(), "baz", null).stream().map(IndexTemplateMetadata::name).toList(),
             contains("global")
         );
         assertThat(
             MetadataIndexTemplateService.findV1Templates(state.metadata(), "sneaky1", null)
                 .stream()
                 .map(IndexTemplateMetadata::name)
-                .collect(Collectors.toList()),
+                .toList(),
             contains("sneaky-hidden")
         );
     }
@@ -384,7 +383,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             MetadataIndexTemplateService.findV1Templates(state.metadata(), "<test-{now/d}>", false)
                 .stream()
                 .map(IndexTemplateMetadata::name)
-                .collect(Collectors.toList()),
+                .toList(),
             containsInAnyOrder("foo-1")
         );
     }
@@ -401,11 +400,9 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     public void testAddComponentTemplate() throws Exception {
         MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
         ClusterState state = ClusterState.EMPTY_STATE;
-        Template template = new Template(
-            Settings.builder().build(),
-            new CompressedXContent("{\"properties\":{\"@timestamp\":{\"type\":\"date\"}}}"),
-            ComponentTemplateTests.randomAliases()
-        );
+        Template template = new Template(Settings.builder().build(), new CompressedXContent("""
+            {"properties":{"@timestamp":{"type":"date"}}}
+            """), ComponentTemplateTests.randomAliases());
         ComponentTemplate componentTemplate = new ComponentTemplate(template, 1L, new HashMap<>());
         state = metadataIndexTemplateService.addComponentTemplate(state, false, "foo", componentTemplate);
 
@@ -429,7 +426,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         );
         ComponentTemplate componentTemplate2 = new ComponentTemplate(template, 1L, new HashMap<>());
         expectThrows(
-            JsonParseException.class,
+            XContentParseException.class,
             () -> metadataIndexTemplateService.addComponentTemplate(throwState, true, "foo2", componentTemplate2)
         );
 
@@ -1101,64 +1098,32 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
         ClusterState state = ClusterState.EMPTY_STATE;
 
-        ComponentTemplate ct1 = new ComponentTemplate(
-            new Template(
-                null,
-                new CompressedXContent(
-                    "{\n"
-                        + "      \"properties\": {\n"
-                        + "        \"field2\": {\n"
-                        + "          \"type\": \"keyword\"\n"
-                        + "        }\n"
-                        + "      }\n"
-                        + "    }"
-                ),
-                null
-            ),
-            null,
-            null
-        );
-        ComponentTemplate ct2 = new ComponentTemplate(
-            new Template(
-                null,
-                new CompressedXContent(
-                    "{\n"
-                        + "      \"properties\": {\n"
-                        + "        \"field2\": {\n"
-                        + "          \"type\": \"text\"\n"
-                        + "        }\n"
-                        + "      }\n"
-                        + "    }"
-                ),
-                null
-            ),
-            null,
-            null
-        );
+        ComponentTemplate ct1 = new ComponentTemplate(new Template(null, new CompressedXContent("""
+            {
+                  "properties": {
+                    "field2": {
+                      "type": "keyword"
+                    }
+                  }
+                }"""), null), null, null);
+        ComponentTemplate ct2 = new ComponentTemplate(new Template(null, new CompressedXContent("""
+            {
+                  "properties": {
+                    "field2": {
+                      "type": "text"
+                    }
+                  }
+                }"""), null), null, null);
         state = service.addComponentTemplate(state, true, "ct_high", ct1);
         state = service.addComponentTemplate(state, true, "ct_low", ct2);
-        ComposableIndexTemplate it = new ComposableIndexTemplate(
-            List.of("i*"),
-            new Template(
-                null,
-                new CompressedXContent(
-                    "{\n"
-                        + "    \"properties\": {\n"
-                        + "      \"field\": {\n"
-                        + "        \"type\": \"keyword\"\n"
-                        + "      }\n"
-                        + "    }\n"
-                        + "  }"
-                ),
-                null
-            ),
-            List.of("ct_low", "ct_high"),
-            0L,
-            1L,
-            null,
-            null,
-            null
-        );
+        ComposableIndexTemplate it = new ComposableIndexTemplate(List.of("i*"), new Template(null, new CompressedXContent("""
+            {
+                "properties": {
+                  "field": {
+                    "type": "keyword"
+                  }
+                }
+              }"""), null), List.of("ct_low", "ct_high"), 0L, 1L, null, null, null);
         state = service.addIndexTemplateV2(state, true, "my-template", it);
 
         List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(state, "my-template", "my-index");
@@ -1173,7 +1138,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 fail("failed to parse mappings: " + m.string());
                 return null;
             }
-        }).collect(Collectors.toList());
+        }).toList();
 
         // The order of mappings should be:
         // - ct_low
@@ -1189,64 +1154,32 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
         ClusterState state = ClusterState.EMPTY_STATE;
 
-        ComponentTemplate ct1 = new ComponentTemplate(
-            new Template(
-                null,
-                new CompressedXContent(
-                    "{\n"
-                        + "      \"properties\": {\n"
-                        + "        \"field1\": {\n"
-                        + "          \"type\": \"keyword\"\n"
-                        + "        }\n"
-                        + "      }\n"
-                        + "    }"
-                ),
-                null
-            ),
-            null,
-            null
-        );
-        ComponentTemplate ct2 = new ComponentTemplate(
-            new Template(
-                null,
-                new CompressedXContent(
-                    "{\n"
-                        + "      \"properties\": {\n"
-                        + "        \"field2\": {\n"
-                        + "          \"type\": \"text\"\n"
-                        + "        }\n"
-                        + "      }\n"
-                        + "    }"
-                ),
-                null
-            ),
-            null,
-            null
-        );
+        ComponentTemplate ct1 = new ComponentTemplate(new Template(null, new CompressedXContent("""
+            {
+                  "properties": {
+                    "field1": {
+                      "type": "keyword"
+                    }
+                  }
+                }"""), null), null, null);
+        ComponentTemplate ct2 = new ComponentTemplate(new Template(null, new CompressedXContent("""
+            {
+                  "properties": {
+                    "field2": {
+                      "type": "text"
+                    }
+                  }
+                }"""), null), null, null);
         state = service.addComponentTemplate(state, true, "ct_high", ct1);
         state = service.addComponentTemplate(state, true, "ct_low", ct2);
-        ComposableIndexTemplate it = new ComposableIndexTemplate(
-            List.of("i*"),
-            new Template(
-                null,
-                new CompressedXContent(
-                    "{\n"
-                        + "    \"properties\": {\n"
-                        + "      \"field3\": {\n"
-                        + "        \"type\": \"integer\"\n"
-                        + "      }\n"
-                        + "    }\n"
-                        + "  }"
-                ),
-                null
-            ),
-            List.of("ct_low", "ct_high"),
-            0L,
-            1L,
-            null,
-            null,
-            null
-        );
+        ComposableIndexTemplate it = new ComposableIndexTemplate(List.of("i*"), new Template(null, new CompressedXContent("""
+            {
+                "properties": {
+                  "field3": {
+                    "type": "integer"
+                  }
+                }
+              }"""), null), List.of("ct_low", "ct_high"), 0L, 1L, null, null, null);
         state = service.addIndexTemplateV2(state, true, "my-template", it);
 
         List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(state, "my-template", "my-index");
@@ -1261,7 +1194,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 fail("failed to parse mappings: " + m.string());
                 return null;
             }
-        }).collect(Collectors.toList());
+        }).toList();
         assertThat(parsedMappings.get(0), equalTo(Map.of("_doc", Map.of("properties", Map.of("field2", Map.of("type", "text"))))));
         assertThat(parsedMappings.get(1), equalTo(Map.of("_doc", Map.of("properties", Map.of("field1", Map.of("type", "keyword"))))));
         assertThat(parsedMappings.get(2), equalTo(Map.of("_doc", Map.of("properties", Map.of("field3", Map.of("type", "integer"))))));
@@ -1271,49 +1204,26 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
         ClusterState state = ClusterState.EMPTY_STATE;
 
-        ComponentTemplate ct1 = new ComponentTemplate(
-            new Template(
-                null,
-                new CompressedXContent(
-                    "{\n"
-                        + "      \"properties\": {\n"
-                        + "        \"field1\": {\n"
-                        + "          \"type\": \"keyword\"\n"
-                        + "        }\n"
-                        + "      }\n"
-                        + "    }"
-                ),
-                null
-            ),
-            null,
-            null
-        );
+        ComponentTemplate ct1 = new ComponentTemplate(new Template(null, new CompressedXContent("""
+            {
+                  "properties": {
+                    "field1": {
+                      "type": "keyword"
+                    }
+                  }
+                }"""), null), null, null);
 
         state = service.addComponentTemplate(state, true, "ct1", ct1);
 
         {
-            ComposableIndexTemplate it = new ComposableIndexTemplate(
-                List.of("logs*"),
-                new Template(
-                    null,
-                    new CompressedXContent(
-                        "{\n"
-                            + "    \"properties\": {\n"
-                            + "      \"field2\": {\n"
-                            + "        \"type\": \"integer\"\n"
-                            + "      }\n"
-                            + "    }\n"
-                            + "  }"
-                    ),
-                    null
-                ),
-                List.of("ct1"),
-                0L,
-                1L,
-                null,
-                new ComposableIndexTemplate.DataStreamTemplate(),
-                null
-            );
+            ComposableIndexTemplate it = new ComposableIndexTemplate(List.of("logs*"), new Template(null, new CompressedXContent("""
+                {
+                    "properties": {
+                      "field2": {
+                        "type": "integer"
+                      }
+                    }
+                  }"""), null), List.of("ct1"), 0L, 1L, null, new ComposableIndexTemplate.DataStreamTemplate(), null);
             state = service.addIndexTemplateV2(state, true, "logs-data-stream-template", it);
 
             List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(
@@ -1332,7 +1242,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                     fail("failed to parse mappings: " + m.string());
                     return null;
                 }
-            }).collect(Collectors.toList());
+            }).toList();
 
             assertThat(
                 parsedMappings.get(0),
@@ -1344,28 +1254,14 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         {
             // indices matched by templates without the data stream field defined don't get the default @timestamp mapping
-            ComposableIndexTemplate it = new ComposableIndexTemplate(
-                List.of("timeseries*"),
-                new Template(
-                    null,
-                    new CompressedXContent(
-                        "{\n"
-                            + "    \"properties\": {\n"
-                            + "      \"field2\": {\n"
-                            + "        \"type\": \"integer\"\n"
-                            + "      }\n"
-                            + "    }\n"
-                            + "  }"
-                    ),
-                    null
-                ),
-                List.of("ct1"),
-                0L,
-                1L,
-                null,
-                null,
-                null
-            );
+            ComposableIndexTemplate it = new ComposableIndexTemplate(List.of("timeseries*"), new Template(null, new CompressedXContent("""
+                {
+                    "properties": {
+                      "field2": {
+                        "type": "integer"
+                      }
+                    }
+                  }"""), null), List.of("ct1"), 0L, 1L, null, null, null);
             state = service.addIndexTemplateV2(state, true, "timeseries-template", it);
 
             List<CompressedXContent> mappings = MetadataIndexTemplateService.collectMappings(state, "timeseries-template", "timeseries");
@@ -1380,7 +1276,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                     fail("failed to parse mappings: " + m.string());
                     return null;
                 }
-            }).collect(Collectors.toList());
+            }).toList();
 
             assertThat(parsedMappings.get(0), equalTo(Map.of("_doc", Map.of("properties", Map.of("field1", Map.of("type", "keyword"))))));
             assertThat(parsedMappings.get(1), equalTo(Map.of("_doc", Map.of("properties", Map.of("field2", Map.of("type", "integer"))))));
@@ -1403,7 +1299,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                     fail("failed to parse mappings: " + m.string());
                     return null;
                 }
-            }).collect(Collectors.toList());
+            }).toList();
 
             assertThat(parsedMappings.get(0), equalTo(Map.of("_doc", Map.of("properties", Map.of("field1", Map.of("type", "keyword"))))));
             assertThat(parsedMappings.get(1), equalTo(Map.of("_doc", Map.of("properties", Map.of("field2", Map.of("type", "integer"))))));
@@ -1416,23 +1312,14 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         {
             // user defines a @timestamp mapping as part of a component template
-            ComponentTemplate ct1 = new ComponentTemplate(
-                new Template(
-                    null,
-                    new CompressedXContent(
-                        "{\n"
-                            + "      \"properties\": {\n"
-                            + "        \"@timestamp\": {\n"
-                            + "          \"type\": \"date_nanos\"\n"
-                            + "        }\n"
-                            + "      }\n"
-                            + "    }"
-                    ),
-                    null
-                ),
-                null,
-                null
-            );
+            ComponentTemplate ct1 = new ComponentTemplate(new Template(null, new CompressedXContent("""
+                {
+                      "properties": {
+                        "@timestamp": {
+                          "type": "date_nanos"
+                        }
+                      }
+                    }"""), null), null, null);
 
             state = service.addComponentTemplate(state, true, "ct1", ct1);
             ComposableIndexTemplate it = new ComposableIndexTemplate(
@@ -1463,7 +1350,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                     fail("failed to parse mappings: " + m.string());
                     return null;
                 }
-            }).collect(Collectors.toList());
+            }).toList();
             assertThat(
                 parsedMappings.get(0),
                 equalTo(Map.of("_doc", Map.of("properties", Map.of(DEFAULT_TIMESTAMP_FIELD, Map.of("type", "date")))))
@@ -1476,19 +1363,14 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         {
             // user defines a @timestamp mapping as part of a composable index template
-            Template template = new Template(
-                null,
-                new CompressedXContent(
-                    "{\n"
-                        + "      \"properties\": {\n"
-                        + "        \"@timestamp\": {\n"
-                        + "          \"type\": \"date_nanos\"\n"
-                        + "        }\n"
-                        + "      }\n"
-                        + "    }"
-                ),
-                null
-            );
+            Template template = new Template(null, new CompressedXContent("""
+                {
+                      "properties": {
+                        "@timestamp": {
+                          "type": "date_nanos"
+                        }
+                      }
+                    }"""), null);
             ComposableIndexTemplate it = new ComposableIndexTemplate(
                 List.of("timeseries*"),
                 template,
@@ -1517,7 +1399,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                     fail("failed to parse mappings: " + m.string());
                     return null;
                 }
-            }).collect(Collectors.toList());
+            }).toList();
             assertThat(
                 parsedMappings.get(0),
                 equalTo(Map.of("_doc", Map.of("properties", Map.of(DEFAULT_TIMESTAMP_FIELD, Map.of("type", "date")))))
@@ -1714,69 +1596,37 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
         ClusterState state = ClusterState.EMPTY_STATE;
 
-        ComponentTemplate ct1 = new ComponentTemplate(
-            new Template(
-                null,
-                new CompressedXContent(
-                    "{\n"
-                        + "      \"properties\": {\n"
-                        + "        \"field2\": {\n"
-                        + "          \"type\": \"object\",\n"
-                        + "          \"properties\": {\n"
-                        + "            \"foo\": {\n"
-                        + "              \"type\": \"integer\"\n"
-                        + "            }\n"
-                        + "          }\n"
-                        + "        }\n"
-                        + "      }\n"
-                        + "    }"
-                ),
-                null
-            ),
-            null,
-            null
-        );
-        ComponentTemplate ct2 = new ComponentTemplate(
-            new Template(
-                null,
-                new CompressedXContent(
-                    "{\n"
-                        + "      \"properties\": {\n"
-                        + "        \"field1\": {\n"
-                        + "          \"type\": \"text\"\n"
-                        + "        }\n"
-                        + "      }\n"
-                        + "    }"
-                ),
-                null
-            ),
-            null,
-            null
-        );
+        ComponentTemplate ct1 = new ComponentTemplate(new Template(null, new CompressedXContent("""
+            {
+                  "properties": {
+                    "field2": {
+                      "type": "object",
+                      "properties": {
+                        "foo": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                }"""), null), null, null);
+        ComponentTemplate ct2 = new ComponentTemplate(new Template(null, new CompressedXContent("""
+            {
+                  "properties": {
+                    "field1": {
+                      "type": "text"
+                    }
+                  }
+                }"""), null), null, null);
         state = service.addComponentTemplate(state, true, "c1", ct1);
         state = service.addComponentTemplate(state, true, "c2", ct2);
-        ComposableIndexTemplate it = new ComposableIndexTemplate(
-            List.of("i*"),
-            new Template(
-                null,
-                new CompressedXContent(
-                    "{\n"
-                        + "      \"properties\": {\n"
-                        + "        \"field2\": {\n"
-                        + "          \"type\": \"text\"\n"
-                        + "        }\n"
-                        + "      }\n"
-                        + "    }"
-                ),
-                null
-            ),
-            randomBoolean() ? Arrays.asList("c1", "c2") : Arrays.asList("c2", "c1"),
-            0L,
-            1L,
-            null,
-            null,
-            null
-        );
+        ComposableIndexTemplate it = new ComposableIndexTemplate(List.of("i*"), new Template(null, new CompressedXContent("""
+            {
+                  "properties": {
+                    "field2": {
+                      "type": "text"
+                    }
+                  }
+                }"""), null), randomBoolean() ? Arrays.asList("c1", "c2") : Arrays.asList("c2", "c1"), 0L, 1L, null, null, null);
 
         final ClusterState finalState = state;
         IllegalArgumentException e = expectThrows(
@@ -1807,45 +1657,29 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
         ClusterState state = ClusterState.EMPTY_STATE;
 
-        ComponentTemplate ct1 = new ComponentTemplate(
-            new Template(
-                null,
-                new CompressedXContent(
-                    "{\n"
-                        + "      \"properties\": {\n"
-                        + "        \"field2\": {\n"
-                        + "          \"type\": \"object\",\n"
-                        + "          \"properties\": {\n"
-                        + "            \"foo\": {\n"
-                        + "              \"type\": \"integer\"\n"
-                        + "            }\n"
-                        + "          }\n"
-                        + "        }\n"
-                        + "      }\n"
-                        + "    }"
-                ),
-                null
-            ),
-            null,
-            null
-        );
-        ComponentTemplate ct2 = new ComponentTemplate(
-            new Template(
-                null,
-                new CompressedXContent(
-                    "{\n"
-                        + "      \"properties\": {\n"
-                        + "        \"field1\": {\n"
-                        + "          \"type\": \"text\"\n"
-                        + "        }\n"
-                        + "      }\n"
-                        + "    }"
-                ),
-                null
-            ),
-            null,
-            null
-        );
+        ComponentTemplate ct1 = new ComponentTemplate(new Template(null, new CompressedXContent("""
+            {
+              "properties": {
+                "field2": {
+                  "type": "object",
+                  "properties": {
+                    "foo": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+            """), null), null, null);
+        ComponentTemplate ct2 = new ComponentTemplate(new Template(null, new CompressedXContent("""
+            {
+              "properties": {
+                "field1": {
+                  "type": "text"
+                }
+              }
+            }
+            """), null), null, null);
         state = service.addComponentTemplate(state, true, "c1", ct1);
         state = service.addComponentTemplate(state, true, "c2", ct2);
         ComposableIndexTemplate it = new ComposableIndexTemplate(
@@ -1862,23 +1696,15 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         // Great, the templates aren't invalid
         state = service.addIndexTemplateV2(state, randomBoolean(), "my-template", it);
 
-        ComponentTemplate changedCt2 = new ComponentTemplate(
-            new Template(
-                null,
-                new CompressedXContent(
-                    "{\n"
-                        + "      \"properties\": {\n"
-                        + "        \"field2\": {\n"
-                        + "          \"type\": \"text\"\n"
-                        + "        }\n"
-                        + "      }\n"
-                        + "    }"
-                ),
-                null
-            ),
-            null,
-            null
-        );
+        ComponentTemplate changedCt2 = new ComponentTemplate(new Template(null, new CompressedXContent("""
+            {
+              "properties": {
+                "field2": {
+                  "type": "text"
+                }
+              }
+            }
+            """), null), null, null);
 
         final ClusterState finalState = state;
         IllegalArgumentException e = expectThrows(
@@ -1932,9 +1758,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             .metadata(
                 Metadata.builder(state.metadata())
                     .put(
-                        new DataStream(
+                        DataStreamTestHelper.newInstance(
                             "unreferenced",
-                            new DataStream.TimestampField("@timestamp"),
                             Collections.singletonList(new Index(".ds-unreferenced-000001", "uuid2"))
                         )
                     )
@@ -1970,9 +1795,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             .metadata(
                 Metadata.builder(state.metadata())
                     .put(
-                        new DataStream(
+                        DataStreamTestHelper.newInstance(
                             "logs-mysql-default",
-                            new DataStream.TimestampField("@timestamp"),
                             Collections.singletonList(new Index(".ds-logs-mysql-default-000001", "uuid"))
                         )
                     )
@@ -2087,6 +1911,102 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         service.addIndexTemplateV2(stateWithDSAndTemplate, false, "logs", nonDSTemplate);
     }
 
+    public void testDataStreamsUsingTemplates() throws Exception {
+        ClusterState state = ClusterState.EMPTY_STATE;
+        final MetadataIndexTemplateService service = getMetadataIndexTemplateService();
+        state = ClusterState.builder(state)
+            .metadata(
+                Metadata.builder(state.metadata())
+                    .put(
+                        DataStreamTestHelper.newInstance(
+                            "unreferenced",
+                            Collections.singletonList(new Index(".ds-unreferenced-000001", "uuid2"))
+                        )
+                    )
+                    .put(
+                        IndexMetadata.builder(".ds-unreferenced-000001")
+                            .settings(
+                                Settings.builder()
+                                    .put(IndexMetadata.SETTING_INDEX_UUID, "uuid2")
+                                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                                    .build()
+                            )
+                    )
+                    .build()
+            )
+            .build();
+
+        ComposableIndexTemplate template = new ComposableIndexTemplate(
+            Collections.singletonList("logs-*-*"),
+            null,
+            null,
+            100L,
+            null,
+            null,
+            new ComposableIndexTemplate.DataStreamTemplate(),
+            null
+        );
+
+        state = service.addIndexTemplateV2(state, false, "logs", template);
+
+        ClusterState stateWithDS = ClusterState.builder(state)
+            .metadata(
+                Metadata.builder(state.metadata())
+                    .put(
+                        DataStreamTestHelper.newInstance(
+                            "logs-mysql-default",
+                            Collections.singletonList(new Index(".ds-logs-mysql-default-000001", "uuid"))
+                        )
+                    )
+                    .put(
+                        IndexMetadata.builder(".ds-logs-mysql-default-000001")
+                            .settings(
+                                Settings.builder()
+                                    .put(IndexMetadata.SETTING_INDEX_UUID, "uuid")
+                                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                                    .build()
+                            )
+                    )
+                    .build()
+            )
+            .build();
+
+        ComposableIndexTemplate fineGrainedLogsTemplate = new ComposableIndexTemplate(
+            Collections.singletonList("logs-mysql-*"),
+            null,
+            null,
+            200L, // Higher priority
+            null,
+            null,
+            new ComposableIndexTemplate.DataStreamTemplate(),
+            null
+        );
+
+        state = service.addIndexTemplateV2(stateWithDS, false, "logs2", fineGrainedLogsTemplate);
+
+        // Test replacing it with a version without the data stream config
+        final ClusterState stateWithTwoTemplates = state;
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> MetadataIndexTemplateService.innerRemoveIndexTemplateV2(stateWithTwoTemplates, "logs*")
+        );
+
+        assertThat(
+            e.getMessage(),
+            containsString("unable to remove composable templates [logs, logs2] as they are in use by a data streams [logs-mysql-default]")
+        );
+
+        assertThat(MetadataIndexTemplateService.dataStreamsUsingTemplates(state, Set.of("logs")), equalTo(Set.of()));
+        assertThat(MetadataIndexTemplateService.dataStreamsUsingTemplates(state, Set.of("logs2")), equalTo(Set.of("logs-mysql-default")));
+
+        // The unreferenced template can be removed without an exception
+        MetadataIndexTemplateService.innerRemoveIndexTemplateV2(stateWithTwoTemplates, "logs");
+    }
+
     private static List<Throwable> putTemplate(NamedXContentRegistry xContentRegistry, PutRequest request) {
         ThreadPool testThreadPool = mock(ThreadPool.class);
         ClusterService clusterService = ClusterServiceUtils.createClusterService(testThreadPool);
@@ -2095,28 +2015,29 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             clusterService,
             null,
             null,
-            null,
             createTestShardLimitService(randomIntBetween(1, 1000)),
             new Environment(builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build(), null),
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
             null,
             xContentRegistry,
             EmptySystemIndices.INSTANCE,
-            true
+            true,
+            new IndexSettingProviders(Set.of())
         );
         MetadataIndexTemplateService service = new MetadataIndexTemplateService(
             null,
             createIndexService,
-            new AliasValidator(),
             null,
             new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS),
-            xContentRegistry
+            xContentRegistry,
+            EmptySystemIndices.INSTANCE,
+            new IndexSettingProviders(Set.of())
         );
 
         final List<Throwable> throwables = new ArrayList<>();
-        service.putTemplate(request, new MetadataIndexTemplateService.PutListener() {
+        service.putTemplate(request, new ActionListener<>() {
             @Override
-            public void onResponse(MetadataIndexTemplateService.PutResponse response) {
+            public void onResponse(AcknowledgedResponse response) {
 
             }
 
@@ -2133,9 +2054,9 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         final List<Throwable> throwables = new ArrayList<>();
         final CountDownLatch latch = new CountDownLatch(1);
-        service.putTemplate(request, new MetadataIndexTemplateService.PutListener() {
+        service.putTemplate(request, new ActionListener<>() {
             @Override
-            public void onResponse(MetadataIndexTemplateService.PutResponse response) {
+            public void onResponse(AcknowledgedResponse response) {
                 latch.countDown();
             }
 
@@ -2157,22 +2078,23 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             clusterService,
             indicesService,
             null,
-            null,
             createTestShardLimitService(randomIntBetween(1, 1000)),
             new Environment(builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build(), null),
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
             null,
             xContentRegistry(),
             EmptySystemIndices.INSTANCE,
-            true
+            true,
+            new IndexSettingProviders(Set.of())
         );
         return new MetadataIndexTemplateService(
             clusterService,
             createIndexService,
-            new AliasValidator(),
             indicesService,
             new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS),
-            xContentRegistry()
+            xContentRegistry(),
+            EmptySystemIndices.INSTANCE,
+            new IndexSettingProviders(Set.of())
         );
     }
 

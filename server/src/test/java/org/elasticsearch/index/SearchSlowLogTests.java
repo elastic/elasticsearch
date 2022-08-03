@@ -244,7 +244,9 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         SearchContext searchContext = createSearchContext(index, "group1");
         SearchSourceBuilder source = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery());
         searchContext.request().source(source);
-        searchContext.setTask(new SearchShardTask(0, "n/a", "n/a", "test", null, Collections.singletonMap(Task.X_OPAQUE_ID, "my_id")));
+        searchContext.setTask(
+            new SearchShardTask(0, "n/a", "n/a", "test", null, Collections.singletonMap(Task.X_OPAQUE_ID_HTTP_HEADER, "my_id"))
+        );
 
         ESLogMessage p = SearchSlowLog.SearchSlowLogMessage.of(searchContext, 10);
         assertThat(p.get("elasticsearch.slowlog.stats"), equalTo("[\\\"group1\\\"]"));
@@ -252,7 +254,9 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         searchContext = createSearchContext(index, "group1", "group2");
         source = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery());
         searchContext.request().source(source);
-        searchContext.setTask(new SearchShardTask(0, "n/a", "n/a", "test", null, Collections.singletonMap(Task.X_OPAQUE_ID, "my_id")));
+        searchContext.setTask(
+            new SearchShardTask(0, "n/a", "n/a", "test", null, Collections.singletonMap(Task.X_OPAQUE_ID_HTTP_HEADER, "my_id"))
+        );
         p = SearchSlowLog.SearchSlowLogMessage.of(searchContext, 10);
         assertThat(p.get("elasticsearch.slowlog.stats"), equalTo("[\\\"group1\\\", \\\"group2\\\"]"));
     }
@@ -506,7 +510,7 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         SearchContext ctx = createSearchContext(index);
         SearchSourceBuilder source = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery());
         ctx.request().source(source);
-        ctx.setTask(new SearchShardTask(0, "n/a", "n/a", "test", null, Collections.singletonMap(Task.X_OPAQUE_ID, "my_id")));
+        ctx.setTask(new SearchShardTask(0, "n/a", "n/a", "test", null, Collections.singletonMap(Task.X_OPAQUE_ID_HTTP_HEADER, "my_id")));
         return ctx;
     }
 }

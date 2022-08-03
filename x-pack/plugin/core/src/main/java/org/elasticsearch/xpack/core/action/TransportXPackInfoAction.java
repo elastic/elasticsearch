@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
@@ -65,8 +65,8 @@ public class TransportXPackInfoAction extends HandledTransportAction<XPackInfoRe
                     license.uid(),
                     license.type(),
                     license.operationMode().description(),
-                    license.status(),
-                    license.expiryDate()
+                    LicenseService.status(license),
+                    LicenseService.getExpiryDate(license)
                 );
             }
         }

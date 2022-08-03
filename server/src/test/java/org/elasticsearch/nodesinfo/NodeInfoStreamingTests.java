@@ -25,8 +25,8 @@ import org.elasticsearch.ingest.ProcessorInfo;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.os.OsInfo;
 import org.elasticsearch.monitor.process.ProcessInfo;
-import org.elasticsearch.plugins.PluginInfo;
-import org.elasticsearch.plugins.PluginType;
+import org.elasticsearch.plugins.PluginDescriptor;
+import org.elasticsearch.plugins.PluginRuntimeInfo;
 import org.elasticsearch.search.aggregations.support.AggregationInfo;
 import org.elasticsearch.search.aggregations.support.AggregationUsageService;
 import org.elasticsearch.test.ESTestCase;
@@ -143,44 +143,46 @@ public class NodeInfoStreamingTests extends ESTestCase {
         PluginsAndModules pluginsAndModules = null;
         if (randomBoolean()) {
             int numPlugins = randomIntBetween(0, 5);
-            List<PluginInfo> plugins = new ArrayList<>();
+            List<PluginDescriptor> plugins = new ArrayList<>();
             for (int i = 0; i < numPlugins; i++) {
                 plugins.add(
-                    new PluginInfo(
+                    new PluginDescriptor(
                         randomAlphaOfLengthBetween(3, 10),
                         randomAlphaOfLengthBetween(3, 10),
                         randomAlphaOfLengthBetween(3, 10),
                         VersionUtils.randomVersion(random()),
                         "1.8",
                         randomAlphaOfLengthBetween(3, 10),
+                        randomBoolean() ? null : randomAlphaOfLengthBetween(3, 10),
                         Collections.emptyList(),
                         randomBoolean(),
-                        randomFrom(PluginType.values()),
-                        randomAlphaOfLengthBetween(3, 10),
+                        randomBoolean(),
+                        randomBoolean(),
                         randomBoolean()
                     )
                 );
             }
             int numModules = randomIntBetween(0, 5);
-            List<PluginInfo> modules = new ArrayList<>();
+            List<PluginDescriptor> modules = new ArrayList<>();
             for (int i = 0; i < numModules; i++) {
                 modules.add(
-                    new PluginInfo(
+                    new PluginDescriptor(
                         randomAlphaOfLengthBetween(3, 10),
                         randomAlphaOfLengthBetween(3, 10),
                         randomAlphaOfLengthBetween(3, 10),
                         VersionUtils.randomVersion(random()),
                         "1.8",
                         randomAlphaOfLengthBetween(3, 10),
+                        randomBoolean() ? null : randomAlphaOfLengthBetween(3, 10),
                         Collections.emptyList(),
                         randomBoolean(),
-                        randomFrom(PluginType.values()),
-                        randomAlphaOfLengthBetween(3, 10),
+                        randomBoolean(),
+                        randomBoolean(),
                         randomBoolean()
                     )
                 );
             }
-            pluginsAndModules = new PluginsAndModules(plugins, modules);
+            pluginsAndModules = new PluginsAndModules(plugins.stream().map(PluginRuntimeInfo::new).toList(), modules);
         }
 
         IngestInfo ingestInfo = null;

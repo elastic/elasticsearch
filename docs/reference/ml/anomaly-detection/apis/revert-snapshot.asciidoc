@@ -51,26 +51,32 @@ means the {anomaly-job} starts learning a new model from scratch when it is
 started.
 --
 
+[[ml-revert-snapshot-query-parms]]
+== {api-query-parms-title}
+
+`delete_intervening_results`::
+(Optional, Boolean) If true, deletes the results in the time period between
+the latest results and the time of the reverted snapshot. It also resets the
+model to accept records for this time period. The default value is false.
++
+--
+NOTE: If you choose not to delete intervening results when reverting a snapshot,
+the job will not accept input data that is older than the current time.
+If you want to resend data, then delete the intervening results.
+--
 
 [[ml-revert-snapshot-request-body]]
 == {api-request-body-title}
 
-`delete_intervening_results`::
-  (Optional, Boolean) If true, deletes the results in the time period between
-  the latest results and the time of the reverted snapshot. It also resets the
-  model to accept records for this time period. The default value is false.
-
-NOTE: If you choose not to delete intervening results when reverting a snapshot,
-the job will not accept input data that is older than the current time.
-If you want to resend data, then delete the intervening results.
-
+You can also specify the `delete_intervening_results` query parameter in the
+request body.
 
 [[ml-revert-snapshot-example]]
 == {api-examples-title}
 
 [source,console]
 --------------------------------------------------
-POST _ml/anomaly_detectors/high_sum_total_sales/model_snapshots/1575402237/_revert
+POST _ml/anomaly_detectors/low_request_rate/model_snapshots/1637092688/_revert
 {
   "delete_intervening_results": true
 }
@@ -83,23 +89,25 @@ When the operation is complete, you receive the following results:
 ----
 {
   "model" : {
-    "job_id" : "high_sum_total_sales",
-    "min_version" : "6.4.0",
-    "timestamp" : 1575402237000,
-    "description" : "State persisted due to job close at 2019-12-03T19:43:57+0000",
-    "snapshot_id" : "1575402237",
+    "job_id" : "low_request_rate",
+    "min_version" : "7.11.0",
+    "timestamp" : 1637092688000,
+    "description" : "State persisted due to job close at 2021-11-16T19:58:08+0000",
+    "snapshot_id" : "1637092688",
     "snapshot_doc_count" : 1,
     "model_size_stats" : {
-      "job_id" : "high_sum_total_sales",
+      "job_id" : "low_request_rate",
       "result_type" : "model_size_stats",
-      "model_bytes" : 1638816,
+      "model_bytes" : 45200,
+      "peak_model_bytes" : 101552,
       "model_bytes_exceeded" : 0,
-      "model_bytes_memory_limit" : 10485760,
+      "model_bytes_memory_limit" : 11534336,
       "total_by_field_count" : 3,
-      "total_over_field_count" : 3320,
+      "total_over_field_count" : 0,
       "total_partition_field_count" : 2,
       "bucket_allocation_failures_count" : 0,
       "memory_status" : "ok",
+      "assignment_memory_basis" : "current_model_bytes",
       "categorized_doc_count" : 0,
       "total_category_count" : 0,
       "frequent_category_count" : 0,
@@ -107,11 +115,11 @@ When the operation is complete, you receive the following results:
       "dead_category_count" : 0,
       "failed_category_count" : 0,
       "categorization_status" : "ok",
-      "log_time" : 1575402237000,
-      "timestamp" : 1576965600000
+      "log_time" : 1637092688530,
+      "timestamp" : 1641495600000
     },
-    "latest_record_time_stamp" : 1576971072000,
-    "latest_result_time_stamp" : 1576965600000,
+    "latest_record_time_stamp" : 1641502169000,
+    "latest_result_time_stamp" : 1641495600000,
     "retain" : false
   }
 }

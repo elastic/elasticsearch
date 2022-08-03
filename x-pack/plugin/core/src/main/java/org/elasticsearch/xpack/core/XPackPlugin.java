@@ -13,7 +13,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.TransportAction;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -22,8 +22,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Binder;
-import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -37,10 +35,10 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
-import org.elasticsearch.index.shard.IndexSettingProvider;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.LicensesMetadata;
@@ -59,13 +57,15 @@ import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.snapshots.sourceonly.SourceOnlySnapshotRepository;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 import org.elasticsearch.xpack.cluster.routing.allocation.mapper.DataTierFieldMapper;
+import org.elasticsearch.xpack.core.action.DataStreamInfoTransportAction;
+import org.elasticsearch.xpack.core.action.DataStreamUsageTransportAction;
 import org.elasticsearch.xpack.core.action.ReloadAnalyzerAction;
 import org.elasticsearch.xpack.core.action.TransportReloadAnalyzersAction;
 import org.elasticsearch.xpack.core.action.TransportXPackInfoAction;
@@ -104,8 +104,8 @@ import java.util.Optional;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
+@SuppressWarnings("HiddenField")
 public class XPackPlugin extends XPackClientPlugin
     implements
         ExtensiblePlugin,
@@ -158,8 +158,8 @@ public class XPackPlugin extends XPackClientPlugin
     private static final SetOnce<LicenseService> licenseService = new SetOnce<>();
     private static final SetOnce<LongSupplier> epochMillisSupplier = new SetOnce<>();
 
-    public XPackPlugin(final Settings settings, final Path configPath) {
-        super(settings);
+    public XPackPlugin(final Settings settings) {
+        super();
         // FIXME: The settings might be changed after this (e.g. from "additionalSettings" method in other plugins)
         // We should only depend on the settings from the Environment object passed to createComponents
         this.settings = settings;
@@ -260,7 +260,7 @@ public class XPackPlugin extends XPackClientPlugin
      */
     public static List<DiscoveryNode> nodesNotReadyForXPackCustomMetadata(ClusterState clusterState) {
         // check that all nodes would be capable of deserializing newly added x-pack metadata
-        final List<DiscoveryNode> notReadyNodes = StreamSupport.stream(clusterState.nodes().spliterator(), false).filter(node -> {
+        final List<DiscoveryNode> notReadyNodes = clusterState.nodes().stream().filter(node -> {
             final String xpackInstalledAttr = node.getAttributes().getOrDefault(XPACK_INSTALLED_NODE_ATTR, "false");
             return Booleans.parseBoolean(xpackInstalledAttr) == false;
         }).collect(Collectors.toList());
@@ -304,7 +304,8 @@ public class XPackPlugin extends XPackClientPlugin
         NodeEnvironment nodeEnvironment,
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver expressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier
+        Supplier<RepositoriesService> repositoriesServiceSupplier,
+        Tracer tracer
     ) {
         List<Object> components = new ArrayList<>();
 
@@ -334,6 +335,8 @@ public class XPackPlugin extends XPackClientPlugin
         actions.add(new ActionHandler<>(DeleteAsyncResultAction.INSTANCE, TransportDeleteAsyncResultAction.class));
         actions.add(new ActionHandler<>(XPackInfoFeatureAction.DATA_TIERS, DataTiersInfoTransportAction.class));
         actions.add(new ActionHandler<>(XPackUsageFeatureAction.DATA_TIERS, DataTiersUsageTransportAction.class));
+        actions.add(new ActionHandler<>(XPackUsageFeatureAction.DATA_STREAMS, DataStreamUsageTransportAction.class));
+        actions.add(new ActionHandler<>(XPackInfoFeatureAction.DATA_STREAMS, DataStreamInfoTransportAction.class));
         return actions;
     }
 
@@ -391,16 +394,6 @@ public class XPackPlugin extends XPackClientPlugin
         return handlers;
     }
 
-    public static void bindFeatureSet(Binder binder, Class<? extends XPackFeatureSet> featureSet) {
-        Multibinder<XPackFeatureSet> featureSetBinder = createFeatureSetMultiBinder(binder, featureSet);
-        featureSetBinder.addBinding().to(featureSet);
-    }
-
-    public static Multibinder<XPackFeatureSet> createFeatureSetMultiBinder(Binder binder, Class<? extends XPackFeatureSet> featureSet) {
-        binder.bind(featureSet).asEagerSingleton();
-        return Multibinder.newSetBinder(binder, XPackFeatureSet.class);
-    }
-
     public static Path resolveConfigFile(Environment env, String name) {
         Path config = env.configFile().resolve(name);
         if (Files.exists(config) == false) {
@@ -436,7 +429,7 @@ public class XPackPlugin extends XPackClientPlugin
     @Override
     public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
         if (indexSettings.getValue(SourceOnlySnapshotRepository.SOURCE_ONLY)
-            && SearchableSnapshotsSettings.isSearchableSnapshotStore(indexSettings.getSettings()) == false) {
+            && indexSettings.getIndexMetadata().isSearchableSnapshot() == false) {
             return Optional.of(SourceOnlySnapshotRepository.getEngineFactory());
         }
 
@@ -452,11 +445,11 @@ public class XPackPlugin extends XPackClientPlugin
 
     @Override
     public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
-        return Collections.singleton(new DataTierAllocationDecider());
+        return Collections.singleton(DataTierAllocationDecider.INSTANCE);
     }
 
     @Override
-    public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders() {
+    public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders(IndexSettingProvider.Parameters parameters) {
         return Collections.singleton(new DataTier.DefaultHotAllocationSettingProvider());
     }
 

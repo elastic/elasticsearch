@@ -33,7 +33,6 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.Strings.EMPTY_ARRAY;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
-import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 
 /**
@@ -115,13 +114,13 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
         if (out.getVersion().before(SETTINGS_IN_REQUEST_VERSION)) {
-            writeSettingsToStream(Settings.EMPTY, out);
+            Settings.EMPTY.writeTo(out);
         }
         out.writeStringArray(featureStates);
         out.writeBoolean(includeGlobalState);
         out.writeBoolean(waitForCompletion);
         out.writeBoolean(partial);
-        out.writeMap(userMetadata);
+        out.writeGenericMap(userMetadata);
     }
 
     @Override

@@ -331,23 +331,24 @@ To run the script whether or not the document exists, set `scripted_upsert` to
 
 [source,console]
 ----
-POST sessions/_update/dh3sgudg8gsrgl
+POST test/_update/1
 {
   "scripted_upsert": true,
   "script": {
-    "id": "my_web_session_summariser",
-    "params": {
-      "pageViewEvent": {
-        "url": "foo.com/bar",
-        "response": 404,
-        "time": "2014-01-01 12:32"
+    "source": """
+      if ( ctx.op == 'create' ) {
+        ctx._source.counter = params.count
+      } else {
+        ctx._source.counter += params.count
       }
+    """,
+    "params": {
+      "count": 4
     }
   },
   "upsert": {}
 }
 ----
-// TEST[s/"id": "my_web_session_summariser"/"source": "ctx._source.page_view_event = params.pageViewEvent"/]
 
 [discrete]
 [[doc_as_upsert]]

@@ -11,9 +11,9 @@ package org.elasticsearch.cluster.service;
 import org.elasticsearch.cluster.service.ClusterApplierRecordingService.Stats;
 import org.elasticsearch.cluster.service.ClusterApplierRecordingService.Stats.Recording;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.util.HashMap;
 import java.util.Map;
 
 public class ClusterApplierRecordingServiceStatsTests extends AbstractWireSerializingTestCase<Stats> {
@@ -26,7 +26,7 @@ public class ClusterApplierRecordingServiceStatsTests extends AbstractWireSerial
     @Override
     protected Stats createTestInstance() {
         int numRecordings = randomInt(256);
-        Map<String, Recording> recordings = new HashMap<>(numRecordings);
+        Map<String, Recording> recordings = Maps.newMapWithExpectedSize(numRecordings);
         for (int i = 0; i < numRecordings; i++) {
             recordings.put(randomAlphaOfLength(16), new Recording(randomNonNegativeLong(), randomNonNegativeLong()));
         }

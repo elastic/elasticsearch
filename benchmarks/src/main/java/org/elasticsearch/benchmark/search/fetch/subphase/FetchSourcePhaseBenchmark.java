@@ -8,8 +8,6 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourcePhase;
 import org.elasticsearch.search.lookup.SourceLookup;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -52,30 +50,21 @@ public class FetchSourcePhaseBenchmark {
 
     @Setup
     public void setup() throws IOException {
-        switch (source) {
-            case "tiny":
-                sourceBytes = new BytesArray("{\"message\": \"short\"}");
-                break;
-            case "short":
-                sourceBytes = read300BytesExample();
-                break;
-            case "one_4k_field":
-                sourceBytes = buildBigExample("huge".repeat(1024));
-                break;
-            case "one_4m_field":
-                sourceBytes = buildBigExample("huge".repeat(1024 * 1024));
-                break;
-            default:
-                throw new IllegalArgumentException("Unknown source [" + source + "]");
-        }
-        fetchContext = new FetchSourceContext(
+        sourceBytes = switch (source) {
+            case "tiny" -> new BytesArray("{\"message\": \"short\"}");
+            case "short" -> read300BytesExample();
+            case "one_4k_field" -> buildBigExample("huge".repeat(1024));
+            case "one_4m_field" -> buildBigExample("huge".repeat(1024 * 1024));
+            default -> throw new IllegalArgumentException("Unknown source [" + source + "]");
+        };
+        fetchContext = FetchSourceContext.of(
             true,
             Strings.splitStringByCommaToArray(includes),
             Strings.splitStringByCommaToArray(excludes)
         );
         includesSet = Set.of(fetchContext.includes());
         excludesSet = Set.of(fetchContext.excludes());
-        parserConfig = XContentParserConfiguration.EMPTY.withFiltering(includesSet, excludesSet);
+        parserConfig = XContentParserConfiguration.EMPTY.withFiltering(includesSet, excludesSet, false);
     }
 
     private BytesReference read300BytesExample() throws IOException {
@@ -117,8 +106,7 @@ public class FetchSourcePhaseBenchmark {
             XContentType.JSON.toParsedMediaType()
         );
         try (
-            XContentParser parser = XContentType.JSON.xContent()
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, sourceBytes.streamInput())
+            XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, sourceBytes.streamInput())
         ) {
             builder.copyCurrentStructure(parser);
             return BytesReference.bytes(builder);

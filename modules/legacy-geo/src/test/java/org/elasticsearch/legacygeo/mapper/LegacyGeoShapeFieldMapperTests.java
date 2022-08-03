@@ -34,6 +34,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -626,7 +627,7 @@ public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
         ElasticsearchException e = expectThrows(
             ElasticsearchException.class,
             () -> geoShapeFieldMapper.fieldType()
-                .geoShapeQuery(new Point(-10, 10), "location", SpatialStrategy.TERM, ShapeRelation.INTERSECTS, searchExecutionContext)
+                .geoShapeQuery(searchExecutionContext, "location", SpatialStrategy.TERM, ShapeRelation.INTERSECTS, new Point(-10, 10))
         );
         assertEquals(
             "[geo-shape] queries on [PrefixTree geo shapes] cannot be executed when " + "'search.allow_expensive_queries' is set to false.",
@@ -676,5 +677,15 @@ public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
     protected Object generateRandomInputValue(MappedFieldType ft) {
         assumeFalse("Test implemented in a follow up", true);
         return null;
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected IngestScriptSupport ingestScriptSupport() {
+        throw new AssumptionViolatedException("not supported");
     }
 }

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.rest;
 
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -18,13 +17,13 @@ import org.elasticsearch.rest.RestHandler.Route;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.usage.UsageService;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -78,12 +77,18 @@ public class RestHttpResponseHeadersTests extends ESTestCase {
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
         );
 
-        final Settings settings = Settings.EMPTY;
         UsageService usageService = new UsageService();
-        RestController restController = new RestController(Collections.emptySet(), null, null, circuitBreakerService, usageService);
+        RestController restController = new RestController(
+            Collections.emptySet(),
+            null,
+            null,
+            circuitBreakerService,
+            usageService,
+            Tracer.NOOP
+        );
 
         // A basic RestHandler handles requests to the endpoint
-        RestHandler restHandler = (request, channel, client) -> channel.sendResponse(new TestResponse());
+        RestHandler restHandler = (request, channel, client) -> channel.sendResponse(new RestResponse(RestStatus.OK, ""));
 
         // Register valid test handlers with test RestController
         for (RestRequest.Method method : validHttpMethodArray) {
@@ -111,31 +116,12 @@ public class RestHttpResponseHeadersTests extends ESTestCase {
         assertThat(responseAllowHeaderArray, containsInAnyOrder(getMethodNameStringArray(validHttpMethodArray).toArray()));
     }
 
-    private static class TestResponse extends RestResponse {
-
-        @Override
-        public String contentType() {
-            return null;
-        }
-
-        @Override
-        public BytesReference content() {
-            return null;
-        }
-
-        @Override
-        public RestStatus status() {
-            return RestStatus.OK;
-        }
-
-    }
-
     /**
      * Convert an RestRequest.Method array to a String array, so it can be
      * compared with the expected 'Allow' header String array.
      */
     private List<String> getMethodNameStringArray(List<RestRequest.Method> methodArray) {
-        return methodArray.stream().map(method -> method.toString()).collect(Collectors.toList());
+        return methodArray.stream().map(method -> method.toString()).toList();
     }
 
 }

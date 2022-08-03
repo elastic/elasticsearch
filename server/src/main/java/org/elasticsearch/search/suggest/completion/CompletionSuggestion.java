@@ -14,6 +14,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
@@ -27,7 +29,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -274,11 +275,11 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
                     this.hit = new SearchHit(in);
                 }
                 int contextSize = in.readInt();
-                this.contexts = new LinkedHashMap<>(contextSize);
+                this.contexts = Maps.newLinkedHashMapWithExpectedSize(contextSize);
                 for (int i = 0; i < contextSize; i++) {
                     String contextName = in.readString();
                     int nContexts = in.readVInt();
-                    Set<String> contexts = new HashSet<>(nContexts);
+                    Set<String> contexts = Sets.newHashSetWithExpectedSize(nContexts);
                     for (int j = 0; j < nContexts; j++) {
                         contexts.add(in.readString());
                     }
@@ -411,10 +412,7 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
                 out.writeInt(contexts.size());
                 for (Map.Entry<String, Set<String>> entry : contexts.entrySet()) {
                     out.writeString(entry.getKey());
-                    out.writeVInt(entry.getValue().size());
-                    for (CharSequence ctx : entry.getValue()) {
-                        out.writeString(ctx.toString());
-                    }
+                    out.writeStringCollection(entry.getValue());
                 }
             }
 

@@ -1,15 +1,17 @@
 // tag::remote-cluster-compatibility-matrix[]
-[cols="^,^,^,^,^,^,^,^"]
+[cols="^,^,^,^,^,^,^,^,^,^"]
 |====
-| 7+^h| Local cluster
-h| Remote cluster | 5.0->5.5 | 5.6 | 6.0->6.6 | 6.7 | 6.8 | 7.0 | 7.1->7.x
-| 5.0->5.5      | {yes-icon} | {yes-icon} | {no-icon} | {no-icon} | {no-icon}  | {no-icon} | {no-icon}
-| 5.6           | {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon} | {no-icon} | {no-icon}
-| 6.0->6.6      | {no-icon} | {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon} | {no-icon} | {no-icon}
-| 6.7           | {no-icon} | {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon} | {no-icon}
-| 6.8           | {no-icon} | {yes-icon} |  {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon}
-| 7.0           | {no-icon} | {no-icon} | {no-icon} | {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon}
-| 7.1->7.x      | {no-icon} | {no-icon} | {no-icon} | {no-icon} | {yes-icon} | {yes-icon} | {yes-icon}
+| 9+^h| Local cluster
+h| Remote cluster     | 5.0–5.5    | 5.6        | 6.0–6.6    | 6.7        | 6.8        | 7.0        | 7.1–7.16   | 7.17       | 8.0–{minor-version}
+| 5.0–5.5             | {yes-icon} | {yes-icon} | {no-icon}  | {no-icon}  | {no-icon}  | {no-icon}  | {no-icon}  | {no-icon}  | {no-icon}
+| 5.6                 | {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon} | {no-icon}  | {no-icon}  | {no-icon}  | {no-icon}
+| 6.0–6.6             | {no-icon}  | {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon} | {no-icon}  | {no-icon}  | {no-icon}  | {no-icon}
+| 6.7                 | {no-icon}  | {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon} | {no-icon}  | {no-icon}  | {no-icon}
+| 6.8                 | {no-icon}  | {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon} | {no-icon}
+| 7.0                 | {no-icon}  | {no-icon}  | {no-icon}  | {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon} | {no-icon}
+| 7.1–7.16            | {no-icon}  | {no-icon}  | {no-icon}  | {no-icon}  | {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon} | {no-icon}
+| 7.17                | {no-icon}  | {no-icon}  | {no-icon}  | {no-icon}  | {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon} | {yes-icon}
+| 8.0–{minor-version} | {no-icon}  | {no-icon}  | {no-icon}  | {no-icon}  | {no-icon}  | {no-icon}  | {no-icon}  | {yes-icon} | {yes-icon}
 |====
 
 ifeval::["{release-state}"!="released"]

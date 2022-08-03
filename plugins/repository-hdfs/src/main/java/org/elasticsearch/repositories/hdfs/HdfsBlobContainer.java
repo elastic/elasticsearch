@@ -16,12 +16,11 @@ import org.apache.hadoop.fs.Options;
 import org.apache.hadoop.fs.Options.CreateOpts;
 import org.apache.hadoop.fs.Path;
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
-import org.elasticsearch.common.blobstore.support.PlainBlobMetadata;
+import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.core.CheckedConsumer;
@@ -167,8 +166,13 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
         if (atomic) {
             final Path tempBlobPath = new Path(path, FsBlobContainer.tempBlobName(blobName));
             store.execute((Operation<Void>) fileContext -> {
-                try (FSDataOutputStream stream = fileContext.create(tempBlobPath, EnumSet.of(CreateFlag.CREATE, CreateFlag.SYNC_BLOCK))) {
-                    writer.accept(stream);
+                try {
+                    try (
+                        FSDataOutputStream stream = fileContext.create(tempBlobPath, EnumSet.of(CreateFlag.CREATE, CreateFlag.SYNC_BLOCK))
+                    ) {
+                        writer.accept(stream);
+                    }
+                    // Ensure that the stream is closed before renaming so all pending writes are flushed
                     fileContext.rename(tempBlobPath, blob, failIfAlreadyExists ? Options.Rename.NONE : Options.Rename.OVERWRITE);
                 } catch (org.apache.hadoop.fs.FileAlreadyExistsException faee) {
                     throw new FileAlreadyExistsException(blob.toString(), null, faee.getMessage());
@@ -235,7 +239,7 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
         FileStatus[] files;
         try {
             files = store.execute(
-                fileContext -> fileContext.util().listStatus(path, path -> prefix == null || path.getName().startsWith(prefix))
+                fileContext -> fileContext.util().listStatus(path, eachPath -> prefix == null || eachPath.getName().startsWith(prefix))
             );
         } catch (FileNotFoundException e) {
             files = new FileStatus[0];
@@ -243,7 +247,7 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
         Map<String, BlobMetadata> map = new LinkedHashMap<>();
         for (FileStatus file : files) {
             if (file.isFile()) {
-                map.put(file.getPath().getName(), new PlainBlobMetadata(file.getPath().getName(), file.getLen()));
+                map.put(file.getPath().getName(), new BlobMetadata(file.getPath().getName(), file.getLen()));
             }
         }
         return Collections.unmodifiableMap(map);

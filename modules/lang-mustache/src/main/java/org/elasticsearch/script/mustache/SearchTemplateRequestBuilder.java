@@ -10,7 +10,7 @@ package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.script.ScriptType;
 
 import java.util.Map;

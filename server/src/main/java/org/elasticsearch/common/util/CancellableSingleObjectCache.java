@@ -9,7 +9,9 @@
 package org.elasticsearch.common.util;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.ListenableActionFuture;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -41,7 +43,13 @@ import java.util.function.BooleanSupplier;
  */
 public abstract class CancellableSingleObjectCache<Input, Key, Value> {
 
+    private final ThreadContext threadContext;
+
     private final AtomicReference<CachedItem> currentCachedItemRef = new AtomicReference<>();
+
+    protected CancellableSingleObjectCache(ThreadContext threadContext) {
+        this.threadContext = threadContext;
+    }
 
     /**
      * Compute a new value for the cache.
@@ -220,7 +228,7 @@ public abstract class CancellableSingleObjectCache<Input, Key, Value> {
                     ActionListener.completeWith(listener, () -> future.actionGet(0L));
                 } else {
                     // Refresh is still pending; it's not cancelled because there are still references.
-                    future.addListener(listener);
+                    future.addListener(ContextPreservingActionListener.wrapPreservingContext(listener, threadContext));
                     final AtomicBoolean released = new AtomicBoolean();
                     cancellationChecks.add(() -> {
                         if (released.get() == false && isCancelled.getAsBoolean() && released.compareAndSet(false, true)) {

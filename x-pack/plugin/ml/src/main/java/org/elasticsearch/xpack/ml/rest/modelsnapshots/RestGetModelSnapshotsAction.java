@@ -6,11 +6,12 @@
  */
 package org.elasticsearch.xpack.ml.rest.modelsnapshots;
 
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.action.util.PageParams;
@@ -97,6 +98,10 @@ public class RestGetModelSnapshotsAction extends BaseRestHandler {
             );
         }
 
-        return channel -> client.execute(GetModelSnapshotsAction.INSTANCE, getModelSnapshots, new RestToXContentListener<>(channel));
+        return channel -> new RestCancellableNodeClient(client, restRequest.getHttpChannel()).execute(
+            GetModelSnapshotsAction.INSTANCE,
+            getModelSnapshots,
+            new RestToXContentListener<>(channel)
+        );
     }
 }

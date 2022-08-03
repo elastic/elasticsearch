@@ -165,36 +165,25 @@ public class NetworkDirectionProcessor extends AbstractProcessor {
 
     private boolean inNetwork(String ip, String network) {
         InetAddress address = InetAddresses.forString(ip);
-        switch (network) {
-            case LOOPBACK_NAMED_NETWORK:
-                return isLoopback(address);
-            case GLOBAL_UNICAST_NAMED_NETWORK:
-            case UNICAST_NAMED_NETWORK:
-                return isUnicast(address);
-            case LINK_LOCAL_UNICAST_NAMED_NETWORK:
-                return isLinkLocalUnicast(address);
-            case INTERFACE_LOCAL_NAMED_NETWORK:
-                return isInterfaceLocalMulticast(address);
-            case LINK_LOCAL_MULTICAST_NAMED_NETWORK:
-                return isLinkLocalMulticast(address);
-            case MULTICAST_NAMED_NETWORK:
-                return isMulticast(address);
-            case UNSPECIFIED_NAMED_NETWORK:
-                return isUnspecified(address);
-            case PRIVATE_NAMED_NETWORK:
-                return isPrivate(ip);
-            case PUBLIC_NAMED_NETWORK:
-                return isPublic(ip);
-            default:
-                return CIDRUtils.isInRange(ip, network);
-        }
+        return switch (network) {
+            case LOOPBACK_NAMED_NETWORK -> isLoopback(address);
+            case GLOBAL_UNICAST_NAMED_NETWORK, UNICAST_NAMED_NETWORK -> isUnicast(address);
+            case LINK_LOCAL_UNICAST_NAMED_NETWORK -> isLinkLocalUnicast(address);
+            case INTERFACE_LOCAL_NAMED_NETWORK -> isInterfaceLocalMulticast(address);
+            case LINK_LOCAL_MULTICAST_NAMED_NETWORK -> isLinkLocalMulticast(address);
+            case MULTICAST_NAMED_NETWORK -> isMulticast(address);
+            case UNSPECIFIED_NAMED_NETWORK -> isUnspecified(address);
+            case PRIVATE_NAMED_NETWORK -> isPrivate(ip);
+            case PUBLIC_NAMED_NETWORK -> isPublic(ip);
+            default -> CIDRUtils.isInRange(ip, network);
+        };
     }
 
-    private boolean isLoopback(InetAddress ip) {
+    private static boolean isLoopback(InetAddress ip) {
         return ip.isLoopbackAddress();
     }
 
-    private boolean isUnicast(InetAddress ip) {
+    private static boolean isUnicast(InetAddress ip) {
         return Arrays.equals(ip.getAddress(), BROADCAST_IP4) == false
             && isUnspecified(ip) == false
             && isLoopback(ip) == false
@@ -202,36 +191,36 @@ public class NetworkDirectionProcessor extends AbstractProcessor {
             && isLinkLocalUnicast(ip) == false;
     }
 
-    private boolean isLinkLocalUnicast(InetAddress ip) {
+    private static boolean isLinkLocalUnicast(InetAddress ip) {
         return ip.isLinkLocalAddress();
     }
 
-    private boolean isInterfaceLocalMulticast(InetAddress ip) {
+    private static boolean isInterfaceLocalMulticast(InetAddress ip) {
         return ip.isMCNodeLocal();
     }
 
-    private boolean isLinkLocalMulticast(InetAddress ip) {
+    private static boolean isLinkLocalMulticast(InetAddress ip) {
         return ip.isMCLinkLocal();
     }
 
-    private boolean isMulticast(InetAddress ip) {
+    private static boolean isMulticast(InetAddress ip) {
         return ip.isMulticastAddress();
     }
 
-    private boolean isUnspecified(InetAddress ip) {
+    private static boolean isUnspecified(InetAddress ip) {
         var address = ip.getAddress();
         return Arrays.equals(UNDEFINED_IP4, address) || Arrays.equals(UNDEFINED_IP6, address);
     }
 
-    private boolean isPrivate(String ip) {
+    private static boolean isPrivate(String ip) {
         return CIDRUtils.isInRange(ip, "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "fd00::/8");
     }
 
-    private boolean isPublic(String ip) {
+    private static boolean isPublic(String ip) {
         return isLocalOrPrivate(ip) == false;
     }
 
-    private boolean isLocalOrPrivate(String ip) {
+    private static boolean isLocalOrPrivate(String ip) {
         var address = InetAddresses.forString(ip);
         return isPrivate(ip)
             || isLoopback(address)
@@ -293,7 +282,7 @@ public class NetworkDirectionProcessor extends AbstractProcessor {
             if (internalNetworks != null) {
                 internalNetworkTemplates = internalNetworks.stream()
                     .map(n -> ConfigurationUtils.compileTemplate(TYPE, processorTag, "internal_networks", n, scriptService))
-                    .collect(Collectors.toList());
+                    .toList();
             }
             return new NetworkDirectionProcessor(
                 processorTag,

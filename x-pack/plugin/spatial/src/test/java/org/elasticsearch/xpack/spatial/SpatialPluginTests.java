@@ -10,15 +10,19 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGridAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.GeoCentroidAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.GeoGridAggregatorSupplier;
 import org.elasticsearch.search.aggregations.metrics.MetricAggregatorSupplier;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid.GeoHexGridAggregationBuilder;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
 
 import java.util.Arrays;
@@ -49,6 +53,43 @@ public class SpatialPluginTests extends ESTestCase {
                 assertThat(
                     exception.getMessage(),
                     equalTo("current license is non-compliant for [geo_centroid aggregation on geo_shape fields]")
+                );
+            }
+        }
+    }
+
+    public void testGeoHexLicenseCheck() {
+        for (License.OperationMode operationMode : License.OperationMode.values()) {
+            SpatialPlugin plugin = getPluginWithOperationMode(operationMode);
+            ValuesSourceRegistry.Builder registryBuilder = new ValuesSourceRegistry.Builder();
+            List<SearchPlugin.AggregationSpec> specs = plugin.getAggregations();
+            specs.forEach(c -> c.getAggregatorRegistrar().accept(registryBuilder));
+            ValuesSourceRegistry registry = registryBuilder.build();
+            GeoGridAggregatorSupplier hexSupplier = registry.getAggregator(
+                GeoHexGridAggregationBuilder.REGISTRY_KEY,
+                new ValuesSourceConfig(CoreValuesSourceType.GEOPOINT, null, true, null, null, null, null, null, null)
+            );
+            if (License.OperationMode.TRIAL != operationMode
+                && License.OperationMode.compare(operationMode, License.OperationMode.GOLD) < 0) {
+                ElasticsearchSecurityException exception = expectThrows(
+                    ElasticsearchSecurityException.class,
+                    () -> hexSupplier.build(
+                        null,
+                        AggregatorFactories.EMPTY,
+                        null,
+                        0,
+                        null,
+                        0,
+                        0,
+                        null,
+                        null,
+                        CardinalityUpperBound.NONE,
+                        null
+                    )
+                );
+                assertThat(
+                    exception.getMessage(),
+                    equalTo("current license is non-compliant for [geohex_grid aggregation on geo_point fields]")
                 );
             }
         }

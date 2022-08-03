@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.indices.stats;
 
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
@@ -35,7 +36,7 @@ import static org.hamcrest.object.HasToString.hasToString;
 public class IndicesStatsResponseTests extends ESTestCase {
 
     public void testInvalidLevel() {
-        final IndicesStatsResponse response = new IndicesStatsResponse(null, 0, 0, 0, null);
+        final IndicesStatsResponse response = new IndicesStatsResponse(new ShardStats[0], 0, 0, 0, null, ClusterState.EMPTY_STATE);
         final String level = randomAlphaOfLength(16);
         final ToXContent.Params params = new ToXContent.MapParams(Collections.singletonMap("level", level));
         final IllegalArgumentException e = expectThrows(
@@ -81,7 +82,8 @@ public class IndicesStatsResponseTests extends ESTestCase {
             0,
             0,
             0,
-            null
+            null,
+            ClusterState.EMPTY_STATE
         );
         Map<String, IndexStats> indexStats = indicesStatsResponse.getIndices();
 

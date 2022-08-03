@@ -46,14 +46,11 @@ public abstract class Sort {
         }
 
         public static Missing from(NullsPosition pos) {
-            switch (pos) {
-                case FIRST:
-                    return FIRST;
-                case LAST:
-                    return LAST;
-                default:
-                    return ANY;
-            }
+            return switch (pos) {
+                case FIRST -> FIRST;
+                case LAST -> LAST;
+                default -> ANY;
+            };
         }
 
         public String searchOrder() {
@@ -63,18 +60,14 @@ public abstract class Sort {
         /**
          * Preferred order of null values in non-aggregation queries.
          */
-        public String searchOrder(Direction direction) {
+        public String searchOrder(Direction fallbackDirection) {
             if (searchOrder != null) {
                 return searchOrder;
             } else {
-                switch (direction) {
-                    case ASC:
-                        return LAST.searchOrder;
-                    case DESC:
-                        return FIRST.searchOrder;
-                    default:
-                        throw new IllegalArgumentException("Unknown direction [" + direction + "]");
-                }
+                return switch (fallbackDirection) {
+                    case ASC -> LAST.searchOrder;
+                    case DESC -> FIRST.searchOrder;
+                };
             }
         }
 

@@ -24,6 +24,8 @@ import org.elasticsearch.geometry.Rectangle;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.elasticsearch.common.geo.GeoUtils.needsNormalizeLat;
+import static org.elasticsearch.common.geo.GeoUtils.needsNormalizeLon;
 import static org.elasticsearch.common.geo.GeoUtils.normalizePoint;
 
 /**
@@ -157,6 +159,92 @@ public final class GeometryNormalizer {
             @Override
             public Geometry visit(Rectangle rectangle) {
                 return rectangle;
+            }
+        });
+    }
+
+    /**
+     * Return false if the provided {@link Geometry} is already Lucene friendly,
+     * else return false.
+     */
+    public static boolean needsNormalize(Orientation orientation, Geometry geometry) {
+        if (geometry == null) {
+            return false;
+        }
+
+        return geometry.visit(new GeometryVisitor<>() {
+            @Override
+            public Boolean visit(Circle circle) {
+                if (circle.isEmpty()) {
+                    return Boolean.FALSE;
+                }
+                return needsNormalizeLat(circle.getLat()) || needsNormalizeLon(circle.getLon());
+            }
+
+            @Override
+            public Boolean visit(GeometryCollection<?> collection) {
+                for (Geometry shape : collection) {
+                    if (shape.visit(this)) {
+                        return Boolean.TRUE;
+                    }
+                }
+                return Boolean.FALSE;
+            }
+
+            @Override
+            public Boolean visit(Line line) {
+                return GeoLineDecomposer.needsDecomposing(line);
+            }
+
+            @Override
+            public Boolean visit(LinearRing ring) {
+                throw new IllegalArgumentException("invalid shape type found [LinearRing]");
+            }
+
+            @Override
+            public Boolean visit(MultiLine multiLine) {
+                for (Line line : multiLine) {
+                    if (visit(line)) {
+                        return Boolean.TRUE;
+                    }
+                }
+                return Boolean.FALSE;
+            }
+
+            @Override
+            public Boolean visit(MultiPoint multiPoint) {
+                for (Point point : multiPoint) {
+                    if (visit(point)) {
+                        return Boolean.TRUE;
+                    }
+                }
+                return Boolean.FALSE;
+            }
+
+            @Override
+            public Boolean visit(MultiPolygon multiPolygon) {
+                for (Polygon polygon : multiPolygon) {
+                    if (visit(polygon)) {
+                        return Boolean.TRUE;
+                    }
+                }
+                return Boolean.FALSE;
+            }
+
+            @Override
+            public Boolean visit(Point point) {
+                return needsNormalizeLat(point.getLat()) || needsNormalizeLon(point.getLon());
+            }
+
+            @Override
+            public Boolean visit(Polygon polygon) {
+                return GeoPolygonDecomposer.needsDecomposing(polygon);
+            }
+
+            @Override
+            public Boolean visit(Rectangle rectangle) {
+                // TODO: what happen with rectangles over the dateline
+                return Boolean.FALSE;
             }
         });
     }

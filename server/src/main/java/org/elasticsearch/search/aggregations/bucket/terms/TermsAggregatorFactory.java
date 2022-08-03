@@ -8,10 +8,14 @@
 
 package org.elasticsearch.search.aggregations.bucket.terms;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.IndexSearcher;
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -29,6 +33,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.NumericTermsAggregator
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -43,6 +48,8 @@ import java.util.function.LongPredicate;
 
 public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
     static Boolean REMAP_GLOBAL_ORDS, COLLECT_SEGMENT_ORDS;
+
+    private static final Logger logger = LogManager.getLogger(TermsAggregatorFactory.class);
 
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(
@@ -81,68 +88,64 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
      * including those that need global ordinals
      */
     private static TermsAggregatorSupplier bytesSupplier() {
-        return new TermsAggregatorSupplier() {
-            @Override
-            public Aggregator build(
-                String name,
-                AggregatorFactories factories,
-                ValuesSourceConfig valuesSourceConfig,
-                BucketOrder order,
-                TermsAggregator.BucketCountThresholds bucketCountThresholds,
-                IncludeExclude includeExclude,
-                String executionHint,
-                AggregationContext context,
-                Aggregator parent,
-                SubAggCollectionMode subAggCollectMode,
-                boolean showTermDocCountError,
-                CardinalityUpperBound cardinality,
-                Map<String, Object> metadata
-            ) throws IOException {
-                ValuesSource valuesSource = valuesSourceConfig.getValuesSource();
-                ExecutionMode execution = null;
-                if (executionHint != null) {
-                    execution = ExecutionMode.fromString(executionHint);
-                }
-                // In some cases, using ordinals is just not supported: override it
-                if (valuesSource instanceof ValuesSource.Bytes.WithOrdinals == false) {
-                    execution = ExecutionMode.MAP;
-                }
-                if (execution == null) {
-                    execution = ExecutionMode.GLOBAL_ORDINALS;
-                }
-                final long maxOrd = execution == ExecutionMode.GLOBAL_ORDINALS ? getMaxOrd(valuesSource, context.searcher()) : -1;
-                if (subAggCollectMode == null) {
-                    subAggCollectMode = pickSubAggColectMode(factories, bucketCountThresholds.getShardSize(), maxOrd);
-                }
-
-                if ((includeExclude != null) && (includeExclude.isRegexBased()) && valuesSourceConfig.format() != DocValueFormat.RAW) {
-                    // TODO this exception message is not really accurate for the string case. It's really disallowing regex + formatter
-                    throw new AggregationExecutionException(
-                        "Aggregation ["
-                            + name
-                            + "] cannot support regular expression style "
-                            + "include/exclude settings as they can only be applied to string fields. Use an array of values for "
-                            + "include/exclude clauses"
-                    );
-                }
-
-                // TODO: [Zach] we might want refactor and remove ExecutionMode#create(), moving that logic outside the enum
-                return execution.create(
-                    name,
-                    factories,
-                    valuesSourceConfig,
-                    order,
-                    bucketCountThresholds,
-                    includeExclude,
-                    context,
-                    parent,
-                    subAggCollectMode,
-                    showTermDocCountError,
-                    cardinality,
-                    metadata
-                );
-
+        return (
+            name,
+            factories,
+            valuesSourceConfig,
+            order,
+            bucketCountThresholds,
+            includeExclude,
+            executionHint,
+            context,
+            parent,
+            subAggCollectMode,
+            showTermDocCountError,
+            cardinality,
+            metadata) -> {
+            ValuesSource valuesSource = valuesSourceConfig.getValuesSource();
+            ExecutionMode execution = null;
+            if (executionHint != null) {
+                execution = ExecutionMode.fromString(executionHint);
             }
+            // In some cases, using ordinals is just not supported: override it
+            if (valuesSource.hasOrdinals() == false) {
+                execution = ExecutionMode.MAP;
+            }
+            if (execution == null) {
+                execution = ExecutionMode.GLOBAL_ORDINALS;
+            }
+            final long maxOrd = execution == ExecutionMode.GLOBAL_ORDINALS ? getMaxOrd(valuesSource, context.searcher()) : -1;
+            if (subAggCollectMode == null) {
+                subAggCollectMode = pickSubAggColectMode(factories, bucketCountThresholds.getShardSize(), maxOrd);
+            }
+
+            if ((includeExclude != null) && (includeExclude.isRegexBased()) && valuesSourceConfig.format() != DocValueFormat.RAW) {
+                // TODO this exception message is not really accurate for the string case. It's really disallowing regex + formatter
+                throw new AggregationExecutionException(
+                    "Aggregation ["
+                        + name
+                        + "] cannot support regular expression style "
+                        + "include/exclude settings as they can only be applied to string fields. Use an array of values for "
+                        + "include/exclude clauses"
+                );
+            }
+
+            // TODO: [Zach] we might want refactor and remove ExecutionMode#create(), moving that logic outside the enum
+            logger.debug("Creating bytes terms aggregator with execution mode [{}]", execution);
+            return execution.create(
+                name,
+                factories,
+                valuesSourceConfig,
+                order,
+                bucketCountThresholds,
+                includeExclude,
+                context,
+                parent,
+                subAggCollectMode,
+                showTermDocCountError,
+                cardinality,
+                metadata
+            );
         };
     }
 
@@ -151,68 +154,64 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
      * This includes floating points, and formatted types that use numerics internally for storage (date, boolean, etc)
      */
     private static TermsAggregatorSupplier numericSupplier() {
-        return new TermsAggregatorSupplier() {
-            @Override
-            public Aggregator build(
-                String name,
-                AggregatorFactories factories,
-                ValuesSourceConfig valuesSourceConfig,
-                BucketOrder order,
-                TermsAggregator.BucketCountThresholds bucketCountThresholds,
-                IncludeExclude includeExclude,
-                String executionHint,
-                AggregationContext context,
-                Aggregator parent,
-                SubAggCollectionMode subAggCollectMode,
-                boolean showTermDocCountError,
-                CardinalityUpperBound cardinality,
-                Map<String, Object> metadata
-            ) throws IOException {
+        return (
+            name,
+            factories,
+            valuesSourceConfig,
+            order,
+            bucketCountThresholds,
+            includeExclude,
+            executionHint,
+            context,
+            parent,
+            subAggCollectMode,
+            showTermDocCountError,
+            cardinality,
+            metadata) -> {
 
-                if ((includeExclude != null) && (includeExclude.isRegexBased())) {
-                    throw new AggregationExecutionException(
-                        "Aggregation ["
-                            + name
-                            + "] cannot support regular expression style "
-                            + "include/exclude settings as they can only be applied to string fields. Use an array of numeric values for "
-                            + "include/exclude clauses used to filter numeric fields"
-                    );
-                }
-
-                if (subAggCollectMode == null) {
-                    subAggCollectMode = pickSubAggColectMode(factories, bucketCountThresholds.getShardSize(), -1);
-                }
-
-                ValuesSource.Numeric numericValuesSource = (ValuesSource.Numeric) valuesSourceConfig.getValuesSource();
-                IncludeExclude.LongFilter longFilter = null;
-                Function<NumericTermsAggregator, ResultStrategy<?, ?>> resultStrategy;
-                if (numericValuesSource.isFloatingPoint()) {
-                    if (includeExclude != null) {
-                        longFilter = includeExclude.convertToDoubleFilter();
-                    }
-                    resultStrategy = agg -> agg.new DoubleTermsResults(showTermDocCountError);
-                } else {
-                    if (includeExclude != null) {
-                        longFilter = includeExclude.convertToLongFilter(valuesSourceConfig.format());
-                    }
-                    resultStrategy = agg -> agg.new LongTermsResults(showTermDocCountError);
-                }
-                return new NumericTermsAggregator(
-                    name,
-                    factories,
-                    resultStrategy,
-                    numericValuesSource,
-                    valuesSourceConfig.format(),
-                    order,
-                    bucketCountThresholds,
-                    context,
-                    parent,
-                    subAggCollectMode,
-                    longFilter,
-                    cardinality,
-                    metadata
+            if ((includeExclude != null) && (includeExclude.isRegexBased())) {
+                throw new AggregationExecutionException(
+                    "Aggregation ["
+                        + name
+                        + "] cannot support regular expression style "
+                        + "include/exclude settings as they can only be applied to string fields. Use an array of numeric values for "
+                        + "include/exclude clauses used to filter numeric fields"
                 );
             }
+
+            if (subAggCollectMode == null) {
+                subAggCollectMode = pickSubAggColectMode(factories, bucketCountThresholds.getShardSize(), -1);
+            }
+
+            ValuesSource.Numeric numericValuesSource = (ValuesSource.Numeric) valuesSourceConfig.getValuesSource();
+            IncludeExclude.LongFilter longFilter = null;
+            Function<NumericTermsAggregator, ResultStrategy<?, ?>> resultStrategy;
+            if (numericValuesSource.isFloatingPoint()) {
+                if (includeExclude != null) {
+                    longFilter = includeExclude.convertToDoubleFilter();
+                }
+                resultStrategy = agg -> agg.new DoubleTermsResults(showTermDocCountError);
+            } else {
+                if (includeExclude != null) {
+                    longFilter = includeExclude.convertToLongFilter(valuesSourceConfig.format());
+                }
+                resultStrategy = agg -> agg.new LongTermsResults(showTermDocCountError);
+            }
+            return new NumericTermsAggregator(
+                name,
+                factories,
+                resultStrategy,
+                numericValuesSource,
+                valuesSourceConfig.format(),
+                order,
+                bucketCountThresholds,
+                context,
+                parent,
+                subAggCollectMode,
+                longFilter,
+                cardinality,
+                metadata
+            );
         };
     }
 
@@ -272,8 +271,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
     private static boolean isAggregationSort(BucketOrder order) {
         if (order instanceof InternalOrder.Aggregation) {
             return true;
-        } else if (order instanceof InternalOrder.CompoundOrder) {
-            InternalOrder.CompoundOrder compoundOrder = (CompoundOrder) order;
+        } else if (order instanceof CompoundOrder compoundOrder) {
             return compoundOrder.orderElements().stream().anyMatch(TermsAggregatorFactory::isAggregationSort);
         } else {
             return false;
@@ -290,6 +288,20 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
             // heuristic to avoid any wrong-ranking caused by distributed
             // counting
             bucketCountThresholds.setShardSize(BucketUtils.suggestShardSideQueueSize(bucketCountThresholds.getRequiredSize()));
+        }
+        // If min_doc_count and shard_min_doc_count is provided, we do not support them being larger than 1
+        // This is because we cannot be sure about their relative scale when sampled
+        if (getSamplingContext().map(SamplingContext::isSampled).orElse(false)) {
+            if (bucketCountThresholds.getMinDocCount() > 1 || bucketCountThresholds.getShardMinDocCount() > 1) {
+                throw new ElasticsearchStatusException(
+                    "aggregation [{}] is within a sampling context; "
+                        + "min_doc_count, provided [{}], and min_shard_doc_count, provided [{}], cannot be greater than 1",
+                    RestStatus.BAD_REQUEST,
+                    name(),
+                    bucketCountThresholds.getMinDocCount(),
+                    bucketCountThresholds.getShardMinDocCount()
+                );
+            }
         }
         bucketCountThresholds.ensureValidity();
 
@@ -341,8 +353,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
      * if the values source is not an instance of {@link ValuesSource.Bytes.WithOrdinals}.
      */
     private static long getMaxOrd(ValuesSource source, IndexSearcher searcher) throws IOException {
-        if (source instanceof ValuesSource.Bytes.WithOrdinals) {
-            ValuesSource.Bytes.WithOrdinals valueSourceWithOrdinals = (ValuesSource.Bytes.WithOrdinals) source;
+        if (source instanceof ValuesSource.Bytes.WithOrdinals valueSourceWithOrdinals) {
             return valueSourceWithOrdinals.globalMaxOrd(searcher);
         } else {
             return -1;
@@ -412,7 +423,10 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     .getValuesSource();
                 SortedSetDocValues values = globalOrdsValues(context, ordinalsValuesSource);
                 long maxOrd = values.getValueCount();
-                if (maxOrd > 0 && maxOrd <= MAX_ORDS_TO_TRY_FILTERS && context.enableRewriteToFilterByFilter()) {
+                if (maxOrd > 0
+                    && maxOrd <= MAX_ORDS_TO_TRY_FILTERS
+                    && context.enableRewriteToFilterByFilter()
+                    && false == context.isInSortOrderExecutionRequired()) {
                     StringTermsAggregatorFromFilters adapted = StringTermsAggregatorFromFilters.adaptIntoFiltersOrNull(
                         name,
                         factories,
@@ -443,6 +457,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                          * any more times doing filter-by-filter then we would
                          * doing regular collection.
                          */
+                        logger.debug("Using adapted fiter-by-filter implementation");
                         return adapted;
                     }
                 }
@@ -464,6 +479,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                      *  - the maximum global ordinal is less than 2048 (LOW_CARDINALITY has additional memory usage,
                      *  which directly linked to maxOrd, so we need to limit).
                      */
+                    logger.debug("Using low cardinality global ordinals implementation");
                     return new GlobalOrdinalsStringTermsAggregator.LowCardinality(
                         name,
                         factories,
@@ -507,6 +523,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                         remapGlobalOrds = false;
                     }
                 }
+                logger.debug("Using standard global ordinals implementation.  remap is [{}]", remapGlobalOrds);
                 return new GlobalOrdinalsStringTermsAggregator(
                     name,
                     factories,
@@ -529,14 +546,13 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
         };
 
         public static ExecutionMode fromString(String value) {
-            switch (value) {
-                case "global_ordinals":
-                    return GLOBAL_ORDINALS;
-                case "map":
-                    return MAP;
-                default:
-                    throw new IllegalArgumentException("Unknown `execution_hint`: [" + value + "], expected any of [map, global_ordinals]");
-            }
+            return switch (value) {
+                case "global_ordinals" -> GLOBAL_ORDINALS;
+                case "map" -> MAP;
+                default -> throw new IllegalArgumentException(
+                    "Unknown `execution_hint`: [" + value + "], expected any of [map, global_ordinals]"
+                );
+            };
         }
 
         private final ParseField parseField;

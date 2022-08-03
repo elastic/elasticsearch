@@ -34,7 +34,7 @@ import java.util.function.Function;
 import static org.elasticsearch.xpack.core.security.CommandLineHttpClient.createURL;
 import static org.elasticsearch.xpack.security.tool.CommandUtils.generatePassword;
 
-public class ResetPasswordTool extends BaseRunAsSuperuserCommand {
+class ResetPasswordTool extends BaseRunAsSuperuserCommand {
 
     private final Function<Environment, CommandLineHttpClient> clientFunction;
     private final OptionSpecBuilder interactive;
@@ -42,12 +42,8 @@ public class ResetPasswordTool extends BaseRunAsSuperuserCommand {
     private final OptionSpecBuilder batch;
     private final OptionSpec<String> usernameOption;
 
-    public ResetPasswordTool() {
+    ResetPasswordTool() {
         this(CommandLineHttpClient::new, environment -> KeyStoreWrapper.load(environment.configFile()));
-    }
-
-    public static void main(String[] args) throws Exception {
-        exit(new ResetPasswordTool().main(args, Terminal.DEFAULT));
     }
 
     protected ResetPasswordTool(
@@ -94,11 +90,8 @@ public class ResetPasswordTool extends BaseRunAsSuperuserCommand {
         }
         try {
             final CommandLineHttpClient client = clientFunction.apply(env);
-            final URL changePasswordUrl = createURL(
-                new URL(client.getDefaultURL()),
-                "_security/user/" + providedUsername + "/_password",
-                "?pretty"
-            );
+            final URL baseUrl = options.has(urlOption) ? new URL(options.valueOf(urlOption)) : new URL(client.getDefaultURL());
+            final URL changePasswordUrl = createURL(baseUrl, "_security/user/" + providedUsername + "/_password", "?pretty");
             final HttpResponse httpResponse = client.execute(
                 "POST",
                 changePasswordUrl,

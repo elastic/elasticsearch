@@ -17,23 +17,26 @@ import java.util.Iterator;
  * A default {@link Field} to provide {@code ScriptDocValues} for fields
  * that are not supported by the script fields api.
  */
-public class DelegateDocValuesField implements DocValuesField<Object> {
+public class DelegateDocValuesField extends AbstractScriptFieldFactory<Object> implements Field<Object>, DocValuesScriptFieldFactory {
 
     private final ScriptDocValues<?> scriptDocValues;
     private final String name;
 
     public DelegateDocValuesField(ScriptDocValues<?> scriptDocValues, String name) {
+        // Suppliers provided via ScriptDocValues should never be a Field
+        // as we expect DelegateDocValuesField to only support old-style ScriptDocValues
+        assert scriptDocValues.getSupplier() instanceof Field == false;
         this.scriptDocValues = scriptDocValues;
         this.name = name;
     }
 
     @Override
     public void setNextDocId(int docId) throws IOException {
-        scriptDocValues.setNextDocId(docId);
+        scriptDocValues.getSupplier().setNextDocId(docId);
     }
 
     @Override
-    public ScriptDocValues<?> getScriptDocValues() {
+    public ScriptDocValues<?> toScriptDocValues() {
         return scriptDocValues;
     }
 

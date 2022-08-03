@@ -23,6 +23,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BucketOrder;
@@ -146,11 +147,11 @@ class MultiTermsAggregator extends DeferableBucketAggregator {
     List<List<Object>> docTerms(List<TermValues> termValuesList, int doc) throws IOException {
         List<List<Object>> terms = new ArrayList<>();
         for (TermValues termValues : termValuesList) {
-            List<Object> values = termValues.collectValues(doc);
-            if (values == null) {
+            List<Object> collectValues = termValues.collectValues(doc);
+            if (collectValues == null) {
                 return null;
             }
-            terms.add(values);
+            terms.add(collectValues);
         }
         return terms;
     }
@@ -183,8 +184,8 @@ class MultiTermsAggregator extends DeferableBucketAggregator {
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
-        List<TermValues> termValuesList = termValuesList(ctx);
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
+        List<TermValues> termValuesList = termValuesList(aggCtx.getLeafReaderContext());
 
         return new LeafBucketCollectorBase(sub, values) {
             @Override

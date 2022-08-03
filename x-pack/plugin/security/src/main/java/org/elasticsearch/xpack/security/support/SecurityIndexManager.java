@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.support;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ElasticsearchStatusException;
@@ -23,7 +22,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -64,10 +63,7 @@ import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Stat
  */
 public class SecurityIndexManager implements ClusterStateListener {
 
-    public static final int INTERNAL_MAIN_INDEX_FORMAT = 6;
-    public static final int INTERNAL_TOKENS_INDEX_FORMAT = 7;
     public static final String SECURITY_VERSION_STRING = "security-version";
-    public static final String TEMPLATE_VERSION_VARIABLE = "security.template.version";
 
     private static final Logger logger = LogManager.getLogger(SecurityIndexManager.class);
 
@@ -327,7 +323,7 @@ public class SecurityIndexManager implements ClusterStateListener {
             }
             return Version.fromString((String) meta.get(SECURITY_VERSION_STRING));
         } catch (ElasticsearchParseException e) {
-            logger.error(new ParameterizedMessage("Cannot parse the mapping for index [{}]", indexName), e);
+            logger.error(() -> "Cannot parse the mapping for index [" + indexName + "]", e);
             throw new ElasticsearchException("Cannot parse the mapping for index [{}]", e, indexName);
         }
     }

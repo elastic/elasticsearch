@@ -8,11 +8,8 @@
 
 package org.elasticsearch.snapshots;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -42,6 +39,8 @@ import java.util.Objects;
 import java.util.Queue;
 import java.util.Set;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.core.Strings.format;
 
 public class InternalSnapshotsInfoService implements ClusterStateListener, SnapshotsInfoService {
 
@@ -244,7 +243,7 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
 
         @Override
         public void onFailure(Exception e) {
-            logger.warn(() -> new ParameterizedMessage("failed to retrieve shard size for {}", snapshotShard), e);
+            logger.warn(() -> format("failed to retrieve shard size for %s", snapshotShard), e);
             boolean failed = false;
             synchronized (mutex) {
                 if (isMaster) {
@@ -271,12 +270,12 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
     private void cleanUpSnapshotShardSizes(Set<SnapshotShard> requiredSnapshotShards) {
         assert Thread.holdsLock(mutex);
         ImmutableOpenMap.Builder<SnapshotShard, Long> newSnapshotShardSizes = null;
-        for (ObjectCursor<SnapshotShard> shard : knownSnapshotShards.keys()) {
-            if (requiredSnapshotShards.contains(shard.value) == false) {
+        for (SnapshotShard shard : knownSnapshotShards.keySet()) {
+            if (requiredSnapshotShards.contains(shard) == false) {
                 if (newSnapshotShardSizes == null) {
                     newSnapshotShardSizes = ImmutableOpenMap.builder(knownSnapshotShards);
                 }
-                newSnapshotShardSizes.remove(shard.value);
+                newSnapshotShardSizes.remove(shard);
             }
         }
         if (newSnapshotShardSizes != null) {
@@ -289,16 +288,16 @@ public class InternalSnapshotsInfoService implements ClusterStateListener, Snaps
         assert Thread.holdsLock(mutex);
         assert activeFetches >= 0 : "active fetches should be greater than or equal to zero but got: " + activeFetches;
         assert activeFetches <= maxConcurrentFetches : activeFetches + " <= " + maxConcurrentFetches;
-        for (ObjectCursor<SnapshotShard> cursor : knownSnapshotShards.keys()) {
-            assert unknownSnapshotShards.contains(cursor.value) == false : "cannot be known and unknown at same time: " + cursor.value;
-            assert failedSnapshotShards.contains(cursor.value) == false : "cannot be known and failed at same time: " + cursor.value;
+        for (SnapshotShard shard : knownSnapshotShards.keySet()) {
+            assert unknownSnapshotShards.contains(shard) == false : "cannot be known and unknown at same time: " + shard;
+            assert failedSnapshotShards.contains(shard) == false : "cannot be known and failed at same time: " + shard;
         }
         for (SnapshotShard shard : unknownSnapshotShards) {
-            assert knownSnapshotShards.keys().contains(shard) == false : "cannot be unknown and known at same time: " + shard;
+            assert knownSnapshotShards.keySet().contains(shard) == false : "cannot be unknown and known at same time: " + shard;
             assert failedSnapshotShards.contains(shard) == false : "cannot be unknown and failed at same time: " + shard;
         }
         for (SnapshotShard shard : failedSnapshotShards) {
-            assert knownSnapshotShards.keys().contains(shard) == false : "cannot be failed and known at same time: " + shard;
+            assert knownSnapshotShards.keySet().contains(shard) == false : "cannot be failed and known at same time: " + shard;
             assert unknownSnapshotShards.contains(shard) == false : "cannot be failed and unknown at same time: " + shard;
         }
         return true;

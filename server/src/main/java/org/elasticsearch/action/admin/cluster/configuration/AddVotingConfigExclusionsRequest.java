@@ -26,7 +26,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 /**
  * A request to add voting config exclusions for certain master-eligible nodes, and wait for these nodes to be removed from the voting
@@ -102,7 +101,7 @@ public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotin
             }
         } else {
             assert nodeNames.length > 0;
-            Map<String, DiscoveryNode> existingNodes = StreamSupport.stream(allNodes.spliterator(), false)
+            Map<String, DiscoveryNode> existingNodes = allNodes.stream()
                 .collect(Collectors.toMap(DiscoveryNode::getName, Function.identity()));
 
             for (String nodeName : nodeNames) {

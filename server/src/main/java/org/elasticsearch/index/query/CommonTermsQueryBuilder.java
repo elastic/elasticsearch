@@ -9,6 +9,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -60,4 +61,8 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
         throw new ParsingException(parser.getTokenLocation(), COMMON_TERMS_QUERY_DEPRECATION_MSG);
     }
 
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
+    }
 }

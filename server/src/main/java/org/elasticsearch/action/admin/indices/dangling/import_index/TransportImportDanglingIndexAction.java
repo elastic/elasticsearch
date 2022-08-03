@@ -19,7 +19,7 @@ import org.elasticsearch.action.admin.indices.dangling.find.NodeFindDanglingInde
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.gateway.LocalAllocateDangledIndices;
@@ -123,7 +123,7 @@ public class TransportImportDanglingIndexAction extends HandledTransportAction<I
 
                 logger.debug(
                     "Metadata versions {} found for index UUID [{}], selecting the highest",
-                    metaDataSortedByVersion.stream().map(IndexMetadata::getVersion).collect(Collectors.toList()),
+                    metaDataSortedByVersion.stream().map(IndexMetadata::getVersion).toList(),
                     indexUUID
                 );
 

@@ -34,13 +34,10 @@ import static java.lang.annotation.RetentionPolicy.RUNTIME;
  * exactly one of its constructors marked with {@code @Inject} or must have a
  * constructor taking no parameters. The Injector then proceeds to perform
  * method and field injections.
- * <li>Pre-constructed instances passed to {@link Injector#injectMembers},
+ * <li>Pre-constructed instances passed to
  * {@link org.elasticsearch.common.inject.binder.LinkedBindingBuilder#toInstance(Object)} and
  * {@link org.elasticsearch.common.inject.binder.LinkedBindingBuilder#toProvider(Provider)}.
  * In this case all constructors are, of course, ignored.
- * <li>Static fields and methods of classes which any {@link Module} has
- * specifically requested static injection for, using
- * {@link Binder#requestStaticInjection}.
  * </ul>
  * <p>
  * In all cases, a member can be injected regardless of its Java access

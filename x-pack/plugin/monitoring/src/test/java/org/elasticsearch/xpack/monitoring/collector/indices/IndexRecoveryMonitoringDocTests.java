@@ -31,7 +31,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 import static java.util.Collections.singleton;
@@ -43,13 +42,13 @@ import static org.mockito.Mockito.mock;
 
 public class IndexRecoveryMonitoringDocTests extends BaseMonitoringDocTestCase<IndexRecoveryMonitoringDoc> {
 
-    private RecoveryResponse recoveryResponse;
+    private RecoveryResponse mockRecoveryResponse;
 
     @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        recoveryResponse = mock(RecoveryResponse.class);
+        mockRecoveryResponse = mock(RecoveryResponse.class);
     }
 
     @Override
@@ -62,7 +61,7 @@ public class IndexRecoveryMonitoringDocTests extends BaseMonitoringDocTestCase<I
         String type,
         String id
     ) {
-        return new IndexRecoveryMonitoringDoc(cluster, timestamp, interval, node, recoveryResponse);
+        return new IndexRecoveryMonitoringDoc(cluster, timestamp, interval, node, mockRecoveryResponse);
     }
 
     @Override
@@ -71,7 +70,7 @@ public class IndexRecoveryMonitoringDocTests extends BaseMonitoringDocTestCase<I
         assertThat(document.getType(), is(IndexRecoveryMonitoringDoc.TYPE));
         assertThat(document.getId(), nullValue());
 
-        assertThat(document.getRecoveryResponse(), is(recoveryResponse));
+        assertThat(document.getRecoveryResponse(), is(mockRecoveryResponse));
     }
 
     public void testConstructorRecoveryResponseMustNotBeNull() {
@@ -132,85 +131,78 @@ public class IndexRecoveryMonitoringDocTests extends BaseMonitoringDocTestCase<I
         );
 
         final BytesReference xContent = XContentHelper.toXContent(document, XContentType.JSON, false);
-        final String expected = XContentHelper.stripWhitespace(
-            String.format(
-                Locale.ROOT,
-                "{"
-                    + "  \"cluster_uuid\": \"_cluster\","
-                    + "  \"timestamp\": \"2017-08-09T08:18:59.402Z\","
-                    + "  \"interval_ms\": 1506593717631,"
-                    + "  \"type\": \"index_recovery\","
-                    + "  \"source_node\": {"
-                    + "    \"uuid\": \"_uuid\","
-                    + "    \"host\": \"_host\","
-                    + "    \"transport_address\": \"_addr\","
-                    + "    \"ip\": \"_ip\","
-                    + "    \"name\": \"_name\","
-                    + "    \"timestamp\": \"2017-08-31T08:46:30.855Z\""
-                    + "  },"
-                    + "  \"index_recovery\": {"
-                    + "    \"shards\": ["
-                    + "      {"
-                    + "        \"index_name\": \"_shard_0\","
-                    + "        \"id\": 0,"
-                    + "        \"type\": \"PEER\","
-                    + "        \"stage\": \"INIT\","
-                    + "        \"primary\": true,"
-                    + "        \"start_time_in_millis\": %d,"
-                    + "        \"stop_time_in_millis\": %d,"
-                    + "        \"total_time_in_millis\": %d,"
-                    + "        \"source\": {"
-                    + "          \"id\": \"_node_id_1\","
-                    + "          \"host\": \"_host_name_1\","
-                    + "          \"transport_address\": \"0.0.0.0:9301\","
-                    + "          \"ip\": \"_host_address_1\","
-                    + "          \"name\": \"_node_1\""
-                    + "        },"
-                    + "        \"target\": {"
-                    + "          \"id\": \"_node_id_1\","
-                    + "          \"host\": \"_host_name_1\","
-                    + "          \"transport_address\": \"0.0.0.0:9301\","
-                    + "          \"ip\": \"_host_address_1\","
-                    + "          \"name\": \"_node_1\""
-                    + "        },"
-                    + "        \"index\": {"
-                    + "          \"size\": {"
-                    + "            \"total_in_bytes\": 0,"
-                    + "            \"reused_in_bytes\": 0,"
-                    + "            \"recovered_in_bytes\": 0,"
-                    + "            \"recovered_from_snapshot_in_bytes\": 0,"
-                    + "            \"percent\": \"0.0%%\""
-                    + "          },"
-                    + "          \"files\": {"
-                    + "            \"total\": 0,"
-                    + "            \"reused\": 0,"
-                    + "            \"recovered\": 0,"
-                    + "            \"percent\": \"0.0%%\""
-                    + "          },"
-                    + "          \"total_time_in_millis\": 0,"
-                    + "          \"source_throttle_time_in_millis\": 0,"
-                    + "          \"target_throttle_time_in_millis\": 0"
-                    + "        },"
-                    + "        \"translog\": {"
-                    + "          \"recovered\": 0,"
-                    + "          \"total\": -1,"
-                    + "          \"percent\": \"-1.0%%\","
-                    + "          \"total_on_start\": -1,"
-                    + "          \"total_time_in_millis\": 0"
-                    + "        },"
-                    + "        \"verify_index\": {"
-                    + "          \"check_index_time_in_millis\": 0,"
-                    + "          \"total_time_in_millis\": 0"
-                    + "        }"
-                    + "      }"
-                    + "    ]"
-                    + "  }"
-                    + "}",
-                timer.startTime(),
-                timer.stopTime(),
-                timer.time()
-            )
-        );
+        final String expected = XContentHelper.stripWhitespace("""
+            {
+              "cluster_uuid": "_cluster",
+              "timestamp": "2017-08-09T08:18:59.402Z",
+              "interval_ms": 1506593717631,
+              "type": "index_recovery",
+              "source_node": {
+                "uuid": "_uuid",
+                "host": "_host",
+                "transport_address": "_addr",
+                "ip": "_ip",
+                "name": "_name",
+                "timestamp": "2017-08-31T08:46:30.855Z"
+              },
+              "index_recovery": {
+                "shards": [
+                  {
+                    "index_name": "_shard_0",
+                    "id": 0,
+                    "type": "PEER",
+                    "stage": "INIT",
+                    "primary": true,
+                    "start_time_in_millis": %s,
+                    "stop_time_in_millis": %s,
+                    "total_time_in_millis": %s,
+                    "source": {
+                      "id": "_node_id_1",
+                      "host": "_host_name_1",
+                      "transport_address": "0.0.0.0:9301",
+                      "ip": "_host_address_1",
+                      "name": "_node_1"
+                    },
+                    "target": {
+                      "id": "_node_id_1",
+                      "host": "_host_name_1",
+                      "transport_address": "0.0.0.0:9301",
+                      "ip": "_host_address_1",
+                      "name": "_node_1"
+                    },
+                    "index": {
+                      "size": {
+                        "total_in_bytes": 0,
+                        "reused_in_bytes": 0,
+                        "recovered_in_bytes": 0,
+                        "recovered_from_snapshot_in_bytes": 0,
+                        "percent": "0.0%%"
+                      },
+                      "files": {
+                        "total": 0,
+                        "reused": 0,
+                        "recovered": 0,
+                        "percent": "0.0%%"
+                      },
+                      "total_time_in_millis": 0,
+                      "source_throttle_time_in_millis": 0,
+                      "target_throttle_time_in_millis": 0
+                    },
+                    "translog": {
+                      "recovered": 0,
+                      "total": -1,
+                      "percent": "-1.0%%",
+                      "total_on_start": -1,
+                      "total_time_in_millis": 0
+                    },
+                    "verify_index": {
+                      "check_index_time_in_millis": 0,
+                      "total_time_in_millis": 0
+                    }
+                  }
+                ]
+              }
+            }""".formatted(timer.startTime(), timer.stopTime(), timer.time()));
         assertEquals(expected, xContent.utf8ToString());
     }
 }

@@ -27,7 +27,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 public class TransportGetUsersAction extends HandledTransportAction<GetUsersRequest, GetUsersResponse> {
 
@@ -60,9 +59,6 @@ public class TransportGetUsersAction extends HandledTransportAction<GetUsersRequ
             for (String username : requestedUsers) {
                 if (ClientReservedRealm.isReserved(username, settings)) {
                     realmLookup.add(username);
-                } else if (User.isInternalUsername(username)) {
-                    listener.onFailure(new IllegalArgumentException("user [" + username + "] is internal"));
-                    return;
                 } else {
                     usersToSearchFor.add(username);
                 }
@@ -70,7 +66,7 @@ public class TransportGetUsersAction extends HandledTransportAction<GetUsersRequ
         }
 
         final ActionListener<Collection<Collection<User>>> sendingListener = ActionListener.wrap((userLists) -> {
-            users.addAll(userLists.stream().flatMap(Collection::stream).filter(Objects::nonNull).collect(Collectors.toList()));
+            users.addAll(userLists.stream().flatMap(Collection::stream).filter(Objects::nonNull).toList());
             listener.onResponse(new GetUsersResponse(users));
         }, listener::onFailure);
         final GroupedActionListener<Collection<User>> groupListener = new GroupedActionListener<>(sendingListener, 2);

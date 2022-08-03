@@ -90,7 +90,10 @@ public class ScriptConfigTests extends AbstractSerializingTransformTestCase<Scri
 
     public void testFailOnStrictPassOnLenient() throws IOException {
         // use a wrong syntax to trigger a parsing exception for strict parsing
-        String source = "{\n" + "          \"source-code\": \"a=b\"" + "        }";
+        String source = """
+            {
+              "source-code": "a=b"
+            }""";
 
         // lenient, passes but reports invalid
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {

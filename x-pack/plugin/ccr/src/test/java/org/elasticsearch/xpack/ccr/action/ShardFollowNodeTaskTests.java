@@ -1421,8 +1421,8 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
             @Override
             protected Scheduler.Cancellable scheduleBackgroundRetentionLeaseRenewal(final LongSupplier followerGlobalCheckpoint) {
                 if (scheduleRetentionLeaseRenewal.get()) {
-                    final ScheduledThreadPoolExecutor scheduler = Scheduler.initScheduler(Settings.EMPTY, "test-scheduler");
-                    final ScheduledFuture<?> future = scheduler.scheduleWithFixedDelay(
+                    final ScheduledThreadPoolExecutor testScheduler = Scheduler.initScheduler(Settings.EMPTY, "test-scheduler");
+                    final ScheduledFuture<?> future = testScheduler.scheduleWithFixedDelay(
                         () -> retentionLeaseRenewal.accept(followerGlobalCheckpoint.getAsLong()),
                         0,
                         TimeValue.timeValueMillis(200).millis(),
@@ -1433,7 +1433,7 @@ public class ShardFollowNodeTaskTests extends ESTestCase {
                         @Override
                         public boolean cancel() {
                             final boolean cancel = future.cancel(true);
-                            scheduler.shutdown();
+                            testScheduler.shutdown();
                             return cancel;
                         }
 

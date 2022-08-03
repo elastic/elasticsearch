@@ -31,9 +31,9 @@ import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.engine.NoOpEngine;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.seqno.SeqNoStats;
@@ -102,8 +102,8 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         final RecoveryTarget recoveryTarget = new RecoveryTarget(targetShard, null, null, null, null);
         final PlainActionFuture<Void> receiveFileInfoFuture = new PlainActionFuture<>();
         recoveryTarget.receiveFileInfo(
-            mdFiles.stream().map(StoreFileMetadata::name).collect(Collectors.toList()),
-            mdFiles.stream().map(StoreFileMetadata::length).collect(Collectors.toList()),
+            mdFiles.stream().map(StoreFileMetadata::name).toList(),
+            mdFiles.stream().map(StoreFileMetadata::length).toList(),
             emptyList(),
             emptyList(),
             0,
@@ -168,7 +168,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         PlainActionFuture<Void> cleanFilesFuture = new PlainActionFuture<>();
         recoveryTarget.cleanFiles(
             0,
-            Long.parseLong(sourceSnapshot.getCommitUserData().get(SequenceNumbers.MAX_SEQ_NO)),
+            Long.parseLong(sourceSnapshot.commitUserData().get(SequenceNumbers.MAX_SEQ_NO)),
             sourceSnapshot,
             cleanFilesFuture
         );
@@ -181,7 +181,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
     }
 
     private SeqNoStats populateRandomData(IndexShard shard) throws IOException {
-        List<Long> seqNos = LongStream.range(0, 100).boxed().collect(Collectors.toList());
+        List<Long> seqNos = LongStream.range(0, 100).boxed().collect(Collectors.toCollection(ArrayList::new));
         Randomness.shuffle(seqNos);
         for (long seqNo : seqNos) {
             shard.applyIndexOperationOnReplica(
@@ -574,19 +574,12 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
 
         Throwable downloadFileError = executionException.getCause();
         switch (downloadFileErrorType) {
-            case CORRUPTED_FILE:
-            case LARGER_THAN_EXPECTED_FILE:
+            case CORRUPTED_FILE, LARGER_THAN_EXPECTED_FILE ->
                 // Files larger than expected are caught by VerifyingIndexInput too
                 assertThat(downloadFileError, is(instanceOf(CorruptIndexException.class)));
-                break;
-            case TRUNCATED_FILE:
-                assertThat(downloadFileError, is(instanceOf(EOFException.class)));
-                break;
-            case FETCH_ERROR:
-                assertThat(downloadFileError, is(instanceOf(RuntimeException.class)));
-                break;
-            default:
-                throw new IllegalStateException("Unexpected value: " + downloadFileErrorType);
+            case TRUNCATED_FILE -> assertThat(downloadFileError, is(instanceOf(EOFException.class)));
+            case FETCH_ERROR -> assertThat(downloadFileError, is(instanceOf(RuntimeException.class)));
+            default -> throw new IllegalStateException("Unexpected value: " + downloadFileErrorType);
         }
 
         assertThat(filesBeforeRestoringSnapshotFile, equalTo(directory.listAll()));
@@ -851,7 +844,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
 
     private InputStream getFaultyInputStream(DownloadFileErrorType downloadFileErrorType, byte[] fileData) {
         switch (downloadFileErrorType) {
-            case CORRUPTED_FILE:
+            case CORRUPTED_FILE -> {
                 byte[] fileDataCopy = new byte[fileData.length];
                 System.arraycopy(fileData, 0, fileDataCopy, 0, fileData.length);
                 // Corrupt the file
@@ -859,22 +852,23 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
                     fileDataCopy[i] ^= 0xFF;
                 }
                 return new ByteArrayInputStream(fileDataCopy);
-            case TRUNCATED_FILE:
+            }
+            case TRUNCATED_FILE -> {
                 final int truncatedFileLength = fileData.length / 2;
                 byte[] truncatedCopy = new byte[truncatedFileLength];
                 System.arraycopy(fileData, 0, truncatedCopy, 0, truncatedFileLength);
                 return new ByteArrayInputStream(truncatedCopy);
-            case LARGER_THAN_EXPECTED_FILE:
+            }
+            case LARGER_THAN_EXPECTED_FILE -> {
                 byte[] largerData = new byte[fileData.length + randomIntBetween(1, 250)];
                 System.arraycopy(fileData, 0, largerData, 0, fileData.length);
                 for (int i = fileData.length; i < largerData.length; i++) {
                     largerData[i] = randomByte();
                 }
                 return new ByteArrayInputStream(largerData);
-            case FETCH_ERROR:
-                throw new RuntimeException("Unexpected error");
-            default:
-                throw new IllegalStateException("Unexpected value: " + downloadFileErrorType);
+            }
+            case FETCH_ERROR -> throw new RuntimeException("Unexpected error");
+            default -> throw new IllegalStateException("Unexpected value: " + downloadFileErrorType);
         }
     }
 }

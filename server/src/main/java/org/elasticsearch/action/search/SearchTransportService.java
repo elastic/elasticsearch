@@ -17,8 +17,8 @@ import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksReque
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.OriginSettingClient;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -108,17 +108,8 @@ public class SearchTransportService {
             FREE_CONTEXT_ACTION_NAME,
             new SearchFreeContextRequest(originalIndices, contextId),
             TransportRequestOptions.EMPTY,
-            new ActionListenerResponseHandler<>(new ActionListener<SearchFreeContextResponse>() {
-                @Override
-                public void onResponse(SearchFreeContextResponse response) {
-                    // no need to respond if it was freed or not
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-
-                }
-            }, SearchFreeContextResponse::new)
+            // no need to respond if it was freed or not
+            new ActionListenerResponseHandler<>(ActionListener.noop(), SearchFreeContextResponse::new)
         );
     }
 
@@ -620,7 +611,7 @@ public class SearchTransportService {
         }
     }
 
-    final class ConnectionCountingHandler<Response extends TransportResponse> extends ActionListenerResponseHandler<Response> {
+    static final class ConnectionCountingHandler<Response extends TransportResponse> extends ActionListenerResponseHandler<Response> {
         private final Map<String, Long> clientConnections;
         private final String nodeId;
 
@@ -668,10 +659,10 @@ public class SearchTransportService {
     }
 
     public void cancelSearchTask(SearchTask task, String reason) {
-        CancelTasksRequest req = new CancelTasksRequest().setTaskId(new TaskId(client.getLocalNodeId(), task.getId()))
+        CancelTasksRequest req = new CancelTasksRequest().setTargetTaskId(new TaskId(client.getLocalNodeId(), task.getId()))
             .setReason("Fatal failure during search: " + reason);
         // force the origin to execute the cancellation as a system user
-        new OriginSettingClient(client, GetTaskAction.TASKS_ORIGIN).admin().cluster().cancelTasks(req, ActionListener.wrap(() -> {}));
+        new OriginSettingClient(client, GetTaskAction.TASKS_ORIGIN).admin().cluster().cancelTasks(req, ActionListener.noop());
     }
 
     public NamedWriteableRegistry getNamedWriteableRegistry() {

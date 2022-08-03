@@ -82,8 +82,8 @@ public class BindingsTests extends ScriptTestCase {
             this.value = value;
         }
 
-        public void setInstanceBindingValue(int value) {
-            this.value = value;
+        public void setInstanceBindingValue(int instanceBindingValue) {
+            this.value = instanceBindingValue;
         }
 
         public int getInstanceBindingValue() {

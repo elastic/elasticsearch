@@ -9,9 +9,14 @@
 package org.elasticsearch.action.admin.indices.stats;
 
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
@@ -23,6 +28,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -143,6 +149,41 @@ public class IndicesStatsTests extends ESSingleNodeTestCase {
         assertEquals(uuid, rsp.getIndex("test").getUuid());
     }
 
+    public void testIndexHealth() {
+        String greenIndex = "green-index";
+        createIndex(greenIndex);
+        String yellowIndex = "yellow-index";
+        createIndex(yellowIndex, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build());
+
+        IndicesStatsResponse rsp = client().admin().indices().prepareStats().all().get();
+
+        IndexStats greenIndexStats = rsp.getIndex(greenIndex);
+        assertEquals(ClusterHealthStatus.GREEN, greenIndexStats.getHealth());
+
+        IndexStats yellowIndexStats = rsp.getIndex(yellowIndex);
+        assertEquals(ClusterHealthStatus.YELLOW, yellowIndexStats.getHealth());
+    }
+
+    public void testIndexState() throws ExecutionException, InterruptedException {
+        String openIndex = "open-index";
+        createIndex(openIndex);
+        String closeIndex = "close-index";
+        createIndex(closeIndex);
+
+        client().admin().indices().close(new CloseIndexRequest(closeIndex)).get();
+
+        IndicesStatsResponse rsp = client().admin()
+            .indices()
+            .prepareStats()
+            .setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_CLOSED)
+            .get();
+        IndexStats openIndexStats = rsp.getIndex(openIndex);
+        assertEquals(IndexMetadata.State.OPEN, openIndexStats.getState());
+
+        IndexStats closeIndexStats = rsp.getIndex(closeIndex);
+        assertEquals(IndexMetadata.State.CLOSE, closeIndexStats.getState());
+    }
+
     /**
      * Gives access to package private IndicesStatsResponse constructor for test purpose.
      **/
@@ -151,8 +192,9 @@ public class IndicesStatsTests extends ESSingleNodeTestCase {
         int totalShards,
         int successfulShards,
         int failedShards,
-        List<DefaultShardOperationFailedException> shardFailures
+        List<DefaultShardOperationFailedException> shardFailures,
+        ClusterState clusterState
     ) {
-        return new IndicesStatsResponse(shards, totalShards, successfulShards, failedShards, shardFailures);
+        return new IndicesStatsResponse(shards, totalShards, successfulShards, failedShards, shardFailures, clusterState);
     }
 }

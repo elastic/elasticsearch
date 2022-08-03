@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ilm.actions;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -16,6 +17,7 @@ import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -98,7 +100,7 @@ public class ShrinkActionIT extends ESRestTestCase {
         expectThrows(ResponseException.class, () -> indexDocument(client(), index));
     }
 
-    public void testShrinkSameShards() throws Exception {
+    public void testSkipShrinkSameShardsWithNumberOfShards() throws Exception {
         int numberOfShards = randomFrom(1, 2);
         createIndexWithSettings(
             client(),
@@ -116,7 +118,27 @@ public class ShrinkActionIT extends ESRestTestCase {
             assertNull(settings.get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()));
             assertThat(settings.get(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id"), nullValue());
             // the shrink action was effectively skipped so there must not be any `shrink_index_name` in the ILM state
-            assertThat(explainIndex(client(), index).get("shrink_index_name"), nullValue());
+            assertThat(explainIndex(client(), index).get(SHRINK_INDEX_NAME), nullValue());
+        });
+    }
+
+    public void testSkipShrinkSameShardsWithMaxShardSize() throws Exception {
+        createIndexWithSettings(
+            client(),
+            index,
+            alias,
+            Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+        );
+        createNewSingletonPolicy(client(), policy, "warm", new ShrinkAction(null, ByteSizeValue.ofGb(50)));
+        updatePolicy(client(), index, policy);
+        assertBusy(() -> {
+            assertTrue(indexExists(index));
+            Map<String, Object> settings = getOnlyIndexSettings(client(), index);
+            assertThat(getStepKeyForIndex(client(), index), equalTo(PhaseCompleteStep.finalStep("warm").getKey()));
+            assertNull(settings.get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()));
+            assertThat(settings.get(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id"), nullValue());
+            // the shrink action was effectively skipped so there must not be any `shrink_index_name` in the ILM state
+            assertThat(explainIndex(client(), index).get(SHRINK_INDEX_NAME), nullValue());
         });
     }
 
@@ -184,7 +206,7 @@ public class ShrinkActionIT extends ESRestTestCase {
         // add a policy
         Map<String, LifecycleAction> hotActions = Map.of(
             RolloverAction.NAME,
-            new RolloverAction(null, null, null, 1L),
+            new RolloverAction(null, null, null, 1L, null, null, null, null, null, null),
             ShrinkAction.NAME,
             new ShrinkAction(expectedFinalShards, null)
         );
@@ -196,25 +218,16 @@ public class ShrinkActionIT extends ESRestTestCase {
 
         // and a template
         Request createTemplateRequest = new Request("PUT", "_template/" + index);
-        createTemplateRequest.setJsonEntity(
-            "{"
-                + "\"index_patterns\": [\""
-                + index
-                + "-*\"], \n"
-                + "  \"settings\": {\n"
-                + "    \"number_of_shards\": "
-                + numShards
-                + ",\n"
-                + "    \"number_of_replicas\": 0,\n"
-                + "    \"index.lifecycle.name\": \""
-                + policy
-                + "\", \n"
-                + "    \"index.lifecycle.rollover_alias\": \""
-                + alias
-                + "\"\n"
-                + "  }\n"
-                + "}"
-        );
+        createTemplateRequest.setJsonEntity("""
+            {
+              "index_patterns": ["%s-*"],
+              "settings": {
+                "number_of_shards": %s,
+                "number_of_replicas": 0,
+                "index.lifecycle.name": "%s",
+                "index.lifecycle.rollover_alias": "%s"
+              }
+            }""".formatted(index, numShards, policy, alias));
         createTemplateRequest.setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));
         client().performRequest(createTemplateRequest);
 
@@ -248,9 +261,12 @@ public class ShrinkActionIT extends ESRestTestCase {
 
         // unallocate all index shards
         Request setAllocationToMissingAttribute = new Request("PUT", "/" + index + "/_settings");
-        setAllocationToMissingAttribute.setJsonEntity(
-            "{\n" + "  \"settings\": {\n" + "    \"index.routing.allocation.include.rack\": \"bogus_rack\"" + "  }\n" + "}"
-        );
+        setAllocationToMissingAttribute.setJsonEntity("""
+            {
+              "settings": {
+                "index.routing.allocation.include.rack": "bogus_rack"
+              }
+            }""");
         client().performRequest(setAllocationToMissingAttribute);
 
         ensureHealth(index, (request) -> {
@@ -292,9 +308,11 @@ public class ShrinkActionIT extends ESRestTestCase {
         }, 30, TimeUnit.SECONDS));
 
         Request resetAllocationForIndex = new Request("PUT", "/" + index + "/_settings");
-        resetAllocationForIndex.setJsonEntity(
-            "{\n" + "  \"settings\": {\n" + "    \"index.routing.allocation.include.rack\": null" + "  }\n" + "}"
-        );
+        resetAllocationForIndex.setJsonEntity("""
+            {
+              "settings": {
+                "index.routing.allocation.include.rack": null  }
+            }""");
         client().performRequest(resetAllocationForIndex);
 
         String shrunkenIndex = waitAndGetShrinkIndexName(client(), index);

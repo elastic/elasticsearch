@@ -36,6 +36,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.PriorityComparator;
 
@@ -43,7 +44,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -619,7 +619,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          * to the nodes we relocated them from.
          */
         private String[] buildWeightOrderedIndices() {
-            final String[] indices = allocation.routingTable().indicesRouting().keys().toArray(String.class);
+            final String[] indices = allocation.routingTable().indicesRouting().keySet().toArray(new String[0]);
             final float[] deltas = new float[indices.length];
             for (int i = 0; i < deltas.length; i++) {
                 sorter.reset(indices[i]);
@@ -1013,7 +1013,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                             updateMinNode = currentDecision.type() == Type.YES;
                         }
                     } else {
-                        updateMinNode = true;
+                        updateMinNode = currentWeight < minWeight;
                     }
                     if (updateMinNode) {
                         minNode = node;
@@ -1073,18 +1073,21 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     maxNode.removeShard(shard);
                     long shardSize = allocation.clusterInfo().getShardSize(shard, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
 
-                    if (decision.type() == Type.YES) {
-                        /* only allocate on the cluster if we are not throttled */
-                        logger.debug("Relocate [{}] from [{}] to [{}]", shard, maxNode.getNodeId(), minNode.getNodeId());
-                        minNode.addShard(routingNodes.relocateShard(shard, minNode.getNodeId(), shardSize, allocation.changes()).v1());
-                        return true;
-                    } else {
-                        /* allocate on the model even if throttled */
-                        logger.debug("Simulate relocation of [{}] from [{}] to [{}]", shard, maxNode.getNodeId(), minNode.getNodeId());
-                        assert decision.type() == Type.THROTTLE;
-                        minNode.addShard(shard.relocate(minNode.getNodeId(), shardSize));
-                        return false;
-                    }
+                    assert decision.type() == Type.YES || decision.type() == Type.THROTTLE : decision.type();
+                    logger.debug(
+                        "decision [{}]: relocate [{}] from [{}] to [{}]",
+                        decision.type(),
+                        shard,
+                        maxNode.getNodeId(),
+                        minNode.getNodeId()
+                    );
+                    minNode.addShard(
+                        decision.type() == Type.YES
+                            /* only allocate on the cluster if we are not throttled */
+                            ? routingNodes.relocateShard(shard, minNode.getNodeId(), shardSize, allocation.changes()).v1()
+                            : shard.relocate(minNode.getNodeId(), shardSize)
+                    );
+                    return true;
                 }
             }
             logger.trace("No shards of [{}] can relocate from [{}] to [{}]", idx, maxNode.getNodeId(), minNode.getNodeId());
@@ -1102,8 +1105,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             this.routingNode = routingNode;
         }
 
-        public ModelIndex getIndex(String indexId) {
-            return indices.get(indexId);
+        public ModelIndex getIndex(String indexName) {
+            return indices.get(indexName);
         }
 
         public String getNodeId() {
@@ -1132,12 +1135,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         }
 
         public void addShard(ShardRouting shard) {
-            ModelIndex index = indices.get(shard.getIndexName());
-            if (index == null) {
-                index = new ModelIndex(shard.getIndexName());
-                indices.put(index.getIndexId(), index);
-            }
-            index.addShard(shard);
+            indices.computeIfAbsent(shard.getIndexName(), t -> new ModelIndex()).addShard(shard);
             numShards++;
         }
 
@@ -1172,13 +1170,11 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     }
 
     static final class ModelIndex implements Iterable<ShardRouting> {
-        private final String id;
-        private final Set<ShardRouting> shards = new HashSet<>(4); // expect few shards of same index to be allocated on same node
+        private final Set<ShardRouting> shards = Sets.newHashSetWithExpectedSize(4); // expect few shards of same index to be allocated on
+                                                                                     // same node
         private int highestPrimary = -1;
 
-        ModelIndex(String id) {
-            this.id = id;
-        }
+        ModelIndex() {}
 
         public int highestPrimary() {
             if (highestPrimary == -1) {
@@ -1191,10 +1187,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 return highestPrimary = maxId;
             }
             return highestPrimary;
-        }
-
-        public String getIndexId() {
-            return id;
         }
 
         public int numShards() {

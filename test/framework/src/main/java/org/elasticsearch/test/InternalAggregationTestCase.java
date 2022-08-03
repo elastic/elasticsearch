@@ -8,10 +8,13 @@
 
 package org.elasticsearch.test;
 
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.BigArrays;
@@ -26,9 +29,14 @@ import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
@@ -131,13 +139,17 @@ import org.elasticsearch.search.aggregations.pipeline.ParsedPercentilesBucket;
 import org.elasticsearch.search.aggregations.pipeline.ParsedSimpleValue;
 import org.elasticsearch.search.aggregations.pipeline.ParsedStatsBucket;
 import org.elasticsearch.search.aggregations.pipeline.PercentilesBucketPipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.aggregations.pipeline.StatsBucketPipelineAggregationBuilder;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
+import org.elasticsearch.search.aggregations.timeseries.ParsedTimeSeries;
+import org.elasticsearch.search.aggregations.timeseries.TimeSeriesAggregationBuilder;
 import org.elasticsearch.xcontent.ContextParser;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -148,6 +160,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -170,36 +183,50 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
  */
 public abstract class InternalAggregationTestCase<T extends InternalAggregation> extends AbstractNamedWriteableTestCase<T> {
     /**
-     * Builds an {@link InternalAggregation.ReduceContextBuilder} that is valid but empty.
+     * Builds an {@link AggregationReduceContext} that is valid but empty.
      */
-    public static InternalAggregation.ReduceContextBuilder emptyReduceContextBuilder() {
-        return emptyReduceContextBuilder(PipelineTree.EMPTY);
+    public static AggregationReduceContext.Builder emptyReduceContextBuilder() {
+        return emptyReduceContextBuilder(AggregatorFactories.builder());
     }
 
     /**
-     * Builds an {@link InternalAggregation.ReduceContextBuilder} that is valid and nearly
-     * empty <strong>except</strong> that it contain {@link PipelineAggregator}s.
+     * Builds an {@link AggregationReduceContext} that is valid and nearly
+     * empty <strong>except</strong> that it contains the provided builders.
      */
-    public static InternalAggregation.ReduceContextBuilder emptyReduceContextBuilder(PipelineTree pipelineTree) {
-        return new InternalAggregation.ReduceContextBuilder() {
+    public static AggregationReduceContext.Builder emptyReduceContextBuilder(AggregatorFactories.Builder aggs) {
+        return new AggregationReduceContext.Builder() {
             @Override
-            public InternalAggregation.ReduceContext forPartialReduction() {
-                return InternalAggregation.ReduceContext.forPartialReduction(
-                    BigArrays.NON_RECYCLING_INSTANCE,
-                    null,
-                    () -> pipelineTree,
-                    () -> false
-                );
+            public AggregationReduceContext forPartialReduction() {
+                return new AggregationReduceContext.ForPartial(BigArrays.NON_RECYCLING_INSTANCE, null, () -> false, aggs);
             }
 
             @Override
-            public ReduceContext forFinalReduction() {
-                return InternalAggregation.ReduceContext.forFinalReduction(
+            public AggregationReduceContext forFinalReduction() {
+                return new AggregationReduceContext.ForFinal(BigArrays.NON_RECYCLING_INSTANCE, null, () -> false, aggs, b -> {});
+            }
+        };
+    }
+
+    /**
+     * Builds an {@link AggregationReduceContext} to reduce the provided
+     * aggregation.
+     */
+    public static AggregationReduceContext.Builder mockReduceContext(AggregationBuilder agg) {
+        return new AggregationReduceContext.Builder() {
+            @Override
+            public AggregationReduceContext forPartialReduction() {
+                return new AggregationReduceContext.ForPartial(BigArrays.NON_RECYCLING_INSTANCE, null, () -> false, agg);
+            }
+
+            @Override
+            public AggregationReduceContext forFinalReduction() {
+                return new AggregationReduceContext.ForFinal(
                     BigArrays.NON_RECYCLING_INSTANCE,
                     null,
+                    () -> false,
+                    agg,
                     b -> {},
-                    pipelineTree,
-                    () -> false
+                    PipelineTree.EMPTY
                 );
             }
         };
@@ -275,6 +302,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         map.put(IpRangeAggregationBuilder.NAME, (p, c) -> ParsedBinaryRange.fromXContent(p, (String) c));
         map.put(TopHitsAggregationBuilder.NAME, (p, c) -> ParsedTopHits.fromXContent(p, (String) c));
         map.put(CompositeAggregationBuilder.NAME, (p, c) -> ParsedComposite.fromXContent(p, (String) c));
+        map.put(TimeSeriesAggregationBuilder.NAME, (p, c) -> ParsedTimeSeries.fromXContent(p, (String) c));
 
         namedXContents = map.entrySet()
             .stream()
@@ -344,41 +372,68 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
     /**
      * Generate a list of inputs to reduce. Defaults to calling
      * {@link #createTestInstance(String)} and
-     * {@link #createUnmappedInstance(String)} but should be overridden
-     * if it isn't realistic to reduce test instances.
+     * {@link #createUnmappedInstance(String)} and {@link #mockBuilder(List)}
+     * but should be overridden if it isn't realistic to reduce test
+     * instances against mocked builders.
      */
-    protected List<T> randomResultsToReduce(String name, int size) {
+    protected BuilderAndToReduce<T> randomResultsToReduce(String name, int size) {
         List<T> inputs = new ArrayList<>();
         for (int i = 0; i < size; i++) {
             T t = randomBoolean() ? createUnmappedInstance(name) : createTestInstance(name);
             inputs.add(t);
         }
-        return inputs;
+        return new BuilderAndToReduce<>(mockBuilder(inputs), inputs);
     }
+
+    protected final AggregationBuilder mockBuilder(List<? extends InternalAggregation> results) {
+        Map<String, Object> subNames = new HashMap<>();
+        results.forEach(a -> collectSubBuilderNames(subNames, a));
+        return mockBuilder(results.get(0).getName(), subNames);
+    }
+
+    private AggregationBuilder mockBuilder(String name, Map<String, Object> subNames) {
+        AggregationBuilder b = new MockAggregationBuilder(name);
+        for (Map.Entry<String, Object> s : subNames.entrySet()) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> subSubNames = (Map<String, Object>) s.getValue();
+            b.subAggregation(mockBuilder(s.getKey(), subSubNames));
+        }
+        return b;
+    }
+
+    private void collectSubBuilderNames(Map<String, Object> names, InternalAggregation result) {
+        result.forEachBucket(ia -> {
+            for (InternalAggregation a : ia.copyResults()) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> sub = (Map<String, Object>) names.computeIfAbsent(a.getName(), k -> new HashMap<String, Object>());
+                collectSubBuilderNames(sub, a);
+            }
+        });
+    }
+
+    public record BuilderAndToReduce<T> (AggregationBuilder builder, List<T> toReduce) {}
 
     public void testReduceRandom() throws IOException {
         String name = randomAlphaOfLength(5);
         int size = between(1, 200);
-        List<T> inputs = randomResultsToReduce(name, size);
-        assertThat(inputs, hasSize(size));
+        BuilderAndToReduce<T> inputs = randomResultsToReduce(name, size);
+        assertThat(inputs.toReduce(), hasSize(size));
         List<InternalAggregation> toReduce = new ArrayList<>();
-        toReduce.addAll(inputs);
-        // Sort aggs so that unmapped come last. This mimicks the behavior of InternalAggregations.reduce()
-        inputs.sort(INTERNAL_AGG_COMPARATOR);
+        toReduce.addAll(inputs.toReduce());
         ScriptService mockScriptService = mockScriptService();
         MockBigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
         if (randomBoolean() && toReduce.size() > 1) {
             // sometimes do a partial reduce
             Collections.shuffle(toReduce, random());
-            int r = randomIntBetween(1, inputs.size());
+            int r = randomIntBetween(1, toReduce.size());
             List<InternalAggregation> toPartialReduce = toReduce.subList(0, r);
             // Sort aggs so that unmapped come last. This mimicks the behavior of InternalAggregations.reduce()
             toPartialReduce.sort(INTERNAL_AGG_COMPARATOR);
-            InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forPartialReduction(
+            AggregationReduceContext context = new AggregationReduceContext.ForPartial(
                 bigArrays,
                 mockScriptService,
-                () -> PipelineAggregator.PipelineTree.EMPTY,
-                () -> false
+                () -> false,
+                inputs.builder()
             );
             @SuppressWarnings("unchecked")
             T reduced = (T) toPartialReduce.get(0).reduce(toPartialReduce, context);
@@ -397,24 +452,33 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
             if (randomBoolean()) {
                 reduced = copyNamedWriteable(reduced, getNamedWriteableRegistry(), categoryClass());
             }
-            toReduce = new ArrayList<>(toReduce.subList(r, inputs.size()));
+            toReduce = new ArrayList<>(toReduce.subList(r, toReduce.size()));
             toReduce.add(reduced);
         }
         MultiBucketConsumer bucketConsumer = new MultiBucketConsumer(
             DEFAULT_MAX_BUCKETS,
             new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
         );
-        InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forFinalReduction(
+        AggregationReduceContext context = new AggregationReduceContext.ForFinal(
             bigArrays,
             mockScriptService,
+            () -> false,
+            inputs.builder(),
             bucketConsumer,
-            PipelineTree.EMPTY,
-            () -> false
+            PipelineTree.EMPTY
         );
+        // Sort aggs so that unmapped come last. This mimicks the behavior of InternalAggregations.reduce()
+        inputs.toReduce().sort(INTERNAL_AGG_COMPARATOR);
         @SuppressWarnings("unchecked")
-        T reduced = (T) inputs.get(0).reduce(toReduce, context);
+        T reduced = (T) inputs.toReduce().get(0).reduce(toReduce, context);
         doAssertReducedMultiBucketConsumer(reduced, bucketConsumer);
-        assertReduced(reduced, inputs);
+        assertReduced(reduced, inputs.toReduce());
+        if (supportsSampling()) {
+            SamplingContext randomContext = new SamplingContext(randomDoubleBetween(1e-8, 0.1, false), randomInt());
+            @SuppressWarnings("unchecked")
+            T sampled = (T) reduced.finalizeSampling(randomContext);
+            assertSampled(sampled, reduced, randomContext);
+        }
     }
 
     protected void doAssertReducedMultiBucketConsumer(Aggregation agg, MultiBucketConsumerService.MultiBucketConsumer bucketConsumer) {
@@ -430,9 +494,17 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
 
     protected abstract void assertReduced(T reduced, List<T> inputs);
 
+    protected void assertSampled(T sampled, T reduced, SamplingContext samplingContext) {
+        throw new UnsupportedOperationException("aggregation supports sampling but does not implement assertSampled");
+    }
+
     @Override
     public final T createTestInstance() {
         return createTestInstance(randomAlphaOfLength(5));
+    }
+
+    protected boolean supportsSampling() {
+        return false;
     }
 
     public final Map<String, Object> createTestMetadata() {
@@ -478,6 +550,37 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
     }
 
     protected abstract void assertFromXContent(T aggregation, ParsedAggregation parsedAggregation) throws IOException;
+
+    /**
+     * Calls {@link ToXContent#toXContent} on many threads and verifies that
+     * they produce the same result. Async search sometimes does this to
+     * aggregation responses and, in general, we think it's reasonable for
+     * everything that can convert itself to json to be able to do so
+     * concurrently.
+     */
+    public final void testConcurrentToXContent() throws IOException, InterruptedException, ExecutionException {
+        T testInstance = createTestInstanceForXContent();
+        ToXContent.Params params = new ToXContent.MapParams(singletonMap(RestSearchAction.TYPED_KEYS_PARAM, "true"));
+        XContentType xContentType = randomFrom(XContentType.values());
+        boolean humanReadable = randomBoolean();
+        BytesRef firstTimeBytes = toXContent(testInstance, xContentType, params, humanReadable).toBytesRef();
+
+        /*
+         * 500 rounds seems to consistently reproduce the issue on Nik's
+         * laptop. Larger numbers are going to be slower but more likely
+         * to reproduce the issue.
+         */
+        int rounds = scaledRandomIntBetween(300, 5000);
+        concurrentTest(() -> {
+            try {
+                for (int r = 0; r < rounds; r++) {
+                    assertEquals(firstTimeBytes, toXContent(testInstance, xContentType, params, humanReadable).toBytesRef());
+                }
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
+        });
+    }
 
     @SuppressWarnings("unchecked")
     protected <P extends ParsedAggregation> P parseAndAssert(
@@ -591,5 +694,47 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
 
     private static void assertMultiBucketConsumer(int innerBucketCount, MultiBucketConsumer bucketConsumer) {
         assertThat(bucketConsumer.getCount(), equalTo(innerBucketCount));
+    }
+
+    private class MockAggregationBuilder extends AbstractAggregationBuilder<MockAggregationBuilder> {
+        MockAggregationBuilder(String name) {
+            super(name);
+        }
+
+        @Override
+        public String getType() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        protected void doWriteTo(StreamOutput out) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        protected AggregatorFactory doBuild(AggregationContext context, AggregatorFactory parent, Builder subfactoriesBuilder)
+            throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        protected XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        protected AggregationBuilder shallowCopy(Builder factoriesBuilder, Map<String, Object> metadata) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public BucketCardinality bucketCardinality() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.V_EMPTY;
+        }
     }
 }

@@ -43,12 +43,8 @@ public class Distribution {
 
         this.platform = filename.contains("windows") ? Platform.WINDOWS : Platform.LINUX;
         this.hasJdk = filename.contains("no-jdk") == false;
-        String version = filename.split("-", 3)[1];
-        this.baseVersion = version;
-        if (filename.contains("-SNAPSHOT")) {
-            version += "-SNAPSHOT";
-        }
-        this.version = version;
+        this.baseVersion = filename.split("-", 3)[1];
+        this.version = filename.contains("-SNAPSHOT") ? this.baseVersion + "-SNAPSHOT" : this.baseVersion;
     }
 
     public boolean isArchive() {
@@ -63,15 +59,10 @@ public class Distribution {
      * @return whether this distribution is packaged as a Docker image.
      */
     public boolean isDocker() {
-        switch (packaging) {
-            case DOCKER:
-            case DOCKER_UBI:
-            case DOCKER_IRON_BANK:
-            case DOCKER_CLOUD:
-            case DOCKER_CLOUD_ESS:
-                return true;
-        }
-        return false;
+        return switch (packaging) {
+            case DOCKER, DOCKER_UBI, DOCKER_IRON_BANK, DOCKER_CLOUD, DOCKER_CLOUD_ESS -> true;
+            default -> false;
+        };
     }
 
     public enum Packaging {

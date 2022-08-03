@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.plugins.MetadataUpgrader;
@@ -37,11 +36,9 @@ import static org.mockito.Mockito.when;
  */
 public class MockGatewayMetaState extends GatewayMetaState {
     private final DiscoveryNode localNode;
-    private final BigArrays bigArrays;
 
-    public MockGatewayMetaState(DiscoveryNode localNode, BigArrays bigArrays) {
+    public MockGatewayMetaState(DiscoveryNode localNode) {
         this.localNode = localNode;
-        this.bigArrays = bigArrays;
     }
 
     @Override
@@ -79,7 +76,6 @@ public class MockGatewayMetaState extends GatewayMetaState {
             new PersistedClusterStateService(
                 nodeEnvironment,
                 xContentRegistry,
-                bigArrays,
                 new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                 () -> 0L
             )

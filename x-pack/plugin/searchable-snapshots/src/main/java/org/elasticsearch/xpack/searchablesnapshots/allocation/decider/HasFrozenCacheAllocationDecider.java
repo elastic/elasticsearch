@@ -14,8 +14,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheInfoService;
 
 import static org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheService.SHARED_CACHE_SIZE_SETTING;
@@ -62,8 +60,8 @@ public class HasFrozenCacheAllocationDecider extends AllocationDecider {
     }
 
     @Override
-    public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        return canAllocateToNode(allocation.metadata().getIndexSafe(shardRouting.index()), node.node());
+    public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+        return canAllocateToNode(indexMetadata, node.node());
     }
 
     @Override
@@ -77,22 +75,16 @@ public class HasFrozenCacheAllocationDecider extends AllocationDecider {
     }
 
     private Decision canAllocateToNode(IndexMetadata indexMetadata, DiscoveryNode discoveryNode) {
-        final Settings indexSettings = indexMetadata.getSettings();
-
-        if (SearchableSnapshotsSettings.isPartialSearchableSnapshotIndex(indexSettings) == false) {
+        if (indexMetadata.isPartialSearchableSnapshot() == false) {
             return Decision.ALWAYS;
         }
 
-        switch (frozenCacheService.getNodeState(discoveryNode)) {
-            case HAS_CACHE:
-                return HAS_FROZEN_CACHE;
-            case NO_CACHE:
-                return NO_FROZEN_CACHE;
-            case FAILED:
-                return UNKNOWN_FROZEN_CACHE;
-            default:
-                return STILL_FETCHING;
-        }
+        return switch (frozenCacheService.getNodeState(discoveryNode)) {
+            case HAS_CACHE -> HAS_FROZEN_CACHE;
+            case NO_CACHE -> NO_FROZEN_CACHE;
+            case FAILED -> UNKNOWN_FROZEN_CACHE;
+            default -> STILL_FETCHING;
+        };
     }
 
 }

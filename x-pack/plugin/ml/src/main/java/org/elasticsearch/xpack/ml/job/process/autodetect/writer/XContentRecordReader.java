@@ -6,10 +6,10 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
-import com.fasterxml.jackson.core.JsonParseException;
-
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.xcontent.XContentEOFException;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -196,7 +196,7 @@ class XContentRecordReader {
     protected XContentParser.Token tryNextTokenOrReadToEndOnError() throws IOException {
         try {
             return parser.nextToken();
-        } catch (JsonParseException e) {
+        } catch (XContentEOFException | XContentParseException e) {
             logger.warn("Attempting to recover from malformed JSON data.", e);
             for (int i = 0; i <= nestedLevel; ++i) {
                 readToEndOfObject();
@@ -217,7 +217,7 @@ class XContentRecordReader {
         do {
             try {
                 token = parser.nextToken();
-            } catch (JsonParseException e) {
+            } catch (XContentEOFException | XContentParseException e) {
                 ++errorCounter;
                 if (errorCounter >= PARSE_ERRORS_LIMIT) {
                     logger.error("Failed to recover from malformed JSON data.", e);

@@ -12,7 +12,7 @@ import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.client.Requests;
+import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Priority;
@@ -22,7 +22,7 @@ import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.xcontent.XContentType;
 
-import static org.elasticsearch.client.Requests.createIndexRequest;
+import static org.elasticsearch.client.internal.Requests.createIndexRequest;
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.elasticsearch.test.NodeRoles.dataNode;
 import static org.elasticsearch.test.NodeRoles.nonDataNode;
@@ -31,7 +31,8 @@ import static org.hamcrest.Matchers.equalTo;
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class SimpleDataNodesIT extends ESIntegTestCase {
 
-    private static final String SOURCE = "{\"type1\":{\"id\":\"1\",\"name\":\"test\"}}";
+    private static final String SOURCE = """
+        {"type1":{"id":"1","name":"test"}}""";
 
     public void testIndexingBeforeAndAfterDataNodesStart() {
         internalCluster().startNode(nonDataNode());

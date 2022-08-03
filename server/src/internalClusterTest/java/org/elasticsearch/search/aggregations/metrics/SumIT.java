@@ -91,7 +91,7 @@ public class SumIT extends AbstractNumericTestCase {
         Sum sum = bucket.getAggregations().get("sum");
         assertThat(sum, notNullValue());
         assertThat(sum.getName(), equalTo("sum"));
-        assertThat(sum.getValue(), equalTo(0.0));
+        assertThat(sum.value(), equalTo(0.0));
     }
 
     /** This test has been moved to {@link SumAggregatorTests#testUnmapped()} */
@@ -110,7 +110,7 @@ public class SumIT extends AbstractNumericTestCase {
         Sum sum = searchResponse.getAggregations().get("sum");
         assertThat(sum, notNullValue());
         assertThat(sum.getName(), equalTo("sum"));
-        assertThat(sum.getValue(), equalTo((double) 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10));
+        assertThat(sum.value(), equalTo((double) 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10));
     }
 
     public void testSingleValuedFieldWithFormatter() throws Exception {
@@ -124,7 +124,7 @@ public class SumIT extends AbstractNumericTestCase {
         Sum sum = searchResponse.getAggregations().get("sum");
         assertThat(sum, notNullValue());
         assertThat(sum.getName(), equalTo("sum"));
-        assertThat(sum.getValue(), equalTo((double) 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10));
+        assertThat(sum.value(), equalTo((double) 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10));
         assertThat(sum.getValueAsString(), equalTo("0055.0"));
     }
 
@@ -149,7 +149,7 @@ public class SumIT extends AbstractNumericTestCase {
         assertThat(sum, notNullValue());
         assertThat(sum.getName(), equalTo("sum"));
         double expectedSumValue = (double) 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10;
-        assertThat(sum.getValue(), equalTo(expectedSumValue));
+        assertThat(sum.value(), equalTo(expectedSumValue));
         assertThat((Sum) ((InternalAggregation) global).getProperty("sum"), equalTo(sum));
         assertThat((double) ((InternalAggregation) global).getProperty("sum.value"), equalTo(expectedSumValue));
         assertThat((double) ((InternalAggregation) sum).getProperty("value"), equalTo(expectedSumValue));
@@ -168,7 +168,7 @@ public class SumIT extends AbstractNumericTestCase {
         Sum sum = searchResponse.getAggregations().get("sum");
         assertThat(sum, notNullValue());
         assertThat(sum.getName(), equalTo("sum"));
-        assertThat(sum.getValue(), equalTo((double) 2 + 3 + 3 + 4 + 4 + 5 + 5 + 6 + 6 + 7 + 7 + 8 + 8 + 9 + 9 + 10 + 10 + 11 + 11 + 12));
+        assertThat(sum.value(), equalTo((double) 2 + 3 + 3 + 4 + 4 + 5 + 5 + 6 + 6 + 7 + 7 + 8 + 8 + 9 + 9 + 10 + 10 + 11 + 11 + 12));
     }
 
     @Override
@@ -347,7 +347,7 @@ public class SumIT extends AbstractNumericTestCase {
         Sum sum = response.getAggregations().get("sum");
         assertThat(sum, IsNull.notNullValue());
         assertThat(sum.getName(), equalTo("sum"));
-        assertThat(sum.getValue(), equalTo(192.7));
+        assertThat(sum.value(), equalTo(192.7));
     }
 
     public void testFieldAliasInSubAggregation() {
@@ -371,7 +371,7 @@ public class SumIT extends AbstractNumericTestCase {
 
         Sum sum = bucket.getAggregations().get("sum");
         assertThat(sum, notNullValue());
-        assertThat(sum.getValue(), equalTo(142.2));
+        assertThat(sum.value(), equalTo(142.2));
 
         bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
@@ -380,6 +380,6 @@ public class SumIT extends AbstractNumericTestCase {
 
         sum = bucket.getAggregations().get("sum");
         assertThat(sum, notNullValue());
-        assertThat(sum.getValue(), equalTo(50.5));
+        assertThat(sum.value(), equalTo(50.5));
     }
 }

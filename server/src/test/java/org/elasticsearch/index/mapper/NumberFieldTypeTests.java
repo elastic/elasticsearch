@@ -28,13 +28,16 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.TestUtil;
+import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
@@ -91,53 +94,63 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
 
     public void testIntegerTermsQueryWithDecimalPart() {
         MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberType.INTEGER);
-        assertEquals(IntPoint.newSetQuery("field", 1), ft.termsQuery(Arrays.asList(1, 2.1), null));
-        assertEquals(IntPoint.newSetQuery("field", 1), ft.termsQuery(Arrays.asList(1.0, 2.1), null));
-        assertTrue(ft.termsQuery(Arrays.asList(1.1, 2.1), null) instanceof MatchNoDocsQuery);
+        assertEquals(IntPoint.newSetQuery("field", 1), ft.termsQuery(Arrays.asList(1, 2.1), MOCK_CONTEXT));
+        assertEquals(IntPoint.newSetQuery("field", 1), ft.termsQuery(Arrays.asList(1.0, 2.1), MOCK_CONTEXT));
+        assertTrue(ft.termsQuery(Arrays.asList(1.1, 2.1), MOCK_CONTEXT) instanceof MatchNoDocsQuery);
     }
 
     public void testLongTermsQueryWithDecimalPart() {
         MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberType.LONG);
-        assertEquals(LongPoint.newSetQuery("field", 1), ft.termsQuery(Arrays.asList(1, 2.1), null));
-        assertEquals(LongPoint.newSetQuery("field", 1), ft.termsQuery(Arrays.asList(1.0, 2.1), null));
-        assertTrue(ft.termsQuery(Arrays.asList(1.1, 2.1), null) instanceof MatchNoDocsQuery);
+        assertEquals(LongPoint.newSetQuery("field", 1), ft.termsQuery(Arrays.asList(1, 2.1), MOCK_CONTEXT));
+        assertEquals(LongPoint.newSetQuery("field", 1), ft.termsQuery(Arrays.asList(1.0, 2.1), MOCK_CONTEXT));
+        assertTrue(ft.termsQuery(Arrays.asList(1.1, 2.1), MOCK_CONTEXT) instanceof MatchNoDocsQuery);
     }
 
     public void testByteTermQueryWithDecimalPart() {
-        MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberType.BYTE);
-        assertTrue(ft.termQuery(42.1, null) instanceof MatchNoDocsQuery);
+        MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberType.BYTE, randomBoolean());
+        assertTrue(ft.termQuery(42.1, MOCK_CONTEXT) instanceof MatchNoDocsQuery);
     }
 
     public void testShortTermQueryWithDecimalPart() {
-        MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberType.SHORT);
-        assertTrue(ft.termQuery(42.1, null) instanceof MatchNoDocsQuery);
+        MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberType.SHORT, randomBoolean());
+        assertTrue(ft.termQuery(42.1, MOCK_CONTEXT) instanceof MatchNoDocsQuery);
     }
 
     public void testIntegerTermQueryWithDecimalPart() {
-        MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberType.INTEGER);
-        assertTrue(ft.termQuery(42.1, null) instanceof MatchNoDocsQuery);
+        MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberType.INTEGER, randomBoolean());
+        assertTrue(ft.termQuery(42.1, MOCK_CONTEXT) instanceof MatchNoDocsQuery);
     }
 
     public void testLongTermQueryWithDecimalPart() {
-        MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG);
-        assertTrue(ft.termQuery(42.1, null) instanceof MatchNoDocsQuery);
+        MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG, randomBoolean());
+        assertTrue(ft.termQuery(42.1, MOCK_CONTEXT) instanceof MatchNoDocsQuery);
     }
 
     private static MappedFieldType unsearchable() {
-        return new NumberFieldType("field", NumberType.LONG, false, false, true, true, null, Collections.emptyMap(), null, false, null);
+        return new NumberFieldType("field", NumberType.LONG, false, false, false, true, null, Collections.emptyMap(), null, false, null);
     }
 
     public void testTermQuery() {
         MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG);
-        assertEquals(LongPoint.newExactQuery("field", 42), ft.termQuery("42", null));
+        assertEquals(LongPoint.newExactQuery("field", 42), ft.termQuery("42", MOCK_CONTEXT));
+
+        ft = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG, false);
+        assertEquals(SortedNumericDocValuesField.newSlowExactQuery("field", 42), ft.termQuery("42", MOCK_CONTEXT));
 
         MappedFieldType unsearchable = unsearchable();
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("42", null));
-        assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("42", MOCK_CONTEXT));
+        assertEquals("Cannot search on field [field] since it is not indexed nor has doc values.", e.getMessage());
+
+        MappedFieldType ft2 = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG, false);
+        ElasticsearchException e2 = expectThrows(ElasticsearchException.class, () -> ft2.termQuery("42", MOCK_CONTEXT_DISALLOW_EXPENSIVE));
+        assertEquals(
+            "Cannot search on field [field] since it is not indexed and 'search.allow_expensive_queries' is set to false.",
+            e2.getMessage()
+        );
     }
 
     public void testRangeQueryWithNegativeBounds() {
-        MappedFieldType ftInt = new NumberFieldMapper.NumberFieldType("field", NumberType.INTEGER);
+        MappedFieldType ftInt = new NumberFieldMapper.NumberFieldType("field", NumberType.INTEGER, randomBoolean());
         assertEquals(
             ftInt.rangeQuery(-3, -3, true, true, null, null, null, MOCK_CONTEXT),
             ftInt.rangeQuery(-3.5, -2.5, true, true, null, null, null, MOCK_CONTEXT)
@@ -188,7 +201,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             ftInt.rangeQuery(-2.5, -0.5, false, false, null, null, null, MOCK_CONTEXT)
         );
 
-        MappedFieldType ftLong = new NumberFieldMapper.NumberFieldType("field", NumberType.LONG);
+        MappedFieldType ftLong = new NumberFieldMapper.NumberFieldType("field", NumberType.LONG, randomBoolean());
         assertEquals(
             ftLong.rangeQuery(-3, -3, true, true, null, null, null, MOCK_CONTEXT),
             ftLong.rangeQuery(-3.5, -2.5, true, true, null, null, null, MOCK_CONTEXT)
@@ -241,7 +254,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testByteRangeQueryWithDecimalParts() {
-        MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberType.BYTE);
+        MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberType.BYTE, randomBoolean());
         assertEquals(
             ft.rangeQuery(2, 10, true, true, null, null, null, MOCK_CONTEXT),
             ft.rangeQuery(1.1, 10, true, true, null, null, null, MOCK_CONTEXT)
@@ -261,7 +274,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testShortRangeQueryWithDecimalParts() {
-        MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberType.SHORT);
+        MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberType.SHORT, randomBoolean());
         assertEquals(
             ft.rangeQuery(2, 10, true, true, null, null, null, MOCK_CONTEXT),
             ft.rangeQuery(1.1, 10, true, true, null, null, null, MOCK_CONTEXT)
@@ -281,7 +294,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testIntegerRangeQueryWithDecimalParts() {
-        MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberType.INTEGER);
+        MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberType.INTEGER, randomBoolean());
         assertEquals(
             ft.rangeQuery(2, 10, true, true, null, null, null, MOCK_CONTEXT),
             ft.rangeQuery(1.1, 10, true, true, null, null, null, MOCK_CONTEXT)
@@ -301,7 +314,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testLongRangeQueryWithDecimalParts() {
-        MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberType.LONG);
+        MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberType.LONG, randomBoolean());
         assertEquals(
             ft.rangeQuery(2, 10, true, true, null, null, null, MOCK_CONTEXT),
             ft.rangeQuery(1.1, 10, true, true, null, null, null, MOCK_CONTEXT)
@@ -328,12 +341,26 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         );
         assertEquals(expected, ft.rangeQuery("1", "3", true, true, null, null, null, MOCK_CONTEXT));
 
+        ft = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG, false);
+        expected = SortedNumericDocValuesField.newSlowRangeQuery("field", 1, 3);
+        assertEquals(expected, ft.rangeQuery("1", "3", true, true, null, null, null, MOCK_CONTEXT));
+
         MappedFieldType unsearchable = unsearchable();
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> unsearchable.rangeQuery("1", "3", true, true, null, null, null, MOCK_CONTEXT)
         );
-        assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
+        assertEquals("Cannot search on field [field] since it is not indexed nor has doc values.", e.getMessage());
+
+        MappedFieldType ft2 = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG, false);
+        ElasticsearchException e2 = expectThrows(
+            ElasticsearchException.class,
+            () -> ft2.rangeQuery("1", "3", true, true, null, null, null, MOCK_CONTEXT_DISALLOW_EXPENSIVE)
+        );
+        assertEquals(
+            "Cannot search on field [field] since it is not indexed and 'search.allow_expensive_queries' is set to false.",
+            e2.getMessage()
+        );
     }
 
     public void testConversions() {
@@ -411,7 +438,9 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             float value = (randomFloat() * 2 - 1) * 70000;
             float rounded = HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(value));
             doc.add(new HalfFloatPoint("half_float", value));
+            doc.add(new SortedNumericDocValuesField("half_float", HalfFloatPoint.halfFloatToSortableShort(value)));
             doc.add(new FloatPoint("float", rounded));
+            doc.add(new SortedNumericDocValuesField("float", NumericUtils.floatToSortableInt(rounded)));
             w.addDocument(doc);
         }
         final DirectoryReader reader = DirectoryReader.open(w);
@@ -424,30 +453,49 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             float u = (randomFloat() * 2 - 1) * 65504;
             boolean includeLower = randomBoolean();
             boolean includeUpper = randomBoolean();
-            Query floatQ = NumberType.FLOAT.rangeQuery("float", l, u, includeLower, includeUpper, false, MOCK_CONTEXT);
-            Query halfFloatQ = NumberType.HALF_FLOAT.rangeQuery("half_float", l, u, includeLower, includeUpper, false, MOCK_CONTEXT);
+            Query floatQ = NumberType.FLOAT.rangeQuery(
+                "float",
+                l,
+                u,
+                includeLower,
+                includeUpper,
+                randomBoolean(),
+                MOCK_CONTEXT,
+                randomBoolean()
+            );
+            Query halfFloatQ = NumberType.HALF_FLOAT.rangeQuery(
+                "half_float",
+                l,
+                u,
+                includeLower,
+                includeUpper,
+                randomBoolean(),
+                MOCK_CONTEXT,
+                randomBoolean()
+            );
             assertEquals(searcher.count(floatQ), searcher.count(halfFloatQ));
         }
         IOUtils.close(reader, dir);
     }
 
     public void testNegativeZero() {
+        final boolean isIndexed = randomBoolean();
         assertEquals(
-            NumberType.DOUBLE.rangeQuery("field", null, -0d, true, true, false, MOCK_CONTEXT),
-            NumberType.DOUBLE.rangeQuery("field", null, +0d, true, false, false, MOCK_CONTEXT)
+            NumberType.DOUBLE.rangeQuery("field", null, -0d, true, true, false, MOCK_CONTEXT, isIndexed),
+            NumberType.DOUBLE.rangeQuery("field", null, +0d, true, false, false, MOCK_CONTEXT, isIndexed)
         );
         assertEquals(
-            NumberType.FLOAT.rangeQuery("field", null, -0f, true, true, false, MOCK_CONTEXT),
-            NumberType.FLOAT.rangeQuery("field", null, +0f, true, false, false, MOCK_CONTEXT)
+            NumberType.FLOAT.rangeQuery("field", null, -0f, true, true, false, MOCK_CONTEXT, isIndexed),
+            NumberType.FLOAT.rangeQuery("field", null, +0f, true, false, false, MOCK_CONTEXT, isIndexed)
         );
         assertEquals(
-            NumberType.HALF_FLOAT.rangeQuery("field", null, -0f, true, true, false, MOCK_CONTEXT),
-            NumberType.HALF_FLOAT.rangeQuery("field", null, +0f, true, false, false, MOCK_CONTEXT)
+            NumberType.HALF_FLOAT.rangeQuery("field", null, -0f, true, true, false, MOCK_CONTEXT, isIndexed),
+            NumberType.HALF_FLOAT.rangeQuery("field", null, +0f, true, false, false, MOCK_CONTEXT, isIndexed)
         );
 
-        assertFalse(NumberType.DOUBLE.termQuery("field", -0d).equals(NumberType.DOUBLE.termQuery("field", +0d)));
-        assertFalse(NumberType.FLOAT.termQuery("field", -0f).equals(NumberType.FLOAT.termQuery("field", +0f)));
-        assertFalse(NumberType.HALF_FLOAT.termQuery("field", -0f).equals(NumberType.HALF_FLOAT.termQuery("field", +0f)));
+        assertNotEquals(NumberType.DOUBLE.termQuery("field", -0d, isIndexed), NumberType.DOUBLE.termQuery("field", +0d, isIndexed));
+        assertNotEquals(NumberType.FLOAT.termQuery("field", -0f, isIndexed), NumberType.FLOAT.termQuery("field", +0f, isIndexed));
+        assertNotEquals(NumberType.HALF_FLOAT.termQuery("field", -0f, isIndexed), NumberType.HALF_FLOAT.termQuery("field", +0f, isIndexed));
     }
 
     // Make sure we construct the IndexOrDocValuesQuery objects with queries that match
@@ -485,7 +533,9 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         IndexWriter w = new IndexWriter(dir, newIndexWriterConfig());
         final int numDocs = TestUtil.nextInt(random(), 100, 500);
         for (int i = 0; i < numDocs; ++i) {
-            w.addDocument(type.createFields("foo", valueSupplier.get(), true, true, false));
+            final LuceneDocument doc = new LuceneDocument();
+            type.addFields(doc, "foo", valueSupplier.get(), true, true, false);
+            w.addDocument(doc);
         }
         DirectoryReader reader = DirectoryReader.open(w);
         IndexSearcher searcher = newSearcher(reader);
@@ -499,7 +549,8 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
                 randomBoolean(),
                 randomBoolean(),
                 true,
-                MOCK_CONTEXT
+                MOCK_CONTEXT,
+                true
             );
             assertThat(query, instanceOf(IndexOrDocValuesQuery.class));
             IndexOrDocValuesQuery indexOrDvQuery = (IndexOrDocValuesQuery) query;
@@ -532,10 +583,8 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
 
         // Create an index writer configured with the same index sort.
         NumberFieldType fieldType = new NumberFieldType("field", type);
-        IndexNumericFieldData fielddata = (IndexNumericFieldData) fieldType.fielddataBuilder(
-            "index",
-            () -> { throw new UnsupportedOperationException(); }
-        ).build(null, null);
+        IndexNumericFieldData fielddata = (IndexNumericFieldData) fieldType.fielddataBuilder(FieldDataContext.noRuntimeFields("test"))
+            .build(null, null);
         SortField sortField = fielddata.sortField(null, MultiValueMode.MIN, null, randomBoolean());
 
         IndexWriterConfig writerConfig = new IndexWriterConfig();
@@ -545,7 +594,9 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         IndexWriter w = new IndexWriter(dir, writerConfig);
         final int numDocs = TestUtil.nextInt(random(), 100, 500);
         for (int i = 0; i < numDocs; ++i) {
-            w.addDocument(type.createFields("field", valueSupplier.get(), true, true, false));
+            final LuceneDocument doc = new LuceneDocument();
+            type.addFields(doc, "field", valueSupplier.get(), true, true, false);
+            w.addDocument(doc);
         }
 
         // Ensure that the optimized index sort query gives the same results as a points query.
@@ -562,7 +613,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             null,
             null,
             null,
-            xContentRegistry(),
+            parserConfig(),
             writableRegistry(),
             null,
             null,
@@ -576,6 +627,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
 
         final int iters = 10;
         for (int iter = 0; iter < iters; ++iter) {
+            boolean isIndexed = randomBoolean();
             Query query = type.rangeQuery(
                 "field",
                 random().nextBoolean() ? null : valueSupplier.get(),
@@ -583,15 +635,19 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
                 randomBoolean(),
                 randomBoolean(),
                 true,
-                context
+                context,
+                isIndexed
             );
             assertThat(query, instanceOf(IndexSortSortedNumericDocValuesRangeQuery.class));
-
             Query fallbackQuery = ((IndexSortSortedNumericDocValuesRangeQuery) query).getFallbackQuery();
-            assertThat(fallbackQuery, instanceOf(IndexOrDocValuesQuery.class));
 
-            IndexOrDocValuesQuery indexOrDvQuery = (IndexOrDocValuesQuery) fallbackQuery;
-            assertEquals(searcher.count(query), searcher.count(indexOrDvQuery.getIndexQuery()));
+            if (isIndexed) {
+                assertThat(fallbackQuery, instanceOf(IndexOrDocValuesQuery.class));
+                IndexOrDocValuesQuery indexOrDvQuery = (IndexOrDocValuesQuery) fallbackQuery;
+                assertEquals(searcher.count(query), searcher.count(indexOrDvQuery.getIndexQuery()));
+            } else {
+                assertEquals(searcher.count(query), searcher.count(fallbackQuery));
+            }
         }
 
         reader.close();
@@ -762,25 +818,39 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testFetchSourceValue() throws IOException {
-        MappedFieldType mapper = new NumberFieldMapper.Builder("field", NumberType.INTEGER, ScriptCompiler.NONE, false, true).build(
-            MapperBuilderContext.ROOT
-        ).fieldType();
+        MappedFieldType mapper = new NumberFieldMapper.Builder(
+            "field",
+            NumberType.INTEGER,
+            ScriptCompiler.NONE,
+            false,
+            true,
+            Version.CURRENT
+        ).build(MapperBuilderContext.ROOT).fieldType();
         assertEquals(List.of(3), fetchSourceValue(mapper, 3.14));
         assertEquals(List.of(42), fetchSourceValue(mapper, "42.9"));
         assertEquals(List.of(3, 42), fetchSourceValues(mapper, 3.14, "foo", "42.9"));
 
-        MappedFieldType nullValueMapper = new NumberFieldMapper.Builder("field", NumberType.FLOAT, ScriptCompiler.NONE, false, true)
-            .nullValue(2.71f)
-            .build(MapperBuilderContext.ROOT)
-            .fieldType();
+        MappedFieldType nullValueMapper = new NumberFieldMapper.Builder(
+            "field",
+            NumberType.FLOAT,
+            ScriptCompiler.NONE,
+            false,
+            true,
+            Version.CURRENT
+        ).nullValue(2.71f).build(MapperBuilderContext.ROOT).fieldType();
         assertEquals(List.of(2.71f), fetchSourceValue(nullValueMapper, ""));
         assertEquals(List.of(2.71f), fetchSourceValue(nullValueMapper, null));
     }
 
     public void testFetchHalfFloatFromSource() throws IOException {
-        MappedFieldType mapper = new NumberFieldMapper.Builder("field", NumberType.HALF_FLOAT, ScriptCompiler.NONE, false, true).build(
-            MapperBuilderContext.ROOT
-        ).fieldType();
+        MappedFieldType mapper = new NumberFieldMapper.Builder(
+            "field",
+            NumberType.HALF_FLOAT,
+            ScriptCompiler.NONE,
+            false,
+            true,
+            Version.CURRENT
+        ).build(MapperBuilderContext.ROOT).fieldType();
         /*
          * Half float loses a fair bit of precision compared to float but
          * we still do floating point comparisons. The "funny" trailing

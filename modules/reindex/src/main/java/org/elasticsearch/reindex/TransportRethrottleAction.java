@@ -15,11 +15,12 @@ import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.LeaderBulkByScrollTaskState;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -44,14 +45,14 @@ public class TransportRethrottleAction extends TransportTasksAction<BulkByScroll
             actionFilters,
             RethrottleRequest::new,
             ListTasksResponse::new,
-            TaskInfo::new,
+            TaskInfo::from,
             ThreadPool.Names.MANAGEMENT
         );
         this.client = client;
     }
 
     @Override
-    protected void taskOperation(RethrottleRequest request, BulkByScrollTask task, ActionListener<TaskInfo> listener) {
+    protected void taskOperation(Task actionTask, RethrottleRequest request, BulkByScrollTask task, ActionListener<TaskInfo> listener) {
         rethrottle(logger, clusterService.localNode().getId(), client, task, request.getRequestsPerSecond(), listener);
     }
 
@@ -93,7 +94,7 @@ public class TransportRethrottleAction extends TransportTasksAction<BulkByScroll
         if (runningSubtasks > 0) {
             RethrottleRequest subRequest = new RethrottleRequest();
             subRequest.setRequestsPerSecond(newRequestsPerSecond / runningSubtasks);
-            subRequest.setParentTaskId(new TaskId(localNodeId, task.getId()));
+            subRequest.setTargetParentTaskId(new TaskId(localNodeId, task.getId()));
             logger.debug("rethrottling children of task [{}] to [{}] requests per second", task.getId(), subRequest.getRequestsPerSecond());
             client.execute(RethrottleAction.INSTANCE, subRequest, ActionListener.wrap(r -> {
                 r.rethrowFailures("Rethrottle");

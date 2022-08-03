@@ -15,7 +15,7 @@ import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -202,8 +202,7 @@ public class SchemaUtilTests extends ESTestCase {
             Request request,
             ActionListener<Response> listener
         ) {
-            if (request instanceof FieldCapabilitiesRequest) {
-                FieldCapabilitiesRequest fieldCapsRequest = (FieldCapabilitiesRequest) request;
+            if (request instanceof FieldCapabilitiesRequest fieldCapsRequest) {
                 Map<String, Map<String, FieldCapabilities>> responseMap = new HashMap<>();
                 for (String field : fieldCapsRequest.fields()) {
                     responseMap.put(field, singletonMap(field, createFieldCapabilities(field, "long")));

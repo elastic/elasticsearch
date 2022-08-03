@@ -97,18 +97,12 @@ public class LegacyGeoShapeQueryProcessor {
     }
 
     public static SpatialArgs getArgs(Geometry shape, ShapeRelation relation) {
-        switch (relation) {
-            case DISJOINT:
-                return new SpatialArgs(SpatialOperation.IsDisjointTo, buildS4J(shape));
-            case INTERSECTS:
-                return new SpatialArgs(SpatialOperation.Intersects, buildS4J(shape));
-            case WITHIN:
-                return new SpatialArgs(SpatialOperation.IsWithin, buildS4J(shape));
-            case CONTAINS:
-                return new SpatialArgs(SpatialOperation.Contains, buildS4J(shape));
-            default:
-                throw new IllegalArgumentException("invalid relation [" + relation + "]");
-        }
+        return switch (relation) {
+            case DISJOINT -> new SpatialArgs(SpatialOperation.IsDisjointTo, buildS4J(shape));
+            case INTERSECTS -> new SpatialArgs(SpatialOperation.Intersects, buildS4J(shape));
+            case WITHIN -> new SpatialArgs(SpatialOperation.IsWithin, buildS4J(shape));
+            case CONTAINS -> new SpatialArgs(SpatialOperation.Contains, buildS4J(shape));
+        };
     }
 
     /**

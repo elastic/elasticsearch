@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.eql.execution.assembler;
 
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
@@ -35,7 +36,6 @@ import org.elasticsearch.xpack.ql.expression.Order.OrderDirection;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
 
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -81,15 +81,14 @@ public class ExecutionManager {
             List<HitExtractor> keyExtractors = hitExtractors(keys, extractorRegistry);
             List<String> keyFields = new ArrayList<>(keyExtractors.size());
 
-            Set<String> optionalKeys = new LinkedHashSet<>(CollectionUtils.mapSize(keyExtractors.size()));
+            Set<String> optionalKeys = Sets.newLinkedHashSetWithExpectedSize(CollectionUtils.mapSize(keyExtractors.size()));
 
             // extract top-level fields used as keys to optimize query lookups
             // this process gets skipped for nested fields
             for (int j = 0; j < keyExtractors.size(); j++) {
                 HitExtractor extractor = keyExtractors.get(j);
 
-                if (extractor instanceof AbstractFieldHitExtractor) {
-                    AbstractFieldHitExtractor hitExtractor = (AbstractFieldHitExtractor) extractor;
+                if (extractor instanceof AbstractFieldHitExtractor hitExtractor) {
                     // remember if the field is optional
                     boolean isOptional = keys.get(j) instanceof OptionalResolvedAttribute;
                     // no nested fields
@@ -104,15 +103,15 @@ public class ExecutionManager {
                         break;
                     }
                     // optional field
-                } else if (extractor instanceof ComputingExtractor) {
-                    keyFields.add(((ComputingExtractor) extractor).hitName());
+                } else if (extractor instanceof ComputingExtractor computingExtractor) {
+                    keyFields.add(computingExtractor.hitName());
                 }
             }
 
             PhysicalPlan query = plans.get(i);
             // search query
-            if (query instanceof EsQueryExec) {
-                SearchSourceBuilder source = ((EsQueryExec) query).source(session, false);
+            if (query instanceof EsQueryExec esQueryExec) {
+                SearchSourceBuilder source = esQueryExec.source(session, false);
                 QueryRequest original = () -> source;
                 BoxedQueryRequest boxedRequest = new BoxedQueryRequest(original, timestampName, keyFields, optionalKeys);
                 Criterion<BoxedQueryRequest> criterion = new Criterion<>(
@@ -149,8 +148,7 @@ public class ExecutionManager {
     }
 
     private HitExtractor timestampExtractor(HitExtractor hitExtractor) {
-        if (hitExtractor instanceof FieldHitExtractor) {
-            FieldHitExtractor fe = (FieldHitExtractor) hitExtractor;
+        if (hitExtractor instanceof FieldHitExtractor fe) {
             return (fe instanceof TimestampFieldHitExtractor) ? hitExtractor : new TimestampFieldHitExtractor(fe);
         }
         throw new EqlIllegalArgumentException("Unexpected extractor [{}]", hitExtractor);

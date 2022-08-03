@@ -26,9 +26,6 @@ Requires the `monitor_ml` cluster privilege. This privilege is included in the
 [[ml-get-overall-buckets-desc]]
 == {api-description-title}
 
-You can summarize the bucket results for all {anomaly-jobs} by using `_all` or
-by specifying `*` as the `<job_id>`.
-
 By default, an overall bucket has a span equal to the largest bucket span of the
 specified {anomaly-jobs}. To override that behavior, use the optional
 `bucket_span` parameter. To learn more about the concept of buckets, see
@@ -53,13 +50,16 @@ a span equal to the jobs' largest bucket span.
 `<job_id>`::
 (Required, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection-wildcard-list]
++
+You can summarize the bucket results for all {anomaly-jobs} by using `_all` or
+by specifying `*` as the job identifier.
 
-[[ml-get-overall-buckets-request-body]]
-== {api-request-body-title}
+[[ml-get-overall-buckets-query-parms]]
+== {api-query-parms-title}
 
 `allow_no_match`::
 (Optional, Boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-jobs]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-match-jobs]
 
 `bucket_span`::
 (Optional, string) The span of the overall buckets. Must be greater or equal to
@@ -89,6 +89,12 @@ specific timestamps.
 `top_n`::
 (Optional, integer) The number of top {anomaly-job} bucket scores to be used in
 the `overall_score` calculation. Defaults to `1`.
+
+[[ml-get-overall-buckets-request-body]]
+== {api-request-body-title}
+
+You can also specify the query parameters (such as `allow_no_match` and
+`bucket_span`) in the request body.
 
 [[ml-get-overall-buckets-results]]
 == {api-response-body-title}

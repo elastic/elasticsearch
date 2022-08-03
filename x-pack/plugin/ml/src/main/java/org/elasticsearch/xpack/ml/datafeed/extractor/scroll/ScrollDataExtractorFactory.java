@@ -11,8 +11,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -52,11 +54,24 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
 
     @Override
     public DataExtractor newExtractor(long start, long end) {
+        return buildExtractor(start, end, datafeedConfig.getParsedQuery(xContentRegistry));
+    }
+
+    @Override
+    public DataExtractor newExtractor(long start, long end, QueryBuilder queryBuilder) {
+        return buildExtractor(
+            start,
+            end,
+            QueryBuilders.boolQuery().filter(datafeedConfig.getParsedQuery(xContentRegistry)).filter(queryBuilder)
+        );
+    }
+
+    private DataExtractor buildExtractor(long start, long end, QueryBuilder queryBuilder) {
         ScrollDataExtractorContext dataExtractorContext = new ScrollDataExtractorContext(
             job.getId(),
             extractedFields,
             datafeedConfig.getIndices(),
-            datafeedConfig.getParsedQuery(xContentRegistry),
+            queryBuilder,
             datafeedConfig.getScriptFields(),
             datafeedConfig.getScrollSize(),
             start,
@@ -77,22 +92,26 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
         ActionListener<DataExtractorFactory> listener
     ) {
 
-        // Step 2. Contruct the factory and notify listener
+        // Step 2. Construct the factory and notify listener
         ActionListener<FieldCapabilitiesResponse> fieldCapabilitiesHandler = ActionListener.wrap(fieldCapabilitiesResponse -> {
-            TimeBasedExtractedFields extractedFields = TimeBasedExtractedFields.build(job, datafeed, fieldCapabilitiesResponse);
-            listener.onResponse(
-                new ScrollDataExtractorFactory(client, datafeed, job, extractedFields, xContentRegistry, timingStatsReporter)
-            );
+            if (fieldCapabilitiesResponse.getIndices().length == 0) {
+                listener.onFailure(
+                    ExceptionsHelper.badRequestException(
+                        "datafeed [{}] cannot retrieve data because no index matches datafeed's indices {}",
+                        datafeed.getId(),
+                        datafeed.getIndices()
+                    )
+                );
+                return;
+            }
+            TimeBasedExtractedFields fields = TimeBasedExtractedFields.build(job, datafeed, fieldCapabilitiesResponse);
+            listener.onResponse(new ScrollDataExtractorFactory(client, datafeed, job, fields, xContentRegistry, timingStatsReporter));
         }, e -> {
             Throwable cause = ExceptionsHelper.unwrapCause(e);
-            if (cause instanceof IndexNotFoundException) {
+            if (cause instanceof IndexNotFoundException notFound) {
                 listener.onFailure(
                     new ResourceNotFoundException(
-                        "datafeed ["
-                            + datafeed.getId()
-                            + "] cannot retrieve data because index "
-                            + ((IndexNotFoundException) cause).getIndex()
-                            + " does not exist"
+                        "datafeed [" + datafeed.getId() + "] cannot retrieve data because index " + notFound.getIndex() + " does not exist"
                     )
                 );
             } else if (e instanceof IllegalArgumentException) {

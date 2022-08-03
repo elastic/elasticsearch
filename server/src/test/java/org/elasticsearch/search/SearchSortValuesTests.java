@@ -105,7 +105,8 @@ public class SearchSortValuesTests extends AbstractSerializingTestCase<SearchSor
             builder.startObject();
             sortValues.toXContent(builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
-            assertEquals("{\"sort\":[1,\"foo\",3.0]}", Strings.toString(builder));
+            assertEquals("""
+                {"sort":[1,"foo",3.0]}""", Strings.toString(builder));
         }
         {
             SearchSortValues sortValues = new SearchSortValues(new Object[0]);

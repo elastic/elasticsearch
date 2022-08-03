@@ -115,8 +115,8 @@ public class StartDatafeedAction extends ActionType<NodeAcknowledgedResponse> {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            this.params.toXContent(builder, params);
+        public XContentBuilder toXContent(XContentBuilder builder, Params xContentParams) throws IOException {
+            this.params.toXContent(builder, xContentParams);
             return builder;
         }
 
@@ -164,7 +164,7 @@ public class StartDatafeedAction extends ActionType<NodeAcknowledgedResponse> {
             );
         }
 
-        static long parseDateOrThrow(String date, ParseField paramName, LongSupplier now) {
+        public static long parseDateOrThrow(String date, ParseField paramName, LongSupplier now) {
             DateMathParser dateMathParser = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.toDateMathParser();
 
             try {

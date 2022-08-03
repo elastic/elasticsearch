@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.security;
 
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -26,7 +26,9 @@ import org.elasticsearch.xpack.core.action.TransportXPackUsageAction;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageResponse;
+import org.elasticsearch.xpack.core.security.SecurityExtension;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.elasticsearch.xpack.monitoring.Monitoring;
 
 import java.nio.file.Path;
@@ -74,6 +76,12 @@ public class LocalStateSecurity extends LocalStateCompositeXPackPlugin {
     public LocalStateSecurity(final Settings settings, final Path configPath) throws Exception {
         super(settings, configPath);
         LocalStateSecurity thisVar = this;
+        plugins.add(new IndexLifecycle(settings) {
+            @Override
+            protected XPackLicenseState getLicenseState() {
+                return thisVar.getLicenseState();
+            }
+        });
         plugins.add(new Monitoring(settings) {
             @Override
             protected SSLService getSslService() {
@@ -90,7 +98,7 @@ public class LocalStateSecurity extends LocalStateCompositeXPackPlugin {
                 return thisVar.getLicenseState();
             }
         });
-        plugins.add(new Security(settings, configPath) {
+        plugins.add(new Security(settings, thisVar.securityExtensions()) {
             @Override
             protected SSLService getSslService() {
                 return thisVar.getSslService();
@@ -101,6 +109,10 @@ public class LocalStateSecurity extends LocalStateCompositeXPackPlugin {
                 return thisVar.getLicenseState();
             }
         });
+    }
+
+    protected List<SecurityExtension> securityExtensions() {
+        return List.of();
     }
 
     @Override

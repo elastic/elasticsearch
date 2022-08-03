@@ -7,20 +7,23 @@
 
 package org.elasticsearch.xpack.security.enrollment.tool;
 
+import joptsimple.OptionSet;
+
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
 
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.CommandTestCase;
 import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtilsForTesting;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.CommandLineHttpClient;
@@ -72,7 +75,7 @@ public class CreateEnrollmentTokenToolTests extends CommandTestCase {
             environment -> externalEnrollmentTokenGenerator
         ) {
             @Override
-            protected Environment createEnv(Map<String, String> settings) {
+            protected Environment createEnv(OptionSet options, ProcessInfo processInfo) {
                 return new Environment(CreateEnrollmentTokenToolTests.this.settings, confDir);
             }
         };
@@ -134,8 +137,12 @@ public class CreateEnrollmentTokenToolTests extends CommandTestCase {
             "8.0.0",
             Arrays.asList("[192.168.0.1:9201, 172.16.254.1:9202")
         );
-        when(externalEnrollmentTokenGenerator.createKibanaEnrollmentToken(anyString(), any(SecureString.class))).thenReturn(kibanaToken);
-        when(externalEnrollmentTokenGenerator.createNodeEnrollmentToken(anyString(), any(SecureString.class))).thenReturn(nodeToken);
+        when(externalEnrollmentTokenGenerator.createKibanaEnrollmentToken(anyString(), any(SecureString.class), any(URL.class))).thenReturn(
+            kibanaToken
+        );
+        when(externalEnrollmentTokenGenerator.createNodeEnrollmentToken(anyString(), any(SecureString.class), any(URL.class))).thenReturn(
+            nodeToken
+        );
     }
 
     @AfterClass
@@ -165,6 +172,36 @@ public class CreateEnrollmentTokenToolTests extends CommandTestCase {
             terminal.getErrorOutput(),
             containsString("The scope of this enrollment token, can only be one of " + CreateEnrollmentTokenTool.ALLOWED_SCOPES)
         );
+    }
+
+    public void testUserCanPassUrl() throws Exception {
+        HttpResponse healthResponse = new HttpResponse(HttpURLConnection.HTTP_OK, Map.of("status", randomFrom("yellow", "green")));
+        when(
+            client.execute(
+                anyString(),
+                eq(clusterHealthUrl(new URL("http://localhost:9204"))),
+                anyString(),
+                any(SecureString.class),
+                any(CheckedSupplier.class),
+                any(CheckedFunction.class)
+            )
+        ).thenReturn(healthResponse);
+        EnrollmentToken kibanaToken = new EnrollmentToken(
+            "DR6CzXkBDf8amV_48yYX:x3YqU_rqQwm-ESrkExcnOg",
+            "ce480d53728605674fcfd8ffb51000d8a33bf32de7c7f1e26b4d428f8a91362d",
+            "8.0.0",
+            Arrays.asList("[192.168.0.1:9201, 172.16.254.1:9202")
+        );
+        when(
+            externalEnrollmentTokenGenerator.createKibanaEnrollmentToken(
+                anyString(),
+                any(SecureString.class),
+                eq(new URL("http://localhost:9204"))
+            )
+        ).thenReturn(kibanaToken);
+        String output = execute("--scope", "kibana", "--url", "http://localhost:9204");
+        assertThat(output, containsString("1WXzQ4eVlYOngzWXFVX3JxUXdtLUVTcmtFeGNuT2cifQ=="));
+
     }
 
     public void testUnhealthyCluster() throws Exception {
@@ -207,10 +244,10 @@ public class CreateEnrollmentTokenToolTests extends CommandTestCase {
 
     public void testUnableToCreateToken() throws Exception {
         this.externalEnrollmentTokenGenerator = mock(ExternalEnrollmentTokenGenerator.class);
-        when(externalEnrollmentTokenGenerator.createKibanaEnrollmentToken(anyString(), any(SecureString.class))).thenThrow(
+        when(externalEnrollmentTokenGenerator.createKibanaEnrollmentToken(anyString(), any(SecureString.class), any(URL.class))).thenThrow(
             new IllegalStateException("example exception message")
         );
-        when(externalEnrollmentTokenGenerator.createNodeEnrollmentToken(anyString(), any(SecureString.class))).thenThrow(
+        when(externalEnrollmentTokenGenerator.createNodeEnrollmentToken(anyString(), any(SecureString.class), any(URL.class))).thenThrow(
             new IllegalStateException("example exception message")
         );
         String scope = randomBoolean() ? "node" : "kibana";

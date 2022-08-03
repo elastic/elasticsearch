@@ -160,20 +160,20 @@ public class ClusterAlertHttpResourceTests extends AbstractPublishableHttpResour
     }
 
     public void testShouldReplaceClusterAlertReturnsTrueVersionIsNotExpected() throws IOException {
-        final int minimumVersion = randomInt();
+        final int randomMinimumVersion = randomInt();
         final Response response = mock(Response.class);
-        final HttpEntity entity = entityForClusterAlert(false, minimumVersion);
+        final HttpEntity entity = entityForClusterAlert(false, randomMinimumVersion);
         final XContent xContent = XContentType.JSON.xContent();
 
         when(response.getEntity()).thenReturn(entity);
 
-        assertThat(resource.shouldReplaceClusterAlert(response, xContent, minimumVersion), is(true));
+        assertThat(resource.shouldReplaceClusterAlert(response, xContent, randomMinimumVersion), is(true));
     }
 
     public void testShouldReplaceCheckAlertChecksVersion() throws IOException {
-        final int minimumVersion = randomInt();
+        final int randomMinimumVersion = randomInt();
         final int version = randomInt();
-        final boolean shouldReplace = version < minimumVersion;
+        final boolean shouldReplace = version < randomMinimumVersion;
 
         final Response response = mock(Response.class);
         final HttpEntity entity = entityForClusterAlert(true, version);
@@ -181,7 +181,7 @@ public class ClusterAlertHttpResourceTests extends AbstractPublishableHttpResour
 
         when(response.getEntity()).thenReturn(entity);
 
-        assertThat(resource.shouldReplaceClusterAlert(response, xContent, minimumVersion), is(shouldReplace));
+        assertThat(resource.shouldReplaceClusterAlert(response, xContent, randomMinimumVersion), is(shouldReplace));
     }
 
     public void testParameters() {

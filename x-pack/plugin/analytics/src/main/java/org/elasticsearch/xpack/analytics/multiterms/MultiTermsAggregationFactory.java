@@ -57,15 +57,15 @@ public class MultiTermsAggregationFactory extends AggregatorFactory {
     @Override
     protected Aggregator createInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
         throws IOException {
-        TermsAggregator.BucketCountThresholds bucketCountThresholds = new TermsAggregator.BucketCountThresholds(this.bucketCountThresholds);
+        TermsAggregator.BucketCountThresholds thresholds = new TermsAggregator.BucketCountThresholds(this.bucketCountThresholds);
         if (InternalOrder.isKeyOrder(order) == false
-            && bucketCountThresholds.getShardSize() == MultiTermsAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS.getShardSize()) {
+            && thresholds.getShardSize() == MultiTermsAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS.getShardSize()) {
             // The user has not made a shardSize selection. Use default
             // heuristic to avoid any wrong-ranking caused by distributed
             // counting
-            bucketCountThresholds.setShardSize(BucketUtils.suggestShardSideQueueSize(bucketCountThresholds.getRequiredSize()));
+            thresholds.setShardSize(BucketUtils.suggestShardSideQueueSize(thresholds.getRequiredSize()));
         }
-        bucketCountThresholds.ensureValidity();
+        thresholds.ensureValidity();
         return new MultiTermsAggregator(
             name,
             factories,
@@ -76,7 +76,7 @@ public class MultiTermsAggregationFactory extends AggregatorFactory {
             showTermDocCountError,
             order,
             collectMode,
-            bucketCountThresholds,
+            thresholds,
             cardinality,
             metadata
         );

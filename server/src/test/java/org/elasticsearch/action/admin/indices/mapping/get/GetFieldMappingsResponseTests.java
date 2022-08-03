@@ -45,7 +45,7 @@ public class GetFieldMappingsResponseTests extends AbstractWireSerializingTestCa
                 GetFieldMappingsResponse serialized = new GetFieldMappingsResponse(in);
                 FieldMappingMetadata metadata = serialized.fieldMappings("index", "field");
                 assertNotNull(metadata);
-                assertEquals(new BytesArray("{}"), metadata.getSource());
+                assertEquals(new BytesArray("{}"), metadata.source());
             }
         }
     }

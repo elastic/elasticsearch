@@ -8,8 +8,8 @@
 
 package org.elasticsearch.search.sort;
 
+import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -2119,6 +2119,45 @@ public class FieldSortIT extends ESIntegTestCase {
             long currentLong = (long) hit.getSortValues()[0];
             assertThat("sort order is incorrect", currentLong, greaterThanOrEqualTo(previousLong));
             previousLong = currentLong;
+        }
+    }
+
+    public void testSortMixedFieldTypes() {
+        assertAcked(prepareCreate("index_long").setMapping("foo", "type=long").get());
+        assertAcked(prepareCreate("index_integer").setMapping("foo", "type=integer").get());
+        assertAcked(prepareCreate("index_double").setMapping("foo", "type=double").get());
+        assertAcked(prepareCreate("index_keyword").setMapping("foo", "type=keyword").get());
+
+        client().prepareIndex("index_long").setId("1").setSource("foo", "123").get();
+        client().prepareIndex("index_integer").setId("1").setSource("foo", "123").get();
+        client().prepareIndex("index_double").setId("1").setSource("foo", "123").get();
+        client().prepareIndex("index_keyword").setId("1").setSource("foo", "123").get();
+        refresh();
+
+        { // mixing long and integer types is ok, as we convert integer sort to long sort
+            SearchResponse searchResponse = client().prepareSearch("index_long", "index_integer")
+                .addSort(new FieldSortBuilder("foo"))
+                .setSize(10)
+                .get();
+            assertSearchResponse(searchResponse);
+        }
+
+        String errMsg = "Can't sort on field [foo]; the field has incompatible sort types";
+
+        { // mixing long and double types is not allowed
+            SearchPhaseExecutionException exc = expectThrows(
+                SearchPhaseExecutionException.class,
+                () -> client().prepareSearch("index_long", "index_double").addSort(new FieldSortBuilder("foo")).setSize(10).get()
+            );
+            assertThat(exc.getCause().toString(), containsString(errMsg));
+        }
+
+        { // mixing long and keyword types is not allowed
+            SearchPhaseExecutionException exc = expectThrows(
+                SearchPhaseExecutionException.class,
+                () -> client().prepareSearch("index_long", "index_keyword").addSort(new FieldSortBuilder("foo")).setSize(10).get()
+            );
+            assertThat(exc.getCause().toString(), containsString(errMsg));
         }
     }
 

@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ml.inference.persistence;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -68,14 +68,14 @@ public class TrainedModelProviderTests extends ESTestCase {
         TrainedModelProvider trainedModelProvider = new TrainedModelProvider(mock(Client.class), xContentRegistry());
         for (String modelId : TrainedModelProvider.MODELS_STORED_AS_RESOURCE) {
             PlainActionFuture<TrainedModelConfig> future = new PlainActionFuture<>();
-            trainedModelProvider.getTrainedModel(modelId, GetTrainedModelsAction.Includes.forModelDefinition(), future);
+            trainedModelProvider.getTrainedModel(modelId, GetTrainedModelsAction.Includes.forModelDefinition(), null, future);
             TrainedModelConfig configWithDefinition = future.actionGet();
 
             assertThat(configWithDefinition.getModelId(), equalTo(modelId));
             assertThat(configWithDefinition.ensureParsedDefinition(xContentRegistry()).getModelDefinition(), is(not(nullValue())));
 
             PlainActionFuture<TrainedModelConfig> futureNoDefinition = new PlainActionFuture<>();
-            trainedModelProvider.getTrainedModel(modelId, GetTrainedModelsAction.Includes.empty(), futureNoDefinition);
+            trainedModelProvider.getTrainedModel(modelId, GetTrainedModelsAction.Includes.empty(), null, futureNoDefinition);
             TrainedModelConfig configWithoutDefinition = futureNoDefinition.actionGet();
 
             assertThat(configWithoutDefinition.getModelId(), equalTo(modelId));
@@ -123,12 +123,12 @@ public class TrainedModelProviderTests extends ESTestCase {
 
         assertThat(
             TrainedModelProvider.collectIds(new PageParams(1, 1), Collections.singleton("c"), new HashSet<>(Arrays.asList("a", "b"))),
-            equalTo(new TreeSet<>(Arrays.asList("b")))
+            equalTo(new TreeSet<>(List.of("b")))
         );
 
         assertThat(
             TrainedModelProvider.collectIds(new PageParams(1, 1), Collections.singleton("b"), new HashSet<>(Arrays.asList("a", "c"))),
-            equalTo(new TreeSet<>(Arrays.asList("b")))
+            equalTo(new TreeSet<>(List.of("b")))
         );
 
         assertThat(

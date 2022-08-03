@@ -18,6 +18,7 @@ import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -27,6 +28,7 @@ import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
 import org.junit.Before;
 
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -215,11 +217,13 @@ public class AuditTrailServiceTests extends ESTestCase {
     }
 
     public void testAccessGranted() throws Exception {
-        Authentication authentication = new Authentication(
-            new User("_username", "r1"),
-            new RealmRef(null, null, null),
-            new RealmRef(null, null, null)
-        );
+        Authentication authentication = AuthenticationTestHelper.builder()
+            .user(new User("not-_username", "not-r1"))
+            .realmRef(new RealmRef("_realm", "_type", "node", null))
+            .runAs()
+            .user(new User("_username", "r1"))
+            .realmRef(new RealmRef("_look", "_type", "node", null))
+            .build();
         AuthorizationInfo authzInfo = () -> Collections.singletonMap(
             PRINCIPAL_ROLES_FIELD_NAME,
             new String[] { randomAlphaOfLengthBetween(1, 6) }
@@ -237,11 +241,13 @@ public class AuditTrailServiceTests extends ESTestCase {
     }
 
     public void testAccessDenied() throws Exception {
-        Authentication authentication = new Authentication(
-            new User("_username", "r1"),
-            new RealmRef(null, null, null),
-            new RealmRef(null, null, null)
-        );
+        Authentication authentication = AuthenticationTestHelper.builder()
+            .user(new User("not-_username", "not-r1"))
+            .realmRef(new RealmRef("_realm", "_type", "node", null))
+            .runAs()
+            .user(new User("_username", "r1"))
+            .realmRef(new RealmRef("_look", "_type", "node", null))
+            .build();
         AuthorizationInfo authzInfo = () -> Collections.singletonMap(
             PRINCIPAL_ROLES_FIELD_NAME,
             new String[] { randomAlphaOfLengthBetween(1, 6) }
@@ -259,7 +265,7 @@ public class AuditTrailServiceTests extends ESTestCase {
     }
 
     public void testConnectionGranted() throws Exception {
-        InetAddress inetAddress = InetAddress.getLoopbackAddress();
+        InetSocketAddress inetAddress = new InetSocketAddress(InetAddress.getLoopbackAddress(), randomIntBetween(0, 65535));
         SecurityIpFilterRule rule = randomBoolean() ? SecurityIpFilterRule.ACCEPT_ALL : IPFilter.DEFAULT_PROFILE_ACCEPT_ALL;
         service.get().connectionGranted(inetAddress, "client", rule);
         verify(licenseState).isAllowed(Security.AUDITING_FEATURE);
@@ -273,7 +279,7 @@ public class AuditTrailServiceTests extends ESTestCase {
     }
 
     public void testConnectionDenied() throws Exception {
-        InetAddress inetAddress = InetAddress.getLoopbackAddress();
+        InetSocketAddress inetAddress = new InetSocketAddress(InetAddress.getLoopbackAddress(), randomIntBetween(0, 65535));
         SecurityIpFilterRule rule = new SecurityIpFilterRule(false, "_all");
         service.get().connectionDenied(inetAddress, "client", rule);
         verify(licenseState).isAllowed(Security.AUDITING_FEATURE);
@@ -287,11 +293,13 @@ public class AuditTrailServiceTests extends ESTestCase {
     }
 
     public void testAuthenticationSuccessRest() throws Exception {
-        Authentication authentication = new Authentication(
-            new User("_username", "r1"),
-            new RealmRef("_realm", null, null),
-            new RealmRef(null, null, null)
-        );
+        Authentication authentication = AuthenticationTestHelper.builder()
+            .user(new User("not-_username", "not-r1"))
+            .realmRef(new RealmRef("_realm", "_type", "node", null))
+            .runAs()
+            .user(new User("_username", "r1"))
+            .realmRef(new RealmRef("_look", "_type", "node", null))
+            .build();
         final String requestId = randomAlphaOfLengthBetween(6, 12);
         service.get().authenticationSuccess(requestId, authentication, restRequest);
         verify(licenseState).isAllowed(Security.AUDITING_FEATURE);
@@ -305,11 +313,13 @@ public class AuditTrailServiceTests extends ESTestCase {
     }
 
     public void testAuthenticationSuccessTransport() throws Exception {
-        Authentication authentication = new Authentication(
-            new User("_username", "r1"),
-            new RealmRef("_realm", null, null),
-            new RealmRef(null, null, null)
-        );
+        Authentication authentication = AuthenticationTestHelper.builder()
+            .user(new User("not-_username", "not-r1"))
+            .realmRef(new RealmRef("_realm", "_type", "node", null))
+            .runAs()
+            .user(new User("_username", "r1"))
+            .realmRef(new RealmRef("_look", "_type", "node", null))
+            .build();
         final String requestId = randomAlphaOfLengthBetween(6, 12);
         service.get().authenticationSuccess(requestId, authentication, "_action", request);
         verify(licenseState).isAllowed(Security.AUDITING_FEATURE);

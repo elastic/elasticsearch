@@ -16,7 +16,7 @@ import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -105,7 +105,7 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
     }
 
     @Override
-    protected void taskOperation(Request request, TransformTask task, ActionListener<Response> listener) {
+    protected void taskOperation(Task actionTask, Request request, TransformTask task, ActionListener<Response> listener) {
         // Little extra insurance, make sure we only return transforms that aren't cancelled
         ClusterState state = clusterService.state();
         String nodeId = state.nodes().getLocalNode().getId();

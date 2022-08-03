@@ -8,8 +8,6 @@
 
 package org.elasticsearch.xcontent;
 
-import com.fasterxml.jackson.core.JsonParseException;
-
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -69,20 +67,9 @@ public class XContentParserTests extends ESTestCase {
             assertEquals(value, number.floatValue(), 0.0f);
 
             switch (xContentType) {
-                case VND_CBOR:
-                case VND_SMILE:
-                case CBOR:
-                case SMILE:
-                    assertThat(number, instanceOf(Float.class));
-                    break;
-                case VND_JSON:
-                case VND_YAML:
-                case JSON:
-                case YAML:
-                    assertThat(number, instanceOf(Double.class));
-                    break;
-                default:
-                    throw new AssertionError("unexpected x-content type [" + xContentType + "]");
+                case VND_CBOR, VND_SMILE, CBOR, SMILE -> assertThat(number, instanceOf(Float.class));
+                case VND_JSON, VND_YAML, JSON, YAML -> assertThat(number, instanceOf(Double.class));
+                default -> throw new AssertionError("unexpected x-content type [" + xContentType + "]");
             }
         }
     }
@@ -130,10 +117,12 @@ public class XContentParserTests extends ESTestCase {
     }
 
     public void testReadMapStrings() throws IOException {
-        Map<String, String> map = readMapStrings("{\"foo\": {\"kbar\":\"vbar\"}}");
+        Map<String, String> map = readMapStrings("""
+            {"foo": {"kbar":"vbar"}}""");
         assertThat(map.get("kbar"), equalTo("vbar"));
         assertThat(map.size(), equalTo(1));
-        map = readMapStrings("{\"foo\": {\"kbar\":\"vbar\", \"kbaz\":\"vbaz\"}}");
+        map = readMapStrings("""
+            {"foo": {"kbar":"vbar", "kbaz":"vbaz"}}""");
         assertThat(map.get("kbar"), equalTo("vbar"));
         assertThat(map.get("kbaz"), equalTo("vbaz"));
         assertThat(map.size(), equalTo(2));
@@ -142,8 +131,26 @@ public class XContentParserTests extends ESTestCase {
     }
 
     public void testMap() throws IOException {
-        String source = "{\"i\": {\"_doc\": {\"f1\": {\"type\": \"text\", \"analyzer\": \"english\"}, "
-            + "\"f2\": {\"type\": \"object\", \"properties\": {\"sub1\": {\"type\": \"keyword\", \"foo\": 17}}}}}}";
+        String source = """
+            {
+              "i": {
+                "_doc": {
+                  "f1": {
+                    "type": "text",
+                    "analyzer": "english"
+                  },
+                  "f2": {
+                    "type": "object",
+                    "properties": {
+                      "sub1": {
+                        "type": "keyword",
+                        "foo": 17
+                      }
+                    }
+                  }
+                }
+              }
+            }""";
         Map<String, Object> f1 = new HashMap<>();
         f1.put("type", "text");
         f1.put("analyzer", "english");
@@ -207,7 +214,7 @@ public class XContentParserTests extends ESTestCase {
             if (token.equals(XContentParser.Token.VALUE_STRING)) {
                 expectThrows(IllegalArgumentException.class, parser::booleanValue);
             } else {
-                expectThrows(JsonParseException.class, parser::booleanValue);
+                expectThrows(XContentParseException.class, parser::booleanValue);
             }
 
             token = parser.nextToken();
@@ -219,7 +226,7 @@ public class XContentParserTests extends ESTestCase {
             if (token.equals(XContentParser.Token.VALUE_STRING)) {
                 expectThrows(IllegalArgumentException.class, parser::booleanValue);
             } else {
-                expectThrows(JsonParseException.class, parser::booleanValue);
+                expectThrows(XContentParseException.class, parser::booleanValue);
             }
         }
     }
@@ -339,11 +346,24 @@ public class XContentParserTests extends ESTestCase {
     }
 
     public void testGenericMap() throws IOException {
-        String content = "{"
-            + "\"c\": { \"i\": 3, \"d\": 0.3, \"s\": \"ccc\" }, "
-            + "\"a\": { \"i\": 1, \"d\": 0.1, \"s\": \"aaa\" }, "
-            + "\"b\": { \"i\": 2, \"d\": 0.2, \"s\": \"bbb\" }"
-            + "}";
+        String content = """
+            {
+              "c": {
+                "i": 3,
+                "d": 0.3,
+                "s": "ccc"
+              },
+              "a": {
+                "i": 1,
+                "d": 0.1,
+                "s": "aaa"
+              },
+              "b": {
+                "i": 2,
+                "d": 0.2,
+                "s": "bbb"
+              }
+            }""";
         SimpleStruct structA = new SimpleStruct(1, 0.1, "aaa");
         SimpleStruct structB = new SimpleStruct(2, 0.2, "bbb");
         SimpleStruct structC = new SimpleStruct(3, 0.3, "ccc");
@@ -357,11 +377,24 @@ public class XContentParserTests extends ESTestCase {
     }
 
     public void testGenericMapOrdered() throws IOException {
-        String content = "{"
-            + "\"c\": { \"i\": 3, \"d\": 0.3, \"s\": \"ccc\" }, "
-            + "\"a\": { \"i\": 1, \"d\": 0.1, \"s\": \"aaa\" }, "
-            + "\"b\": { \"i\": 2, \"d\": 0.2, \"s\": \"bbb\" }"
-            + "}";
+        String content = """
+            {
+              "c": {
+                "i": 3,
+                "d": 0.3,
+                "s": "ccc"
+              },
+              "a": {
+                "i": 1,
+                "d": 0.1,
+                "s": "aaa"
+              },
+              "b": {
+                "i": 2,
+                "d": 0.2,
+                "s": "bbb"
+              }
+            }""";
         SimpleStruct structA = new SimpleStruct(1, 0.1, "aaa");
         SimpleStruct structB = new SimpleStruct(2, 0.2, "bbb");
         SimpleStruct structC = new SimpleStruct(3, 0.3, "ccc");
@@ -376,11 +409,24 @@ public class XContentParserTests extends ESTestCase {
     }
 
     public void testGenericMap_Failure_MapContainingUnparsableValue() throws IOException {
-        String content = "{"
-            + "\"a\": { \"i\": 1, \"d\": 0.1, \"s\": \"aaa\" }, "
-            + "\"b\": { \"i\": 2, \"d\": 0.2, \"s\": 666 }, "
-            + "\"c\": { \"i\": 3, \"d\": 0.3, \"s\": \"ccc\" }"
-            + "}";
+        String content = """
+            {
+              "a": {
+                "i": 1,
+                "d": 0.1,
+                "s": "aaa"
+              },
+              "b": {
+                "i": 2,
+                "d": 0.2,
+                "s": 666
+              },
+              "c": {
+                "i": 3,
+                "d": 0.3,
+                "s": "ccc"
+              }
+            }""";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, content)) {
             XContentParseException exception = expectThrows(
                 XContentParseException.class,

@@ -11,7 +11,7 @@ package org.elasticsearch.common.lucene.search;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
@@ -56,7 +56,7 @@ public class Queries {
      * Creates a new non-nested docs query
      */
     public static Query newNonNestedFilter() {
-        return new DocValuesFieldExistsQuery(SeqNoFieldMapper.PRIMARY_TERM_NAME);
+        return new FieldExistsQuery(SeqNoFieldMapper.PRIMARY_TERM_NAME);
     }
 
     public static BooleanQuery filtered(@Nullable Query query, @Nullable Query filter) {
@@ -131,15 +131,15 @@ public class Queries {
         return query;
     }
 
-    private static Pattern spaceAroundLessThanPattern = Pattern.compile("(\\s+<\\s*)|(\\s*<\\s+)");
-    private static Pattern spacePattern = Pattern.compile(" ");
-    private static Pattern lessThanPattern = Pattern.compile("<");
+    private static final Pattern spaceAroundLessThanPattern = Pattern.compile("(\\s+<\\s*)|(\\s*<\\s+)");
+    private static final Pattern spacePattern = Pattern.compile(" ");
+    private static final Pattern lessThanPattern = Pattern.compile("<");
 
     public static int calculateMinShouldMatch(int optionalClauseCount, String spec) {
         int result = optionalClauseCount;
         spec = spec.trim();
 
-        if (-1 < spec.indexOf("<")) {
+        if (spec.contains("<")) {
             /* we have conditional spec(s) */
             spec = spaceAroundLessThanPattern.matcher(spec).replaceAll("<");
             for (String s : spacePattern.split(spec)) {
@@ -167,6 +167,6 @@ public class Queries {
             result = calc < 0 ? result + calc : calc;
         }
 
-        return result < 0 ? 0 : result;
+        return Math.max(result, 0);
     }
 }

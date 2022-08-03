@@ -40,10 +40,10 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
@@ -70,12 +70,10 @@ import org.elasticsearch.node.ResponseCollectorService;
 import org.elasticsearch.script.FieldScript;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.AggregationContext.ProductionAggregationContext;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -171,6 +169,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Property.Dynamic
     );
 
+    public static final Setting<Boolean> CCS_VERSION_CHECK_SETTING = Setting.boolSetting(
+        "search.check_ccs_compatibility",
+        false,
+        Property.NodeScope
+    );
+
     /**
      * Enables low-level, frequent search cancellation checks. Enabling low-level checks will make long running searches to react
      * to the cancellation request faster. It will produce more cancellation checks but benchmarking has shown these did not
@@ -238,8 +242,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private final DfsPhase dfsPhase = new DfsPhase();
 
-    private final QueryPhase queryPhase;
-
     private final FetchPhase fetchPhase;
 
     private volatile long defaultKeepAlive;
@@ -285,7 +287,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         this.scriptService = scriptService;
         this.responseCollectorService = responseCollectorService;
         this.bigArrays = bigArrays;
-        this.queryPhase = new QueryPhase();
         this.fetchPhase = fetchPhase;
         this.multiBucketConsumerService = new MultiBucketConsumerService(
             clusterService,
@@ -298,7 +299,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         setKeepAlives(DEFAULT_KEEPALIVE_SETTING.get(settings), MAX_KEEPALIVE_SETTING.get(settings));
 
         clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(DEFAULT_KEEPALIVE_SETTING, MAX_KEEPALIVE_SETTING, this::setKeepAlives, this::validateKeepAlives);
+            .addSettingsUpdateConsumer(
+                DEFAULT_KEEPALIVE_SETTING,
+                MAX_KEEPALIVE_SETTING,
+                this::setKeepAlives,
+                SearchService::validateKeepAlives
+            );
 
         this.keepAliveReaper = threadPool.scheduleWithFixedDelay(new Reaper(), keepAliveInterval, Names.SAME);
 
@@ -320,7 +326,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             .addSettingsUpdateConsumer(ENABLE_REWRITE_AGGS_TO_FILTER_BY_FILTER, this::setEnableRewriteAggsToFilterByFilter);
     }
 
-    private void validateKeepAlives(TimeValue defaultKeepAlive, TimeValue maxKeepAlive) {
+    private static void validateKeepAlives(TimeValue defaultKeepAlive, TimeValue maxKeepAlive) {
         if (defaultKeepAlive.millis() > maxKeepAlive.millis()) {
             throw new IllegalArgumentException(
                 "Default keep alive setting for request ["
@@ -450,12 +456,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      * Try to load the query results from the cache or execute the query phase directly if the cache cannot be used.
      */
     private void loadOrExecuteQueryPhase(final ShardSearchRequest request, final SearchContext context) throws Exception {
-        final boolean canCache = indicesService.canCache(request, context);
+        final boolean canCache = IndicesService.canCache(request, context);
         context.getSearchExecutionContext().freezeContext();
         if (canCache) {
-            indicesService.loadIntoContext(request, context, queryPhase);
+            indicesService.loadIntoContext(request, context);
         } else {
-            queryPhase.execute(context);
+            QueryPhase.execute(context);
         }
     }
 
@@ -606,7 +612,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return indicesService.indexServiceSafe(request.shardId().getIndex()).getShard(request.shardId().id());
     }
 
-    private <T> void runAsync(Executor executor, CheckedSupplier<T, Exception> executable, ActionListener<T> listener) {
+    private static <T> void runAsync(Executor executor, CheckedSupplier<T, Exception> executable, ActionListener<T> listener) {
         executor.execute(ActionRunnable.supply(listener, executable::get));
     }
 
@@ -681,7 +687,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             ) {
                 searchContext.searcher().setAggregatedDfs(readerContext.getAggregatedDfs(null));
                 processScroll(request, readerContext, searchContext);
-                queryPhase.execute(searchContext);
+                QueryPhase.execute(searchContext);
                 executor.success();
                 readerContext.setRescoreDocIds(searchContext.rescoreDocIds());
                 return new ScrollQuerySearchResult(searchContext.queryResult(), searchContext.shardTarget());
@@ -704,7 +710,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(searchContext)
             ) {
                 searchContext.searcher().setAggregatedDfs(request.dfs());
-                queryPhase.execute(searchContext);
+                QueryPhase.execute(searchContext);
                 if (searchContext.queryResult().hasSearchContext() == false && readerContext.singleSession()) {
                     // no hits, we can release the context since there will be no fetch phase
                     freeReaderContext(readerContext.id());
@@ -761,7 +767,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 searchContext.assignRescoreDocIds(readerContext.getRescoreDocIds(null));
                 searchContext.searcher().setAggregatedDfs(readerContext.getAggregatedDfs(null));
                 processScroll(request, readerContext, searchContext);
-                queryPhase.execute(searchContext);
+                QueryPhase.execute(searchContext);
                 final long afterQueryTime = executor.success();
                 QueryFetchSearchResult fetchSearchResult = executeFetchPhase(readerContext, searchContext, afterQueryTime);
                 return new ScrollQueryFetchSearchResult(fetchSearchResult, searchContext.shardTarget());
@@ -1121,7 +1127,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         };
     }
 
-    private boolean isScrollContext(ReaderContext context) {
+    private static boolean isScrollContext(ReaderContext context) {
         return context instanceof LegacyReaderContext && context.singleSession() == false;
     }
 
@@ -1216,7 +1222,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 context::getRelativeTimeInMillis,
                 context::isCancelled,
                 context::buildFilteredQuery,
-                enableRewriteAggsToFilterByFilter
+                enableRewriteAggsToFilterByFilter,
+                IndexSettings.isTimeSeriesModeEnabled() && source.aggregations().isInSortOrderExecutionRequired()
             );
             context.addReleasable(aggContext);
             try {
@@ -1351,7 +1358,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      * Shortcut ids to load, we load only "from" and up to "size". The phase controller
      * handles this as well since the result is always size * shards for Q_T_F
      */
-    private void shortcutDocIdsToLoad(SearchContext context) {
+    private static void shortcutDocIdsToLoad(SearchContext context) {
         final int[] docIdsToLoad;
         int docsOffset = 0;
         final Suggest suggest = context.queryResult().suggest();
@@ -1392,7 +1399,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         context.docIdsToLoad(docIdsToLoad, docIdsToLoad.length);
     }
 
-    private void processScroll(InternalScrollSearchRequest request, ReaderContext reader, SearchContext context) {
+    private static void processScroll(InternalScrollSearchRequest request, ReaderContext reader, SearchContext context) {
         // process scroll
         context.from(context.from() + context.size());
         context.scrollContext().scroll = request.scroll();
@@ -1591,40 +1598,27 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     /**
-     * Returns a builder for {@link InternalAggregation.ReduceContext}. This
+     * Returns a builder for {@link AggregationReduceContext}. This
      * builder retains a reference to the provided {@link SearchRequest}.
      */
-    public InternalAggregation.ReduceContextBuilder aggReduceContextBuilder(Supplier<Boolean> isCanceled, SearchRequest request) {
-        return new InternalAggregation.ReduceContextBuilder() {
+    public AggregationReduceContext.Builder aggReduceContextBuilder(Supplier<Boolean> isCanceled, SearchRequest request) {
+        return new AggregationReduceContext.Builder() {
             @Override
-            public InternalAggregation.ReduceContext forPartialReduction() {
-                return InternalAggregation.ReduceContext.forPartialReduction(
-                    bigArrays,
-                    scriptService,
-                    () -> requestToPipelineTree(request),
-                    isCanceled
-                );
+            public AggregationReduceContext forPartialReduction() {
+                return new AggregationReduceContext.ForPartial(bigArrays, scriptService, isCanceled, request.source().aggregations());
             }
 
             @Override
-            public ReduceContext forFinalReduction() {
-                PipelineTree pipelineTree = requestToPipelineTree(request);
-                return InternalAggregation.ReduceContext.forFinalReduction(
+            public AggregationReduceContext forFinalReduction() {
+                return new AggregationReduceContext.ForFinal(
                     bigArrays,
                     scriptService,
-                    multiBucketConsumerService.create(),
-                    pipelineTree,
-                    isCanceled
+                    isCanceled,
+                    request.source().aggregations(),
+                    multiBucketConsumerService.create()
                 );
             }
         };
-    }
-
-    private static PipelineTree requestToPipelineTree(SearchRequest request) {
-        if (request.source() == null || request.source().aggregations() == null) {
-            return PipelineTree.EMPTY;
-        }
-        return request.source().aggregations().buildPipelineTree();
     }
 
     /**

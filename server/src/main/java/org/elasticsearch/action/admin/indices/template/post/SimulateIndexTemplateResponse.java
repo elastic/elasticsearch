@@ -12,13 +12,13 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -51,7 +51,7 @@ public class SimulateIndexTemplateResponse extends ActionResponse implements ToX
         resolvedTemplate = in.readOptionalWriteable(Template::new);
         if (in.readBoolean()) {
             int overlappingTemplatesCount = in.readInt();
-            overlappingTemplates = new HashMap<>(overlappingTemplatesCount, 1L);
+            overlappingTemplates = Maps.newMapWithExpectedSize(overlappingTemplatesCount);
             for (int i = 0; i < overlappingTemplatesCount; i++) {
                 String templateName = in.readString();
                 overlappingTemplates.put(templateName, in.readStringList());

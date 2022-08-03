@@ -102,11 +102,8 @@ public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
         ScriptService scriptService = getInstanceFromNode(ScriptService.class);
         IndexService indexService = createIndex("index", Settings.EMPTY, "doc", "rank", "type=long", "text", "type=text");
 
-        Request.ContextSetup contextSetup = new Request.ContextSetup(
-            "index",
-            new BytesArray("{\"rank\": 4.0, \"text\": \"quick brown fox\"}"),
-            new MatchQueryBuilder("text", "fox")
-        );
+        Request.ContextSetup contextSetup = new Request.ContextSetup("index", new BytesArray("""
+            {"rank": 4.0, "text": "quick brown fox"}"""), new MatchQueryBuilder("text", "fox"));
         contextSetup.setXContentType(XContentType.JSON);
         Request request = new Request(
             new Script(
@@ -126,11 +123,8 @@ public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
         ScriptService scriptService = getInstanceFromNode(ScriptService.class);
         IndexService indexService = createIndex("index", Settings.EMPTY, "doc", "rank", "type=long", "text", "type=text");
 
-        Request.ContextSetup contextSetup = new Request.ContextSetup(
-            "index",
-            new BytesArray("{\"rank\": 4.0, \"text\": \"quick brown fox\"}"),
-            new MatchQueryBuilder("text", "fox")
-        );
+        Request.ContextSetup contextSetup = new Request.ContextSetup("index", new BytesArray("""
+            {"rank": 4.0, "text": "quick brown fox"}"""), new MatchQueryBuilder("text", "fox"));
         contextSetup.setXContentType(XContentType.JSON);
         Request request = new Request(
             new Script(ScriptType.INLINE, "painless", "emit(doc['rank'].value < params.max_rank)", singletonMap("max_rank", 5.0)),
@@ -171,18 +165,10 @@ public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
 
         contextSetup = new Request.ContextSetup("index", new BytesArray("{}"), new MatchAllQueryBuilder());
         contextSetup.setXContentType(XContentType.JSON);
-        request = new Request(
-            new Script(
-                ScriptType.INLINE,
-                "painless",
-                "emit(ZonedDateTime.parse(\"2021-01-01T00:00:00Z\").toInstant().toEpochMilli());\n"
-                    + "emit(ZonedDateTime.parse(\"1942-05-31T15:16:17Z\").toInstant().toEpochMilli());\n"
-                    + "emit(ZonedDateTime.parse(\"2035-10-13T10:54:19Z\").toInstant().toEpochMilli());",
-                emptyMap()
-            ),
-            "date_field",
-            contextSetup
-        );
+        request = new Request(new Script(ScriptType.INLINE, "painless", """
+            emit(ZonedDateTime.parse("2021-01-01T00:00:00Z").toInstant().toEpochMilli());
+            emit(ZonedDateTime.parse("1942-05-31T15:16:17Z").toInstant().toEpochMilli());
+            emit(ZonedDateTime.parse("2035-10-13T10:54:19Z").toInstant().toEpochMilli());""", emptyMap()), "date_field", contextSetup);
         response = innerShardOperation(request, scriptService, indexService);
         assertEquals(
             Arrays.asList("2021-01-01T00:00:00.000Z", "1942-05-31T15:16:17.000Z", "2035-10-13T10:54:19.000Z"),
@@ -348,11 +334,8 @@ public class PainlessExecuteApiTests extends ESSingleNodeTestCase {
         ScriptService scriptService = getInstanceFromNode(ScriptService.class);
         IndexService indexService = createIndex("index", Settings.EMPTY, "doc", "rank", "type=long", "text", "type=keyword");
 
-        Request.ContextSetup contextSetup = new Request.ContextSetup(
-            "index",
-            new BytesArray("{\"rank\": 4.0, \"text\": \"quick brown fox\"}"),
-            new MatchQueryBuilder("text", "fox")
-        );
+        Request.ContextSetup contextSetup = new Request.ContextSetup("index", new BytesArray("""
+            {"rank": 4.0, "text": "quick brown fox"}"""), new MatchQueryBuilder("text", "fox"));
         contextSetup.setXContentType(XContentType.JSON);
         contextSetup.setXContentType(XContentType.JSON);
         Request request = new Request(

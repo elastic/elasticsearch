@@ -21,14 +21,20 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
+import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeState;
+import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskParams;
+import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskState;
 
 import java.net.InetAddress;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasProperty;
+import static org.hamcrest.Matchers.hasSize;
 
 public class MlTasksTests extends ESTestCase {
 
@@ -69,6 +75,27 @@ public class MlTasksTests extends ESTestCase {
 
         tasksBuilder.updateTaskState(MlTasks.datafeedTaskId("foo"), DatafeedState.STARTED);
         assertEquals(DatafeedState.STARTED, MlTasks.getDatafeedState("foo", tasksBuilder.build()));
+    }
+
+    public void testGetSnapshotUpgradeState() {
+        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        // A missing task is a stopped snapshot upgrade
+        assertEquals(SnapshotUpgradeState.STOPPED, MlTasks.getSnapshotUpgradeState("foo", "1", tasksBuilder.build()));
+
+        tasksBuilder.addTask(
+            MlTasks.snapshotUpgradeTaskId("foo", "1"),
+            MlTasks.JOB_SNAPSHOT_UPGRADE_TASK_NAME,
+            new SnapshotUpgradeTaskParams("foo", "1"),
+            new PersistentTasksCustomMetadata.Assignment("bar", "test assignment")
+        );
+        // A task with no state means the datafeed is starting
+        assertEquals(SnapshotUpgradeState.LOADING_OLD_STATE, MlTasks.getSnapshotUpgradeState("foo", "1", tasksBuilder.build()));
+
+        tasksBuilder.updateTaskState(
+            MlTasks.snapshotUpgradeTaskId("foo", "1"),
+            new SnapshotUpgradeTaskState(SnapshotUpgradeState.SAVING_NEW_STATE, tasksBuilder.getLastAllocationId(), null)
+        );
+        assertEquals(SnapshotUpgradeState.SAVING_NEW_STATE, MlTasks.getSnapshotUpgradeState("foo", "1", tasksBuilder.build()));
     }
 
     public void testGetJobTask() {
@@ -420,6 +447,56 @@ public class MlTasksTests extends ESTestCase {
         DataFrameAnalyticsState state = MlTasks.getDataFrameAnalyticsState(task);
 
         assertThat(state, equalTo(DataFrameAnalyticsState.FAILED));
+    }
+
+    public void testPrettyPrintTaskName() {
+        assertThat(MlTasks.prettyPrintTaskName(MlTasks.DATAFEED_TASK_NAME), equalTo("datafeed"));
+        assertThat(MlTasks.prettyPrintTaskName(MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME), equalTo("data frame analytics"));
+        assertThat(MlTasks.prettyPrintTaskName(MlTasks.JOB_TASK_NAME), equalTo("anomaly detection"));
+        assertThat(MlTasks.prettyPrintTaskName(MlTasks.JOB_SNAPSHOT_UPGRADE_TASK_NAME), equalTo("snapshot upgrade (anomaly detection)"));
+    }
+
+    public void testPrettyPrintTaskName_GivenUnknownTaskName() {
+        expectThrows(IllegalArgumentException.class, () -> MlTasks.prettyPrintTaskName("unknown"));
+    }
+
+    public void testFindMlProcessTasks() {
+        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        tasksBuilder.addTask(
+            MlTasks.jobTaskId("ad-1"),
+            MlTasks.JOB_TASK_NAME,
+            new OpenJobAction.JobParams("ad-1"),
+            new PersistentTasksCustomMetadata.Assignment(randomAlphaOfLength(5), "test")
+        );
+        tasksBuilder.addTask(
+            MlTasks.dataFrameAnalyticsTaskId("dfa-1"),
+            MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
+            new StartDataFrameAnalyticsAction.TaskParams("dfa-1", Version.CURRENT, true),
+            new PersistentTasksCustomMetadata.Assignment(randomAlphaOfLength(5), "test assignment")
+        );
+        tasksBuilder.addTask(
+            MlTasks.snapshotUpgradeTaskId("snapshot-upgrade-1", "some-snapshot-id"),
+            MlTasks.JOB_SNAPSHOT_UPGRADE_TASK_NAME,
+            new SnapshotUpgradeTaskParams("snapshot-upgrade-1", "some-snapshot-id"),
+            new PersistentTasksCustomMetadata.Assignment(randomAlphaOfLength(5), "test assignment")
+        );
+        tasksBuilder.addTask(
+            MlTasks.datafeedTaskId("datafeed-1"),
+            MlTasks.DATAFEED_TASK_NAME,
+            new StartDatafeedAction.DatafeedParams("datafeed-1", "now"),
+            new PersistentTasksCustomMetadata.Assignment(randomAlphaOfLength(5), "test assignment")
+        );
+        PersistentTasksCustomMetadata tasks = tasksBuilder.build();
+
+        Set<PersistentTasksCustomMetadata.PersistentTask<?>> mlProcessTasks = MlTasks.findMlProcessTasks(tasks);
+        assertThat(mlProcessTasks, hasSize(3));
+        Set<String> taskNames = mlProcessTasks.stream()
+            .map(PersistentTasksCustomMetadata.PersistentTask::getTaskName)
+            .collect(Collectors.toSet());
+        assertThat(
+            taskNames,
+            contains(MlTasks.JOB_TASK_NAME, MlTasks.JOB_SNAPSHOT_UPGRADE_TASK_NAME, MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME)
+        );
     }
 
     private static PersistentTasksCustomMetadata.PersistentTask<?> createDataFrameAnalyticsTask(

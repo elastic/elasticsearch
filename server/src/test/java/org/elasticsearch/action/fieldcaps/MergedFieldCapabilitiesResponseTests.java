@@ -70,24 +70,24 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractSerializingTes
         int mutation = response.get().isEmpty() ? 0 : randomIntBetween(0, 2);
 
         switch (mutation) {
-            case 0:
+            case 0 -> {
                 String toAdd = randomAlphaOfLength(10);
                 mutatedResponses.put(
                     toAdd,
                     Collections.singletonMap(randomAlphaOfLength(10), FieldCapabilitiesTests.randomFieldCaps(toAdd))
                 );
-                break;
-            case 1:
+            }
+            case 1 -> {
                 String toRemove = randomFrom(mutatedResponses.keySet());
                 mutatedResponses.remove(toRemove);
-                break;
-            case 2:
+            }
+            case 2 -> {
                 String toReplace = randomFrom(mutatedResponses.keySet());
                 mutatedResponses.put(
                     toReplace,
                     Collections.singletonMap(randomAlphaOfLength(10), FieldCapabilitiesTests.randomFieldCaps(toReplace))
                 );
-                break;
+            }
         }
         // TODO pass real list
         return new FieldCapabilitiesResponse(null, mutatedResponses, Collections.emptyList());
@@ -108,49 +108,54 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractSerializingTes
         response.toXContent(builder, ToXContent.EMPTY_PARAMS);
 
         String generatedResponse = BytesReference.bytes(builder).utf8ToString();
-        assertEquals(
-            ("{"
-                + "    \"indices\": [\"index1\",\"index2\",\"index3\",\"index4\"],"
-                + "    \"fields\": {"
-                + "        \"rating\": { "
-                + "            \"keyword\": {"
-                + "                \"type\": \"keyword\","
-                + "                \"metadata_field\": false,"
-                + "                \"searchable\": false,"
-                + "                \"aggregatable\": true,"
-                + "                \"time_series_dimension\": true,"
-                + "                \"indices\": [\"index3\", \"index4\"],"
-                + "                \"non_searchable_indices\": [\"index4\"] "
-                + "            },"
-                + "            \"long\": {"
-                + "                \"type\": \"long\","
-                + "                \"metadata_field\": false,"
-                + "                \"searchable\": true,"
-                + "                \"aggregatable\": false,"
-                + "                \"time_series_metric\": \"counter\","
-                + "                \"indices\": [\"index1\", \"index2\"],"
-                + "                \"non_aggregatable_indices\": [\"index1\"],"
-                + "                \"non_dimension_indices\":[\"index4\"] "
-                + "            }"
-                + "        },"
-                + "        \"title\": { "
-                + "            \"text\": {"
-                + "                \"type\": \"text\","
-                + "                \"metadata_field\": false,"
-                + "                \"searchable\": true,"
-                + "                \"aggregatable\": false"
-                + "            }"
-                + "        }"
-                + "    },"
-                + "    \"failed_indices\":2,"
-                + "    \"failures\":["
-                + "        { \"indices\": [\"errorindex\", \"errorindex2\"],"
-                + "          \"failure\" : {\"error\":{\"root_cause\":[{\"type\":\"illegal_argument_exception\","
-                + "          \"reason\":\"test\"}],\"type\":\"illegal_argument_exception\",\"reason\":\"test\"}}}"
-                + "    ]"
-                + "}").replaceAll("\\s+", ""),
-            generatedResponse
-        );
+        assertEquals("""
+            {
+              "indices": [ "index1", "index2", "index3", "index4" ],
+              "fields": {
+                "rating": {
+                  "keyword": {
+                    "type": "keyword",
+                    "metadata_field": false,
+                    "searchable": false,
+                    "aggregatable": true,
+                    "time_series_dimension": true,
+                    "indices": [ "index3", "index4" ],
+                    "non_searchable_indices": [ "index4" ]
+                  },
+                  "long": {
+                    "type": "long",
+                    "metadata_field": false,
+                    "searchable": true,
+                    "aggregatable": false,
+                    "time_series_metric": "counter",
+                    "indices": [ "index1", "index2" ],
+                    "non_aggregatable_indices": [ "index1" ],
+                    "non_dimension_indices": [ "index4" ]
+                  }
+                },
+                "title": {
+                  "text": {
+                    "type": "text",
+                    "metadata_field": false,
+                    "searchable": true,
+                    "aggregatable": false
+                  }
+                }
+              },
+              "failed_indices": 2,
+              "failures": [
+                {
+                  "indices": [ "errorindex", "errorindex2" ],
+                  "failure": {
+                    "error": {
+                      "root_cause": [ { "type": "illegal_argument_exception", "reason": "test" } ],
+                      "type": "illegal_argument_exception",
+                      "reason": "test"
+                    }
+                  }
+                }
+              ]
+            }""".replaceAll("\\s+", ""), generatedResponse);
     }
 
     private static FieldCapabilitiesResponse createSimpleResponse() {

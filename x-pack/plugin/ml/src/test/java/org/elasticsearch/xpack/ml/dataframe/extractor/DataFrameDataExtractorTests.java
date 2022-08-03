@@ -10,7 +10,7 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -147,7 +147,7 @@ public class DataFrameDataExtractorTests extends ESTestCase {
             searchRequest,
             containsString(
                 "\"query\":{\"bool\":{\"filter\":[{\"match_all\":{\"boost\":1.0}},{\"range\":"
-                    + "{\"ml__incremental_id\":{\"from\":0,\"to\":1000,\"include_lower\":true,\"include_upper\":false,\"boost\":1.0}}}]"
+                    + "{\"ml__incremental_id\":{\"gte\":0,\"lt\":1000,\"boost\":1.0}}}]"
             )
         );
         assertThat(searchRequest, containsString("\"docvalue_fields\":[{\"field\":\"field_1\"},{\"field\":\"field_2\"}]"));
@@ -159,7 +159,7 @@ public class DataFrameDataExtractorTests extends ESTestCase {
             searchRequest,
             containsString(
                 "\"query\":{\"bool\":{\"filter\":[{\"match_all\":{\"boost\":1.0}},{\"range\":"
-                    + "{\"ml__incremental_id\":{\"from\":3,\"to\":1003,\"include_lower\":true,\"include_upper\":false,\"boost\":1.0}}}]"
+                    + "{\"ml__incremental_id\":{\"gte\":3,\"lt\":1003,\"boost\":1.0}}}]"
             )
         );
 
@@ -168,7 +168,7 @@ public class DataFrameDataExtractorTests extends ESTestCase {
             searchRequest,
             containsString(
                 "\"query\":{\"bool\":{\"filter\":[{\"match_all\":{\"boost\":1.0}},{\"range\":"
-                    + "{\"ml__incremental_id\":{\"from\":4,\"to\":1004,\"include_lower\":true,\"include_upper\":false,\"boost\":1.0}}}]"
+                    + "{\"ml__incremental_id\":{\"gte\":4,\"lt\":1004,\"boost\":1.0}}}]"
             )
         );
     }
@@ -232,36 +232,24 @@ public class DataFrameDataExtractorTests extends ESTestCase {
         String searchRequest = dataExtractor.capturedSearchRequests.get(0).request().toString().replaceAll("\\s", "");
         assertThat(searchRequest, containsString("\"query\":{\"bool\":{"));
         assertThat(searchRequest, containsString("{\"match_all\":{\"boost\":1.0}"));
-        assertThat(
-            searchRequest,
-            containsString("{\"range\":{\"ml__incremental_id\":{\"from\":0,\"to\":1000,\"include_lower\":true,\"include_upper\":false")
-        );
+        assertThat(searchRequest, containsString("{\"range\":{\"ml__incremental_id\":{\"gte\":0,\"lt\":1000"));
 
         // Assert the second search continued from the latest successfully processed doc
         searchRequest = dataExtractor.capturedSearchRequests.get(1).request().toString().replaceAll("\\s", "");
         assertThat(searchRequest, containsString("\"query\":{\"bool\":{"));
         assertThat(searchRequest, containsString("{\"match_all\":{\"boost\":1.0}"));
-        assertThat(
-            searchRequest,
-            containsString("{\"range\":{\"ml__incremental_id\":{\"from\":2,\"to\":1002,\"include_lower\":true,\"include_upper\":false")
-        );
+        assertThat(searchRequest, containsString("{\"range\":{\"ml__incremental_id\":{\"gte\":2,\"lt\":1002"));
 
         // Assert the third search continued from the latest successfully processed doc
         searchRequest = dataExtractor.capturedSearchRequests.get(2).request().toString().replaceAll("\\s", "");
         assertThat(searchRequest, containsString("\"query\":{\"bool\":{"));
         assertThat(searchRequest, containsString("{\"match_all\":{\"boost\":1.0}"));
-        assertThat(
-            searchRequest,
-            containsString("{\"range\":{\"ml__incremental_id\":{\"from\":2,\"to\":1002,\"include_lower\":true,\"include_upper\":false")
-        );
+        assertThat(searchRequest, containsString("{\"range\":{\"ml__incremental_id\":{\"gte\":2,\"lt\":1002"));
 
         searchRequest = dataExtractor.capturedSearchRequests.get(3).request().toString().replaceAll("\\s", "");
         assertThat(searchRequest, containsString("\"query\":{\"bool\":{"));
         assertThat(searchRequest, containsString("{\"match_all\":{\"boost\":1.0}"));
-        assertThat(
-            searchRequest,
-            containsString("{\"range\":{\"ml__incremental_id\":{\"from\":3,\"to\":1003,\"include_lower\":true,\"include_upper\":false")
-        );
+        assertThat(searchRequest, containsString("{\"range\":{\"ml__incremental_id\":{\"gte\":3,\"lt\":1003"));
     }
 
     public void testIncludeSourceIsFalseAndNoSourceFields() throws IOException {
@@ -284,7 +272,8 @@ public class DataFrameDataExtractorTests extends ESTestCase {
 
         assertThat(dataExtractor.capturedSearchRequests.size(), equalTo(2));
         String searchRequest = dataExtractor.capturedSearchRequests.get(0).request().toString().replaceAll("\\s", "");
-        assertThat(searchRequest, containsString("\"docvalue_fields\":[{\"field\":\"field_1\"},{\"field\":\"field_2\"}]"));
+        assertThat(searchRequest, containsString("""
+            "docvalue_fields":[{"field":"field_1"},{"field":"field_2"}]"""));
         assertThat(searchRequest, containsString("\"_source\":false"));
     }
 
@@ -318,8 +307,10 @@ public class DataFrameDataExtractorTests extends ESTestCase {
 
         assertThat(dataExtractor.capturedSearchRequests.size(), equalTo(2));
         String searchRequest = dataExtractor.capturedSearchRequests.get(0).request().toString().replaceAll("\\s", "");
-        assertThat(searchRequest, containsString("\"docvalue_fields\":[{\"field\":\"field_1\"}]"));
-        assertThat(searchRequest, containsString("\"_source\":{\"includes\":[\"field_2\"],\"excludes\":[]}"));
+        assertThat(searchRequest, containsString("""
+            "docvalue_fields":[{"field":"field_1"}]"""));
+        assertThat(searchRequest, containsString("""
+            "_source":{"includes":["field_2"],"excludes":[]}"""));
     }
 
     public void testCollectDataSummary_GivenAnalysisSupportsMissingFields() {
@@ -353,14 +344,9 @@ public class DataFrameDataExtractorTests extends ESTestCase {
 
         assertThat(dataExtractor.capturedSearchRequests.size(), equalTo(1));
         String searchRequest = dataExtractor.capturedSearchRequests.get(0).request().toString().replaceAll("\\s", "");
-        assertThat(
-            searchRequest,
-            containsString(
-                "\"query\":{\"bool\":{\"filter\":[{\"match_all\":{\"boost\":1.0}},{\"bool\":{\"filter\":"
-                    + "[{\"exists\":{\"field\":\"field_1\",\"boost\":1.0}},{\"exists\":{\"field\":\"field_2\",\"boost\":1.0}}],"
-                    + "\"boost\":1.0}}],\"boost\":1.0}"
-            )
-        );
+        assertThat(searchRequest, containsString("""
+            "query":{"bool":{"filter":[{"match_all":{"boost":1.0}},{"bool":{"filter":[{"exists":{"field":"field_1","boost":1.0}},\
+            {"exists":{"field":"field_2","boost":1.0}}],"boost":1.0}}],"boost":1.0}"""));
     }
 
     public void testMissingValues_GivenSupported() throws IOException {

@@ -10,8 +10,6 @@ package org.elasticsearch.cluster.coordination;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
@@ -45,7 +43,7 @@ public class RemoveCustomsCommand extends ElasticsearchNodeCommand {
     }
 
     @Override
-    protected void processNodePaths(Terminal terminal, Path[] dataPaths, OptionSet options, Environment env) throws IOException,
+    protected void processDataPaths(Terminal terminal, Path[] dataPaths, OptionSet options, Environment env) throws IOException,
         UserException {
         final List<String> customsToRemove = arguments.values(options);
         if (customsToRemove.isEmpty()) {
@@ -57,12 +55,11 @@ public class RemoveCustomsCommand extends ElasticsearchNodeCommand {
         terminal.println(Terminal.Verbosity.VERBOSE, "Loading cluster state");
         final Tuple<Long, ClusterState> termAndClusterState = loadTermAndClusterState(persistedClusterStateService, env);
         final ClusterState oldClusterState = termAndClusterState.v2();
-        terminal.println(Terminal.Verbosity.VERBOSE, "custom metadata names: " + oldClusterState.metadata().customs().keys());
+        terminal.println(Terminal.Verbosity.VERBOSE, "custom metadata names: " + oldClusterState.metadata().customs().keySet());
         final Metadata.Builder metadataBuilder = Metadata.builder(oldClusterState.metadata());
         for (String customToRemove : customsToRemove) {
             boolean matched = false;
-            for (ObjectCursor<String> customKeyCur : oldClusterState.metadata().customs().keys()) {
-                final String customKey = customKeyCur.value;
+            for (String customKey : oldClusterState.metadata().customs().keySet()) {
                 if (Regex.simpleMatch(customToRemove, customKey)) {
                     metadataBuilder.removeCustom(customKey);
                     if (matched == false) {

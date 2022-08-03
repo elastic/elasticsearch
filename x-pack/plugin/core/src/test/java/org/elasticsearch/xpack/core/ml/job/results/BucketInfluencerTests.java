@@ -148,7 +148,8 @@ public class BucketInfluencerTests extends AbstractSerializingTestCase<BucketInf
     }
 
     public void testStrictParser() throws IOException {
-        String json = "{\"job_id\":\"job_1\", \"timestamp\": 123544456, \"bucket_span\": 3600, \"foo\":\"bar\"}";
+        String json = """
+            {"job_id":"job_1", "timestamp": 123544456, "bucket_span": 3600, "foo":"bar"}""";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
@@ -160,7 +161,8 @@ public class BucketInfluencerTests extends AbstractSerializingTestCase<BucketInf
     }
 
     public void testLenientParser() throws IOException {
-        String json = "{\"job_id\":\"job_1\", \"timestamp\": 123544456, \"bucket_span\": 3600, \"foo\":\"bar\"}";
+        String json = """
+            {"job_id":"job_1", "timestamp": 123544456, "bucket_span": 3600, "foo":"bar"}""";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
             BucketInfluencer.LENIENT_PARSER.apply(parser, null);
         }

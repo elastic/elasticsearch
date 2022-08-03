@@ -66,13 +66,9 @@ public class SearchHitToJsonProcessorTests extends ESTestCase {
 
         String json = searchHitToString(extractedFields, hit1, hit2);
 
-        assertThat(
-            json,
-            equalTo(
-                "{\"time\":1000,\"single\":\"a1\",\"array\":[\"b1\",\"c1\"]} "
-                    + "{\"time\":2000,\"single\":\"a2\",\"array\":[\"b2\",\"c2\"]}"
-            )
-        );
+        assertThat(json, equalTo("""
+            {"time":1000,"single":"a1","array":["b1","c1"]} \
+            {"time":2000,"single":"a2","array":["b2","c2"]}"""));
     }
 
     private String searchHitToString(ExtractedFields fields, SearchHit... searchHits) throws IOException {

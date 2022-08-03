@@ -16,15 +16,13 @@
 
 package org.elasticsearch.common.inject.spi;
 
-import org.elasticsearch.common.inject.Binder;
 import org.elasticsearch.common.inject.Key;
 import org.elasticsearch.common.inject.Provider;
 
 import java.util.Objects;
 
 /**
- * A lookup of the provider for a type. Lookups are created explicitly in a module using
- * {@link org.elasticsearch.common.inject.Binder#getProvider(Class) getProvider()} statements:
+ * A lookup of the provider for a type.
  * <pre>
  *     Provider&lt;PaymentService&gt; paymentServiceProvider
  *         = getProvider(PaymentService.class);</pre>
@@ -36,7 +34,7 @@ public final class ProviderLookup<T> implements Element {
 
     // NOTE: this class is not part of guice and was added so the provider lookup's key can be accessible for tests
     public static class ProviderImpl<T> implements Provider<T> {
-        private ProviderLookup<T> lookup;
+        private final ProviderLookup<T> lookup;
 
         private ProviderImpl(ProviderLookup<T> lookup) {
             this.lookup = lookup;
@@ -55,9 +53,6 @@ public final class ProviderLookup<T> implements Element {
             return "Provider<" + lookup.key.getTypeLiteral() + ">";
         }
 
-        public Key<T> getKey() {
-            return lookup.getKey();
-        }
     }
 
     private final Object source;
@@ -93,19 +88,6 @@ public final class ProviderLookup<T> implements Element {
             throw new IllegalStateException("delegate already initialized");
         }
         this.delegate = Objects.requireNonNull(delegate, "delegate");
-    }
-
-    @Override
-    public void applyTo(Binder binder) {
-        initializeDelegate(binder.withSource(getSource()).getProvider(key));
-    }
-
-    /**
-     * Returns the delegate provider, or {@code null} if it has not yet been initialized. The delegate
-     * will be initialized when this element is processed, or otherwise used to create an injector.
-     */
-    public Provider<T> getDelegate() {
-        return delegate;
     }
 
     /**

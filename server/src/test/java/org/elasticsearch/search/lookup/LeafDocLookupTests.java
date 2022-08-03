@@ -18,7 +18,8 @@ import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
-import java.util.function.Function;
+import java.io.IOException;
+import java.util.function.BiFunction;
 
 import static org.mockito.AdditionalAnswers.returnsFirstArg;
 import static org.mockito.ArgumentMatchers.any;
@@ -49,7 +50,7 @@ public class LeafDocLookupTests extends ESTestCase {
 
         docLookup = new LeafDocLookup(
             field -> field.equals("field") ? fieldType1 : field.equals("alias") ? fieldType2 : null,
-            fieldType -> fieldType == fieldType1 ? fieldData1 : fieldType == fieldType2 ? fieldData2 : null,
+            (fieldType, fielddataType) -> fieldType == fieldType1 ? fieldData1 : fieldType == fieldType2 ? fieldData2 : null,
             null
         );
     }
@@ -64,7 +65,7 @@ public class LeafDocLookupTests extends ESTestCase {
         assertEquals(docValues, fetchedDocValues);
     }
 
-    public void testFlattenedField() {
+    public void testFlattenedField() throws IOException {
         ScriptDocValues<?> docValues1 = mock(ScriptDocValues.class);
         IndexFieldData<?> fieldData1 = createFieldData(docValues1, "flattened.key1");
 
@@ -76,7 +77,7 @@ public class LeafDocLookupTests extends ESTestCase {
         MappedFieldType fieldType1 = fieldType.getChildFieldType("key1");
         MappedFieldType fieldType2 = fieldType.getChildFieldType("key2");
 
-        Function<MappedFieldType, IndexFieldData<?>> fieldDataSupplier = ft -> {
+        BiFunction<MappedFieldType, MappedFieldType.FielddataOperation, IndexFieldData<?>> fieldDataSupplier = (ft, fdt) -> {
             FlattenedFieldMapper.KeyedFlattenedFieldType keyedFieldType = (FlattenedFieldMapper.KeyedFlattenedFieldType) ft;
             return keyedFieldType.key().equals("key1") ? fieldData1 : fieldData2;
         };
@@ -95,10 +96,15 @@ public class LeafDocLookupTests extends ESTestCase {
         assertEquals(docValues2, docLookup.get("flattened.key2"));
     }
 
-    private IndexFieldData<?> createFieldData(ScriptDocValues<?> scriptDocValues, String name) {
-        DelegateDocValuesField delegateDocValuesField = new DelegateDocValuesField(scriptDocValues, name);
+    private IndexFieldData<?> createFieldData(ScriptDocValues<?> scriptDocValues, String name) throws IOException {
+        DelegateDocValuesField delegateDocValuesField = new DelegateDocValuesField(scriptDocValues, name) {
+            @Override
+            public void setNextDocId(int id) {
+                // do nothing
+            }
+        };
         LeafFieldData leafFieldData = mock(LeafFieldData.class);
-        doReturn(delegateDocValuesField).when(leafFieldData).getScriptField(name);
+        doReturn(delegateDocValuesField).when(leafFieldData).getScriptFieldFactory(name);
 
         IndexFieldData<?> fieldData = mock(IndexFieldData.class);
         when(fieldData.getFieldName()).thenReturn(name);

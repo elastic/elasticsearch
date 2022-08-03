@@ -182,25 +182,16 @@ public final class ExpressionParser {
     }
 
     private FieldExpression.FieldValue parseFieldValue(XContentParser parser) throws IOException {
-        switch (parser.currentToken()) {
-            case VALUE_STRING:
-                return new FieldExpression.FieldValue(parser.text());
-
-            case VALUE_BOOLEAN:
-                return new FieldExpression.FieldValue(parser.booleanValue());
-
-            case VALUE_NUMBER:
-                return new FieldExpression.FieldValue(parser.longValue());
-
-            case VALUE_NULL:
-                return new FieldExpression.FieldValue(null);
-
-            default:
-                throw new ElasticsearchParseException(
-                    "failed to parse rules expression. expected a field value but found [{}] instead",
-                    parser.currentToken()
-                );
-        }
+        return switch (parser.currentToken()) {
+            case VALUE_STRING -> new FieldExpression.FieldValue(parser.text());
+            case VALUE_BOOLEAN -> new FieldExpression.FieldValue(parser.booleanValue());
+            case VALUE_NUMBER -> new FieldExpression.FieldValue(parser.longValue());
+            case VALUE_NULL -> new FieldExpression.FieldValue(null);
+            default -> throw new ElasticsearchParseException(
+                "failed to parse rules expression. expected a field value but found [{}] instead",
+                parser.currentToken()
+            );
+        };
     }
 
     public interface Fields {

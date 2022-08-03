@@ -10,6 +10,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
@@ -89,33 +90,30 @@ public class InvalidateTokenResponseTests extends ESTestCase {
         InvalidateTokenResponse response = new InvalidateTokenResponse(result);
         XContentBuilder builder = XContentFactory.jsonBuilder();
         response.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertThat(
-            Strings.toString(builder),
-            equalTo(
-                "{"
-                    + "\"invalidated_tokens\":"
-                    + invalidatedTokens.size()
-                    + ","
-                    + "\"previously_invalidated_tokens\":"
-                    + previouslyInvalidatedTokens.size()
-                    + ","
-                    + "\"error_count\":2,"
-                    + "\"error_details\":["
-                    + "{\"type\":\"exception\","
-                    + "\"reason\":\"foo\","
-                    + "\"caused_by\":{"
-                    + "\"type\":\"illegal_argument_exception\","
-                    + "\"reason\":\"this is an error message\"}"
-                    + "},"
-                    + "{\"type\":\"exception\","
-                    + "\"reason\":\"bar\","
-                    + "\"caused_by\":"
-                    + "{\"type\":\"illegal_argument_exception\","
-                    + "\"reason\":\"this is an error message2\"}"
-                    + "}"
-                    + "]"
-                    + "}"
-            )
-        );
+        assertThat(Strings.toString(builder), equalTo(XContentHelper.stripWhitespace("""
+            {
+              "invalidated_tokens": %s,
+              "previously_invalidated_tokens": %s,
+              "error_count": 2,
+              "error_details": [
+                {
+                  "type": "exception",
+                  "reason": "foo",
+                  "caused_by": {
+                    "type": "illegal_argument_exception",
+                    "reason": "this is an error message"
+                  }
+                },
+                {
+                  "type": "exception",
+                  "reason": "bar",
+                  "caused_by": {
+                    "type": "illegal_argument_exception",
+                    "reason": "this is an error message2"
+                  }
+                }
+              ]
+            }
+            """.formatted(invalidatedTokens.size(), previouslyInvalidatedTokens.size()))));
     }
 }

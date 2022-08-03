@@ -147,10 +147,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeVInt(maxConcurrentSearchRequests);
-        out.writeVInt(requests.size());
-        for (SearchRequest request : requests) {
-            request.writeTo(out);
-        }
+        out.writeCollection(requests);
     }
 
     @Override
@@ -354,7 +351,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
             xContentBuilder.field("index", request.indices());
         }
         if (request.indicesOptions().equals(SearchRequest.DEFAULT_INDICES_OPTIONS) == false) {
-            WildcardStates.toXContent(request.indicesOptions().getExpandWildcards(), xContentBuilder);
+            WildcardStates.toXContent(request.indicesOptions().expandWildcards(), xContentBuilder);
             xContentBuilder.field("ignore_unavailable", request.indicesOptions().ignoreUnavailable());
             xContentBuilder.field("allow_no_indices", request.indicesOptions().allowNoIndices());
         }

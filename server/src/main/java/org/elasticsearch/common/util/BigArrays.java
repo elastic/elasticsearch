@@ -335,14 +335,6 @@ public class BigArrays {
         }
 
         @Override
-        public float increment(long index, float inc) {
-            assert index >= 0 && index < size();
-            final float ret = (float) VH_PLATFORM_NATIVE_FLOAT.get(array, (int) index << 2) + inc;
-            VH_PLATFORM_NATIVE_FLOAT.set(array, (int) index << 2, ret);
-            return ret;
-        }
-
-        @Override
         public void fill(long fromIndex, long toIndex, float value) {
             assert fromIndex >= 0 && fromIndex <= toIndex;
             assert toIndex >= 0 && toIndex <= size();
@@ -391,7 +383,10 @@ public class BigArrays {
     }
 
     final PageCacheRecycler recycler;
+    @Nullable
     private final CircuitBreakerService breakerService;
+    @Nullable
+    private final CircuitBreaker breaker;
     private final boolean checkBreaker;
     private final BigArrays circuitBreakingInstance;
     private final String breakerName;
@@ -410,6 +405,11 @@ public class BigArrays {
         this.checkBreaker = checkBreaker;
         this.recycler = recycler;
         this.breakerService = breakerService;
+        if (breakerService != null) {
+            breaker = breakerService.getBreaker(breakerName);
+        } else {
+            breaker = null;
+        }
         this.breakerName = breakerName;
         if (checkBreaker) {
             this.circuitBreakingInstance = this;
@@ -427,8 +427,7 @@ public class BigArrays {
      * we do not add the delta to the breaker if it trips.
      */
     void adjustBreaker(final long delta, final boolean isDataAlreadyCreated) {
-        if (this.breakerService != null) {
-            CircuitBreaker breaker = this.breakerService.getBreaker(breakerName);
+        if (this.breaker != null) {
             if (this.checkBreaker) {
                 // checking breaker means potentially tripping, but it doesn't
                 // have to if the delta is negative
@@ -554,7 +553,7 @@ public class BigArrays {
     }
 
     /** @see Arrays#hashCode(byte[]) */
-    public int hashCode(ByteArray array) {
+    public static int hashCode(ByteArray array) {
         if (array == null) {
             return 0;
         }
@@ -568,7 +567,7 @@ public class BigArrays {
     }
 
     /** @see Arrays#equals(byte[], byte[]) */
-    public boolean equals(ByteArray array, ByteArray other) {
+    public static boolean equals(ByteArray array, ByteArray other) {
         if (array == other) {
             return true;
         }

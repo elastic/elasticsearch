@@ -91,7 +91,7 @@ public class GlobalCheckpointSyncAction extends TransportReplicationAction<
         });
     }
 
-    private void maybeSyncTranslog(final IndexShard indexShard) throws IOException {
+    private static void maybeSyncTranslog(final IndexShard indexShard) throws IOException {
         if (indexShard.getTranslogDurability() == Translog.Durability.REQUEST
             && indexShard.getLastSyncedGlobalCheckpoint() < indexShard.getLastKnownGlobalCheckpoint()) {
             indexShard.sync();

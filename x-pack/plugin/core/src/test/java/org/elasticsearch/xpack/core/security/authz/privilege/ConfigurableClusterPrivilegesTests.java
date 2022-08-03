@@ -11,13 +11,12 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 
@@ -25,7 +24,6 @@ import java.io.ByteArrayOutputStream;
 import java.util.Arrays;
 import java.util.List;
 
-import static org.elasticsearch.xcontent.DeprecationHandler.THROW_UNSUPPORTED_OPERATION;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ConfigurableClusterPrivilegesTests extends ESTestCase {
@@ -34,7 +32,7 @@ public class ConfigurableClusterPrivilegesTests extends ESTestCase {
         final ConfigurableClusterPrivilege[] original = buildSecurityPrivileges();
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             ConfigurableClusterPrivileges.writeArray(out, original);
-            final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin(Settings.EMPTY).getNamedWriteables());
+            final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin().getNamedWriteables());
             try (StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), registry)) {
                 final ConfigurableClusterPrivilege[] copy = ConfigurableClusterPrivileges.readArray(in);
                 assertThat(copy, equalTo(original));
@@ -53,7 +51,7 @@ public class ConfigurableClusterPrivilegesTests extends ESTestCase {
             builder.flush();
 
             final byte[] bytes = out.toByteArray();
-            try (XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY, THROW_UNSUPPORTED_OPERATION, bytes)) {
+            try (XContentParser parser = xContent.createParser(XContentParserConfiguration.EMPTY, bytes)) {
                 assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
                 final List<ConfigurableClusterPrivilege> clone = ConfigurableClusterPrivileges.parse(parser);
                 assertThat(clone, equalTo(original));
@@ -63,10 +61,14 @@ public class ConfigurableClusterPrivilegesTests extends ESTestCase {
     }
 
     private ConfigurableClusterPrivilege[] buildSecurityPrivileges() {
-        return buildSecurityPrivileges(randomIntBetween(4, 7));
-    }
-
-    private ConfigurableClusterPrivilege[] buildSecurityPrivileges(int applicationNameLength) {
-        return new ConfigurableClusterPrivilege[] { ManageApplicationPrivilegesTests.buildPrivileges(applicationNameLength) };
+        return switch (randomIntBetween(0, 3)) {
+            case 0 -> new ConfigurableClusterPrivilege[0];
+            case 1 -> new ConfigurableClusterPrivilege[] { ManageApplicationPrivilegesTests.buildPrivileges() };
+            case 2 -> new ConfigurableClusterPrivilege[] { WriteProfileDataPrivilegesTests.buildPrivileges() };
+            case 3 -> new ConfigurableClusterPrivilege[] {
+                ManageApplicationPrivilegesTests.buildPrivileges(),
+                WriteProfileDataPrivilegesTests.buildPrivileges() };
+            default -> throw new IllegalStateException("Unexpected value");
+        };
     }
 }

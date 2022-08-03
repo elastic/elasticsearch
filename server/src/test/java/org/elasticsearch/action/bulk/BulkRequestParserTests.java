@@ -23,7 +23,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class BulkRequestParserTests extends ESTestCase {
 
     public void testIndexRequest() throws IOException {
-        BytesArray request = new BytesArray("{ \"index\":{ \"_id\": \"bar\" } }\n{}\n");
+        BytesArray request = new BytesArray("""
+            { "index":{ "_id": "bar" } }
+            {}
+            """);
         BulkRequestParser parser = new BulkRequestParser(randomBoolean(), RestApiVersion.current());
         final AtomicBoolean parsed = new AtomicBoolean();
         parser.parse(request, "foo", null, null, null, null, false, XContentType.JSON, (indexRequest, type) -> {
@@ -49,7 +52,10 @@ public class BulkRequestParserTests extends ESTestCase {
             req -> fail()
         );
 
-        request = new BytesArray("{ \"index\":{ \"_id\": \"bar\", \"require_alias\": true } }\n{}\n");
+        request = new BytesArray("""
+            { "index":{ "_id": "bar", "require_alias": true } }
+            {}
+            """);
         parser.parse(
             request,
             "foo",
@@ -64,7 +70,10 @@ public class BulkRequestParserTests extends ESTestCase {
             req -> fail()
         );
 
-        request = new BytesArray("{ \"index\":{ \"_id\": \"bar\", \"require_alias\": false } }\n{}\n");
+        request = new BytesArray("""
+            { "index":{ "_id": "bar", "require_alias": false } }
+            {}
+            """);
         parser.parse(
             request,
             "foo",
@@ -81,7 +90,9 @@ public class BulkRequestParserTests extends ESTestCase {
     }
 
     public void testDeleteRequest() throws IOException {
-        BytesArray request = new BytesArray("{ \"delete\":{ \"_id\": \"bar\" } }\n");
+        BytesArray request = new BytesArray("""
+            { "delete":{ "_id": "bar" } }
+            """);
         BulkRequestParser parser = new BulkRequestParser(randomBoolean(), RestApiVersion.current());
         final AtomicBoolean parsed = new AtomicBoolean();
         parser.parse(
@@ -106,7 +117,10 @@ public class BulkRequestParserTests extends ESTestCase {
     }
 
     public void testUpdateRequest() throws IOException {
-        BytesArray request = new BytesArray("{ \"update\":{ \"_id\": \"bar\" } }\n{}\n");
+        BytesArray request = new BytesArray("""
+            { "update":{ "_id": "bar" } }
+            {}
+            """);
         BulkRequestParser parser = new BulkRequestParser(randomBoolean(), RestApiVersion.current());
         final AtomicBoolean parsed = new AtomicBoolean();
         parser.parse(request, "foo", null, null, null, null, false, XContentType.JSON, (req, type) -> fail(), updateRequest -> {
@@ -132,7 +146,10 @@ public class BulkRequestParserTests extends ESTestCase {
             req -> fail()
         );
 
-        request = new BytesArray("{ \"update\":{ \"_id\": \"bar\", \"require_alias\": true } }\n{}\n");
+        request = new BytesArray("""
+            { "update":{ "_id": "bar", "require_alias": true } }
+            {}
+            """);
         parser.parse(
             request,
             "foo",
@@ -147,7 +164,10 @@ public class BulkRequestParserTests extends ESTestCase {
             req -> fail()
         );
 
-        request = new BytesArray("{ \"update\":{ \"_id\": \"bar\", \"require_alias\": false } }\n{}\n");
+        request = new BytesArray("""
+            { "update":{ "_id": "bar", "require_alias": false } }
+            {}
+            """);
         parser.parse(
             request,
             "foo",
@@ -164,7 +184,9 @@ public class BulkRequestParserTests extends ESTestCase {
     }
 
     public void testBarfOnLackOfTrailingNewline() {
-        BytesArray request = new BytesArray("{ \"index\":{ \"_id\": \"bar\" } }\n{}");
+        BytesArray request = new BytesArray("""
+            { "index":{ "_id": "bar" } }
+            {}""");
         BulkRequestParser parser = new BulkRequestParser(randomBoolean(), RestApiVersion.current());
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
@@ -186,7 +208,10 @@ public class BulkRequestParserTests extends ESTestCase {
     }
 
     public void testFailOnExplicitIndex() {
-        BytesArray request = new BytesArray("{ \"index\":{ \"_index\": \"foo\", \"_id\": \"bar\" } }\n{}\n");
+        BytesArray request = new BytesArray("""
+            { "index":{ "_index": "foo", "_id": "bar" } }
+            {}
+            """);
         BulkRequestParser parser = new BulkRequestParser(randomBoolean(), RestApiVersion.current());
 
         IllegalArgumentException ex = expectThrows(
@@ -209,7 +234,10 @@ public class BulkRequestParserTests extends ESTestCase {
     }
 
     public void testTypesStillParsedForBulkMonitoring() throws IOException {
-        BytesArray request = new BytesArray("{ \"index\":{ \"_type\": \"quux\", \"_id\": \"bar\" } }\n{}\n");
+        BytesArray request = new BytesArray("""
+            { "index":{ "_type": "quux", "_id": "bar" } }
+            {}
+            """);
         BulkRequestParser parser = new BulkRequestParser(false, RestApiVersion.current());
         final AtomicBoolean parsed = new AtomicBoolean();
         parser.parse(request, "foo", null, null, null, null, false, XContentType.JSON, (indexRequest, type) -> {
@@ -223,10 +251,12 @@ public class BulkRequestParserTests extends ESTestCase {
     }
 
     public void testParseDeduplicatesParameterStrings() throws IOException {
-        BytesArray request = new BytesArray(
-            "{ \"index\":{ \"_index\": \"bar\", \"pipeline\": \"foo\", \"routing\": \"blub\"} }\n{}\n"
-                + "{ \"index\":{ \"_index\": \"bar\", \"pipeline\": \"foo\", \"routing\": \"blub\" } }\n{}\n"
-        );
+        BytesArray request = new BytesArray("""
+            { "index":{ "_index": "bar", "pipeline": "foo", "routing": "blub"} }
+            {}
+            { "index":{ "_index": "bar", "pipeline": "foo", "routing": "blub" } }
+            {}
+            """);
         BulkRequestParser parser = new BulkRequestParser(randomBoolean(), RestApiVersion.current());
         final List<IndexRequest> indexRequests = new ArrayList<>();
         parser.parse(

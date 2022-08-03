@@ -22,20 +22,12 @@ public class PainlessExecuteResponseTests extends AbstractSerializingTestCase<Pa
 
     @Override
     protected PainlessExecuteAction.Response createTestInstance() {
-        Object result;
-        switch (randomIntBetween(0, 2)) {
-            case 0:
-                result = randomAlphaOfLength(10);
-                break;
-            case 1:
-                result = randomBoolean();
-                break;
-            case 2:
-                result = randomDoubleBetween(-10, 10, true);
-                break;
-            default:
-                throw new IllegalStateException("invalid branch");
-        }
+        Object result = switch (randomIntBetween(0, 2)) {
+            case 0 -> randomAlphaOfLength(10);
+            case 1 -> randomBoolean();
+            case 2 -> randomDoubleBetween(-10, 10, true);
+            default -> throw new IllegalStateException("invalid branch");
+        };
         return new PainlessExecuteAction.Response(result);
     }
 
@@ -44,20 +36,12 @@ public class PainlessExecuteResponseTests extends AbstractSerializingTestCase<Pa
         parser.nextToken(); // START-OBJECT
         parser.nextToken(); // FIELD-NAME
         XContentParser.Token token = parser.nextToken(); // result value
-        Object result;
-        switch (token) {
-            case VALUE_STRING:
-                result = parser.text();
-                break;
-            case VALUE_BOOLEAN:
-                result = parser.booleanValue();
-                break;
-            case VALUE_NUMBER:
-                result = parser.doubleValue();
-                break;
-            default:
-                throw new IOException("invalid response");
-        }
+        Object result = switch (token) {
+            case VALUE_STRING -> parser.text();
+            case VALUE_BOOLEAN -> parser.booleanValue();
+            case VALUE_NUMBER -> parser.doubleValue();
+            default -> throw new IOException("invalid response");
+        };
         return new PainlessExecuteAction.Response(result);
     }
 }

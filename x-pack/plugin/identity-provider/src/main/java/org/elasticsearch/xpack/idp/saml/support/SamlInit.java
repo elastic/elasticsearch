@@ -23,7 +23,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public final class SamlInit {
 
     private static final AtomicBoolean INITIALISED = new AtomicBoolean(false);
-    private static final Logger LOGGER = LogManager.getLogger();
+    private static final Logger LOGGER = LogManager.getLogger(SamlInit.class);
 
     private SamlInit() {}
 

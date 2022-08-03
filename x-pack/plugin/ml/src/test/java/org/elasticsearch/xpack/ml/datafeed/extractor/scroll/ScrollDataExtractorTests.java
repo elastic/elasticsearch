@@ -17,10 +17,11 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -34,6 +35,8 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
+import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
+import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter.DatafeedTimingStatsPersister;
 import org.elasticsearch.xpack.ml.extractor.DocValueField;
@@ -181,7 +184,9 @@ public class ScrollDataExtractorTests extends ESTestCase {
         extractor.setNextResponse(response1);
 
         assertThat(extractor.hasNext(), is(true));
-        Optional<InputStream> stream = extractor.next();
+        DataExtractor.Result result = extractor.next();
+        assertThat(result.searchInterval(), equalTo(new SearchInterval(1000L, 2000L)));
+        Optional<InputStream> stream = result.data();
         assertThat(stream.isPresent(), is(true));
         String expectedStream = "{\"time\":1100,\"field_1\":\"a1\"} {\"time\":1200,\"field_1\":\"a2\"}";
         assertThat(asString(stream.get()), equalTo(expectedStream));
@@ -189,7 +194,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
         SearchResponse response2 = createEmptySearchResponse();
         extractor.setNextResponse(response2);
         assertThat(extractor.hasNext(), is(true));
-        assertThat(extractor.next().isPresent(), is(false));
+        assertThat(extractor.next().data().isPresent(), is(false));
         assertThat(extractor.hasNext(), is(false));
         assertThat(capturedSearchRequests.size(), equalTo(1));
 
@@ -199,7 +204,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
             searchRequest,
             containsString(
                 "\"query\":{\"bool\":{\"filter\":[{\"match_all\":{\"boost\":1.0}},"
-                    + "{\"range\":{\"time\":{\"from\":1000,\"to\":2000,\"include_lower\":true,\"include_upper\":false,"
+                    + "{\"range\":{\"time\":{\"gte\":1000,\"lt\":2000,"
                     + "\"format\":\"epoch_millis\",\"boost\":1.0}}}]"
             )
         );
@@ -221,24 +226,30 @@ public class ScrollDataExtractorTests extends ESTestCase {
         extractor.setNextResponse(response1);
 
         assertThat(extractor.hasNext(), is(true));
-        Optional<InputStream> stream = extractor.next();
+        DataExtractor.Result result = extractor.next();
+        assertThat(result.searchInterval(), equalTo(new SearchInterval(1000L, 10000L)));
+        Optional<InputStream> stream = result.data();
         assertThat(stream.isPresent(), is(true));
-        String expectedStream = "{\"time\":1000,\"field_1\":\"a1\"} {\"time\":2000,\"field_1\":\"a2\"}";
+        String expectedStream = """
+            {"time":1000,"field_1":"a1"} {"time":2000,"field_1":"a2"}""";
         assertThat(asString(stream.get()), equalTo(expectedStream));
 
         SearchResponse response2 = createSearchResponse(Arrays.asList(3000L, 4000L), Arrays.asList("a3", "a4"), Arrays.asList("b3", "b4"));
         extractor.setNextResponse(response2);
 
         assertThat(extractor.hasNext(), is(true));
-        stream = extractor.next();
+        result = extractor.next();
+        assertThat(result.searchInterval(), equalTo(new SearchInterval(1000L, 10000L)));
+        stream = result.data();
         assertThat(stream.isPresent(), is(true));
-        expectedStream = "{\"time\":3000,\"field_1\":\"a3\"} {\"time\":4000,\"field_1\":\"a4\"}";
+        expectedStream = """
+            {"time":3000,"field_1":"a3"} {"time":4000,"field_1":"a4"}""";
         assertThat(asString(stream.get()), equalTo(expectedStream));
 
         SearchResponse response3 = createEmptySearchResponse();
         extractor.setNextResponse(response3);
         assertThat(extractor.hasNext(), is(true));
-        assertThat(extractor.next().isPresent(), is(false));
+        assertThat(extractor.next().data().isPresent(), is(false));
         assertThat(extractor.hasNext(), is(false));
         assertThat(capturedSearchRequests.size(), equalTo(1));
 
@@ -248,7 +259,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
             searchRequest1,
             containsString(
                 "\"query\":{\"bool\":{\"filter\":[{\"match_all\":{\"boost\":1.0}},"
-                    + "{\"range\":{\"time\":{\"from\":1000,\"to\":10000,\"include_lower\":true,\"include_upper\":false,"
+                    + "{\"range\":{\"time\":{\"gte\":1000,\"lt\":10000,"
                     + "\"format\":\"epoch_millis\",\"boost\":1.0}}}]"
             )
         );
@@ -270,9 +281,10 @@ public class ScrollDataExtractorTests extends ESTestCase {
         extractor.setNextResponse(response1);
 
         assertThat(extractor.hasNext(), is(true));
-        Optional<InputStream> stream = extractor.next();
+        Optional<InputStream> stream = extractor.next().data();
         assertThat(stream.isPresent(), is(true));
-        String expectedStream = "{\"time\":1000,\"field_1\":\"a1\"} {\"time\":2000,\"field_1\":\"a2\"}";
+        String expectedStream = """
+            {"time":1000,"field_1":"a1"} {"time":2000,"field_1":"a2"}""";
         assertThat(asString(stream.get()), equalTo(expectedStream));
 
         extractor.cancel();
@@ -286,9 +298,10 @@ public class ScrollDataExtractorTests extends ESTestCase {
 
         assertThat(extractor.isCancelled(), is(true));
         assertThat(extractor.hasNext(), is(true));
-        stream = extractor.next();
+        stream = extractor.next().data();
         assertThat(stream.isPresent(), is(true));
-        expectedStream = "{\"time\":2000,\"field_1\":\"a3\"} {\"time\":2000,\"field_1\":\"a4\"}";
+        expectedStream = """
+            {"time":2000,"field_1":"a3"} {"time":2000,"field_1":"a4"}""";
         assertThat(asString(stream.get()), equalTo(expectedStream));
         assertThat(extractor.hasNext(), is(false));
 
@@ -313,7 +326,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
         extractor.setNextResponse(response1);
 
         assertThat(extractor.hasNext(), is(true));
-        Optional<InputStream> stream = extractor.next();
+        Optional<InputStream> stream = extractor.next().data();
         assertThat(stream.isPresent(), is(true));
 
         extractor.setNextResponseToError(new SearchPhaseExecutionException("search phase 1", "boom", ShardSearchFailure.EMPTY_ARRAY));
@@ -348,11 +361,11 @@ public class ScrollDataExtractorTests extends ESTestCase {
 
         // first response is good
         assertThat(extractor.hasNext(), is(true));
-        Optional<InputStream> output = extractor.next();
+        Optional<InputStream> output = extractor.next().data();
         assertThat(output.isPresent(), is(true));
         // this should recover from the first shard failure and try again
         assertThat(extractor.hasNext(), is(true));
-        output = extractor.next();
+        output = extractor.next().data();
         assertThat(output.isPresent(), is(true));
         // A second failure is not tolerated
         assertThat(extractor.hasNext(), is(true));
@@ -374,7 +387,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
         extractor.setNextResponseToError(new ElasticsearchException("something not search phase exception"));
         extractor.setNextResponseToError(new ElasticsearchException("something not search phase exception"));
 
-        Optional<InputStream> output = extractor.next();
+        Optional<InputStream> output = extractor.next().data();
         assertThat(output.isPresent(), is(true));
         assertEquals(1000L, extractor.getInitScrollStartTime());
 
@@ -404,11 +417,11 @@ public class ScrollDataExtractorTests extends ESTestCase {
 
         // first response is good
         assertThat(extractor.hasNext(), is(true));
-        Optional<InputStream> output = extractor.next();
+        Optional<InputStream> output = extractor.next().data();
         assertThat(output.isPresent(), is(true));
         // this should recover from the SearchPhaseExecutionException and try again
         assertThat(extractor.hasNext(), is(true));
-        output = extractor.next();
+        output = extractor.next().data();
         assertThat(output.isPresent(), is(true));
         assertEquals(Long.valueOf(1400L), extractor.getLastTimestamp());
         // A second failure is not tolerated
@@ -459,25 +472,26 @@ public class ScrollDataExtractorTests extends ESTestCase {
         extractor.setNextResponse(response1);
 
         assertThat(extractor.hasNext(), is(true));
-        Optional<InputStream> stream = extractor.next();
+        Optional<InputStream> stream = extractor.next().data();
         assertThat(stream.isPresent(), is(true));
-        String expectedStream = "{\"time\":1100,\"field_1\":\"a1\"} {\"time\":1200,\"field_1\":\"a2\"}";
+        String expectedStream = """
+            {"time":1100,"field_1":"a1"} {"time":1200,"field_1":"a2"}""";
         assertThat(asString(stream.get()), equalTo(expectedStream));
 
         SearchResponse response2 = createEmptySearchResponse();
         extractor.setNextResponse(response2);
         assertThat(extractor.hasNext(), is(true));
-        assertThat(extractor.next().isPresent(), is(false));
+        assertThat(extractor.next().data().isPresent(), is(false));
         assertThat(extractor.hasNext(), is(false));
         assertThat(capturedSearchRequests.size(), equalTo(1));
 
-        String searchRequest = capturedSearchRequests.get(0).toString().replaceAll("\\s", "");
+        String searchRequest = XContentHelper.stripWhitespace(capturedSearchRequests.get(0).toString());
         assertThat(searchRequest, containsString("\"size\":1000"));
         assertThat(
             searchRequest,
             containsString(
                 "\"query\":{\"bool\":{\"filter\":[{\"match_all\":{\"boost\":1.0}},"
-                    + "{\"range\":{\"time\":{\"from\":1000,\"to\":2000,\"include_lower\":true,\"include_upper\":false,"
+                    + "{\"range\":{\"time\":{\"gte\":1000,\"lt\":2000,"
                     + "\"format\":\"epoch_millis\",\"boost\":1.0}}}]"
             )
         );
@@ -485,10 +499,8 @@ public class ScrollDataExtractorTests extends ESTestCase {
         assertThat(searchRequest, containsString("\"stored_fields\":\"_none_\""));
 
         // Check for the scripts
-        assertThat(
-            searchRequest,
-            containsString("{\"script\":{\"source\":\"return 1 + 1;\",\"lang\":\"mockscript\"}".replaceAll("\\s", ""))
-        );
+        assertThat(searchRequest, containsString("""
+            {"script":{"source":"return 1+1;","lang":"mockscript"}"""));
 
         assertThat(capturedContinueScrollIds.size(), equalTo(1));
         assertThat(capturedContinueScrollIds.get(0), equalTo(response1.getScrollId()));

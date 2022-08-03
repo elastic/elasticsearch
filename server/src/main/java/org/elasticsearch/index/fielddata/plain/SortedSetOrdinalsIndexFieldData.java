@@ -20,16 +20,14 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
-
-import java.util.function.Function;
 
 import static org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.sortMissingFirst;
 import static org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.sortMissingLast;
@@ -38,22 +36,18 @@ public class SortedSetOrdinalsIndexFieldData extends AbstractIndexOrdinalsFieldD
 
     public static class Builder implements IndexFieldData.Builder {
         private final String name;
-        private final Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction;
+        private final ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory;
         private final ValuesSourceType valuesSourceType;
 
-        public Builder(String name, ValuesSourceType valuesSourceType) {
-            this(name, AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION, valuesSourceType);
-        }
-
-        public Builder(String name, Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction, ValuesSourceType valuesSourceType) {
+        public Builder(String name, ValuesSourceType valuesSourceType, ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory) {
             this.name = name;
-            this.scriptFunction = scriptFunction;
+            this.toScriptFieldFactory = toScriptFieldFactory;
             this.valuesSourceType = valuesSourceType;
         }
 
         @Override
         public SortedSetOrdinalsIndexFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
-            return new SortedSetOrdinalsIndexFieldData(cache, name, valuesSourceType, breakerService, scriptFunction);
+            return new SortedSetOrdinalsIndexFieldData(cache, name, valuesSourceType, breakerService, toScriptFieldFactory);
         }
     }
 
@@ -62,9 +56,9 @@ public class SortedSetOrdinalsIndexFieldData extends AbstractIndexOrdinalsFieldD
         String fieldName,
         ValuesSourceType valuesSourceType,
         CircuitBreakerService breakerService,
-        Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction
+        ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory
     ) {
-        super(fieldName, valuesSourceType, cache, breakerService, scriptFunction);
+        super(fieldName, valuesSourceType, cache, breakerService, toScriptFieldFactory);
     }
 
     @Override
@@ -106,7 +100,7 @@ public class SortedSetOrdinalsIndexFieldData extends AbstractIndexOrdinalsFieldD
 
     @Override
     public LeafOrdinalsFieldData load(LeafReaderContext context) {
-        return new SortedSetBytesLeafFieldData(context.reader(), getFieldName(), scriptFunction);
+        return new SortedSetBytesLeafFieldData(context.reader(), getFieldName(), toScriptFieldFactory);
     }
 
     @Override

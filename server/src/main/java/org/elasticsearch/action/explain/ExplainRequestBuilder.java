@@ -9,7 +9,7 @@
 package org.elasticsearch.action.explain;
 
 import org.elasticsearch.action.support.single.shard.SingleShardOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -83,7 +83,7 @@ public class ExplainRequestBuilder extends SingleShardOperationRequestBuilder<Ex
         FetchSourceContext fetchSourceContext = request.fetchSourceContext() != null
             ? request.fetchSourceContext()
             : FetchSourceContext.FETCH_SOURCE;
-        request.fetchSourceContext(new FetchSourceContext(fetch, fetchSourceContext.includes(), fetchSourceContext.excludes()));
+        request.fetchSourceContext(FetchSourceContext.of(fetch, fetchSourceContext.includes(), fetchSourceContext.excludes()));
         return this;
     }
 
@@ -112,7 +112,7 @@ public class ExplainRequestBuilder extends SingleShardOperationRequestBuilder<Ex
         FetchSourceContext fetchSourceContext = request.fetchSourceContext() != null
             ? request.fetchSourceContext()
             : FetchSourceContext.FETCH_SOURCE;
-        request.fetchSourceContext(new FetchSourceContext(fetchSourceContext.fetchSource(), includes, excludes));
+        request.fetchSourceContext(FetchSourceContext.of(fetchSourceContext.fetchSource(), includes, excludes));
         return this;
     }
 }

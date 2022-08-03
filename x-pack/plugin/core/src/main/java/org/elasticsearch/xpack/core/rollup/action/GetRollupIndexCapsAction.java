@@ -13,7 +13,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -74,7 +74,7 @@ public class GetRollupIndexCapsAction extends ActionType<GetRollupIndexCapsActio
         }
 
         @Override
-        public IndicesRequest indices(String... indices) {
+        public IndicesRequest indices(@SuppressWarnings("HiddenField") String... indices) {
             Objects.requireNonNull(indices, "indices must not be null");
             for (String index : indices) {
                 Objects.requireNonNull(index, "index must not be null");

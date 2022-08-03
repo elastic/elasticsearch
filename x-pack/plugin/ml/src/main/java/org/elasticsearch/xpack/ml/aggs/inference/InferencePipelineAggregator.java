@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ml.aggs.inference;
 
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
@@ -49,8 +50,7 @@ public class InferencePipelineAggregator extends PipelineAggregator {
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
     @Override
-    public InternalAggregation reduce(InternalAggregation aggregation, InternalAggregation.ReduceContext reduceContext) {
-
+    public InternalAggregation reduce(InternalAggregation aggregation, AggregationReduceContext reduceContext) {
         try (model) {
             InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket> originalAgg =
                 (InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket>) aggregation;
@@ -73,21 +73,20 @@ public class InferencePipelineAggregator extends PipelineAggregator {
                     String bucketPath = entry.getValue();
                     Object propertyValue = resolveBucketValue(originalAgg, bucket, bucketPath);
 
-                    if (propertyValue instanceof Number) {
-                        double doubleVal = ((Number) propertyValue).doubleValue();
+                    if (propertyValue instanceof Number numberValue) {
+                        double doubleVal = numberValue.doubleValue();
                         // NaN or infinite values indicate a missing value or a
                         // valid result of an invalid calculation. Either way only
                         // a valid number will do
                         if (Double.isFinite(doubleVal)) {
                             inputFields.put(aggName, doubleVal);
                         }
-                    } else if (propertyValue instanceof InternalNumericMetricsAggregation.SingleValue) {
-                        double doubleVal = ((InternalNumericMetricsAggregation.SingleValue) propertyValue).value();
+                    } else if (propertyValue instanceof InternalNumericMetricsAggregation.SingleValue singleValue) {
+                        double doubleVal = singleValue.value();
                         if (Double.isFinite(doubleVal)) {
                             inputFields.put(aggName, doubleVal);
                         }
-                    } else if (propertyValue instanceof StringTerms.Bucket) {
-                        StringTerms.Bucket b = (StringTerms.Bucket) propertyValue;
+                    } else if (propertyValue instanceof StringTerms.Bucket b) {
                         inputFields.put(aggName, b.getKeyAsString());
                     } else if (propertyValue instanceof String) {
                         inputFields.put(aggName, propertyValue);

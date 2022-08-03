@@ -10,7 +10,7 @@ import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesActi
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.test.SecurityIntegTestCase;
@@ -37,16 +37,16 @@ public class PermissionPrecedenceTests extends SecurityIntegTestCase {
 
     @Override
     protected String configRoles() {
-        return "admin:\n"
-            + "  cluster: [ all ] \n"
-            + "  indices:\n"
-            + "    - names: '*'\n"
-            + "      privileges: [ all ]"
-            + "\n"
-            + "user:\n"
-            + "  indices:\n"
-            + "    - names: 'test_*'\n"
-            + "      privileges: [ all ]";
+        return """
+            admin:
+              cluster: [ all ]\s
+              indices:
+                - names: '*'
+                  privileges: [ all ]
+            user:
+              indices:
+                - names: 'test_*'
+                  privileges: [ all ]""";
     }
 
     @Override
@@ -59,7 +59,11 @@ public class PermissionPrecedenceTests extends SecurityIntegTestCase {
 
     @Override
     protected String configUsersRoles() {
-        return "admin:admin\n" + "transport_client:client\n" + "user:user\n";
+        return """
+            admin:admin
+            transport_client:client
+            user:user
+            """;
     }
 
     @Override

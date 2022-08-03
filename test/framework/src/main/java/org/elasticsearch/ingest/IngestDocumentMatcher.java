@@ -27,8 +27,7 @@ public class IngestDocumentMatcher {
     }
 
     private static boolean deepEquals(Object a, Object b, boolean isIngestMeta) {
-        if (a instanceof Map) {
-            Map<?, ?> mapA = (Map<?, ?>) a;
+        if (a instanceof Map<?, ?> mapA) {
             if (b instanceof Map == false) {
                 return false;
             }
@@ -44,8 +43,7 @@ public class IngestDocumentMatcher {
                 }
             }
             return true;
-        } else if (a instanceof List) {
-            List<?> listA = (List<?>) a;
+        } else if (a instanceof List<?> listA) {
             if (b instanceof List == false) {
                 return false;
             }

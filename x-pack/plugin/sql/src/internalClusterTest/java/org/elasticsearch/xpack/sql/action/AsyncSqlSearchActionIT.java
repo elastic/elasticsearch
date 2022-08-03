@@ -36,7 +36,6 @@ import org.elasticsearch.xpack.core.async.DeleteAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.StoredAsyncResponse;
 import org.elasticsearch.xpack.sql.plugin.SqlAsyncGetResultsAction;
-import org.elasticsearch.xpack.sql.proto.Protocol;
 import org.junit.After;
 
 import java.io.InputStream;
@@ -180,7 +179,7 @@ public class AsyncSqlSearchActionIT extends AbstractSqlBlockingIntegTestCase {
 
         String opaqueId = randomAlphaOfLength(10);
         logger.trace("Starting async search");
-        SqlQueryResponse response = client().filterWithHeader(Collections.singletonMap(Task.X_OPAQUE_ID, opaqueId))
+        SqlQueryResponse response = client().filterWithHeader(Collections.singletonMap(Task.X_OPAQUE_ID_HTTP_HEADER, opaqueId))
             .execute(SqlQueryAction.INSTANCE, builder.request())
             .get();
         assertThat(response.isRunning(), is(true));
@@ -234,7 +233,7 @@ public class AsyncSqlSearchActionIT extends AbstractSqlBlockingIntegTestCase {
 
         String opaqueId = randomAlphaOfLength(10);
         logger.trace("Starting async search");
-        SqlQueryResponse response = client().filterWithHeader(Collections.singletonMap(Task.X_OPAQUE_ID, opaqueId))
+        SqlQueryResponse response = client().filterWithHeader(Collections.singletonMap(Task.X_OPAQUE_ID_HTTP_HEADER, opaqueId))
             .execute(SqlQueryAction.INSTANCE, builder.request())
             .get();
         assertThat(response.isRunning(), is(true));

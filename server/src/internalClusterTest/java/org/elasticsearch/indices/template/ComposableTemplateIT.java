@@ -22,42 +22,28 @@ public class ComposableTemplateIT extends ESIntegTestCase {
 
     // See: https://github.com/elastic/elasticsearch/issues/58643
     public void testComponentTemplatesCanBeUpdatedAfterRestart() throws Exception {
-        ComponentTemplate ct = new ComponentTemplate(
-            new Template(
-                null,
-                new CompressedXContent(
-                    "{\n"
-                        + "      \"dynamic\": false,\n"
-                        + "      \"properties\": {\n"
-                        + "        \"foo\": {\n"
-                        + "          \"type\": \"text\"\n"
-                        + "        }\n"
-                        + "      }\n"
-                        + "    }"
-                ),
-                null
-            ),
-            3L,
-            Collections.singletonMap("eggplant", "potato")
-        );
+        ComponentTemplate ct = new ComponentTemplate(new Template(null, new CompressedXContent("""
+            {
+              "dynamic": false,
+              "properties": {
+                "foo": {
+                  "type": "text"
+                }
+              }
+            }"""), null), 3L, Collections.singletonMap("eggplant", "potato"));
         client().execute(PutComponentTemplateAction.INSTANCE, new PutComponentTemplateAction.Request("my-ct").componentTemplate(ct)).get();
 
         ComposableIndexTemplate cit = new ComposableIndexTemplate(
             Collections.singletonList("coleslaw"),
-            new Template(
-                null,
-                new CompressedXContent(
-                    "{\n"
-                        + "      \"dynamic\": false,\n"
-                        + "      \"properties\": {\n"
-                        + "        \"foo\": {\n"
-                        + "          \"type\": \"keyword\"\n"
-                        + "        }\n"
-                        + "      }\n"
-                        + "    }"
-                ),
-                null
-            ),
+            new Template(null, new CompressedXContent("""
+                {
+                  "dynamic": false,
+                  "properties": {
+                    "foo": {
+                      "type": "keyword"
+                    }
+                  }
+                }"""), null),
             Collections.singletonList("my-ct"),
             4L,
             5L,
@@ -71,42 +57,28 @@ public class ComposableTemplateIT extends ESIntegTestCase {
         internalCluster().fullRestart();
         ensureGreen();
 
-        ComponentTemplate ct2 = new ComponentTemplate(
-            new Template(
-                null,
-                new CompressedXContent(
-                    "{\n"
-                        + "      \"dynamic\": true,\n"
-                        + "      \"properties\": {\n"
-                        + "        \"foo\": {\n"
-                        + "          \"type\": \"keyword\"\n"
-                        + "        }\n"
-                        + "      }\n"
-                        + "    }"
-                ),
-                null
-            ),
-            3L,
-            Collections.singletonMap("eggplant", "potato")
-        );
+        ComponentTemplate ct2 = new ComponentTemplate(new Template(null, new CompressedXContent("""
+            {
+              "dynamic": true,
+              "properties": {
+                "foo": {
+                  "type": "keyword"
+                }
+              }
+            }"""), null), 3L, Collections.singletonMap("eggplant", "potato"));
         client().execute(PutComponentTemplateAction.INSTANCE, new PutComponentTemplateAction.Request("my-ct").componentTemplate(ct2)).get();
 
         ComposableIndexTemplate cit2 = new ComposableIndexTemplate(
             Collections.singletonList("coleslaw"),
-            new Template(
-                null,
-                new CompressedXContent(
-                    "{\n"
-                        + "      \"dynamic\": true,\n"
-                        + "      \"properties\": {\n"
-                        + "        \"foo\": {\n"
-                        + "          \"type\": \"integer\"\n"
-                        + "        }\n"
-                        + "      }\n"
-                        + "    }"
-                ),
-                null
-            ),
+            new Template(null, new CompressedXContent("""
+                {
+                  "dynamic": true,
+                  "properties": {
+                    "foo": {
+                      "type": "integer"
+                    }
+                  }
+                }"""), null),
             Collections.singletonList("my-ct"),
             4L,
             5L,

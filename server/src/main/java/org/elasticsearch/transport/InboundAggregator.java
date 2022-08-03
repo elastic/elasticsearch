@@ -37,11 +37,13 @@ public class InboundAggregator implements Releasable {
 
     public InboundAggregator(
         Supplier<CircuitBreaker> circuitBreaker,
-        Function<String, RequestHandlerRegistry<TransportRequest>> registryFunction
+        Function<String, RequestHandlerRegistry<TransportRequest>> registryFunction,
+        boolean ignoreDeserializationErrors
     ) {
         this(circuitBreaker, (Predicate<String>) actionName -> {
             final RequestHandlerRegistry<TransportRequest> reg = registryFunction.apply(actionName);
             if (reg == null) {
+                assert ignoreDeserializationErrors : actionName;
                 throw new ActionNotFoundTransportException(actionName);
             } else {
                 return reg.canTripCircuitBreaker();

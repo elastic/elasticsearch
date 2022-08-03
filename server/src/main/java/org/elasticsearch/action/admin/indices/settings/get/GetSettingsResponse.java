@@ -8,11 +8,8 @@
 
 package org.elasticsearch.action.admin.indices.settings.get;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -31,13 +28,10 @@ import java.util.Objects;
 
 public class GetSettingsResponse extends ActionResponse implements ToXContentObject {
 
-    private final ImmutableOpenMap<String, Settings> indexToSettings;
-    private final ImmutableOpenMap<String, Settings> indexToDefaultSettings;
+    private final Map<String, Settings> indexToSettings;
+    private final Map<String, Settings> indexToDefaultSettings;
 
-    public GetSettingsResponse(
-        ImmutableOpenMap<String, Settings> indexToSettings,
-        ImmutableOpenMap<String, Settings> indexToDefaultSettings
-    ) {
+    public GetSettingsResponse(Map<String, Settings> indexToSettings, Map<String, Settings> indexToDefaultSettings) {
         this.indexToSettings = indexToSettings;
         this.indexToDefaultSettings = indexToDefaultSettings;
     }
@@ -53,7 +47,7 @@ public class GetSettingsResponse extends ActionResponse implements ToXContentObj
      * objects contain only those settings explicitly set on a given index.  Any settings
      * taking effect as defaults must be accessed via {@link #getIndexToDefaultSettings()}.
      */
-    public ImmutableOpenMap<String, Settings> getIndexToSettings() {
+    public Map<String, Settings> getIndexToSettings() {
         return indexToSettings;
     }
 
@@ -65,7 +59,7 @@ public class GetSettingsResponse extends ActionResponse implements ToXContentObj
      * via {@link #getIndexToSettings()}.
      * See also {@link GetSettingsRequest#includeDefaults(boolean)}
      */
-    public ImmutableOpenMap<String, Settings> getIndexToDefaultSettings() {
+    public Map<String, Settings> getIndexToDefaultSettings() {
         return indexToDefaultSettings;
     }
 
@@ -96,8 +90,8 @@ public class GetSettingsResponse extends ActionResponse implements ToXContentObj
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(indexToSettings, StreamOutput::writeString, (o, s) -> Settings.writeSettingsToStream(s, o));
-        out.writeMap(indexToDefaultSettings, StreamOutput::writeString, (o, s) -> Settings.writeSettingsToStream(s, o));
+        out.writeMap(indexToSettings, StreamOutput::writeString, (o, v) -> v.writeTo(o));
+        out.writeMap(indexToDefaultSettings, StreamOutput::writeString, (o, v) -> v.writeTo(o));
     }
 
     private static void parseSettingsField(
@@ -109,14 +103,9 @@ public class GetSettingsResponse extends ActionResponse implements ToXContentObj
 
         if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
             switch (parser.currentName()) {
-                case "settings":
-                    indexToSettings.put(currentIndexName, Settings.fromXContent(parser));
-                    break;
-                case "defaults":
-                    indexToDefaultSettings.put(currentIndexName, Settings.fromXContent(parser));
-                    break;
-                default:
-                    parser.skipChildren();
+                case "settings" -> indexToSettings.put(currentIndexName, Settings.fromXContent(parser));
+                case "defaults" -> indexToDefaultSettings.put(currentIndexName, Settings.fromXContent(parser));
+                default -> parser.skipChildren();
             }
         } else if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
             parser.skipChildren();
@@ -157,12 +146,7 @@ public class GetSettingsResponse extends ActionResponse implements ToXContentObj
             }
         }
 
-        ImmutableOpenMap<String, Settings> settingsMap = ImmutableOpenMap.<String, Settings>builder().putAll(indexToSettings).build();
-        ImmutableOpenMap<String, Settings> defaultSettingsMap = ImmutableOpenMap.<String, Settings>builder()
-            .putAll(indexToDefaultSettings)
-            .build();
-
-        return new GetSettingsResponse(settingsMap, defaultSettingsMap);
+        return new GetSettingsResponse(Map.copyOf(indexToSettings), Map.copyOf(indexToDefaultSettings));
     }
 
     @Override
@@ -184,18 +168,18 @@ public class GetSettingsResponse extends ActionResponse implements ToXContentObj
 
     private XContentBuilder toXContent(XContentBuilder builder, Params params, boolean omitEmptySettings) throws IOException {
         builder.startObject();
-        for (ObjectObjectCursor<String, Settings> cursor : getIndexToSettings()) {
+        for (Map.Entry<String, Settings> cursor : getIndexToSettings().entrySet()) {
             // no settings, jump over it to shorten the response data
-            if (omitEmptySettings && cursor.value.isEmpty()) {
+            if (omitEmptySettings && cursor.getValue().isEmpty()) {
                 continue;
             }
-            builder.startObject(cursor.key);
+            builder.startObject(cursor.getKey());
             builder.startObject("settings");
-            cursor.value.toXContent(builder, params);
+            cursor.getValue().toXContent(builder, params);
             builder.endObject();
             if (indexToDefaultSettings.isEmpty() == false) {
                 builder.startObject("defaults");
-                indexToDefaultSettings.get(cursor.key).toXContent(builder, params);
+                indexToDefaultSettings.get(cursor.getKey()).toXContent(builder, params);
                 builder.endObject();
             }
             builder.endObject();

@@ -8,14 +8,14 @@
 
 package org.elasticsearch.operateAllIndices;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.After;
+
+import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock.WRITE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -91,8 +91,8 @@ public class DestructiveOperationsIT extends ESIntegTestCase {
         }
 
         ClusterState state = client().admin().cluster().prepareState().get().getState();
-        for (ObjectObjectCursor<String, IndexMetadata> indexMetadataObjectObjectCursor : state.getMetadata().indices()) {
-            assertEquals(IndexMetadata.State.CLOSE, indexMetadataObjectObjectCursor.value.getState());
+        for (Map.Entry<String, IndexMetadata> indexMetadataEntry : state.getMetadata().indices().entrySet()) {
+            assertEquals(IndexMetadata.State.CLOSE, indexMetadataEntry.getValue().getState());
         }
     }
 
@@ -126,8 +126,8 @@ public class DestructiveOperationsIT extends ESIntegTestCase {
         }
 
         ClusterState state = client().admin().cluster().prepareState().get().getState();
-        for (ObjectObjectCursor<String, IndexMetadata> indexMetadataObjectObjectCursor : state.getMetadata().indices()) {
-            assertEquals(IndexMetadata.State.OPEN, indexMetadataObjectObjectCursor.value.getState());
+        for (Map.Entry<String, IndexMetadata> indexMetadataEntry : state.getMetadata().indices().entrySet()) {
+            assertEquals(IndexMetadata.State.OPEN, indexMetadataEntry.getValue().getState());
         }
     }
 

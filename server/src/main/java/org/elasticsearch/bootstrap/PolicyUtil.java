@@ -8,10 +8,10 @@
 
 package org.elasticsearch.bootstrap;
 
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.plugins.PluginInfo;
+import org.elasticsearch.plugins.PluginDescriptor;
 import org.elasticsearch.script.ClassPermission;
 
 import java.io.FilePermission;
@@ -52,6 +52,7 @@ import java.util.stream.Collectors;
 
 import javax.management.MBeanPermission;
 import javax.management.MBeanServerPermission;
+import javax.management.MBeanTrustPermission;
 import javax.management.ObjectName;
 import javax.security.auth.AuthPermission;
 import javax.security.auth.PrivateCredentialPermission;
@@ -138,7 +139,8 @@ public class PolicyUtil {
                 "addNotificationListener,getAttribute,getDomains,getMBeanInfo,getObjectInstance,instantiate,invoke,"
                     + "isInstanceOf,queryMBeans,queryNames,registerMBean,removeNotificationListener,setAttribute,unregisterMBean"
             ),
-            new MBeanServerPermission("*")
+            new MBeanServerPermission("*"),
+            new MBeanTrustPermission("register")
         );
         // While it would be ideal to represent all allowed permissions with concrete instances so that we can
         // use the builtin implies method to match them against the parsed policy, this does not work in all
@@ -297,7 +299,7 @@ public class PolicyUtil {
 
     // pakcage private for tests
     static PluginPolicyInfo readPolicyInfo(Path pluginRoot) throws IOException {
-        Path policyFile = pluginRoot.resolve(PluginInfo.ES_PLUGIN_POLICY);
+        Path policyFile = pluginRoot.resolve(PluginDescriptor.ES_PLUGIN_POLICY);
         if (Files.exists(policyFile) == false) {
             return null;
         }
@@ -355,9 +357,9 @@ public class PolicyUtil {
         if (info == null) {
             return;
         }
-        validatePolicyPermissionsForJar(type, info.file, null, info.policy, allowedPermissions, tmpDir);
-        for (URL jar : info.jars) {
-            validatePolicyPermissionsForJar(type, info.file, jar, info.policy, allowedPermissions, tmpDir);
+        validatePolicyPermissionsForJar(type, info.file(), null, info.policy(), allowedPermissions, tmpDir);
+        for (URL jar : info.jars()) {
+            validatePolicyPermissionsForJar(type, info.file(), jar, info.policy(), allowedPermissions, tmpDir);
         }
     }
 

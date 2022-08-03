@@ -29,7 +29,12 @@ public class MatchNoneQueryBuilderTests extends AbstractQueryTestCase<MatchNoneQ
     }
 
     public void testFromJson() throws IOException {
-        String json = "{\n" + "  \"match_none\" : {\n" + "    \"boost\" : 1.2\n" + "  }\n" + "}";
+        String json = """
+            {
+              "match_none" : {
+                "boost" : 1.2
+              }
+            }""";
         MatchNoneQueryBuilder parsed = (MatchNoneQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);
         assertEquals(json, 1.2, parsed.boost(), 0.0001);

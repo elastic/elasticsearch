@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
@@ -18,6 +19,8 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.support.QueryParsers;
 import org.elasticsearch.index.search.MatchQueryParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -325,15 +328,21 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         builder.startObject(fieldName);
 
         builder.field(QUERY_FIELD.getPreferredName(), value);
-        builder.field(OPERATOR_FIELD.getPreferredName(), operator.toString());
+        if (operator != DEFAULT_OPERATOR) {
+            builder.field(OPERATOR_FIELD.getPreferredName(), operator.toString());
+        }
         if (analyzer != null) {
             builder.field(ANALYZER_FIELD.getPreferredName(), analyzer);
         }
         if (fuzziness != null) {
             fuzziness.toXContent(builder, params);
         }
-        builder.field(PREFIX_LENGTH_FIELD.getPreferredName(), prefixLength);
-        builder.field(MAX_EXPANSIONS_FIELD.getPreferredName(), maxExpansions);
+        if (prefixLength != FuzzyQuery.defaultPrefixLength) {
+            builder.field(PREFIX_LENGTH_FIELD.getPreferredName(), prefixLength);
+        }
+        if (maxExpansions != FuzzyQuery.defaultMaxExpansions) {
+            builder.field(MAX_EXPANSIONS_FIELD.getPreferredName(), maxExpansions);
+        }
         if (minimumShouldMatch != null) {
             builder.field(MINIMUM_SHOULD_MATCH_FIELD.getPreferredName(), minimumShouldMatch);
         }
@@ -341,13 +350,52 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
             builder.field(FUZZY_REWRITE_FIELD.getPreferredName(), fuzzyRewrite);
         }
         // LUCENE 4 UPGRADE we need to document this & test this
-        builder.field(FUZZY_TRANSPOSITIONS_FIELD.getPreferredName(), fuzzyTranspositions);
-        builder.field(LENIENT_FIELD.getPreferredName(), lenient);
-        builder.field(ZERO_TERMS_QUERY_FIELD.getPreferredName(), zeroTermsQuery.toString());
-        builder.field(GENERATE_SYNONYMS_PHRASE_QUERY.getPreferredName(), autoGenerateSynonymsPhraseQuery);
-        printBoostAndQueryName(builder);
+        if (fuzzyTranspositions != FuzzyQuery.defaultTranspositions) {
+            builder.field(FUZZY_TRANSPOSITIONS_FIELD.getPreferredName(), fuzzyTranspositions);
+        }
+        if (lenient != MatchQueryParser.DEFAULT_LENIENCY) {
+            builder.field(LENIENT_FIELD.getPreferredName(), lenient);
+        }
+        if (false == zeroTermsQuery.equals(MatchQueryParser.DEFAULT_ZERO_TERMS_QUERY)) {
+            builder.field(ZERO_TERMS_QUERY_FIELD.getPreferredName(), zeroTermsQuery.toString());
+        }
+        if (autoGenerateSynonymsPhraseQuery == false) {
+            builder.field(GENERATE_SYNONYMS_PHRASE_QUERY.getPreferredName(), autoGenerateSynonymsPhraseQuery);
+        }
+        boostAndQueryNameToXContent(builder);
         builder.endObject();
         builder.endObject();
+    }
+
+    @Override
+    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        if (fuzziness != null || lenient) {
+            // Term queries can be neither fuzzy nor lenient, so don't rewrite under these conditions
+            return this;
+        }
+        SearchExecutionContext sec = queryRewriteContext.convertToSearchExecutionContext();
+        if (sec == null) {
+            return this;
+        }
+        // If we're using a keyword analyzer then we can rewrite this to a TermQueryBuilder
+        // and possibly shortcut
+        NamedAnalyzer configuredAnalyzer = configuredAnalyzer(sec);
+        if (configuredAnalyzer != null && configuredAnalyzer.analyzer() instanceof KeywordAnalyzer) {
+            TermQueryBuilder termQueryBuilder = new TermQueryBuilder(fieldName, value);
+            return termQueryBuilder.rewrite(sec);
+        }
+        return this;
+    }
+
+    private NamedAnalyzer configuredAnalyzer(SearchExecutionContext context) {
+        if (analyzer != null) {
+            return context.getIndexAnalyzers().get(analyzer);
+        }
+        MappedFieldType mft = context.getFieldType(fieldName);
+        if (mft != null) {
+            return mft.getTextSearchInfo().searchAnalyzer();
+        }
+        return null;
     }
 
     @Override
@@ -526,5 +574,10 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         matchQuery.queryName(queryName);
         matchQuery.boost(boost);
         return matchQuery;
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
     }
 }

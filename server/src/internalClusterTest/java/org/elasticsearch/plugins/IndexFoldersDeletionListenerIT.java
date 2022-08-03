@@ -23,7 +23,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalTestCluster;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -36,7 +35,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.env.NodeEnvironment.INDICES_FOLDER;
 import static org.elasticsearch.gateway.MetadataStateFormat.STATE_DIR_NAME;
@@ -246,7 +244,7 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
 
         final String stoppedNode = randomFrom(shardsByNodes.keySet());
         final Settings stoppedNodeDataPathSettings = internalCluster().dataPathSettings(stoppedNode);
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(stoppedNode));
+        internalCluster().stopNode(stoppedNode);
         ensureStableCluster(3 + 1, masterNode);
 
         assertAcked(client().admin().indices().prepareDelete(indexName));
@@ -292,7 +290,7 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
         }
 
         logger.debug("--> stopping data node [{}], the data left on disk will be injected as left-overs in a newer data node", dataNode);
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(dataNode));
+        internalCluster().stopNode(dataNode);
         ensureStableCluster(1, masterNode);
 
         logger.debug("--> deleting leftover indices");
@@ -332,10 +330,7 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
         logger.debug("--> starting another data node with data paths [{}]", dataPaths);
         dataNode = internalCluster().startDataOnlyNode(
             Settings.builder()
-                .putList(
-                    Environment.PATH_DATA_SETTING.getKey(),
-                    dataPaths.stream().map(p -> p.toAbsolutePath().toString()).collect(Collectors.toList())
-                )
+                .putList(Environment.PATH_DATA_SETTING.getKey(), dataPaths.stream().map(p -> p.toAbsolutePath().toString()).toList())
                 .putNull(Environment.PATH_SHARED_DATA_SETTING.getKey())
                 .build()
         );

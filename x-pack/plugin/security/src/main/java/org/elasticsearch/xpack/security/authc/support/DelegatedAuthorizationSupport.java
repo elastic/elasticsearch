@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.security.authc.support;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -49,6 +50,13 @@ public class DelegatedAuthorizationSupport {
      */
     public DelegatedAuthorizationSupport(Iterable<? extends Realm> allRealms, RealmConfig config, XPackLicenseState licenseState) {
         this(allRealms, config.getSetting(AUTHZ_REALMS), config.settings(), config.threadContext(), licenseState);
+        if (lookup.hasRealms()) {
+            logger.info(
+                "Realm [{}] is delegating authorization to [{}]",
+                config.identifier(),
+                Strings.collectionToCommaDelimitedString(lookup.getRealms())
+            );
+        }
     }
 
     /**
@@ -166,4 +174,12 @@ public class DelegatedAuthorizationSupport {
         throw new IllegalArgumentException("configured authorization realm [" + name + "] does not exist (or is not enabled)");
     }
 
+    @Override
+    public String toString() {
+        return "security-delegated-authorization: available ["
+            + Security.DELEGATED_AUTHORIZATION_FEATURE.checkWithoutTracking(licenseState)
+            + "], lookup-realms ["
+            + collectionToDelimitedString(this.lookup.getRealms(), ",")
+            + "]";
+    }
 }

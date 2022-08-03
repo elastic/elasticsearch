@@ -53,7 +53,7 @@ public final class NodeAndClusterIdConverter extends LogEventPatternConverter {
         // nodeId/clusterUuid not received yet, not appending
     }
 
-    private String formatIds(String nodeId, String clusterUUID) {
+    private static String formatIds(String nodeId, String clusterUUID) {
         return String.format(Locale.ROOT, "\"cluster.uuid\": \"%s\", \"node.id\": \"%s\"", clusterUUID, nodeId);
     }
 }

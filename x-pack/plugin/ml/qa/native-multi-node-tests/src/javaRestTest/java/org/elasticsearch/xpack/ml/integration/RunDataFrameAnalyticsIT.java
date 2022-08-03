@@ -272,7 +272,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
 
         GetSettingsResponse docValueLimitSetting = client().admin().indices().getSettings(getSettingsRequest).actionGet();
         int docValueLimit = IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING.get(
-            docValueLimitSetting.getIndexToSettings().valuesIt().next()
+            docValueLimitSetting.getIndexToSettings().values().iterator().next()
         );
 
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
@@ -649,7 +649,7 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             id,
             "Created analytics with type [outlier_detection]",
             "Estimated memory usage [",
-            "Job requires at least [1tb] free memory on a machine learning capable node to run",
+            "Job requires at least [1tb] free memory on a machine learning node to run",
             "Started analytics",
             "Stopped analytics"
         );
@@ -829,8 +829,19 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
     public void testOutlierDetection_GivenIndexWithRuntimeFields() throws Exception {
         String sourceIndex = "test-outlier-detection-with-index-with-runtime-fields";
 
-        String mappings = "{\"dynamic\":false, \"runtime\": { \"runtime_numeric\": "
-            + "{ \"type\": \"double\", \"script\": { \"source\": \"emit(params._source.numeric)\", \"lang\": \"painless\" } } }}";
+        String mappings = """
+            {
+              "dynamic": false,
+              "runtime": {
+                "runtime_numeric": {
+                  "type": "double",
+                  "script": {
+                    "source": "emit(params._source.numeric)",
+                    "lang": "painless"
+                  }
+                }
+              }
+            }""";
 
         client().admin().indices().prepareCreate(sourceIndex).setMapping(mappings).get();
 

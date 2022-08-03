@@ -215,4 +215,8 @@ public abstract class GradleUtils {
             }
         });
     }
+
+    public static String projectPath(String taskPath) {
+        return taskPath.lastIndexOf(':') == 0 ? ":" : taskPath.substring(0, taskPath.lastIndexOf(':'));
+    }
 }

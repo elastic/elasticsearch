@@ -26,9 +26,11 @@ import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.rescore.Rescorer;
 import org.elasticsearch.search.rescore.RescorerBuilder;
+import org.elasticsearch.Version;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -98,7 +100,8 @@ public class ExampleRescoreBuilder extends RescorerBuilder<ExampleRescoreBuilder
     @Override
     public RescoreContext innerBuildContext(int windowSize, SearchExecutionContext context) throws IOException {
         IndexFieldData<?> factorFieldData =
-                this.factorField == null ? null : context.getForField(context.getFieldType(this.factorField));
+                this.factorField == null ? null : context.getForField(context.getFieldType(this.factorField),
+                    MappedFieldType.FielddataOperation.SEARCH);
         return new ExampleRescoreContext(windowSize, factor, factorFieldData);
     }
 
@@ -211,5 +214,10 @@ public class ExampleRescoreBuilder extends RescorerBuilder<ExampleRescoreBuilder
             return Explanation.match(context.factor, "test", singletonList(sourceExplanation));
         }
 
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
     }
 }

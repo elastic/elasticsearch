@@ -419,12 +419,11 @@ GET _cat/shards?v=true&h=index,shard,prirep,state,node,unassigned.reason&s=state
 ----
 
 Unassigned shards have a `state` of `UNASSIGNED`. The `prirep` value is `p` for
-primary shards and `r` for replicas. The `unassigned.reason` describes why the
-shard remains unassigned.
+primary shards and `r` for replicas.
 
-To get a more in-depth explanation of an unassigned shard's allocation status,
-use the <<cluster-allocation-explain,cluster allocation explanation API>>. You
-can often use details in the response to resolve the issue.
+To understand why an unassigned shard is not being assigned and what action
+you must take to allow {es} to assign it, use the
+<<cluster-allocation-explain,cluster allocation explanation API>>.
 
 [source,console]
 ----
@@ -693,9 +692,9 @@ see the number of active threads in each thread pool and
 how many tasks are queued, how many have been rejected, and how many have completed. 
 
 [source,console]
----
+----
 GET /_cat/thread_pool?v&s=t,n&h=type,name,node_name,active,queue,rejected,completed
----
+----
 
 **Inspect the hot threads on each node**
 
@@ -705,9 +704,9 @@ to determine if the thread has sufficient
 resources to progress and gauge how quickly it is progressing.
 
 [source,console]
----
+----
 GET /_nodes/hot_threads
----
+----
 
 **Look for long running tasks**
 

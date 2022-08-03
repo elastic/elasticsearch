@@ -565,27 +565,19 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
     }
 
     public void testIndexTemplateWithAliasesInSource() {
-        client().admin()
-            .indices()
-            .preparePutTemplate("template_1")
-            .setSource(
-                new BytesArray(
-                    "{\n"
-                        + "    \"index_patterns\" : \"*\",\n"
-                        + "    \"aliases\" : {\n"
-                        + "        \"my_alias\" : {\n"
-                        + "            \"filter\" : {\n"
-                        + "                \"term\" : {\n"
-                        + "                    \"field\" : \"value2\"\n"
-                        + "                }\n"
-                        + "            }\n"
-                        + "        }\n"
-                        + "    }\n"
-                        + "}"
-                ),
-                XContentType.JSON
-            )
-            .get();
+        client().admin().indices().preparePutTemplate("template_1").setSource(new BytesArray("""
+            {
+              "index_patterns": "*",
+              "aliases": {
+                "my_alias": {
+                  "filter": {
+                    "term": {
+                      "field": "value2"
+                    }
+                  }
+                }
+              }
+            }"""), XContentType.JSON).get();
 
         assertAcked(prepareCreate("test_index"));
         ensureGreen();
@@ -607,24 +599,21 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
     }
 
     public void testIndexTemplateWithAliasesSource() {
-        client().admin()
-            .indices()
-            .preparePutTemplate("template_1")
-            .setPatterns(Collections.singletonList("te*"))
-            .setAliases(
-                "    {\n"
-                    + "        \"alias1\" : {},\n"
-                    + "        \"alias2\" : {\n"
-                    + "            \"filter\" : {\n"
-                    + "                \"term\" : {\n"
-                    + "                    \"field\" : \"value2\"\n"
-                    + "                }\n"
-                    + "            }\n"
-                    + "         },\n"
-                    + "        \"alias3\" : { \"routing\" : \"1\" }"
-                    + "    }\n"
-            )
-            .get();
+        client().admin().indices().preparePutTemplate("template_1").setPatterns(Collections.singletonList("te*")).setAliases("""
+            {
+              "alias1": {},
+              "alias2": {
+                "filter": {
+                  "term": {
+                    "field": "value2"
+                  }
+                }
+              },
+              "alias3": {
+                "routing": "1"
+              }
+            }
+            """).get();
 
         assertAcked(prepareCreate("test_index"));
         ensureGreen();
@@ -830,25 +819,19 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
 
         // Now, a complete mapping with two separated templates is error
         // base template
-        client().admin()
-            .indices()
-            .preparePutTemplate("template_1")
-            .setPatterns(Collections.singletonList("*"))
-            .setSettings(
-                "    {\n"
-                    + "        \"index\" : {\n"
-                    + "            \"analysis\" : {\n"
-                    + "                \"analyzer\" : {\n"
-                    + "                    \"custom_1\" : {\n"
-                    + "                        \"tokenizer\" : \"standard\"\n"
-                    + "                    }\n"
-                    + "                }\n"
-                    + "            }\n"
-                    + "         }\n"
-                    + "    }\n",
-                XContentType.JSON
-            )
-            .get();
+        client().admin().indices().preparePutTemplate("template_1").setPatterns(Collections.singletonList("*")).setSettings("""
+            {
+              "index": {
+                "analysis": {
+                  "analyzer": {
+                    "custom_1": {
+                      "tokenizer": "standard"
+                    }
+                  }
+                }
+              }
+            }
+            """, XContentType.JSON).get();
 
         // put template using custom_1 analyzer
         MapperParsingException e = expectThrows(

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
@@ -16,8 +15,8 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -53,8 +52,10 @@ import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import java.util.Optional;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
-import static org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutor.MIN_SUPPORTED_SNAPSHOT_VERSION;
+import static org.elasticsearch.xpack.core.ml.MachineLearningField.MIN_CHECKED_SUPPORTED_SNAPSHOT_VERSION;
+import static org.elasticsearch.xpack.core.ml.MachineLearningField.MIN_REPORTED_SUPPORTED_SNAPSHOT_VERSION;
 import static org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutor.checkAssignmentState;
 
 /*
@@ -191,17 +192,17 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
                             return;
                         }
                         assert modelSnapshot.getPage().results().size() == 1;
-                        if (modelSnapshot.getPage().results().get(0).getMinVersion().onOrAfter(MIN_SUPPORTED_SNAPSHOT_VERSION)) {
+                        if (modelSnapshot.getPage().results().get(0).getMinVersion().onOrAfter(MIN_CHECKED_SUPPORTED_SNAPSHOT_VERSION)) {
                             modelSnapshotValidationListener.onResponse(true);
                             return;
                         }
                         listener.onFailure(
                             ExceptionsHelper.badRequestException(
-                                "[{}] job snapshot [{}] has min version before [{}], "
+                                "[{}] job model snapshot [{}] has min version before [{}], "
                                     + "please revert to a newer model snapshot or reset the job",
                                 jobParams.getJobId(),
                                 jobParams.getJob().getModelSnapshotId(),
-                                MIN_SUPPORTED_SNAPSHOT_VERSION.toString()
+                                MIN_REPORTED_SUPPORTED_SNAPSHOT_VERSION.toString()
                             )
                         );
                     }, failure -> {
@@ -215,7 +216,7 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             }, listener::onFailure);
 
             // Get the job config
-            jobConfigProvider.getJob(jobParams.getJobId(), ActionListener.wrap(builder -> {
+            jobConfigProvider.getJob(jobParams.getJobId(), null, ActionListener.wrap(builder -> {
                 jobParams.setJob(builder.build());
                 getJobHandler.onResponse(null);
             }, listener::onFailure));
@@ -268,14 +269,14 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
     ) {
         final JobUpdate update = new JobUpdate.Builder(jobId).setClearFinishTime(true).build();
         ActionListener<Job> clearedTimeListener = ActionListener.wrap(job -> listener.onResponse(response), e -> {
-            logger.error(new ParameterizedMessage("[{}] Failed to clear finished_time", jobId), e);
+            logger.error(() -> "[" + jobId + "] Failed to clear finished_time", e);
             // Not a critical error so continue
             listener.onResponse(response);
         });
         ActionListener<Boolean> mappingsUpdatedListener = ActionListener.wrap(
             mappingUpdateResponse -> jobConfigProvider.updateJob(jobId, update, null, clearedTimeListener),
             e -> {
-                logger.error(new ParameterizedMessage("[{}] Failed to update mapping; not clearing finished_time", jobId), e);
+                logger.error(() -> "[" + jobId + "] Failed to update mapping; not clearing finished_time", e);
                 // Not a critical error so continue without attempting to clear finish time
                 listener.onResponse(response);
             }
@@ -306,8 +307,8 @@ public class TransportOpenJobAction extends TransportMasterNodeAction<OpenJobAct
             @Override
             public void onFailure(Exception e) {
                 logger.error(
-                    () -> new ParameterizedMessage(
-                        "[{}] Failed to cancel persistent task that could not be assigned due to [{}]",
+                    () -> format(
+                        "[%s] Failed to cancel persistent task that could not be assigned due to [%s]",
                         persistentTask.getParams().getJobId(),
                         exception.getMessage()
                     ),

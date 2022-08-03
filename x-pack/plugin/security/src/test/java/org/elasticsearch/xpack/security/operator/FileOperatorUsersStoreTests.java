@@ -11,7 +11,6 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -24,6 +23,7 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xpack.core.security.audit.logfile.CapturingLogger;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.junit.After;
 import org.junit.Before;
@@ -37,7 +37,6 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
@@ -71,7 +70,11 @@ public class FileOperatorUsersStoreTests extends ESTestCase {
         // user operator_1 from file realm is an operator
         final Authentication.RealmRef fileRealm = new Authentication.RealmRef("file", "file", randomAlphaOfLength(8));
         final User operator_1 = new User("operator_1", randomRoles());
-        assertTrue(fileOperatorUsersStore.isOperatorUser(new Authentication(operator_1, fileRealm, fileRealm)));
+        assertTrue(
+            fileOperatorUsersStore.isOperatorUser(
+                AuthenticationTestHelper.builder().realm().user(operator_1).realmRef(fileRealm).build(false)
+            )
+        );
 
         // user operator_3 is an operator and its file realm can have any name
         final Authentication.RealmRef anotherFileRealm = new Authentication.RealmRef(
@@ -81,7 +84,11 @@ public class FileOperatorUsersStoreTests extends ESTestCase {
         );
         assertTrue(
             fileOperatorUsersStore.isOperatorUser(
-                new Authentication(new User("operator_3", randomRoles()), anotherFileRealm, anotherFileRealm)
+                AuthenticationTestHelper.builder()
+                    .realm()
+                    .user(new User("operator_3", randomRoles()))
+                    .realmRef(anotherFileRealm)
+                    .build(false)
             )
         );
 
@@ -91,14 +98,14 @@ public class FileOperatorUsersStoreTests extends ESTestCase {
             new Authentication.RealmRef(randomAlphaOfLengthBetween(5, 8), "file", randomAlphaOfLength(8)),
             new Authentication.RealmRef(randomAlphaOfLengthBetween(5, 8), randomAlphaOfLengthBetween(5, 8), randomAlphaOfLength(8))
         );
-        assertFalse(fileOperatorUsersStore.isOperatorUser(new Authentication(operator_1, differentRealm, differentRealm)));
-
-        // user operator_1 with non realm auth type is not an operator
         assertFalse(
             fileOperatorUsersStore.isOperatorUser(
-                new Authentication(operator_1, fileRealm, fileRealm, Version.CURRENT, Authentication.AuthenticationType.TOKEN, Map.of())
+                AuthenticationTestHelper.builder().realm().user(operator_1).realmRef(differentRealm).build(false)
             )
         );
+
+        // user operator_1 with non realm auth type is not an operator
+        assertFalse(fileOperatorUsersStore.isOperatorUser(Authentication.newRealmAuthentication(operator_1, fileRealm).token()));
     }
 
     public void testFileAutoReload() throws Exception {
@@ -222,20 +229,24 @@ public class FileOperatorUsersStoreTests extends ESTestCase {
     }
 
     public void testParseConfig() throws IOException {
-        String config = "" + "operator:\n" + "  - usernames: [\"operator_1\"]\n";
+        String config = """
+            operator:
+              - usernames: ["operator_1"]
+            """;
         try (ByteArrayInputStream in = new ByteArrayInputStream(config.getBytes(StandardCharsets.UTF_8))) {
             final List<FileOperatorUsersStore.Group> groups = FileOperatorUsersStore.parseConfig(in).getGroups();
             assertEquals(1, groups.size());
             assertEquals(new FileOperatorUsersStore.Group(Set.of("operator_1")), groups.get(0));
         }
 
-        config = ""
-            + "operator:\n"
-            + "  - usernames: [\"operator_1\",\"operator_2\"]\n"
-            + "    realm_name: \"file1\"\n"
-            + "    realm_type: \"file\"\n"
-            + "    auth_type: \"realm\"\n"
-            + "  - usernames: [\"internal_system\"]\n";
+        config = """
+            operator:
+              - usernames: ["operator_1","operator_2"]
+                realm_name: "file1"
+                realm_type: "file"
+                auth_type: "realm"
+              - usernames: ["internal_system"]
+            """;
 
         try (ByteArrayInputStream in = new ByteArrayInputStream(config.getBytes(StandardCharsets.UTF_8))) {
             final List<FileOperatorUsersStore.Group> groups = FileOperatorUsersStore.parseConfig(in).getGroups();
@@ -244,12 +255,13 @@ public class FileOperatorUsersStoreTests extends ESTestCase {
             assertEquals(new FileOperatorUsersStore.Group(Set.of("internal_system")), groups.get(1));
         }
 
-        config = ""
-            + "operator:\n"
-            + "  - realm_name: \"file1\"\n"
-            + "    usernames: [\"internal_system\"]\n"
-            + "  - auth_type: \"realm\"\n"
-            + "    usernames: [\"operator_1\",\"operator_2\"]\n";
+        config = """
+            operator:
+              - realm_name: "file1"
+                usernames: ["internal_system"]
+              - auth_type: "realm"
+                usernames: ["operator_1","operator_2"]
+            """;
 
         try (ByteArrayInputStream in = new ByteArrayInputStream(config.getBytes(StandardCharsets.UTF_8))) {
             final List<FileOperatorUsersStore.Group> groups = FileOperatorUsersStore.parseConfig(in).getGroups();
@@ -260,20 +272,31 @@ public class FileOperatorUsersStoreTests extends ESTestCase {
     }
 
     public void testParseInvalidConfig() throws IOException {
-        String config = "" + "operator:\n" + "  - usernames: [\"operator_1\"]\n" + "    realm_type: \"native\"\n";
+        String config = """
+            operator:
+              - usernames: ["operator_1"]
+                realm_type: "native"
+            """;
         try (ByteArrayInputStream in = new ByteArrayInputStream(config.getBytes(StandardCharsets.UTF_8))) {
             final XContentParseException e = expectThrows(XContentParseException.class, () -> FileOperatorUsersStore.parseConfig(in));
             assertThat(e.getCause().getCause().getMessage(), containsString("[realm_type] only supports [file]"));
         }
 
-        config = "" + "operator:\n" + "  - usernames: [\"operator_1\"]\n" + "    auth_type: \"token\"\n";
+        config = """
+            operator:
+              - usernames: ["operator_1"]
+                auth_type: "token"
+            """;
 
         try (ByteArrayInputStream in = new ByteArrayInputStream(config.getBytes(StandardCharsets.UTF_8))) {
             final XContentParseException e = expectThrows(XContentParseException.class, () -> FileOperatorUsersStore.parseConfig(in));
             assertThat(e.getCause().getCause().getMessage(), containsString("[auth_type] only supports [realm]"));
         }
 
-        config = "" + "operator:\n" + "    auth_type: \"realm\"\n";
+        config = """
+            operator:
+                auth_type: "realm"
+            """;
         try (ByteArrayInputStream in = new ByteArrayInputStream(config.getBytes(StandardCharsets.UTF_8))) {
             final XContentParseException e = expectThrows(XContentParseException.class, () -> FileOperatorUsersStore.parseConfig(in));
             assertThat(e.getCause().getMessage(), containsString("Required [usernames]"));

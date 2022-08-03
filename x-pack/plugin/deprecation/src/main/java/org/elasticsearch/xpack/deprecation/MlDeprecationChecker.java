@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.deprecation;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
@@ -26,6 +25,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+
+import static org.elasticsearch.xpack.core.ml.MachineLearningField.MIN_CHECKED_SUPPORTED_SNAPSHOT_VERSION;
+import static org.elasticsearch.xpack.core.ml.MachineLearningField.MIN_REPORTED_SUPPORTED_SNAPSHOT_VERSION;
 
 public class MlDeprecationChecker implements DeprecationChecker {
 
@@ -67,22 +69,20 @@ public class MlDeprecationChecker implements DeprecationChecker {
     }
 
     static Optional<DeprecationIssue> checkModelSnapshot(ModelSnapshot modelSnapshot) {
-        if (modelSnapshot.getMinVersion().before(Version.V_7_0_0)) {
+        if (modelSnapshot.getMinVersion().before(MIN_CHECKED_SUPPORTED_SNAPSHOT_VERSION)) {
             StringBuilder details = new StringBuilder(
                 String.format(
                     Locale.ROOT,
-                    "model snapshot [%s] for job [%s] supports minimum version [%s] and needs to be at least [%s].",
+                    "Delete model snapshot [%s] or update it to %s or greater.",
                     modelSnapshot.getSnapshotId(),
-                    modelSnapshot.getJobId(),
-                    modelSnapshot.getMinVersion(),
-                    Version.V_7_0_0
+                    MIN_REPORTED_SUPPORTED_SNAPSHOT_VERSION
                 )
             );
             if (modelSnapshot.getLatestRecordTimeStamp() != null) {
                 details.append(
                     String.format(
                         Locale.ROOT,
-                        " The model snapshot's latest record timestamp is [%s]",
+                        " The model snapshot's latest record timestamp is [%s].",
                         XContentElasticsearchExtension.DEFAULT_FORMATTER.format(modelSnapshot.getLatestRecordTimeStamp().toInstant())
                     )
                 );
@@ -92,9 +92,12 @@ public class MlDeprecationChecker implements DeprecationChecker {
                     DeprecationIssue.Level.CRITICAL,
                     String.format(
                         Locale.ROOT,
-                        "model snapshot [%s] for job [%s] needs to be deleted or upgraded",
+                        // Important: the Kibana upgrade assistant expects this to match the pattern /[Mm]odel snapshot/
+                        // and if it doesn't then the expected "Fix" button won't appear for this deprecation.
+                        "Model snapshot [%s] for job [%s] has an obsolete minimum version [%s].",
                         modelSnapshot.getSnapshotId(),
-                        modelSnapshot.getJobId()
+                        modelSnapshot.getJobId(),
+                        modelSnapshot.getMinVersion()
                     ),
                     "https://www.elastic.co/guide/en/elasticsearch/reference/master/ml-upgrade-job-model-snapshot.html",
                     details.toString(),

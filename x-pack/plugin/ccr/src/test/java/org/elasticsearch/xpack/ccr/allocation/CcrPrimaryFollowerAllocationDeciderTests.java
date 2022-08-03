@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.ccr.allocation;
 
-import com.carrotsearch.hppc.IntHashSet;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
@@ -21,8 +19,8 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
-import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
+import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -71,7 +69,7 @@ public class CcrPrimaryFollowerAllocationDeciderTests extends ESAllocationTestCa
         } else if (randomBoolean()) {
             routingTable.addAsRecovery(metadata.index(index));
         } else if (randomBoolean()) {
-            routingTable.addAsNewRestore(metadata.index(index), newSnapshotRecoverySource(), new IntHashSet());
+            routingTable.addAsNewRestore(metadata.index(index), newSnapshotRecoverySource(), new HashSet<>());
         } else {
             routingTable.addAsRestore(metadata.index(index), newSnapshotRecoverySource());
         }
@@ -80,7 +78,7 @@ public class CcrPrimaryFollowerAllocationDeciderTests extends ESAllocationTestCa
             .metadata(metadata)
             .routingTable(routingTable.build())
             .build();
-        for (int i = 0; i < clusterState.routingTable().index(index).shards().size(); i++) {
+        for (int i = 0; i < clusterState.routingTable().index(index).size(); i++) {
             IndexShardRoutingTable shardRouting = clusterState.routingTable().index(index).shard(i);
             assertThat(shardRouting.size(), equalTo(2));
             assertThat(shardRouting.primaryShard().state(), equalTo(UNASSIGNED));
@@ -120,7 +118,7 @@ public class CcrPrimaryFollowerAllocationDeciderTests extends ESAllocationTestCa
             .metadata(metadata)
             .routingTable(routingTable.build())
             .build();
-        for (int i = 0; i < clusterState.routingTable().index(index).shards().size(); i++) {
+        for (int i = 0; i < clusterState.routingTable().index(index).size(); i++) {
             IndexShardRoutingTable shardRouting = clusterState.routingTable().index(index).shard(i);
             assertThat(shardRouting.size(), equalTo(2));
             assertThat(shardRouting.primaryShard().state(), equalTo(UNASSIGNED));
@@ -150,13 +148,13 @@ public class CcrPrimaryFollowerAllocationDeciderTests extends ESAllocationTestCa
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(dataOnlyNode).add(dataAndRemoteNode).build();
         Metadata metadata = Metadata.builder().put(indexMetadata).build();
         RoutingTable.Builder routingTable = RoutingTable.builder()
-            .addAsNewRestore(metadata.index(index), newSnapshotRecoverySource(), new IntHashSet());
+            .addAsNewRestore(metadata.index(index), newSnapshotRecoverySource(), new HashSet<>());
         ClusterState clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .nodes(discoveryNodes)
             .metadata(metadata)
             .routingTable(routingTable.build())
             .build();
-        for (int i = 0; i < clusterState.routingTable().index(index).shards().size(); i++) {
+        for (int i = 0; i < clusterState.routingTable().index(index).size(); i++) {
             IndexShardRoutingTable shardRouting = clusterState.routingTable().index(index).shard(i);
             assertThat(shardRouting.size(), equalTo(2));
             assertThat(shardRouting.primaryShard().state(), equalTo(UNASSIGNED));
@@ -185,14 +183,14 @@ public class CcrPrimaryFollowerAllocationDeciderTests extends ESAllocationTestCa
         final AllocationDecider decider = new CcrPrimaryFollowerAllocationDecider();
         final RoutingAllocation routingAllocation = new RoutingAllocation(
             new AllocationDeciders(List.of(decider)),
-            new RoutingNodes(clusterState),
+            RoutingNodes.immutable(clusterState.routingTable(), clusterState.nodes()),
             clusterState,
             ClusterInfo.EMPTY,
             SnapshotShardSizeInfo.EMPTY,
             System.nanoTime()
         );
         routingAllocation.debugDecision(true);
-        return decider.canAllocate(shardRouting, new RoutingNode(node.getId(), node), routingAllocation);
+        return decider.canAllocate(shardRouting, RoutingNodesHelper.routingNode(node.getId(), node), routingAllocation);
     }
 
     static RecoverySource.SnapshotRecoverySource newSnapshotRecoverySource() {

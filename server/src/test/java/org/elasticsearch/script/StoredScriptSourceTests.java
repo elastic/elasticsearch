@@ -75,16 +75,12 @@ public class StoredScriptSourceTests extends AbstractSerializingTestCase<StoredS
         newTemplate.endObject();
 
         switch (between(0, 2)) {
-            case 0:
-                source = Strings.toString(newTemplate);
-                break;
-            case 1:
-                lang = randomAlphaOfLengthBetween(1, 20);
-                break;
-            case 2:
-            default:
+            case 0 -> source = Strings.toString(newTemplate);
+            case 1 -> lang = randomAlphaOfLengthBetween(1, 20);
+            default -> {
                 options = new HashMap<>(options);
                 options.put(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
+            }
         }
         return new StoredScriptSource(lang, source, options);
     }

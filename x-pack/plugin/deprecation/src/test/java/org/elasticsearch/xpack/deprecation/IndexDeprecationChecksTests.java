@@ -33,9 +33,9 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             .build();
         DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
-            "Index created before 7.0",
+            "Old index with a compatibility version < 7.0",
             "https://www.elastic.co/guide/en/elasticsearch/reference/master/" + "breaking-changes-8.0.html",
-            "This index was created using version: " + createdWith,
+            "This index has version: " + createdWith,
             false,
             null
         );
@@ -59,7 +59,12 @@ public class IndexDeprecationChecksTests extends ESTestCase {
                     "translog retention settings [index.translog.retention.size] and [index.translog.retention.age] are ignored "
                         + "because translog is no longer used in peer recoveries with soft-deletes enabled (default in 7.0 or later)",
                     false,
-                    null
+                    DeprecationIssue.createMetaMapForRemovableSettings(
+                        List.of(
+                            IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(),
+                            IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey()
+                        )
+                    )
                 )
             )
         );
@@ -88,7 +93,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             issues,
             contains(
                 new DeprecationIssue(
-                    DeprecationIssue.Level.CRITICAL,
+                    DeprecationIssue.Level.WARNING,
                     "setting [index.data_path] is deprecated and will be removed in a future version",
                     expectedUrl,
                     "Found index data path configured. Discontinue use of this setting.",

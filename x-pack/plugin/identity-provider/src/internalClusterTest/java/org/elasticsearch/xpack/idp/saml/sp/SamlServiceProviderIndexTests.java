@@ -83,7 +83,6 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
         final int count = randomIntBetween(3, 5);
         List<SamlServiceProviderDocument> documents = new ArrayList<>(count);
 
-        final ClusterService clusterService = super.getInstanceFromNode(ClusterService.class);
         // Install the template
         assertTrue("Template should have been installed", installTemplate());
         // No need to install it again
@@ -102,7 +101,7 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
         assertThat(indexMetadata, notNullValue());
         assertThat(indexMetadata.getSettings().get("index.format"), equalTo("1"));
         assertThat(indexMetadata.getAliases().size(), equalTo(1));
-        assertThat(indexMetadata.getAliases().keys().toArray(), arrayContainingInAnyOrder(SamlServiceProviderIndex.ALIAS_NAME));
+        assertThat(indexMetadata.getAliases().keySet().toArray(), arrayContainingInAnyOrder(SamlServiceProviderIndex.ALIAS_NAME));
 
         refresh();
 
@@ -140,7 +139,7 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
         assertThat(indexMetadata, notNullValue());
         assertThat(indexMetadata.getSettings().get("index.format"), equalTo("1"));
         assertThat(indexMetadata.getAliases().size(), equalTo(1));
-        assertThat(indexMetadata.getAliases().keys().toArray(), arrayContainingInAnyOrder(SamlServiceProviderIndex.ALIAS_NAME));
+        assertThat(indexMetadata.getAliases().keySet().toArray(), arrayContainingInAnyOrder(SamlServiceProviderIndex.ALIAS_NAME));
 
         SamlServiceProviderDocument document = randomDocument(1);
         writeDocument(document);

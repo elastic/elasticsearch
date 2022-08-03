@@ -14,7 +14,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
@@ -31,6 +31,7 @@ import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xcontent.XContentType;
@@ -54,7 +55,14 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
     private NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
 
     private UsageService usageService = new UsageService();
-    private RestController controller = new RestController(emptySet(), null, client, new NoneCircuitBreakerService(), usageService);
+    private RestController controller = new RestController(
+        emptySet(),
+        null,
+        client,
+        new NoneCircuitBreakerService(),
+        usageService,
+        Tracer.NOOP
+    );
     private RestValidateQueryAction action = new RestValidateQueryAction();
 
     /**
@@ -104,7 +112,9 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
 
     public void testRestValidateQueryAction() throws Exception {
         // GIVEN a valid query
-        final String content = "{\"query\":{\"bool\":{\"must\":{\"term\":{\"user\":\"kimchy\"}}}}}";
+        final String content = """
+            {"query":{"bool":{"must":{"term":{"user":"kimchy"}}}}}
+            """;
 
         final RestRequest request = createRestRequest(content);
         final FakeRestChannel channel = new FakeRestChannel(request, true, 0);

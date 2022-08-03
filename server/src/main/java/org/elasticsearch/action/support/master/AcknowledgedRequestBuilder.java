@@ -8,7 +8,7 @@
 package org.elasticsearch.action.support.master;
 
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.core.TimeValue;
 
 /**

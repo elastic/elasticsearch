@@ -9,7 +9,6 @@ package org.elasticsearch.percolator;
 
 import org.apache.lucene.index.PrefixCodedTerms;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.BlendedTermQuery;
 import org.apache.lucene.queries.spans.SpanOrQuery;
 import org.apache.lucene.queries.spans.SpanTermQuery;
 import org.apache.lucene.search.BooleanClause.Occur;
@@ -30,6 +29,7 @@ import org.apache.lucene.util.NumericUtils;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.index.query.DateRangeIncludingNowQuery;
+import org.elasticsearch.lucene.queries.BlendedTermQuery;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -160,8 +160,7 @@ final class QueryAnalyzer {
                 return QueryVisitor.EMPTY_VISITOR;
             }
             int minimumShouldMatchValue = 0;
-            if (parent instanceof BooleanQuery) {
-                BooleanQuery bq = (BooleanQuery) parent;
+            if (parent instanceof BooleanQuery bq) {
                 if (bq.getMinimumNumberShouldMatch() == 0
                     && bq.clauses().stream().anyMatch(c -> c.getOccur() == Occur.MUST || c.getOccur() == Occur.FILTER)) {
                     return QueryVisitor.EMPTY_VISITOR;
@@ -198,8 +197,7 @@ final class QueryAnalyzer {
 
         @Override
         public void consumeTermsMatching(Query query, String field, Supplier<ByteRunAutomaton> automaton) {
-            if (query instanceof TermInSetQuery) {
-                TermInSetQuery q = (TermInSetQuery) query;
+            if (query instanceof TermInSetQuery q) {
                 PrefixCodedTerms.TermIterator ti = q.getTermData().iterator();
                 BytesRef term;
                 Set<QueryExtraction> qe = new HashSet<>();

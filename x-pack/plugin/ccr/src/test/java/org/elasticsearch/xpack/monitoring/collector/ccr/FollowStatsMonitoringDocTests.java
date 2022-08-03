@@ -117,7 +117,7 @@ public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Fol
             )
         );
         final long timeSinceLastReadMillis = randomNonNegativeLong();
-        final ShardFollowNodeTaskStatus status = new ShardFollowNodeTaskStatus(
+        final ShardFollowNodeTaskStatus taskStatus = new ShardFollowNodeTaskStatus(
             "leader_cluster",
             "leader_index",
             "follower_index",
@@ -148,123 +148,101 @@ public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Fol
             timeSinceLastReadMillis,
             new ElasticsearchException("fatal error")
         );
-        final FollowStatsMonitoringDoc document = new FollowStatsMonitoringDoc("_cluster", timestamp, intervalMillis, node, status);
+        final FollowStatsMonitoringDoc document = new FollowStatsMonitoringDoc("_cluster", timestamp, intervalMillis, node, taskStatus);
         final BytesReference xContent = XContentHelper.toXContent(document, XContentType.JSON, false);
         assertThat(
             xContent.utf8ToString(),
             equalTo(
-                "{"
-                    + "\"cluster_uuid\":\"_cluster\","
-                    + "\"timestamp\":\""
-                    + DATE_TIME_FORMATTER.formatMillis(timestamp)
-                    + "\","
-                    + "\"interval_ms\":"
-                    + intervalMillis
-                    + ","
-                    + "\"type\":\"ccr_stats\","
-                    + "\"source_node\":{"
-                    + "\"uuid\":\"_uuid\","
-                    + "\"host\":\"_host\","
-                    + "\"transport_address\":\"_addr\","
-                    + "\"ip\":\"_ip\","
-                    + "\"name\":\"_name\","
-                    + "\"timestamp\":\""
-                    + DATE_TIME_FORMATTER.formatMillis(nodeTimestamp)
-                    + "\""
-                    + "},"
-                    + "\"ccr_stats\":{"
-                    + "\"remote_cluster\":\"leader_cluster\","
-                    + "\"leader_index\":\"leader_index\","
-                    + "\"follower_index\":\"follower_index\","
-                    + "\"shard_id\":"
-                    + shardId
-                    + ","
-                    + "\"leader_global_checkpoint\":"
-                    + leaderGlobalCheckpoint
-                    + ","
-                    + "\"leader_max_seq_no\":"
-                    + leaderMaxSeqNo
-                    + ","
-                    + "\"follower_global_checkpoint\":"
-                    + followerGlobalCheckpoint
-                    + ","
-                    + "\"follower_max_seq_no\":"
-                    + followerMaxSeqNo
-                    + ","
-                    + "\"last_requested_seq_no\":"
-                    + lastRequestedSeqNo
-                    + ","
-                    + "\"outstanding_read_requests\":"
-                    + numberOfConcurrentReads
-                    + ","
-                    + "\"outstanding_write_requests\":"
-                    + numberOfConcurrentWrites
-                    + ","
-                    + "\"write_buffer_operation_count\":"
-                    + writeBufferOperationCount
-                    + ","
-                    + "\"write_buffer_size_in_bytes\":"
-                    + writeBufferSizeInBytes
-                    + ","
-                    + "\"follower_mapping_version\":"
-                    + followerMappingVersion
-                    + ","
-                    + "\"follower_settings_version\":"
-                    + followerSettingsVersion
-                    + ","
-                    + "\"follower_aliases_version\":"
-                    + followerAliasesVersion
-                    + ","
-                    + "\"total_read_time_millis\":"
-                    + totalReadTimeMillis
-                    + ","
-                    + "\"total_read_remote_exec_time_millis\":"
-                    + totalReadRemoteExecTimeMillis
-                    + ","
-                    + "\"successful_read_requests\":"
-                    + successfulReadRequests
-                    + ","
-                    + "\"failed_read_requests\":"
-                    + failedReadRequests
-                    + ","
-                    + "\"operations_read\":"
-                    + operationsRead
-                    + ","
-                    + "\"bytes_read\":"
-                    + bytesRead
-                    + ","
-                    + "\"total_write_time_millis\":"
-                    + totalWriteTimeMillis
-                    + ","
-                    + "\"successful_write_requests\":"
-                    + successfulWriteRequests
-                    + ","
-                    + "\"failed_write_requests\":"
-                    + failedWriteRequests
-                    + ","
-                    + "\"operations_written\":"
-                    + operationWritten
-                    + ","
-                    + "\"read_exceptions\":["
-                    + "{"
-                    + "\"from_seq_no\":"
-                    + fetchExceptions.keySet().iterator().next()
-                    + ","
-                    + "\"retries\":"
-                    + fetchExceptions.values().iterator().next().v1()
-                    + ","
-                    + "\"exception\":{"
-                    + "\"type\":\"exception\","
-                    + "\"reason\":\"shard is sad\""
-                    + "}"
-                    + "}"
-                    + "],"
-                    + "\"time_since_last_read_millis\":"
-                    + timeSinceLastReadMillis
-                    + ","
-                    + "\"fatal_exception\":{\"type\":\"exception\",\"reason\":\"fatal error\"}"
-                    + "}"
-                    + "}"
+                XContentHelper.stripWhitespace(
+                    """
+                        {
+                          "cluster_uuid": "_cluster",
+                          "timestamp": "%s",
+                          "interval_ms": %s,
+                          "type": "ccr_stats",
+                          "source_node": {
+                            "uuid": "_uuid",
+                            "host": "_host",
+                            "transport_address": "_addr",
+                            "ip": "_ip",
+                            "name": "_name",
+                            "timestamp": "%s"
+                          },
+                          "ccr_stats": {
+                            "remote_cluster": "leader_cluster",
+                            "leader_index": "leader_index",
+                            "follower_index": "follower_index",
+                            "shard_id": %s,
+                            "leader_global_checkpoint": %s,
+                            "leader_max_seq_no": %s,
+                            "follower_global_checkpoint": %s,
+                            "follower_max_seq_no": %s,
+                            "last_requested_seq_no": %s,
+                            "outstanding_read_requests": %s,
+                            "outstanding_write_requests": %s,
+                            "write_buffer_operation_count": %s,
+                            "write_buffer_size_in_bytes": %s,
+                            "follower_mapping_version": %s,
+                            "follower_settings_version": %s,
+                            "follower_aliases_version": %s,
+                            "total_read_time_millis": %s,
+                            "total_read_remote_exec_time_millis": %s,
+                            "successful_read_requests": %s,
+                            "failed_read_requests": %s,
+                            "operations_read": %s,
+                            "bytes_read": %s,
+                            "total_write_time_millis": %s,
+                            "successful_write_requests": %s,
+                            "failed_write_requests": %s,
+                            "operations_written": %s,
+                            "read_exceptions": [
+                              {
+                                "from_seq_no": %s,
+                                "retries": %s,
+                                "exception": {
+                                  "type": "exception",
+                                  "reason": "shard is sad"
+                                }
+                              }
+                            ],
+                            "time_since_last_read_millis": %s,
+                            "fatal_exception": {
+                              "type": "exception",
+                              "reason": "fatal error"
+                            }
+                          }
+                        }""".formatted(
+                        DATE_TIME_FORMATTER.formatMillis(timestamp),
+                        intervalMillis,
+                        DATE_TIME_FORMATTER.formatMillis(nodeTimestamp),
+                        shardId,
+                        leaderGlobalCheckpoint,
+                        leaderMaxSeqNo,
+                        followerGlobalCheckpoint,
+                        followerMaxSeqNo,
+                        lastRequestedSeqNo,
+                        numberOfConcurrentReads,
+                        numberOfConcurrentWrites,
+                        writeBufferOperationCount,
+                        writeBufferSizeInBytes,
+                        followerMappingVersion,
+                        followerSettingsVersion,
+                        followerAliasesVersion,
+                        totalReadTimeMillis,
+                        totalReadRemoteExecTimeMillis,
+                        successfulReadRequests,
+                        failedReadRequests,
+                        operationsRead,
+                        bytesRead,
+                        totalWriteTimeMillis,
+                        successfulWriteRequests,
+                        failedWriteRequests,
+                        operationWritten,
+                        fetchExceptions.keySet().iterator().next(),
+                        fetchExceptions.values().iterator().next().v1(),
+                        timeSinceLastReadMillis
+                    )
+                )
             )
         );
     }
@@ -273,7 +251,7 @@ public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Fol
         final NavigableMap<Long, Tuple<Integer, ElasticsearchException>> fetchExceptions = new TreeMap<>(
             Collections.singletonMap(1L, Tuple.tuple(2, new ElasticsearchException("shard is sad")))
         );
-        final ShardFollowNodeTaskStatus status = new ShardFollowNodeTaskStatus(
+        final ShardFollowNodeTaskStatus taskStatus = new ShardFollowNodeTaskStatus(
             "remote_cluster",
             "leader_index",
             "follower_index",
@@ -305,7 +283,7 @@ public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Fol
             new ElasticsearchException("fatal error")
         );
         XContentBuilder builder = jsonBuilder();
-        builder.value(status);
+        builder.value(taskStatus);
         Map<String, Object> serializedStatus = XContentHelper.convertToMap(XContentType.JSON.xContent(), Strings.toString(builder), false);
 
         byte[] loadedTemplate = MonitoringTemplateRegistry.getTemplateConfigForMonitoredSystem(MonitoredSystem.ES).loadBytes();

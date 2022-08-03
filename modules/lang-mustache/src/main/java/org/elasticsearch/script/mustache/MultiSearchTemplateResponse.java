@@ -9,10 +9,12 @@
 package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -24,7 +26,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Iterator;
 
 public class MultiSearchTemplateResponse extends ActionResponse implements Iterable<MultiSearchTemplateResponse.Item>, ToXContentObject {
@@ -115,7 +116,7 @@ public class MultiSearchTemplateResponse extends ActionResponse implements Itera
 
     @Override
     public Iterator<Item> iterator() {
-        return Arrays.stream(items).iterator();
+        return Iterators.forArray(items);
     }
 
     /**
@@ -146,13 +147,15 @@ public class MultiSearchTemplateResponse extends ActionResponse implements Itera
         builder.field("took", tookInMillis);
         builder.startArray(Fields.RESPONSES);
         for (Item item : items) {
+            builder.startObject();
             if (item.isFailure()) {
-                builder.startObject();
                 ElasticsearchException.generateFailureXContent(builder, params, item.getFailure(), true);
-                builder.endObject();
+                builder.field(Fields.STATUS, ExceptionsHelper.status(item.getFailure()).getStatus());
             } else {
-                item.getResponse().toXContent(builder, params);
+                item.getResponse().innerToXContent(builder, params);
+                builder.field(Fields.STATUS, item.getResponse().status().getStatus());
             }
+            builder.endObject();
         }
         builder.endArray();
         builder.endObject();
@@ -161,6 +164,7 @@ public class MultiSearchTemplateResponse extends ActionResponse implements Itera
 
     static final class Fields {
         static final String RESPONSES = "responses";
+        static final String STATUS = "status";
     }
 
     public static MultiSearchTemplateResponse fromXContext(XContentParser parser) {

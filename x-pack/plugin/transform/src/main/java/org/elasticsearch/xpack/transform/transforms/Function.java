@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.transform.transforms;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -51,7 +51,7 @@ public interface Function {
      * 2. apply the collected changes as filter query and search/process them
      * 3. in case phase 1 could not collect all changes, move the collector cursor, collect changes and continue with step 2
      */
-    public interface ChangeCollector {
+    interface ChangeCollector {
 
         /**
          * Build the search query to gather the changes between 2 checkpoints.

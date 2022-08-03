@@ -6,16 +6,13 @@ import java.security.KeyPairGenerator
 
 import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.rest-resources'
 
 final Project fixture = project(':test:fixtures:gcs-fixture')
-final Project repositoryPlugin = project(':plugins:repository-gcs')
 
 dependencies {
-  testImplementation(testArtifact(project(xpackModule('snapshot-based-recoveries'))))
-  testImplementation repositoryPlugin
+  javaRestTestImplementation(testArtifact(project(xpackModule('snapshot-based-recoveries'))))
 }
 
 restResources {
@@ -89,7 +86,7 @@ if (useFixture) {
   testFixtures.useFixture(fixture.path, 'gcs-fixture-snapshots-based-recoveries')
 }
 
-tasks.named("integTest").configure {
+tasks.named("javaRestTest").configure {
   systemProperty 'test.gcs.bucket', gcsBucket
   nonInputProperties.systemProperty 'test.gcs.base_path', gcsBasePath + "_snapshot_based_recoveries_tests" + BuildParams.testSeed
 
@@ -98,10 +95,9 @@ tasks.named("integTest").configure {
   }
 }
 
-testClusters.matching { it.name == "integTest" }.configureEach {
+testClusters.matching { it.name == "javaRestTest" }.configureEach {
   testDistribution = 'DEFAULT'
   numberOfNodes = 3
-  plugin repositoryPlugin.path
 
   setting 'xpack.license.self_generated.type', 'trial'
 
@@ -119,5 +115,5 @@ testClusters.matching { it.name == "integTest" }.configureEach {
 }
 
 tasks.register("gcsThirdPartyTest")  {
-  dependsOn "integTest"
+  dependsOn "javaRestTest"
 }

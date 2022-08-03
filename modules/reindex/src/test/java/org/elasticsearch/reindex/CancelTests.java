@@ -131,22 +131,22 @@ public class CancelTests extends ReindexTestCase {
 
         // Status should show the task running
         TaskInfo mainTask = findTaskToCancel(action, builder.request().getSlices());
-        BulkByScrollTask.Status status = (BulkByScrollTask.Status) mainTask.getStatus();
+        BulkByScrollTask.Status status = (BulkByScrollTask.Status) mainTask.status();
         assertNull(status.getReasonCancelled());
 
         // Description shouldn't be empty
-        assertThat(mainTask.getDescription(), taskDescriptionMatcher);
+        assertThat(mainTask.description(), taskDescriptionMatcher);
 
         // Cancel the request while the action is blocked by the indexing operation listeners.
         // This will prevent further requests from being sent.
-        ListTasksResponse cancelTasksResponse = client().admin().cluster().prepareCancelTasks().setTaskId(mainTask.getTaskId()).get();
+        ListTasksResponse cancelTasksResponse = client().admin().cluster().prepareCancelTasks().setTargetTaskId(mainTask.taskId()).get();
         cancelTasksResponse.rethrowFailures("Cancel");
         assertThat(cancelTasksResponse.getTasks(), hasSize(1));
 
         /* The status should now show canceled. The request will still be in the
          * list because it is (or its children are) still blocked. */
-        mainTask = client().admin().cluster().prepareGetTask(mainTask.getTaskId()).get().getTask().getTask();
-        status = (BulkByScrollTask.Status) mainTask.getStatus();
+        mainTask = client().admin().cluster().prepareGetTask(mainTask.taskId()).get().getTask().getTask();
+        status = (BulkByScrollTask.Status) mainTask.status();
         logger.debug("asserting that parent is marked canceled {}", status);
         assertEquals(CancelTasksRequest.DEFAULT_REASON, status.getReasonCancelled());
 
@@ -155,13 +155,13 @@ public class CancelTests extends ReindexTestCase {
             ListTasksResponse sliceList = client().admin()
                 .cluster()
                 .prepareListTasks()
-                .setParentTaskId(mainTask.getTaskId())
+                .setTargetParentTaskId(mainTask.taskId())
                 .setDetailed(true)
                 .get();
             sliceList.rethrowFailures("Fetch slice tasks");
             logger.debug("finding at least one canceled child among {}", sliceList.getTasks());
             for (TaskInfo slice : sliceList.getTasks()) {
-                BulkByScrollTask.Status sliceStatus = (BulkByScrollTask.Status) slice.getStatus();
+                BulkByScrollTask.Status sliceStatus = (BulkByScrollTask.Status) slice.status();
                 if (sliceStatus.getReasonCancelled() == null) continue;
                 assertEquals(CancelTasksRequest.DEFAULT_REASON, sliceStatus.getReasonCancelled());
                 foundCancelled = true;
@@ -193,7 +193,7 @@ public class CancelTests extends ReindexTestCase {
             String tasks = client().admin()
                 .cluster()
                 .prepareListTasks()
-                .setParentTaskId(mainTask.getTaskId())
+                .setTargetParentTaskId(mainTask.taskId())
                 .setDetailed(true)
                 .get()
                 .toString();
@@ -220,7 +220,7 @@ public class CancelTests extends ReindexTestCase {
             tasks.rethrowFailures("Find tasks to cancel");
             for (TaskInfo taskInfo : tasks.getTasks()) {
                 // Skip tasks with a parent because those are children of the task we want to cancel
-                if (false == taskInfo.getParentTaskId().isSet()) {
+                if (false == taskInfo.parentTaskId().isSet()) {
                     return taskInfo;
                 }
             }
@@ -238,14 +238,13 @@ public class CancelTests extends ReindexTestCase {
     }
 
     public void testUpdateByQueryCancel() throws Exception {
-        BytesReference pipeline = new BytesArray(
-            "{\n"
-                + "  \"description\" : \"sets processed to true\",\n"
-                + "  \"processors\" : [ {\n"
-                + "      \"test\" : {}\n"
-                + "  } ]\n"
-                + "}"
-        );
+        BytesReference pipeline = new BytesArray("""
+            {
+              "description" : "sets processed to true",
+              "processors" : [ {
+                  "test" : {}
+              } ]
+            }""");
         assertAcked(client().admin().cluster().preparePutPipeline("set-processed", pipeline, XContentType.JSON).get());
 
         testCancel(UpdateByQueryAction.NAME, updateByQuery().setPipeline("set-processed").source(INDEX), (response, total, modified) -> {
@@ -282,14 +281,13 @@ public class CancelTests extends ReindexTestCase {
     }
 
     public void testUpdateByQueryCancelWithWorkers() throws Exception {
-        BytesReference pipeline = new BytesArray(
-            "{\n"
-                + "  \"description\" : \"sets processed to true\",\n"
-                + "  \"processors\" : [ {\n"
-                + "      \"test\" : {}\n"
-                + "  } ]\n"
-                + "}"
-        );
+        BytesReference pipeline = new BytesArray("""
+            {
+              "description" : "sets processed to true",
+              "processors" : [ {
+                  "test" : {}
+              } ]
+            }""");
         assertAcked(client().admin().cluster().preparePutPipeline("set-processed", pipeline, XContentType.JSON).get());
 
         testCancel(

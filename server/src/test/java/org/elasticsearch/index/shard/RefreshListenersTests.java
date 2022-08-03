@@ -17,7 +17,6 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -25,10 +24,10 @@ import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
@@ -41,6 +40,7 @@ import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.seqno.RetentionLeases;
@@ -87,7 +87,6 @@ public class RefreshListenersTests extends ESTestCase {
     private volatile int maxListeners;
     private ThreadPool threadPool;
     private Store store;
-    private MeanMetric refreshMetric;
 
     @Before
     public void setupListeners() throws Exception {
@@ -95,18 +94,16 @@ public class RefreshListenersTests extends ESTestCase {
         maxListeners = randomIntBetween(2, 1000);
         // Now setup the InternalEngine which is much more complicated because we aren't mocking anything
         threadPool = new TestThreadPool(getTestName());
-        refreshMetric = new MeanMetric();
         listeners = new RefreshListeners(
             () -> maxListeners,
             () -> engine.refresh("too-many-listeners"),
             logger,
             threadPool.getThreadContext(),
-            refreshMetric
+            new MeanMetric()
         );
 
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("index", Settings.EMPTY);
         ShardId shardId = new ShardId(new Index("index", "_na_"), 1);
-        String allocationId = UUIDs.randomBase64UUID(random());
         Directory directory = newDirectory();
         store = new Store(shardId, indexSettings, directory, new DummyShardLock(shardId));
         IndexWriterConfig iwc = newIndexWriterConfig();
@@ -456,7 +453,6 @@ public class RefreshListenersTests extends ESTestCase {
         refresher.cancel();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/79689")
     public void testDisallowAddListeners() throws Exception {
         assertEquals(0, listeners.pendingCount());
         TestLocationListener listener = new TestLocationListener();
@@ -503,8 +499,21 @@ public class RefreshListenersTests extends ESTestCase {
         }
 
         assertFalse(listeners.addOrNotify(index("1").getTranslogLocation(), new TestLocationListener()));
-        assertFalse(listeners.addOrNotify(index("1").getSeqNo(), new TestSeqNoListener()));
-        assertEquals(3, listeners.pendingCount());
+        final int expectedPending;
+        if (listeners.pendingCount() == maxListeners) {
+            // Rejected
+            TestSeqNoListener rejected = new TestSeqNoListener();
+            assertTrue(listeners.addOrNotify(index("1").getSeqNo(), rejected));
+            assertNotNull(rejected.error);
+            expectedPending = 2;
+        } else {
+            TestSeqNoListener acceptedListener = new TestSeqNoListener();
+            assertFalse(listeners.addOrNotify(index("1").getSeqNo(), acceptedListener));
+            assertFalse(acceptedListener.isDone.get());
+            assertNull(acceptedListener.error);
+            expectedPending = 3;
+        }
+        assertEquals(expectedPending, listeners.pendingCount());
     }
 
     public void testSequenceNumberMustBeIssued() throws Exception {
@@ -529,14 +538,12 @@ public class RefreshListenersTests extends ESTestCase {
         final Term uid = new Term(IdFieldMapper.NAME, Uid.encodeId(id));
         LuceneDocument document = new LuceneDocument();
         document.add(new TextField("test", testFieldValue, Field.Store.YES));
-        Field idField = new Field(uid.field(), uid.bytes(), IdFieldMapper.Defaults.FIELD_TYPE);
+        Field idField = new Field(uid.field(), uid.bytes(), ProvidedIdFieldMapper.Defaults.FIELD_TYPE);
         Field versionField = new NumericDocValuesField("_version", Versions.MATCH_ANY);
         SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
         document.add(idField);
         document.add(versionField);
-        document.add(seqID.seqNo);
-        document.add(seqID.seqNoDocValue);
-        document.add(seqID.primaryTerm);
+        seqID.addFields(document);
         BytesReference source = new BytesArray(new byte[] { 1 });
         ParsedDocument doc = new ParsedDocument(versionField, seqID, id, null, Arrays.asList(document), source, XContentType.JSON, null);
         Engine.Index index = new Engine.Index(uid, engine.config().getPrimaryTermSupplier().getAsLong(), doc);

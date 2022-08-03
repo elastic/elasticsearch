@@ -142,7 +142,7 @@ public class RunTask extends DefaultTestClustersTask {
         try {
             for (ElasticsearchCluster cluster : getClusters()) {
                 for (ElasticsearchNode node : cluster.getNodes()) {
-                    BufferedReader reader = Files.newBufferedReader(node.getEsLogFile());
+                    BufferedReader reader = Files.newBufferedReader(node.getEsOutputFile());
                     toRead.add(reader);
                     aliveChecks.add(node::isProcessAlive);
                 }

@@ -31,13 +31,11 @@ public class ClusterSearchShardsIT extends ESIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        switch (nodeOrdinal % 2) {
-            case 1:
-                return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings)).put("node.attr.tag", "B").build();
-            case 0:
-                return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings)).put("node.attr.tag", "A").build();
-        }
-        return super.nodeSettings(nodeOrdinal, otherSettings);
+        return switch (nodeOrdinal % 2) {
+            case 1 -> Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings)).put("node.attr.tag", "B").build();
+            case 0 -> Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings)).put("node.attr.tag", "A").build();
+            default -> super.nodeSettings(nodeOrdinal, otherSettings);
+        };
     }
 
     public void testSingleShardAllocation() throws Exception {

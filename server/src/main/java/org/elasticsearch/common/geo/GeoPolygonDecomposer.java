@@ -39,6 +39,24 @@ class GeoPolygonDecomposer {
         // no instances
     }
 
+    public static boolean needsDecomposing(Polygon polygon) {
+        double minX = Double.POSITIVE_INFINITY;
+        double maxX = Double.NEGATIVE_INFINITY;
+        LinearRing linearRing = polygon.getPolygon();
+        for (int i = 0; i < linearRing.length(); i++) {
+            if (GeoUtils.needsNormalizeLat(linearRing.getLat(i)) || GeoUtils.needsNormalizeLon(linearRing.getLon(i))) {
+                return true;
+            }
+            minX = Math.min(minX, linearRing.getLon(i));
+            maxX = Math.max(maxX, linearRing.getLon(i));
+        }
+        // calculate range
+        final double rng = maxX - minX;
+        // we need to decompose tif the range is greater than a hemisphere (180 degrees)
+        // but not spanning 2 hemispheres (translation would result in a collapsed poly)
+        return rng > DATELINE && rng != 2 * DATELINE;
+    }
+
     public static void decomposeMultiPolygon(MultiPolygon multiPolygon, boolean orientation, List<Polygon> collector) {
         for (Polygon polygon : multiPolygon) {
             decomposePolygon(polygon, orientation, collector);
@@ -88,18 +106,9 @@ class GeoPolygonDecomposer {
         int numPoints = linearRing.length();
         int count = 2;
         for (int i = 1; i < numPoints - 1; i++) {
-            if (linearRing.getLon(i - 1) == linearRing.getLon(i)) {
-                if (linearRing.getLat(i - 1) == linearRing.getLat(i)) {
-                    // same point
-                    continue;
-                }
-                if (linearRing.getLon(i - 1) == linearRing.getLon(i + 1)
-                    && linearRing.getLat(i - 1) > linearRing.getLat(i) != linearRing.getLat(i + 1) > linearRing.getLat(i)) {
-                    // coplanar
-                    continue;
-                }
+            if (skipPoint(linearRing, i) == false) {
+                count++;
             }
-            count++;
         }
         if (numPoints == count) {
             return linearRing;
@@ -111,17 +120,29 @@ class GeoPolygonDecomposer {
         lons[0] = lons[count - 1] = linearRing.getLon(0);
         count = 0;
         for (int i = 1; i < numPoints - 1; i++) {
-            if (linearRing.getLon(i - 1) == linearRing.getLon(i)) {
-                if (linearRing.getLat(i - 1) == linearRing.getLat(i) || linearRing.getLon(i - 1) == linearRing.getLon(i + 1)) {
-                    // filter
-                    continue;
-                }
+            if (skipPoint(linearRing, i) == false) {
+                count++;
+                lats[count] = linearRing.getLat(i);
+                lons[count] = linearRing.getLon(i);
             }
-            count++;
-            lats[count] = linearRing.getLat(i);
-            lons[count] = linearRing.getLon(i);
         }
         return new LinearRing(lons, lats);
+    }
+
+    private static boolean skipPoint(LinearRing linearRing, int i) {
+        if (linearRing.getLon(i - 1) == linearRing.getLon(i)) {
+            if (linearRing.getLat(i - 1) == linearRing.getLat(i)) {
+                // same point
+                return true;
+            }
+            if (linearRing.getLon(i - 1) == linearRing.getLon(i + 1)
+                && linearRing.getLat(i - 1) > linearRing.getLat(i) != linearRing.getLat(i + 1) > linearRing.getLat(i)) {
+                // collinear - we only remove points that go in the same direction. So latitudes [1,2,3] we would want
+                // to remove 1 but for [1,2,-1] we don't.
+                return true;
+            }
+        }
+        return false;
     }
 
     private static void validateHole(LinearRing shell, LinearRing hole) {
@@ -136,18 +157,6 @@ class GeoPolygonDecomposer {
         exterior.retainAll(interior);
         if (exterior.size() >= 2) {
             throw new IllegalArgumentException("Invalid polygon, interior cannot share more than one point with the exterior");
-        }
-    }
-
-    private static Point position(Point p1, Point p2, double position) {
-        if (position == 0) {
-            return p1;
-        } else if (position == 1) {
-            return p2;
-        } else {
-            final double x = p1.getX() + position * (p2.getX() - p1.getX());
-            final double y = p1.getY() + position * (p2.getY() - p1.getY());
-            return new Point(x, y);
         }
     }
 
@@ -204,13 +213,9 @@ class GeoPolygonDecomposer {
             minX = Math.min(minX, points[i].getX());
             maxX = Math.max(maxX, points[i].getX());
         }
-        if (signedArea == 0) {
-            // Points are collinear or self-intersection
-            throw new IllegalArgumentException(
-                "Cannot determine orientation: signed area equal to 0." + " Points are collinear or polygon self-intersects."
-            );
-        }
-        boolean orientation = signedArea < 0;
+        // if the polygon is tiny, the computed area can result in zero. In that case
+        // we assume orientation is correct
+        boolean orientation = signedArea == 0 ? handedness != false : signedArea < 0;
 
         // OGC requires shell as ccw (Right-Handedness) and holes as cw (Left-Handedness)
         // since GeoJSON doesn't specify (and doesn't need to) GEO core will assume OGC standards
@@ -399,7 +404,7 @@ class GeoPolygonDecomposer {
 
             double position = intersection(p1.getX(), p2.getX(), dateline);
             if (Double.isNaN(position) == false) {
-                edges[i].intersection(position);
+                edges[i].setIntersection(position, dateline);
                 numIntersections++;
                 maxComponent = Math.max(maxComponent, edges[i].component);
             }
@@ -760,13 +765,20 @@ class GeoPolygonDecomposer {
         }
 
         /**
-         * Set the intersection of this line segment to the given position
+         * Set the intersection of this line segment with the given dateline
          *
          * @param position position of the intersection [0..1]
-         * @return the {@link Point} of the intersection
+         * @param dateline of the intersection
          */
-        Point intersection(double position) {
-            return intersect = position(coordinate, next.coordinate, position);
+        void setIntersection(double position, double dateline) {
+            if (position == 0) {
+                this.intersect = coordinate;
+            } else if (position == 1) {
+                this.intersect = next.coordinate;
+            } else {
+                final double y = coordinate.getY() + position * (next.coordinate.getY() - coordinate.getY());
+                this.intersect = new Point(dateline, y);
+            }
         }
 
         @Override

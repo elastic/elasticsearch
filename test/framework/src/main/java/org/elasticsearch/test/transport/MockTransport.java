@@ -19,7 +19,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.CloseableConnection;
 import org.elasticsearch.transport.ClusterConnectionManager;
 import org.elasticsearch.transport.RemoteTransportException;
@@ -39,7 +41,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.Function;
 
-import static org.apache.lucene.util.LuceneTestCase.rarely;
+import static org.apache.lucene.tests.util.LuceneTestCase.rarely;
 
 /**
  * A basic transport implementation that allows to intercept requests that have been sent
@@ -57,7 +59,9 @@ public class MockTransport extends StubbableTransport {
         @Nullable ClusterSettings clusterSettings,
         Set<String> taskHeaders
     ) {
-        StubbableConnectionManager connectionManager = new StubbableConnectionManager(new ClusterConnectionManager(settings, this));
+        final StubbableConnectionManager connectionManager = new StubbableConnectionManager(
+            new ClusterConnectionManager(settings, this, threadPool.getThreadContext())
+        );
         connectionManager.setDefaultNodeConnectedBehavior((cm, node) -> false);
         connectionManager.setDefaultGetConnectionBehavior((cm, discoveryNode) -> createConnection(discoveryNode));
         return new TransportService(
@@ -67,14 +71,17 @@ public class MockTransport extends StubbableTransport {
             interceptor,
             localNodeFactory,
             clusterSettings,
-            taskHeaders,
-            connectionManager
+            connectionManager,
+            new TaskManager(settings, threadPool, taskHeaders),
+            Tracer.NOOP
         );
     }
 
     public MockTransport() {
         super(new FakeTransport());
-        setDefaultConnectBehavior((transport, discoveryNode, profile, listener) -> listener.onResponse(createConnection(discoveryNode)));
+        setDefaultConnectBehavior(
+            (transport, discoveryNode, profile, actionListener) -> actionListener.onResponse(createConnection(discoveryNode))
+        );
     }
 
     /**
@@ -172,12 +179,12 @@ public class MockTransport extends StubbableTransport {
     protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode node) {}
 
     @Override
-    public void setMessageListener(TransportMessageListener listener) {
+    public void setMessageListener(TransportMessageListener messageListener) {
         if (this.listener != null) {
             throw new IllegalStateException("listener already set");
         }
-        this.listener = listener;
-        super.setMessageListener(listener);
+        this.listener = messageListener;
+        super.setMessageListener(messageListener);
     }
 
     protected NamedWriteableRegistry writeableRegistry() {

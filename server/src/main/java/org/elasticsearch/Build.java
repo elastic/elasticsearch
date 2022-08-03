@@ -16,55 +16,19 @@ import org.elasticsearch.core.Booleans;
 import java.io.IOException;
 import java.net.URL;
 import java.security.CodeSource;
-import java.util.Objects;
 import java.util.jar.JarInputStream;
 import java.util.jar.Manifest;
 
 /**
  * Information about a build of Elasticsearch.
  */
-public class Build {
+public record Build(Type type, String hash, String date, boolean isSnapshot, String version) {
+
     /**
      * The current build of Elasticsearch. Filled with information scanned at
      * startup from the jar.
      */
     public static final Build CURRENT;
-
-    public enum Flavor {
-
-        DEFAULT("default"),
-        OSS("oss"),
-        UNKNOWN("unknown");
-
-        final String displayName;
-
-        Flavor(final String displayName) {
-            this.displayName = displayName;
-        }
-
-        public String displayName() {
-            return displayName;
-        }
-
-        public static Flavor fromDisplayName(final String displayName, final boolean strict) {
-            switch (displayName) {
-                case "default":
-                    return Flavor.DEFAULT;
-                case "oss":
-                    return Flavor.OSS;
-                case "unknown":
-                    return Flavor.UNKNOWN;
-                default:
-                    if (strict) {
-                        final String message = "unexpected distribution flavor [" + displayName + "]; your distribution is broken";
-                        throw new IllegalStateException(message);
-                    } else {
-                        return Flavor.UNKNOWN;
-                    }
-            }
-        }
-
-    }
 
     public enum Type {
 
@@ -111,7 +75,6 @@ public class Build {
     }
 
     static {
-        final Flavor flavor;
         final Type type;
         final String hash;
         final String date;
@@ -119,7 +82,6 @@ public class Build {
         final String version;
 
         // these are parsed at startup, and we require that we are able to recognize the values passed in by the startup scripts
-        flavor = Flavor.fromDisplayName(System.getProperty("es.distribution.flavor", "unknown"), true);
         type = Type.fromDisplayName(System.getProperty("es.distribution.type", "unknown"), true);
 
         final String esPrefix = "elasticsearch-" + Version.CURRENT;
@@ -173,10 +135,8 @@ public class Build {
             );
         }
 
-        CURRENT = new Build(flavor, type, hash, date, isSnapshot, version);
+        CURRENT = new Build(type, hash, date, isSnapshot, version);
     }
-
-    private final boolean isSnapshot;
 
     /**
      * The location of the code source for Elasticsearch
@@ -188,34 +148,13 @@ public class Build {
         return codeSource == null ? null : codeSource.getLocation();
     }
 
-    private final Flavor flavor;
-    private final Type type;
-    private final String hash;
-    private final String date;
-    private final String version;
-
-    public Build(final Flavor flavor, final Type type, final String hash, final String date, boolean isSnapshot, String version) {
-        this.flavor = flavor;
-        this.type = type;
-        this.hash = hash;
-        this.date = date;
-        this.isSnapshot = isSnapshot;
-        this.version = version;
-    }
-
-    public String hash() {
-        return hash;
-    }
-
-    public String date() {
-        return date;
-    }
-
     public static Build readBuild(StreamInput in) throws IOException {
-        final Flavor flavor;
         final Type type;
         // be lenient when reading on the wire, the enumeration values from other versions might be different than what we know
-        flavor = Flavor.fromDisplayName(in.readString(), false);
+        if (in.getVersion().before(Version.V_8_3_0)) {
+            // this was the flavor, which is always the default distribution now
+            in.readString();
+        }
         // be lenient when reading on the wire, the enumeration values from other versions might be different than what we know
         type = Type.fromDisplayName(in.readString(), false);
         String hash = in.readString();
@@ -224,41 +163,32 @@ public class Build {
 
         final String version;
         version = in.readString();
-        return new Build(flavor, type, hash, date, snapshot, version);
+        return new Build(type, hash, date, snapshot, version);
     }
 
     public static void writeBuild(Build build, StreamOutput out) throws IOException {
-        out.writeString(build.flavor().displayName());
+        if (out.getVersion().before(Version.V_8_3_0)) {
+            // this was the flavor, which is always the default distribution now
+            out.writeString("default");
+        }
         out.writeString(build.type().displayName());
         out.writeString(build.hash());
         out.writeString(build.date());
         out.writeBoolean(build.isSnapshot());
-        out.writeString(build.getQualifiedVersion());
+        out.writeString(build.qualifiedVersion());
     }
 
     /**
      * Get the version as considered at build time
-     *
+     * <p>
      * Offers a way to get the fully qualified version as configured by the build.
      * This will be the same as {@link Version} for production releases, but may include on of the qualifier ( e.x alpha1 )
      * or -SNAPSHOT for others.
      *
      * @return the fully qualified build
      */
-    public String getQualifiedVersion() {
+    public String qualifiedVersion() {
         return version;
-    }
-
-    public Flavor flavor() {
-        return flavor;
-    }
-
-    public Type type() {
-        return type;
-    }
-
-    public boolean isSnapshot() {
-        return isSnapshot;
     }
 
     /**
@@ -272,43 +202,6 @@ public class Build {
 
     @Override
     public String toString() {
-        return "[" + flavor.displayName() + "][" + type.displayName + "][" + hash + "][" + date + "][" + version + "]";
+        return "[" + type.displayName + "][" + hash + "][" + date + "][" + version + "]";
     }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-
-        Build build = (Build) o;
-
-        if (flavor.equals(build.flavor) == false) {
-            return false;
-        }
-
-        if (type.equals(build.type) == false) {
-            return false;
-        }
-
-        if (isSnapshot != build.isSnapshot) {
-            return false;
-        }
-        if (hash.equals(build.hash) == false) {
-            return false;
-        }
-        if (version.equals(build.version) == false) {
-            return false;
-        }
-        return date.equals(build.date);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(flavor, type, isSnapshot, hash, date, version);
-    }
-
 }

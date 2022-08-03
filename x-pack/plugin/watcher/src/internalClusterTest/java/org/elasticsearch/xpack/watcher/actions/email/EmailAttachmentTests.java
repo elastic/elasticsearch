@@ -101,8 +101,7 @@ public class EmailAttachmentTests extends AbstractWatcherIntegrationTestCase {
         Object content = message.getContent();
         if (content instanceof String) return null;
 
-        if (content instanceof Multipart) {
-            Multipart multipart = (Multipart) content;
+        if (content instanceof Multipart multipart) {
             List<String> result = new ArrayList<>();
 
             for (int i = 0; i < multipart.getCount(); i++) {
@@ -126,8 +125,7 @@ public class EmailAttachmentTests extends AbstractWatcherIntegrationTestCase {
             }
         }
 
-        if (content instanceof Multipart) {
-            Multipart multipart = (Multipart) content;
+        if (content instanceof Multipart multipart) {
             for (int i = 0; i < multipart.getCount(); i++) {
                 BodyPart bodyPart = multipart.getBodyPart(i);
                 result.addAll(getAttachments(bodyPart));

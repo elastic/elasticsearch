@@ -9,12 +9,13 @@ package org.elasticsearch.xpack.slm;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleStats;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * {@link UpdateSnapshotLifecycleStatsTask} is a cluster state update task that retrieves the
@@ -25,6 +26,8 @@ public class UpdateSnapshotLifecycleStatsTask extends ClusterStateUpdateTask {
     private static final Logger logger = LogManager.getLogger(SnapshotRetentionTask.class);
 
     private final SnapshotLifecycleStats runStats;
+
+    static final String TASK_SOURCE = "update_slm_stats";
 
     UpdateSnapshotLifecycleStatsTask(SnapshotLifecycleStats runStats) {
         this.runStats = runStats;
@@ -52,11 +55,10 @@ public class UpdateSnapshotLifecycleStatsTask extends ClusterStateUpdateTask {
     }
 
     @Override
-    public void onFailure(String source, Exception e) {
+    public void onFailure(Exception e) {
         logger.error(
-            new ParameterizedMessage(
-                "failed to update cluster state with snapshot lifecycle stats, " + "source: [{}], missing stats: [{}]",
-                source,
+            () -> format(
+                "failed to update cluster state with snapshot lifecycle stats, " + "source: [" + TASK_SOURCE + "], missing stats: [%s]",
                 runStats
             ),
             e

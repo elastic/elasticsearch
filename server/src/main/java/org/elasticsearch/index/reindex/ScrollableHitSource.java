@@ -152,6 +152,10 @@ public abstract class ScrollableHitSource {
         this.scrollId.set(scrollId);
     }
 
+    public final boolean hasScroll() {
+        return scrollId.get() != null;
+    }
+
     public interface AsyncResponse {
         /**
          * The response data made available.

@@ -15,7 +15,7 @@ import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.Retry;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -254,7 +254,7 @@ public class RetryTests extends ESIntegTestCase {
          */
         ListTasksResponse response = client().admin().cluster().prepareListTasks().setActions(action).setDetailed(true).get();
         assertThat(response.getTasks(), hasSize(1));
-        return (BulkByScrollTask.Status) response.getTasks().get(0).getStatus();
+        return (BulkByScrollTask.Status) response.getTasks().get(0).status();
     }
 
 }

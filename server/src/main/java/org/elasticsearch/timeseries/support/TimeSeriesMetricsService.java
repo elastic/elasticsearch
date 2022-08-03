@@ -15,7 +15,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 
@@ -88,7 +88,7 @@ public class TimeSeriesMetricsService {
         );
     }
 
-    private void collectField(
+    private static void collectField(
         List<String> dimensions,
         Map<String, TimeSeriesParams.MetricType> metrics,
         String fieldName,

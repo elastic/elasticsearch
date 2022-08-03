@@ -60,7 +60,8 @@ public abstract class MapperScriptTestCase<FactoryType> extends MapperServiceTes
             b.field("script", "serializer_test");
             b.endObject();
         }));
-        assertThat(Strings.toString(mapper.mapping()), containsString("\"script\":{\"source\":\"serializer_test\",\"lang\":\"painless\"}"));
+        assertThat(Strings.toString(mapper.mapping()), containsString("""
+            "script":{"source":"serializer_test","lang":"painless"}"""));
     }
 
     public void testCannotIndexDirectlyIntoScriptMapper() throws IOException {

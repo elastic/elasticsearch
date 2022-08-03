@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.indices.state;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -45,6 +44,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.indices.state.CloseIndexIT.assertException;
 import static org.elasticsearch.indices.state.CloseIndexIT.assertIndexIsClosed;
 import static org.elasticsearch.indices.state.CloseIndexIT.assertIndexIsOpened;
@@ -85,27 +85,26 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
             final String indexName = "index-" + i;
             int nbDocs = 0;
             switch (i) {
-                case 0:
+                case 0 -> {
                     logger.debug("creating empty index {}", indexName);
                     createIndex(indexName);
-                    break;
-                case 1:
+                }
+                case 1 -> {
                     nbDocs = scaledRandomIntBetween(1, 100);
                     logger.debug("creating index {} with {} documents", indexName, nbDocs);
                     createIndex(indexName);
                     indexRandom(
                         randomBoolean(),
-                        IntStream.range(0, nbDocs)
-                            .mapToObj(n -> client().prepareIndex(indexName).setSource("num", n))
-                            .collect(Collectors.toList())
+                        IntStream.range(0, nbDocs).mapToObj(n -> client().prepareIndex(indexName).setSource("num", n)).toList()
                     );
-                    break;
-                default:
+                }
+                default -> {
                     logger.debug("creating index {} with background indexing", indexName);
                     final BackgroundIndexer indexer = new BackgroundIndexer(indexName, client(), -1, 1);
                     indexers.put(indexName, indexer);
                     indexer.setFailureAssertion(t -> assertException(t, indexName));
                     waitForDocs(1, indexer);
+                }
             }
             docsPerIndex.put(indexName, (long) nbDocs);
             indices[i] = indexName;
@@ -174,13 +173,7 @@ public class CloseWhileRelocatingShardsIT extends ESIntegTestCase {
                             release.await();
                             logger.debug("releasing recovery of shard {}", startRecoveryRequest.shardId());
                         } catch (final InterruptedException e) {
-                            logger.warn(
-                                () -> new ParameterizedMessage(
-                                    "exception when releasing recovery of shard {}",
-                                    startRecoveryRequest.shardId()
-                                ),
-                                e
-                            );
+                            logger.warn(() -> format("exception when releasing recovery of shard %s", startRecoveryRequest.shardId()), e);
                             interruptedRecoveries.add(startRecoveryRequest.shardId().getIndexName());
                             Thread.currentThread().interrupt();
                             return;

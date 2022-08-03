@@ -30,6 +30,11 @@
         "type":"boolean",
         "required":false,
         "description":"When `true`, the transform is reset regardless of its current state. The default value is `false`, meaning that the transform must be `stopped` before it can be reset."
+      },
+      "timeout":{
+        "type":"time",
+        "required":false,
+        "description":"Controls the time to wait for the transform to reset"
       }
     }
   }

@@ -177,7 +177,7 @@ setup:
         end: "2017-02-01T01:00:00Z"
 
 ---
-"Test start given datafeed index does not exist":
+"Test start datafeed given concrete index that does not exist":
   - do:
       ml.update_datafeed:
         datafeed_id: start-stop-datafeed-datafeed-1
@@ -192,6 +192,25 @@ setup:
 
   - do:
       catch: /datafeed \[start-stop-datafeed-datafeed-1] cannot retrieve data because index \[utopia\] does not exist/
+      ml.start_datafeed:
+        datafeed_id: "start-stop-datafeed-datafeed-1"
+
+---
+"Test start datafeed given index pattern with no matching indices":
+  - do:
+      ml.update_datafeed:
+        datafeed_id: start-stop-datafeed-datafeed-1
+        body:  >
+          {
+            "indexes":["utopia*"]
+          }
+
+  - do:
+      ml.open_job:
+        job_id: "start-stop-datafeed-job"
+
+  - do:
+      catch: /datafeed \[start-stop-datafeed-datafeed-1] cannot retrieve data because no index matches datafeed's indices \[utopia\*\]/
       ml.start_datafeed:
         datafeed_id: "start-stop-datafeed-datafeed-1"
 

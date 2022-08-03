@@ -79,7 +79,8 @@ There are several thread pools, but the important ones include:
 
 `force_merge`::
     For <<indices-forcemerge,force merge>> operations.
-    Thread pool type is `fixed` with a size of 1 and an unbounded queue size.
+    Thread pool type is `fixed` with a size of `max(1, (`<<node.processors,
+`# of allocated processors`>>`) / 8)` and an unbounded queue size.
 
 `management`::
     For cluster management.
@@ -112,9 +113,10 @@ There are several thread pools, but the important ones include:
     `min(5 * (`<<node.processors, `# of allocated processors`>>`), 50)`
     and queue_size of `1000`.
 
-Changing a specific thread pool can be done by setting its type-specific
-parameters; for example, changing the number of threads in the `write` thread
-pool:
+Thread pool settings are <<static-cluster-setting,static>> and can be changed by
+editing `elasticsearch.yml`. Changing a specific thread pool can be done by
+setting its type-specific parameters; for example, changing the number of
+threads in the `write` thread pool:
 
 [source,yaml]
 --------------------------------------------------

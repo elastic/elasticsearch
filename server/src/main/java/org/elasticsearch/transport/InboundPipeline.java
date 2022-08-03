@@ -46,13 +46,14 @@ public class InboundPipeline implements Releasable {
         LongSupplier relativeTimeInMillis,
         Supplier<CircuitBreaker> circuitBreaker,
         Function<String, RequestHandlerRegistry<TransportRequest>> registryFunction,
-        BiConsumer<TcpChannel, InboundMessage> messageHandler
+        BiConsumer<TcpChannel, InboundMessage> messageHandler,
+        boolean ignoreDeserializationErrors
     ) {
         this(
             statsTracker,
             relativeTimeInMillis,
             new InboundDecoder(version, recycler),
-            new InboundAggregator(circuitBreaker, registryFunction),
+            new InboundAggregator(circuitBreaker, registryFunction, ignoreDeserializationErrors),
             messageHandler
         );
     }
@@ -155,7 +156,7 @@ public class InboundPipeline implements Releasable {
         }
     }
 
-    private boolean endOfMessage(Object fragment) {
+    private static boolean endOfMessage(Object fragment) {
         return fragment == InboundDecoder.PING || fragment == InboundDecoder.END_CONTENT || fragment instanceof Exception;
     }
 

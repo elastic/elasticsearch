@@ -16,7 +16,7 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -43,7 +43,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
 
 public class TransportMonitoringMigrateAlertsAction extends TransportMasterNodeAction<
     MonitoringMigrateAlertsRequest,
@@ -215,7 +214,7 @@ public class TransportMonitoringMigrateAlertsAction extends TransportMasterNodeA
                                 compileReason(status)
                             )
                         )
-                        .collect(Collectors.toList());
+                        .toList();
                     MonitoringMigrateAlertsResponse response = new MonitoringMigrateAlertsResponse(collectedResults);
                     listener.onResponse(response);
                 } catch (Exception e) {

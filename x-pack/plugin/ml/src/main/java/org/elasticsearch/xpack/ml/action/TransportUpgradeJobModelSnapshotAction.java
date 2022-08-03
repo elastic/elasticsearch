@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
@@ -16,7 +15,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -45,18 +44,16 @@ import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
+import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskParams;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.snapshot.upgrader.SnapshotUpgradePredicate;
-import org.elasticsearch.xpack.ml.job.snapshot.upgrader.SnapshotUpgradeTaskParams;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 
-public class TransportUpgradeJobModelSnapshotAction extends TransportMasterNodeAction<Request, Response> {
+import static org.elasticsearch.core.Strings.format;
 
-    // If the snapshot is from any version other than the current major, we consider it for upgrade.
-    // This is to support upgrading to the NEXT major without worry
-    private static final byte UPGRADE_FROM_MAJOR = Version.CURRENT.major;
+public class TransportUpgradeJobModelSnapshotAction extends TransportMasterNodeAction<Request, Response> {
 
     private static final Logger logger = LogManager.getLogger(TransportUpgradeJobModelSnapshotAction.class);
 
@@ -231,6 +228,7 @@ public class TransportUpgradeJobModelSnapshotAction extends TransportMasterNodeA
         // Get the job config to verify it exists
         jobConfigProvider.getJob(
             request.getJobId(),
+            null,
             ActionListener.wrap(builder -> getJobHandler.onResponse(builder.build()), listener::onFailure)
         );
     }
@@ -289,8 +287,8 @@ public class TransportUpgradeJobModelSnapshotAction extends TransportMasterNodeA
     ) {
         persistentTasksService.sendRemoveRequest(persistentTask.getId(), ActionListener.wrap(t -> listener.onFailure(exception), e -> {
             logger.error(
-                new ParameterizedMessage(
-                    "[{}] [{}] Failed to cancel persistent task that could not be assigned due to {}",
+                () -> format(
+                    "[%s] [%s] Failed to cancel persistent task that could not be assigned due to %s",
                     persistentTask.getParams().getJobId(),
                     persistentTask.getParams().getSnapshotId(),
                     exception.getMessage()

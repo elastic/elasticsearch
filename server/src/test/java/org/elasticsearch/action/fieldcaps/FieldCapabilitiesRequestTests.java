@@ -10,6 +10,7 @@ package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -69,6 +70,12 @@ public class FieldCapabilitiesRequestTests extends AbstractWireSerializingTestCa
         if (randomBoolean()) {
             request.runtimeFields(Collections.singletonMap(randomAlphaOfLength(5), randomAlphaOfLength(5)));
         }
+        if (randomBoolean()) {
+            request.filters("-nested");
+        }
+        if (randomBoolean()) {
+            request.types(randomAlphaOfLength(5));
+        }
         return request;
     }
 
@@ -108,6 +115,8 @@ public class FieldCapabilitiesRequestTests extends AbstractWireSerializingTestCa
             request -> request.indexFilter(request.indexFilter() != null ? request.indexFilter().boost(2) : QueryBuilders.matchAllQuery())
         );
         mutators.add(request -> request.runtimeFields(Collections.singletonMap("other_key", "other_value")));
+        mutators.add(request -> request.filters(request.filters().length == 0 ? new String[] { "-metadata" } : Strings.EMPTY_ARRAY));
+        mutators.add(request -> request.types(request.types().length == 0 ? new String[] { "keyword" } : Strings.EMPTY_ARRAY));
 
         FieldCapabilitiesRequest mutatedInstance = copyInstance(instance);
         Consumer<FieldCapabilitiesRequest> mutator = randomFrom(mutators);
@@ -121,24 +130,20 @@ public class FieldCapabilitiesRequestTests extends AbstractWireSerializingTestCa
         request.runtimeFields(singletonMap("day_of_week", singletonMap("type", "keyword")));
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         String xContent = BytesReference.bytes(request.toXContent(builder, ToXContent.EMPTY_PARAMS)).utf8ToString();
-        assertEquals(
-            ("{"
-                + "  \"index_filter\": {\n"
-                + "    \"term\": {\n"
-                + "      \"field\": {\n"
-                + "        \"value\": \"value\",\n"
-                + "        \"boost\": 1.0\n"
-                + "      }\n"
-                + "    }\n"
-                + "  },\n"
-                + "  \"runtime_mappings\": {\n"
-                + "    \"day_of_week\": {\n"
-                + "      \"type\": \"keyword\"\n"
-                + "    }\n"
-                + "  }\n"
-                + "}").replaceAll("\\s+", ""),
-            xContent
-        );
+        assertEquals(("""
+            {  "index_filter": {
+                "term": {
+                  "field": {
+                    "value": "value"
+                  }
+                }
+              },
+              "runtime_mappings": {
+                "day_of_week": {
+                  "type": "keyword"
+                }
+              }
+            }""").replaceAll("\\s+", ""), xContent);
     }
 
     public void testValidation() {
@@ -149,14 +154,20 @@ public class FieldCapabilitiesRequestTests extends AbstractWireSerializingTestCa
 
     public void testGetDescription() {
         final FieldCapabilitiesRequest request = new FieldCapabilitiesRequest();
-        assertThat(request.getDescription(), equalTo("indices[], fields[]"));
+        assertThat(request.getDescription(), equalTo("indices[], fields[], filters[], types[]"));
 
         request.fields("a", "b");
-        assertThat(request.getDescription(), anyOf(equalTo("indices[], fields[a,b]"), equalTo("indices[], fields[b,a]")));
+        assertThat(
+            request.getDescription(),
+            anyOf(equalTo("indices[], fields[a,b], filters[], types[]"), equalTo("indices[], fields[b,a], filters[], types[]"))
+        );
 
         request.indices("x", "y", "z");
         request.fields("a");
-        assertThat(request.getDescription(), equalTo("indices[x,y,z], fields[a]"));
+        assertThat(request.getDescription(), equalTo("indices[x,y,z], fields[a], filters[], types[]"));
+
+        request.filters("-metadata", "-multifields");
+        assertThat(request.getDescription(), endsWith("filters[-metadata,-multifields], types[]"));
 
         final String[] lots = new String[between(1024, 2048)];
         for (int i = 0; i < lots.length; i++) {
@@ -165,6 +176,7 @@ public class FieldCapabilitiesRequestTests extends AbstractWireSerializingTestCa
 
         request.indices("x", "y", "z");
         request.fields(lots);
+        request.filters(Strings.EMPTY_ARRAY);
         assertThat(
             request.getDescription(),
             allOf(
@@ -176,7 +188,7 @@ public class FieldCapabilitiesRequestTests extends AbstractWireSerializingTestCa
         );
         assertThat(
             request.getDescription().length(),
-            lessThanOrEqualTo(1024 + ("indices[x,y,z], fields[" + "s9999,... (9999 in total, 9999 omitted)]").length())
+            lessThanOrEqualTo(1024 + ("indices[x,y,z], fields[" + "s9999,... (9999 in total, 9999 omitted)], filters[], types[]").length())
         );
 
         request.fields("a");
@@ -188,12 +200,12 @@ public class FieldCapabilitiesRequestTests extends AbstractWireSerializingTestCa
                 containsString("..."),
                 containsString(lots.length + " in total"),
                 containsString("omitted"),
-                endsWith("], fields[a]")
+                endsWith("], fields[a], filters[], types[]")
             )
         );
         assertThat(
             request.getDescription().length(),
-            lessThanOrEqualTo(1024 + ("indices[" + "s9999,... (9999 in total, 9999 omitted)], fields[a]").length())
+            lessThanOrEqualTo(1024 + ("indices[" + "s9999,... (9999 in total, 9999 omitted)], fields[a], filters[], types[]").length())
         );
 
         final FieldCapabilitiesRequest randomRequest = createTestInstance();

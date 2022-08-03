@@ -16,15 +16,16 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.search.function.FieldValueFactorFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues.Doubles;
+import org.elasticsearch.index.fielddata.ScriptDocValues.DoublesSupplier;
 import org.elasticsearch.index.fielddata.plain.SortedDoublesIndexFieldData;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -167,7 +168,7 @@ public class DiversifiedSamplerTests extends AggregatorTestCase {
         SortedDoublesIndexFieldData fieldData = new SortedDoublesIndexFieldData(
             "price",
             IndexNumericFieldData.NumericType.DOUBLE,
-            (dv, n) -> new DelegateDocValuesField(new Doubles(dv), n)
+            (dv, n) -> new DelegateDocValuesField(new Doubles(new DoublesSupplier(dv)), n)
         );
         FunctionScoreQuery query = new FunctionScoreQuery(
             new MatchAllDocsQuery(),

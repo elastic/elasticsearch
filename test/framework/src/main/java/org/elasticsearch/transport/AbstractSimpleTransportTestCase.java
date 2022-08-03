@@ -10,7 +10,6 @@ package org.elasticsearch.transport;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.Constants;
@@ -36,11 +35,11 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.mocksocket.MockServerSocket;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.tasks.Task;
@@ -86,7 +85,9 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.transport.TransportService.NOOP_TRANSPORT_INTERCEPTOR;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -102,6 +103,9 @@ import static org.hamcrest.Matchers.startsWith;
 public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
     private static final TimeValue HUNDRED_MS = TimeValue.timeValueMillis(100L);
+
+    // public copy of package-private setting so that tests in other packages can use it
+    public static final Setting<Boolean> IGNORE_DESERIALIZATION_ERRORS_SETTING = TcpTransport.IGNORE_DESERIALIZATION_ERRORS_SETTING;
 
     protected ThreadPool threadPool;
     // we use always a non-alpha or beta version here otherwise minimumCompatibilityVersion will be different for the two used versions
@@ -197,6 +201,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             .put(TransportSettings.PORT.getKey(), getPortRange())
             .put(settings)
             .put(Node.NODE_NAME_SETTING.getKey(), name)
+            .put(IGNORE_DESERIALIZATION_ERRORS_SETTING.getKey(), true) // suppress assertions to test production error-handling
             .build();
         if (clusterSettings == null) {
             clusterSettings = new ClusterSettings(updatedSettings, getSupportedSettings());
@@ -890,18 +895,14 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                         final String info = sender + "_B_" + iter;
                         serviceB.sendRequest(
                             nodeA,
-                            "test",
+                            "internal:test",
                             new TestRequest(info),
                             new ActionListenerResponseHandler<>(listener, TestResponse::new)
                         );
                         try {
                             listener.actionGet();
-
                         } catch (Exception e) {
-                            logger.trace(
-                                (Supplier<?>) () -> new ParameterizedMessage("caught exception while sending to node {}", nodeA),
-                                e
-                            );
+                            logger.trace(() -> format("caught exception while sending to node %s", nodeA), e);
                         }
                     }
                 }
@@ -941,10 +942,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                             } catch (ConnectTransportException e) {
                                 // ok!
                             } catch (Exception e) {
-                                logger.error(
-                                    (Supplier<?>) () -> new ParameterizedMessage("caught exception while sending to node {}", node),
-                                    e
-                                );
+                                logger.error(() -> format("caught exception while sending to node %s", node), e);
                                 sendingErrors.add(e);
                             }
                         } catch (NodeNotConnectedException ex) {
@@ -1721,7 +1719,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 public void handleException(TransportException exp) {
                     Throwable cause = ExceptionsHelper.unwrapCause(exp);
                     assertThat(cause, instanceOf(ConnectTransportException.class));
-                    assertThat(((ConnectTransportException) cause).node(), equalTo(nodeA));
+                    assertThat(cause.getMessage(), allOf(containsString(nodeA.getName()), containsString(nodeA.getAddress().toString())));
                 }
             }
         );
@@ -1729,7 +1727,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         final ExecutionException e = expectThrows(ExecutionException.class, res::get);
         Throwable cause = ExceptionsHelper.unwrapCause(e.getCause());
         assertThat(cause, instanceOf(ConnectTransportException.class));
-        assertThat(((ConnectTransportException) cause).node(), equalTo(nodeA));
+        assertThat(cause.getMessage(), allOf(containsString(nodeA.getName()), containsString(nodeA.getAddress().toString())));
 
         // wait for the transport to process the sending failure and disconnect from node
         assertBusy(() -> assertFalse(serviceB.nodeConnected(nodeA)));
@@ -2015,6 +2013,9 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                         new TestRequest("secondary " + request.info),
                         TransportRequestOptions.EMPTY,
                         new TransportResponseHandler<TestResponse>() {
+
+                            private final String executor = randomBoolean() ? ThreadPool.Names.SAME : ThreadPool.Names.GENERIC;
+
                             @Override
                             public TestResponse read(StreamInput in) throws IOException {
                                 return new TestResponse(in);
@@ -2046,7 +2047,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
                             @Override
                             public String executor() {
-                                return randomBoolean() ? ThreadPool.Names.SAME : ThreadPool.Names.GENERIC;
+                                return executor;
                             }
                         }
                     );
@@ -2080,6 +2081,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         class TestResponseHandler implements TransportResponseHandler<TestResponse> {
 
             private final int id;
+            private final String executor = randomBoolean() ? ThreadPool.Names.SAME : ThreadPool.Names.GENERIC;
 
             TestResponseHandler(int id) {
                 this.id = id;
@@ -2098,7 +2100,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
             @Override
             public void handleException(TransportException exp) {
-                logger.debug((Supplier<?>) () -> new ParameterizedMessage("---> received exception for id {}", id), exp);
+                logger.debug((Supplier<?>) () -> "---> received exception for id " + id, exp);
                 allRequestsDone.countDown();
                 Throwable unwrap = ExceptionsHelper.unwrap(exp, IOException.class);
                 assertNotNull(unwrap);
@@ -2108,7 +2110,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
             @Override
             public String executor() {
-                return randomBoolean() ? ThreadPool.Names.SAME : ThreadPool.Names.GENERIC;
+                return executor;
             }
         }
 
@@ -2396,6 +2398,9 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(2);
 
         TransportResponseHandler<TransportResponse> transportResponseHandler = new TransportResponseHandler<TransportResponse>() {
+
+            private final String executor = randomFrom(executors);
+
             @Override
             public TransportResponse read(StreamInput in) {
                 return TransportResponse.Empty.INSTANCE;
@@ -2429,7 +2434,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
             @Override
             public String executor() {
-                return randomFrom(executors);
+                return executor;
             }
         };
 

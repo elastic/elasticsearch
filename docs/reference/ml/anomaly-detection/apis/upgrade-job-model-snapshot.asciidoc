@@ -43,13 +43,18 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 (Required, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=snapshot-id]
 
+
+[[ml-upgrade-job-model-snapshot-query-parms]]
+== {api-query-parms-title}
+
 `timeout`::
-  (Optional, time) Controls the time to wait for the request to complete. The default
-  value is 30 minutes.
+(Optional, time) Controls the time to wait for the request to complete. The
+default value is 30 minutes.
 
 `wait_for_completion`::
-(Optional, boolean) When true, the API won't respond until the upgrade is complete. Otherwise,
-it responds as soon as the upgrade task is assigned to a node. Default is false.
+(Optional, boolean) When true, the API won't respond until the upgrade is
+complete. Otherwise, it responds as soon as the upgrade task is assigned to a
+node. Default is false.
 
 [[ml-upgrade-job-model-snapshot-response-body]]
 == {api-response-body-title}

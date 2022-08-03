@@ -738,15 +738,9 @@ public class Cache<K, V> {
         boolean promoted = true;
         try (ReleasableLock ignored = lruLock.acquire()) {
             switch (entry.state) {
-                case DELETED:
-                    promoted = false;
-                    break;
-                case EXISTING:
-                    relinkAtHead(entry);
-                    break;
-                case NEW:
-                    linkAtHead(entry);
-                    break;
+                case DELETED -> promoted = false;
+                case EXISTING -> relinkAtHead(entry);
+                case NEW -> linkAtHead(entry);
             }
             if (promoted) {
                 evict(now);

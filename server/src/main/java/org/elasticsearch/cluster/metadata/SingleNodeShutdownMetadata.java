@@ -8,10 +8,8 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.AbstractDiffable;
-import org.elasticsearch.cluster.Diffable;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -28,13 +26,12 @@ import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
 
+import static org.elasticsearch.core.Strings.format;
+
 /**
  * Contains data about a single node's shutdown readiness.
  */
-public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutdownMetadata>
-    implements
-        ToXContentObject,
-        Diffable<SingleNodeShutdownMetadata> {
+public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShutdownMetadata>, ToXContentObject {
 
     public static final Version REPLACE_SHUTDOWN_TYPE_ADDED_VERSION = Version.V_7_16_0;
 
@@ -117,11 +114,11 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
         this.allocationDelay = allocationDelay;
         if (targetNodeName != null && type != Type.REPLACE) {
             throw new IllegalArgumentException(
-                new ParameterizedMessage(
-                    "target node name is only valid for REPLACE type shutdowns, " + "but was given type [{}] and target node name [{}]",
+                format(
+                    "target node name is only valid for REPLACE type shutdowns, but was given type [%s] and target node name [%s]",
                     type,
                     targetNodeName
-                ).getFormattedMessage()
+                )
             );
         } else if (Strings.hasText(targetNodeName) == false && type == Type.REPLACE) {
             throw new IllegalArgumentException("target node name is required for REPLACE type shutdowns");

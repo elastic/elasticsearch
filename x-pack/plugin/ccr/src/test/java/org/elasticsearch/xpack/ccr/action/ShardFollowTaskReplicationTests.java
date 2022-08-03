@@ -6,9 +6,6 @@
  */
 package org.elasticsearch.xpack.ccr.action;
 
-import com.carrotsearch.hppc.LongHashSet;
-import com.carrotsearch.hppc.LongSet;
-
 import org.apache.lucene.store.IOContext;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -68,6 +65,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -504,11 +502,11 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
             }
 
             @Override
-            protected synchronized void recoverPrimary(IndexShard primary) {
+            protected synchronized void recoverPrimary(IndexShard primaryShard) {
                 DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
                 Snapshot snapshot = new Snapshot("foo", new SnapshotId("bar", UUIDs.randomBase64UUID()));
                 ShardRouting routing = ShardRoutingHelper.newWithRestoreSource(
-                    primary.routingEntry(),
+                    primaryShard.routingEntry(),
                     new RecoverySource.SnapshotRecoverySource(
                         UUIDs.randomBase64UUID(),
                         snapshot,
@@ -516,9 +514,9 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                         new IndexId("test", UUIDs.randomBase64UUID(random()))
                     )
                 );
-                primary.markAsRecovering("remote recovery from leader", new RecoveryState(routing, localNode, null));
+                primaryShard.markAsRecovering("remote recovery from leader", new RecoveryState(routing, localNode, null));
                 final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
-                primary.restoreFromRepository(new RestoreOnlyRepository(index.getName()) {
+                primaryShard.restoreFromRepository(new RestoreOnlyRepository(index.getName()) {
                     @Override
                     public void restoreShard(
                         Store store,
@@ -530,11 +528,11 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                     ) {
                         ActionListener.completeWith(listener, () -> {
                             IndexShard leader = leaderGroup.getPrimary();
-                            Lucene.cleanLuceneIndex(primary.store().directory());
+                            Lucene.cleanLuceneIndex(primaryShard.store().directory());
                             try (Engine.IndexCommitRef sourceCommit = leader.acquireSafeIndexCommit()) {
                                 Store.MetadataSnapshot sourceSnapshot = leader.store().getMetadata(sourceCommit.getIndexCommit());
                                 for (StoreFileMetadata md : sourceSnapshot) {
-                                    primary.store()
+                                    primaryShard.store()
                                         .directory()
                                         .copyFrom(leader.store().directory(), md.name(), md.name(), IOContext.DEFAULT);
                                 }
@@ -574,7 +572,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
 
         BiConsumer<TimeValue, Runnable> scheduler = (delay, task) -> threadPool.schedule(task, delay, ThreadPool.Names.GENERIC);
         AtomicBoolean stopped = new AtomicBoolean(false);
-        LongSet fetchOperations = new LongHashSet();
+        Set<Long> fetchOperations = new HashSet<>();
         return new ShardFollowNodeTask(
             1L,
             "type",
@@ -739,7 +737,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
         boolean assertMaxSeqNoOfUpdatesOrDeletes
     ) throws Exception {
         final List<Tuple<String, Long>> docAndSeqNosOnLeader = getDocIdAndSeqNos(leader.getPrimary()).stream()
-            .map(d -> Tuple.tuple(d.getId(), d.getSeqNo()))
+            .map(d -> Tuple.tuple(d.id(), d.seqNo()))
             .collect(Collectors.toList());
         final Map<Long, Translog.Operation> operationsOnLeader = new HashMap<>();
         try (
@@ -759,7 +757,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                 );
             }
             List<Tuple<String, Long>> docAndSeqNosOnFollower = getDocIdAndSeqNos(followingShard).stream()
-                .map(d -> Tuple.tuple(d.getId(), d.getSeqNo()))
+                .map(d -> Tuple.tuple(d.id(), d.seqNo()))
                 .collect(Collectors.toList());
             assertThat(docAndSeqNosOnFollower, equalTo(docAndSeqNosOnLeader));
             try (

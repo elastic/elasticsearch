@@ -39,6 +39,7 @@ public class ScriptClassInfo {
     public final List<FunctionTable.LocalFunction> converters;
     public final FunctionTable.LocalFunction defConverter;
 
+    @SuppressWarnings("HiddenField")
     public ScriptClassInfo(PainlessLookup painlessLookup, Class<?> baseClass) {
         this.baseClass = baseClass;
 

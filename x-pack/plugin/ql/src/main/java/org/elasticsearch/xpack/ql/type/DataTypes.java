@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.ql.type;
 
+import java.math.BigInteger;
 import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.Collection;
@@ -15,12 +16,11 @@ import java.util.Locale;
 import java.util.Map;
 
 import static java.util.stream.Collectors.toMap;
-import static java.util.stream.Collectors.toUnmodifiableList;
 import static java.util.stream.Collectors.toUnmodifiableMap;
 
 public final class DataTypes {
 
-    // @formatter:off
+    // tag::noformat
     public static final DataType UNSUPPORTED      = new DataType("UNSUPPORTED", null, 0,                 false, false, false);
 
     public static final DataType NULL             = new DataType("null",              0,                 false, false, false);
@@ -31,6 +31,7 @@ public final class DataTypes {
     public static final DataType SHORT            = new DataType("short",             Short.BYTES,       true, false, true);
     public static final DataType INTEGER          = new DataType("integer",           Integer.BYTES,     true, false, true);
     public static final DataType LONG             = new DataType("long",              Long.BYTES,        true, false, true);
+    public static final DataType UNSIGNED_LONG    = new DataType("unsigned_long",     Long.BYTES,        true, false, true);
     // decimal numeric
     public static final DataType DOUBLE           = new DataType("double",            Double.BYTES,      false, true, true);
     public static final DataType FLOAT            = new DataType("float",             Float.BYTES,       false, true, true);
@@ -43,12 +44,14 @@ public final class DataTypes {
     public static final DataType DATETIME         = new DataType("DATETIME", "date",        Long.BYTES,  false, false, true);
     // ip
     public static final DataType IP               = new DataType("ip",                45,                false, false, true);
+    // version
+    public static final DataType VERSION          = new DataType("version",           Integer.MAX_VALUE, false, false, true);
     // binary
     public static final DataType BINARY           = new DataType("binary",            Integer.MAX_VALUE, false, false, true);
     // complex types
     public static final DataType OBJECT           = new DataType("object",            0,                 false, false, false);
     public static final DataType NESTED           = new DataType("nested",            0,                 false, false, false);
-    //@formatter:on
+    //end::noformat
 
     private static final Collection<DataType> TYPES = Arrays.asList(
         UNSUPPORTED,
@@ -58,6 +61,7 @@ public final class DataTypes {
         SHORT,
         INTEGER,
         LONG,
+        UNSIGNED_LONG,
         DOUBLE,
         FLOAT,
         HALF_FLOAT,
@@ -66,10 +70,11 @@ public final class DataTypes {
         TEXT,
         DATETIME,
         IP,
+        VERSION,
         BINARY,
         OBJECT,
         NESTED
-    ).stream().sorted(Comparator.comparing(DataType::typeName)).collect(toUnmodifiableList());
+    ).stream().sorted(Comparator.comparing(DataType::typeName)).toList();
 
     private static final Map<String, DataType> NAME_TO_TYPE = TYPES.stream().collect(toUnmodifiableMap(DataType::typeName, t -> t));
 
@@ -105,6 +110,9 @@ public final class DataTypes {
         }
         if (value instanceof Long) {
             return LONG;
+        }
+        if (value instanceof BigInteger) {
+            return UNSIGNED_LONG;
         }
         if (value instanceof Boolean) {
             return BOOLEAN;
@@ -152,7 +160,7 @@ public final class DataTypes {
     }
 
     public static boolean isSigned(DataType t) {
-        return t.isNumeric();
+        return t.isNumeric() && t.equals(UNSIGNED_LONG) == false;
     }
 
     public static boolean isDateTime(DataType type) {

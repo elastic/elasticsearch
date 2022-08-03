@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster.node;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.regex.Regex;
@@ -17,12 +16,13 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.Nullable;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.BiConsumer;
 
 public class DiscoveryNodeFilters {
 
+    public static final Set<String> SINGLE_NODE_NAMES = Set.of("_id", "_name", "name");
     static final Set<String> NON_ATTRIBUTE_NAMES = Set.of("_ip", "_host_ip", "_publish_ip", "host", "_id", "_name", "name");
 
     public enum OpType {
@@ -35,22 +35,22 @@ public class DiscoveryNodeFilters {
      * "_ip", "_host_ip", and "_publish_ip" and ensuring each of their comma separated values
      * that has no wildcards is a valid IP address.
      */
-    public static final BiConsumer<String, String> IP_VALIDATOR = (propertyKey, rawValue) -> {
-        if (rawValue != null) {
+    public static void validateIpValue(String propertyKey, List<String> values) {
+        if (values != null) {
             if (propertyKey.endsWith("._ip") || propertyKey.endsWith("._host_ip") || propertyKey.endsWith("_publish_ip")) {
-                for (String value : Strings.tokenizeToStringArray(rawValue, ",")) {
+                for (String value : values) {
                     if (Regex.isSimpleMatchPattern(value) == false && InetAddresses.isInetAddress(value) == false) {
                         throw new IllegalArgumentException("invalid IP address [" + value + "] for [" + propertyKey + "]");
                     }
                 }
             }
         }
-    };
+    }
 
-    public static DiscoveryNodeFilters buildFromKeyValue(OpType opType, Map<String, String> filters) {
+    public static DiscoveryNodeFilters buildFromKeyValues(OpType opType, Map<String, List<String>> filters) {
         Map<String, String[]> bFilters = new HashMap<>();
-        for (Map.Entry<String, String> entry : filters.entrySet()) {
-            String[] values = Strings.tokenizeToStringArray(entry.getValue(), ",");
+        for (var entry : filters.entrySet()) {
+            String[] values = entry.getValue().toArray(String[]::new);
             if (values.length > 0 && entry.getKey() != null) {
                 bFilters.put(entry.getKey(), values);
             }
@@ -74,7 +74,7 @@ public class DiscoveryNodeFilters {
         this.withoutTierPreferences = doTrimTier(this);
     }
 
-    private boolean matchByIP(String[] values, @Nullable String hostIp, @Nullable String publishIp) {
+    private static boolean matchByIP(String[] values, @Nullable String hostIp, @Nullable String publishIp) {
         for (String ipOrHost : values) {
             String value = InetAddresses.isInetAddress(ipOrHost) ? NetworkAddress.format(InetAddresses.forString(ipOrHost)) : ipOrHost;
             boolean matchIp = Regex.simpleMatch(value, hostIp) || Regex.simpleMatch(value, publishIp);
@@ -233,6 +233,20 @@ public class DiscoveryNodeFilters {
      */
     public boolean isOnlyAttributeValueFilter() {
         return filters.keySet().stream().anyMatch(NON_ATTRIBUTE_NAMES::contains) == false;
+    }
+
+    /**
+     * @return true if filter is for a single node
+     */
+    public boolean isSingleNodeFilter() {
+        return withoutTierPreferences != null && withoutTierPreferences.isSingleNodeFilterInternal();
+    }
+
+    private boolean isSingleNodeFilterInternal() {
+        return (filters.size() == 1
+            && NON_ATTRIBUTE_NAMES.contains(filters.keySet().iterator().next())
+            && (filters.values().iterator().next().length == 1 || opType == OpType.AND))
+            || (filters.size() > 1 && opType == OpType.AND && NON_ATTRIBUTE_NAMES.containsAll(filters.keySet()));
     }
 
     /**

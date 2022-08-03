@@ -15,7 +15,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -23,16 +23,16 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlTasks;
+import org.elasticsearch.xpack.core.ml.action.CancelJobModelSnapshotUpgradeAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
@@ -62,6 +62,7 @@ import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.utils.VoidChainTaskExecutor;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
@@ -71,6 +72,8 @@ import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * Allows interactions with jobs. The managed interactions include:
@@ -127,8 +130,8 @@ public class JobManager {
         this.maxModelMemoryLimitSupplier = Objects.requireNonNull(maxModelMemoryLimitSupplier);
     }
 
-    public void jobExists(String jobId, ActionListener<Boolean> listener) {
-        jobConfigProvider.jobExists(jobId, true, listener);
+    public void jobExists(String jobId, @Nullable TaskId parentTaskId, ActionListener<Boolean> listener) {
+        jobConfigProvider.jobExists(jobId, true, parentTaskId, listener);
     }
 
     /**
@@ -141,6 +144,7 @@ public class JobManager {
     public void getJob(String jobId, ActionListener<Job> jobListener) {
         jobConfigProvider.getJob(
             jobId,
+            null,
             ActionListener.wrap(
                 r -> jobListener.onResponse(r.build()), // TODO JIndex we shouldn't be building the job here
                 jobListener::onFailure
@@ -154,10 +158,16 @@ public class JobManager {
      *
      * @param expression   the jobId or an expression matching jobIds
      * @param allowNoMatch if {@code false}, an error is thrown when no job matches the {@code jobId}
+     * @param parentTaskId The parent task ID if available
      * @param jobsListener The jobs listener
      */
-    public void expandJobBuilders(String expression, boolean allowNoMatch, ActionListener<List<Job.Builder>> jobsListener) {
-        jobConfigProvider.expandJobs(expression, allowNoMatch, false, jobsListener);
+    public void expandJobBuilders(
+        String expression,
+        boolean allowNoMatch,
+        @Nullable TaskId parentTaskId,
+        ActionListener<List<Job.Builder>> jobsListener
+    ) {
+        jobConfigProvider.expandJobs(expression, allowNoMatch, false, parentTaskId, jobsListener);
     }
 
     /**
@@ -172,6 +182,7 @@ public class JobManager {
         expandJobBuilders(
             expression,
             allowNoMatch,
+            null,
             ActionListener.wrap(
                 jobBuilders -> jobsListener.onResponse(
                     new QueryPage<>(
@@ -315,7 +326,7 @@ public class JobManager {
             actionListener::onFailure
         );
 
-        jobConfigProvider.jobExists(job.getId(), false, ActionListener.wrap(jobExists -> {
+        jobConfigProvider.jobExists(job.getId(), false, null, ActionListener.wrap(jobExists -> {
             if (jobExists) {
                 actionListener.onFailure(ExceptionsHelper.jobAlreadyExists(job.getId()));
             } else {
@@ -370,15 +381,15 @@ public class JobManager {
 
     public void deleteJob(
         DeleteJobAction.Request request,
-        Client client,
+        Client clientToUse,
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
         final String jobId = request.getJobId();
 
-        // Step 4. When the job has been removed from the cluster state, return a response
+        // Step 5. When the job has been removed from the config index, return a response
         // -------
-        CheckedConsumer<Boolean, Exception> apiResponseHandler = jobDeleted -> {
+        CheckedConsumer<Boolean, Exception> configResponseHandler = jobDeleted -> {
             if (jobDeleted) {
                 logger.info("Job [" + jobId + "] deleted");
                 auditor.info(jobId, Messages.getMessage(Messages.JOB_AUDIT_DELETED));
@@ -388,55 +399,65 @@ public class JobManager {
             }
         };
 
-        // Step 3. When the physical storage has been deleted, delete the job config document
+        // Step 4. When the physical storage has been deleted, delete the job config document
         // -------
         // Don't report an error if the document has already been deleted
-        CheckedConsumer<Boolean, Exception> deleteJobStateHandler = response -> jobConfigProvider.deleteJob(
+        CheckedConsumer<Boolean, Exception> removeFromCalendarsHandler = response -> jobConfigProvider.deleteJob(
             jobId,
             false,
-            ActionListener.wrap(deleteResponse -> apiResponseHandler.accept(Boolean.TRUE), listener::onFailure)
+            ActionListener.wrap(deleteResponse -> configResponseHandler.accept(Boolean.TRUE), listener::onFailure)
         );
 
-        // Step 2. Remove the job from any calendars
-        CheckedConsumer<Boolean, Exception> removeFromCalendarsHandler = response -> jobResultsProvider.removeJobFromCalendars(
+        // Step 3. Remove the job from any calendars
+        CheckedConsumer<Boolean, Exception> deleteJobStateHandler = response -> jobResultsProvider.removeJobFromCalendars(
             jobId,
-            ActionListener.wrap(deleteJobStateHandler, listener::onFailure)
+            ActionListener.wrap(removeFromCalendarsHandler, listener::onFailure)
         );
 
-        // Step 1. Delete the physical storage
-        new JobDataDeleter(client, jobId).deleteJobDocuments(
-            jobConfigProvider,
-            indexNameExpressionResolver,
-            state,
-            removeFromCalendarsHandler,
+        // Step 2. Delete the physical storage
+        ActionListener<CancelJobModelSnapshotUpgradeAction.Response> cancelUpgradesListener = ActionListener.wrap(
+            r -> new JobDataDeleter(clientToUse, jobId).deleteJobDocuments(
+                jobConfigProvider,
+                indexNameExpressionResolver,
+                state,
+                deleteJobStateHandler,
+                listener::onFailure
+            ),
             listener::onFailure
+        );
+
+        // Step 1. Cancel any model snapshot upgrades that might be in progress
+        clientToUse.execute(
+            CancelJobModelSnapshotUpgradeAction.INSTANCE,
+            new CancelJobModelSnapshotUpgradeAction.Request(jobId, "_all"),
+            cancelUpgradesListener
         );
     }
 
     private void postJobUpdate(UpdateJobAction.Request request, Job updatedJob, ActionListener<PutJobAction.Response> actionListener) {
         // Autodetect must be updated if the fields that the C++ uses are changed
-        if (request.getJobUpdate().isAutodetectProcessUpdate()) {
-            JobUpdate jobUpdate = request.getJobUpdate();
+        JobUpdate jobUpdate = request.getJobUpdate();
+        if (jobUpdate.isAutodetectProcessUpdate()) {
             if (isJobOpen(clusterService.state(), request.getJobId())) {
                 updateJobProcessNotifier.submitJobUpdate(UpdateParams.fromJobUpdate(jobUpdate), ActionListener.wrap(isUpdated -> {
                     if (isUpdated) {
                         auditJobUpdatedIfNotInternal(request);
+                    } else {
+                        logger.error("[{}] Updating autodetect failed for job update [{}]", jobUpdate.getJobId(), jobUpdate);
                     }
-                }, e -> {
-                    // No need to do anything
-                }));
+                },
+                    e -> logger.error(
+                        () -> format(
+                            "[%s] Updating autodetect failed with an exception, job update [%s] ",
+                            jobUpdate.getJobId(),
+                            jobUpdate
+                        ),
+                        e
+                    )
+                ));
             }
         } else {
-            logger.debug("[{}] No process update required for job update: {}", request::getJobId, () -> {
-                try {
-                    XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
-                    request.getJobUpdate().toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
-                    return Strings.toString(jsonBuilder);
-                } catch (IOException e) {
-                    return "(unprintable due to " + e.getMessage() + ")";
-                }
-            });
-
+            logger.debug("[{}] No process update required for job update: {}", jobUpdate::getJobId, jobUpdate::toString);
             auditJobUpdatedIfNotInternal(request);
         }
 
@@ -599,30 +620,38 @@ public class JobManager {
             return;
         }
 
+        boolean appliesToAllJobs = calendarJobIds.stream().anyMatch(Metadata.ALL::equals);
+        if (appliesToAllJobs) {
+            submitJobEventUpdate(openJobIds, updateListener);
+            return;
+        }
+
         // calendarJobIds may be a group or job
         jobConfigProvider.expandGroupIds(
             calendarJobIds,
             ActionListener.wrap(expandedIds -> threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
-                // Merge the expended group members with the request Ids.
+                // Merge the expanded group members with the request Ids.
                 // Ids that aren't jobs will be filtered by isJobOpen()
                 expandedIds.addAll(calendarJobIds);
 
-                for (String jobId : expandedIds) {
-                    if (isJobOpen(clusterState, jobId)) {
-                        updateJobProcessNotifier.submitJobUpdate(
-                            UpdateParams.scheduledEventsUpdate(jobId),
-                            ActionListener.wrap(isUpdated -> {
-                                if (isUpdated) {
-                                    auditor.info(jobId, Messages.getMessage(Messages.JOB_AUDIT_CALENDARS_UPDATED_ON_PROCESS));
-                                }
-                            }, e -> logger.error("[" + jobId + "] failed submitting process update on calendar change", e))
-                        );
-                    }
-                }
-
-                updateListener.onResponse(Boolean.TRUE);
+                openJobIds.retainAll(expandedIds);
+                submitJobEventUpdate(openJobIds, updateListener);
             }), updateListener::onFailure)
         );
+    }
+
+    private void submitJobEventUpdate(Collection<String> jobIds, ActionListener<Boolean> updateListener) {
+        for (String jobId : jobIds) {
+            updateJobProcessNotifier.submitJobUpdate(
+                UpdateParams.scheduledEventsUpdate(jobId),
+                ActionListener.wrap(
+                    isUpdated -> auditor.info(jobId, Messages.getMessage(Messages.JOB_AUDIT_CALENDARS_UPDATED_ON_PROCESS)),
+                    e -> logger.error("[" + jobId + "] failed submitting process update on calendar change", e)
+                )
+            );
+        }
+
+        updateListener.onResponse(Boolean.TRUE);
     }
 
     public void revertSnapshot(

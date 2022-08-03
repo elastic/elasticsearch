@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ilm.history;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BackoffPolicy;
@@ -18,11 +17,9 @@ import org.elasticsearch.action.bulk.BulkProcessor;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -38,6 +35,8 @@ import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import static java.util.stream.Collectors.joining;
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.INDEX_LIFECYCLE_ORIGIN;
 import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING;
 import static org.elasticsearch.xpack.ilm.history.ILMHistoryTemplateRegistry.ILM_TEMPLATE_NAME;
@@ -53,12 +52,21 @@ public class ILMHistoryStore implements Closeable {
 
     public static final String ILM_HISTORY_DATA_STREAM = "ilm-history-" + INDEX_TEMPLATE_VERSION;
 
-    private final boolean ilmHistoryEnabled;
+    private static int ILM_HISTORY_BULK_SIZE = StrictMath.toIntExact(
+        ByteSizeValue.parseBytesSizeValue(
+            System.getProperty("es.indices.lifecycle.history.bulk.size", "50MB"),
+            "es.indices.lifecycle.history.bulk.size"
+        ).getBytes()
+    );
+
+    private volatile boolean ilmHistoryEnabled = true;
     private final BulkProcessor processor;
     private final ThreadPool threadPool;
 
-    public ILMHistoryStore(Settings nodeSettings, Client client, ClusterService clusterService, ThreadPool threadPool) {
-        this.ilmHistoryEnabled = LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING.get(nodeSettings);
+    public ILMHistoryStore(Client client, ClusterService clusterService, ThreadPool threadPool) {
+        this.setIlmHistoryEnabled(LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING.get(clusterService.getSettings()));
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING, this::setIlmHistoryEnabled);
+
         this.threadPool = threadPool;
 
         this.processor = BulkProcessor.builder(new OriginSettingClient(client, INDEX_LIFECYCLE_ORIGIN)::bulk, new BulkProcessor.Listener() {
@@ -67,15 +75,15 @@ public class ILMHistoryStore implements Closeable {
                 if (clusterService.state().getMetadata().templatesV2().containsKey(ILM_TEMPLATE_NAME) == false) {
                     ElasticsearchException e = new ElasticsearchException("no ILM history template");
                     logger.warn(
-                        new ParameterizedMessage(
-                            "unable to index the following ILM history items:\n{}",
+                        () -> format(
+                            "unable to index the following ILM history items:\n%s",
                             request.requests()
                                 .stream()
                                 .filter(dwr -> (dwr instanceof IndexRequest))
                                 .map(dwr -> ((IndexRequest) dwr))
                                 .map(IndexRequest::sourceAsMap)
                                 .map(Object::toString)
-                                .collect(Collectors.joining("\n"))
+                                .collect(joining("\n"))
                         ),
                         e
                     );
@@ -120,11 +128,11 @@ public class ILMHistoryStore implements Closeable {
             @Override
             public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
                 long items = request.numberOfActions();
-                logger.error(new ParameterizedMessage("failed to index {} items into ILM history index", items), failure);
+                logger.error(() -> "failed to index " + items + " items into ILM history index", failure);
             }
         }, "ilm-history-store")
-            .setBulkActions(100)
-            .setBulkSize(new ByteSizeValue(5, ByteSizeUnit.MB))
+            .setBulkActions(-1)
+            .setBulkSize(ByteSizeValue.ofBytes(ILM_HISTORY_BULK_SIZE))
             .setFlushInterval(TimeValue.timeValueSeconds(5))
             .setConcurrentRequests(1)
             .setBackoffPolicy(BackoffPolicy.exponentialBackoff(TimeValue.timeValueMillis(1000), 3))
@@ -155,20 +163,13 @@ public class ILMHistoryStore implements Closeable {
                     processor.add(request);
                 } catch (Exception e) {
                     logger.error(
-                        new ParameterizedMessage(
-                            "failed add ILM history item to queue for index [{}]: [{}]",
-                            ILM_HISTORY_DATA_STREAM,
-                            item
-                        ),
+                        () -> format("failed add ILM history item to queue for index [%s]: [%s]", ILM_HISTORY_DATA_STREAM, item),
                         e
                     );
                 }
             });
         } catch (IOException exception) {
-            logger.error(
-                new ParameterizedMessage("failed to queue ILM history item in index [{}]: [{}]", ILM_HISTORY_DATA_STREAM, item),
-                exception
-            );
+            logger.error(() -> format("failed to queue ILM history item in index [%s]: [%s]", ILM_HISTORY_DATA_STREAM, item), exception);
         }
     }
 
@@ -179,5 +180,9 @@ public class ILMHistoryStore implements Closeable {
         } catch (InterruptedException e) {
             logger.warn("failed to shut down ILM history bulk processor after 10 seconds", e);
         }
+    }
+
+    public void setIlmHistoryEnabled(boolean ilmHistoryEnabled) {
+        this.ilmHistoryEnabled = ilmHistoryEnabled;
     }
 }

@@ -21,19 +21,20 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.MultiTermQuery;
-import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.query.DistanceFeatureQueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -41,7 +42,6 @@ import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.fetch.subphase.FetchFieldsPhase;
-import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -49,7 +49,8 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
-import java.util.function.Supplier;
+
+import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
 /**
  * This defines the core properties and functions to operate on a field.
@@ -71,7 +72,7 @@ public abstract class MappedFieldType {
         TextSearchInfo textSearchInfo,
         Map<String, String> meta
     ) {
-        this.name = Objects.requireNonNull(name);
+        this.name = Mapper.internFieldName(name);
         this.isIndexed = isIndexed;
         this.isStored = isStored;
         this.docValues = hasDocValues;
@@ -80,15 +81,23 @@ public abstract class MappedFieldType {
     }
 
     /**
+     * Operation to specify what data structures are used to retrieve
+     * field data from and generate a representation of doc values.
+     */
+    public enum FielddataOperation {
+        SEARCH,
+        SCRIPT
+    }
+
+    /**
      * Return a fielddata builder for this field
      *
-     * @param fullyQualifiedIndexName the name of the index this field-data is build for
-     * @param searchLookup a {@link SearchLookup} supplier to allow for accessing other fields values in the context of runtime fields
+     * @param fieldDataContext the context for the fielddata
      * @throws IllegalArgumentException if the fielddata is not supported on this type.
      * An IllegalArgumentException is needed in order to return an http error 400
      * when this error occurs in a request. see: {@link org.elasticsearch.ExceptionsHelper#status}
      */
-    public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+    public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
         throw new IllegalArgumentException("Fielddata is not supported on field [" + name() + "] of type [" + typeName() + "]");
     }
 
@@ -141,9 +150,16 @@ public abstract class MappedFieldType {
     }
 
     /**
+     * Returns true if the field is indexed.
+     */
+    public final boolean isIndexed() {
+        return isIndexed;
+    }
+
+    /**
      * Returns true if the field is stored separately.
      */
-    public boolean isStored() {
+    public final boolean isStored() {
         return isStored;
     }
 
@@ -163,7 +179,7 @@ public abstract class MappedFieldType {
      */
     public boolean isAggregatable() {
         try {
-            fielddataBuilder("", () -> { throw new UnsupportedOperationException("SearchLookup not available"); });
+            fielddataBuilder(FieldDataContext.noRuntimeFields("aggregation_check"));
             return true;
         } catch (IllegalArgumentException e) {
             return false;
@@ -308,10 +324,8 @@ public abstract class MappedFieldType {
     }
 
     public Query existsQuery(SearchExecutionContext context) {
-        if (hasDocValues()) {
-            return new DocValuesFieldExistsQuery(name());
-        } else if (getTextSearchInfo().hasNorms()) {
-            return new NormsFieldExistsQuery(name());
+        if (hasDocValues() || getTextSearchInfo().hasNorms()) {
+            return new FieldExistsQuery(name());
         } else {
             return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
         }
@@ -446,11 +460,43 @@ public abstract class MappedFieldType {
         }
     }
 
+    protected final void failIfNotIndexedNorDocValuesFallback(SearchExecutionContext context) {
+        if (docValues == false && context.indexVersionCreated().isLegacyIndexVersion()) {
+            throw new IllegalArgumentException(
+                "Cannot search on field [" + name() + "] of legacy index since it does not have doc values."
+            );
+        } else if (isIndexed == false && docValues == false) {
+            // we throw an IAE rather than an ISE so that it translates to a 4xx code rather than 5xx code on the http layer
+            throw new IllegalArgumentException("Cannot search on field [" + name() + "] since it is not indexed nor has doc values.");
+        } else if (isIndexed == false && docValues && context.allowExpensiveQueries() == false) {
+            // if query can only run using doc values, ensure running expensive queries are allowed
+            throw new ElasticsearchException(
+                "Cannot search on field ["
+                    + name()
+                    + "] since it is not indexed and '"
+                    + ALLOW_EXPENSIVE_QUERIES.getKey()
+                    + "' is set to false."
+            );
+        }
+    }
+
     /**
      * @return if this field type should load global ordinals eagerly
      */
     public boolean eagerGlobalOrdinals() {
         return false;
+    }
+
+    /**
+     * @return if the field may have values in the underlying index
+     *
+     * Note that this should only return {@code false} if it is not possible for it to
+     * match on a term query.
+     *
+     * @see org.elasticsearch.index.search.QueryParserHelper
+     */
+    public boolean mayExistInIndex(SearchExecutionContext context) {
+        return true;
     }
 
     /**
@@ -490,8 +536,7 @@ public abstract class MappedFieldType {
         while (termQuery instanceof BoostQuery) {
             termQuery = ((BoostQuery) termQuery).getQuery();
         }
-        if (termQuery instanceof TermInSetQuery) {
-            TermInSetQuery tisQuery = (TermInSetQuery) termQuery;
+        if (termQuery instanceof TermInSetQuery tisQuery) {
             PrefixCodedTerms terms = tisQuery.getTermData();
             if (terms.size() == 1) {
                 TermIterator it = terms.iterator();

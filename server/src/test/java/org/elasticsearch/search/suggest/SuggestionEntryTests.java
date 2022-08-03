@@ -10,6 +10,7 @@ package org.elasticsearch.search.suggest;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
@@ -134,34 +135,32 @@ public class SuggestionEntryTests extends ESTestCase {
         PhraseSuggestion.Entry phraseEntry = new PhraseSuggestion.Entry(new Text("entryText"), 42, 313);
         phraseEntry.addOption(phraseOption);
         BytesReference xContent = toXContent(phraseEntry, XContentType.JSON, randomBoolean());
-        assertEquals(
-            "{\"text\":\"entryText\","
-                + "\"offset\":42,"
-                + "\"length\":313,"
-                + "\"options\":["
-                + "{\"text\":\"someText\","
-                + "\"highlighted\":\"somethingHighlighted\","
-                + "\"score\":1.3,"
-                + "\"collate_match\":true}"
-                + "]}",
-            xContent.utf8ToString()
-        );
+        assertEquals(XContentHelper.stripWhitespace("""
+            {
+              "text": "entryText",
+              "offset": 42,
+              "length": 313,
+              "options": [
+                {
+                  "text": "someText",
+                  "highlighted": "somethingHighlighted",
+                  "score": 1.3,
+                  "collate_match": true
+                }
+              ]
+            }"""), xContent.utf8ToString());
 
         TermSuggestion.Entry.Option termOption = new TermSuggestion.Entry.Option(new Text("termSuggestOption"), 42, 3.13f);
         TermSuggestion.Entry termEntry = new TermSuggestion.Entry(new Text("entryText"), 42, 313);
         termEntry.addOption(termOption);
         xContent = toXContent(termEntry, XContentType.JSON, randomBoolean());
-        assertEquals(
-            "{\"text\":\"entryText\","
-                + "\"offset\":42,"
-                + "\"length\":313,"
-                + "\"options\":["
-                + "{\"text\":\"termSuggestOption\","
-                + "\"score\":3.13,"
-                + "\"freq\":42}"
-                + "]}",
-            xContent.utf8ToString()
-        );
+        assertEquals(XContentHelper.stripWhitespace("""
+            {
+              "text": "entryText",
+              "offset": 42,
+              "length": 313,
+              "options": [ { "text": "termSuggestOption", "score": 3.13, "freq": 42 } ]
+            }"""), xContent.utf8ToString());
 
         CompletionSuggestion.Entry.Option completionOption = new CompletionSuggestion.Entry.Option(
             -1,
@@ -172,18 +171,21 @@ public class SuggestionEntryTests extends ESTestCase {
         CompletionSuggestion.Entry completionEntry = new CompletionSuggestion.Entry(new Text("entryText"), 42, 313);
         completionEntry.addOption(completionOption);
         xContent = toXContent(completionEntry, XContentType.JSON, randomBoolean());
-        assertEquals(
-            "{\"text\":\"entryText\","
-                + "\"offset\":42,"
-                + "\"length\":313,"
-                + "\"options\":["
-                + "{\"text\":\"completionOption\","
-                + "\"score\":3.13,"
-                + "\"contexts\":{\"key\":[\"value\"]}"
-                + "}"
-                + "]}",
-            xContent.utf8ToString()
-        );
+        assertEquals(XContentHelper.stripWhitespace("""
+            {
+              "text": "entryText",
+              "offset": 42,
+              "length": 313,
+              "options": [
+                {
+                  "text": "completionOption",
+                  "score": 3.13,
+                  "contexts": {
+                    "key": [ "value" ]
+                  }
+                }
+              ]
+            }"""), xContent.utf8ToString());
     }
 
 }

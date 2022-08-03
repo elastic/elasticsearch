@@ -59,28 +59,28 @@ public class NetworkDisruption implements ServiceDisruptionScheme {
     }
 
     @Override
-    public void applyToCluster(InternalTestCluster cluster) {
-        this.cluster = cluster;
+    public void applyToCluster(InternalTestCluster testCluster) {
+        this.cluster = testCluster;
     }
 
     @Override
-    public void removeFromCluster(InternalTestCluster cluster) {
+    public void removeFromCluster(InternalTestCluster testCluster) {
         stopDisrupting();
     }
 
     @Override
-    public void removeAndEnsureHealthy(InternalTestCluster cluster) {
-        removeFromCluster(cluster);
-        ensureHealthy(cluster);
+    public void removeAndEnsureHealthy(InternalTestCluster testCluster) {
+        removeFromCluster(testCluster);
+        ensureHealthy(testCluster);
     }
 
     /**
      * ensures the cluster is healthy after the disruption
      */
-    public void ensureHealthy(InternalTestCluster cluster) {
+    public void ensureHealthy(InternalTestCluster testCluster) {
         assert activeDisruption == false;
-        ensureNodeCount(cluster);
-        ensureFullyConnectedCluster(cluster);
+        ensureNodeCount(testCluster);
+        ensureFullyConnectedCluster(testCluster);
     }
 
     /**
@@ -105,20 +105,20 @@ public class NetworkDisruption implements ServiceDisruptionScheme {
         }
     }
 
-    protected void ensureNodeCount(InternalTestCluster cluster) {
-        cluster.validateClusterFormed();
+    protected void ensureNodeCount(InternalTestCluster testCluster) {
+        testCluster.validateClusterFormed();
     }
 
     @Override
-    public synchronized void applyToNode(String node, InternalTestCluster cluster) {
+    public synchronized void applyToNode(String node, InternalTestCluster testCluster) {
 
     }
 
     @Override
-    public synchronized void removeFromNode(String node1, InternalTestCluster cluster) {
+    public synchronized void removeFromNode(String node1, InternalTestCluster testCluster) {
         logger.info("stop disrupting node (disruption type: {}, disrupted links: {})", networkLinkDisruptionType, disruptedLinks);
-        applyToNodes(new String[] { node1 }, cluster.getNodeNames(), networkLinkDisruptionType::removeDisruption);
-        applyToNodes(cluster.getNodeNames(), new String[] { node1 }, networkLinkDisruptionType::removeDisruption);
+        applyToNodes(new String[] { node1 }, testCluster.getNodeNames(), networkLinkDisruptionType::removeDisruption);
+        applyToNodes(testCluster.getNodeNames(), new String[] { node1 }, networkLinkDisruptionType::removeDisruption);
     }
 
     @Override

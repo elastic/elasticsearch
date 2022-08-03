@@ -9,10 +9,9 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ElasticsearchGenerationException;
-import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -33,7 +32,7 @@ import java.util.Set;
 
 import static java.util.Collections.emptySet;
 
-public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements ToXContentFragment {
+public class AliasMetadata implements SimpleDiffable<AliasMetadata>, ToXContentFragment {
 
     private final String alias;
 
@@ -223,7 +222,7 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
     }
 
     public static Diff<AliasMetadata> readDiffFrom(StreamInput in) throws IOException {
-        return readDiffFrom(AliasMetadata::new, in);
+        return SimpleDiffable.readDiffFrom(AliasMetadata::new, in);
     }
 
     @Override
@@ -289,8 +288,7 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
                 return this;
             }
             try {
-                XContentBuilder builder = XContentFactory.jsonBuilder().map(filter);
-                this.filter = new CompressedXContent(BytesReference.bytes(builder));
+                this.filter = new CompressedXContent(filter);
                 return this;
             } catch (IOException e) {
                 throw new ElasticsearchGenerationException("Failed to build json for alias request", e);
@@ -336,7 +334,7 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
                 if (binary) {
                     builder.field("filter", aliasMetadata.filter.compressed());
                 } else {
-                    builder.field("filter", XContentHelper.convertToMap(aliasMetadata.filter().uncompressed(), true).v2());
+                    aliasMetadata.filter.copyTo(builder.field("filter"));
                 }
             }
             if (aliasMetadata.indexRouting() != null) {

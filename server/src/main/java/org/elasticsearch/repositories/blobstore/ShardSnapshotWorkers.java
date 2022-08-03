@@ -13,7 +13,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.repositories.SnapshotShardContext;
 
 import java.io.IOException;
@@ -31,13 +30,13 @@ import static org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSna
 public class ShardSnapshotWorkers {
     private static final Logger logger = LogManager.getLogger(ShardSnapshotWorkers.class);
 
-    private final int maxWorkers;
+    private final int maxRunningTasks;
     private final Object mutex = new Object();
+    private int runningTasksCount = 0;
     private final BlockingQueue<SnapshotTask> snapshotTasks = new PriorityBlockingQueue<>();
     private final Executor executor;
     private final Consumer<SnapshotShardContext> shardSnapshotter;
     private final CheckedBiConsumer<SnapshotShardContext, FileInfo, IOException> fileSnapshotter;
-    private int workerCount = 0;
 
     abstract class SnapshotTask implements Comparable<SnapshotTask>, Runnable {
         protected final SnapshotShardContext context;
@@ -53,7 +52,7 @@ public class ShardSnapshotWorkers {
         }
 
         @Override
-        public int compareTo(SnapshotTask other) {
+        public final int compareTo(SnapshotTask other) {
             int res = context.snapshotId().compareTo(other.context.snapshotId());
             if (res != 0) {
                 return res;
@@ -101,15 +100,15 @@ public class ShardSnapshotWorkers {
     }
 
     public ShardSnapshotWorkers(
-        final int maxWorkers,
+        final int maxRunningTasks,
         final Executor executor,
         final Consumer<SnapshotShardContext> shardSnapshotter,
         final CheckedBiConsumer<SnapshotShardContext, FileInfo, IOException> fileSnapshotter
     ) {
-        assert maxWorkers > 0;
+        assert maxRunningTasks > 0;
 
-        logger.info("starting shard snapshot worker pool of max size {}", maxWorkers);
-        this.maxWorkers = maxWorkers;
+        logger.info("starting shard snapshot worker pool of max size {}", maxRunningTasks);
+        this.maxRunningTasks = maxRunningTasks;
         this.executor = executor;
         this.shardSnapshotter = shardSnapshotter;
         this.fileSnapshotter = fileSnapshotter;
@@ -119,7 +118,7 @@ public class ShardSnapshotWorkers {
         logger.trace("enqueuing shard snapshot task [snapshotID={}, indexID={}]", context.snapshotId(), context.indexId());
         snapshotTasks.add(new ShardSnapshotTask(context));
         synchronized (mutex) {
-            ensureEnoughWorkers();
+            spawnNewTasksIfPossible();
         }
     }
 
@@ -136,57 +135,43 @@ public class ShardSnapshotWorkers {
         );
         snapshotTasks.add(new FileSnapshotTask(context, fileInfo, fileUploadListener));
         synchronized (mutex) {
-            ensureEnoughWorkers();
+            spawnNewTasksIfPossible();
         }
     }
 
-    private void ensureEnoughWorkers() {
+    private void spawnNewTasksIfPossible() {
         assert Thread.holdsLock(mutex);
 
-        int workersToCreate = Math.min(maxWorkers - workerCount, snapshotTasks.size());
-        if (workersToCreate > 0) {
-            logger.debug("starting {} shard snapshot workers", workersToCreate);
-        }
-        for (int i = 0; i < workersToCreate; i++) {
-            startWorker(UUIDs.base64UUID());
-        }
-        workerCount += workersToCreate;
-        logger.debug("worker pool size is {}", workerCount);
-    }
-
-    private void workerDone() {
-        synchronized (mutex) {
-            assert workerCount > 0;
-
-            workerCount--;
-            ensureEnoughWorkers();
+        if (runningTasksCount < maxRunningTasks) {
+            SnapshotTask task = snapshotTasks.poll();
+            if (task == null) {
+                logger.trace("snapshot task queue is empty");
+                return;
+            }
+            runningTasksCount++;
+            executor.execute(() -> runOneTask(task));
         }
     }
 
     // for testing
     int size() {
         synchronized (mutex) {
-            return workerCount;
+            return runningTasksCount;
         }
     }
 
-    private void startWorker(final String workerId) {
-        logger.debug("starting snapshot pool worker {}", workerId);
-        executor.execute(() -> {
-            try {
-                while (true) {
-                    SnapshotTask task = snapshotTasks.poll();
-                    if (task == null) {
-                        logger.trace("[worker {}] snapshot task queue is empty", workerId);
-                        break;
-                    }
-                    task.run();
-                }
-            } finally {
-                logger.debug("[worker {}] worker is done", workerId);
-                workerDone();
+    private void runOneTask(final SnapshotTask task) {
+        try {
+            logger.trace("running snapshot task {}", task); // TODO: toString()?
+            task.run();
+        } finally {
+            synchronized (mutex) {
+                assert runningTasksCount > 0;
+
+                runningTasksCount--;
+                spawnNewTasksIfPossible();
             }
-        });
+        }
     }
 
 }

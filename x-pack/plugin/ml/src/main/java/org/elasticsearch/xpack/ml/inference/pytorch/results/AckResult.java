@@ -19,7 +19,7 @@ public record AckResult(boolean acknowledged) implements ToXContentObject {
     public static final ParseField ACKNOWLEDGED = new ParseField("acknowledged");
 
     public static ConstructingObjectParser<AckResult, Void> PARSER = new ConstructingObjectParser<>(
-        "error",
+        "ack",
         a -> new AckResult((Boolean) a[0])
     );
 

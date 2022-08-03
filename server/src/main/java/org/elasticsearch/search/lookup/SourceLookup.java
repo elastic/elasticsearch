@@ -143,7 +143,7 @@ public class SourceLookup {
     /**
      * SourceProvider describes how SourceLookup will access the source.
      */
-    interface SourceProvider {
+    public interface SourceProvider {
         Map<String, Object> source();
 
         XContentType sourceContentType();

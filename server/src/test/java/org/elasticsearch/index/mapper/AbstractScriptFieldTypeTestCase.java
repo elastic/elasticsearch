@@ -204,13 +204,13 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
     }
 
     protected static SearchExecutionContext mockContext(boolean allowExpensiveQueries, MappedFieldType mappedFieldType) {
-        return mockContext(allowExpensiveQueries, mappedFieldType, new SourceLookup(new SourceLookup.ReaderSourceProvider()));
+        return mockContext(allowExpensiveQueries, mappedFieldType, new SourceLookup.ReaderSourceProvider());
     }
 
     protected static SearchExecutionContext mockContext(
         boolean allowExpensiveQueries,
         MappedFieldType mappedFieldType,
-        SourceLookup sourceLookup
+        SourceLookup.SourceProvider sourceProvider
     ) {
         SearchExecutionContext context = mock(SearchExecutionContext.class);
         if (mappedFieldType != null) {
@@ -221,7 +221,7 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
             context::getFieldType,
             (mft, lookupSupplier, fdo) -> mft.fielddataBuilder(new FieldDataContext("test", lookupSupplier, context::sourcePath, fdo))
                 .build(null, null),
-            sourceLookup
+            sourceProvider
         );
         when(context.lookup()).thenReturn(lookup);
         when(context.getForField(any(), any())).then(args -> {

@@ -47,7 +47,6 @@ import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.RuntimeField;
-import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.TextFieldMapper;
@@ -483,20 +482,16 @@ public class SearchExecutionContext extends QueryRewriteContext {
      */
     public SearchLookup lookup() {
         if (this.lookup == null) {
-            SourceFieldMapper sourceMapper = mappingLookup == null ? null : (SourceFieldMapper) mappingLookup.getMapper("_source");
-            SourceLookup sourceLookup;
-            if (sourceMapper == null || sourceMapper.isSynthetic() == false) {
-                sourceLookup = new SourceLookup(new SourceLookup.ReaderSourceProvider());
-            } else {
-                sourceLookup = new SourceLookup(new SourceLookup.NullSourceProvider());
-            }
+            SourceLookup.SourceProvider sourceProvider = mappingLookup == null
+                ? new SourceLookup.ReaderSourceProvider()
+                : mappingLookup.getSourceProvider();
             this.lookup = new SearchLookup(
                 this::getFieldType,
                 (fieldType, searchLookup, fielddataOperation) -> indexFieldDataLookup.apply(
                     fieldType,
                     new FieldDataContext(fullyQualifiedIndex.getName(), searchLookup, this::sourcePath, fielddataOperation)
                 ),
-                sourceLookup
+                sourceProvider
             );
         }
         return this.lookup;

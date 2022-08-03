@@ -322,10 +322,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             mapperService,
             iw -> { iw.addDocument(mapperService.documentMapper().parse(source(b -> b.field(ft.name(), sourceValue))).rootDoc()); },
             iw -> {
-                SearchLookup lookup = new SearchLookup(
-                    mapperService::fieldType,
-                    fieldDataLookup(mapperService.mappingLookup()::sourcePaths)
-                );
+                SearchLookup lookup = new SearchLookup(mapperService::fieldType, fieldDataLookup(mapperService.mappingLookup()::sourcePaths), new SourceLookup.ReaderSourceProvider());
                 ValueFetcher valueFetcher = new DocValueFetcher(format, lookup.getForField(ft, MappedFieldType.FielddataOperation.SEARCH));
                 IndexSearcher searcher = newSearcher(iw);
                 LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
@@ -705,7 +702,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         SourceToParse source = source(this::writeField);
         ParsedDocument doc = mapperService.documentMapper().parse(source);
 
-        SearchLookup lookup = new SearchLookup(f -> fieldType, (f, s, t) -> { throw new UnsupportedOperationException(); });
+        SearchLookup lookup = new SearchLookup(f -> fieldType, (f, s, t) -> { throw new UnsupportedOperationException(); }, new SourceLookup.ReaderSourceProvider());
 
         withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), ir -> {
 

@@ -306,7 +306,7 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
                         searcher.count(
                             fieldType.termQuery(
                                 "1-suffix",
-                                mockContext(true, null, new SourceLookup(new SourceLookup.NullSourceProvider()))
+                                mockContext(true, null, new SourceLookup.NullSourceProvider())
                             )
                         );
                     }

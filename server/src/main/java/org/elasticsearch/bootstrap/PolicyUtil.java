@@ -184,7 +184,8 @@ public class PolicyUtil {
             new RuntimePermission("createClassLoader"),
             new RuntimePermission("getFileStoreAttributes"),
             new RuntimePermission("accessUserInformation"),
-            new AuthPermission("modifyPrivateCredentials")
+            new AuthPermission("modifyPrivateCredentials"),
+            new RuntimePermission("accessSystemModules")
         );
         PermissionCollection modulePermissionCollection = new Permissions();
         namedPermissions.forEach(modulePermissionCollection::add);

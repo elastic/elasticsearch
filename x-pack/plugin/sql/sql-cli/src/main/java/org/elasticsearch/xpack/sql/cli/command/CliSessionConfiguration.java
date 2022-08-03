@@ -17,10 +17,12 @@ public class CliSessionConfiguration {
     private String fetchSeparator = "";
     private boolean debug;
     private boolean lenient;
+    private boolean allowPartialResults;
 
     public CliSessionConfiguration() {
         this.fetchSize = CoreProtocol.FETCH_SIZE;
         this.lenient = CoreProtocol.FIELD_MULTI_VALUE_LENIENCY;
+        this.allowPartialResults = CoreProtocol.ALLOW_PARTIAL_SEARCH_RESULTS;
     }
 
     public void setFetchSize(int fetchSize) {
@@ -56,5 +58,13 @@ public class CliSessionConfiguration {
 
     public void setLenient(boolean lenient) {
         this.lenient = lenient;
+    }
+
+    public boolean allowPartialResults() {
+        return allowPartialResults;
+    }
+
+    public void setAllowPartialResults(boolean allowPartialResults) {
+        this.allowPartialResults = allowPartialResults;
     }
 }

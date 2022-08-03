@@ -24,6 +24,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
@@ -58,7 +59,7 @@ public final class InternalAggregations extends Aggregations implements Writeabl
     }
 
     public static InternalAggregations readFrom(StreamInput in) throws IOException {
-        return from(in.readList(stream -> in.readNamedWriteable(InternalAggregation.class)));
+        return from(in.readList(stream -> stream.readNamedWriteable(InternalAggregation.class)));
     }
 
     @Override
@@ -89,7 +90,8 @@ public final class InternalAggregations extends Aggregations implements Writeabl
         if (tail.hasNext()) {
             return aggregation.sortValue(tail.next(), tail);
         }
-        return aggregation.sortValue(head.key());
+        // We can sort by either the `[value]` or `.value`
+        return aggregation.sortValue(Optional.ofNullable(head.key()).orElse(head.metric()));
     }
 
     /**

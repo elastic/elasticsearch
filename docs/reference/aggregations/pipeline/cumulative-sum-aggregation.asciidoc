@@ -29,7 +29,9 @@ A `cumulative_sum` aggregation looks like this in isolation:
 |Parameter Name |Description |Required |Default Value
 |`buckets_path` |The path to the buckets we wish to find the cumulative sum for (see <<buckets-path-syntax>> for more
  details) |Required |
-|`format` |format to apply to the output value of this aggregation |Optional |`null` 
+|`format` |{javadoc}/java.base/java/text/DecimalFormat.html[DecimalFormat pattern] for the
+output value. If specified, the formatted value is returned in the aggregation's
+`value_as_string` property |Optional |`null` 
 |===
 
 The following snippet calculates the cumulative sum of the total monthly `sales`:

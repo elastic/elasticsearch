@@ -92,25 +92,12 @@ public class RecoveryFilesInfoRequest extends RecoveryTransportRequest {
         out.writeLong(recoveryId);
         shardId.writeTo(out);
 
-        out.writeVInt(phase1FileNames.size());
-        for (String phase1FileName : phase1FileNames) {
-            out.writeString(phase1FileName);
-        }
+        out.writeStringCollection(phase1FileNames);
+        out.writeCollection(phase1FileSizes, StreamOutput::writeVLong);
 
-        out.writeVInt(phase1FileSizes.size());
-        for (Long phase1FileSize : phase1FileSizes) {
-            out.writeVLong(phase1FileSize);
-        }
+        out.writeStringCollection(phase1ExistingFileNames);
+        out.writeCollection(phase1ExistingFileSizes, StreamOutput::writeVLong);
 
-        out.writeVInt(phase1ExistingFileNames.size());
-        for (String phase1ExistingFileName : phase1ExistingFileNames) {
-            out.writeString(phase1ExistingFileName);
-        }
-
-        out.writeVInt(phase1ExistingFileSizes.size());
-        for (Long phase1ExistingFileSize : phase1ExistingFileSizes) {
-            out.writeVLong(phase1ExistingFileSize);
-        }
         out.writeVInt(totalTranslogOps);
     }
 }

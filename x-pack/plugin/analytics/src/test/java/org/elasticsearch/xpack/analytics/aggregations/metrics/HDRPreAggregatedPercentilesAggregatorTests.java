@@ -11,7 +11,7 @@ import org.HdrHistogram.DoubleHistogramIterationValue;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
@@ -105,7 +105,7 @@ public class HDRPreAggregatedPercentilesAggregatorTests extends AggregatorTestCa
 
     public void testSomeMatchesBinaryDocValues() throws IOException {
         testCase(
-            new DocValuesFieldExistsQuery("number"),
+            new FieldExistsQuery("number"),
             iw -> { iw.addDocument(singleton(getDocValue("number", new double[] { 60, 40, 20, 10 }))); },
             hdr -> {
                 // assertEquals(4L, hdr.state.getTotalCount());
@@ -120,7 +120,7 @@ public class HDRPreAggregatedPercentilesAggregatorTests extends AggregatorTestCa
     }
 
     public void testSomeMatchesMultiBinaryDocValues() throws IOException {
-        testCase(new DocValuesFieldExistsQuery("number"), iw -> {
+        testCase(new FieldExistsQuery("number"), iw -> {
             iw.addDocument(singleton(getDocValue("number", new double[] { 60, 40, 20, 10 })));
             iw.addDocument(singleton(getDocValue("number", new double[] { 60, 40, 20, 10 })));
             iw.addDocument(singleton(getDocValue("number", new double[] { 60, 40, 20, 10 })));
@@ -152,7 +152,7 @@ public class HDRPreAggregatedPercentilesAggregatorTests extends AggregatorTestCa
                 MappedFieldType fieldType = new HistogramFieldMapper.HistogramFieldType("number", Collections.emptyMap(), null);
                 Aggregator aggregator = createAggregator(builder, indexSearcher, fieldType);
                 aggregator.preCollection();
-                indexSearcher.search(query, aggregator);
+                indexSearcher.search(query, aggregator.asCollector());
                 aggregator.postCollection();
                 verify.accept((InternalHDRPercentiles) aggregator.buildTopLevel());
 

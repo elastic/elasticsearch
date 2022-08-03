@@ -54,6 +54,7 @@ import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
@@ -876,9 +877,8 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                                             .entry(
                                                 "filters",
                                                 matchesList().item(
-                                                    matchesMap().entry("query", "DocValuesFieldExistsQuery [field=f]")
-                                                        .entry("specialized_for", "docvalues_field_exists")
-                                                        .entry("results_from_metadata", greaterThan(0))
+                                                    matchesMap().entry("query", "FieldExistsQuery [field=f]")
+                                                        .entry("segments_counted_in_constant_time", greaterThan(0))
                                                 )
                                             )
                                     )
@@ -936,9 +936,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                                             .entry(
                                                 "filters",
                                                 matchesList().item(
-                                                    matchesMap().entry("query", "*:*")
-                                                        .entry("specialized_for", "match_all")
-                                                        .entry("results_from_metadata", 0)
+                                                    matchesMap().entry("query", "*:*").entry("segments_counted_in_constant_time", 0)
                                                 )
                                             )
                                     )
@@ -993,7 +991,13 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                     matchesMap().entry(
                         "d",
                         matchesMap().entry("delegate", "RangeAggregator.NoOverlap")
-                            .entry("delegate_debug", matchesMap().entry("ranges", 2).entry("average_docs_per_range", 5005.0))
+                            .entry(
+                                "delegate_debug",
+                                matchesMap().entry("ranges", 2)
+                                    .entry("average_docs_per_range", 5005.0)
+                                    .entry("singletons", greaterThanOrEqualTo(1))
+                                    .entry("non-singletons", 0)
+                            )
                     )
                 );
             },
@@ -1034,7 +1038,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                 }
                 assertThat(agg, matcher);
                 agg.preCollection();
-                context.searcher().search(context.query(), agg);
+                context.searcher().search(context.query(), agg.asCollector());
                 InternalDateHistogram result = (InternalDateHistogram) agg.buildTopLevel();
                 result = (InternalDateHistogram) result.reduce(
                     List.of(result),

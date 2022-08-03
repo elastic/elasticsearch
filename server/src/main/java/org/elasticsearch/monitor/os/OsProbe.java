@@ -252,7 +252,7 @@ public class OsProbe {
         return readSingleLine(PathUtils.get("/proc/loadavg"));
     }
 
-    public short getSystemCpuPercent() {
+    public static short getSystemCpuPercent() {
         return Probes.getLoadAndScaleToPercent(getSystemCpuLoad, osMxBean);
     }
 
@@ -263,7 +263,7 @@ public class OsProbe {
      * @return the single line
      * @throws IOException if an I/O exception occurs reading the file
      */
-    private String readSingleLine(final Path path) throws IOException {
+    private static String readSingleLine(final Path path) throws IOException {
         final List<String> lines = Files.readAllLines(path);
         assert lines.size() == 1 : String.join("\n", lines);
         return lines.get(0);
@@ -463,6 +463,13 @@ public class OsProbe {
      * nr_throttled} is the number of times tasks in the given control group have been throttled, and {@code throttled_time} is the total
      * time in nanoseconds for which tasks in the given control group have been throttled.
      *
+     * If the burst feature of the scheduler is enabled, the statistics contain an additional two fields of the form
+     * <blockquote><pre>
+     * nr_bursts \d+
+     * burst_time
+     * </pre></blockquote>
+     * These additional fields are currently ignored.
+     *
      * @param controlGroup the control group to which the Elasticsearch process belongs for the {@code cpu} subsystem
      * @return the lines from {@code cpu.stat}
      * @throws IOException if an I/O exception occurs reading {@code cpu.stat} for the control group
@@ -470,7 +477,7 @@ public class OsProbe {
     @SuppressForbidden(reason = "access /sys/fs/cgroup/cpu")
     List<String> readSysFsCgroupCpuAcctCpuStat(final String controlGroup) throws IOException {
         final List<String> lines = Files.readAllLines(PathUtils.get("/sys/fs/cgroup/cpu", controlGroup, "cpu.stat"));
-        assert lines != null && lines.size() == 3;
+        assert lines != null && (lines.size() == 3 || lines.size() == 5);
         return lines;
     }
 

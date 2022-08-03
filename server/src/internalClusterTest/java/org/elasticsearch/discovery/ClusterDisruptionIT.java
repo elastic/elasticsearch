@@ -8,7 +8,6 @@
 
 package org.elasticsearch.discovery;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
@@ -67,6 +66,7 @@ import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_C
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING;
 import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_INTERVAL_SETTING;
 import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_RETRY_COUNT_SETTING;
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
@@ -177,7 +177,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
                             } catch (ElasticsearchException e) {
                                 exceptedExceptions.add(e);
                                 final String docId = id;
-                                logger.trace(() -> new ParameterizedMessage("[{}] failed id [{}] through node [{}]", name, docId, node), e);
+                                logger.trace(() -> format("[%s] failed id [%s] through node [%s]", name, docId, node), e);
                             } finally {
                                 countDownLatchRef.get().countDown();
                                 logger.trace("[{}] decreased counter : {}", name, countDownLatchRef.get().getCount());
@@ -185,7 +185,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
                         } catch (InterruptedException e) {
                             // fine - semaphore interrupt
                         } catch (AssertionError | Exception e) {
-                            logger.info(() -> new ParameterizedMessage("unexpected exception in background thread of [{}]", node), e);
+                            logger.info(() -> "unexpected exception in background thread of [" + node + "]", e);
                         }
                     }
                 });
@@ -442,7 +442,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
                     .isTimedOut()
             );
         }, 30, TimeUnit.SECONDS);
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(dataNode)); // otherwise we will fail during clean-up
+        internalCluster().stopNode(dataNode); // otherwise we will fail during clean-up
     }
 
     /**
@@ -577,12 +577,15 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         });
 
         masterClusterService.addHighPriorityApplier(event -> {
-            failedLeader.actionGet();
-            if (dataNodeHasMaster.get() == false) {
-                try {
-                    Thread.sleep(100);
-                } catch (InterruptedException e) {
-                    throw new AssertionError("unexpected", e);
+            // This is applicable for events related to the cluster disruption
+            if (event.state().nodes().getDataNodes().isEmpty()) {
+                failedLeader.actionGet();
+                if (dataNodeHasMaster.get() == false) {
+                    try {
+                        Thread.sleep(100);
+                    } catch (InterruptedException e) {
+                        throw new AssertionError("unexpected", e);
+                    }
                 }
             }
         });

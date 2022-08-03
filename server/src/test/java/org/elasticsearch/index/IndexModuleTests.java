@@ -37,7 +37,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.CheckedFunction;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
@@ -194,7 +194,7 @@ public class IndexModuleTests extends ESTestCase {
             mapperRegistry,
             new IndicesFieldDataCache(settings, listener),
             writableRegistry(),
-            module.indexSettings().getMode().buildNoFieldDataIdFieldMapper(),
+            module.indexSettings().getMode().idFieldMapperWithoutFieldData(),
             null,
             indexDeletionListener,
             emptyMap()
@@ -615,11 +615,6 @@ public class IndexModuleTests extends ESTestCase {
         @Override
         public void close() {
             assertTrue(liveQueryCaches == null || liveQueryCaches.remove(this));
-        }
-
-        @Override
-        public Index index() {
-            return new Index("test", "_na_");
         }
 
         @Override

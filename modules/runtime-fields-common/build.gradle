@@ -22,5 +22,9 @@ dependencies {
   api project(':libs:elasticsearch-dissect')
 }
 
-//this plugin is here only for the painless extension, there are no unit tests
-tasks.named("testingConventions").configure { enabled = false }
+tasks.named("yamlRestTestV7CompatTransform").configure { task ->
+  task.skipTest("runtime_fields/100_geo_point/fetch fields from source", "Format changed. Old format was a bug.")
+  task.skipTest("runtime_fields/101_geo_point_from_source/fetch fields from source", "Format changed. Old format was a bug.")
+  task.skipTest("runtime_fields/102_geo_point_source_in_query/fetch fields from source", "Format changed. Old format was a bug.")
+  task.skipTest("runtime_fields/103_geo_point_calculated_at_index/fetch fields from source", "Format changed. Old format was a bug.")
+}

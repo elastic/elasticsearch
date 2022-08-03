@@ -48,7 +48,7 @@ public class OsService implements ReportingService<OsInfo> {
         return this.info;
     }
 
-    public synchronized OsStats stats() {
+    public OsStats stats() {
         return osStatsCache.getOrRefresh();
     }
 

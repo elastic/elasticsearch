@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -114,7 +113,7 @@ class IndicesAndAliasesResolver {
      * @return The {@link ResolvedIndices} or null if wildcard expansion must be performed.
      */
     @Nullable
-    ResolvedIndices tryResolveWithoutWildcards(String action, TransportRequest transportRequest) {
+    static ResolvedIndices tryResolveWithoutWildcards(String action, TransportRequest transportRequest) {
         // We only take care of IndicesRequest
         if (false == transportRequest instanceof IndicesRequest) {
             return null;
@@ -127,7 +126,7 @@ class IndicesAndAliasesResolver {
         return resolveIndicesAndAliasesWithoutWildcards(action, indicesRequest);
     }
 
-    private boolean requiresWildcardExpansion(IndicesRequest indicesRequest) {
+    private static boolean requiresWildcardExpansion(IndicesRequest indicesRequest) {
         // IndicesAliasesRequest requires special handling because it can have wildcards in request body
         if (indicesRequest instanceof IndicesAliasesRequest) {
             return true;
@@ -139,7 +138,7 @@ class IndicesAndAliasesResolver {
         return false;
     }
 
-    ResolvedIndices resolveIndicesAndAliasesWithoutWildcards(String action, IndicesRequest indicesRequest) {
+    static ResolvedIndices resolveIndicesAndAliasesWithoutWildcards(String action, IndicesRequest indicesRequest) {
         assert false == requiresWildcardExpansion(indicesRequest) : "request must not require wildcard expansion";
         final String[] indices = indicesRequest.indices();
         if (indices == null || indices.length == 0) {
@@ -332,7 +331,7 @@ class IndicesAndAliasesResolver {
         } else {
             // the user is not authorized to put mappings for this index, but could have been
             // authorized for a write using an alias that triggered a dynamic mapping update
-            ImmutableOpenMap<String, List<AliasMetadata>> foundAliases = metadata.findAllAliases(new String[] { concreteIndexName });
+            Map<String, List<AliasMetadata>> foundAliases = metadata.findAllAliases(new String[] { concreteIndexName });
             List<AliasMetadata> aliasMetadata = foundAliases.get(concreteIndexName);
             if (aliasMetadata != null) {
                 Optional<String> foundAlias = aliasMetadata.stream()
@@ -359,7 +358,7 @@ class IndicesAndAliasesResolver {
         return resolvedAliasOrIndex;
     }
 
-    private List<String> loadAuthorizedAliases(Set<String> authorizedIndices, Metadata metadata) {
+    private static List<String> loadAuthorizedAliases(Set<String> authorizedIndices, Metadata metadata) {
         List<String> authorizedAliases = new ArrayList<>();
         SortedMap<String, IndexAbstraction> existingAliases = metadata.getIndicesLookup();
         for (String authorizedIndex : authorizedIndices) {
@@ -371,7 +370,7 @@ class IndicesAndAliasesResolver {
         return authorizedAliases;
     }
 
-    private List<String> replaceWildcardsWithAuthorizedAliases(String[] aliases, List<String> authorizedAliases) {
+    private static List<String> replaceWildcardsWithAuthorizedAliases(String[] aliases, List<String> authorizedAliases) {
         final List<String> finalAliases = new ArrayList<>();
 
         // IndicesAliasesRequest doesn't support empty aliases (validation fails) but

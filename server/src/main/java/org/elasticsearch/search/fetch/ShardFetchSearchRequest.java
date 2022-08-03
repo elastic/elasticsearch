@@ -8,8 +8,6 @@
 
 package org.elasticsearch.search.fetch;
 
-import com.carrotsearch.hppc.IntArrayList;
-
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.IndicesRequest;
@@ -23,6 +21,7 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 
 import java.io.IOException;
+import java.util.List;
 
 /**
  * Shard level fetch request used with search. Holds indices taken from the original search request
@@ -39,12 +38,12 @@ public class ShardFetchSearchRequest extends ShardFetchRequest implements Indice
         OriginalIndices originalIndices,
         ShardSearchContextId id,
         ShardSearchRequest shardSearchRequest,
-        IntArrayList list,
+        List<Integer> docIds,
         ScoreDoc lastEmittedDoc,
         RescoreDocIds rescoreDocIds,
         AggregatedDfs aggregatedDfs
     ) {
-        super(id, list, lastEmittedDoc);
+        super(id, docIds, lastEmittedDoc);
         this.originalIndices = originalIndices;
         this.shardSearchRequest = shardSearchRequest;
         this.rescoreDocIds = rescoreDocIds;

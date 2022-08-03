@@ -239,7 +239,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
         boolean profile = randomBoolean();
         for (int trackTotalHits : new int[] { SearchContext.TRACK_TOTAL_HITS_DISABLED, SearchContext.TRACK_TOTAL_HITS_ACCURATE }) {
             AtomicArray<SearchPhaseResult> queryResults = generateQueryResults(nShards, suggestions, queryResultSize, false, profile);
-            SearchPhaseController.ReducedQueryPhase reducedQueryPhase = searchPhaseController.reducedQueryPhase(
+            SearchPhaseController.ReducedQueryPhase reducedQueryPhase = SearchPhaseController.reducedQueryPhase(
                 queryResults.asList(),
                 new ArrayList<>(),
                 new ArrayList<>(),
@@ -256,7 +256,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                 reducedQueryPhase.suggest(),
                 profile
             );
-            InternalSearchResponse mergedResponse = searchPhaseController.merge(
+            InternalSearchResponse mergedResponse = SearchPhaseController.merge(
                 false,
                 reducedQueryPhase,
                 fetchResults.asList(),

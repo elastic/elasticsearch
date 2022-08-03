@@ -44,7 +44,6 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.cluster.health.ClusterShardHealth;
@@ -1199,7 +1198,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         final PutFollowAction.Request followRequest = putFollow("leader", "follower");
         followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
         ClusterService clusterService = getLeaderCluster().getInstance(ClusterService.class, getLeaderCluster().getMasterName());
-        clusterService.submitStateUpdateTask("test", new ClusterStateUpdateTask() {
+        clusterService.submitUnbatchedStateUpdateTask("test", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 final IndexMetadata indexMetadata = currentState.metadata().index("leader");
@@ -1225,7 +1224,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             public void onFailure(Exception e) {
                 throw new AssertionError(e);
             }
-        }, ClusterStateTaskExecutor.unbatched());
+        });
         assertBusy(() -> {
             GetSettingsResponse resp = followerClient().admin().indices().prepareGetSettings("follower").get();
             assertThat(resp.getSetting("follower", "index.max_ngram_diff"), equalTo("2"));
@@ -1267,7 +1266,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         final ClusterService clusterService = getLeaderCluster().getInstance(ClusterService.class, getLeaderCluster().getMasterName());
         final SetOnce<Long> settingVersionOnLeader = new SetOnce<>();
         final CountDownLatch latch = new CountDownLatch(1);
-        clusterService.submitStateUpdateTask("test", new ClusterStateUpdateTask() {
+        clusterService.submitUnbatchedStateUpdateTask("test", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 final IndexMetadata indexMetadata = currentState.metadata().index("leader");
@@ -1295,7 +1294,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             public void onFailure(Exception e) {
                 throw new AssertionError(e);
             }
-        }, ClusterStateTaskExecutor.unbatched());
+        });
         latch.await();
         assertBusy(() -> assertThat(getFollowTaskSettingsVersion("follower"), equalTo(settingVersionOnLeader.get())));
         GetSettingsResponse resp = followerClient().admin().indices().prepareGetSettings("follower").get();

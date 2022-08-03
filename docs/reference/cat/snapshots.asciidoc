@@ -103,7 +103,7 @@ units>>.
 `total_shards`, `ts`::
 (Default) Total number of shards in the snapshot.
 
-`reason, `r`::
+`reason`, `r`::
 Reason for any snapshot failures.
 --
 

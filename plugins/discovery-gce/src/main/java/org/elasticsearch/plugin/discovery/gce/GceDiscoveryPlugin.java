@@ -23,7 +23,7 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Booleans;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.discovery.SeedHostsProvider;
 import org.elasticsearch.discovery.gce.GceSeedHostsProvider;
 import org.elasticsearch.plugins.DiscoveryPlugin;

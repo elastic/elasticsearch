@@ -23,7 +23,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -51,6 +51,7 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.LowercaseNormalizer;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.StringBinaryIndexFieldData;
 import org.elasticsearch.index.mapper.BinaryFieldMapper.CustomBinaryDocValuesField;
@@ -65,7 +66,6 @@ import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.wildcard.WildcardDocValuesField;
 
@@ -73,14 +73,12 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.ZoneId;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Supplier;
 
 /**
  * A {@link FieldMapper} for indexing fields with ngrams for efficient wildcard matching
@@ -213,8 +211,8 @@ public class WildcardFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected List<Parameter<?>> getParameters() {
-            return Arrays.asList(ignoreAbove, nullValue, meta);
+        protected Parameter<?>[] getParameters() {
+            return new Parameter<?>[] { ignoreAbove, nullValue, meta };
         }
 
         Builder ignoreAbove(int ignoreAbove) {
@@ -342,7 +340,7 @@ public class WildcardFieldMapper extends FieldMapper {
                 return new BinaryDvConfirmedAutomatonQuery(approxQuery, name(), wildcardPattern, automaton);
             } else if (numWildcardChars == 0 || numWildcardStrings > 0) {
                 // We have no concrete characters and we're not a pure length query e.g. ???
-                return new DocValuesFieldExistsQuery(name());
+                return new FieldExistsQuery(name());
             }
             return new BinaryDvConfirmedAutomatonQuery(new MatchAllDocsQuery(), name(), wildcardPattern, automaton);
 
@@ -833,7 +831,7 @@ public class WildcardFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+        public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             failIfNoDocValues();
             return (cache, breakerService) -> new StringBinaryIndexFieldData(
                 name(),
@@ -876,7 +874,7 @@ public class WildcardFieldMapper extends FieldMapper {
         String nullValue,
         Version indexVersionCreated
     ) {
-        super(simpleName, mappedFieldType, mappedFieldType.analyzer, multiFields, copyTo);
+        super(simpleName, mappedFieldType, multiFields, copyTo);
         this.nullValue = nullValue;
         this.ignoreAbove = ignoreAbove;
         this.indexVersionCreated = indexVersionCreated;
@@ -884,6 +882,11 @@ public class WildcardFieldMapper extends FieldMapper {
         this.ngramFieldType.setTokenized(true);
         this.ngramFieldType.freeze();
         assert ngramFieldType.indexOptions() == IndexOptions.DOCS;
+    }
+
+    @Override
+    public Map<String, NamedAnalyzer> indexAnalyzers() {
+        return Map.of(mappedFieldType.name(), fieldType().analyzer);
     }
 
     /** Values that have more chars than the return value of this method will

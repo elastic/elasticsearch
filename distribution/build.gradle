@@ -230,7 +230,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
    *             Properties to expand when copying packaging files             *
    *****************************************************************************/
   configurations {
-    ['libs', 'libsLaunchers', 'libsPluginCli', 'libsKeystoreCli', 'libsSecurityCli', 'libsGeoIpCli', 'libsAnsiConsole'].each {
+    ['libs', 'libsVersionChecker', 'libsCliLauncher', 'libsServerCli', 'libsWindowsServiceCli', 'libsPluginCli', 'libsKeystoreCli', 'libsSecurityCli', 'libsGeoIpCli', 'libsAnsiConsole'].each {
       create(it) {
         canBeConsumed = false
         canBeResolved = true
@@ -250,8 +250,10 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
   dependencies {
     libs project(':server')
 
-    libsLaunchers project(':distribution:tools:java-version-checker')
-    libsLaunchers project(':distribution:tools:launchers')
+    libsVersionChecker project(':distribution:tools:java-version-checker')
+    libsCliLauncher project(':distribution:tools:cli-launcher')
+    libsServerCli project(':distribution:tools:server-cli')
+    libsWindowsServiceCli project(':distribution:tools:windows-service-cli')
     libsAnsiConsole project(':distribution:tools:ansi-console')
     libsPluginCli project(':distribution:tools:plugin-cli')
     libsKeystoreCli project(path: ':distribution:tools:keystore-cli')
@@ -268,8 +270,17 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
       copySpec {
         // Delay by using closures, since they have not yet been configured, so no jar task exists yet.
         from(configurations.libs)
-        into('launchers') {
-          from(configurations.libsLaunchers)
+        into('java-version-checker') {
+          from(configurations.libsVersionChecker)
+        }
+        into('cli-launcher') {
+          from(configurations.libsCliLauncher)
+        }
+        into('tools/server-cli') {
+          from(configurations.libsServerCli)
+        }
+        into('tools/windows-service-cli') {
+          from(configurations.libsWindowsServiceCli)
         }
         into('tools/geoip-cli') {
           from(configurations.libsGeoIpCli)
@@ -287,7 +298,6 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
           from(configurations.libsAnsiConsole)
         }
       }
-
 
     modulesFiles = { platform ->
       copySpec {
@@ -367,12 +377,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         // module provided bin files
         with copySpec {
           eachFile { it.setMode(0755) }
-          if (testDistro == false) {
-            from(defaultBinFiles)
-          } else {
-            from(defaultBinFiles)
-              include 'x-pack-env', 'x-pack-security-env'
-          }
+          from(defaultBinFiles)
           if (distributionType != 'zip') {
             exclude '*.bat'
           }
@@ -513,19 +518,11 @@ subprojects {
         'def': footer
       ],
 
-      'es.distribution.flavor': [
-        'def': 'default'
-      ],
-
       'es.distribution.type': [
         'deb': 'deb',
         'rpm': 'rpm',
         'tar': 'tar',
         'zip': 'zip'
-      ],
-
-      'es.bundled_jdk': [
-        'def': 'true'
       ],
 
       'license.name': [

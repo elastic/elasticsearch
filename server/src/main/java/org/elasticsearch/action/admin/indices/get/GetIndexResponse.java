@@ -13,7 +13,6 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -25,6 +24,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.rest.BaseRestHandler.DEFAULT_INCLUDE_TYPE_NAME_POLICY;
@@ -35,20 +35,20 @@ import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER
  */
 public class GetIndexResponse extends ActionResponse implements ToXContentObject {
 
-    private ImmutableOpenMap<String, MappingMetadata> mappings = ImmutableOpenMap.of();
-    private ImmutableOpenMap<String, List<AliasMetadata>> aliases = ImmutableOpenMap.of();
-    private ImmutableOpenMap<String, Settings> settings = ImmutableOpenMap.of();
-    private ImmutableOpenMap<String, Settings> defaultSettings = ImmutableOpenMap.of();
-    private ImmutableOpenMap<String, String> dataStreams = ImmutableOpenMap.of();
+    private Map<String, MappingMetadata> mappings = Map.of();
+    private Map<String, List<AliasMetadata>> aliases = Map.of();
+    private Map<String, Settings> settings = Map.of();
+    private Map<String, Settings> defaultSettings = Map.of();
+    private Map<String, String> dataStreams = Map.of();
     private final String[] indices;
 
     public GetIndexResponse(
         String[] indices,
-        ImmutableOpenMap<String, MappingMetadata> mappings,
-        ImmutableOpenMap<String, List<AliasMetadata>> aliases,
-        ImmutableOpenMap<String, Settings> settings,
-        ImmutableOpenMap<String, Settings> defaultSettings,
-        ImmutableOpenMap<String, String> dataStreams
+        Map<String, MappingMetadata> mappings,
+        Map<String, List<AliasMetadata>> aliases,
+        Map<String, Settings> settings,
+        Map<String, Settings> defaultSettings,
+        Map<String, String> dataStreams
     ) {
         this.indices = indices;
         // to have deterministic order
@@ -73,7 +73,7 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
     GetIndexResponse(StreamInput in) throws IOException {
         super(in);
         this.indices = in.readStringArray();
-        mappings = in.readImmutableMap(StreamInput::readString, in.getVersion().before(Version.V_8_0_0) ? i -> {
+        mappings = in.readImmutableOpenMap(StreamInput::readString, in.getVersion().before(Version.V_8_0_0) ? i -> {
             int numMappings = i.readVInt();
             assert numMappings == 0 || numMappings == 1 : "Expected 0 or 1 mappings but got " + numMappings;
             if (numMappings == 1) {
@@ -85,10 +85,10 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
             }
         } : i -> i.readBoolean() ? new MappingMetadata(i) : MappingMetadata.EMPTY_MAPPINGS);
 
-        aliases = in.readImmutableMap(StreamInput::readString, i -> i.readList(AliasMetadata::new));
-        settings = in.readImmutableMap(StreamInput::readString, Settings::readSettingsFromStream);
-        defaultSettings = in.readImmutableMap(StreamInput::readString, Settings::readSettingsFromStream);
-        dataStreams = in.readImmutableMap(StreamInput::readString, StreamInput::readOptionalString);
+        aliases = in.readImmutableOpenMap(StreamInput::readString, i -> i.readList(AliasMetadata::new));
+        settings = in.readImmutableOpenMap(StreamInput::readString, Settings::readSettingsFromStream);
+        defaultSettings = in.readImmutableOpenMap(StreamInput::readString, Settings::readSettingsFromStream);
+        dataStreams = in.readImmutableOpenMap(StreamInput::readString, StreamInput::readOptionalString);
     }
 
     public String[] indices() {
@@ -99,31 +99,31 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
         return indices();
     }
 
-    public ImmutableOpenMap<String, MappingMetadata> mappings() {
+    public Map<String, MappingMetadata> mappings() {
         return mappings;
     }
 
-    public ImmutableOpenMap<String, MappingMetadata> getMappings() {
+    public Map<String, MappingMetadata> getMappings() {
         return mappings();
     }
 
-    public ImmutableOpenMap<String, List<AliasMetadata>> aliases() {
+    public Map<String, List<AliasMetadata>> aliases() {
         return aliases;
     }
 
-    public ImmutableOpenMap<String, List<AliasMetadata>> getAliases() {
+    public Map<String, List<AliasMetadata>> getAliases() {
         return aliases();
     }
 
-    public ImmutableOpenMap<String, Settings> settings() {
+    public Map<String, Settings> settings() {
         return settings;
     }
 
-    public ImmutableOpenMap<String, String> dataStreams() {
+    public Map<String, String> dataStreams() {
         return dataStreams;
     }
 
-    public ImmutableOpenMap<String, String> getDataStreams() {
+    public Map<String, String> getDataStreams() {
         return dataStreams();
     }
 
@@ -135,11 +135,11 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
      * via {@link #settings()}.
      * See also {@link GetIndexRequest#includeDefaults(boolean)}
      */
-    public ImmutableOpenMap<String, Settings> defaultSettings() {
+    public Map<String, Settings> defaultSettings() {
         return defaultSettings;
     }
 
-    public ImmutableOpenMap<String, Settings> getSettings() {
+    public Map<String, Settings> getSettings() {
         return settings();
     }
 
@@ -172,8 +172,8 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
         out.writeStringArray(indices);
         MappingMetadata.writeMappingMetadata(out, mappings);
         out.writeMap(aliases, StreamOutput::writeString, StreamOutput::writeList);
-        out.writeMap(settings, StreamOutput::writeString, (o, v) -> Settings.writeSettingsToStream(v, o));
-        out.writeMap(defaultSettings, StreamOutput::writeString, (o, v) -> Settings.writeSettingsToStream(v, o));
+        out.writeMap(settings, StreamOutput::writeString, (o, v) -> v.writeTo(o));
+        out.writeMap(defaultSettings, StreamOutput::writeString, (o, v) -> v.writeTo(o));
         out.writeMap(dataStreams, StreamOutput::writeString, StreamOutput::writeOptionalString);
     }
 

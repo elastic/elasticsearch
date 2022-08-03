@@ -146,7 +146,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         this.mapperRegistry = mapperRegistry;
         Function<DateFormatter, MappingParserContext> parserContextFunction = dateFormatter -> new MappingParserContext(
             similarityService::getSimilarity,
-            mapperRegistry.getMapperParsers()::get,
+            type -> mapperRegistry.getMapperParser(type, indexVersionCreated),
             mapperRegistry.getRuntimeFieldParsers()::get,
             indexVersionCreated,
             searchExecutionContextSupplier,
@@ -505,6 +505,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return mapperRegistry.getMetadataMapperParsers(indexVersionCreated).containsKey(field);
     }
 
+    /**
+     * @return If this field is defined as a multifield of another field
+     */
     public boolean isMultiField(String field) {
         return mappingLookup().isMultiField(field);
     }

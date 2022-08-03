@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.indices.stats;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -21,18 +22,21 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class ShardStats implements Writeable, ToXContentFragment {
 
-    private ShardRouting shardRouting;
-    private CommonStats commonStats;
+    private static final Version DEDUPLICATE_SHARD_PATH_VERSION = Version.V_8_4_0;
+
+    private final ShardRouting shardRouting;
+    private final CommonStats commonStats;
     @Nullable
-    private CommitStats commitStats;
+    private final CommitStats commitStats;
     @Nullable
-    private SeqNoStats seqNoStats;
+    private final SeqNoStats seqNoStats;
 
     @Nullable
-    private RetentionLeaseStats retentionLeaseStats;
+    private final RetentionLeaseStats retentionLeaseStats;
 
     /**
      * Gets the current retention lease stats.
@@ -43,16 +47,20 @@ public class ShardStats implements Writeable, ToXContentFragment {
         return retentionLeaseStats;
     }
 
-    private String dataPath;
-    private String statePath;
-    private boolean isCustomDataPath;
+    private final String dataPath;
+    private final String statePath;
+    private final boolean isCustomDataPath;
 
     public ShardStats(StreamInput in) throws IOException {
         shardRouting = new ShardRouting(in);
         commonStats = new CommonStats(in);
         commitStats = CommitStats.readOptionalCommitStatsFrom(in);
         statePath = in.readString();
-        dataPath = in.readString();
+        if (in.getVersion().onOrAfter(DEDUPLICATE_SHARD_PATH_VERSION)) {
+            dataPath = Objects.requireNonNullElse(in.readOptionalString(), this.statePath);
+        } else {
+            dataPath = in.readString();
+        }
         isCustomDataPath = in.readBoolean();
         seqNoStats = in.readOptionalWriteable(SeqNoStats::new);
         retentionLeaseStats = in.readOptionalWriteable(RetentionLeaseStats::new);
@@ -115,7 +123,11 @@ public class ShardStats implements Writeable, ToXContentFragment {
         commonStats.writeTo(out);
         out.writeOptionalWriteable(commitStats);
         out.writeString(statePath);
-        out.writeString(dataPath);
+        if (out.getVersion().onOrAfter(DEDUPLICATE_SHARD_PATH_VERSION)) {
+            out.writeOptionalString(statePath.equals(dataPath) ? null : dataPath);
+        } else {
+            out.writeString(dataPath);
+        }
         out.writeBoolean(isCustomDataPath);
         out.writeOptionalWriteable(seqNoStats);
         out.writeOptionalWriteable(retentionLeaseStats);

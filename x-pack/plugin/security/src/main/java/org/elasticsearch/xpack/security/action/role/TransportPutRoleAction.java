@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.action.role;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
@@ -17,7 +18,6 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleAction;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleRequest;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleResponse;
-import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.support.DLSRoleQueryValidator;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 
@@ -40,26 +40,31 @@ public class TransportPutRoleAction extends HandledTransportAction<PutRoleReques
 
     @Override
     protected void doExecute(Task task, final PutRoleRequest request, final ActionListener<PutRoleResponse> listener) {
-        final String name = request.roleDescriptor().getName();
-        if (ReservedRolesStore.isReserved(name)) {
-            listener.onFailure(new IllegalArgumentException("role [" + name + "] is reserved and cannot be modified."));
-            return;
+        final Exception validationException = validateRequest(request);
+        if (validationException != null) {
+            listener.onFailure(validationException);
+        } else {
+            rolesStore.putRole(request, request.roleDescriptor(), listener.delegateFailure((l, created) -> {
+                if (created) {
+                    logger.info("added role [{}]", request.name());
+                } else {
+                    logger.info("updated role [{}]", request.name());
+                }
+                l.onResponse(new PutRoleResponse(created));
+            }));
         }
+    }
 
+    private Exception validateRequest(final PutRoleRequest request) {
+        ActionRequestValidationException validationException = request.validate();
+        if (validationException != null) {
+            return validationException;
+        }
         try {
             DLSRoleQueryValidator.validateQueryField(request.roleDescriptor().getIndicesPrivileges(), xContentRegistry);
         } catch (ElasticsearchException | IllegalArgumentException e) {
-            listener.onFailure(e);
-            return;
+            return e;
         }
-
-        rolesStore.putRole(request, request.roleDescriptor(), listener.delegateFailure((l, created) -> {
-            if (created) {
-                logger.info("added role [{}]", request.name());
-            } else {
-                logger.info("updated role [{}]", request.name());
-            }
-            l.onResponse(new PutRoleResponse(created));
-        }));
+        return null;
     }
 }

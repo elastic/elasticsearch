@@ -8,24 +8,31 @@
 package org.elasticsearch.xpack.core.security.authz;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
-import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
-import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
+import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
+import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
-import org.elasticsearch.xpack.core.security.user.User;
 
+import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  * <p>
@@ -53,8 +60,7 @@ import java.util.Set;
  *         necessary to authorize the given user. It is important to note that the {@link RequestInfo}
  *         may contain an {@link Authentication} object that actually has two users when the
  *         <i>run as</i> feature is used and this method should resolve the information for both.
- *         To check for the presence of run as, use the {@link User#isRunAs()} method on the user
- *         retrieved using the {@link Authentication#getUser()} method.</li>
+ *         To check for the presence of run as, use the {@link Authentication#isRunAs()} method.</li>
  *     <li>{@link #authorizeRunAs(RequestInfo, AuthorizationInfo, ActionListener)} if the request
  *         is making use of the run as feature. This method is used to ensure the authenticated user
  *         can actually impersonate the user running the request.</li>
@@ -82,15 +88,31 @@ import java.util.Set;
 public interface AuthorizationEngine {
 
     /**
-     * Asynchronously resolves any necessary information to authorize the given user(s). This could
-     * include retrieval of permissions from an index or external system.
+     * Asynchronously resolves the information necessary to authorize the given request, which has
+     * already been authenticated. This could include retrieval of permissions from an index or external system.
+     * See also {@link #resolveAuthorizationInfo(Subject, ActionListener)}, for which this method is the more
+     * specific sibling. This returns the specific {@code AuthorizationInfo} used to authorize only the specified request.
      *
-     * @param requestInfo object contain the request and associated information such as the action
+     * @param requestInfo object containing the request and associated information such as the action name
      *                    and associated user(s)
      * @param listener the listener to be notified of success using {@link ActionListener#onResponse(Object)}
      *                 or failure using {@link ActionListener#onFailure(Exception)}
      */
     void resolveAuthorizationInfo(RequestInfo requestInfo, ActionListener<AuthorizationInfo> listener);
+
+    /**
+     * Asynchronously resolves the information necessary to authorize requests in the context of the given {@code Subject}.
+     * This could include retrieval of permissions from an index or external system.
+     * See also {@link #resolveAuthorizationInfo(RequestInfo, ActionListener)}, for which this method is the more general
+     * sibling. This returns the {@code AuthorizationInfo} that is used for access checks outside the context of
+     * authorizing a specific request, i.e.
+     * {@link #checkPrivileges(AuthorizationInfo, PrivilegesToCheck, Collection, ActionListener)}
+     *
+     * @param subject object representing the effective user
+     * @param listener the listener to be notified of success using {@link ActionListener#onResponse(Object)}
+     *                 or failure using {@link ActionListener#onFailure(Exception)}
+     */
+    void resolveAuthorizationInfo(Subject subject, ActionListener<AuthorizationInfo> listener);
 
     /**
      * Asynchronously authorizes an attempt for a user to run as another user.
@@ -183,41 +205,33 @@ public interface AuthorizationEngine {
     );
 
     /**
-     * Checks the current user's privileges against those that being requested to check in the
-     * request. This provides a way for an application to ask if a user has permission to perform
-     * an action or if they have permissions to an application resource.
+     * Checks the privileges from the provided authorization information against those that are being
+     * requested to be checked. This provides a way for a client application to ask if a Subject has
+     * permission to perform an action, before actually trying to perform the action,
+     * or if the subject has privileges to an application resource.
      *
-     * @param authentication the authentication that is associated with this request
-     * @param authorizationInfo information needed from authorization that was previously retrieved
-     *                          from {@link #resolveAuthorizationInfo(RequestInfo, ActionListener)}
-     * @param hasPrivilegesRequest the request that contains the privileges to check for the user
+     * @param authorizationInfo information used for authorization, for a specific Subject, that was previously retrieved
+     *                          using {@link #resolveAuthorizationInfo(Subject, ActionListener)}
+     * @param privilegesToCheck the object that contains the privileges to check for the Subject
      * @param applicationPrivilegeDescriptors a collection of application privilege descriptors
-     * @param listener the listener to be notified of the has privileges response
+     * @param listener the listener to be notified of the check privileges response
      */
     void checkPrivileges(
-        Authentication authentication,
         AuthorizationInfo authorizationInfo,
-        HasPrivilegesRequest hasPrivilegesRequest,
+        PrivilegesToCheck privilegesToCheck,
         Collection<ApplicationPrivilegeDescriptor> applicationPrivilegeDescriptors,
-        ActionListener<HasPrivilegesResponse> listener
+        ActionListener<PrivilegesCheckResult> listener
     );
 
     /**
-     * Retrieve's the current user's privileges in a standard format that can be rendered via an
-     * API for an application to understand the privileges that the current user has.
+     * Retrieve the privileges, from the provided authorization information, in a standard format that can be rendered via an
+     * API for a client application to understand the privileges that the Subject has.
      *
-     * @param authentication the authentication that is associated with this request
-     * @param authorizationInfo information needed from authorization that was previously retrieved
-     *                          from {@link #resolveAuthorizationInfo(RequestInfo, ActionListener)}
-     * @param request the request for retrieving the user's privileges
-     * @param listener the listener to be notified of the has privileges response
+     * @param authorizationInfo information used from authorization, for a specific Subject, that was previously retrieved
+     *                          from {@link #resolveAuthorizationInfo(Subject, ActionListener)}
+     * @param listener the listener to be notified of the get privileges response
      */
-    void getUserPrivileges(
-        Authentication authentication,
-        AuthorizationInfo authorizationInfo,
-        GetUserPrivilegesRequest request,
-        ActionListener<GetUserPrivilegesResponse> listener
-    );
+    void getUserPrivileges(AuthorizationInfo authorizationInfo, ActionListener<GetUserPrivilegesResponse> listener);
 
     /**
      * Interface for objects that contains the information needed to authorize a request
@@ -238,6 +252,170 @@ public interface AuthorizationEngine {
          */
         default AuthorizationInfo getAuthenticatedUserAuthorizationInfo() {
             return this;
+        }
+    }
+
+    /**
+     * This encapsulates the privileges that can be checked for access. It's intentional that the privileges to be checked are specified
+     * in the same manner that they are granted in the {@link RoleDescriptor}. The privilege check can be detailed or not, per the
+     * {@link #runDetailedCheck} parameter. The detailed response {@link PrivilegesCheckResult} of a check run, also shows which privileges
+     * are NOT granted.
+     */
+    record PrivilegesToCheck(
+        String[] cluster,
+        RoleDescriptor.IndicesPrivileges[] index,
+        RoleDescriptor.ApplicationResourcePrivileges[] application,
+        boolean runDetailedCheck
+    ) {
+        public static PrivilegesToCheck readFrom(StreamInput in) throws IOException {
+            return new PrivilegesToCheck(
+                in.readOptionalStringArray(),
+                in.readOptionalArray(RoleDescriptor.IndicesPrivileges::new, RoleDescriptor.IndicesPrivileges[]::new),
+                in.readOptionalArray(
+                    RoleDescriptor.ApplicationResourcePrivileges::new,
+                    RoleDescriptor.ApplicationResourcePrivileges[]::new
+                ),
+                in.readBoolean()
+            );
+        }
+
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeOptionalStringArray(cluster);
+            out.writeOptionalArray(RoleDescriptor.IndicesPrivileges::write, index);
+            out.writeOptionalArray(RoleDescriptor.ApplicationResourcePrivileges::write, application);
+            out.writeBoolean(runDetailedCheck);
+        }
+
+        public ActionRequestValidationException validate(ActionRequestValidationException validationException) {
+            if (cluster == null) {
+                validationException = addValidationError("clusterPrivileges must not be null", validationException);
+            }
+            if (index == null) {
+                validationException = addValidationError("indexPrivileges must not be null", validationException);
+            } else {
+                for (int i = 0; i < index.length; i++) {
+                    BytesReference query = index[i].getQuery();
+                    if (query != null) {
+                        validationException = addValidationError(
+                            "may only check index privileges without any DLS query [" + query.utf8ToString() + "]",
+                            validationException
+                        );
+                    }
+                }
+            }
+            if (application == null) {
+                validationException = addValidationError("applicationPrivileges must not be null", validationException);
+            } else {
+                for (RoleDescriptor.ApplicationResourcePrivileges applicationPrivilege : application) {
+                    try {
+                        ApplicationPrivilege.validateApplicationName(applicationPrivilege.getApplication());
+                    } catch (IllegalArgumentException e) {
+                        validationException = addValidationError(e.getMessage(), validationException);
+                    }
+                }
+            }
+            if (cluster != null
+                && cluster.length == 0
+                && index != null
+                && index.length == 0
+                && application != null
+                && application.length == 0) {
+                validationException = addValidationError("must specify at least one privilege", validationException);
+            }
+            return validationException;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            PrivilegesToCheck that = (PrivilegesToCheck) o;
+            return runDetailedCheck == that.runDetailedCheck
+                && Arrays.equals(cluster, that.cluster)
+                && Arrays.equals(index, that.index)
+                && Arrays.equals(application, that.application);
+        }
+
+        @Override
+        public int hashCode() {
+            int result = Objects.hash(runDetailedCheck);
+            result = 31 * result + Arrays.hashCode(cluster);
+            result = 31 * result + Arrays.hashCode(index);
+            result = 31 * result + Arrays.hashCode(application);
+            return result;
+        }
+
+        @Override
+        public String toString() {
+            return getClass().getSimpleName()
+                + "{"
+                + "cluster="
+                + Arrays.toString(cluster)
+                + ","
+                + "index="
+                + Arrays.toString(index)
+                + ","
+                + "application="
+                + Arrays.toString(application)
+                + ","
+                + "detailed="
+                + runDetailedCheck
+                + "}";
+        }
+    }
+
+    /**
+     * The result of a (has) privilege check. This is not to be used as an Elasticsearch authorization result (though clients can base their
+     * authorization decisions on this response). The {@link #allChecksSuccess} field tells if all the privileges are granted over
+     * all the resources. The {@link #details} field is only present (non-null) if the check has been run in a detailed mode
+     * {@link PrivilegesToCheck#runDetailedCheck}, and contains a run-down of which privileges are granted over which resources or not.
+     */
+    final class PrivilegesCheckResult {
+
+        public static final PrivilegesCheckResult ALL_CHECKS_SUCCESS_NO_DETAILS = new PrivilegesCheckResult(true, null);
+        public static final PrivilegesCheckResult SOME_CHECKS_FAILURE_NO_DETAILS = new PrivilegesCheckResult(false, null);
+
+        private final boolean allChecksSuccess;
+
+        @Nullable
+        private final Details details;
+
+        public PrivilegesCheckResult(boolean allChecksSuccess, Details details) {
+            this.allChecksSuccess = allChecksSuccess;
+            this.details = details;
+        }
+
+        public boolean allChecksSuccess() {
+            return allChecksSuccess;
+        }
+
+        public @Nullable Details getDetails() {
+            return details;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            PrivilegesCheckResult that = (PrivilegesCheckResult) o;
+            return allChecksSuccess == that.allChecksSuccess && Objects.equals(details, that.details);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(allChecksSuccess, details);
+        }
+
+        public record Details(
+            Map<String, Boolean> cluster,
+            Map<String, ResourcePrivileges> index,
+            Map<String, Collection<ResourcePrivileges>> application
+        ) {
+            public Details {
+                Objects.requireNonNull(cluster);
+                Objects.requireNonNull(index);
+                Objects.requireNonNull(application);
+            }
         }
     }
 

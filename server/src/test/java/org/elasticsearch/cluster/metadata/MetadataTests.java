@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfigE
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -30,6 +29,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.alias.RandomAliasActionsGenerator;
 import org.elasticsearch.index.mapper.MapperService;
@@ -59,7 +59,6 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createBackingIndex;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createFirstBackingIndex;
-import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.elasticsearch.cluster.metadata.Metadata.Builder.assertDataStreams;
 import static org.hamcrest.Matchers.allOf;
@@ -93,7 +92,7 @@ public class MetadataTests extends ESTestCase {
 
         {
             GetAliasesRequest request = new GetAliasesRequest();
-            ImmutableOpenMap<String, List<AliasMetadata>> aliases = metadata.findAliases(request.aliases(), Strings.EMPTY_ARRAY);
+            Map<String, List<AliasMetadata>> aliases = metadata.findAliases(request.aliases(), Strings.EMPTY_ARRAY);
             assertThat(aliases.size(), equalTo(0));
         }
         {
@@ -105,7 +104,7 @@ public class MetadataTests extends ESTestCase {
                 // replacing with empty aliases behaves as if aliases were unspecified at request building
                 request.replaceAliases(Strings.EMPTY_ARRAY);
             }
-            ImmutableOpenMap<String, List<AliasMetadata>> aliases = metadata.findAliases(request.aliases(), new String[] { "index" });
+            Map<String, List<AliasMetadata>> aliases = metadata.findAliases(request.aliases(), new String[] { "index" });
             assertThat(aliases.size(), equalTo(1));
             List<AliasMetadata> aliasMetadataList = aliases.get("index");
             assertThat(aliasMetadataList.size(), equalTo(2));
@@ -114,7 +113,7 @@ public class MetadataTests extends ESTestCase {
         }
         {
             GetAliasesRequest request = new GetAliasesRequest("alias*");
-            ImmutableOpenMap<String, List<AliasMetadata>> aliases = metadata.findAliases(request.aliases(), new String[] { "index" });
+            Map<String, List<AliasMetadata>> aliases = metadata.findAliases(request.aliases(), new String[] { "index" });
             assertThat(aliases.size(), equalTo(1));
             List<AliasMetadata> aliasMetadataList = aliases.get("index");
             assertThat(aliasMetadataList.size(), equalTo(2));
@@ -123,14 +122,14 @@ public class MetadataTests extends ESTestCase {
         }
         {
             GetAliasesRequest request = new GetAliasesRequest("alias1");
-            ImmutableOpenMap<String, List<AliasMetadata>> aliases = metadata.findAliases(request.aliases(), new String[] { "index" });
+            Map<String, List<AliasMetadata>> aliases = metadata.findAliases(request.aliases(), new String[] { "index" });
             assertThat(aliases.size(), equalTo(1));
             List<AliasMetadata> aliasMetadataList = aliases.get("index");
             assertThat(aliasMetadataList.size(), equalTo(1));
             assertThat(aliasMetadataList.get(0).alias(), equalTo("alias1"));
         }
         {
-            ImmutableOpenMap<String, List<AliasMetadata>> aliases = metadata.findAllAliases(new String[] { "index" });
+            Map<String, List<AliasMetadata>> aliases = metadata.findAllAliases(new String[] { "index" });
             assertThat(aliases.size(), equalTo(1));
             List<AliasMetadata> aliasMetadataList = aliases.get("index");
             assertThat(aliasMetadataList.size(), equalTo(2));
@@ -138,7 +137,7 @@ public class MetadataTests extends ESTestCase {
             assertThat(aliasMetadataList.get(1).alias(), equalTo("alias2"));
         }
         {
-            ImmutableOpenMap<String, List<AliasMetadata>> aliases = metadata.findAllAliases(Strings.EMPTY_ARRAY);
+            Map<String, List<AliasMetadata>> aliases = metadata.findAllAliases(Strings.EMPTY_ARRAY);
             assertThat(aliases.size(), equalTo(0));
         }
     }
@@ -169,7 +168,7 @@ public class MetadataTests extends ESTestCase {
         List<Index> allIndices = new ArrayList<>(result.indices);
         allIndices.addAll(result.backingIndices);
         String[] concreteIndices = allIndices.stream().map(Index::getName).toList().toArray(new String[] {});
-        ImmutableOpenMap<String, IndexAbstraction.DataStream> dataStreams = result.metadata.findDataStreams(concreteIndices);
+        Map<String, IndexAbstraction.DataStream> dataStreams = result.metadata.findDataStreams(concreteIndices);
         assertThat(dataStreams.size(), equalTo(numBackingIndices));
         for (Index backingIndex : result.backingIndices) {
             assertThat(dataStreams.containsKey(backingIndex.getName()), is(true));
@@ -218,7 +217,7 @@ public class MetadataTests extends ESTestCase {
 
     public void testAliasCollidingWithAnExistingIndex() {
         int indexCount = randomIntBetween(10, 100);
-        Set<String> indices = new HashSet<>(indexCount);
+        Set<String> indices = Sets.newHashSetWithExpectedSize(indexCount);
         for (int i = 0; i < indexCount; i++) {
             indices.add(randomAlphaOfLength(10));
         }
@@ -570,7 +569,7 @@ public class MetadataTests extends ESTestCase {
 
     private Set<VotingConfigExclusion> randomVotingConfigExclusions() {
         final int size = randomIntBetween(0, 10);
-        final Set<VotingConfigExclusion> nodes = new HashSet<>(size);
+        final Set<VotingConfigExclusion> nodes = Sets.newHashSetWithExpectedSize(size);
         while (nodes.size() < size) {
             assertTrue(nodes.add(new VotingConfigExclusion(randomAlphaOfLength(10), randomAlphaOfLength(10))));
         }
@@ -656,7 +655,7 @@ public class MetadataTests extends ESTestCase {
 
         {
             AtomicInteger onNextIndexCalls = new AtomicInteger(0);
-            ImmutableOpenMap<String, MappingMetadata> mappings = metadata.findMappings(
+            Map<String, MappingMetadata> mappings = metadata.findMappings(
                 Strings.EMPTY_ARRAY,
                 MapperPlugin.NOOP_FIELD_FILTER,
                 onNextIndexCalls::incrementAndGet
@@ -666,7 +665,7 @@ public class MetadataTests extends ESTestCase {
         }
         {
             AtomicInteger onNextIndexCalls = new AtomicInteger(0);
-            ImmutableOpenMap<String, MappingMetadata> mappings = metadata.findMappings(
+            Map<String, MappingMetadata> mappings = metadata.findMappings(
                 new String[] { "index1" },
                 MapperPlugin.NOOP_FIELD_FILTER,
                 onNextIndexCalls::incrementAndGet
@@ -677,7 +676,7 @@ public class MetadataTests extends ESTestCase {
         }
         {
             AtomicInteger onNextIndexCalls = new AtomicInteger(0);
-            ImmutableOpenMap<String, MappingMetadata> mappings = metadata.findMappings(
+            Map<String, MappingMetadata> mappings = metadata.findMappings(
                 new String[] { "index1", "index2" },
                 MapperPlugin.NOOP_FIELD_FILTER,
                 onNextIndexCalls::incrementAndGet
@@ -709,7 +708,7 @@ public class MetadataTests extends ESTestCase {
             .build();
 
         {
-            ImmutableOpenMap<String, MappingMetadata> mappings = metadata.findMappings(
+            Map<String, MappingMetadata> mappings = metadata.findMappings(
                 new String[] { "index1" },
                 MapperPlugin.NOOP_FIELD_FILTER,
                 Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
@@ -718,7 +717,7 @@ public class MetadataTests extends ESTestCase {
             assertSame(originalMappingMetadata, mappingMetadata);
         }
         {
-            ImmutableOpenMap<String, MappingMetadata> mappings = metadata.findMappings(
+            Map<String, MappingMetadata> mappings = metadata.findMappings(
                 new String[] { "index1" },
                 index -> field -> randomBoolean(),
                 Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
@@ -774,22 +773,18 @@ public class MetadataTests extends ESTestCase {
             .build();
 
         {
-            ImmutableOpenMap<String, MappingMetadata> mappings = metadata.findMappings(
-                new String[] { "index1", "index2", "index3" },
-                index -> {
-                    if (index.equals("index1")) {
-                        return field -> field.startsWith("name.") == false
-                            && field.startsWith("properties.key.") == false
-                            && field.equals("age") == false
-                            && field.equals("address.location") == false;
-                    }
-                    if (index.equals("index2")) {
-                        return field -> false;
-                    }
-                    return MapperPlugin.NOOP_FIELD_PREDICATE;
-                },
-                Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
-            );
+            Map<String, MappingMetadata> mappings = metadata.findMappings(new String[] { "index1", "index2", "index3" }, index -> {
+                if (index.equals("index1")) {
+                    return field -> field.startsWith("name.") == false
+                        && field.startsWith("properties.key.") == false
+                        && field.equals("age") == false
+                        && field.equals("address.location") == false;
+                }
+                if (index.equals("index2")) {
+                    return field -> false;
+                }
+                return MapperPlugin.NOOP_FIELD_PREDICATE;
+            }, Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP);
 
             assertIndexMappingsNoFields(mappings, "index2");
             assertIndexMappingsNotFiltered(mappings, "index3");
@@ -836,7 +831,7 @@ public class MetadataTests extends ESTestCase {
         }
 
         {
-            ImmutableOpenMap<String, MappingMetadata> mappings = metadata.findMappings(
+            Map<String, MappingMetadata> mappings = metadata.findMappings(
                 new String[] { "index1", "index2", "index3" },
                 index -> field -> (index.equals("index3") && field.endsWith("keyword")),
                 Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
@@ -872,7 +867,7 @@ public class MetadataTests extends ESTestCase {
         }
 
         {
-            ImmutableOpenMap<String, MappingMetadata> mappings = metadata.findMappings(
+            Map<String, MappingMetadata> mappings = metadata.findMappings(
                 new String[] { "index1", "index2", "index3" },
                 index -> field -> (index.equals("index2")),
                 Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP
@@ -930,7 +925,7 @@ public class MetadataTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private static void assertIndexMappingsNoFields(ImmutableOpenMap<String, MappingMetadata> mappings, String index) {
+    private static void assertIndexMappingsNoFields(Map<String, MappingMetadata> mappings, String index) {
         MappingMetadata docMapping = mappings.get(index);
         assertNotNull(docMapping);
         Map<String, Object> sourceAsMap = docMapping.getSourceAsMap();
@@ -942,7 +937,7 @@ public class MetadataTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private static void assertIndexMappingsNotFiltered(ImmutableOpenMap<String, MappingMetadata> mappings, String index) {
+    private static void assertIndexMappingsNotFiltered(Map<String, MappingMetadata> mappings, String index) {
         MappingMetadata docMapping = mappings.get(index);
         assertNotNull(docMapping);
 
@@ -1098,9 +1093,8 @@ public class MetadataTests extends ESTestCase {
     public void testBuilderRejectsNullInCustoms() {
         final Metadata.Builder builder = Metadata.builder();
         final String key = randomAlphaOfLength(10);
-        final ImmutableOpenMap.Builder<String, Metadata.Custom> mapBuilder = ImmutableOpenMap.builder();
-        mapBuilder.put(key, null);
-        final ImmutableOpenMap<String, Metadata.Custom> map = mapBuilder.build();
+        final Map<String, Metadata.Custom> map = new HashMap<>();
+        map.put(key, null);
         assertThat(expectThrows(NullPointerException.class, () -> builder.customs(map)).getMessage(), containsString(key));
     }
 
@@ -1137,7 +1131,7 @@ public class MetadataTests extends ESTestCase {
                 IndexMetadata.builder(dataStreamName).settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1).build(),
                 false
             )
-            .put(newInstance(dataStreamName, createTimestampField("@timestamp"), List.of(idx.getIndex())));
+            .put(newInstance(dataStreamName, List.of(idx.getIndex())));
 
         IllegalStateException e = expectThrows(IllegalStateException.class, b::build);
         assertThat(
@@ -1154,9 +1148,7 @@ public class MetadataTests extends ESTestCase {
     public void testBuilderRejectsDataStreamThatConflictsWithAlias() {
         final String dataStreamName = "my-data-stream";
         IndexMetadata idx = createFirstBackingIndex(dataStreamName).putAlias(AliasMetadata.builder(dataStreamName).build()).build();
-        Metadata.Builder b = Metadata.builder()
-            .put(idx, false)
-            .put(newInstance(dataStreamName, createTimestampField("@timestamp"), List.of(idx.getIndex())));
+        Metadata.Builder b = Metadata.builder().put(idx, false).put(newInstance(dataStreamName, List.of(idx.getIndex())));
 
         IllegalStateException e = expectThrows(IllegalStateException.class, b::build);
         assertThat(
@@ -1175,9 +1167,7 @@ public class MetadataTests extends ESTestCase {
         final String dataStreamName = "my-data-stream";
         final String conflictingName = DataStream.getDefaultBackingIndexName(dataStreamName, 2);
         IndexMetadata idx = createFirstBackingIndex(dataStreamName).putAlias(new AliasMetadata.Builder(conflictingName)).build();
-        Metadata.Builder b = Metadata.builder()
-            .put(idx, false)
-            .put(newInstance(dataStreamName, createTimestampField("@timestamp"), List.of(idx.getIndex())));
+        Metadata.Builder b = Metadata.builder().put(idx, false).put(newInstance(dataStreamName, List.of(idx.getIndex())));
 
         AssertionError e = expectThrows(AssertionError.class, b::build);
         assertThat(e.getMessage(), containsString("aliases [" + conflictingName + "] cannot refer to backing indices of data streams"));
@@ -1200,7 +1190,7 @@ public class MetadataTests extends ESTestCase {
             backingIndices.add(im.getIndex());
         }
 
-        b.put(newInstance(dataStreamName, createTimestampField("@timestamp"), backingIndices, lastBackingIndexNum, null));
+        b.put(newInstance(dataStreamName, backingIndices, lastBackingIndexNum, null));
         Metadata metadata = b.build();
         assertThat(metadata.dataStreams().size(), equalTo(1));
         assertThat(metadata.dataStreams().get(dataStreamName).getName(), equalTo(dataStreamName));
@@ -1248,37 +1238,30 @@ public class MetadataTests extends ESTestCase {
         IndexAbstraction value = metadata.getIndicesLookup().get("d1");
         assertThat(value, notNullValue());
         assertThat(value.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
-        assertThat(value.getAliases(), containsInAnyOrder("a1", "a3"));
 
         value = metadata.getIndicesLookup().get("d2");
         assertThat(value, notNullValue());
         assertThat(value.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
-        assertThat(value.getAliases(), contains("a1"));
 
         value = metadata.getIndicesLookup().get("d3");
         assertThat(value, notNullValue());
         assertThat(value.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
-        assertThat(value.getAliases(), contains("a2"));
 
         value = metadata.getIndicesLookup().get("d4");
         assertThat(value, notNullValue());
         assertThat(value.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
-        assertThat(value.getAliases(), empty());
 
         value = metadata.getIndicesLookup().get("a1");
         assertThat(value, notNullValue());
         assertThat(value.getType(), equalTo(IndexAbstraction.Type.ALIAS));
-        assertThat(value.getAliases(), nullValue());
 
         value = metadata.getIndicesLookup().get("a2");
         assertThat(value, notNullValue());
         assertThat(value.getType(), equalTo(IndexAbstraction.Type.ALIAS));
-        assertThat(value.getAliases(), nullValue());
 
         value = metadata.getIndicesLookup().get("a3");
         assertThat(value, notNullValue());
         assertThat(value.getType(), equalTo(IndexAbstraction.Type.ALIAS));
-        assertThat(value.getAliases(), nullValue());
     }
 
     public void testDataStreamAliasValidation() {
@@ -1354,7 +1337,7 @@ public class MetadataTests extends ESTestCase {
             indices.add(idx.getIndex());
             b.put(idx, true);
         }
-        b.put(newInstance(name, createTimestampField("@timestamp"), indices));
+        b.put(newInstance(name, indices));
     }
 
     private DataStream createDataStream(String name) {
@@ -1364,7 +1347,7 @@ public class MetadataTests extends ESTestCase {
             IndexMetadata idx = createBackingIndex(name, j).build();
             indices.add(idx.getIndex());
         }
-        return newInstance(name, createTimestampField("@timestamp"), indices);
+        return newInstance(name, indices);
     }
 
     public void testIndicesLookupRecordsDataStreamForBackingIndices() {
@@ -1447,7 +1430,7 @@ public class MetadataTests extends ESTestCase {
             .build();
 
         try {
-            assertDataStreams(metadata.getIndices(), null);
+            assertDataStreams(metadata.getIndices(), DataStreamMetadata.EMPTY);
         } catch (Exception e) {
             fail("did not expect exception when validating a system without any data streams but got " + e.getMessage());
         }
@@ -1758,7 +1741,7 @@ public class MetadataTests extends ESTestCase {
             Metadata.Builder builder = Metadata.builder(previous);
             IndexMetadata idx = DataStreamTestHelper.createFirstBackingIndex(dataStreamName).build();
             builder.put(idx, true);
-            DataStream dataStream = newInstance(dataStreamName, new DataStream.TimestampField("@timestamp"), List.of(idx.getIndex()));
+            DataStream dataStream = newInstance(dataStreamName, List.of(idx.getIndex()));
             builder.put(dataStream);
             Metadata metadata = builder.build();
             assertThat(previous.getIndicesLookup(), not(sameInstance(metadata.getIndicesLookup())));
@@ -2186,7 +2169,7 @@ public class MetadataTests extends ESTestCase {
         final Set<String> randomMappingDefinitions;
         {
             int numEntries = randomIntBetween(4, 8);
-            randomMappingDefinitions = new HashSet<>(numEntries);
+            randomMappingDefinitions = Sets.newHashSetWithExpectedSize(numEntries);
             for (int i = 0; i < numEntries; i++) {
                 Map<String, Object> mapping = RandomAliasActionsGenerator.randomMap(2);
                 String mappingAsString = Strings.toString((builder, params) -> builder.mapContents(mapping));
@@ -2292,6 +2275,48 @@ public class MetadataTests extends ESTestCase {
         assertThat(metadata.getMappingsByHash().get(newMapping.getSha256()), nullValue());
     }
 
+    public void testWithLifecycleState() {
+        String indexName = "my-index";
+        String indexUUID = randomAlphaOfLength(10);
+        Metadata metadata1 = Metadata.builder(randomMetadata())
+            .put(
+                IndexMetadata.builder(indexName)
+                    .settings(settings(Version.CURRENT).put(IndexMetadata.SETTING_INDEX_UUID, indexUUID))
+                    .creationDate(randomNonNegativeLong())
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+            )
+            .build();
+        IndexMetadata index1 = metadata1.index(indexName);
+        assertThat(metadata1.getIndicesLookup(), notNullValue());
+        assertThat(index1.getLifecycleExecutionState(), sameInstance(LifecycleExecutionState.EMPTY_STATE));
+
+        LifecycleExecutionState state = LifecycleExecutionState.builder().setPhase("phase").setAction("action").setStep("step").build();
+        Metadata metadata2 = metadata1.withLifecycleState(index1.getIndex(), state);
+        IndexMetadata index2 = metadata2.index(indexName);
+
+        // the indices lookups are the same object
+        assertThat(metadata2.getIndicesLookup(), sameInstance(metadata1.getIndicesLookup()));
+
+        // the lifecycle state and version were changed
+        assertThat(index2.getLifecycleExecutionState().asMap(), is(state.asMap()));
+        assertThat(index2.getVersion(), is(index1.getVersion() + 1));
+
+        // but those are the only differences between the two
+        IndexMetadata.Builder builder = IndexMetadata.builder(index2);
+        builder.version(builder.version() - 1);
+        builder.removeCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY);
+        assertThat(index1, equalTo(builder.build()));
+
+        // withLifecycleState returns the same reference if nothing changed
+        Metadata metadata3 = metadata2.withLifecycleState(index2.getIndex(), state);
+        assertThat(metadata3, sameInstance(metadata2));
+
+        // withLifecycleState rejects a nonsense Index
+        String randomUUID = randomValueOtherThan(indexUUID, () -> randomAlphaOfLength(10));
+        expectThrows(IndexNotFoundException.class, () -> metadata1.withLifecycleState(new Index(indexName, randomUUID), state));
+    }
+
     public static Metadata randomMetadata() {
         return randomMetadata(1);
     }
@@ -2354,7 +2379,7 @@ public class MetadataTests extends ESTestCase {
             b.put(im, false);
             backingIndices.add(im.getIndex());
         }
-        b.put(newInstance(dataStreamName, createTimestampField("@timestamp"), backingIndices, lastBackingIndexNum, null));
+        b.put(newInstance(dataStreamName, backingIndices, lastBackingIndexNum, null));
         return new CreateIndexResult(indices, backingIndices, b.build());
     }
 

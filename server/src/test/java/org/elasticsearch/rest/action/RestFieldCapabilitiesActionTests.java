@@ -34,8 +34,7 @@ public class RestFieldCapabilitiesActionTests extends ESTestCase {
         String content = "{ \"fields\": [\"title\"] }";
         HashMap<String, String> paramsMap = new HashMap<>();
         paramsMap.put("fields", "title");
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-            .withPath("/_field_caps")
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_field_caps")
             .withParams(paramsMap)
             .withContent(new BytesArray(content), XContentType.JSON)
             .build();
@@ -43,9 +42,12 @@ public class RestFieldCapabilitiesActionTests extends ESTestCase {
             action.prepareRequest(request, mock(NodeClient.class));
             fail("expected failure");
         } catch (IllegalArgumentException e) {
-            assertEquals(e.getMessage(), "can't specify a request body and [fields]" +
-                " request parameter, either specify a request body or the" +
-                " [fields] request parameter");
+            assertEquals(
+                e.getMessage(),
+                "can't specify a request body and [fields]"
+                    + " request parameter, either specify a request body or the"
+                    + " [fields] request parameter"
+            );
         }
 
     }

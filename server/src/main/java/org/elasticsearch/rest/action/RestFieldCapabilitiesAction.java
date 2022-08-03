@@ -12,7 +12,6 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -20,7 +19,6 @@ import org.elasticsearch.xcontent.ParseField;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -61,9 +59,11 @@ public class RestFieldCapabilitiesAction extends BaseRestHandler {
         });
         if (request.hasParam("fields")) {
             if (fieldRequest.fields().length > 0) {
-                throw new IllegalArgumentException("can't specify a request body and [fields]" +
-                    " request parameter, either specify a request body or the" +
-                    " [fields] request parameter");
+                throw new IllegalArgumentException(
+                    "can't specify a request body and [fields]"
+                        + " request parameter, either specify a request body or the"
+                        + " [fields] request parameter"
+                );
             }
             fieldRequest.fields(Strings.splitStringByCommaToArray(request.param("fields")));
         }
@@ -79,7 +79,6 @@ public class RestFieldCapabilitiesAction extends BaseRestHandler {
     static {
         PARSER.declareObject(FieldCapabilitiesRequest::indexFilter, (p, c) -> parseInnerQueryBuilder(p), INDEX_FILTER_FIELD);
         PARSER.declareObject(FieldCapabilitiesRequest::runtimeFields, (p, c) -> p.map(), RUNTIME_MAPPINGS_FIELD);
-        PARSER.declareStringArray(fromList(String.class, FieldCapabilitiesRequest::fields),
-            FIELDS_FIELD);
+        PARSER.declareStringArray(fromList(String.class, FieldCapabilitiesRequest::fields), FIELDS_FIELD);
     }
 }

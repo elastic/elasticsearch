@@ -509,6 +509,10 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         return true;
     }
 
+    public boolean indicesLookupInitialized() {
+        return indicesLookup != null;
+    }
+
     public SortedMap<String, IndexAbstraction> getIndicesLookup() {
         SortedMap<String, IndexAbstraction> lookup = indicesLookup;
         if (lookup == null) {

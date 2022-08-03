@@ -13,6 +13,9 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.admin.cluster.coordination.ClusterFormationInfoAction;
 import org.elasticsearch.action.admin.cluster.coordination.CoordinationDiagnosticsAction;
@@ -53,6 +56,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -789,55 +793,15 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
         DiscoveryNode node,
         Consumer<ClusterFormationStateOrException> responseConsumer
     ) {
-        StepListener<Releasable> connectionListener = new StepListener<>();
-        StepListener<ClusterFormationInfoAction.Response> fetchClusterInfoListener = new StepListener<>();
-        long startTime = System.nanoTime();
-        connectionListener.whenComplete(releasable -> {
-            logger.trace("Opened connection to {}, making cluster coordination info request", node);
-            // If we don't get a response in 10 seconds that is a failure worth capturing on its own:
-            final TimeValue transportTimeout = TimeValue.timeValueSeconds(10);
-            transportService.sendRequest(
-                node,
-                ClusterFormationInfoAction.NAME,
-                new ClusterFormationInfoAction.Request(),
-                TransportRequestOptions.timeout(transportTimeout),
-                new ActionListenerResponseHandler<>(
-                    ActionListener.runBefore(fetchClusterInfoListener, () -> Releasables.close(releasable)),
-                    ClusterFormationInfoAction.Response::new
-                )
-            );
-        }, e -> {
-            logger.warn("Exception connecting to master node", e);
-            responseConsumer.accept(new ClusterFormationStateOrException(e));
-        });
-
-        fetchClusterInfoListener.whenComplete(response -> {
-            long endTime = System.nanoTime();
-            logger.trace("Received cluster coordination info from {} in {}", node, TimeValue.timeValueNanos(endTime - startTime));
-            responseConsumer.accept(new ClusterFormationStateOrException(response.getClusterFormationState()));
-        }, e -> {
-            logger.warn("Exception in cluster coordination info request to master node", e);
-            responseConsumer.accept(new ClusterFormationStateOrException(e));
-        });
-
-        return transportService.getThreadPool().schedule(() -> {
-            Version minSupportedVersion = Version.V_8_4_0;
-            if (node.getVersion().onOrAfter(minSupportedVersion) == false) { // This was introduced in 8.4.0
-                logger.trace(
-                    "Cannot get cluster coordination info for {} because it is at version {} and {} is required",
-                    node,
-                    node.getVersion(),
-                    minSupportedVersion
-                );
-            } else {
-                transportService.connectToNode(
-                    // Note: This connection must be explicitly closed in the connectionListener
-                    node,
-                    ConnectionProfile.buildDefaultConnectionProfile(clusterService.getSettings()),
-                    connectionListener
-                );
-            }
-        }, remoteRequestInitialDelay, ThreadPool.Names.SAME);
+        return fetchRemoteObject(
+            node,
+            responseConsumer,
+            ClusterFormationInfoAction.INSTANCE,
+            new ClusterFormationInfoAction.Request(),
+            ClusterFormationStateOrException::new,
+            response -> new ClusterFormationStateOrException(response.getClusterFormationState()),
+            Version.V_8_4_0
+        );
     }
 
     void beginPollingRemoteMasterStabilityDiagnostic() {
@@ -942,61 +906,86 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
         @Nullable DiscoveryNode masterEligibleNode,
         Consumer<RemoteMasterHealthResult> responseConsumer
     ) {
+        return fetchRemoteObject(
+            masterEligibleNode,
+            responseConsumer,
+            CoordinationDiagnosticsAction.INSTANCE,
+            new CoordinationDiagnosticsAction.Request(true),
+            e -> new RemoteMasterHealthResult(masterEligibleNode, null, e),
+            response -> new RemoteMasterHealthResult(masterEligibleNode, response.getCoordinationDiagnosticsResult(), null),
+            Version.V_8_5_0
+        );
+    }
+
+    /**
+     * This method connects to masterEligibleNode and sends it a transport request for a remote response of type R. The remote response or
+     * exception are transformed into a common type T with responseToResultFunction or exceptionToResultFunction, and then consumed by
+     * responseConsumer.
+     *
+     * @param masterEligibleNode        The master eligible node to be queried, or null if we do not yet know of a master eligible node
+     * @param responseConsumer          The consumer of the transformed response
+     * @param transportActionType       The ActionType for the transport action
+     * @param transportActionRequest    The ActionRequest to be sent
+     * @param exceptionToResultFunction A function that converts a remote exception to the response type expected by the responseConsumer
+     * @param responseToResultFunction  A function that converts a remote response to the response type expected by the responseConsumer
+     * @param minSupportedVersion       The minimum version that the transport action works with
+     * @return A Cancellable for the task that is scheduled to fetch the remote information
+     */
+    private <R extends ActionResponse, T> Scheduler.Cancellable fetchRemoteObject(
+        @Nullable DiscoveryNode masterEligibleNode,
+        Consumer<T> responseConsumer,
+        ActionType<R> transportActionType,
+        ActionRequest transportActionRequest,
+        Function<Exception, T> exceptionToResultFunction,
+        Function<R, T> responseToResultFunction,
+        Version minSupportedVersion
+    ) {
         StepListener<Releasable> connectionListener = new StepListener<>();
-        StepListener<CoordinationDiagnosticsAction.Response> fetchCoordinationDiagnosticsListener = new StepListener<>();
+        StepListener<R> fetchRemoteResultListener = new StepListener<>();
         long startTime = System.nanoTime();
         connectionListener.whenComplete(releasable -> {
             if (masterEligibleNode == null) {
                 responseConsumer.accept(null);
             } else {
-                logger.trace("Opened connection to {}, making master stability request", masterEligibleNode);
+                logger.trace("Opened connection to {}, making transport request", masterEligibleNode);
                 // If we don't get a response in 10 seconds that is a failure worth capturing on its own:
                 final TimeValue transportTimeout = TimeValue.timeValueSeconds(10);
                 transportService.sendRequest(
                     masterEligibleNode,
-                    CoordinationDiagnosticsAction.NAME,
-                    new CoordinationDiagnosticsAction.Request(true),
+                    transportActionType.name(),
+                    transportActionRequest,
                     TransportRequestOptions.timeout(transportTimeout),
                     new ActionListenerResponseHandler<>(
-                        ActionListener.runBefore(fetchCoordinationDiagnosticsListener, () -> Releasables.close(releasable)),
-                        CoordinationDiagnosticsAction.Response::new
+                        ActionListener.runBefore(fetchRemoteResultListener, () -> Releasables.close(releasable)),
+                        transportActionType.getResponseReader()
                     )
                 );
             }
         }, e -> {
             logger.warn("Exception connecting to master masterEligibleNode", e);
-            responseConsumer.accept(new RemoteMasterHealthResult(masterEligibleNode, null, e));
+            responseConsumer.accept(exceptionToResultFunction.apply(e));
         });
 
-        fetchCoordinationDiagnosticsListener.whenComplete(response -> {
+        fetchRemoteResultListener.whenComplete(response -> {
             long endTime = System.nanoTime();
-            logger.trace(
-                "Received master stability result from {} in {}",
-                masterEligibleNode,
-                TimeValue.timeValueNanos(endTime - startTime)
-            );
-            /*
-             * It is possible that the task has been cancelled at this point, but it does not really matter. In that case this result
-             * will be ignored and soon garbage collected.
-             */
-            responseConsumer.accept(new RemoteMasterHealthResult(masterEligibleNode, response.getCoordinationDiagnosticsResult(), null));
+            logger.trace("Received remote response from {} in {}", masterEligibleNode, TimeValue.timeValueNanos(endTime - startTime));
+            responseConsumer.accept(responseToResultFunction.apply(response));
         }, e -> {
-            logger.warn("Exception in master stability request to master masterEligibleNode", e);
-            responseConsumer.accept(new RemoteMasterHealthResult(masterEligibleNode, null, e));
+            logger.warn("Exception in remote request to master masterEligibleNode", e);
+            responseConsumer.accept(exceptionToResultFunction.apply(e));
         });
 
         return transportService.getThreadPool().schedule(() -> {
             if (masterEligibleNode == null) {
                 /*
                  * This node's PeerFinder hasn't yet discovered the master-eligible nodes. By notifying the responseConsumer with a null
-                 * value we effectively do nothing, and allow this request to be recheduled by rescheduleDiagnosticsFetchConsumer().
+                 * value we effectively do nothing, and allow this request to be recheduled.
                  */
                 responseConsumer.accept(null);
             } else {
-                Version minSupportedVersion = Version.V_8_4_0;
-                if (masterEligibleNode.getVersion().onOrAfter(minSupportedVersion) == false) { // This was introduced in 8.4.0
+                if (masterEligibleNode.getVersion().onOrAfter(minSupportedVersion) == false) {
                     logger.trace(
-                        "Cannot get cluster coordination info for {} because it is at version {} and {} is required",
+                        "Cannot get remote result from {} because it is at version {} and {} is required",
                         masterEligibleNode,
                         masterEligibleNode.getVersion(),
                         minSupportedVersion

@@ -214,6 +214,7 @@ public class CoordinationDiagnosticsServiceIT extends ESIntegTestCase {
                     CoordinationDiagnosticsService.class,
                     dataNode
                 );
+                assertNotNull(diagnosticsOnBlockedNode.remoteCoordinationDiagnosisResult);
                 assertNotNull(diagnosticsOnBlockedNode.remoteCoordinationDiagnosisResult.get());
                 CoordinationDiagnosticsService.CoordinationDiagnosticsResult result =
                     diagnosticsOnBlockedNode.remoteCoordinationDiagnosisResult.get().result();

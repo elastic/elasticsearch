@@ -337,8 +337,8 @@ public class RoutingNode implements Iterable<ShardRouting> {
         return sb.toString();
     }
 
-    public List<ShardRouting> copyShards() {
-        return new ArrayList<>(shards.values());
+    public ShardRouting[] copyShards() {
+        return shards.values().toArray(EMPTY_SHARD_ROUTING_ARRAY);
     }
 
     public boolean isEmpty() {

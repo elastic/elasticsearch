@@ -176,42 +176,16 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
             assert countDown.isCountedDown() == false;
             logger.trace("starting async refresh");
 
-            final NodesStatsRequest nodesStatsRequest = new NodesStatsRequest("data:true");
-            nodesStatsRequest.clear();
-            nodesStatsRequest.addMetric(NodesStatsRequest.Metric.FS.metricName());
-            nodesStatsRequest.timeout(fetchTimeout);
-            client.admin().cluster().nodesStats(nodesStatsRequest, ActionListener.runAfter(new ActionListener<>() {
-                @Override
-                public void onResponse(NodesStatsResponse nodesStatsResponse) {
-                    logger.trace("received node stats response");
+            try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
+                fetchNodeStats();
+            }
 
-                    for (final FailedNodeException failure : nodesStatsResponse.failures()) {
-                        logger.warn(() -> "failed to retrieve stats for node [" + failure.nodeId() + "]", failure.getCause());
-                    }
+            try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
+                fetchIndicesStats();
+            }
+        }
 
-                    Map<String, DiskUsage> leastAvailableUsagesBuilder = new HashMap<>();
-                    Map<String, DiskUsage> mostAvailableUsagesBuilder = new HashMap<>();
-                    fillDiskUsagePerNode(
-                        adjustNodesStats(nodesStatsResponse.getNodes()),
-                        leastAvailableUsagesBuilder,
-                        mostAvailableUsagesBuilder
-                    );
-                    leastAvailableSpaceUsages = Map.copyOf(leastAvailableUsagesBuilder);
-                    mostAvailableSpaceUsages = Map.copyOf(mostAvailableUsagesBuilder);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    if (e instanceof ClusterBlockException) {
-                        logger.trace("failed to retrieve node stats", e);
-                    } else {
-                        logger.warn("failed to retrieve node stats", e);
-                    }
-                    leastAvailableSpaceUsages = Map.of();
-                    mostAvailableSpaceUsages = Map.of();
-                }
-            }, this::onStatsProcessed));
-
+        private void fetchIndicesStats() {
             final IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
             indicesStatsRequest.clear();
             indicesStatsRequest.store(true);
@@ -285,6 +259,44 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                         logger.warn("failed to retrieve indices stats", e);
                     }
                     indicesStatsSummary = IndicesStatsSummary.EMPTY;
+                }
+            }, this::onStatsProcessed));
+        }
+
+        private void fetchNodeStats() {
+            final NodesStatsRequest nodesStatsRequest = new NodesStatsRequest("data:true");
+            nodesStatsRequest.clear();
+            nodesStatsRequest.addMetric(NodesStatsRequest.Metric.FS.metricName());
+            nodesStatsRequest.timeout(fetchTimeout);
+            client.admin().cluster().nodesStats(nodesStatsRequest, ActionListener.runAfter(new ActionListener<>() {
+                @Override
+                public void onResponse(NodesStatsResponse nodesStatsResponse) {
+                    logger.trace("received node stats response");
+
+                    for (final FailedNodeException failure : nodesStatsResponse.failures()) {
+                        logger.warn(() -> "failed to retrieve stats for node [" + failure.nodeId() + "]", failure.getCause());
+                    }
+
+                    Map<String, DiskUsage> leastAvailableUsagesBuilder = new HashMap<>();
+                    Map<String, DiskUsage> mostAvailableUsagesBuilder = new HashMap<>();
+                    fillDiskUsagePerNode(
+                        adjustNodesStats(nodesStatsResponse.getNodes()),
+                        leastAvailableUsagesBuilder,
+                        mostAvailableUsagesBuilder
+                    );
+                    leastAvailableSpaceUsages = Map.copyOf(leastAvailableUsagesBuilder);
+                    mostAvailableSpaceUsages = Map.copyOf(mostAvailableUsagesBuilder);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    if (e instanceof ClusterBlockException) {
+                        logger.trace("failed to retrieve node stats", e);
+                    } else {
+                        logger.warn("failed to retrieve node stats", e);
+                    }
+                    leastAvailableSpaceUsages = Map.of();
+                    mostAvailableSpaceUsages = Map.of();
                 }
             }, this::onStatsProcessed));
         }

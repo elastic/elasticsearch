@@ -184,8 +184,9 @@ factors such as the size of the mapping and the number of shards per index.
 As a general rule of thumb, you should have fewer than 3000 indices per GB of
 heap on master nodes. For example, if your cluster has dedicated master nodes
 with 4GB of heap each then you should have fewer than 12000 indices. If your
-master nodes are not dedicated master nodes then the same rule holds and should
-be added to the heap requirements of the other roles of each node.
+master nodes are not dedicated master nodes then the same sizing guidance
+applies: you should reserve at least 1GB of heap on each master-eligible node
+for every 3000 indices in your cluster.
 
 Note that this rule defines the absolute maximum number of indices that a
 master node can manage, but does not guarantee the performance of searches or

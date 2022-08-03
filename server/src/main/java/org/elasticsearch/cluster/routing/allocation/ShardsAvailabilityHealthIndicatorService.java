@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
@@ -436,9 +437,6 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                 actions.addAll(explainAllocationsAndDiagnoseDeciders(shardRouting, state));
                 break;
             case DELAYED_ALLOCATION:
-                // This is a rare case it seems - more frequently used when a node is restarting. We check for node restarts in an earlier
-                // part of the diagnosis code, but this is left here for sanity purposes should the status ever be expanded upon in the
-                // future.
                 actions.add(DIAGNOSIS_WAIT_FOR_OR_FIX_DELAYED_SHARDS);
                 break;
             case DECIDERS_THROTTLED:

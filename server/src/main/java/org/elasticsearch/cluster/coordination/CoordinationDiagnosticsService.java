@@ -55,8 +55,8 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -122,7 +122,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
      * user-configurable, but is non-final so that integration tests don't have to waste 10 seconds.
      */
     // Non-private for testing
-    public TimeValue remoteRequestInitialDelay = new TimeValue(10, TimeUnit.SECONDS);
+    TimeValue remoteRequestInitialDelay = new TimeValue(10, TimeUnit.SECONDS);
 
     private static final Logger logger = LogManager.getLogger(CoordinationDiagnosticsService.class);
 
@@ -793,14 +793,19 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
         DiscoveryNode node,
         Consumer<ClusterFormationStateOrException> responseConsumer
     ) {
-        return fetchRemoteObject(
+        return sendTransportRequest(
             node,
             responseConsumer,
             ClusterFormationInfoAction.INSTANCE,
             new ClusterFormationInfoAction.Request(),
-            ClusterFormationStateOrException::new,
-            response -> new ClusterFormationStateOrException(response.getClusterFormationState()),
-            Version.V_8_4_0
+            (response, e) -> {
+                assert response != null || e != null : "a response or an exception must be provided";
+                if (response != null) {
+                    return new ClusterFormationStateOrException(response.getClusterFormationState());
+                } else {
+                    return new ClusterFormationStateOrException(e);
+                }
+            }
         );
     }
 
@@ -845,7 +850,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
 
     /**
      * This wraps the responseConsumer in a Consumer that will run rescheduleDiagnosticsFetchConsumer() after responseConsumer has
-     * completed, adding the resulting Cancellable to cancellableConsumer.
+     * completed, adding the resulting Cancellable to cancellableReference.
      * @param responseConsumer The response consumer to be wrapped
      * @param cancellableReference The Cancellable reference to assign the current Cancellable for this polling attempt
      * @return A wrapped Consumer that will run fetchCoordinationDiagnostics()
@@ -906,39 +911,42 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
         @Nullable DiscoveryNode masterEligibleNode,
         Consumer<RemoteMasterHealthResult> responseConsumer
     ) {
-        return fetchRemoteObject(
+        return sendTransportRequest(
             masterEligibleNode,
             responseConsumer,
             CoordinationDiagnosticsAction.INSTANCE,
             new CoordinationDiagnosticsAction.Request(true),
-            e -> new RemoteMasterHealthResult(masterEligibleNode, null, e),
-            response -> new RemoteMasterHealthResult(masterEligibleNode, response.getCoordinationDiagnosticsResult(), null),
-            Version.V_8_4_0
+            (response, e) -> {
+                assert response != null || e != null : "a response or an exception must be provided";
+                if (response != null) {
+                    return new RemoteMasterHealthResult(masterEligibleNode, response.getCoordinationDiagnosticsResult(), null);
+                } else {
+                    return new RemoteMasterHealthResult(masterEligibleNode, null, e);
+                }
+            }
         );
     }
 
     /**
-     * This method connects to masterEligibleNode and sends it a transport request for a remote response of type R. The remote response or
-     * exception are transformed into a common type T with responseToResultFunction or exceptionToResultFunction, and then consumed by
-     * responseConsumer.
-     *
-     * @param masterEligibleNode        The master eligible node to be queried, or null if we do not yet know of a master eligible node
+     * This method connects to masterEligibleNode and sends it a transport request for a response of type R. The response or exception
+     * are transformed into a common type T with responseToResultFunction or exceptionToResultFunction, and then consumed by
+     * responseConsumer. This method is meant to be used when there is potentially no elected master node, so it first calls
+     * connectToNode before sending the request.
+     * @param masterEligibleNode        The master eligible node to be queried, or null if we do not yet know of a master eligible node.
+     *                                  If this is null, the responseConsumer will be given a null response
      * @param responseConsumer          The consumer of the transformed response
      * @param transportActionType       The ActionType for the transport action
      * @param transportActionRequest    The ActionRequest to be sent
-     * @param exceptionToResultFunction A function that converts a remote exception to the response type expected by the responseConsumer
-     * @param responseToResultFunction  A function that converts a remote response to the response type expected by the responseConsumer
-     * @param minSupportedVersion       The minimum version that the transport action works with
+     * @param responseTransformationFunction A function that converts a response or exception to the response type expected by the
+     *                                       responseConsumer
      * @return A Cancellable for the task that is scheduled to fetch the remote information
      */
-    private <R extends ActionResponse, T> Scheduler.Cancellable fetchRemoteObject(
+    private <R extends ActionResponse, T> Scheduler.Cancellable sendTransportRequest(
         @Nullable DiscoveryNode masterEligibleNode,
         Consumer<T> responseConsumer,
         ActionType<R> transportActionType,
         ActionRequest transportActionRequest,
-        Function<Exception, T> exceptionToResultFunction,
-        Function<R, T> responseToResultFunction,
-        Version minSupportedVersion
+        BiFunction<R, Exception, T> responseTransformationFunction
     ) {
         StepListener<Releasable> connectionListener = new StepListener<>();
         StepListener<R> fetchRemoteResultListener = new StepListener<>();
@@ -963,16 +971,16 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
             }
         }, e -> {
             logger.warn("Exception connecting to master masterEligibleNode", e);
-            responseConsumer.accept(exceptionToResultFunction.apply(e));
+            responseConsumer.accept(responseTransformationFunction.apply(null, e));
         });
 
         fetchRemoteResultListener.whenComplete(response -> {
             long endTime = System.nanoTime();
             logger.trace("Received remote response from {} in {}", masterEligibleNode, TimeValue.timeValueNanos(endTime - startTime));
-            responseConsumer.accept(responseToResultFunction.apply(response));
+            responseConsumer.accept(responseTransformationFunction.apply(response, null));
         }, e -> {
             logger.warn("Exception in remote request to master masterEligibleNode", e);
-            responseConsumer.accept(exceptionToResultFunction.apply(e));
+            responseConsumer.accept(responseTransformationFunction.apply(null, e));
         });
 
         return transportService.getThreadPool().schedule(() -> {
@@ -983,6 +991,7 @@ public class CoordinationDiagnosticsService implements ClusterStateListener {
                  */
                 responseConsumer.accept(null);
             } else {
+                Version minSupportedVersion = Version.V_8_4_0;
                 if (masterEligibleNode.getVersion().onOrAfter(minSupportedVersion) == false) {
                     logger.trace(
                         "Cannot get remote result from {} because it is at version {} and {} is required",

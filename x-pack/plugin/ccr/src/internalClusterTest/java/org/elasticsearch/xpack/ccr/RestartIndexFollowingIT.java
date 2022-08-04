@@ -138,7 +138,7 @@ public class RestartIndexFollowingIT extends CcrIntegTestCase {
     }
 
     private Integer getRemoteMaxPendingConnectionListeners() {
-        var response = followerClient().admin().cluster().prepareNodesInfo().setSettings(true).get();
+        var response = followerClient().admin().cluster().prepareNodesInfo("_local").clear().setSettings(true).get();
         var settings = response.getNodes().get(0).getSettings();
         return RemoteConnectionStrategy.REMOTE_MAX_PENDING_CONNECTION_LISTENERS.get(settings);
     }

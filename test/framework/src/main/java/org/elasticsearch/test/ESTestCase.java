@@ -1417,12 +1417,6 @@ public abstract class ESTestCase extends LuceneTestCase {
         return targetMap;
     }
 
-    public static <T> List<T> shuffleList(List<T> list) {
-        var copy = new ArrayList<>(list);
-        Collections.shuffle(copy, random());
-        return copy;
-    }
-
     /**
      * Create a copy of an original {@link Writeable} object by running it through a {@link BytesStreamOutput} and
      * reading it in again using a provided {@link Writeable.Reader}. The stream that is wrapped around the {@link StreamInput}

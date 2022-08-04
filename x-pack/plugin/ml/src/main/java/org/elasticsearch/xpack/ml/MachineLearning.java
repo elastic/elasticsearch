@@ -509,7 +509,7 @@ public class MachineLearning extends Plugin
     );
     private static final LicensedFeature.Momentary FREQUENT_ITEM_SETS_AGG_FEATURE = LicensedFeature.momentary(
         MachineLearningField.ML_FEATURE_FAMILY,
-        "frequent-item-sets-agg",
+        "frequent-items-agg",
         License.OperationMode.PLATINUM
     );
     public static final LicensedFeature.Momentary INFERENCE_AGG_FEATURE = LicensedFeature.momentary(

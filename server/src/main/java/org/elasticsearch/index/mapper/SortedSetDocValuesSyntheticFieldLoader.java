@@ -28,7 +28,7 @@ public abstract class SortedSetDocValuesSyntheticFieldLoader implements SourceLo
 
     private final String name;
     private final String simpleName;
-    private CheckedConsumer<XContentBuilder, IOException> writer;
+    private CheckedConsumer<XContentBuilder, IOException> writer = b ->{};
 
     public SortedSetDocValuesSyntheticFieldLoader(String name, String simpleName) {
         this.name = name;

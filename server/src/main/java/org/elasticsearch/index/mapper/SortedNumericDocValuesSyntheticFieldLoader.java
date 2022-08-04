@@ -22,7 +22,7 @@ import java.util.stream.Stream;
 public abstract class SortedNumericDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFieldLoader {
     private final String name;
     private final String simpleName;
-    private CheckedConsumer<XContentBuilder, IOException> writer;
+    private CheckedConsumer<XContentBuilder, IOException> writer = b ->{};
 
     protected SortedNumericDocValuesSyntheticFieldLoader(String name, String simpleName) {
         this.name = name;

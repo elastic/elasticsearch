@@ -1,0 +1,6 @@
+pr: 89016
+summary: Avoid negative scores with `cross_fields` type
+area: Ranking
+type: bug
+issues:
+ - 44700

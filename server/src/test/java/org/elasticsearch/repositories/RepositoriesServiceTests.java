@@ -8,7 +8,6 @@
 
 package org.elasticsearch.repositories;
 
-import org.apache.lucene.util.SameThreadExecutorService;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
@@ -69,7 +68,6 @@ public class RepositoriesServiceTests extends ESTestCase {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
-        when(threadPool.executor(ThreadPool.Names.SNAPSHOT)).thenReturn(new SameThreadExecutorService());
         when(threadPool.info(ThreadPool.Names.SNAPSHOT)).thenReturn(
             new ThreadPool.Info(ThreadPool.Names.SNAPSHOT, ThreadPool.ThreadPoolType.FIXED, randomIntBetween(1, 10))
         );

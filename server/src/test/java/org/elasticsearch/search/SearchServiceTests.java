@@ -633,31 +633,6 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 assertThat(fields, containsInAnyOrder(new FieldAndFormat("field1", null), new FieldAndFormat("field2", null)));
             }
         }
-
-        try (ReaderContext reader = createReaderContext(indexService, indexShard)) {
-            SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true);
-            SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
-            searchRequest.source(searchSourceBuilder);
-            // Same field with different formats
-            searchSourceBuilder.docValueField("field*", "yyyy-MM-dd");
-            searchSourceBuilder.docValueField("*1", "dd-MM-yyyy");
-            ShardSearchRequest request = new ShardSearchRequest(
-                OriginalIndices.NONE,
-                searchRequest,
-                indexShard.shardId(),
-                0,
-                1,
-                new AliasFilter(null, Strings.EMPTY_ARRAY),
-                1.0f,
-                -1,
-                null
-            );
-            IllegalArgumentException error = expectThrows(
-                IllegalArgumentException.class,
-                () -> service.createContext(reader, request, mock(SearchShardTask.class), randomBoolean())
-            );
-            assertThat(error.getMessage(), equalTo("field [field1] is fetched with different formats"));
-        }
     }
 
     /**

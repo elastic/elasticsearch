@@ -36,11 +36,8 @@ public class FetchDocValuesContext {
         for (FieldAndFormat field : fieldPatterns) {
             Collection<String> fieldNames = searchExecutionContext.getMatchingFieldNames(field.field);
             for (String fieldName : fieldNames) {
-                final FieldAndFormat format = new FieldAndFormat(fieldName, field.format, field.includeUnmapped);
-                final FieldAndFormat existing = fieldToFormats.put(fieldName, format);
-                if (existing != null && existing.equals(format) == false) {
-                    throw new IllegalArgumentException("field [" + fieldName + "] is fetched with different formats");
-                }
+                // the first matching field wins
+                fieldToFormats.putIfAbsent(fieldName, new FieldAndFormat(fieldName, field.format, field.includeUnmapped));
             }
         }
         this.fields = fieldToFormats.values();

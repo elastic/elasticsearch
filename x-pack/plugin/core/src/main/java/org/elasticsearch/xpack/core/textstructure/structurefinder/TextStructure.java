@@ -271,7 +271,7 @@ public class TextStructure implements ToXContentObject, Writeable {
         out.writeOptionalBoolean(shouldTrimFields);
         out.writeOptionalString(grokPattern);
         if (out.getVersion().onOrAfter(Version.V_8_5_0)) {
-            out.writeOptionalString(ecsCompatibility);
+            out.writeString(ecsCompatibility);
         }
         if (jodaTimestampFormats == null) {
             out.writeBoolean(false);

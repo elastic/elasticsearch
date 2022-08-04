@@ -371,7 +371,7 @@ public class MetadataCreateIndexService {
             final String v2Template = MetadataIndexTemplateService.findV2Template(
                 currentState.metadata(),
                 name,
-                isHiddenFromRequest == null ? false : isHiddenFromRequest
+                isHiddenFromRequest != null && isHiddenFromRequest
             );
 
             if (v2Template != null) {

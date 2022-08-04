@@ -16,7 +16,7 @@ import java.util.Map;
 /**
  * A script used by the Ingest Script Processor.
  */
-public abstract class IngestScript {
+public abstract class IngestScript extends WriteScript {
 
     public static final String[] PARAMETERS = {};
 
@@ -33,27 +33,14 @@ public abstract class IngestScript {
     /** The generic runtime parameters for the script. */
     private final Map<String, Object> params;
 
-    /** The metadata and source available to the script */
-    private final CtxMap<?> ctxMap;
-
     public IngestScript(Map<String, Object> params, CtxMap<?> ctxMap) {
+        super(ctxMap);
         this.params = params;
-        this.ctxMap = ctxMap;
     }
 
     /** Return the parameters for this script. */
     public Map<String, Object> getParams() {
         return params;
-    }
-
-    /** Provides backwards compatibility access to ctx */
-    public Map<String, Object> getCtx() {
-        return ctxMap;
-    }
-
-    /** Return the ingest metadata object */
-    public Metadata metadata() {
-        return ctxMap.getMetadata();
     }
 
     public abstract void execute();

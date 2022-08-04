@@ -505,11 +505,9 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                 // make sure we always start fresh
                 if (Files.exists(workingDir)) {
                     if (preserveDataDir) {
-                        Files.list(workingDir)
-                            .filter(path -> path.equals(confPathData) == false)
-                            .forEach(path -> fileSystemOperations.delete(d -> d.delete(path)));
+                        Files.list(workingDir).filter(path -> path.equals(confPathData) == false).forEach(this::uncheckedDeleteWithRetry);
                     } else {
-                        fileSystemOperations.delete(d -> d.delete(workingDir));
+                        deleteWithRetry(workingDir);
                     }
                 }
                 isWorkingDirConfigured = true;
@@ -517,7 +515,12 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             setupNodeDistribution(getExtractedDistributionDir());
             createWorkingDir();
         } catch (IOException e) {
-            throw new UncheckedIOException("Failed to create working directory for " + this, e);
+            String msg = "Failed to create working directory for " + this;
+            logToProcessStdout(msg);
+            throw new UncheckedIOException(msg, e);
+        } catch (UncheckedIOException e) {
+            logToProcessStdout("Failed to create working directory for " + this);
+            throw e;
         }
 
         copyExtraJars();
@@ -1196,16 +1199,16 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private static final int MAX_RETRY_DELETE_TIMES = OS.current() == OS.WINDOWS ? 15 : 0;
 
     /**
-     * Deletes a file, retrying if necessary.
+     * Deletes a path, retrying if necessary.
      *
-     * @param path  the file to delete
+     * @param path  the path to delete
      *
      * @throws NoSuchFileException
      *         if the file does not exist
      * @throws IOException
      *         if an I/O error occurs
      */
-    void deleteFileWithRetry(Path path) throws IOException {
+    void deleteWithRetry(Path path) throws IOException {
         try {
             deleteFileWithRetry0(path);
         } catch (InterruptedException x) {
@@ -1213,30 +1216,57 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         }
     }
 
+    /** Unchecked variant of deleteWithRetry. */
+    void uncheckedDeleteWithRetry(Path path) {
+        try {
+            deleteFileWithRetry0(path);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        } catch (InterruptedException x) {
+            throw new UncheckedIOException("Interrupted while deleting.", new IOException());
+        }
+    }
+
+    // The exception handling here is loathsome, but necessary!
     private void deleteFileWithRetry0(Path path) throws IOException, InterruptedException {
         int times = 0;
         IOException ioe = null;
         while (true) {
             try {
                 fileSystemOperations.delete(d -> d.delete(path));
+                times++;
                 // Checks for absence of the file. Semantics of Files.exists() is not the same.
                 while (Files.notExists(path) == false) {
-                    times++;
                     if (times > MAX_RETRY_DELETE_TIMES) {
                         throw new IOException("File still exists after " + times + " waits.");
                     }
                     Thread.sleep(RETRY_DELETE_MILLIS);
+                    // retry
+                    fileSystemOperations.delete(d -> d.delete(path));
+                    times++;
                 }
                 break;
-            } catch (NoSuchFileException x) {
-                throw x;
-            } catch (IOException x) {
+            } catch (NoSuchFileException ignore) {
+                // already deleted, ignore
+                break;
+            } catch (UncheckedIOException | IOException x) {
+                IOException unwrappedIOE;
+                if (x instanceof UncheckedIOException ue) {
+                    unwrappedIOE = ue.getCause();
+                    if (unwrappedIOE instanceof NoSuchFileException) {
+                        break; // already deleted, ignore
+                    }
+                } else if (x instanceof IOException ioException) {
+                    unwrappedIOE = ioException;
+                } else {
+                    throw new AssertionError("should not reach here" + x);
+                }
                 // Backoff/retry in case another process is accessing the file
                 times++;
                 if (ioe == null) {
-                    ioe = x;
+                    ioe = unwrappedIOE;
                 } else {
-                    ioe.addSuppressed(x);
+                    ioe.addSuppressed(unwrappedIOE);
                 }
 
                 if (times > MAX_RETRY_DELETE_TIMES) {
@@ -1249,7 +1279,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     private void createWorkingDir() throws IOException {
         // Start configuration from scratch in case of a restart
-        deleteFileWithRetry(configFile.getParent());
+        deleteWithRetry(configFile.getParent());
         Files.createDirectories(configFile.getParent());
         Files.createDirectories(confPathRepo);
         Files.createDirectories(confPathData);

@@ -7,8 +7,7 @@
 experimental::[]
 
 A bucket aggregation which finds frequent item sets. It is a form of association 
-rules mining that identifies items that often occur together. It also helps you 
-to discover relationships between different data points (items). Items that are 
+rules mining that identifies items that often occur together. Items that are 
 frequently purchased together or log events that tend to co-occur are examples 
 of frequent item sets. Finding frequent item sets helps to discover 
 relationships between different data points (items).

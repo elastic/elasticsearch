@@ -492,6 +492,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     @Override
     public synchronized void start() {
         LOGGER.info("Starting `{}`", this);
+        logToProcessStdout("HEGO - start starting" + this);
         if (Files.exists(getExtractedDistributionDir()) == false) {
             throw new TestClustersException("Can not start " + this + ", missing: " + getExtractedDistributionDir());
         }
@@ -517,9 +518,11 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             setupNodeDistribution(getExtractedDistributionDir());
             createWorkingDir();
         } catch (IOException e) {
+            logToProcessStdout("HEGO - start " + this + ", threw: " + e);
             throw new UncheckedIOException("Failed to create working directory for " + this, e);
         }
 
+        logToProcessStdout("HEGO - start copyExtraJars " + this);
         copyExtraJars();
 
         copyExtraConfigFiles();
@@ -582,6 +585,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         }
 
         logToProcessStdout("Starting Elasticsearch process");
+        logToProcessStdout("HEGO - Starting Elasticsearch process");
         startElasticsearchProcess();
     }
 
@@ -609,9 +613,13 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     @Override
     public void restart() {
+        logToProcessStdout("HEGO Restarting " + this);
         LOGGER.info("Restarting {}", this);
+        logToProcessStdout("HEGO stopping ... " + this);
         stop(false);
+        logToProcessStdout("HEGO topped. starting... " + this);
         start();
+        logToProcessStdout("HEGO started " + this);
     }
 
     void goToNextVersion() {
@@ -997,6 +1005,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     @Override
     public synchronized void stop(boolean tailLogs) {
         logToProcessStdout("Stopping node");
+        logToProcessStdout("HEGO - Stopping node");
         try {
             if (Files.exists(httpPortsFile)) {
                 Files.delete(httpPortsFile);
@@ -1013,12 +1022,15 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         if (esProcess == null && tailLogs) {
             // This is a special case. If start() throws an exception the plugin will still call stop
             // Another exception here would eat the orriginal.
+            logToProcessStdout("HEGO - Stopping node - returning early, esProcess:" + esProcess + ", tailLogs:" + tailLogs);
             return;
         }
         LOGGER.info("Stopping `{}`, tailLogs: {}", this, tailLogs);
         requireNonNull(esProcess, "Can't stop `" + this + "` as it was not started or already stopped.");
         // Test clusters are not reused, don't spend time on a graceful shutdown
-        stopHandle(esProcess.toHandle(), true);
+        logToProcessStdout("HEGO - Stopping node - before stopHandle");
+        stopHandle(esProcess.toHandle(), true);  /// <<< HERE
+        logToProcessStdout("HEGO - Stopping node - after stopHandle");
         reaperServiceProvider.get().unregister(toString());
         esProcess = null;
         // Clean up the ports file in case this is started again.
@@ -1044,9 +1056,11 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     private void stopHandle(ProcessHandle processHandle, boolean forcibly) {
+        logToProcessStdout("HEGO - stopHandle, called for pid:" + processHandle.pid() + ", forcibly:" + forcibly);
         // No-op if the process has already exited by itself.
         if (processHandle.isAlive() == false) {
             LOGGER.info("Process was not running when we tried to terminate it.");
+            logToProcessStdout("HEGO - stopHandle, Process was not running when we tried to terminate it, pid:" + processHandle.pid());
             return;
         }
 
@@ -1067,14 +1081,21 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                     return;
                 }
                 LOGGER.info("process did not terminate after {} {}, stopping it forcefully", ES_DESTROY_TIMEOUT, ES_DESTROY_TIMEOUT_UNIT);
+                logToProcessStdout("HEGO - stopHandle, process did not terminate after TIME for pid:" + processHandle.pid());
                 processHandle.destroyForcibly();
             }
 
             waitForProcessToExit(processHandle);
             if (processHandle.isAlive()) {
+                logToProcessStdout(
+                    "HEGO - stopHandle, Was not able to terminate elasticsearch process for, for pid:" + processHandle.pid()
+                );
                 throw new TestClustersException("Was not able to terminate elasticsearch process for " + this);
+            } else {
+                logToProcessStdout("HEGO - stopHandle, was found to be not-alive, for pid:" + processHandle.pid());
             }
         } finally {
+            logToProcessStdout("HEGO - stopHandle, stopping children for pid:" + processHandle.pid());
             children.forEach(each -> stopHandle(each, forcibly));
         }
     }
@@ -1249,7 +1270,15 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     private void createWorkingDir() throws IOException {
         // Start configuration from scratch in case of a restart
-        deleteFileWithRetry(configFile.getParent());
+        logToProcessStdout("HEGO - createWorkingDir, deleting ...  fileSystemOperations:" + fileSystemOperations);
+
+        // my fix
+        // deleteFileWithRetry(configFile.getParent());
+
+        // original
+        fileSystemOperations.delete(d -> d.delete(configFile.getParent()));
+        logToProcessStdout("HEGO - createWorkingDir, deleted");
+
         Files.createDirectories(configFile.getParent());
         Files.createDirectories(confPathRepo);
         Files.createDirectories(confPathData);

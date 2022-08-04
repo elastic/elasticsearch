@@ -275,38 +275,6 @@ public class DependencyLicensesTask extends DefaultTask {
         return dependencyName;
     }
 
-<<<<<<< HEAD
-    private void checkSha(File jar, String jarName, Set<File> shaFiles) throws NoSuchAlgorithmException, IOException {
-        File shaFile = getShaFile(jarName);
-        if (shaFile.exists() == false) {
-            throw new GradleException("Missing SHA for " + jarName + ". Run \"gradle updateSHAs\" to create them");
-        }
-
-        // TODO: shouldn't have to trim, sha files should not have trailing newline
-        byte[] fileBytes = Files.readAllBytes(shaFile.toPath());
-        String expectedSha = new String(fileBytes, StandardCharsets.UTF_8).trim();
-
-        String sha = getSha1(jar);
-
-        if (expectedSha.equals(sha) == false) {
-            final String exceptionMessage = String.format(
-                Locale.ROOT,
-                "SHA has changed! Expected %s for %s but got %s."
-                    + "\nThis usually indicates a corrupt dependency cache or artifacts changed upstream."
-                    + "\nEither wipe your cache, fix the upstream artifact, or delete %s and run updateShas",
-                expectedSha,
-                jarName,
-                sha,
-                shaFile
-            );
-
-            throw new GradleException(exceptionMessage);
-        }
-        shaFiles.remove(shaFile);
-    }
-
-=======
->>>>>>> 3909b5eaf92 (Add verification metadata for dependencies (#88814))
     private void checkFile(String name, String jarName, Map<String, Boolean> counters, String type) {
         String fileName = getFileName(name, counters, type);
 

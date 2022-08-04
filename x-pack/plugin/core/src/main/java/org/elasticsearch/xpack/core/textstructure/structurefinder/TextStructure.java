@@ -227,7 +227,7 @@ public class TextStructure implements ToXContentObject, Writeable {
         if (in.getVersion().onOrAfter(Version.V_8_5_0)) {
             ecsCompatibility = getNonNullEcsCompatibilityString(in.readOptionalString());
         } else {
-            ecsCompatibility = null;
+            ecsCompatibility = getNonNullEcsCompatibilityString(null);
         }
         jodaTimestampFormats = in.readBoolean() ? Collections.unmodifiableList(in.readStringList()) : null;
         javaTimestampFormats = in.readBoolean() ? Collections.unmodifiableList(in.readStringList()) : null;

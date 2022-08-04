@@ -159,7 +159,7 @@ field types are all described as the `keyword` type family.
 
 `non_dimension_indices`::
   experimental:[]
-  If this list is present in response, some indices have the field marked as a dimension and other indices, the
+  If this list is present in the response, some indices have the field marked as a dimension and other indices, the
   ones in this list, do not.
 
 `metric_conflicts_indices`::

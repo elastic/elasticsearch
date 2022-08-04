@@ -225,7 +225,7 @@ public class TextStructure implements ToXContentObject, Writeable {
         shouldTrimFields = in.readOptionalBoolean();
         grokPattern = in.readOptionalString();
         if (in.getVersion().onOrAfter(Version.V_8_5_0)) {
-            ecsCompatibility = getNonNullEcsCompatibilityString(in.readOptionalString());
+            ecsCompatibility = getNonNullEcsCompatibilityString(in.readString());
         } else {
             ecsCompatibility = getNonNullEcsCompatibilityString(null);
         }

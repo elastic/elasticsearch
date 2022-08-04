@@ -595,6 +595,12 @@ public class ObjectMapper extends Mapper implements Cloneable {
                     boolean leafHasValue = docValueLoader.advanceToDoc(docId);
                     hasValue |= leafHasValue;
                 }
+                /*
+                 * Important and kind of sneaky note: this will return true
+                 * if there were any values loaded from stored fields as
+                 * well. That *is* how we "wake up" objects that contain just
+                 * stored field.
+                 */
                 return hasValue;
             };
         }

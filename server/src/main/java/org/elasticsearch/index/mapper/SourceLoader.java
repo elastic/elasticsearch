@@ -130,6 +130,34 @@ public interface SourceLoader {
 
     /**
      * Load a field for {@link Synthetic}.
+     * <p>
+     * {@link SyntheticFieldLoader}s load values through objects vended
+     * by their {@link #storedFieldLoaders} and {@link #docValuesLoader}
+     * methods. Then you call {@link #write} to write the values to an
+     * {@link XContentBuilder} which also clears them.
+     * <p>
+     * This two loaders and one writer setup is specifically designed to
+     * efficiently load the {@code _source} of indices that have thousands
+     * of fields declared in the mapping but that only have values for
+     * dozens of them. It handles this in a few ways:
+     * <ul>
+     *     <li>{@link #docValuesLoader} must be called once per document
+     *         per field to load the doc values, but detects up front if
+     *         there are no doc values for that field. It's linear with
+     *         the number of fields, whether or not they have values,
+     *         but skips entirely missing fields.</li>
+     *     <li>{@link #storedFieldLoaders} are only called when we see
+     *         a stored field and are otherwise ignored. So it's fine
+     *         to have thousands of these declared in the mapping and
+     *         you don't really pay much to load them. Just the cost to
+     *         build {@link Map} used to address them.</li>
+     *     <li>Object fields that don't have any values loaded by either
+     *         means bail out of the loading process and don't pass
+     *         control down to any of their children. Thus it's fine
+     *         to declare huge object structures in the mapping and
+     *         you only spend time iterating the ones you need. Or that
+     *         have doc values.</li>
+     * </ul>
      */
     interface SyntheticFieldLoader {
         /**
@@ -147,13 +175,19 @@ public interface SourceLoader {
             }
 
             @Override
-            public void write(XContentBuilder b) throws IOException {}
+            public void write(XContentBuilder b) {}
         };
 
+        /**
+         * A {@link Stream} mapping stored field paths to a place to put them
+         * so they can be included in the next document.
+         */
         Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders();
 
         /**
-         * Build a loader for this field in the provided segment.
+         * Build something to load doc values for this field or return
+         * {@code null} if there are no doc values for this field to
+         * load.
          */
         DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException;
 
@@ -162,16 +196,21 @@ public interface SourceLoader {
          */
         void write(XContentBuilder b) throws IOException;
 
+        /**
+         * Sync for stored field values.
+         */
         interface StoredFieldLoader {
             void load(List<Object> values);
         }
 
         /**
-         * Loads values for a field in a particular leaf.
+         * Loads doc values for a field.
          */
         interface DocValuesLoader {
             /**
-             * Position the loader at a document.
+             * Load the doc values for this field.
+             *
+             * @return whether or not there are any values for this field
              */
             boolean advanceToDoc(int docId) throws IOException;
         }

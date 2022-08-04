@@ -120,11 +120,6 @@ public class CompositeRuntimeField implements RuntimeField {
         for (FieldMapper.Parameter<?> parameter : parameters) {
             parameter.toXContent(builder, includeDefaults);
         }
-        builder.startObject("fields");
-        for (RuntimeField subfield : subfields) {
-            subfield.toXContent(builder, params);
-        }
-        builder.endObject();
         builder.endObject();
         return builder;
     }

@@ -1080,7 +1080,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                 if (processHandle.isAlive() == false) {
                     return;
                 }
-                LOGGER.info("process did not terminate after {} {}, stopping it forcefully", ES_DESTROY_TIMEOUT, ES_DESTROY_TIMEOUT_UNIT);
+                LOGGER.info("process did not terminate after {} {}, stopping it  forcefully", ES_DESTROY_TIMEOUT, ES_DESTROY_TIMEOUT_UNIT);
                 logToProcessStdout("HEGO - stopHandle, process did not terminate after TIME for pid:" + processHandle.pid());
                 processHandle.destroyForcibly();
             }

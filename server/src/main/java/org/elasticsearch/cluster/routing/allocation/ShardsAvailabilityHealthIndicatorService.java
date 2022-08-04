@@ -150,12 +150,10 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
     public static final String FIX_DELAYED_SHARDS_GUIDE = "http://ela.st/fix-delayed-shard-allocation";
     public static final Diagnosis.Definition DIAGNOSIS_WAIT_FOR_OR_FIX_DELAYED_SHARDS = new Diagnosis.Definition(
         "delayed_shard_allocations",
-        "Elasticsearch is not allocating some shards because they are marked for delayed allocation. Shards that are on nodes that leave "
-            + "the cluster are usually marked for delayed allocation because it is more efficient to see if the node returns to the "
-            + "cluster than to recover the shard immediately.",
-        "Restore the nodes that have left the cluster so that the shards can be restored. If this is not possible, Elasticsearch will "
-            + "allocate the shards when the delay has elapsed. If the shards must be made available immediately, configure the "
-            + "[index.unassigned.node_left.delayed_timeout] setting on the affected indices to 0 to force the allocation immediately.",
+        "Elasticsearch is not allocating some shards because they are marked for delayed allocation. Shards that have become "
+            + "unavailable are usually marked for delayed allocation because it is more efficient to wait and see if the shards return "
+            + "on their own than to recover the shard immediately.",
+        "Elasticsearch will reallocate the shards when the delay has elapsed. No action is required by the user.",
         FIX_DELAYED_SHARDS_GUIDE
     );
 

@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
+import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
@@ -42,6 +43,7 @@ import static org.elasticsearch.index.store.Store.INDEX_STORE_STATS_REFRESH_INTE
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.startsWith;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
@@ -111,6 +113,20 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
             .get("reactive_storage")
             .reason();
         assertEquals(AllocationDecision.NO, reactiveReason.assignedShardAllocateDecision().getMoveDecision().getAllocationDecision());
+        Decision decision = reactiveReason.assignedShardAllocateDecision()
+            .getMoveDecision()
+            .getCanRemainDecision()
+            .getDecisions()
+            .stream()
+            .filter(d -> d.type() == Decision.Type.NO)
+            .findFirst()
+            .orElseThrow(() -> new IllegalStateException("Unable to find NO can_remain decision"));
+        assertEquals(Decision.Type.NO, decision.type());
+        assertEquals("disk_threshold", decision.label());
+        assertThat(
+            decision.getExplanation(),
+            startsWith("the shard cannot remain on this node because it is above the high watermark cluster setting")
+        );
     }
 
     public void testScaleFromEmptyWarmMove() throws Exception {

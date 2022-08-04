@@ -13,8 +13,10 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.disruption.BlockClusterStateProcessing;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -22,6 +24,7 @@ import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -223,5 +226,47 @@ public class CoordinationDiagnosticsServiceIT extends ESIntegTestCase {
                 assertThat(result.summary(), containsString("unable to form a quorum"));
             });
         });
+    }
+
+    public void testNoMasterElected() throws Exception {
+        /*
+         * This test starts up a 3-node cluster where all nodes are master eligible. It then shuts down two of the nodes and restarts one
+         *  of them. We then assert that diagnoseMasterStability returns a red status because a quorum can't be formed. This is an edge
+         * case because since there is no elected master, clusterChanged() is never called (which is what usually kicks off the polling
+         * that drives the quorum check).
+         */
+        final List<String> masterNodeNames = internalCluster().startMasterOnlyNodes(
+            3,
+            Settings.builder().put(Node.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s").build()
+        );
+        ensureStableCluster(3);
+        String randomMasterNodeName = internalCluster().getRandomNodeName();
+        masterNodeNames.stream().filter(nodeName -> nodeName.equals(randomMasterNodeName) == false).forEach(nodeName -> {
+            try {
+                internalCluster().stopNode(nodeName);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        });
+        internalCluster().restartNode(randomMasterNodeName, new InternalTestCluster.RestartCallback() {
+            public boolean validateClusterForming() {
+                return false;
+            }
+        });
+
+        try {
+            CoordinationDiagnosticsService diagnosticsOnMasterEligibleNode = internalCluster().getInstance(
+                CoordinationDiagnosticsService.class,
+                randomMasterNodeName
+            );
+            diagnosticsOnMasterEligibleNode.remoteRequestInitialDelay = TimeValue.ZERO;
+            CoordinationDiagnosticsService.CoordinationDiagnosticsResult result = diagnosticsOnMasterEligibleNode.diagnoseMasterStability(
+                true
+            );
+            assertThat(result.status(), equalTo(CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.RED));
+            assertThat(result.summary(), containsString("the master eligible nodes are unable to form a quorum"));
+        } finally {
+            internalCluster().stopNode(randomMasterNodeName); // This is needed for the test to clean itself up happily
+        }
     }
 }

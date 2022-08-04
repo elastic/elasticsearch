@@ -48,7 +48,6 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -67,7 +66,6 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -1434,47 +1432,6 @@ public class MetadataTests extends ESTestCase {
         } catch (Exception e) {
             fail("did not expect exception when validating a system without any data streams but got " + e.getMessage());
         }
-    }
-
-    /**
-     * Tests for the implementation of data stream snapshot reconciliation are located in {@link DataStreamTests#testSnapshot()}
-     */
-    public void testSnapshot() {
-        var postSnapshotMetadata = randomMetadata(randomIntBetween(1, 5));
-        var dataStreamsToSnapshot = randomSubsetOf(new ArrayList<>(postSnapshotMetadata.dataStreams().keySet()));
-        List<String> indicesInSnapshot = new ArrayList<>();
-        for (var dsName : dataStreamsToSnapshot) {
-            // always include at least one backing index per data stream
-            DataStream ds = postSnapshotMetadata.dataStreams().get(dsName);
-            indicesInSnapshot.addAll(
-                randomSubsetOf(randomIntBetween(1, ds.getIndices().size()), ds.getIndices().stream().map(Index::getName).toList())
-            );
-        }
-        var reconciledMetadata = Metadata.snapshot(postSnapshotMetadata, dataStreamsToSnapshot, indicesInSnapshot);
-        assertThat(reconciledMetadata.dataStreams().size(), equalTo(postSnapshotMetadata.dataStreams().size()));
-        for (DataStream ds : reconciledMetadata.dataStreams().values()) {
-            assertThat(ds.getIndices().size(), greaterThanOrEqualTo(1));
-        }
-    }
-
-    public void testSnapshotWithMissingDataStream() {
-        var postSnapshotMetadata = randomMetadata(randomIntBetween(1, 5));
-        var dataStreamsToSnapshot = randomSubsetOf(new ArrayList<>(postSnapshotMetadata.dataStreams().keySet()));
-        List<String> indicesInSnapshot = new ArrayList<>();
-        for (var dsName : dataStreamsToSnapshot) {
-            // always include at least one backing index per data stream
-            DataStream ds = postSnapshotMetadata.dataStreams().get(dsName);
-            indicesInSnapshot.addAll(
-                randomSubsetOf(randomIntBetween(1, ds.getIndices().size()), ds.getIndices().stream().map(Index::getName).toList())
-            );
-        }
-        String missingDataStream = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
-        dataStreamsToSnapshot.add(missingDataStream);
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> Metadata.snapshot(postSnapshotMetadata, dataStreamsToSnapshot, indicesInSnapshot)
-        );
-        assertThat(e.getMessage(), containsString("unable to find data stream [" + missingDataStream + "]"));
     }
 
     public void testDataStreamAliases() {

@@ -83,3 +83,12 @@ GET my-index-000001/_search
 {ref}/search-fields.html#script-fields[script field]
 to return the `_size` field in the search response.
 
+[NOTE]
+.Using `_size` in {kib}
+================================================
+
+To use the `_size` field in {kib}, update the `metaFields` setting and add 
+`_size` to the list of meta fields. `metaFields` can be configured in {kib} 
+from the Advanced Settings page in Management.
+
+================================================

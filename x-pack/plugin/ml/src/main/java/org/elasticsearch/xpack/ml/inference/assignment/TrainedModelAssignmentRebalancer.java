@@ -54,25 +54,23 @@ class TrainedModelAssignmentRebalancer {
     }
 
     TrainedModelAssignmentMetadata.Builder rebalance() throws Exception {
-        TrainedModelAssignmentMetadata.Builder builder = TrainedModelAssignmentMetadata.Builder.fromMetadata(currentMetadata);
-        if (modelToAdd.isPresent() && builder.hasModel(modelToAdd.get().getModelId())) {
+        if (modelToAdd.isPresent() && currentMetadata.hasModel(modelToAdd.get().getModelId())) {
             throw new ResourceAlreadyExistsException("assignment for model with id [{}] already exists", modelToAdd.get().getModelId());
         }
 
-        if (modelToAdd.isEmpty() && areAllModelsSatisfied()) {
+        if (modelToAdd.isEmpty() && areAllModelsSatisfiedAndNoOutdatedRoutingEntries()) {
             logger.trace(() -> "No need to rebalance as all model deployments are satisfied");
-            return builder;
+            return TrainedModelAssignmentMetadata.Builder.fromMetadata(currentMetadata);
         }
 
         AssignmentPlan assignmentPlan = computeAssignmentPlan();
-        buildAssignmentsFromPlan(assignmentPlan, builder);
-        return builder;
+        return buildAssignmentsFromPlan(assignmentPlan);
     }
 
-    private boolean areAllModelsSatisfied() {
+    private boolean areAllModelsSatisfiedAndNoOutdatedRoutingEntries() {
         Set<String> assignableNodeIds = nodeLoads.keySet().stream().map(DiscoveryNode::getId).collect(Collectors.toSet());
         for (TrainedModelAssignment model : currentMetadata.modelAssignments().values()) {
-            if (model.isSatisfied(assignableNodeIds) == false) {
+            if (model.isSatisfied(assignableNodeIds) == false || model.hasOutdatedRoutingEntries()) {
                 return false;
             }
         }
@@ -113,7 +111,8 @@ class TrainedModelAssignmentRebalancer {
                 assignment.getTaskParams().estimateMemoryUsageBytes(),
                 assignment.getTaskParams().getNumberOfAllocations(),
                 assignment.getTaskParams().getThreadsPerAllocation(),
-                currentAssignments
+                currentAssignments,
+                assignment.getMaxAssignedAllocations()
             );
         }).forEach(planModels::add);
         modelToAdd.ifPresent(
@@ -123,7 +122,8 @@ class TrainedModelAssignmentRebalancer {
                     taskParams.estimateMemoryUsageBytes(),
                     taskParams.getNumberOfAllocations(),
                     taskParams.getThreadsPerAllocation(),
-                    Map.of()
+                    Map.of(),
+                    0
                 )
             )
         );
@@ -147,7 +147,8 @@ class TrainedModelAssignmentRebalancer {
         return load.getFreeMemoryExcludingPerNodeOverhead() - load.getAssignedNativeInferenceMemory();
     }
 
-    private void buildAssignmentsFromPlan(AssignmentPlan assignmentPlan, TrainedModelAssignmentMetadata.Builder builder) {
+    private TrainedModelAssignmentMetadata.Builder buildAssignmentsFromPlan(AssignmentPlan assignmentPlan) {
+        TrainedModelAssignmentMetadata.Builder builder = TrainedModelAssignmentMetadata.Builder.empty();
         for (AssignmentPlan.Model model : assignmentPlan.models()) {
             TrainedModelAssignment existingAssignment = currentMetadata.getModelAssignment(model.id());
 
@@ -156,6 +157,10 @@ class TrainedModelAssignmentRebalancer {
                     ? modelToAdd.get()
                     : currentMetadata.getModelAssignment(model.id()).getTaskParams()
             );
+            if (existingAssignment != null) {
+                assignmentBuilder.setStartTime(existingAssignment.getStartTime());
+                assignmentBuilder.setMaxAssignedAllocations(existingAssignment.getMaxAssignedAllocations());
+            }
 
             Map<AssignmentPlan.Node, Integer> assignments = assignmentPlan.assignments(model).orElseGet(Map::of);
             for (Map.Entry<AssignmentPlan.Node, Integer> assignment : assignments.entrySet()) {
@@ -181,12 +186,9 @@ class TrainedModelAssignmentRebalancer {
             assignmentBuilder.calculateAndSetAssignmentState();
 
             explainAssignments(assignmentPlan, nodeLoads, model).ifPresent(assignmentBuilder::setReason);
-            if (existingAssignment == null) {
-                builder.addNewAssignment(model.id(), assignmentBuilder);
-            } else {
-                builder.updateAssignment(model.id(), assignmentBuilder);
-            }
+            builder.addNewAssignment(model.id(), assignmentBuilder);
         }
+        return builder;
     }
 
     private Optional<String> explainAssignments(

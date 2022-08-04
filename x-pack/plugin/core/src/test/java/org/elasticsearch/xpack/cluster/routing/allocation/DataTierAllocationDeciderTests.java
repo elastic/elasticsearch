@@ -646,7 +646,12 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
         }
 
         {
-            final var decision = DataTierAllocationDecider.INSTANCE.canRemain(shard, routingNode, allocation);
+            final var decision = DataTierAllocationDecider.INSTANCE.canRemain(
+                allocation.metadata().getIndexSafe(shard.index()),
+                shard,
+                routingNode,
+                allocation
+            );
             assertThat(routingNode.toString(), decision.type(), equalTo(decisionType));
             assertThat(routingNode.toString(), decision.getExplanation(), containsString(explanationMessage));
         }

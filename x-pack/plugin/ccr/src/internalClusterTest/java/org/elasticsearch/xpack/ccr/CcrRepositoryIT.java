@@ -158,7 +158,8 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
             .renamePattern("^(.*)$")
             .renameReplacement(followerIndex)
             .masterNodeTimeout(TimeValue.MAX_VALUE)
-            .indexSettings(settingsBuilder);
+            .indexSettings(settingsBuilder)
+            .quiet(true);
 
         PlainActionFuture<RestoreInfo> future = PlainActionFuture.newFuture();
         restoreService.restoreSnapshot(restoreRequest, waitForRestore(clusterService, future));
@@ -230,7 +231,8 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
             .renamePattern("^(.*)$")
             .renameReplacement(followerIndex)
             .masterNodeTimeout(new TimeValue(1L, TimeUnit.HOURS))
-            .indexSettings(settingsBuilder);
+            .indexSettings(settingsBuilder)
+            .quiet(true);
 
         PlainActionFuture<RestoreInfo> future = PlainActionFuture.newFuture();
         restoreService.restoreSnapshot(restoreRequest, waitForRestore(clusterService, future));
@@ -298,7 +300,8 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
             .renamePattern("^(.*)$")
             .renameReplacement(followerIndex)
             .masterNodeTimeout(TimeValue.MAX_VALUE)
-            .indexSettings(settingsBuilder);
+            .indexSettings(settingsBuilder)
+            .quiet(true);
 
         PlainActionFuture<RestoreInfo> future = PlainActionFuture.newFuture();
         restoreService.restoreSnapshot(restoreRequest, waitForRestore(clusterService, future));
@@ -364,7 +367,8 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
             .renamePattern("^(.*)$")
             .renameReplacement(followerIndex)
             .masterNodeTimeout(new TimeValue(1L, TimeUnit.HOURS))
-            .indexSettings(settingsBuilder);
+            .indexSettings(settingsBuilder)
+            .quiet(true);
 
         try {
             final RestoreService restoreService = getFollowerCluster().getCurrentMasterNodeInstance(RestoreService.class);
@@ -427,7 +431,8 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
             .renamePattern("^(.*)$")
             .renameReplacement(followerIndex)
             .masterNodeTimeout(new TimeValue(1L, TimeUnit.HOURS))
-            .indexSettings(settingsBuilder);
+            .indexSettings(settingsBuilder)
+            .quiet(true);
 
         List<MockTransportService> transportServices = new ArrayList<>();
         CountDownLatch latch = new CountDownLatch(1);
@@ -586,7 +591,8 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
                 Settings.builder()
                     .put(IndexMetadata.SETTING_INDEX_PROVIDED_NAME, followerIndex)
                     .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true)
-            );
+            )
+            .quiet(true);
         restoreService.restoreSnapshot(restoreRequest, PlainActionFuture.newFuture());
 
         waitForRestoreInProgress.get(30L, TimeUnit.SECONDS);

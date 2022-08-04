@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.slm;
 
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
@@ -27,6 +26,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -139,6 +139,7 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
                 String cause = unhealthyPolicies.stream()
                     .map(
                         policy -> String.format(
+                            Locale.getDefault(),
                             "An automated snapshot [%s] has not had [%d] successful executions since [%s]",
                             policy.getName(),
                             policy.getInvocationsSinceLastSuccess(),

@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.HealthIndicatorImpact;
@@ -21,12 +22,14 @@ import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.slm.SnapshotInvocationRecord;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
 
+import java.io.IOException;
 import java.time.ZoneOffset;
 import java.util.Collections;
 import java.util.List;
@@ -183,6 +186,11 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
         var service = createSlmHealthIndicatorService(clusterState);
 
         HealthIndicatorResult calculate = service.calculate(true);
+        try {
+            logger.info(XContentHelper.toXContent(calculate, XContentType.JSON, true).utf8ToString());
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
         assertThat(
             calculate,
             equalTo(

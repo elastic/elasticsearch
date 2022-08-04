@@ -24,8 +24,9 @@ first set – which is a subset of the second one – is skipped. Both item sets
 might be returned if their support values are different.
 
 The runtime of the aggregation depends on the data and the provided parameters. 
-It might take a significant time to complete the aggregation. It is recommended 
-to use <<async-search, async search>> to run your request asynchronously.
+It might take a significant time for the aggregation to complete. For this 
+reason, it is recommended to use <<async-search, async search>> to run your 
+requests asynchronously.
 
 
 ==== Syntax

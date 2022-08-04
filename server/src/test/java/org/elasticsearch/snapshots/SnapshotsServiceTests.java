@@ -352,10 +352,10 @@ public class SnapshotsServiceTests extends ESTestCase {
         final SnapshotsInProgress.Entry completedSnapshot = snapshotsInProgress.forRepo(repoName).get(0);
         assertThat(completedSnapshot.state(), is(SnapshotsInProgress.State.SUCCESS));
         final SnapshotsInProgress.Entry startedSnapshot = snapshotsInProgress.forRepo(repoName).get(1);
-        assertThat(startedSnapshot.state(), is(SnapshotsInProgress.State.STARTED));
+        assertThat(startedSnapshot.state(), is(SnapshotsInProgress.State.SUCCESS));
         final SnapshotsInProgress.ShardSnapshotStatus shardSnapshotStatus = startedSnapshot.shards().get(routingShardId);
-        assertThat(shardSnapshotStatus.state(), is(SnapshotsInProgress.ShardState.INIT));
-        assertThat(shardSnapshotStatus.nodeId(), is(dataNodeId));
+        assertThat(shardSnapshotStatus.state(), is(SnapshotsInProgress.ShardState.MISSING));
+        assertNull(shardSnapshotStatus.nodeId());
         assertIsNoop(updatedClusterState, completeShard);
     }
 

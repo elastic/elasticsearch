@@ -383,21 +383,15 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
 
             private double round(double d) {
                 long encoded = Math.round(d * scalingFactor);
-                if (encoded == Long.MAX_VALUE) {
-                    double max = Long.MAX_VALUE / scalingFactor;
-                    if (max * scalingFactor != Long.MAX_VALUE) {
-                        return max + Math.ulp(max);
+                double decoded = encoded / scalingFactor;
+                long reencoded = Math.round(decoded * scalingFactor);
+                if (encoded != reencoded) {
+                    if (encoded > reencoded) {
+                        return decoded + Math.ulp(decoded);
                     }
-                    return max;
+                    return decoded - Math.ulp(decoded);
                 }
-                if (encoded == Long.MIN_VALUE) {
-                    double min = Long.MIN_VALUE / scalingFactor;
-                    if (min * scalingFactor != Long.MIN_VALUE) {
-                        return min - Math.ulp(min);
-                    }
-                    return min;
-                }
-                return encoded / scalingFactor;
+                return decoded;
             }
 
             private void mapping(XContentBuilder b) throws IOException {
@@ -485,6 +479,28 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
         double saturated = randomDoubleBetween(max, Double.MAX_VALUE, true);
         assertThat(ScaledFloatFieldMapper.encode(saturated, scalingFactor), equalTo(Long.MAX_VALUE));
         assertThat(encodeDecode(saturated, scalingFactor), equalTo(max));
+    }
+
+    public void testEncodeDecodeRandom() {
+        double scalingFactor = randomDoubleBetween(0, Double.MAX_VALUE, false);
+        double v = randomValue();
+        double once = encodeDecode(v, scalingFactor);
+        double twice = encodeDecode(once, scalingFactor);
+        assertThat(twice, equalTo(once));
+    }
+
+    /**
+     * Tests that a value and scaling factor that won't
+     * properly round trip without a "nudge" to keep
+     * them from rounding in the wrong direction on the
+     * second iteration.
+     */
+    public void testEncodeDecodeNeedNudge() {
+        double scalingFactor = 2.4206374697469164E16;
+        double v = 0.15527719259262085;
+        double once = encodeDecode(v, scalingFactor);
+        double twice = encodeDecode(once, scalingFactor);
+        assertThat(twice, equalTo(once));
     }
 
     /**

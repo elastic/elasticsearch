@@ -1,0 +1,5 @@
+pr: 88733
+summary: "Script: Protected `_source` inside update scripts"
+area: Infra/Scripting
+type: enhancement
+issues: []

@@ -33,7 +33,8 @@ preview:[] (<<_static_index_settings,Static>>, <<time-units,time units>>)
 Interval used to calculate the `index.time_series.end_time` for a TSDS's write
 index. Defaults to `2h` (2 hours). Accepts `1m` (one minute) to `7d` (seven
 days). Only indices with an `index.mode` of `time_series` support this setting.
-For more information, refer to <<tsds-look-ahead-time>>.
+For more information, refer to <<tsds-look-ahead-time>>. Additionally this setting
+can not be less than `time_series.poll_interval` cluster setting.
 
 [[index-routing-path]] `index.routing_path`:: preview:[]
 (<<_static_index_settings,Static>>, string or array of strings) Plain `keyword`

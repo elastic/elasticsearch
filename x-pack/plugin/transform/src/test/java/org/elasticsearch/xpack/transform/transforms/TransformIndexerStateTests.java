@@ -19,6 +19,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
@@ -34,7 +35,6 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.indexing.IterationResult;
-import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
@@ -51,9 +51,11 @@ import org.elasticsearch.xpack.transform.notifications.MockTransformAuditor;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.InMemoryTransformConfigManager;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
+import org.elasticsearch.xpack.transform.transforms.scheduling.TransformScheduler;
 import org.junit.After;
 import org.junit.Before;
 
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -191,7 +193,7 @@ public class TransformIndexerStateTests extends ESTestCase {
                     throw new IllegalStateException(e);
                 }
             }
-            threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> nextPhase.onResponse(ONE_HIT_SEARCH_RESPONSE));
+            threadPool.generic().execute(() -> nextPhase.onResponse(ONE_HIT_SEARCH_RESPONSE));
         }
 
         @Override
@@ -199,8 +201,7 @@ public class TransformIndexerStateTests extends ESTestCase {
             if (doProcessLatch != null) {
                 doProcessLatch.countDown();
             }
-            threadPool.executor(ThreadPool.Names.GENERIC)
-                .execute(() -> nextPhase.onResponse(new BulkResponse(new BulkItemResponse[0], 100)));
+            threadPool.generic().execute(() -> nextPhase.onResponse(new BulkResponse(new BulkItemResponse[0], 100)));
         }
 
         @Override
@@ -581,7 +582,7 @@ public class TransformIndexerStateTests extends ESTestCase {
     ) {
         // we need to simulate that this is called from the task, which offloads it to the generic threadpool
         CountDownLatch latch = new CountDownLatch(1);
-        threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
+        threadPool.generic().execute(() -> {
             indexer.setStopAtCheckpoint(shouldStopAtCheckpoint, shouldStopAtCheckpointListener);
             latch.countDown();
         });
@@ -625,7 +626,7 @@ public class TransformIndexerStateTests extends ESTestCase {
             transformConfigManager,
             mock(TransformCheckpointService.class),
             transformAuditor,
-            mock(SchedulerEngine.class)
+            new TransformScheduler(Clock.systemUTC(), threadPool, Settings.EMPTY)
         );
 
         MockedTransformIndexer indexer = new MockedTransformIndexer(

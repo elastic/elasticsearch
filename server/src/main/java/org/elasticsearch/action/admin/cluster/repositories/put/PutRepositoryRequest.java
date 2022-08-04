@@ -22,7 +22,6 @@ import java.util.Map;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
-import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
 
 /**
  * Register repository request.
@@ -207,7 +206,7 @@ public class PutRepositoryRequest extends AcknowledgedRequest<PutRepositoryReque
         super.writeTo(out);
         out.writeString(name);
         out.writeString(type);
-        writeSettingsToStream(settings, out);
+        settings.writeTo(out);
         out.writeBoolean(verify);
     }
 

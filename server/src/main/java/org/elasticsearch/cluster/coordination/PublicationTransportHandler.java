@@ -36,6 +36,7 @@ import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BytesTransportRequest;
 import org.elasticsearch.transport.TransportException;
@@ -284,6 +285,7 @@ public class PublicationTransportHandler {
         private final DiscoveryNodes discoveryNodes;
         private final ClusterState newState;
         private final ClusterState previousState;
+        private final Task task;
         private final boolean sendFullVersion;
 
         // All the values of these maps have one ref for the context (while it's open) and one for each in-flight message.
@@ -294,6 +296,7 @@ public class PublicationTransportHandler {
             discoveryNodes = clusterStatePublicationEvent.getNewState().nodes();
             newState = clusterStatePublicationEvent.getNewState();
             previousState = clusterStatePublicationEvent.getOldState();
+            task = clusterStatePublicationEvent.getTask();
             sendFullVersion = previousState.getBlocks().disableStatePersistence();
         }
 
@@ -421,10 +424,11 @@ public class PublicationTransportHandler {
                 return;
             }
             try {
-                transportService.sendRequest(
+                transportService.sendChildRequest(
                     destination,
                     PUBLISH_STATE_ACTION_NAME,
                     new BytesTransportRequest(bytes, destination.getVersion()),
+                    task,
                     STATE_REQUEST_OPTIONS,
                     new ActionListenerResponseHandler<>(
                         ActionListener.runAfter(listener, bytes::decRef),

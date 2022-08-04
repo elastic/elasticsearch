@@ -11,6 +11,7 @@ package org.elasticsearch.xpack.core.security.authz.privilege;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyAction;
@@ -18,6 +19,7 @@ import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTests;
@@ -25,6 +27,8 @@ import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmDomain;
 import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
 import org.elasticsearch.xpack.core.security.user.User;
+
+import java.util.List;
 
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
@@ -40,10 +44,29 @@ public class ManageOwnApiKeyClusterPrivilegeTests extends ESTestCase {
         final Authentication authentication = AuthenticationTests.randomApiKeyAuthentication(userJoe, apiKeyId);
         final TransportRequest getApiKeyRequest = GetApiKeyRequest.usingApiKeyId(apiKeyId, randomBoolean());
         final TransportRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.usingApiKeyId(apiKeyId, randomBoolean());
-
         assertTrue(clusterPermission.check("cluster:admin/xpack/security/api_key/get", getApiKeyRequest, authentication));
         assertTrue(clusterPermission.check("cluster:admin/xpack/security/api_key/invalidate", invalidateApiKeyRequest, authentication));
         assertFalse(clusterPermission.check("cluster:admin/something", mock(TransportRequest.class), authentication));
+    }
+
+    public void testAuthenticationForUpdateApiKeyAllowsAll() {
+        final ClusterPermission clusterPermission = ManageOwnApiKeyClusterPrivilege.INSTANCE.buildPermission(ClusterPermission.builder())
+            .build();
+        final String apiKeyId = randomAlphaOfLengthBetween(4, 7);
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
+        final TransportRequest updateApiKeyRequest = UpdateApiKeyRequest.usingApiKeyId(apiKeyId);
+
+        assertTrue(clusterPermission.check("cluster:admin/xpack/security/api_key/update", updateApiKeyRequest, authentication));
+    }
+
+    public void testAuthenticationForBulkUpdateApiKeyAllowsAll() {
+        final ClusterPermission clusterPermission = ManageOwnApiKeyClusterPrivilege.INSTANCE.buildPermission(ClusterPermission.builder())
+            .build();
+        final List<String> apiKeyIds = randomList(1, 5, () -> randomAlphaOfLengthBetween(4, 7));
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
+        final TransportRequest bulkUpdateApiKeyRequest = new BulkUpdateApiKeyRequest(apiKeyIds, null, null);
+
+        assertTrue(clusterPermission.check("cluster:admin/xpack/security/api_key/update", bulkUpdateApiKeyRequest, authentication));
     }
 
     public void testAuthenticationWithApiKeyDeniesAccessToApiKeyActionsWhenItIsNotOwner() {
@@ -69,8 +92,10 @@ public class ManageOwnApiKeyClusterPrivilegeTests extends ESTestCase {
 
         TransportRequest getApiKeyRequest = GetApiKeyRequest.usingRealmAndUserName(realmRef.getName(), "joe");
         TransportRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.usingRealmAndUserName(realmRef.getName(), "joe");
+        TransportRequest updateApiKeyRequest = UpdateApiKeyRequest.usingApiKeyId(randomAlphaOfLength(10));
         assertTrue(clusterPermission.check("cluster:admin/xpack/security/api_key/get", getApiKeyRequest, authentication));
         assertTrue(clusterPermission.check("cluster:admin/xpack/security/api_key/invalidate", invalidateApiKeyRequest, authentication));
+        assertTrue(clusterPermission.check("cluster:admin/xpack/security/api_key/update", updateApiKeyRequest, authentication));
 
         assertFalse(clusterPermission.check("cluster:admin/something", mock(TransportRequest.class), authentication));
 

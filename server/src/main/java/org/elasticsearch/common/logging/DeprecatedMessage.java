@@ -56,7 +56,7 @@ public class DeprecatedMessage {
         String messagePattern,
         Object[] args
     ) {
-        ESLogMessage esLogMessage = new ESLogMessage(messagePattern, args).field("data_stream.dataset", "elasticsearch.deprecation")
+        ESLogMessage esLogMessage = new ESLogMessage(messagePattern, args).field("data_stream.dataset", "deprecation.elasticsearch")
             .field("data_stream.type", "logs")
             .field("data_stream.namespace", "default")
             .field(KEY_FIELD_NAME, key)

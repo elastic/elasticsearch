@@ -20,6 +20,7 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
+import org.elasticsearch.index.mapper.GeoPointScriptFieldType;
 import org.elasticsearch.script.AbstractLongFieldScript;
 import org.elasticsearch.script.GeoPointFieldScript;
 import org.elasticsearch.script.Script;
@@ -82,7 +83,7 @@ public class GeoPointScriptFieldDistanceFeatureQueryTests extends AbstractScript
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 SearchLookup searchLookup = new SearchLookup(null, null);
-                Function<LeafReaderContext, AbstractLongFieldScript> leafFactory = ctx -> new GeoPointFieldScript(
+                Function<LeafReaderContext, GeoPointFieldScript> leafFactory = ctx -> new GeoPointFieldScript(
                     "test",
                     Map.of(),
                     searchLookup,
@@ -96,7 +97,7 @@ public class GeoPointScriptFieldDistanceFeatureQueryTests extends AbstractScript
                 };
                 GeoPointScriptFieldDistanceFeatureQuery query = new GeoPointScriptFieldDistanceFeatureQuery(
                     randomScript(),
-                    leafFactory,
+                    GeoPointScriptFieldType.valuesEncodedAsLong(searchLookup, "test", leafFactory),
                     "test",
                     0,
                     0,

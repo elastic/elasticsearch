@@ -66,6 +66,7 @@ import org.elasticsearch.indices.IndexCreationException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.indices.ShardLimitValidator;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -265,7 +266,7 @@ public class MetadataCreateIndexService {
                     shardsAcknowledged -> {
                         if (shardsAcknowledged == false) {
                             logger.debug(
-                                "[{}] index created, but the operation timed out while waiting for " + "enough shards to be started.",
+                                "[{}] index created, but the operation timed out while waiting for enough shards to be started.",
                                 request.index()
                             );
                         } else {
@@ -352,6 +353,13 @@ public class MetadataCreateIndexService {
                 return applyCreateIndexRequestForSystemDataStream(currentState, request, silent, metadataTransformer);
             }
 
+            SystemIndexDescriptor descriptor = systemIndices.findMatchingDescriptor(request.index());
+            // ignore all templates for all system indices that do not allow templates.
+            // Essentially, all but .kibana indices, see KibanaPlugin.java.
+            if (Objects.nonNull(descriptor) && descriptor.allowsTemplates() == false) {
+                return applyCreateIndexRequestForSystemIndex(currentState, request, silent, descriptor.getIndexPattern());
+            }
+
             // Hidden indices apply templates slightly differently (ignoring wildcard '*'
             // templates), so we need to check to see if the request is creating a hidden index
             // prior to resolving which templates it matches
@@ -363,7 +371,7 @@ public class MetadataCreateIndexService {
             final String v2Template = MetadataIndexTemplateService.findV2Template(
                 currentState.metadata(),
                 name,
-                isHiddenFromRequest == null ? false : isHiddenFromRequest
+                isHiddenFromRequest != null && isHiddenFromRequest
             );
 
             if (v2Template != null) {
@@ -629,6 +637,52 @@ public class MetadataCreateIndexService {
             ),
             Collections.singletonList(templateName),
             metadataTransformer
+        );
+    }
+
+    private ClusterState applyCreateIndexRequestForSystemIndex(
+        final ClusterState currentState,
+        final CreateIndexClusterStateUpdateRequest request,
+        final boolean silent,
+        final String indexPattern
+    ) throws Exception {
+        logger.debug("applying create index request for system index [{}] matching pattern [{}]", request.index(), indexPattern);
+
+        final Settings aggregatedIndexSettings = aggregateIndexSettings(
+            currentState,
+            request,
+            Settings.EMPTY,
+            null,
+            null,
+            settings,
+            indexScopedSettings,
+            shardLimitValidator,
+            indexSettingProviders
+        );
+        final int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, null);
+        final IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(aggregatedIndexSettings, request, routingNumShards);
+
+        return applyCreateIndexWithTemporaryService(
+            currentState,
+            request,
+            silent,
+            null,
+            tmpImd,
+            List.of(new CompressedXContent(MapperService.parseMapping(xContentRegistry, request.mappings()))),
+            indexService -> resolveAndValidateAliases(
+                request.index(),
+                request.aliases(),
+                List.of(),
+                currentState.metadata(),
+                // the context is only used for validation so it's fine to pass fake values for the
+                // shard id and the current timestamp
+                xContentRegistry,
+                indexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap()),
+                IndexService.dateMathExpressionResolverAt(request.getNameResolvedAt()),
+                systemIndices::isSystemName
+            ),
+            List.of(),
+            null
         );
     }
 

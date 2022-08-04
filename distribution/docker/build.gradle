@@ -286,8 +286,8 @@ void addTransformDockerContextTask(Architecture architecture, DockerBase base) {
     from(tarTree("${project.buildDir}/distributions/${archiveName}.tar.gz")) {
       eachFile { FileCopyDetails details ->
         if (details.name.equals("Dockerfile")) {
-          filter { String filename ->
-            return filename.replaceAll('^RUN curl.*artifacts-no-kpi.*$', "COPY ${distributionName} /tmp/elasticsearch.tar.gz")
+          filter { String contents ->
+            return contents.replaceAll('^RUN curl.*artifacts-no-kpi.*$', "COPY ${distributionName} /tmp/elasticsearch.tar.gz")
           }
         }
       }
@@ -469,7 +469,7 @@ subprojects { Project subProject ->
 
     tasks.register(exportTaskName, LoggedExec) {
       inputs.file("${parent.projectDir}/build/markers/${buildTaskName}.marker")
-      executable 'docker'
+      executable = 'docker'
       outputs.file(tarFile)
       args "save",
         "-o",
@@ -486,4 +486,9 @@ subprojects { Project subProject ->
       builtBy exportTaskName
     }
   }
+}
+
+tasks.named('resolveAllDependencies') {
+  // Don't try and resolve filebeat or metricbeat snapshots as they may not always be available
+  configs = configurations.matching { it.name.endsWith('beat') == false }
 }

@@ -52,7 +52,6 @@ import org.elasticsearch.tasks.TaskAwareRequest;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -63,6 +62,7 @@ import org.elasticsearch.xcontent.smile.SmileXContent;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyStatus;
 import org.elasticsearch.xpack.enrich.action.EnrichReindexAction;
+import org.elasticsearch.xpack.spatial.SpatialPlugin;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -87,7 +87,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Arrays.asList(ReindexPlugin.class, IngestCommonPlugin.class, TestGeoShapeFieldMapperPlugin.class, LocalStateEnrich.class);
+        return Arrays.asList(ReindexPlugin.class, IngestCommonPlugin.class, SpatialPlugin.class, LocalStateEnrich.class);
     }
 
     private static ThreadPool testThreadPool;

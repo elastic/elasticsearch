@@ -426,9 +426,7 @@ public class TextStructure implements ToXContentObject, Writeable {
         if (grokPattern != null && grokPattern.isEmpty() == false) {
             builder.field(GROK_PATTERN.getPreferredName(), grokPattern);
         }
-        if (ecsCompatibility != null && ecsCompatibility.isEmpty() == false) {
-            builder.field(ECS_COMPATIBILITY.getPreferredName(), ecsCompatibility);
-        }
+        builder.field(ECS_COMPATIBILITY.getPreferredName(), ecsCompatibility);
         if (timestampField != null && timestampField.isEmpty() == false) {
             builder.field(TIMESTAMP_FIELD.getPreferredName(), timestampField);
         }

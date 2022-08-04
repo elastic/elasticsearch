@@ -158,7 +158,7 @@ public class RestLogsActionTests extends RestActionTestCase {
         assertEquals(0, dispatchRequest(req).errors().get());
     }
 
-    public void testRetryInGenericDataStreamOnMappingError() {
+    public void testSendFailedDocumentsToDlq() {
         RestRequest req = createLogsRequest("/_logs/foo/bar", Map.of("message", "Hello World"));
         AtomicBoolean firstRequest = new AtomicBoolean(true);
         verifyingClient.setExecuteVerifier((BiFunction<ActionType<BulkResponse>, BulkRequest, BulkResponse>) (actionType, request) -> {
@@ -177,27 +177,6 @@ public class RestLogsActionTests extends RestActionTestCase {
                 assertEquals("logs", getPath(doc, "event.original.data_stream.type"));
                 assertEquals("foo", getPath(doc, "event.original.data_stream.dataset"));
                 assertEquals("bar", getPath(doc, "event.original.data_stream.namespace"));
-                return Mockito.mock(BulkResponse.class);
-            }
-        });
-        assertEquals(0, dispatchRequest(req).errors().get());
-    }
-
-    public void testRetryInSameDataStreamOnTransientError() {
-        RestRequest req = createLogsRequest("/_logs/foo", Map.of("message", "Hello World"));
-        AtomicBoolean firstRequest = new AtomicBoolean(true);
-        verifyingClient.setExecuteVerifier((BiFunction<ActionType<BulkResponse>, BulkRequest, BulkResponse>) (actionType, request) -> {
-            if (firstRequest.get()) {
-                firstRequest.set(false);
-                assertEquals(1, request.requests().size());
-                assertDataStreamFields("foo", "default", request.requests().get(0));
-                return createMockBulkFailureResponse(new EsRejectedExecutionException());
-            } else {
-                assertEquals(1, request.requests().size());
-                IndexRequest indexRequest = (IndexRequest) request.requests().get(0);
-                assertDataStreamFields("foo", "default", indexRequest);
-                Map<String, Object> doc = indexRequest.sourceAsMap();
-                assertNull(doc.get("_logs"));
                 return Mockito.mock(BulkResponse.class);
             }
         });

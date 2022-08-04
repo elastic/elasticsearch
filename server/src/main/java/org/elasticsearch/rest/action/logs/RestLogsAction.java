@@ -123,17 +123,9 @@ public class RestLogsAction extends BaseRestHandler {
                     Arrays.stream(bulkItemResponses.getItems()).filter(BulkItemResponse::isFailed).forEach(failedRequest -> {
                         IndexRequest originalRequest = indexRequests.get(failedRequest.getItemId());
                         Map<String, Object> doc = originalRequest.sourceAsMap();
-                        BulkItemResponse.Failure failure = failedRequest.getFailure();
-                        if (failure.getStatus() == RestStatus.TOO_MANY_REQUESTS) {
-                            // looks like a transient error; re-try as-is
-                            retryBulk.add(Requests.indexRequest(originalRequest.index()).opType(DocWriteRequest.OpType.CREATE).source(doc));
-                        } else {
-                            // looks like a persistent error (such as a mapping issue);
-                            // re-try in fallback data stream which has lenient mappings
-                            Exception cause = failure.getCause();
-                            doc = createDlqDoc(doc, cause);
-                            retryBulk.add(Requests.indexRequest(routeToDataStream(doc)).opType(DocWriteRequest.OpType.CREATE).source(doc));
-                        }
+                        Exception cause = failedRequest.getFailure().getCause();
+                        doc = createDlqDoc(doc, cause);
+                        retryBulk.add(Requests.indexRequest(routeToDataStream(doc)).opType(DocWriteRequest.OpType.CREATE).source(doc));
                     });
                     client.bulk(retryBulk, new RestActionListener<>(channel) {
                         @Override
@@ -162,8 +154,10 @@ public class RestLogsAction extends BaseRestHandler {
         Map<String, Object> dlqDoc = new HashMap<>();
         dlqDoc.put("@timestamp", Instant.now().toString());
         addPath(dlqDoc, "event.original", doc);
-        addPath(dlqDoc, "error.type", ElasticsearchException.getExceptionName(cause));
-        addPath(dlqDoc, "error.message", cause.getMessage());
+        if (cause != null) {
+            addPath(dlqDoc, "error.type", ElasticsearchException.getExceptionName(cause));
+            addPath(dlqDoc, "error.message", cause.getMessage());
+        }
         addPath(dlqDoc, DATA_STREAM_TYPE, "logs");
         addPath(dlqDoc, DATA_STREAM_DATASET, "dlq");
         @SuppressWarnings("unchecked")

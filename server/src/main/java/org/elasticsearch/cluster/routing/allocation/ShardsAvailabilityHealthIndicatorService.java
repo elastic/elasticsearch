@@ -438,9 +438,8 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             case DELAYED_ALLOCATION:
                 actions.add(DIAGNOSIS_WAIT_FOR_OR_FIX_DELAYED_SHARDS);
                 break;
-            case DECIDERS_THROTTLED:
-            case FETCHING_SHARD_DATA:
             default:
+                actions.addAll(explainAllocationsAndDiagnoseDeciders(shardRouting, state));
                 break;
         }
         if (actions.isEmpty()) {

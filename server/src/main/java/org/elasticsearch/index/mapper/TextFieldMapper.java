@@ -1273,7 +1273,7 @@ public class TextFieldMapper extends FieldMapper {
             );
         }
         if (store) {
-            return new KeywordFieldMapper.StoredFieldFieldLoader(name(), simpleName());
+            return new StringStoredFieldFieldLoader(name(), simpleName());
         }
         for (Mapper sub : this) {
             if (sub.typeName().equals(KeywordFieldMapper.CONTENT_TYPE)) {

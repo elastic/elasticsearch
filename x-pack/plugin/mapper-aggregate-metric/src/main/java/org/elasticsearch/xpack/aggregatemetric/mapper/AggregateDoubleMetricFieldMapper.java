@@ -34,6 +34,7 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
+import org.elasticsearch.index.mapper.SortedNumericDocValuesSyntheticFieldLoader;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
@@ -710,7 +711,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
             Map<Metric, SortedNumericDocValues> metricDocValues = new EnumMap<>(Metric.class);
             for (Metric m : metrics) {
                 String fieldName = subfieldName(name, m);
-                SortedNumericDocValues dv = NumberFieldMapper.NumericSyntheticFieldLoader.docValuesOrNull(reader, fieldName);
+                SortedNumericDocValues dv = SortedNumericDocValuesSyntheticFieldLoader.docValuesOrNull(reader, fieldName);
                 if (dv != null) {
                     metricDocValues.put(m, dv);
                 }

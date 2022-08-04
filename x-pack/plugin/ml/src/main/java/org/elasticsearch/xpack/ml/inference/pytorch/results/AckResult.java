@@ -14,23 +14,23 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-public record ErrorResult(String error) implements ToXContentObject {
+public record AckResult(boolean acknowledged) implements ToXContentObject {
 
-    public static final ParseField ERROR = new ParseField("error");
+    public static final ParseField ACKNOWLEDGED = new ParseField("acknowledged");
 
-    public static ConstructingObjectParser<ErrorResult, Void> PARSER = new ConstructingObjectParser<>(
-        "error",
-        a -> new ErrorResult((String) a[0])
+    public static ConstructingObjectParser<AckResult, Void> PARSER = new ConstructingObjectParser<>(
+        "ack",
+        a -> new AckResult((Boolean) a[0])
     );
 
     static {
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), ERROR);
+        PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), ACKNOWLEDGED);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(ERROR.getPreferredName(), error);
+        builder.field(ACKNOWLEDGED.getPreferredName(), acknowledged);
         builder.endObject();
         return builder;
     }

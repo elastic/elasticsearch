@@ -76,8 +76,6 @@ setup:
 ---
 "Test start and stop deployment with cache":
   - skip:
-      version: all
-      reason: "@AwaitsFix https://github.com/elastic/ml-cpp/pull/2376"
       features: allowed_warnings
 
   - do:

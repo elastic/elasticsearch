@@ -376,7 +376,7 @@ public class MetadataMigrateToDataStreamServiceTests extends MapperServiceTestCa
         }
     }
 
-    public void testCreateDataStreamWithoutSuppliedWriteIndex() throws Exception {
+    public void testCreateDataStreamWithoutSuppliedWriteIndex() {
         String dataStreamName = "foo";
         AliasMetadata alias = AliasMetadata.builder(dataStreamName).build();
         IndexMetadata foo1 = IndexMetadata.builder("foo1")

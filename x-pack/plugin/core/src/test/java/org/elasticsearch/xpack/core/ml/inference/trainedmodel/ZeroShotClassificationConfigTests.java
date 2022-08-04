@@ -18,6 +18,18 @@ import java.util.function.Predicate;
 
 public class ZeroShotClassificationConfigTests extends InferenceConfigItemTestCase<ZeroShotClassificationConfig> {
 
+    public static ZeroShotClassificationConfig mutateForVersion(ZeroShotClassificationConfig instance, Version version) {
+        return new ZeroShotClassificationConfig(
+            instance.getClassificationLabels(),
+            instance.getVocabularyConfig(),
+            InferenceConfigTestScaffolding.mutateTokenizationForVersion(instance.getTokenization(), version),
+            instance.getHypothesisTemplate(),
+            instance.isMultiLabel(),
+            instance.getLabels().orElse(null),
+            instance.getResultsField()
+        );
+    }
+
     @Override
     protected boolean supportsUnknownFields() {
         return true;
@@ -45,7 +57,7 @@ public class ZeroShotClassificationConfigTests extends InferenceConfigItemTestCa
 
     @Override
     protected ZeroShotClassificationConfig mutateInstanceForVersion(ZeroShotClassificationConfig instance, Version version) {
-        return instance;
+        return mutateForVersion(instance, version);
     }
 
     public static ZeroShotClassificationConfig createRandom() {

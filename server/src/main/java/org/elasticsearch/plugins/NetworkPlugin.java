@@ -30,6 +30,7 @@ import java.util.function.Supplier;
 /**
  * Plugin for extending network and transport related classes
  */
+@Deprecated
 public interface NetworkPlugin {
 
     /**

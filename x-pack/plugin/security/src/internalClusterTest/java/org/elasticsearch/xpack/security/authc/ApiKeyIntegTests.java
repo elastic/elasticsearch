@@ -54,6 +54,9 @@ import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheRequest;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKeyTests;
+import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyAction;
@@ -124,6 +127,7 @@ import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswo
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7;
 import static org.elasticsearch.xpack.security.Security.SECURITY_CRYPTO_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -1445,7 +1449,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         });
     }
 
-    public void testUpdateApiKey() throws ExecutionException, InterruptedException, IOException {
+    public void testUpdateApiKeysForSingleKey() throws Exception {
         final Tuple<CreateApiKeyResponse, Map<String, Object>> createdApiKey = createApiKey(TEST_USER_NAME, null);
         final var apiKeyId = createdApiKey.v1().getId();
         final Map<String, Object> oldMetadata = createdApiKey.v2();
@@ -1463,7 +1467,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         );
         final var request = new UpdateApiKeyRequest(apiKeyId, newRoleDescriptors, ApiKeyTests.randomMetadata());
 
-        final UpdateApiKeyResponse response = executeUpdateApiKey(TEST_USER_NAME, request);
+        final UpdateApiKeyResponse response = updateSingleApiKeyMaybeUsingBulkAction(TEST_USER_NAME, request);
 
         assertNotNull(response);
         // In this test, non-null roleDescriptors always result in an update since they either update the role name, or associated
@@ -1522,7 +1526,210 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         }
     }
 
-    public void testUpdateApiKeyAutoUpdatesUserFields() throws IOException, ExecutionException, InterruptedException {
+    public void testBulkUpdateApiKeysForMultipleKeys() throws ExecutionException, InterruptedException, IOException {
+        final Tuple<List<CreateApiKeyResponse>, List<Map<String, Object>>> apiKeys = createApiKeys(
+            TEST_USER_NAME,
+            randomIntBetween(3, 5),
+            null
+        );
+        final List<String> apiKeyIds = apiKeys.v1().stream().map(CreateApiKeyResponse::getId).toList();
+        final List<RoleDescriptor> newRoleDescriptors = randomValueOtherThan(null, this::randomRoleDescriptors);
+        final Map<String, Object> newMetadata = randomValueOtherThan(null, ApiKeyTests::randomMetadata);
+
+        BulkUpdateApiKeyResponse response = executeBulkUpdateApiKey(
+            TEST_USER_NAME,
+            new BulkUpdateApiKeyRequest(apiKeyIds, newRoleDescriptors, newMetadata)
+        );
+
+        assertNotNull(response);
+        assertThat(response.getErrorDetails(), anEmptyMap());
+        final List<String> allIds = Stream.concat(response.getUpdated().stream(), response.getNoops().stream()).toList();
+        assertThat(allIds, containsInAnyOrder(apiKeyIds.toArray()));
+        // Role descriptor corresponding to SecuritySettingsSource.TEST_ROLE_YML
+        final var expectedLimitedByRoleDescriptors = Set.of(
+            new RoleDescriptor(
+                TEST_ROLE,
+                new String[] { "ALL" },
+                new RoleDescriptor.IndicesPrivileges[] {
+                    RoleDescriptor.IndicesPrivileges.builder().indices("*").allowRestrictedIndices(true).privileges("ALL").build() },
+                null
+            )
+        );
+        for (String apiKeyId : apiKeyIds) {
+            final Map<String, Object> doc = getApiKeyDocument(apiKeyId);
+            expectRoleDescriptorsForApiKey("role_descriptors", newRoleDescriptors, doc);
+            expectRoleDescriptorsForApiKey("limited_by_role_descriptors", expectedLimitedByRoleDescriptors, doc);
+            expectMetadataForApiKey(newMetadata, doc);
+        }
+
+        // Check that bulk update works when there are no actual updates
+        final List<String> newIds = new ArrayList<>(apiKeyIds);
+        // include not found ID to force error
+        final List<String> notFoundIds = randomList(
+            1,
+            5,
+            () -> randomValueOtherThanMany(apiKeyIds::contains, () -> randomAlphaOfLength(10))
+        );
+        newIds.addAll(notFoundIds);
+        final BulkUpdateApiKeyRequest request = new BulkUpdateApiKeyRequest(shuffledList(newIds), newRoleDescriptors, newMetadata);
+
+        response = executeBulkUpdateApiKey(TEST_USER_NAME, request);
+
+        assertNotNull(response);
+        assertThat(response.getUpdated(), empty());
+        assertEquals(apiKeyIds.size(), response.getNoops().size());
+        assertThat(response.getNoops(), containsInAnyOrder(apiKeyIds.toArray()));
+        assertThat(response.getErrorDetails().keySet(), containsInAnyOrder(notFoundIds.toArray()));
+        for (String apiKeyId : apiKeyIds) {
+            final Map<String, Object> doc = getApiKeyDocument(apiKeyId);
+            expectRoleDescriptorsForApiKey("role_descriptors", newRoleDescriptors, doc);
+            expectRoleDescriptorsForApiKey("limited_by_role_descriptors", expectedLimitedByRoleDescriptors, doc);
+            expectMetadataForApiKey(newMetadata, doc);
+        }
+
+        // Check that bulk update works when some or all updates result in errors
+        final List<String> invalidatedIds = randomNonEmptySubsetOf(apiKeyIds);
+        getSecurityClient().invalidateApiKeys(invalidatedIds.toArray(new String[0]));
+        final List<String> expectedSuccessfulIds = apiKeyIds.stream().filter(i -> invalidatedIds.contains(i) == false).toList();
+        final BulkUpdateApiKeyRequest requestWithSomeErrors = new BulkUpdateApiKeyRequest(
+            shuffledList(apiKeyIds),
+            randomValueOtherThan(null, this::randomRoleDescriptors),
+            randomValueOtherThan(null, ApiKeyTests::randomMetadata)
+        );
+
+        response = executeBulkUpdateApiKey(TEST_USER_NAME, requestWithSomeErrors);
+
+        final List<String> allSuccessfulIds = Stream.concat(response.getUpdated().stream(), response.getNoops().stream()).toList();
+        assertThat(allSuccessfulIds, containsInAnyOrder(expectedSuccessfulIds.toArray()));
+        assertThat(response.getErrorDetails().keySet(), containsInAnyOrder(invalidatedIds.toArray()));
+    }
+
+    public void testBulkUpdateApiKeysWithDuplicates() throws ExecutionException, InterruptedException {
+        final Tuple<List<CreateApiKeyResponse>, List<Map<String, Object>>> apiKeys = createApiKeys(
+            TEST_USER_NAME,
+            randomIntBetween(3, 5),
+            null
+        );
+        final List<String> apiKeyIds = apiKeys.v1().stream().map(CreateApiKeyResponse::getId).toList();
+        final List<RoleDescriptor> newRoleDescriptors = randomValueOtherThan(null, this::randomRoleDescriptors);
+        final Map<String, Object> newMetadata = randomValueOtherThan(null, ApiKeyTests::randomMetadata);
+        final List<String> idsWithDuplicates = shuffledList(Stream.concat(apiKeyIds.stream(), apiKeyIds.stream()).toList());
+        assertEquals(idsWithDuplicates.size(), apiKeyIds.size() * 2);
+
+        BulkUpdateApiKeyResponse response = executeBulkUpdateApiKey(
+            TEST_USER_NAME,
+            new BulkUpdateApiKeyRequest(idsWithDuplicates, newRoleDescriptors, newMetadata)
+        );
+
+        assertNotNull(response);
+        assertThat(response.getErrorDetails(), anEmptyMap());
+        final List<String> allIds = Stream.concat(response.getUpdated().stream(), response.getNoops().stream()).toList();
+        assertThat(allIds, containsInAnyOrder(apiKeyIds.toArray()));
+
+        // Check not found errors reported for all unique IDs
+        final List<String> notFoundIds = randomList(
+            1,
+            5,
+            () -> randomValueOtherThanMany(apiKeyIds::contains, () -> randomAlphaOfLength(10))
+        );
+        final List<String> notFoundIdsWithDuplicates = shuffledList(Stream.concat(notFoundIds.stream(), notFoundIds.stream()).toList());
+
+        response = executeBulkUpdateApiKey(
+            TEST_USER_NAME,
+            new BulkUpdateApiKeyRequest(notFoundIdsWithDuplicates, newRoleDescriptors, newMetadata)
+        );
+
+        assertNotNull(response);
+        assertThat(response.getErrorDetails().keySet(), containsInAnyOrder(notFoundIds.toArray()));
+        assertThat(response.getUpdated(), empty());
+        assertThat(response.getNoops(), empty());
+    }
+
+    public void testBulkUpdateApiKeysWithDifferentLimitedByRoleDescriptorsForSameUser() throws ExecutionException, InterruptedException,
+        IOException {
+        // Create separate native realm user and role for user role change test
+        final var nativeRealmUser = randomAlphaOfLengthBetween(5, 10);
+        final var nativeRealmRole = randomAlphaOfLengthBetween(5, 10);
+        createNativeRealmUser(
+            nativeRealmUser,
+            nativeRealmRole,
+            new String(HASHER.hash(TEST_PASSWORD_SECURE_STRING)),
+            Collections.singletonMap("Authorization", basicAuthHeaderValue(TEST_USER_NAME, TEST_PASSWORD_SECURE_STRING))
+        );
+        final List<String> firstGenerationClusterPrivileges = new ArrayList<>(randomSubsetOf(ClusterPrivilegeResolver.names()));
+        // At a minimum include privilege to manage own API key to ensure no 403
+        firstGenerationClusterPrivileges.add(randomFrom("manage_api_key", "manage_own_api_key"));
+        final RoleDescriptor firstGenerationRoleDescriptor = putRoleWithClusterPrivileges(
+            nativeRealmRole,
+            firstGenerationClusterPrivileges.toArray(new String[0])
+        );
+        final Tuple<List<CreateApiKeyResponse>, List<Map<String, Object>>> firstGenerationApiKeys = createApiKeys(
+            Collections.singletonMap("Authorization", basicAuthHeaderValue(nativeRealmUser, TEST_PASSWORD_SECURE_STRING)),
+            randomIntBetween(1, 5),
+            null,
+            "all"
+        );
+        final List<String> firstGenerationApiKeyIds = firstGenerationApiKeys.v1().stream().map(CreateApiKeyResponse::getId).toList();
+        expectRoleDescriptorsForApiKeys(
+            "limited_by_role_descriptors",
+            Set.of(firstGenerationRoleDescriptor),
+            firstGenerationApiKeyIds.stream().map(this::getApiKeyDocument).toList()
+        );
+        // Update user's permissions and create new API keys for the user. The new API keys will have different limited-by role descriptors
+        final List<String> secondGenerationClusterPrivileges = randomValueOtherThan(firstGenerationClusterPrivileges, () -> {
+            final List<String> privs = new ArrayList<>(randomSubsetOf(ClusterPrivilegeResolver.names()));
+            // At a minimum include privilege to manage own API key to ensure no 403
+            privs.add(randomFrom("manage_api_key", "manage_own_api_key"));
+            return privs;
+        });
+        final RoleDescriptor secondGenerationRoleDescriptor = putRoleWithClusterPrivileges(
+            nativeRealmRole,
+            secondGenerationClusterPrivileges.toArray(new String[0])
+        );
+        final Tuple<List<CreateApiKeyResponse>, List<Map<String, Object>>> secondGenerationApiKeys = createApiKeys(
+            Collections.singletonMap("Authorization", basicAuthHeaderValue(nativeRealmUser, TEST_PASSWORD_SECURE_STRING)),
+            randomIntBetween(1, 5),
+            null,
+            "all"
+        );
+        final List<String> secondGenerationApiKeyIds = secondGenerationApiKeys.v1().stream().map(CreateApiKeyResponse::getId).toList();
+        expectRoleDescriptorsForApiKeys(
+            "limited_by_role_descriptors",
+            Set.of(secondGenerationRoleDescriptor),
+            secondGenerationApiKeyIds.stream().map(this::getApiKeyDocument).toList()
+        );
+        // Update user role then bulk update all API keys. This should result in new limited-by role descriptors for all API keys
+        final List<String> allIds = Stream.concat(firstGenerationApiKeyIds.stream(), secondGenerationApiKeyIds.stream()).toList();
+        final List<String> finalClusterPrivileges = randomValueOtherThanMany(
+            p -> firstGenerationClusterPrivileges.equals(p) || secondGenerationClusterPrivileges.equals(p),
+            () -> {
+                final List<String> privs = new ArrayList<>(randomSubsetOf(ClusterPrivilegeResolver.names()));
+                // At a minimum include privilege to manage own API key to ensure no 403
+                privs.add(randomFrom("manage_api_key", "manage_own_api_key"));
+                return privs;
+            }
+        );
+        final RoleDescriptor finalRoleDescriptor = putRoleWithClusterPrivileges(
+            nativeRealmRole,
+            finalClusterPrivileges.toArray(new String[0])
+        );
+
+        final var response = executeBulkUpdateApiKey(
+            nativeRealmUser,
+            BulkUpdateApiKeyRequest.usingApiKeyIds(allIds.toArray(String[]::new))
+        );
+
+        assertThat(response.getErrorDetails(), anEmptyMap());
+        assertThat(response.getNoops(), empty());
+        assertThat(response.getUpdated(), containsInAnyOrder(allIds.toArray()));
+        expectRoleDescriptorsForApiKeys(
+            "limited_by_role_descriptors",
+            Set.of(finalRoleDescriptor),
+            allIds.stream().map(this::getApiKeyDocument).toList()
+        );
+    }
+
+    public void testUpdateApiKeysAutoUpdatesUserFields() throws Exception {
         // Create separate native realm user and role for user role change test
         final var nativeRealmUser = randomAlphaOfLengthBetween(5, 10);
         final var nativeRealmRole = randomAlphaOfLengthBetween(5, 10);
@@ -1563,7 +1770,10 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             newClusterPrivileges.toArray(new String[0])
         );
 
-        UpdateApiKeyResponse response = executeUpdateApiKey(nativeRealmUser, UpdateApiKeyRequest.usingApiKeyId(apiKeyId));
+        UpdateApiKeyResponse response = updateSingleApiKeyMaybeUsingBulkAction(
+            nativeRealmUser,
+            UpdateApiKeyRequest.usingApiKeyId(apiKeyId)
+        );
 
         assertNotNull(response);
         assertTrue(response.isUpdated());
@@ -1582,7 +1792,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         updateUser(updatedUser);
 
         // Update API key
-        response = executeUpdateApiKey(nativeRealmUser, UpdateApiKeyRequest.usingApiKeyId(apiKeyId));
+        response = updateSingleApiKeyMaybeUsingBulkAction(nativeRealmUser, UpdateApiKeyRequest.usingApiKeyId(apiKeyId));
 
         assertNotNull(response);
         assertTrue(response.isUpdated());
@@ -1598,24 +1808,24 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         expectCreatorForApiKey(expectedCreator, updatedApiKeyDoc);
     }
 
-    public void testUpdateApiKeyNotFoundScenarios() throws ExecutionException, InterruptedException {
+    public void testUpdateApiKeysNotFoundScenarios() throws Exception {
         final Tuple<CreateApiKeyResponse, Map<String, Object>> createdApiKey = createApiKey(TEST_USER_NAME, null);
         final var apiKeyId = createdApiKey.v1().getId();
         final var expectedRoleDescriptor = new RoleDescriptor(randomAlphaOfLength(10), new String[] { "all" }, null, null);
         final var request = new UpdateApiKeyRequest(apiKeyId, List.of(expectedRoleDescriptor), ApiKeyTests.randomMetadata());
 
         // Validate can update own API key
-        final UpdateApiKeyResponse response = executeUpdateApiKey(TEST_USER_NAME, request);
+        final UpdateApiKeyResponse response = updateSingleApiKeyMaybeUsingBulkAction(TEST_USER_NAME, request);
         assertNotNull(response);
         assertTrue(response.isUpdated());
 
         // Test not found exception on non-existent API key
         final var otherApiKeyId = randomValueOtherThan(apiKeyId, () -> randomAlphaOfLength(20));
-        doTestUpdateApiKeyNotFound(new UpdateApiKeyRequest(otherApiKeyId, request.getRoleDescriptors(), request.getMetadata()));
+        doTestUpdateApiKeysNotFound(new UpdateApiKeyRequest(otherApiKeyId, request.getRoleDescriptors(), request.getMetadata()));
 
         // Test not found exception on other user's API key
         final Tuple<CreateApiKeyResponse, Map<String, Object>> otherUsersApiKey = createApiKey("user_with_manage_api_key_role", null);
-        doTestUpdateApiKeyNotFound(
+        doTestUpdateApiKeysNotFound(
             new UpdateApiKeyRequest(otherUsersApiKey.v1().getId(), request.getRoleDescriptors(), request.getMetadata())
         );
 
@@ -1635,12 +1845,12 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             null,
             "all"
         ).v1().get(0);
-        doTestUpdateApiKeyNotFound(
+        doTestUpdateApiKeysNotFound(
             new UpdateApiKeyRequest(apiKeyForNativeRealmUser.getId(), request.getRoleDescriptors(), request.getMetadata())
         );
     }
 
-    public void testInvalidUpdateApiKeyScenarios() throws ExecutionException, InterruptedException {
+    public void testInvalidUpdateApiKeysScenarios() throws ExecutionException, InterruptedException {
         final List<String> apiKeyPrivileges = new ArrayList<>(randomSubsetOf(ClusterPrivilegeResolver.names()));
         // At a minimum include privilege to manage own API key to ensure no 403
         apiKeyPrivileges.add(randomFrom("manage_api_key", "manage_own_api_key"));
@@ -1650,7 +1860,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
         final var roleDescriptor = new RoleDescriptor(randomAlphaOfLength(10), new String[] { "manage_own_api_key" }, null, null);
         final var request = new UpdateApiKeyRequest(apiKeyId, List.of(roleDescriptor), ApiKeyTests.randomMetadata());
-        PlainActionFuture<UpdateApiKeyResponse> updateListener = new PlainActionFuture<>();
+        final PlainActionFuture<UpdateApiKeyResponse> updateListener = new PlainActionFuture<>();
         client().filterWithHeader(
             Collections.singletonMap(
                 "Authorization",
@@ -1683,14 +1893,10 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             assertThat(expirationDateUpdatedResponse.getResult(), is(DocWriteResponse.Result.UPDATED));
         }
 
-        updateListener = new PlainActionFuture<>();
-        final Client client = client().filterWithHeader(
-            Collections.singletonMap("Authorization", basicAuthHeaderValue(TEST_USER_NAME, TEST_PASSWORD_SECURE_STRING))
+        final var ex = expectThrowsWithUnwrappedExecutionException(
+            IllegalArgumentException.class,
+            () -> updateSingleApiKeyMaybeUsingBulkAction(TEST_USER_NAME, request)
         );
-        client.execute(UpdateApiKeyAction.INSTANCE, request, updateListener);
-        final var ex = expectThrows(ExecutionException.class, updateListener::get);
-
-        assertThat(ex.getCause(), instanceOf(IllegalArgumentException.class));
         if (invalidated) {
             assertThat(ex.getMessage(), containsString("cannot update invalidated API key [" + apiKeyId + "]"));
         } else {
@@ -1698,12 +1904,11 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         }
     }
 
-    public void testUpdateApiKeyAccountsForSecurityDomains() throws ExecutionException, InterruptedException, IOException {
+    public void testUpdateApiKeysAccountsForSecurityDomains() throws Exception {
         final Tuple<CreateApiKeyResponse, Map<String, Object>> createdApiKey = createApiKey(TEST_USER_NAME, null);
         final var apiKeyId = createdApiKey.v1().getId();
 
         final ServiceWithNodeName serviceWithNodeName = getServiceWithNodeName();
-        final PlainActionFuture<UpdateApiKeyResponse> listener = new PlainActionFuture<>();
         final RealmConfig.RealmIdentifier creatorRealmOnCreatedApiKey = new RealmConfig.RealmIdentifier(FileRealmSettings.TYPE, "file");
         final RealmConfig.RealmIdentifier otherRealmInDomain = AuthenticationTestHelper.randomRealmIdentifier(true);
         final var realmDomain = new RealmDomain(
@@ -1726,11 +1931,14 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 )
                 .build()
         );
-        serviceWithNodeName.service().updateApiKey(authentication, UpdateApiKeyRequest.usingApiKeyId(apiKeyId), Set.of(), listener);
-        final UpdateApiKeyResponse response = listener.get();
+        final BulkUpdateApiKeyResponse response = updateApiKeys(
+            serviceWithNodeName.service(),
+            authentication,
+            BulkUpdateApiKeyRequest.usingApiKeyIds(apiKeyId),
+            Set.of()
+        );
 
-        assertNotNull(response);
-        assertTrue(response.isUpdated());
+        assertSingleUpdate(apiKeyId, response);
         final Map<String, Object> expectedCreator = new HashMap<>();
         expectedCreator.put("principal", TEST_USER_NAME);
         expectedCreator.put("full_name", null);
@@ -1743,7 +1951,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         expectCreatorForApiKey(expectedCreator, getApiKeyDocument(apiKeyId));
     }
 
-    public void testNoopUpdateApiKey() throws ExecutionException, InterruptedException, IOException {
+    public void testUpdateApiKeysNoopScenarios() throws Exception {
         final Tuple<CreateApiKeyResponse, Map<String, Object>> createdApiKey = createApiKey(TEST_USER_NAME, null);
         final var apiKeyId = createdApiKey.v1().getId();
 
@@ -1754,7 +1962,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             // metadata updates are non-noops
             randomValueOtherThanMany(Objects::isNull, ApiKeyTests::randomMetadata)
         );
-        UpdateApiKeyResponse response = executeUpdateApiKey(TEST_USER_NAME, initialRequest);
+        UpdateApiKeyResponse response = updateSingleApiKeyMaybeUsingBulkAction(TEST_USER_NAME, initialRequest);
         assertNotNull(response);
         // First update is not noop, because role descriptors changed and possibly metadata
         assertTrue(response.isUpdated());
@@ -1767,13 +1975,13 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             .findFirst()
             .orElseThrow();
         final int count = serviceWithNameForDoc1.getDocCache().count();
-        response = executeUpdateApiKey(TEST_USER_NAME, initialRequest);
+        response = updateSingleApiKeyMaybeUsingBulkAction(TEST_USER_NAME, initialRequest);
         assertNotNull(response);
         assertFalse(response.isUpdated());
         assertEquals(count, serviceWithNameForDoc1.getDocCache().count());
 
         // Update with empty request is a noop
-        response = executeUpdateApiKey(TEST_USER_NAME, UpdateApiKeyRequest.usingApiKeyId(apiKeyId));
+        response = updateSingleApiKeyMaybeUsingBulkAction(TEST_USER_NAME, UpdateApiKeyRequest.usingApiKeyId(apiKeyId));
         assertNotNull(response);
         assertFalse(response.isUpdated());
 
@@ -1788,12 +1996,12 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 () -> RoleDescriptorTests.randomRoleDescriptor(false)
             )
         );
-        response = executeUpdateApiKey(TEST_USER_NAME, new UpdateApiKeyRequest(apiKeyId, newRoleDescriptors, null));
+        response = updateSingleApiKeyMaybeUsingBulkAction(TEST_USER_NAME, new UpdateApiKeyRequest(apiKeyId, newRoleDescriptors, null));
         assertNotNull(response);
         assertTrue(response.isUpdated());
 
         // Update with re-ordered role descriptors is a noop
-        response = executeUpdateApiKey(
+        response = updateSingleApiKeyMaybeUsingBulkAction(
             TEST_USER_NAME,
             new UpdateApiKeyRequest(apiKeyId, List.of(newRoleDescriptors.get(1), newRoleDescriptors.get(0)), null)
         );
@@ -1801,7 +2009,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertFalse(response.isUpdated());
 
         // Update with different metadata is not a noop
-        response = executeUpdateApiKey(
+        response = updateSingleApiKeyMaybeUsingBulkAction(
             TEST_USER_NAME,
             new UpdateApiKeyRequest(
                 apiKeyId,
@@ -1816,7 +2024,6 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         // First, ensure that the user role descriptors alone do *not* cause an update, so we can test that we correctly perform the noop
         // check when we update creator info
         final ServiceWithNodeName serviceWithNodeName = getServiceWithNodeName();
-        PlainActionFuture<UpdateApiKeyResponse> listener = new PlainActionFuture<>();
         // Role descriptor corresponding to SecuritySettingsSource.TEST_ROLE_YML, i.e., should not result in update
         final Set<RoleDescriptor> oldUserRoleDescriptors = Set.of(
             new RoleDescriptor(
@@ -1827,19 +2034,18 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 null
             )
         );
-        serviceWithNodeName.service()
-            .updateApiKey(
+        assertSingleNoop(
+            apiKeyId,
+            updateApiKeys(
+                serviceWithNodeName.service(),
                 Authentication.newRealmAuthentication(
                     new User(TEST_USER_NAME, TEST_ROLE),
                     new Authentication.RealmRef("file", "file", serviceWithNodeName.nodeName())
                 ),
-                UpdateApiKeyRequest.usingApiKeyId(apiKeyId),
-                oldUserRoleDescriptors,
-                listener
-            );
-        response = listener.get();
-        assertNotNull(response);
-        assertFalse(response.isUpdated());
+                BulkUpdateApiKeyRequest.usingApiKeyIds(apiKeyId),
+                oldUserRoleDescriptors
+            )
+        );
         final User updatedUser = AuthenticationTestHelper.userWithRandomMetadataAndDetails(TEST_USER_NAME, TEST_ROLE);
         final RealmConfig.RealmIdentifier creatorRealmOnCreatedApiKey = new RealmConfig.RealmIdentifier(FileRealmSettings.TYPE, "file");
         final boolean noUserChanges = updatedUser.equals(new User(TEST_USER_NAME, TEST_ROLE));
@@ -1868,15 +2074,18 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             Authentication::isApiKey,
             () -> AuthenticationTestHelper.builder().user(updatedUser).realmRef(realmRef).build()
         );
-        listener = new PlainActionFuture<>();
-        serviceWithNodeName.service()
-            .updateApiKey(authentication, UpdateApiKeyRequest.usingApiKeyId(apiKeyId), oldUserRoleDescriptors, listener);
-        response = listener.get();
-        assertNotNull(response);
-        assertTrue(response.isUpdated());
+        assertSingleUpdate(
+            apiKeyId,
+            updateApiKeys(
+                serviceWithNodeName.service(),
+                authentication,
+                BulkUpdateApiKeyRequest.usingApiKeyIds(apiKeyId),
+                oldUserRoleDescriptors
+            )
+        );
     }
 
-    public void testUpdateApiKeyAutoUpdatesLegacySuperuserRoleDescriptor() throws ExecutionException, InterruptedException, IOException {
+    public void testUpdateApiKeysAutoUpdatesLegacySuperuserRoleDescriptor() throws Exception {
         final Tuple<CreateApiKeyResponse, Map<String, Object>> createdApiKey = createApiKey(TEST_USER_NAME, null);
         final var apiKeyId = createdApiKey.v1().getId();
         final ServiceWithNodeName serviceWithNodeName = getServiceWithNodeName();
@@ -1885,35 +2094,43 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             new Authentication.RealmRef("file", "file", serviceWithNodeName.nodeName())
         );
         final Set<RoleDescriptor> legacySuperuserRoleDescriptor = Set.of(ApiKeyService.LEGACY_SUPERUSER_ROLE_DESCRIPTOR);
-        PlainActionFuture<UpdateApiKeyResponse> listener = new PlainActionFuture<>();
         // Force set user role descriptors to 7.x legacy superuser role descriptors
-        serviceWithNodeName.service()
-            .updateApiKey(authentication, UpdateApiKeyRequest.usingApiKeyId(apiKeyId), legacySuperuserRoleDescriptor, listener);
-        UpdateApiKeyResponse response = listener.get();
-        assertNotNull(response);
-        assertTrue(response.isUpdated());
+        assertSingleUpdate(
+            apiKeyId,
+            updateApiKeys(
+                serviceWithNodeName.service(),
+                authentication,
+                BulkUpdateApiKeyRequest.usingApiKeyIds(apiKeyId),
+                legacySuperuserRoleDescriptor
+            )
+        );
         expectRoleDescriptorsForApiKey("limited_by_role_descriptors", legacySuperuserRoleDescriptor, getApiKeyDocument(apiKeyId));
 
         final Set<RoleDescriptor> currentSuperuserRoleDescriptors = Set.of(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR);
-        PlainActionFuture<UpdateApiKeyResponse> listener2 = new PlainActionFuture<>();
-        serviceWithNodeName.service()
-            .updateApiKey(authentication, UpdateApiKeyRequest.usingApiKeyId(apiKeyId), currentSuperuserRoleDescriptors, listener2);
-        response = listener2.get();
-        assertNotNull(response);
         // The first request is not a noop because we are auto-updating the legacy role descriptors to 8.x role descriptors
-        assertTrue(response.isUpdated());
+        assertSingleUpdate(
+            apiKeyId,
+            updateApiKeys(
+                serviceWithNodeName.service(),
+                authentication,
+                BulkUpdateApiKeyRequest.usingApiKeyIds(apiKeyId),
+                currentSuperuserRoleDescriptors
+            )
+        );
         expectRoleDescriptorsForApiKey("limited_by_role_descriptors", currentSuperuserRoleDescriptors, getApiKeyDocument(apiKeyId));
-
-        PlainActionFuture<UpdateApiKeyResponse> listener3 = new PlainActionFuture<>();
-        serviceWithNodeName.service()
-            .updateApiKey(authentication, UpdateApiKeyRequest.usingApiKeyId(apiKeyId), currentSuperuserRoleDescriptors, listener3);
-        response = listener3.get();
-        assertNotNull(response);
         // Second update is noop because role descriptors were auto-updated by the previous request
-        assertFalse(response.isUpdated());
+        assertSingleNoop(
+            apiKeyId,
+            updateApiKeys(
+                serviceWithNodeName.service(),
+                authentication,
+                BulkUpdateApiKeyRequest.usingApiKeyIds(apiKeyId),
+                currentSuperuserRoleDescriptors
+            )
+        );
     }
 
-    public void testUpdateApiKeyClearsApiKeyDocCache() throws IOException, ExecutionException, InterruptedException {
+    public void testUpdateApiKeysClearsApiKeyDocCache() throws Exception {
         final List<ServiceWithNodeName> services = Arrays.stream(internalCluster().getNodeNames())
             .map(n -> new ServiceWithNodeName(internalCluster().getInstance(ApiKeyService.class, n), n))
             .toList();
@@ -1948,17 +2165,16 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final int serviceForDoc2AuthCacheCount = serviceForDoc2.getApiKeyAuthCache().count();
 
         // Update the first key
-        final PlainActionFuture<UpdateApiKeyResponse> listener = new PlainActionFuture<>();
-        final Client client = client().filterWithHeader(
-            Collections.singletonMap("Authorization", basicAuthHeaderValue(ES_TEST_ROOT_USER, TEST_PASSWORD_SECURE_STRING))
+        final UpdateApiKeyResponse response = updateSingleApiKeyMaybeUsingBulkAction(
+            ES_TEST_ROOT_USER,
+            new UpdateApiKeyRequest(
+                apiKey1.v1(),
+                List.of(),
+                // Set metadata to ensure update
+                Map.of(randomAlphaOfLength(5), randomAlphaOfLength(10))
+            )
         );
-        client.execute(
-            UpdateApiKeyAction.INSTANCE,
-            // Set metadata to ensure update
-            new UpdateApiKeyRequest(apiKey1.v1(), List.of(), Map.of(randomAlphaOfLength(5), randomAlphaOfLength(10))),
-            listener
-        );
-        final var response = listener.get();
+
         assertNotNull(response);
         assertTrue(response.isUpdated());
 
@@ -2002,14 +2218,11 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         };
     }
 
-    private void doTestUpdateApiKeyNotFound(UpdateApiKeyRequest request) {
-        final PlainActionFuture<UpdateApiKeyResponse> listener = new PlainActionFuture<>();
-        final Client client = client().filterWithHeader(
-            Collections.singletonMap("Authorization", basicAuthHeaderValue(TEST_USER_NAME, TEST_PASSWORD_SECURE_STRING))
+    private void doTestUpdateApiKeysNotFound(final UpdateApiKeyRequest request) {
+        final var ex = expectThrowsWithUnwrappedExecutionException(
+            ResourceNotFoundException.class,
+            () -> updateSingleApiKeyMaybeUsingBulkAction(TEST_USER_NAME, request)
         );
-        client.execute(UpdateApiKeyAction.INSTANCE, request, listener);
-        final var ex = expectThrows(ExecutionException.class, listener::get);
-        assertThat(ex.getCause(), instanceOf(ResourceNotFoundException.class));
         assertThat(ex.getMessage(), containsString("no API key owned by requesting user found for ID [" + request.getId() + "]"));
     }
 
@@ -2047,6 +2260,16 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 XContentType.JSON
             );
             assertEquals(expectedRoleDescriptor, roleDescriptor);
+        }
+    }
+
+    private void expectRoleDescriptorsForApiKeys(
+        final String roleDescriptorType,
+        final Collection<RoleDescriptor> expectedRoleDescriptors,
+        final List<Map<String, Object>> actualRawApiKeyDocs
+    ) throws IOException {
+        for (Map<String, Object> actualDoc : actualRawApiKeyDocs) {
+            expectRoleDescriptorsForApiKey(roleDescriptorType, expectedRoleDescriptors, actualDoc);
         }
     }
 
@@ -2338,14 +2561,78 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         );
     }
 
-    private UpdateApiKeyResponse executeUpdateApiKey(final String username, final UpdateApiKeyRequest request) throws InterruptedException,
-        ExecutionException {
-        final var listener = new PlainActionFuture<UpdateApiKeyResponse>();
+    private BulkUpdateApiKeyResponse updateApiKeys(
+        final ApiKeyService service,
+        final Authentication authentication,
+        final BulkUpdateApiKeyRequest request,
+        final Set<RoleDescriptor> userRoleDescriptors
+    ) throws Exception {
+        final PlainActionFuture<BulkUpdateApiKeyResponse> listener = new PlainActionFuture<>();
+        service.updateApiKeys(authentication, request, userRoleDescriptors, listener);
+        return listener.get();
+    }
+
+    private void assertSingleUpdate(final String apiKeyId, final BulkUpdateApiKeyResponse response) {
+        assertNotNull(response);
+        assertThat(response.getErrorDetails(), anEmptyMap());
+        assertThat(response.getNoops(), empty());
+        assertThat(response.getUpdated(), contains(apiKeyId));
+    }
+
+    private void assertSingleNoop(final String apiKeyId, final BulkUpdateApiKeyResponse response) {
+        assertNotNull(response);
+        assertThat(response.getErrorDetails(), anEmptyMap());
+        assertThat(response.getNoops(), contains(apiKeyId));
+        assertThat(response.getUpdated(), empty());
+    }
+
+    private void assertSingleError(final String apiKeyId, final BulkUpdateApiKeyResponse response) {
+        assertNotNull(response);
+        assertThat(response.getErrorDetails().keySet(), contains(apiKeyId));
+        assertThat(response.getUpdated(), empty());
+        assertThat(response.getNoops(), empty());
+    }
+
+    private UpdateApiKeyResponse updateSingleApiKeyMaybeUsingBulkAction(final String username, final UpdateApiKeyRequest request)
+        throws Exception {
+        final boolean useBulkAction = randomBoolean();
+        if (useBulkAction) {
+            final BulkUpdateApiKeyResponse response = executeBulkUpdateApiKey(
+                username,
+                new BulkUpdateApiKeyRequest(List.of(request.getId()), request.getRoleDescriptors(), request.getMetadata())
+            );
+            return toUpdateApiKeyResponse(request.getId(), response);
+        } else {
+            final var listener = new PlainActionFuture<UpdateApiKeyResponse>();
+            final Client client = client().filterWithHeader(
+                Collections.singletonMap("Authorization", basicAuthHeaderValue(username, TEST_PASSWORD_SECURE_STRING))
+            );
+            client.execute(UpdateApiKeyAction.INSTANCE, request, listener);
+            return listener.get();
+        }
+    }
+
+    private BulkUpdateApiKeyResponse executeBulkUpdateApiKey(final String username, final BulkUpdateApiKeyRequest request)
+        throws ExecutionException, InterruptedException {
+        final var listener = new PlainActionFuture<BulkUpdateApiKeyResponse>();
         final Client client = client().filterWithHeader(
             Collections.singletonMap("Authorization", basicAuthHeaderValue(username, TEST_PASSWORD_SECURE_STRING))
         );
-        client.execute(UpdateApiKeyAction.INSTANCE, request, listener);
+        client.execute(BulkUpdateApiKeyAction.INSTANCE, request, listener);
         return listener.get();
+    }
+
+    private UpdateApiKeyResponse toUpdateApiKeyResponse(final String apiKeyId, final BulkUpdateApiKeyResponse response) throws Exception {
+        if (response.getErrorDetails().isEmpty() == false) {
+            assertSingleError(apiKeyId, response);
+            throw response.getErrorDetails().values().iterator().next();
+        } else if (response.getUpdated().isEmpty() == false) {
+            assertSingleUpdate(apiKeyId, response);
+            return new UpdateApiKeyResponse(true);
+        } else {
+            assertSingleNoop(apiKeyId, response);
+            return new UpdateApiKeyResponse(false);
+        }
     }
 
     private void assertErrorMessage(final ElasticsearchSecurityException ese, String action, String userName, String apiKeyId) {
@@ -2363,5 +2650,15 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertThat(ese, throwableWithMessage(containsString("action [" + action + "] is unauthorized for user [" + userName + "]")));
         assertThat(ese, throwableWithMessage(containsString(", this action is granted by the cluster privileges [")));
         assertThat(ese, throwableWithMessage(containsString("manage_api_key,manage_security,all]")));
+    }
+
+    private static <T extends Throwable> T expectThrowsWithUnwrappedExecutionException(Class<T> expectedType, ThrowingRunnable runnable) {
+        final var ex = expectThrowsAnyOf(List.of(expectedType, ExecutionException.class), runnable);
+        if (ex instanceof ExecutionException) {
+            assertThat(ex.getCause(), instanceOf(expectedType));
+            return expectedType.cast(ex.getCause());
+        } else {
+            return expectedType.cast(ex);
+        }
     }
 }

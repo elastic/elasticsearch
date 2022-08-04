@@ -626,7 +626,7 @@ public class TextStructure implements ToXContentObject, Writeable {
         }
 
         public Builder setEcsCompatibility(String ecsCompatibility) {
-            this.ecsCompatibility = TextStructure.getNonNullEcsCompatibilityString(ecsCompatibility);
+            this.ecsCompatibility = ecsCompatibility;
             return this;
         }
 

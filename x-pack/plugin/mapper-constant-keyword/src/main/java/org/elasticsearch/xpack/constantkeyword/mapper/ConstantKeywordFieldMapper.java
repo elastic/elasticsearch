@@ -24,6 +24,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.fielddata.FieldData;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
 import org.elasticsearch.index.mapper.ConstantFieldType;
@@ -34,10 +35,10 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.constantkeyword.ConstantKeywordDocValuesField;
@@ -50,7 +51,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Supplier;
 
 /**
  * A {@link FieldMapper} that assigns every document the same value.
@@ -87,8 +87,8 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected List<Parameter<?>> getParameters() {
-            return List.of(value, meta);
+        protected Parameter<?>[] getParameters() {
+            return new Parameter<?>[] { value, meta };
         }
 
         @Override
@@ -131,7 +131,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+        public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             return new ConstantIndexFieldData.Builder(
                 value,
                 name(),
@@ -151,16 +151,19 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
 
         @Override
         public TermsEnum getTerms(boolean caseInsensitive, String string, SearchExecutionContext queryShardContext, String searchAfter) {
+            if (value == null) {
+                return TermsEnum.EMPTY;
+            }
             boolean matches = caseInsensitive
                 ? value.toLowerCase(Locale.ROOT).startsWith(string.toLowerCase(Locale.ROOT))
                 : value.startsWith(string);
             if (matches == false) {
-                return null;
+                return TermsEnum.EMPTY;
             }
             if (searchAfter != null) {
                 if (searchAfter.compareTo(value) >= 0) {
                     // The constant value is before the searchAfter value so must be ignored
-                    return null;
+                    return TermsEnum.EMPTY;
                 }
             }
             return new SimpleTermCountEnum(value);
@@ -304,4 +307,25 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         return CONTENT_TYPE;
     }
 
+    @Override
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        return (reader, docIdsInLeaf) -> new SourceLoader.SyntheticFieldLoader.Leaf() {
+            @Override
+            public boolean empty() {
+                return fieldType().value == null;
+            }
+
+            @Override
+            public boolean advanceToDoc(int docId) throws IOException {
+                return fieldType().value != null;
+            }
+
+            @Override
+            public void write(XContentBuilder b) throws IOException {
+                if (fieldType().value != null) {
+                    b.field(simpleName(), fieldType().value);
+                }
+            }
+        };
+    }
 }

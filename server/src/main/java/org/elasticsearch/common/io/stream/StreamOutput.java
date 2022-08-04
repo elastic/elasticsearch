@@ -24,6 +24,7 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.Writeable.Writer;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.core.Nullable;
@@ -93,10 +94,6 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     public long position() throws IOException {
-        throw new UnsupportedOperationException();
-    }
-
-    public void seek(long position) throws IOException {
         throw new UnsupportedOperationException();
     }
 
@@ -193,8 +190,7 @@ public abstract class StreamOutput extends OutputStream {
 
     public final void writeShort(short v) throws IOException {
         final byte[] buffer = scratch.get();
-        buffer[0] = (byte) (v >> 8);
-        buffer[1] = (byte) v;
+        ByteUtils.writeShortBE(v, buffer, 0);
         writeBytes(buffer, 0, 2);
     }
 
@@ -203,10 +199,7 @@ public abstract class StreamOutput extends OutputStream {
      */
     public void writeInt(int i) throws IOException {
         final byte[] buffer = scratch.get();
-        buffer[0] = (byte) (i >> 24);
-        buffer[1] = (byte) (i >> 16);
-        buffer[2] = (byte) (i >> 8);
-        buffer[3] = (byte) i;
+        ByteUtils.writeIntBE(i, buffer, 0);
         writeBytes(buffer, 0, 4);
     }
 
@@ -232,13 +225,26 @@ public abstract class StreamOutput extends OutputStream {
             return;
         }
         byte[] buffer = scratch.get();
-        int index = 0;
+        int index = putMultiByteVInt(buffer, i, 0);
+        writeBytes(buffer, 0, index);
+    }
+
+    private static int putVInt(byte[] buffer, int i, int off) {
+        if (Integer.numberOfLeadingZeros(i) >= 25) {
+            buffer[off] = (byte) i;
+            return 1;
+        }
+        return putMultiByteVInt(buffer, i, off);
+    }
+
+    private static int putMultiByteVInt(byte[] buffer, int i, int off) {
+        int index = off;
         do {
             buffer[index++] = ((byte) ((i & 0x7f) | 0x80));
             i >>>= 7;
         } while ((i & ~0x7F) != 0);
-        buffer[index++] = ((byte) i);
-        writeBytes(buffer, 0, index);
+        buffer[index++] = (byte) i;
+        return index - off;
     }
 
     /**
@@ -246,14 +252,7 @@ public abstract class StreamOutput extends OutputStream {
      */
     public void writeLong(long i) throws IOException {
         final byte[] buffer = scratch.get();
-        buffer[0] = (byte) (i >> 56);
-        buffer[1] = (byte) (i >> 48);
-        buffer[2] = (byte) (i >> 40);
-        buffer[3] = (byte) (i >> 32);
-        buffer[4] = (byte) (i >> 24);
-        buffer[5] = (byte) (i >> 16);
-        buffer[6] = (byte) (i >> 8);
-        buffer[7] = (byte) i;
+        ByteUtils.writeLongBE(i, buffer, 0);
         writeBytes(buffer, 0, 8);
     }
 
@@ -326,8 +325,10 @@ public abstract class StreamOutput extends OutputStream {
         if (str == null) {
             writeBoolean(false);
         } else {
-            writeBoolean(true);
-            writeString(str);
+            byte[] buffer = scratch.get();
+            // put the true byte into the buffer instead of writing it outright to do fewer flushes
+            buffer[0] = ONE;
+            writeString(str, buffer, 1);
         }
     }
 
@@ -398,10 +399,21 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     public void writeString(String str) throws IOException {
+        writeString(str, scratch.get(), 0);
+    }
+
+    /**
+     * Write string as well as possibly the beginning of the given {@code buffer}. The given {@code buffer} will also be used when encoding
+     * the given string.
+     *
+     * @param str string to write
+     * @param buffer buffer that may hold some bytes to write
+     * @param off how many bytes in {code buffer} to write
+     * @throws IOException on failure
+     */
+    private void writeString(String str, byte[] buffer, int off) throws IOException {
         final int charCount = str.length();
-        byte[] buffer = scratch.get();
-        int offset = 0;
-        writeVInt(charCount);
+        int offset = off + putVInt(buffer, charCount, off);
         for (int i = 0; i < charCount; i++) {
             final int c = str.charAt(i);
             if (c <= 0x007F) {
@@ -451,9 +463,9 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
-    private static byte ZERO = 0;
-    private static byte ONE = 1;
-    private static byte TWO = 2;
+    private static final byte ZERO = 0;
+    private static final byte ONE = 1;
+    private static final byte TWO = 2;
 
     /**
      * Writes a boolean.
@@ -481,8 +493,6 @@ public abstract class StreamOutput extends OutputStream {
      */
     @Override
     public abstract void close() throws IOException;
-
-    public abstract void reset() throws IOException;
 
     @Override
     public void write(int b) throws IOException {
@@ -766,8 +776,10 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     public void writeGenericString(String value) throws IOException {
-        writeByte((byte) 0);
-        writeString(value);
+        byte[] buffer = scratch.get();
+        // put the 0 type identifier byte into the buffer instead of writing it outright to do fewer flushes
+        buffer[0] = 0;
+        writeString(value, buffer, 1);
     }
 
     public void writeGenericNull() throws IOException {
@@ -1161,6 +1173,27 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
+     * Writes an optional collection. The corresponding collection can be read from a stream input using
+     * {@link StreamInput#readOptionalList(Writeable.Reader)}.
+     */
+    public <T extends Writeable> void writeOptionalCollection(final Collection<T> collection) throws IOException {
+        writeOptionalCollection(collection, (o, v) -> v.writeTo(o));
+    }
+
+    /**
+     * Writes an optional collection via {@link Writer}. The corresponding collection can be read from a stream input using
+     * {@link StreamInput#readOptionalList(Writeable.Reader)}.
+     */
+    public <T> void writeOptionalCollection(final Collection<T> collection, final Writer<T> writer) throws IOException {
+        if (collection != null) {
+            writeBoolean(true);
+            writeCollection(collection, writer);
+        } else {
+            writeBoolean(false);
+        }
+    }
+
+    /**
      * Writes an optional collection of a strings. The corresponding collection can be read from a stream input using
      * {@link StreamInput#readList(Writeable.Reader)}.
      *
@@ -1168,12 +1201,7 @@ public abstract class StreamOutput extends OutputStream {
      * @throws IOException if an I/O exception occurs writing the collection
      */
     public void writeOptionalStringCollection(final Collection<String> collection) throws IOException {
-        if (collection != null) {
-            writeBoolean(true);
-            writeCollection(collection, StreamOutput::writeString);
-        } else {
-            writeBoolean(false);
-        }
+        writeOptionalCollection(collection, StreamOutput::writeString);
     }
 
     /**

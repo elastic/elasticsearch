@@ -32,7 +32,7 @@ class SimulateExecutionService {
         this.threadPool = threadPool;
     }
 
-    void executeDocument(
+    static void executeDocument(
         Pipeline pipeline,
         IngestDocument ingestDocument,
         boolean verbose,

@@ -82,6 +82,8 @@ include::cluster/get-settings.asciidoc[]
 
 include::cluster/health.asciidoc[]
 
+include::health/health.asciidoc[]
+
 include::cluster/reroute.asciidoc[]
 
 include::cluster/state.asciidoc[]

@@ -27,7 +27,7 @@ public class MinHashTokenFilterFactory extends AbstractTokenFilterFactory {
     private final MinHashFilterFactory minHashFilterFactory;
 
     MinHashTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-        super(indexSettings, name, settings);
+        super(name, settings);
         minHashFilterFactory = new MinHashFilterFactory(convertSettings(settings));
     }
 
@@ -36,7 +36,7 @@ public class MinHashTokenFilterFactory extends AbstractTokenFilterFactory {
         return minHashFilterFactory.create(tokenStream);
     }
 
-    private Map<String, String> convertSettings(Settings settings) {
+    private static Map<String, String> convertSettings(Settings settings) {
         Map<String, String> settingMap = new HashMap<>();
         if (settings.hasValue("hash_count")) {
             settingMap.put("hashCount", settings.get("hash_count"));

@@ -17,6 +17,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
@@ -33,9 +34,14 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
+import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
+import org.elasticsearch.xpack.core.security.user.SecurityProfileUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
+import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
@@ -48,6 +54,13 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_PROFILE_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.TRANSFORM_ORIGIN;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -82,9 +95,11 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
     }
 
     public void testSendAsync() throws Exception {
-        final User authUser = randomBoolean() ? new User("authenticator") : null;
-        final User user = new User("test", randomRoles(), authUser);
-        final Authentication authentication = new Authentication(user, new RealmRef("ldap", "foo", "node1"), null);
+        final User user = new User("test", randomRoles());
+        final Authentication authentication = AuthenticationTestHelper.builder()
+            .user(user)
+            .realmRef(new RealmRef("ldap", "foo", "node1"))
+            .build(false);
         authentication.writeToContext(threadContext);
         SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(
             settings,
@@ -127,9 +142,11 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
     }
 
     public void testSendAsyncSwitchToSystem() throws Exception {
-        final User authUser = randomBoolean() ? new User("authenticator") : null;
-        final User user = new User("test", randomRoles(), authUser);
-        final Authentication authentication = new Authentication(user, new RealmRef("ldap", "foo", "node1"), null);
+        final User user = new User("test", randomRoles());
+        final Authentication authentication = AuthenticationTestHelper.builder()
+            .user(user)
+            .realmRef(new RealmRef("ldap", "foo", "node1"))
+            .build(false);
         authentication.writeToContext(threadContext);
         threadContext.putTransient(AuthorizationServiceField.ORIGINATING_ACTION_KEY, "indices:foo");
 
@@ -218,8 +235,20 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
 
     public void testSendToNewerVersionSetsCorrectVersion() throws Exception {
         final User authUser = randomBoolean() ? new User("authenticator") : null;
-        final User user = new User("joe", randomRoles(), authUser);
-        final Authentication authentication = new Authentication(user, new RealmRef("file", "file", "node1"), null);
+        final Authentication authentication;
+        if (authUser == null) {
+            authentication = AuthenticationTestHelper.builder()
+                .user(new User("joe", randomRoles()))
+                .realmRef(new RealmRef("file", "file", "node1"))
+                .build(false);
+        } else {
+            authentication = AuthenticationTestHelper.builder()
+                .realm()
+                .user(authUser)
+                .realmRef(new RealmRef("file", "file", "node1"))
+                .build(false)
+                .runAs(new User("joe", randomRoles()), null);
+        }
         authentication.writeToContext(threadContext);
         threadContext.putTransient(AuthorizationServiceField.ORIGINATING_ACTION_KEY, "indices:foo");
 
@@ -264,16 +293,28 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         when(connection.getVersion()).thenReturn(connectionVersion);
         sender.sendRequest(connection, "indices:foo[s]", null, null, null);
         assertTrue(calledWrappedSender.get());
-        assertEquals(user, sendingUser.get());
-        assertEquals(user, securityContext.getUser());
+        assertEquals(authentication.getUser(), sendingUser.get());
+        assertEquals(authentication.getUser(), securityContext.getUser());
         assertEquals(Version.CURRENT, authRef.get().getVersion());
         assertEquals(Version.CURRENT, authentication.getVersion());
     }
 
     public void testSendToOlderVersionSetsCorrectVersion() throws Exception {
         final User authUser = randomBoolean() ? new User("authenticator") : null;
-        final User user = new User("joe", randomRoles(), authUser);
-        final Authentication authentication = new Authentication(user, new RealmRef("file", "file", "node1"), null);
+        final Authentication authentication;
+        if (authUser == null) {
+            authentication = AuthenticationTestHelper.builder()
+                .user(new User("joe", randomRoles()))
+                .realmRef(new RealmRef("file", "file", "node1"))
+                .build(false);
+        } else {
+            authentication = AuthenticationTestHelper.builder()
+                .realm()
+                .user(authUser)
+                .realmRef(new RealmRef("file", "file", "node1"))
+                .build(false)
+                .runAs(new User("joe", randomRoles()), null);
+        }
         authentication.writeToContext(threadContext);
         threadContext.putTransient(AuthorizationServiceField.ORIGINATING_ACTION_KEY, "indices:foo");
 
@@ -318,10 +359,69 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         when(connection.getVersion()).thenReturn(connectionVersion);
         sender.sendRequest(connection, "indices:foo[s]", null, null, null);
         assertTrue(calledWrappedSender.get());
-        assertEquals(user, sendingUser.get());
-        assertEquals(user, securityContext.getUser());
+        assertEquals(authentication.getUser(), sendingUser.get());
+        assertEquals(authentication.getUser(), securityContext.getUser());
         assertEquals(connectionVersion, authRef.get().getVersion());
         assertEquals(Version.CURRENT, authentication.getVersion());
+    }
+
+    public void testSetUserBasedOnActionOrigin() {
+        final Map<String, User> originToUserMap = Map.of(
+            SECURITY_ORIGIN,
+            XPackSecurityUser.INSTANCE,
+            SECURITY_PROFILE_ORIGIN,
+            SecurityProfileUser.INSTANCE,
+            TRANSFORM_ORIGIN,
+            XPackUser.INSTANCE,
+            ASYNC_SEARCH_ORIGIN,
+            AsyncSearchUser.INSTANCE
+        );
+
+        final String origin = randomFrom(originToUserMap.keySet());
+
+        threadContext.putTransient(ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME, origin);
+        SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(
+            settings,
+            threadPool,
+            mock(AuthenticationService.class),
+            mock(AuthorizationService.class),
+            mock(SSLService.class),
+            securityContext,
+            new DestructiveOperations(
+                Settings.EMPTY,
+                new ClusterSettings(Settings.EMPTY, Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))
+            )
+        );
+
+        final AtomicBoolean calledWrappedSender = new AtomicBoolean(false);
+        final AtomicReference<Authentication> authenticationRef = new AtomicReference<>();
+        final AsyncSender intercepted = new AsyncSender() {
+            @Override
+            public <T extends TransportResponse> void sendRequest(
+                Transport.Connection connection,
+                String action,
+                TransportRequest request,
+                TransportRequestOptions options,
+                TransportResponseHandler<T> handler
+            ) {
+                if (calledWrappedSender.compareAndSet(false, true) == false) {
+                    fail("sender called more than once!");
+                }
+                authenticationRef.set(securityContext.getAuthentication());
+            }
+        };
+        final AsyncSender sender = interceptor.interceptSender(intercepted);
+
+        Transport.Connection connection = mock(Transport.Connection.class);
+        final Version connectionVersion = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
+        when(connection.getVersion()).thenReturn(connectionVersion);
+
+        sender.sendRequest(connection, "indices:foo[s]", null, null, null);
+        assertThat(calledWrappedSender.get(), is(true));
+        final Authentication authentication = authenticationRef.get();
+        assertThat(authentication, notNullValue());
+        assertThat(authentication.getUser(), equalTo(originToUserMap.get(origin)));
+        assertThat(authentication.getVersion(), equalTo(connectionVersion));
     }
 
     public void testContextRestoreResponseHandler() throws Exception {

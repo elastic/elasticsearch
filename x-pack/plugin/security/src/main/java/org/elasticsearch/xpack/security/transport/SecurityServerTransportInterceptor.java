@@ -106,6 +106,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                     AuthorizationUtils.switchUserBasedOnActionOriginAndExecute(
                         threadPool.getThreadContext(),
                         securityContext,
+                        minVersion,
                         (original) -> sendWithUser(
                             connection,
                             action,
@@ -182,7 +183,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         final boolean transportSSLEnabled = XPackSettings.TRANSPORT_SSL_ENABLED.get(settings);
         for (Map.Entry<String, SslConfiguration> entry : profileConfigurations.entrySet()) {
             final SslConfiguration profileConfiguration = entry.getValue();
-            final boolean extractClientCert = transportSSLEnabled && sslService.isSSLClientAuthEnabled(profileConfiguration);
+            final boolean extractClientCert = transportSSLEnabled && SSLService.isSSLClientAuthEnabled(profileConfiguration);
             profileFilters.put(
                 entry.getKey(),
                 new ServerTransportFilter(

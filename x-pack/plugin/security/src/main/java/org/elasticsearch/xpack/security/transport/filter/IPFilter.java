@@ -286,15 +286,15 @@ public class IPFilter {
             if (rule.matches(peerAddress)) {
                 boolean isAllowed = rule.ruleType() == IpFilterRuleType.ACCEPT;
                 if (isAllowed) {
-                    auditTrail.connectionGranted(peerAddress.getAddress(), profile, rule);
+                    auditTrail.connectionGranted(peerAddress, profile, rule);
                 } else {
-                    auditTrail.connectionDenied(peerAddress.getAddress(), profile, rule);
+                    auditTrail.connectionDenied(peerAddress, profile, rule);
                 }
                 return isAllowed;
             }
         }
 
-        auditTrail.connectionGranted(peerAddress.getAddress(), profile, DEFAULT_PROFILE_ACCEPT_ALL);
+        auditTrail.connectionGranted(peerAddress, profile, DEFAULT_PROFILE_ACCEPT_ALL);
         return true;
     }
 

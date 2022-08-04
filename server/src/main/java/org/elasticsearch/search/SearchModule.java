@@ -252,6 +252,8 @@ import org.elasticsearch.search.suggest.phrase.SmoothingModel;
 import org.elasticsearch.search.suggest.phrase.StupidBackoff;
 import org.elasticsearch.search.suggest.term.TermSuggestion;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
+import org.elasticsearch.search.vectors.KnnScoreDocQueryBuilder;
+import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
@@ -860,7 +862,7 @@ public class SearchModule {
         namedWriteables.add(new NamedWriteableRegistry.Entry(SortBuilder.class, FieldSortBuilder.NAME, FieldSortBuilder::new));
     }
 
-    private <T> void registerFromPlugin(List<SearchPlugin> plugins, Function<SearchPlugin, List<T>> producer, Consumer<T> consumer) {
+    private static <T> void registerFromPlugin(List<SearchPlugin> plugins, Function<SearchPlugin, List<T>> producer, Consumer<T> consumer) {
         for (SearchPlugin plugin : plugins) {
             for (T t : producer.apply(plugin)) {
                 consumer.accept(t);
@@ -922,7 +924,7 @@ public class SearchModule {
         );
     }
 
-    private Map<String, Highlighter> setupHighlighters(Settings settings, List<SearchPlugin> plugins) {
+    private static Map<String, Highlighter> setupHighlighters(Settings settings, List<SearchPlugin> plugins) {
         NamedRegistry<Highlighter> highlighters = new NamedRegistry<>("highlighter");
         highlighters.register("fvh", new FastVectorHighlighter(settings));
         highlighters.register("plain", new PlainHighlighter());
@@ -1164,6 +1166,24 @@ public class SearchModule {
         );
         registerQuery(new QuerySpec<>(GeoShapeQueryBuilder.NAME, GeoShapeQueryBuilder::new, GeoShapeQueryBuilder::fromXContent));
 
+        registerQuery(
+            new QuerySpec<>(
+                KnnVectorQueryBuilder.NAME,
+                KnnVectorQueryBuilder::new,
+                parser -> {
+                    throw new IllegalArgumentException("[knn] queries cannot be provided directly, use the [knn] body parameter instead");
+                }
+            )
+        );
+
+        registerQuery(
+            new QuerySpec<>(
+                KnnScoreDocQueryBuilder.NAME,
+                KnnScoreDocQueryBuilder::new,
+                parser -> { throw new IllegalArgumentException("[score_doc] queries cannot be provided directly"); }
+            )
+        );
+
         registerFromPlugin(plugins, SearchPlugin::getQueries, this::registerQuery);
 
         if (RestApiVersion.minimumSupported() == RestApiVersion.V_7) {
@@ -1175,7 +1195,7 @@ public class SearchModule {
         namedWriteables.addAll(getIntervalsSourceProviderNamedWritables());
     }
 
-    private CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> registerRequestCacheKeyDifferentiator(
+    private static CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> registerRequestCacheKeyDifferentiator(
         List<SearchPlugin> plugins
     ) {
         CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> differentiator = null;

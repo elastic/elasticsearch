@@ -107,7 +107,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
             this.createIndexService = createIndexService;
             this.metadataCreateDataStreamService = metadataCreateDataStreamService;
             this.autoCreateIndex = autoCreateIndex;
-            executor = (currentState, taskContexts) -> {
+            this.executor = (currentState, taskContexts) -> {
                 ClusterState state = currentState;
                 final Map<CreateIndexRequest, String> successfulRequests = Maps.newMapWithExpectedSize(taskContexts.size());
                 for (final var taskContext : taskContexts) {
@@ -337,7 +337,11 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                     updateRequest.settings(settings);
                 }
                 if (aliasName != null) {
-                    updateRequest.aliases(Set.of(new Alias(aliasName).isHidden(true)));
+                    Alias systemAlias = new Alias(aliasName).isHidden(true);
+                    if (concreteIndexName.equals(descriptor.getPrimaryIndex())) {
+                        systemAlias.writeIndex(true);
+                    }
+                    updateRequest.aliases(Set.of(systemAlias));
                 }
 
                 if (logger.isDebugEnabled()) {

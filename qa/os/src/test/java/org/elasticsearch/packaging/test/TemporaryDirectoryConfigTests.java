@@ -103,7 +103,7 @@ public class TemporaryDirectoryConfigTests extends PackagingTestCase {
             distribution(),
             DockerRun.builder().volume(tmpDir, tmpDir).envVar("LIBFFI_TMPDIR", tmpFile.toString())
         );
-        assertThat(result.stderr(), containsString("LIBFFI_TMPDIR"));
+        assertThat(result.stdout(), containsString("LIBFFI_TMPDIR"));
     }
 
     private void withLibffiTmpdir(String tmpDir, CheckedConsumer<Path, Exception> action) throws Exception {

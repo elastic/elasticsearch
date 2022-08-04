@@ -80,7 +80,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
                 Integer.toString(i),
                 minimumRetainingSequenceNumbers[i],
                 "test-" + i,
-                ActionListener.wrap(() -> {})
+                ActionListener.noop()
             );
             assertRetentionLeases(replicationTracker, i + 1, minimumRetainingSequenceNumbers, primaryTerm, 2 + i, true, false);
         }
@@ -119,11 +119,11 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
         final String id = randomAlphaOfLength(8);
         final long retainingSequenceNumber = randomNonNegativeLong();
         final String source = randomAlphaOfLength(8);
-        replicationTracker.addRetentionLease(id, retainingSequenceNumber, source, ActionListener.wrap(() -> {}));
+        replicationTracker.addRetentionLease(id, retainingSequenceNumber, source, ActionListener.noop());
         final long nextRetaininSequenceNumber = randomLongBetween(retainingSequenceNumber, Long.MAX_VALUE);
         final RetentionLeaseAlreadyExistsException e = expectThrows(
             RetentionLeaseAlreadyExistsException.class,
-            () -> replicationTracker.addRetentionLease(id, nextRetaininSequenceNumber, source, ActionListener.wrap(() -> {}))
+            () -> replicationTracker.addRetentionLease(id, nextRetaininSequenceNumber, source, ActionListener.noop())
         );
         assertThat(e, hasToString(containsString("retention lease with ID [" + id + "] already exists")));
     }
@@ -194,7 +194,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
             final String id = randomAlphaOfLength(8);
             final long retainingSequenceNumber = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE);
             retainingSequenceNumbers.put(id, retainingSequenceNumber);
-            replicationTracker.addRetentionLease(id, retainingSequenceNumber, "test", ActionListener.wrap(() -> {}));
+            replicationTracker.addRetentionLease(id, retainingSequenceNumber, "test", ActionListener.noop());
             // assert that the new retention lease callback was invoked
             assertTrue(invoked.get());
 
@@ -237,7 +237,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
                 Integer.toString(i),
                 minimumRetainingSequenceNumbers[i],
                 "test-" + i,
-                ActionListener.wrap(() -> {})
+                ActionListener.noop()
             );
         }
 
@@ -250,7 +250,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
              * Remove from the end since it will make the following assertion easier; we want to ensure that only the intended lease was
              * removed.
              */
-            replicationTracker.removeRetentionLease(Integer.toString(length - i - 1), ActionListener.wrap(() -> {}));
+            replicationTracker.removeRetentionLease(Integer.toString(length - i - 1), ActionListener.noop());
             assertRetentionLeases(
                 replicationTracker,
                 length - i - 1,
@@ -339,7 +339,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
         assertThat(
             expectThrows(
                 RetentionLeaseNotFoundException.class,
-                () -> replicationTracker.cloneRetentionLease("nonexistent-lease-id", "target", ActionListener.wrap(() -> {}))
+                () -> replicationTracker.cloneRetentionLease("nonexistent-lease-id", "target", ActionListener.noop())
             ).getMessage(),
             equalTo("retention lease with ID [nonexistent-lease-id] not found")
         );
@@ -365,13 +365,13 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
         );
         replicationTracker.activatePrimaryMode(SequenceNumbers.NO_OPS_PERFORMED);
 
-        replicationTracker.addRetentionLease("source", randomLongBetween(0L, Long.MAX_VALUE), "test-source", ActionListener.wrap(() -> {}));
-        replicationTracker.addRetentionLease("exists", randomLongBetween(0L, Long.MAX_VALUE), "test-source", ActionListener.wrap(() -> {}));
+        replicationTracker.addRetentionLease("source", randomLongBetween(0L, Long.MAX_VALUE), "test-source", ActionListener.noop());
+        replicationTracker.addRetentionLease("exists", randomLongBetween(0L, Long.MAX_VALUE), "test-source", ActionListener.noop());
 
         assertThat(
             expectThrows(
                 RetentionLeaseAlreadyExistsException.class,
-                () -> replicationTracker.cloneRetentionLease("source", "exists", ActionListener.wrap(() -> {}))
+                () -> replicationTracker.cloneRetentionLease("source", "exists", ActionListener.noop())
             ).getMessage(),
             equalTo("retention lease with ID [exists] already exists")
         );
@@ -400,7 +400,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
         final String id = randomAlphaOfLength(8);
         final RetentionLeaseNotFoundException e = expectThrows(
             RetentionLeaseNotFoundException.class,
-            () -> replicationTracker.removeRetentionLease(id, ActionListener.wrap(() -> {}))
+            () -> replicationTracker.removeRetentionLease(id, ActionListener.noop())
         );
         assertThat(e, hasToString(containsString("retention lease with ID [" + id + "] not found")));
     }
@@ -443,14 +443,14 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
             final String id = randomAlphaOfLength(8);
             final long retainingSequenceNumber = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE);
             retainingSequenceNumbers.put(id, retainingSequenceNumber);
-            replicationTracker.addRetentionLease(id, retainingSequenceNumber, "test", ActionListener.wrap(() -> {}));
+            replicationTracker.addRetentionLease(id, retainingSequenceNumber, "test", ActionListener.noop());
             // assert that the new retention lease callback was invoked
             assertTrue(invoked.get());
 
             // reset the invocation marker so that we can assert the callback was not invoked when removing the lease
             invoked.set(false);
             retainingSequenceNumbers.remove(id);
-            replicationTracker.removeRetentionLease(id, ActionListener.wrap(() -> {}));
+            replicationTracker.removeRetentionLease(id, ActionListener.noop());
             assertTrue(invoked.get());
         }
     }
@@ -493,7 +493,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
         final long[] retainingSequenceNumbers = new long[1];
         retainingSequenceNumbers[0] = randomLongBetween(0, Long.MAX_VALUE);
         if (primaryMode) {
-            replicationTracker.addRetentionLease("0", retainingSequenceNumbers[0], "test-0", ActionListener.wrap(() -> {}));
+            replicationTracker.addRetentionLease("0", retainingSequenceNumbers[0], "test-0", ActionListener.noop());
         } else {
             final RetentionLeases retentionLeases = new RetentionLeases(
                 primaryTerm,
@@ -627,7 +627,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
                 replicationTracker.setOperationPrimaryTerm(primaryTerm);
             }
             final long retainingSequenceNumber = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE);
-            replicationTracker.addRetentionLease(Integer.toString(i), retainingSequenceNumber, "test-" + i, ActionListener.wrap(() -> {}));
+            replicationTracker.addRetentionLease(Integer.toString(i), retainingSequenceNumber, "test-" + i, ActionListener.noop());
         }
 
         final Path path = createTempDir();
@@ -662,7 +662,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
                 replicationTracker.setOperationPrimaryTerm(primaryTerm);
             }
             final long retainingSequenceNumber = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE);
-            replicationTracker.addRetentionLease(Integer.toString(i), retainingSequenceNumber, "test-" + i, ActionListener.wrap(() -> {}));
+            replicationTracker.addRetentionLease(Integer.toString(i), retainingSequenceNumber, "test-" + i, ActionListener.noop());
         }
 
         final Path path = createTempDir();
@@ -715,7 +715,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
                 replicationTracker.setOperationPrimaryTerm(primaryTerm);
             }
             final long retainingSequenceNumber = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE);
-            replicationTracker.addRetentionLease(Integer.toString(i), retainingSequenceNumber, "test-" + i, ActionListener.wrap(() -> {}));
+            replicationTracker.addRetentionLease(Integer.toString(i), retainingSequenceNumber, "test-" + i, ActionListener.noop());
         }
 
         final Path path = createTempDir();
@@ -728,7 +728,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
                 try {
                     barrier.await();
                     final long retainingSequenceNumber = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, Long.MAX_VALUE);
-                    replicationTracker.addRetentionLease(id, retainingSequenceNumber, "test-" + id, ActionListener.wrap(() -> {}));
+                    replicationTracker.addRetentionLease(id, retainingSequenceNumber, "test-" + id, ActionListener.noop());
                     replicationTracker.persistRetentionLeases(path);
                     barrier.await();
                 } catch (final BrokenBarrierException | InterruptedException | WriteStateException e) {
@@ -775,7 +775,7 @@ public class ReplicationTrackerRetentionLeaseTests extends ReplicationTrackerTes
         final String id = randomAlphaOfLength(8);
         final long retainingSequenceNumber = randomNonNegativeLong();
         final String source = randomAlphaOfLength(8);
-        replicationTracker.addRetentionLease(id, retainingSequenceNumber, source, ActionListener.wrap(() -> {}));
+        replicationTracker.addRetentionLease(id, retainingSequenceNumber, source, ActionListener.noop());
         final long lowerRetainingSequenceNumber = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, retainingSequenceNumber - 1);
         final RetentionLeaseInvalidRetainingSeqNoException e = expectThrows(
             RetentionLeaseInvalidRetainingSeqNoException.class,

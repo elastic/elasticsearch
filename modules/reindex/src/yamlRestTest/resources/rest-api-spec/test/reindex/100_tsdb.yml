@@ -167,8 +167,9 @@ from tsdb to tsdb:
   - match: {hits.hits.1._source.@timestamp: 2021-04-28T18:50:23.142Z}
   - match: {hits.hits.2._source.@timestamp: 2021-04-28T18:50:53.142Z}
   - match: {hits.hits.3._source.@timestamp: 2021-04-28T18:51:03.142Z}
+
 ---
-from standard to tsdb:
+from standard with tsdb id to tsdb:
   - skip:
       version: " - 8.1.99"
       reason: introduced in 8.2.0
@@ -198,7 +199,74 @@ from standard to tsdb:
         refresh: true
         body:
           source:
+            index: standard
+          dest:
+            index: tsdb_new
+  - match: {created: 4}
+  - match: {updated: 0}
+  - match: {version_conflicts: 0}
+  - match: {batches: 1}
+  - match: {failures: []}
+  - match: {throttled_millis: 0}
+  - gte: { took: 0 }
+  - is_false: task
+  - is_false: deleted
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: tsdb_new
+        body:
+          sort: '@timestamp'
+          aggs:
+            tsids:
+              terms:
+                field: _tsid
+                order:
+                  _key: asc
+
+  - match: {hits.total.value: 4}
+  - match: {aggregations.tsids.buckets.0.key: {k8s.pod.uid: 1c4fc7b8-93b7-4ba8-b609-2a48af2f8e39, metricset: pod}}
+  - match: {aggregations.tsids.buckets.0.doc_count: 4}
+  - match: {hits.hits.0._source.@timestamp: 2021-04-28T18:50:03.142Z}
+  - match: {hits.hits.1._source.@timestamp: 2021-04-28T18:50:23.142Z}
+  - match: {hits.hits.2._source.@timestamp: 2021-04-28T18:50:53.142Z}
+  - match: {hits.hits.3._source.@timestamp: 2021-04-28T18:51:03.142Z}
+
+---
+from standard with random _id to tsdb:
+  - skip:
+      version: " - 8.1.99"
+      reason: introduced in 8.2.0
+
+  # Populate the standard index
+  - do:
+      reindex:
+        refresh: true
+        body:
+          source:
             index: tsdb
+          dest:
+            index: standard
+  - match: {created: 4}
+  - match: {updated: 0}
+  - match: {version_conflicts: 0}
+  - match: {batches: 1}
+  - match: {failures: []}
+  - match: {throttled_millis: 0}
+  - gte: { took: 0 }
+  - is_false: task
+  - is_false: deleted
+
+  # Now test reindexing from it to tsdb
+  - do:
+      reindex:
+        refresh: true
+        body:
+          source:
+            index: standard
           dest:
             index: tsdb_new
   - match: {created: 4}
@@ -241,7 +309,6 @@ from tsdb to tsdb modifying timestamp:
       reason: introduced in 8.2.0
 
   - do:
-      catch: bad_request # TODO make this work
       reindex:
         refresh: true
         body:
@@ -251,6 +318,38 @@ from tsdb to tsdb modifying timestamp:
             index: tsdb_new
           script:
             source: ctx._source["@timestamp"] = ctx._source["@timestamp"].replace("-04-", "-05-")
+  - match: {created: 4}
+  - match: {updated: 0}
+  - match: {version_conflicts: 0}
+  - match: {batches: 1}
+  - match: {failures: []}
+  - match: {throttled_millis: 0}
+  - gte: { took: 0 }
+  - is_false: task
+  - is_false: deleted
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: tsdb_new
+        body:
+          sort: '@timestamp'
+          aggs:
+            tsids:
+              terms:
+                field: _tsid
+                order:
+                  _key: asc
+
+  - match: {hits.total.value: 4}
+  - match: {aggregations.tsids.buckets.0.key: {k8s.pod.uid: 1c4fc7b8-93b7-4ba8-b609-2a48af2f8e39, metricset: pod}}
+  - match: {aggregations.tsids.buckets.0.doc_count: 4}
+  - match: {hits.hits.0._source.@timestamp: 2021-05-28T18:50:03.142Z}
+  - match: {hits.hits.1._source.@timestamp: 2021-05-28T18:50:23.142Z}
+  - match: {hits.hits.2._source.@timestamp: 2021-05-28T18:50:53.142Z}
+  - match: {hits.hits.3._source.@timestamp: 2021-05-28T18:51:03.142Z}
 
 ---
 from tsdb to tsdb modifying dimension:
@@ -259,7 +358,6 @@ from tsdb to tsdb modifying dimension:
       reason: introduced in 8.2.0
 
   - do:
-      catch: bad_request # TODO make this work
       reindex:
         refresh: true
         body:
@@ -269,3 +367,131 @@ from tsdb to tsdb modifying dimension:
             index: tsdb_new
           script:
             source: ctx._source["metricset"] = "bubbles"
+  - match: {created: 4}
+  - match: {updated: 0}
+  - match: {version_conflicts: 0}
+  - match: {batches: 1}
+  - match: {failures: []}
+  - match: {throttled_millis: 0}
+  - gte: { took: 0 }
+  - is_false: task
+  - is_false: deleted
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: tsdb_new
+        body:
+          sort: '@timestamp'
+          aggs:
+            tsids:
+              terms:
+                field: _tsid
+                order:
+                  _key: asc
+
+  - match: {hits.total.value: 4}
+  - match: {aggregations.tsids.buckets.0.key: {k8s.pod.uid: 1c4fc7b8-93b7-4ba8-b609-2a48af2f8e39, metricset: bubbles}}
+  - match: {aggregations.tsids.buckets.0.doc_count: 4}
+  - match: {hits.hits.0._source.@timestamp: 2021-04-28T18:50:03.142Z}
+  - match: {hits.hits.1._source.@timestamp: 2021-04-28T18:50:23.142Z}
+  - match: {hits.hits.2._source.@timestamp: 2021-04-28T18:50:53.142Z}
+  - match: {hits.hits.3._source.@timestamp: 2021-04-28T18:51:03.142Z}
+
+---
+from tsdb to tsdb created by template while modifying dimension:
+  - skip:
+      version: " - 8.2.99"
+      reason: introduced in 8.3.0
+      features: allowed_warnings
+
+  - do:
+      cluster.put_component_template:
+        name: test-component-template
+        body:
+          template:
+            settings:
+              index:
+                mode: time_series
+                routing_path: [metricset, k8s.pod.uid]
+                number_of_replicas: 0
+                number_of_shards: 2
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                metricset:
+                  type: keyword
+                  time_series_dimension: true
+                k8s:
+                  properties:
+                    pod:
+                      properties:
+                        uid:
+                          type: keyword
+                          time_series_dimension: true
+                        name:
+                          type: keyword
+                        ip:
+                          type: ip
+                        network:
+                          properties:
+                            tx:
+                              type: long
+                            rx:
+                              type: long
+  - do:
+      allowed_warnings:
+        - "index template [test-composable-1] has index patterns [tsdb_templated_*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [test-composable-1] will take precedence during new index creation"
+      indices.put_index_template:
+        name: test-composable-1
+        body:
+          index_patterns:
+            - tsdb_templated_*
+          composed_of:
+            - test-component-template
+
+  - do:
+      reindex:
+        refresh: true
+        body:
+          source:
+            index: tsdb
+          dest:
+            index: tsdb_templated_new
+          script:
+            source: ctx._source["metricset"] = "bubbles"
+  - match: {created: 4}
+  - match: {updated: 0}
+  - match: {version_conflicts: 0}
+  - match: {batches: 1}
+  - match: {failures: []}
+  - match: {throttled_millis: 0}
+  - gte: { took: 0 }
+  - is_false: task
+  - is_false: deleted
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: tsdb_templated_new
+        body:
+          sort: '@timestamp'
+          aggs:
+            tsids:
+              terms:
+                field: _tsid
+                order:
+                  _key: asc
+
+  - match: {hits.total.value: 4}
+  - match: {aggregations.tsids.buckets.0.key: {k8s.pod.uid: 1c4fc7b8-93b7-4ba8-b609-2a48af2f8e39, metricset: bubbles}}
+  - match: {aggregations.tsids.buckets.0.doc_count: 4}
+  - match: {hits.hits.0._source.@timestamp: 2021-04-28T18:50:03.142Z}
+  - match: {hits.hits.1._source.@timestamp: 2021-04-28T18:50:23.142Z}
+  - match: {hits.hits.2._source.@timestamp: 2021-04-28T18:50:53.142Z}
+  - match: {hits.hits.3._source.@timestamp: 2021-04-28T18:51:03.142Z}

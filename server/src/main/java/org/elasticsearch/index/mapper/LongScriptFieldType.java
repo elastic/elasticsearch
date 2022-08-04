@@ -8,12 +8,11 @@
 
 package org.elasticsearch.index.mapper;
 
-import com.carrotsearch.hppc.LongHashSet;
-import com.carrotsearch.hppc.LongSet;
-
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.time.DateMathParser;
+import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.LongScriptFieldData;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -31,8 +30,8 @@ import org.elasticsearch.search.runtime.LongScriptFieldTermsQuery;
 import java.time.ZoneId;
 import java.util.Collection;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 public final class LongScriptFieldType extends AbstractScriptFieldType<LongFieldScript.LeafFactory> {
 
@@ -93,8 +92,8 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
     }
 
     @Override
-    public LongScriptFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-        return new LongScriptFieldData.Builder(name(), leafFactory(searchLookup.get()), LongDocValuesField::new);
+    public LongScriptFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
+        return new LongScriptFieldData.Builder(name(), leafFactory(fieldDataContext.lookupSupplier().get()), LongDocValuesField::new);
     }
 
     @Override
@@ -137,7 +136,7 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
         if (values.isEmpty()) {
             return Queries.newMatchAllQuery();
         }
-        LongSet terms = new LongHashSet(values.size());
+        Set<Long> terms = Sets.newHashSetWithExpectedSize(values.size());
         for (Object value : values) {
             if (NumberType.hasDecimalPart(value)) {
                 continue;

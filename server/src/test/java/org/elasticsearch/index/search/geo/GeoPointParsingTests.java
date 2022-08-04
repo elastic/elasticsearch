@@ -90,19 +90,19 @@ public class GeoPointParsingTests extends ESTestCase {
         point = GeoUtils.parseGeoPoint(toObject(objectLatLon(randomPt.lat(), randomPt.lon())), randomBoolean());
         assertPointsEqual(point, randomPt);
 
-        GeoUtils.parseGeoPoint(arrayLatLon(randomPt.lat(), randomPt.lon()), point);
+        point = GeoUtils.parseGeoPoint(arrayLatLon(randomPt.lat(), randomPt.lon()));
         assertPointsEqual(point, randomPt);
 
         point = GeoUtils.parseGeoPoint(toObject(arrayLatLon(randomPt.lat(), randomPt.lon())), randomBoolean());
         assertPointsEqual(point, randomPt);
 
-        GeoUtils.parseGeoPoint(geohash(randomPt.lat(), randomPt.lon()), point);
+        point = GeoUtils.parseGeoPoint(geohash(randomPt.lat(), randomPt.lon()));
         assertCloseTo(point, randomPt.lat(), randomPt.lon());
 
         point = GeoUtils.parseGeoPoint(toObject(geohash(randomPt.lat(), randomPt.lon())), randomBoolean());
         assertCloseTo(point, randomPt.lat(), randomPt.lon());
 
-        GeoUtils.parseGeoPoint(stringLatLon(randomPt.lat(), randomPt.lon()), point);
+        point = GeoUtils.parseGeoPoint(stringLatLon(randomPt.lat(), randomPt.lon()));
         assertCloseTo(point, randomPt.lat(), randomPt.lon());
 
         point = GeoUtils.parseGeoPoint(toObject(stringLatLon(randomPt.lat(), randomPt.lon())), randomBoolean());
@@ -124,12 +124,12 @@ public class GeoPointParsingTests extends ESTestCase {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content))) {
             parser.nextToken();
             Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
-            assertThat(e.getMessage(), is("field must be either [lat], [lon], [geohash], [coordinates] or [type]"));
+            assertThat(e.getMessage(), is("field [location] not supported - must be one of: lon, lat, z, type, coordinates, geohash"));
         }
         try (XContentParser parser2 = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content))) {
             parser2.nextToken();
             Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(toObject(parser2), randomBoolean()));
-            assertThat(e.getMessage(), is("field must be either [lat], [lon], [geohash], [coordinates] or [type]"));
+            assertThat(e.getMessage(), is("field [location] not supported - must be one of: lon, lat, z, type, coordinates, geohash"));
         }
     }
 
@@ -170,13 +170,13 @@ public class GeoPointParsingTests extends ESTestCase {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content))) {
             parser.nextToken();
             Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(parser));
-            assertThat(e.getMessage(), is("field must be either [lat], [lon], [geohash], [coordinates] or [type]"));
+            assertThat(e.getMessage(), is("field [test] not supported - must be one of: lon, lat, z, type, coordinates, geohash"));
         }
 
         try (XContentParser parser2 = createParser(JsonXContent.jsonXContent, BytesReference.bytes(content))) {
             parser2.nextToken();
             Exception e = expectThrows(ElasticsearchParseException.class, () -> GeoUtils.parseGeoPoint(toObject(parser2), randomBoolean()));
-            assertThat(e.getMessage(), is("field must be either [lat], [lon], [geohash], [coordinates] or [type]"));
+            assertThat(e.getMessage(), is("field [test] not supported - must be one of: lon, lat, z, type, coordinates, geohash"));
         }
     }
 

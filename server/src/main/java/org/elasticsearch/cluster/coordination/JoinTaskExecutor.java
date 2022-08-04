@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -41,12 +42,10 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTask> {
 
     private final AllocationService allocationService;
     private final RerouteService rerouteService;
-    private final long term;
 
-    public JoinTaskExecutor(AllocationService allocationService, RerouteService rerouteService, long term) {
+    public JoinTaskExecutor(AllocationService allocationService, RerouteService rerouteService) {
         this.allocationService = allocationService;
         this.rerouteService = rerouteService;
-        this.term = term;
     }
 
     @Override
@@ -54,6 +53,19 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTask> {
         // The current state that MasterService uses might have been updated by a (different) master in a higher term already. If so, stop
         // processing the current cluster state update, there's no point in continuing to compute it as it will later be rejected by
         // Coordinator#publish anyhow.
+        assert joinTaskContexts.isEmpty() == false : "Expected to have non empty join tasks list";
+
+        var term = joinTaskContexts.stream().mapToLong(t -> t.getTask().term()).max().getAsLong();
+
+        var split = joinTaskContexts.stream().collect(Collectors.partitioningBy(t -> t.getTask().term() == term));
+        for (TaskContext<JoinTask> outdated : split.get(false)) {
+            outdated.onFailure(
+                new NotMasterException("Higher term encountered (encountered: " + term + " > used: " + outdated.getTask().term() + ")")
+            );
+        }
+
+        joinTaskContexts = split.get(true);
+
         if (currentState.term() > term) {
             logger.trace("encountered higher term {} than current {}, there is a newer master", currentState.term(), term);
             throw new NotMasterException(
@@ -71,7 +83,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTask> {
             // use these joins to try and become the master.
             // Note that we don't have to do any validation of the amount of joining nodes - the commit
             // during the cluster state publishing guarantees that we have enough
-            newState = becomeMasterAndTrimConflictingNodes(currentState, joinTaskContexts);
+            newState = becomeMasterAndTrimConflictingNodes(currentState, joinTaskContexts, term);
             nodesChanged = true;
         } else if (currentNodes.isLocalNodeElectedMaster()) {
             assert currentState.term() == term : "term should be stable for the same master";
@@ -121,17 +133,9 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTask> {
                 }
                 onTaskSuccess.add(() -> nodeJoinTask.listener().onResponse(null));
             }
-            joinTaskContext.success(new ActionListener<>() {
-                @Override
-                public void onResponse(ClusterState clusterState) {
-                    for (Runnable joinCompleter : onTaskSuccess) {
-                        joinCompleter.run();
-                    }
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    joinTask.onFailure(e);
+            joinTaskContext.success(() -> {
+                for (Runnable joinCompleter : onTaskSuccess) {
+                    joinCompleter.run();
                 }
             });
         }
@@ -168,7 +172,10 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTask> {
                 }
             }
 
-            final ClusterState updatedState = allocationService.adaptAutoExpandReplicas(newState.nodes(nodesBuilder).build());
+            final ClusterState clusterStateWithNewNodesAndDesiredNodes = DesiredNodes.updateDesiredNodesStatusIfNeeded(
+                newState.nodes(nodesBuilder).build()
+            );
+            final ClusterState updatedState = allocationService.adaptAutoExpandReplicas(clusterStateWithNewNodesAndDesiredNodes);
             assert enforceVersionBarrier == false
                 || updatedState.nodes().getMinNodeVersion().onOrAfter(currentState.nodes().getMinNodeVersion())
                 : "min node version decreased from ["
@@ -186,7 +193,8 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTask> {
 
     protected ClusterState.Builder becomeMasterAndTrimConflictingNodes(
         ClusterState currentState,
-        List<TaskContext<JoinTask>> taskContexts
+        List<TaskContext<JoinTask>> taskContexts,
+        long term
     ) {
         assert currentState.nodes().getMasterNodeId() == null : currentState;
         assert currentState.term() < term : term + " vs " + currentState;

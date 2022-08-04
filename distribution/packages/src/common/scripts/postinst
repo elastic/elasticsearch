@@ -59,17 +59,15 @@ if [ "x$IS_UPGRADE" != "xtrue" ]; then
     # Don't exit immediately on error, we want to hopefully print some helpful banners
     set +e
     # Attempt to auto-configure security, this seems to be an installation
-    if ES_MAIN_CLASS=org.elasticsearch.xpack.security.cli.AutoConfigureNode \
-    ES_ADDITIONAL_SOURCES="x-pack-env;x-pack-security-env" \
-    ES_ADDITIONAL_CLASSPATH_DIRECTORIES=lib/tools/security-cli \
+    if CLI_NAME="auto-configure-node" \
+    CLI_LIBS="modules/x-pack-core,modules/x-pack-security,lib/tools/security-cli" \
     /usr/share/elasticsearch/bin/elasticsearch-cli <<< ""; then
         # Above command runs as root and TLS keystores are created group-owned by root. It's simple to correct the ownership here
         chown root:elasticsearch "${ES_PATH_CONF}"/certs/http.p12
         chown root:elasticsearch "${ES_PATH_CONF}"/certs/http_ca.crt
         chown root:elasticsearch "${ES_PATH_CONF}"/certs/transport.p12
-        if INITIAL_PASSWORD=$(ES_MAIN_CLASS=org.elasticsearch.xpack.security.enrollment.tool.AutoConfigGenerateElasticPasswordHash \
-        ES_ADDITIONAL_SOURCES="x-pack-env;x-pack-security-env" \
-        ES_ADDITIONAL_CLASSPATH_DIRECTORIES=lib/tools/security-cli \
+        if INITIAL_PASSWORD=$(CLI_NAME=auto-config-gen-passwd \
+        CLI_LIBS="modules/x-pack-core,modules/x-pack-security,lib/tools/security-cli" \
         /usr/share/elasticsearch/bin/elasticsearch-cli); then
             echo "--------------------------- Security autoconfiguration information ------------------------------"
             echo

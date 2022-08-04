@@ -108,17 +108,8 @@ public class SearchTransportService {
             FREE_CONTEXT_ACTION_NAME,
             new SearchFreeContextRequest(originalIndices, contextId),
             TransportRequestOptions.EMPTY,
-            new ActionListenerResponseHandler<>(new ActionListener<SearchFreeContextResponse>() {
-                @Override
-                public void onResponse(SearchFreeContextResponse response) {
-                    // no need to respond if it was freed or not
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-
-                }
-            }, SearchFreeContextResponse::new)
+            // no need to respond if it was freed or not
+            new ActionListenerResponseHandler<>(ActionListener.noop(), SearchFreeContextResponse::new)
         );
     }
 
@@ -620,7 +611,7 @@ public class SearchTransportService {
         }
     }
 
-    final class ConnectionCountingHandler<Response extends TransportResponse> extends ActionListenerResponseHandler<Response> {
+    static final class ConnectionCountingHandler<Response extends TransportResponse> extends ActionListenerResponseHandler<Response> {
         private final Map<String, Long> clientConnections;
         private final String nodeId;
 
@@ -671,7 +662,7 @@ public class SearchTransportService {
         CancelTasksRequest req = new CancelTasksRequest().setTargetTaskId(new TaskId(client.getLocalNodeId(), task.getId()))
             .setReason("Fatal failure during search: " + reason);
         // force the origin to execute the cancellation as a system user
-        new OriginSettingClient(client, GetTaskAction.TASKS_ORIGIN).admin().cluster().cancelTasks(req, ActionListener.wrap(() -> {}));
+        new OriginSettingClient(client, GetTaskAction.TASKS_ORIGIN).admin().cluster().cancelTasks(req, ActionListener.noop());
     }
 
     public NamedWriteableRegistry getNamedWriteableRegistry() {

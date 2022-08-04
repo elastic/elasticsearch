@@ -66,7 +66,7 @@ public abstract class BaseGatewayShardAllocator {
         }
     }
 
-    protected long getExpectedShardSize(ShardRouting shardRouting, RoutingAllocation allocation) {
+    protected static long getExpectedShardSize(ShardRouting shardRouting, RoutingAllocation allocation) {
         if (shardRouting.primary()) {
             if (shardRouting.recoverySource().getType() == RecoverySource.Type.SNAPSHOT) {
                 return allocation.snapshotShardSizeInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);

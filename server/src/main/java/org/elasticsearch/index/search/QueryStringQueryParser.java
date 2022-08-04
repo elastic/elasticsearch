@@ -36,7 +36,7 @@ import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
@@ -254,7 +254,7 @@ public class QueryStringQueryParser extends QueryParser {
         this.fuzzyTranspositions = fuzzyTranspositions;
     }
 
-    private Query applyBoost(Query q, Float boost) {
+    private static Query applyBoost(Query q, Float boost) {
         if (boost != null && boost != 1f) {
             return new BoostQuery(q, boost);
         }
@@ -425,7 +425,7 @@ public class QueryStringQueryParser extends QueryParser {
             return newUnmappedFieldQuery(field);
         }
         try {
-            Analyzer normalizer = forceAnalyzer == null ? currentFieldType.getTextSearchInfo().getSearchAnalyzer() : forceAnalyzer;
+            Analyzer normalizer = forceAnalyzer == null ? currentFieldType.getTextSearchInfo().searchAnalyzer() : forceAnalyzer;
             BytesRef part1Binary = part1 == null ? null : normalizer.normalize(field, part1);
             BytesRef part2Binary = part2 == null ? null : normalizer.normalize(field, part2);
             Query rangeQuery = currentFieldType.rangeQuery(
@@ -482,7 +482,7 @@ public class QueryStringQueryParser extends QueryParser {
             return newUnmappedFieldQuery(field);
         }
         try {
-            Analyzer normalizer = forceAnalyzer == null ? currentFieldType.getTextSearchInfo().getSearchAnalyzer() : forceAnalyzer;
+            Analyzer normalizer = forceAnalyzer == null ? currentFieldType.getTextSearchInfo().searchAnalyzer() : forceAnalyzer;
             BytesRef term = termStr == null ? null : normalizer.normalize(field, termStr);
             return currentFieldType.fuzzyQuery(
                 term,
@@ -538,7 +538,7 @@ public class QueryStringQueryParser extends QueryParser {
             if (currentFieldType == null || currentFieldType.getTextSearchInfo() == TextSearchInfo.NONE) {
                 return newUnmappedFieldQuery(field);
             }
-            setAnalyzer(forceAnalyzer == null ? currentFieldType.getTextSearchInfo().getSearchAnalyzer() : forceAnalyzer);
+            setAnalyzer(forceAnalyzer == null ? currentFieldType.getTextSearchInfo().searchAnalyzer() : forceAnalyzer);
             Query query = null;
             if (currentFieldType.getTextSearchInfo().isTokenized() == false) {
                 query = currentFieldType.prefixQuery(termStr, getMultiTermRewriteMethod(), context);
@@ -779,7 +779,7 @@ public class QueryStringQueryParser extends QueryParser {
         return fixNegativeQueryIfNeeded(q);
     }
 
-    private Query applySlop(Query q, int slop) {
+    private static Query applySlop(Query q, int slop) {
         if (q instanceof PhraseQuery) {
             // make sure that the boost hasn't been set beforehand, otherwise we'd lose it
             assert q instanceof BoostQuery == false;
@@ -795,7 +795,7 @@ public class QueryStringQueryParser extends QueryParser {
         }
     }
 
-    private Query addSlopToSpan(SpanQuery query, int slop) {
+    private static Query addSlopToSpan(SpanQuery query, int slop) {
         if (query instanceof SpanNearQuery) {
             return new SpanNearQuery(((SpanNearQuery) query).getClauses(), slop, ((SpanNearQuery) query).isInOrder());
         } else if (query instanceof SpanOrQuery) {
@@ -813,7 +813,7 @@ public class QueryStringQueryParser extends QueryParser {
     /**
      * Rebuild a phrase query with a slop value
      */
-    private PhraseQuery addSlopToPhrase(PhraseQuery query, int slop) {
+    private static PhraseQuery addSlopToPhrase(PhraseQuery query, int slop) {
         PhraseQuery.Builder builder = new PhraseQuery.Builder();
         builder.setSlop(slop);
         final Term[] terms = query.getTerms();

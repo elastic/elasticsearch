@@ -116,7 +116,7 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     private void createAndStartContinuousTransform() throws Exception {
-        createIndex(CONTINUOUS_TRANSFORM_SOURCE);
+        createIndexWithName(CONTINUOUS_TRANSFORM_SOURCE);
         long totalDocsWrittenSum = 0;
         for (TimeValue bucket : BUCKETS) {
             int docs = randomIntBetween(1, 25);
@@ -339,7 +339,7 @@ public class TransformSurvivesUpgradeIT extends AbstractUpgradeTestCase {
         }, 60, TimeUnit.SECONDS);
     }
 
-    private void createIndex(String indexName) throws IOException {
+    private void createIndexWithName(String indexName) throws IOException {
         // create mapping
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject();

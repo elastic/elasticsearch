@@ -24,9 +24,9 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -37,7 +37,6 @@ import org.junit.Before;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -184,7 +183,7 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
             return null;
         }).when(mockIndicesAdminClient).deleteTemplate(any(DeleteIndexTemplateRequest.class), any(ActionListener.class));
 
-        Set<String> deletions = new HashSet<>(deletionsCount);
+        Set<String> deletions = Sets.newHashSetWithExpectedSize(deletionsCount);
         for (int i = 0; i < deletionsCount; i++) {
             deletions.add("remove_template_" + i);
         }
@@ -316,7 +315,7 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
 
             @Override
             Optional<Tuple<Map<String, BytesReference>, Set<String>>> calculateTemplateChanges(
-                ImmutableOpenMap<String, IndexTemplateMetadata> templates
+                Map<String, IndexTemplateMetadata> templates
             ) {
                 final Optional<Tuple<Map<String, BytesReference>, Set<String>>> ans = super.calculateTemplateChanges(templates);
                 calculateInvocation.release();

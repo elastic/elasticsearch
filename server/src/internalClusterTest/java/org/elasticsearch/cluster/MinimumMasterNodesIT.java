@@ -27,7 +27,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.transport.MockTransportService;
 
@@ -133,7 +132,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         client().execute(AddVotingConfigExclusionsAction.INSTANCE, new AddVotingConfigExclusionsRequest(otherNode)).get();
         logger.info("--> stop master node, no master block should appear");
         Settings masterDataPathSettings = internalCluster().dataPathSettings(masterNode);
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(masterNode));
+        internalCluster().stopNode(masterNode);
 
         assertBusy(() -> {
             ClusterState clusterState = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
@@ -186,7 +185,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         client().execute(AddVotingConfigExclusionsAction.INSTANCE, new AddVotingConfigExclusionsRequest(masterNode)).get();
         logger.info("--> stop non-master node, no master block should appear");
         Settings otherNodeDataPathSettings = internalCluster().dataPathSettings(otherNode);
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(otherNode));
+        internalCluster().stopNode(otherNode);
 
         assertBusy(() -> {
             ClusterState state1 = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
@@ -333,7 +332,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         final AtomicReference<Exception> failure = new AtomicReference<>();
         logger.debug("--> submitting for cluster state to be rejected");
         final ClusterService masterClusterService = internalCluster().clusterService(master);
-        masterClusterService.submitStateUpdateTask("test", new ClusterStateUpdateTask() {
+        masterClusterService.submitUnbatchedStateUpdateTask("test", new ClusterStateUpdateTask() {
             @Override
             public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 latch.countDown();
@@ -355,7 +354,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
                 failure.set(e);
                 latch.countDown();
             }
-        }, ClusterStateTaskExecutor.unbatched());
+        });
 
         logger.debug("--> waiting for cluster state to be processed/rejected");
         latch.await();

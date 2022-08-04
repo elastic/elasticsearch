@@ -62,8 +62,8 @@ public class InternalSettingsPreparerTests extends ESTestCase {
     }
 
     public void testExplicitClusterName() {
-        Settings.Builder output = Settings.builder();
-        InternalSettingsPreparer.finalizeSettings(output.put("cluster.name", "foobar"), () -> "nodename");
+        Settings.Builder output = Settings.builder().put(baseEnvSettings);
+        InternalSettingsPreparer.prepareEnvironment(output.put("cluster.name", "foobar").build(), Map.of(), null, () -> "nodename");
         assertEquals("foobar", output.build().get("cluster.name"));
     }
 

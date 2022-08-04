@@ -12,6 +12,8 @@ import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.apache.http.util.EntityUtils;
+import org.apache.mina.core.RuntimeIoException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -21,6 +23,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -28,13 +32,23 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
+import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
+import java.security.cert.CertificateEncodingException;
+import java.security.cert.X509Certificate;
+import java.util.Base64;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.stream.Collectors;
 
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.test.rest.ESRestTestCase.entityAsMap;
 
 public class TestSecurityClient {
@@ -117,6 +131,54 @@ public class TestSecurityClient {
     }
 
     /**
+     * Uses the REST API to retrieve an API Key.
+     * @see org.elasticsearch.xpack.security.rest.action.apikey.RestGetApiKeyAction
+     */
+    public ApiKey getApiKey(String id) throws IOException {
+        final String endpoint = "/_security/api_key/";
+        final Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+        request.addParameter("id", id);
+        final Response response = execute(request);
+        try (XContentParser parser = getParser(response)) {
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+            XContentParserUtils.ensureFieldName(parser, parser.nextToken(), "api_keys");
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser);
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+            final ApiKey apiKey = ApiKey.fromXContent(parser);
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.currentToken(), parser);
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_ARRAY, parser.nextToken(), parser);
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
+            return apiKey;
+        }
+    }
+
+    /**
+     * Uses the REST API to invalidate an API Key.
+     * @see org.elasticsearch.xpack.security.rest.action.apikey.RestInvalidateApiKeyAction
+     */
+    public void invalidateApiKeysForUser(String username) throws IOException {
+        final String endpoint = "/_security/api_key/";
+        final Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
+        request.setJsonEntity("""
+            {
+                "username":"%s"
+            }
+            """.formatted(username));
+        execute(request);
+    }
+
+    /**
+     * Uses the REST API to invalidate API Keys given their IDs.
+     * @see org.elasticsearch.xpack.security.rest.action.apikey.RestInvalidateApiKeyAction
+     */
+    public void invalidateApiKeys(final String... apiKeyIds) throws IOException {
+        final var endpoint = "/_security/api_key/";
+        final var request = new Request(HttpDelete.METHOD_NAME, endpoint);
+        request.setJsonEntity(XContentTestUtils.convertToXContent(Map.of("ids", apiKeyIds), XContentType.JSON).utf8ToString());
+        execute(request);
+    }
+
+    /**
      * Uses the REST API to get a Role descriptor
      * @see org.elasticsearch.xpack.security.rest.action.role.RestGetRolesAction
      */
@@ -140,9 +202,8 @@ public class TestSecurityClient {
         final String endpoint = "/_security/role/" + roleParameter;
         final Request request = new Request(HttpGet.METHOD_NAME, endpoint);
         final Response response = execute(request);
-        final byte[] responseBody = EntityUtils.toByteArray(response.getEntity());
         final Map<String, RoleDescriptor> roles = new LinkedHashMap<>();
-        try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, responseBody)) {
+        try (XContentParser parser = getParser(response)) {
             XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
             while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
                 XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
@@ -228,7 +289,169 @@ public class TestSecurityClient {
         execute(request);
     }
 
-    private static String toJson(Map<String, Object> map) throws IOException {
+    /**
+     * Uses the REST API to create a new access token via a password grant
+     * @see org.elasticsearch.xpack.security.rest.action.oauth2.RestGetTokenAction
+     */
+    public OAuth2Token createToken(UsernamePasswordToken grant) throws IOException {
+        return createToken("""
+            {
+              "grant_type":"password",
+              "username":"%s",
+              "password":"%s"
+            }
+            """.formatted(grant.principal(), grant.credentials()));
+    }
+
+    /**
+     * Uses the REST API to create a new access token via a refresh_token grant
+     * @see org.elasticsearch.xpack.security.rest.action.oauth2.RestGetTokenAction
+     */
+    public OAuth2Token refreshToken(String refreshToken) throws IOException {
+        return createToken("""
+            {
+              "grant_type":"refresh_token",
+              "refresh_token":"%s"
+            }
+            """.formatted(refreshToken));
+    }
+
+    /**
+     * Uses the REST API to create a new access token via a client_credentials grant
+     * @see org.elasticsearch.xpack.security.rest.action.oauth2.RestGetTokenAction
+     */
+    public OAuth2Token createTokenWithClientCredentialsGrant() throws IOException {
+        return createToken("""
+            {
+              "grant_type":"client_credentials"
+            }
+            """);
+    }
+
+    private OAuth2Token createToken(String requestBody) throws IOException {
+        final String endpoint = "/_security/oauth2/token";
+        final Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        request.setJsonEntity(requestBody);
+        final Map<String, Object> responseBody = entityAsMap(execute(request));
+        return new OAuth2Token(
+            (String) responseBody.get("access_token"),
+            Optional.ofNullable((String) responseBody.get("refresh_token")),
+            ObjectPath.eval("authentication.username", responseBody)
+        );
+    }
+
+    /**
+     * Uses the REST API to invalidate an access-token
+     * @see org.elasticsearch.xpack.security.rest.action.oauth2.RestInvalidateTokenAction
+     */
+    public TokenInvalidation invalidateAccessToken(String accessToken) throws IOException {
+        return invalidateTokens("""
+            {
+              "token":"%s"
+            }
+            """.formatted(accessToken));
+    }
+
+    /**
+     * Uses the REST API to invalidate a refresh-token
+     * @see org.elasticsearch.xpack.security.rest.action.oauth2.RestInvalidateTokenAction
+     */
+    public TokenInvalidation invalidateRefreshToken(String refreshToken) throws IOException {
+        return invalidateTokens("""
+            {
+              "refresh_token":"%s"
+            }
+            """.formatted(refreshToken));
+    }
+
+    /**
+     * Uses the REST API to invalidate all tokens owned by a named user
+     * @see org.elasticsearch.xpack.security.rest.action.oauth2.RestInvalidateTokenAction
+     */
+    public TokenInvalidation invalidateTokensForUser(String username) throws IOException {
+        return invalidateTokens("""
+            {
+              "username":"%s"
+            }
+            """.formatted(username));
+    }
+
+    /**
+     * Uses the REST API to invalidate all tokens owned by a named realm
+     * @see org.elasticsearch.xpack.security.rest.action.oauth2.RestInvalidateTokenAction
+     */
+    public TokenInvalidation invalidateTokensForRealm(String realmName) throws IOException {
+        return invalidateTokens("""
+            {
+              "realm_name":"%s"
+            }
+            """.formatted(realmName));
+    }
+
+    @SuppressWarnings("unchecked")
+    public TokenInvalidation invalidateTokens(String requestBody) throws IOException {
+        final String endpoint = "/_security/oauth2/token";
+        final Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
+        // This API returns 404 (with the same body as a 200 response) if there's nothing to delete.
+        // RestClient will throw an exception on 404, but we don't want that, we want to parse the body and return it
+        request.addParameter("ignore", "404");
+        request.setJsonEntity(requestBody);
+        final Map<String, Object> responseBody = entityAsMap(execute(request));
+        final List<Map<String, ?>> errors = (List<Map<String, ?>>) responseBody.get("error_details");
+        return new TokenInvalidation(
+            ((Number) responseBody.get("invalidated_tokens")).intValue(),
+            ((Number) responseBody.get("previously_invalidated_tokens")).intValue(),
+            errors == null ? List.of() : errors.stream().map(TestSecurityClient::toException).toList()
+        );
+    }
+
+    /**
+     * Uses the REST API to clear the cache for one or more realms
+     * @see org.elasticsearch.xpack.security.rest.action.realm.RestClearRealmCacheAction
+     */
+    public void clearRealmCache(String realm) throws IOException {
+        final String endpoint = "/_security/realm/" + realm + "/_clear_cache";
+        final Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        execute(request);
+    }
+
+    /**
+     * Uses the REST API to authenticate using delegated PKI
+     * @see org.elasticsearch.xpack.security.rest.action.RestDelegatePkiAuthenticationAction
+     * @return A {@code Tuple} of <em>access-token</em> and <em>response-body</em>.
+     */
+    public Tuple<String, Map<String, Object>> delegatePkiAuthentication(List<X509Certificate> certificateChain) throws IOException {
+        final String endpoint = "/_security/delegate_pki";
+        final Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+
+        final List<String> certificateContent = certificateChain.stream().map(c -> {
+            try {
+                return c.getEncoded();
+            } catch (CertificateEncodingException e) {
+                throw new RuntimeException("Failed to encode certificate", e);
+            }
+        }).map(encoded -> Base64.getEncoder().encodeToString(encoded)).collect(Collectors.toList());
+
+        final Map<String, Object> body = Map.of("x509_certificate_chain", certificateContent);
+        request.setJsonEntity(toJson(body));
+        final Map<String, Object> response = entityAsMap(execute(request));
+        return new Tuple<>(Objects.toString(response.get("access_token"), null), response);
+    }
+
+    /**
+     * Uses the REST API to create an application privilege
+     * @see org.elasticsearch.xpack.security.rest.action.privilege.RestPutPrivilegesAction
+     */
+    public void putApplicationPrivilege(String applicationName, String privilegeName, String[] actions) throws IOException {
+        final String endpoint = "/_security/privilege/";
+        final Request request = new Request(HttpPut.METHOD_NAME, endpoint);
+
+        final Map<String, Object> body = Map.of(applicationName, Map.of(privilegeName, Map.of("actions", List.of(actions))));
+        request.setJsonEntity(toJson(body));
+        execute(request);
+    }
+
+    private static String toJson(Map<String, ? extends Object> map) throws IOException {
         final XContentBuilder builder = XContentFactory.jsonBuilder().map(map);
         final BytesReference bytes = BytesReference.bytes(builder);
         return bytes.utf8ToString();
@@ -247,9 +470,32 @@ public class TestSecurityClient {
         return bytes.utf8ToString();
     }
 
+    private XContentParser getParser(Response response) throws IOException {
+        final byte[] responseBody = EntityUtils.toByteArray(response.getEntity());
+        return XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, responseBody);
+    }
+
+    private static ElasticsearchException toException(Map<String, ?> map) {
+        try (var parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, toJson(map))) {
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+            return ElasticsearchException.fromXContent(parser);
+        } catch (IOException e) {
+            throw new RuntimeIoException(e);
+        }
+    }
+
     private Response execute(Request request) throws IOException {
         request.setOptions(options);
         return this.client.performRequest(request);
     }
 
+    public record OAuth2Token(String accessToken, Optional<String> refreshToken, String principal) {
+
+        @Nullable
+        public String getRefreshToken() {
+            return refreshToken.orElse(null);
+        }
+    }
+
+    public record TokenInvalidation(int invalidated, int previouslyInvalidated, List<ElasticsearchException> errors) {}
 }

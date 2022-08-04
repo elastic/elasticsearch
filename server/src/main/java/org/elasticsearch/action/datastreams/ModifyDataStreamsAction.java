@@ -41,16 +41,16 @@ public class ModifyDataStreamsAction extends ActionType<AcknowledgedResponse> {
 
     public static final class Request extends AcknowledgedRequest<Request> implements IndicesRequest, ToXContentObject {
 
-        // relevant only for authorizing the request, so require every specified
-        // index to exist, expand wildcards only to open indices, prohibit
-        // wildcard expressions that resolve to zero indices, and do not attempt
-        // to resolve expressions as aliases
+        // The actual DataStreamAction don't support wildcards, so supporting it doesn't make sense.
+        // Also supporting wildcards it would prohibit this api from removing broken references to backing indices. (in case of bugs).
+        // For this case, when removing broken backing indices references that don't exist, we need to allow ignore_unavailable and
+        // allow_no_indices. Otherwise, the data stream can't be repaired.
         private static final IndicesOptions INDICES_OPTIONS = IndicesOptions.fromOptions(
-            false,
-            false,
+            true,
             true,
             false,
-            true,
+            false,
+            false,
             false,
             true,
             false
@@ -108,7 +108,9 @@ public class ModifyDataStreamsAction extends ActionType<AcknowledgedResponse> {
 
         @Override
         public String[] indices() {
-            return actions.stream().map(DataStreamAction::getDataStream).toArray(String[]::new);
+            // Return the indices instead of data streams, this api can be used to repair a broken data stream definition and
+            // in that case, exceptions can occur while resolving data streams for doing authorization or looking up index blocks.
+            return actions.stream().map(DataStreamAction::getIndex).toArray(String[]::new);
         }
 
         @Override

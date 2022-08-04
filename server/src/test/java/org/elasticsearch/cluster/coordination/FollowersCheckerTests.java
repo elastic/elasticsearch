@@ -18,7 +18,9 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.test.ESTestCase;
@@ -575,16 +577,21 @@ public class FollowersCheckerTests extends ESTestCase {
             }
         };
 
-        final TransportService transportService = mockTransport.createTransportService(
-            settings,
-            deterministicTaskQueue.getThreadPool(),
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-            boundTransportAddress -> follower,
-            null,
-            emptySet()
-        );
-        transportService.start();
-        transportService.acceptIncomingRequests();
+        final AtomicBoolean rejectExecution = new AtomicBoolean();
+
+        final TransportService transportService = mockTransport.createTransportService(settings, deterministicTaskQueue.getThreadPool(r -> {
+            if (rejectExecution.get()) {
+                final var exception = new EsRejectedExecutionException("simulated rejection", true);
+                if (r instanceof AbstractRunnable ar) {
+                    ar.onRejection(exception);
+                    return () -> {};
+                } else {
+                    throw exception;
+                }
+            } else {
+                return r;
+            }
+        }), TransportService.NOOP_TRANSPORT_INTERCEPTOR, boundTransportAddress -> follower, null, emptySet());
 
         final AtomicBoolean calledCoordinator = new AtomicBoolean();
         final AtomicReference<RuntimeException> coordinatorException = new AtomicReference<>();
@@ -596,6 +603,9 @@ public class FollowersCheckerTests extends ESTestCase {
                 throw exception;
             }
         }, (node, reason) -> { assert false : node; }, () -> new StatusInfo(HEALTHY, "healthy-info"));
+
+        transportService.start();
+        transportService.acceptIncomingRequests();
 
         {
             // Does not call into the coordinator in the normal case
@@ -699,6 +709,37 @@ public class FollowersCheckerTests extends ESTestCase {
             assertTrue(calledCoordinator.get());
             assertThat(receivedException.get(), not(nullValue()));
             assertThat(receivedException.get().getRootCause().getMessage(), equalTo(exceptionMessage));
+            calledCoordinator.set(false);
+        }
+
+        {
+            // If it calls into the coordinator but the threadpool is shut down then the rejection is passed back to the caller
+            rejectExecution.set(true);
+            final long term = randomNonNegativeLong();
+            followersChecker.updateFastResponseState(term, randomFrom(Mode.LEADER, Mode.CANDIDATE));
+
+            final AtomicReference<TransportException> receivedException = new AtomicReference<>();
+            transportService.sendRequest(
+                follower,
+                FOLLOWER_CHECK_ACTION_NAME,
+                new FollowerCheckRequest(term, leader),
+                new TransportResponseHandler.Empty() {
+                    @Override
+                    public void handleResponse(TransportResponse.Empty response) {
+                        fail("unexpected success");
+                    }
+
+                    @Override
+                    public void handleException(TransportException exp) {
+                        assertThat(exp, not(nullValue()));
+                        assertTrue(receivedException.compareAndSet(null, exp));
+                    }
+                }
+            );
+            deterministicTaskQueue.runAllTasks();
+            assertFalse(calledCoordinator.get());
+            assertThat(receivedException.get(), not(nullValue()));
+            assertThat(receivedException.get().getRootCause().getMessage(), equalTo("simulated rejection"));
         }
     }
 

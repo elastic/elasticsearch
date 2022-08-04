@@ -34,9 +34,9 @@ GET /
   "cluster_uuid" : "AT69_T_DTp-1qgIJlatQqA",
   "version" : {
     "number" : "{version_qualified}",
-    "build_flavor" : "{build_flavor}",
     "build_type" : "{build_type}",
     "build_hash" : "f27399d",
+    "build_flavor" : "default",
     "build_date" : "2016-03-30T09:51:41.449Z",
     "build_snapshot" : false,
     "lucene_version" : "{lucene_version}",

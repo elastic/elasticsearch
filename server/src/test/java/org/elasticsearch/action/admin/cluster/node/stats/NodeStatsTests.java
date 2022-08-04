@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.admin.cluster.node.stats;
 
-import org.elasticsearch.action.support.StatsRequestStats;
 import org.elasticsearch.cluster.coordination.ClusterStateSerializationStats;
 import org.elasticsearch.cluster.coordination.PendingClusterStateStats;
 import org.elasticsearch.cluster.coordination.PublishClusterStateStats;
@@ -509,21 +508,6 @@ public class NodeStatsTests extends ESTestCase {
                     assertEquals(limited, sum.getCompilationLimitTriggered());
                     assertEquals(compilations, sum.getCompilations());
                 }
-                if (nodeStats.getStatsRequestStats() == null) {
-                    assertNull(deserializedNodeStats.getStatsRequestStats());
-                } else {
-                    Iterator<StatsRequestStats.Stats> statsRequestsStatsIterator = nodeStats.getStatsRequestStats().iterator();
-                    Iterator<StatsRequestStats.Stats> deserializedStatsRequestsStatsIterator = deserializedNodeStats.getStatsRequestStats()
-                        .iterator();
-                    while (statsRequestsStatsIterator.hasNext()) {
-                        StatsRequestStats.Stats stats = statsRequestsStatsIterator.next();
-                        StatsRequestStats.Stats deserializedStats = deserializedStatsRequestsStatsIterator.next();
-                        assertEquals(stats.getRequest(), deserializedStats.getRequest());
-                        assertEquals(stats.getCurrent(), deserializedStats.getCurrent());
-                        assertEquals(stats.getCompleted(), deserializedStats.getCompleted());
-                        assertEquals(stats.getRejected(), deserializedStats.getRejected());
-                    }
-                }
             }
         }
     }
@@ -900,22 +884,6 @@ public class NodeStatsTests extends ESTestCase {
                 randomLongBetween(0, maxStatValue)
             );
         }
-        StatsRequestStats statsRequestStats = null;
-        if (frequently()) {
-            int numStatsRequestsStats = randomIntBetween(0, 10);
-            List<StatsRequestStats.Stats> statsRequestsStatsList = new ArrayList<>();
-            for (int i = 0; i < numStatsRequestsStats; i++) {
-                statsRequestsStatsList.add(
-                    new StatsRequestStats.Stats(
-                        randomAlphaOfLengthBetween(3, 10),
-                        randomIntBetween(1, 10),
-                        randomIntBetween(1, 1000),
-                        randomIntBetween(1, 1000)
-                    )
-                );
-            }
-            statsRequestStats = new StatsRequestStats(statsRequestsStatsList);
-        }
         // TODO NodeIndicesStats are not tested here, way too complicated to create, also they need to be migrated to Writeable yet
         return new NodeStats(
             node,
@@ -934,8 +902,7 @@ public class NodeStatsTests extends ESTestCase {
             ingestStats,
             adaptiveSelectionStats,
             scriptCacheStats,
-            indexingPressureStats,
-            statsRequestStats
+            indexingPressureStats
         );
     }
 

@@ -48,12 +48,12 @@ public class FollowIndexIT extends ESCCRRestTestCase {
                 mapping = """
                     "_source": {  "includes": ["field"],  "excludes": ["filtered_field"]}""";
             }
-            createIndex(leaderIndexName, Settings.EMPTY, mapping);
+            createIndex(adminClient(), leaderIndexName, Settings.EMPTY, mapping, null);
             for (int i = 0; i < numDocs; i++) {
                 logger.info("Indexing doc [{}]", i);
                 index(client(), leaderIndexName, Integer.toString(i), "field", i, "filtered_field", "true");
             }
-            refresh(leaderIndexName);
+            refresh(adminClient(), leaderIndexName);
             verifyDocuments(leaderIndexName, numDocs, "filtered_field:true");
         } else if ("follow".equals(targetCluster)) {
             logger.info("Running against follow cluster");
@@ -100,7 +100,7 @@ public class FollowIndexIT extends ESCCRRestTestCase {
 
     public void testFollowThatOverridesRequiredLeaderSetting() throws IOException {
         if ("leader".equals(targetCluster)) {
-            createIndex("override_leader_index", Settings.EMPTY);
+            createIndex(adminClient(), "override_leader_index", Settings.EMPTY);
         } else {
             final Settings settings = Settings.builder().put("index.number_of_shards", 5).build();
             final ResponseException responseException = expectThrows(
@@ -124,7 +124,7 @@ public class FollowIndexIT extends ESCCRRestTestCase {
 
     public void testFollowThatOverridesNonExistentSetting() throws IOException {
         if ("leader".equals(targetCluster)) {
-            createIndex("override_leader_index_non_existent_setting", Settings.EMPTY);
+            createIndex(adminClient(), "override_leader_index_non_existent_setting", Settings.EMPTY);
         } else {
             final Settings settings = Settings.builder().put("index.non_existent_setting", randomAlphaOfLength(3)).build();
             final ResponseException responseException = expectThrows(
@@ -180,26 +180,6 @@ public class FollowIndexIT extends ESCCRRestTestCase {
         assertThat(failure.getMessage(), containsString("cannot follow [logs-syslog-prod], because it is a DATA_STREAM"));
     }
 
-    public void testChangeBackingIndexNameFails() throws Exception {
-        if ("follow".equals(targetCluster) == false) {
-            return;
-        }
-
-        final String dataStreamName = "logs-foobar-prod";
-        try (RestClient leaderClient = buildLeaderClient()) {
-            Request request = new Request("PUT", "/_data_stream/" + dataStreamName);
-            assertOK(leaderClient.performRequest(request));
-            verifyDataStream(leaderClient, dataStreamName, DataStream.getDefaultBackingIndexName("logs-foobar-prod", 1));
-        }
-
-        ResponseException failure = expectThrows(
-            ResponseException.class,
-            () -> followIndex(DataStream.getDefaultBackingIndexName("logs-foobar-prod", 1), ".ds-logs-barbaz-prod-000001")
-        );
-        assertThat(failure.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-        assertThat(failure.getMessage(), containsString("a backing index name in the local and remote cluster must remain the same"));
-    }
-
     public void testFollowSearchableSnapshotsFails() throws Exception {
         final String testPrefix = getTestName().toLowerCase(Locale.ROOT);
 
@@ -213,7 +193,7 @@ public class FollowIndexIT extends ESCCRRestTestCase {
             registerRepository(repository, FsRepository.TYPE, true, Settings.builder().put("location", repositoryPath).build());
 
             final String indexName = "index-" + testPrefix;
-            createIndex(indexName, Settings.EMPTY);
+            createIndex(adminClient(), indexName, Settings.EMPTY);
 
             final String snapshot = "snapshot-" + testPrefix;
             deleteSnapshot(repository, snapshot, true);
@@ -249,6 +229,7 @@ public class FollowIndexIT extends ESCCRRestTestCase {
         if ("leader".equals(targetCluster)) {
             logger.info("Running against leader cluster");
             createIndex(
+                adminClient(),
                 leaderIndexName,
                 Settings.builder()
                     .put(IndexSettings.MODE.getKey(), "time_series")
@@ -257,13 +238,14 @@ public class FollowIndexIT extends ESCCRRestTestCase {
                     .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-04-29T00:00:00Z")
                     .build(),
                 """
-                    "properties": {"@timestamp": {"type": "date"}, "dim": {"type": "keyword", "time_series_dimension": true}}"""
+                    "properties": {"@timestamp": {"type": "date"}, "dim": {"type": "keyword", "time_series_dimension": true}}""",
+                null
             );
             for (int i = 0; i < numDocs; i++) {
                 logger.info("Indexing doc [{}]", i);
                 index(client(), leaderIndexName, null, "@timestamp", basetime + TimeUnit.SECONDS.toMillis(i * 10), "dim", "foobar");
             }
-            refresh(leaderIndexName);
+            refresh(adminClient(), leaderIndexName);
             verifyDocuments(client(), leaderIndexName, numDocs);
         } else if ("follow".equals(targetCluster)) {
             logger.info("Running against follow cluster");
@@ -377,6 +359,64 @@ public class FollowIndexIT extends ESCCRRestTestCase {
             e.getMessage(),
             containsString("can not put follower index that could override leader settings {\\\"index.mode\\\":\\\"time_series\\\"}")
         );
+    }
+
+    public void testSyntheticSource() throws Exception {
+        final int numDocs = 128;
+        final String leaderIndexName = "synthetic_leader";
+        long basetime = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2021-04-28T18:35:24.467Z");
+        if ("leader".equals(targetCluster)) {
+            logger.info("Running against leader cluster");
+            createIndex(adminClient(), leaderIndexName, Settings.EMPTY, """
+                "_source": {"mode": "synthetic"},
+                "properties": {"kwd": {"type": "keyword"}}}""", null);
+            for (int i = 0; i < numDocs; i++) {
+                logger.info("Indexing doc [{}]", i);
+                index(client(), leaderIndexName, null, "kwd", "foo", "i", i);
+            }
+            refresh(adminClient(), leaderIndexName);
+            verifyDocuments(client(), leaderIndexName, numDocs);
+        } else if ("follow".equals(targetCluster)) {
+            logger.info("Running against follow cluster");
+            final String followIndexName = "synthetic_follower";
+            final boolean overrideNumberOfReplicas = randomBoolean();
+            if (overrideNumberOfReplicas) {
+                followIndex(
+                    client(),
+                    "leader_cluster",
+                    leaderIndexName,
+                    followIndexName,
+                    Settings.builder().put("index.number_of_replicas", 0).build()
+                );
+            } else {
+                followIndex(leaderIndexName, followIndexName);
+            }
+            assertBusy(() -> {
+                verifyDocuments(client(), followIndexName, numDocs);
+                assertMap(getIndexMappingAsMap(followIndexName), matchesMap().extraOk().entry("_source", Map.of("mode", "synthetic")));
+                if (overrideNumberOfReplicas) {
+                    assertMap(getIndexSettingsAsMap(followIndexName), matchesMap().extraOk().entry("index.number_of_replicas", "0"));
+                } else {
+                    assertMap(getIndexSettingsAsMap(followIndexName), matchesMap().extraOk().entry("index.number_of_replicas", "1"));
+                }
+            });
+            // unfollow and then follow and then index a few docs in leader index:
+            pauseFollow(followIndexName);
+            resumeFollow(followIndexName);
+            try (RestClient leaderClient = buildLeaderClient()) {
+                index(leaderClient, leaderIndexName, null, "kwd", "foo", "i", -1);
+                index(leaderClient, leaderIndexName, null, "kwd", "foo", "i", -2);
+                index(leaderClient, leaderIndexName, null, "kwd", "foo", "i", -3);
+            }
+            assertBusy(() -> verifyDocuments(client(), followIndexName, numDocs + 3));
+            assertBusy(() -> verifyCcrMonitoring(leaderIndexName, followIndexName), 30, TimeUnit.SECONDS);
+
+            pauseFollow(followIndexName);
+            closeIndex(followIndexName);
+            assertOK(client().performRequest(new Request("POST", "/" + followIndexName + "/_ccr/unfollow")));
+            Exception e = expectThrows(ResponseException.class, () -> resumeFollow(followIndexName));
+            assertThat(e.getMessage(), containsString("follow index [" + followIndexName + "] does not have ccr metadata"));
+        }
     }
 
     @Override

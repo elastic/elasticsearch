@@ -15,7 +15,6 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentEOFException;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
@@ -234,8 +233,8 @@ public class ReportingAttachmentParserTests extends ESTestCase {
             // closing json bracket is missing
             .thenReturn(new HttpResponse(200, "{\"path\":\"anything\""));
         ReportingAttachment attachment = new ReportingAttachment("foo", dashboardUrl, randomBoolean(), null, null, null, null);
-        XContentEOFException e = expectThrows(
-            XContentEOFException.class,
+        XContentParseException e = expectThrows(
+            XContentParseException.class,
             () -> reportingAttachmentParser.toAttachment(createWatchExecutionContext(), Payload.EMPTY, attachment)
         );
         assertThat(e.getMessage(), containsString("Unexpected end-of-input"));

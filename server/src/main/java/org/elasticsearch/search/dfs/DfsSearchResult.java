@@ -31,6 +31,7 @@ public class DfsSearchResult extends SearchPhaseResult {
     private Term[] terms;
     private TermStatistics[] termStatistics;
     private Map<String, CollectionStatistics> fieldStatistics = new HashMap<>();
+    private DfsKnnResults knnResults;
     private int maxDoc;
 
     public DfsSearchResult(StreamInput in) throws IOException {
@@ -51,6 +52,9 @@ public class DfsSearchResult extends SearchPhaseResult {
         maxDoc = in.readVInt();
         if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
             setShardSearchRequest(in.readOptionalWriteable(ShardSearchRequest::new));
+        }
+        if (in.getVersion().onOrAfter(Version.V_8_4_0)) {
+            knnResults = in.readOptionalWriteable(DfsKnnResults::new);
         }
     }
 
@@ -80,6 +84,11 @@ public class DfsSearchResult extends SearchPhaseResult {
         return this;
     }
 
+    public DfsSearchResult knnResults(DfsKnnResults knnResults) {
+        this.knnResults = knnResults;
+        return this;
+    }
+
     public Term[] terms() {
         return terms;
     }
@@ -92,42 +101,41 @@ public class DfsSearchResult extends SearchPhaseResult {
         return fieldStatistics;
     }
 
+    public DfsKnnResults knnResults() {
+        return knnResults;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         contextId.writeTo(out);
-        out.writeVInt(terms.length);
-        for (Term term : terms) {
-            out.writeString(term.field());
-            out.writeBytesRef(term.bytes());
-        }
+        out.writeArray((o, term) -> {
+            o.writeString(term.field());
+            o.writeBytesRef(term.bytes());
+        }, terms);
         writeTermStats(out, termStatistics);
         writeFieldStats(out, fieldStatistics);
         out.writeVInt(maxDoc);
         if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
             out.writeOptionalWriteable(getShardSearchRequest());
         }
+        if (out.getVersion().onOrAfter(Version.V_8_4_0)) {
+            out.writeOptionalWriteable(knnResults);
+        }
     }
 
     public static void writeFieldStats(StreamOutput out, Map<String, CollectionStatistics> fieldStatistics) throws IOException {
-        out.writeVInt(fieldStatistics.size());
-
-        for (var entry : fieldStatistics.entrySet()) {
-            out.writeString(entry.getKey());
-            CollectionStatistics statistics = entry.getValue();
+        out.writeMap(fieldStatistics, StreamOutput::writeString, (o, statistics) -> {
             assert statistics.maxDoc() >= 0;
-            out.writeVLong(statistics.maxDoc());
+            o.writeVLong(statistics.maxDoc());
             // stats are always positive numbers
-            out.writeVLong(statistics.docCount());
-            out.writeVLong(statistics.sumTotalTermFreq());
-            out.writeVLong(statistics.sumDocFreq());
-        }
+            o.writeVLong(statistics.docCount());
+            o.writeVLong(statistics.sumTotalTermFreq());
+            o.writeVLong(statistics.sumDocFreq());
+        });
     }
 
     public static void writeTermStats(StreamOutput out, TermStatistics[] termStatistics) throws IOException {
-        out.writeVInt(termStatistics.length);
-        for (TermStatistics termStatistic : termStatistics) {
-            writeSingleTermStats(out, termStatistic);
-        }
+        out.writeArray(DfsSearchResult::writeSingleTermStats, termStatistics);
     }
 
     public static void writeSingleTermStats(StreamOutput out, TermStatistics termStatistic) throws IOException {

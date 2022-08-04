@@ -8,7 +8,6 @@
 package org.elasticsearch.index.seqno;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNodesHelper;
@@ -33,8 +32,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 public class PeerRecoveryRetentionLeaseExpiryTests extends ReplicationTrackerTestCase {
-
-    private static final ActionListener<ReplicationResponse> EMPTY_LISTENER = ActionListener.wrap(() -> {});
 
     private ReplicationTracker replicationTracker;
     private AtomicLong currentTimeMillis;
@@ -87,7 +84,7 @@ public class PeerRecoveryRetentionLeaseExpiryTests extends ReplicationTrackerTes
         replicationTracker.addPeerRecoveryRetentionLease(
             routingTableWithReplica.getByAllocationId(replicaAllocationId.getId()).currentNodeId(),
             randomCheckpoint(),
-            EMPTY_LISTENER
+            ActionListener.noop()
         );
 
         replicationTracker.initiateTracking(replicaAllocationId.getId());
@@ -135,7 +132,7 @@ public class PeerRecoveryRetentionLeaseExpiryTests extends ReplicationTrackerTes
     public void testPeerRecoveryRetentionLeasesForUnassignedCopiesDoNotExpireImmediatelyIfShardsNotAllStarted() {
         final String unknownNodeId = randomAlphaOfLength(10);
         final long globalCheckpoint = randomNonNegativeLong(); // not NO_OPS_PERFORMED since this always results in file-based recovery
-        replicationTracker.addPeerRecoveryRetentionLease(unknownNodeId, globalCheckpoint, EMPTY_LISTENER);
+        replicationTracker.addPeerRecoveryRetentionLease(unknownNodeId, globalCheckpoint, ActionListener.noop());
 
         currentTimeMillis.set(
             currentTimeMillis.get() + randomLongBetween(
@@ -168,7 +165,7 @@ public class PeerRecoveryRetentionLeaseExpiryTests extends ReplicationTrackerTes
 
         final String unknownNodeId = randomAlphaOfLength(10);
         final long globalCheckpoint = randomCheckpoint();
-        replicationTracker.addPeerRecoveryRetentionLease(unknownNodeId, globalCheckpoint, EMPTY_LISTENER);
+        replicationTracker.addPeerRecoveryRetentionLease(unknownNodeId, globalCheckpoint, ActionListener.noop());
 
         currentTimeMillis.set(
             randomLongBetween(
@@ -195,7 +192,7 @@ public class PeerRecoveryRetentionLeaseExpiryTests extends ReplicationTrackerTes
 
     public void testPeerRecoveryRetentionLeasesForUnassignedCopiesExpireImmediatelyIfShardsAllStarted() {
         final String unknownNodeId = randomAlphaOfLength(10);
-        replicationTracker.addPeerRecoveryRetentionLease(unknownNodeId, randomCheckpoint(), EMPTY_LISTENER);
+        replicationTracker.addPeerRecoveryRetentionLease(unknownNodeId, randomCheckpoint(), ActionListener.noop());
 
         startReplica();
 
@@ -227,7 +224,7 @@ public class PeerRecoveryRetentionLeaseExpiryTests extends ReplicationTrackerTes
 
         final String unknownNodeId = randomAlphaOfLength(10);
         final long globalCheckpoint = randomValueOtherThan(SequenceNumbers.NO_OPS_PERFORMED, this::randomCheckpoint);
-        replicationTracker.addPeerRecoveryRetentionLease(unknownNodeId, globalCheckpoint, EMPTY_LISTENER);
+        replicationTracker.addPeerRecoveryRetentionLease(unknownNodeId, globalCheckpoint, ActionListener.noop());
 
         safeCommitInfo = randomSafeCommitInfoSuitableForFileBasedRecovery(globalCheckpoint);
 

@@ -112,10 +112,7 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeVInt(sources.size());
-        for (CompositeValuesSourceBuilder<?> builder : sources) {
-            CompositeValuesSourceParserHelper.writeTo(builder, out);
-        }
+        out.writeCollection(sources, (o, v) -> CompositeValuesSourceParserHelper.writeTo(v, o));
         out.writeVInt(size);
         out.writeBoolean(after != null);
         if (after != null) {
@@ -174,7 +171,7 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
      * this aggregator or the instance of the parent's factory that is incompatible with
      * the composite aggregation.
      */
-    private AggregatorFactory validateParentAggregations(AggregatorFactory factory) {
+    private static AggregatorFactory validateParentAggregations(AggregatorFactory factory) {
         if (factory == null) {
             return null;
         } else if (factory instanceof NestedAggregatorFactory

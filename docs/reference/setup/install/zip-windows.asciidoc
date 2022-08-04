@@ -81,7 +81,7 @@ TIP: Typically, any cluster-wide settings (like `cluster.name`) should be
 added to the `elasticsearch.yml` config file, while any node-specific settings
 such as `node.name` could be specified on the command line.
 
-:es-config:       %ES_PATH_CONF%
+:es-conf:    %ES_HOME%\config
 :slash:        \
 
 include::check-running.asciidoc[]
@@ -210,7 +210,7 @@ The {es} service can be configured prior to installation by setting the followin
     `jvm.options`, and `log4j2.properties` files), defaults to
     `%ES_HOME%\config`.
 
-`ES_JAVA_OPTS`::
+`CLI_JAVA_OPTS`::
 
     Any additional JVM system properties you may want to apply.
 

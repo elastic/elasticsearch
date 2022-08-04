@@ -55,7 +55,6 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
 
     private final Executor executor;
     private final CircuitBreaker circuitBreaker;
-    private final SearchPhaseController controller;
     private final SearchProgressListener progressListener;
     private final AggregationReduceContext.Builder aggReduceContextBuilder;
 
@@ -84,7 +83,6 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         super(expectedResultSize);
         this.executor = executor;
         this.circuitBreaker = circuitBreaker;
-        this.controller = controller;
         this.progressListener = progressListener;
         this.aggReduceContextBuilder = controller.getReduceContext(isCanceled, request);
         this.topNSize = getTopDocsSize(request);
@@ -127,9 +125,9 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         long breakerSize = pendingMerges.circuitBreakerBytes;
         if (hasAggs) {
             // Add an estimate of the final reduce size
-            breakerSize = pendingMerges.addEstimateAndMaybeBreak(pendingMerges.estimateRamBytesUsedForReduce(breakerSize));
+            breakerSize = pendingMerges.addEstimateAndMaybeBreak(PendingMerges.estimateRamBytesUsedForReduce(breakerSize));
         }
-        SearchPhaseController.ReducedQueryPhase reducePhase = controller.reducedQueryPhase(
+        SearchPhaseController.ReducedQueryPhase reducePhase = SearchPhaseController.reducedQueryPhase(
             results.asList(),
             aggsList,
             topDocsList,
@@ -323,7 +321,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
          * off for some aggregations but it is corrected with the real size after
          * the reduce completes.
          */
-        long estimateRamBytesUsedForReduce(long size) {
+        static long estimateRamBytesUsedForReduce(long size) {
             return Math.round(1.5d * size - size);
         }
 

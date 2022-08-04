@@ -10,7 +10,6 @@ package org.elasticsearch.action.admin.indices.settings.get;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -29,13 +28,10 @@ import java.util.Objects;
 
 public class GetSettingsResponse extends ActionResponse implements ToXContentObject {
 
-    private final ImmutableOpenMap<String, Settings> indexToSettings;
-    private final ImmutableOpenMap<String, Settings> indexToDefaultSettings;
+    private final Map<String, Settings> indexToSettings;
+    private final Map<String, Settings> indexToDefaultSettings;
 
-    public GetSettingsResponse(
-        ImmutableOpenMap<String, Settings> indexToSettings,
-        ImmutableOpenMap<String, Settings> indexToDefaultSettings
-    ) {
+    public GetSettingsResponse(Map<String, Settings> indexToSettings, Map<String, Settings> indexToDefaultSettings) {
         this.indexToSettings = indexToSettings;
         this.indexToDefaultSettings = indexToDefaultSettings;
     }
@@ -51,7 +47,7 @@ public class GetSettingsResponse extends ActionResponse implements ToXContentObj
      * objects contain only those settings explicitly set on a given index.  Any settings
      * taking effect as defaults must be accessed via {@link #getIndexToDefaultSettings()}.
      */
-    public ImmutableOpenMap<String, Settings> getIndexToSettings() {
+    public Map<String, Settings> getIndexToSettings() {
         return indexToSettings;
     }
 
@@ -63,7 +59,7 @@ public class GetSettingsResponse extends ActionResponse implements ToXContentObj
      * via {@link #getIndexToSettings()}.
      * See also {@link GetSettingsRequest#includeDefaults(boolean)}
      */
-    public ImmutableOpenMap<String, Settings> getIndexToDefaultSettings() {
+    public Map<String, Settings> getIndexToDefaultSettings() {
         return indexToDefaultSettings;
     }
 
@@ -94,8 +90,8 @@ public class GetSettingsResponse extends ActionResponse implements ToXContentObj
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(indexToSettings, StreamOutput::writeString, (o, s) -> Settings.writeSettingsToStream(s, o));
-        out.writeMap(indexToDefaultSettings, StreamOutput::writeString, (o, s) -> Settings.writeSettingsToStream(s, o));
+        out.writeMap(indexToSettings, StreamOutput::writeString, (o, v) -> v.writeTo(o));
+        out.writeMap(indexToDefaultSettings, StreamOutput::writeString, (o, v) -> v.writeTo(o));
     }
 
     private static void parseSettingsField(
@@ -150,14 +146,7 @@ public class GetSettingsResponse extends ActionResponse implements ToXContentObj
             }
         }
 
-        ImmutableOpenMap<String, Settings> settingsMap = ImmutableOpenMap.<String, Settings>builder()
-            .putAllFromMap(indexToSettings)
-            .build();
-        ImmutableOpenMap<String, Settings> defaultSettingsMap = ImmutableOpenMap.<String, Settings>builder()
-            .putAllFromMap(indexToDefaultSettings)
-            .build();
-
-        return new GetSettingsResponse(settingsMap, defaultSettingsMap);
+        return new GetSettingsResponse(Map.copyOf(indexToSettings), Map.copyOf(indexToDefaultSettings));
     }
 
     @Override

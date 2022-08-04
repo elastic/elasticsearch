@@ -26,8 +26,8 @@ import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.client.sniff.ElasticsearchNodesSniffer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.test.ClasspathUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
@@ -60,7 +60,7 @@ import java.util.stream.Collectors;
 
 /**
  * Runs a suite of yaml tests shared with all the official Elasticsearch
- * clients against against an elasticsearch cluster.
+ * clients against an elasticsearch cluster.
  *
  * The suite timeout is extended to account for projects with a large number of tests.
  */
@@ -108,6 +108,8 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
 
     private final ClientYamlTestCandidate testCandidate;
 
+    private static ClientYamlSuiteRestSpec restSpecification;
+
     protected ESClientYamlSuiteTestCase(ClientYamlTestCandidate testCandidate) {
         this.testCandidate = testCandidate;
     }
@@ -126,6 +128,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             assert blacklistPathMatchers == null;
             final ClientYamlSuiteRestSpec restSpec = ClientYamlSuiteRestSpec.load(SPEC_PATH);
             validateSpec(restSpec);
+            restSpecification = restSpec;
             final List<HttpHost> hosts = getClusterHosts();
             Tuple<Version, Version> versionVersionTuple = readVersionsFromCatNodes(adminClient());
             final Version esVersion = versionVersionTuple.v1();
@@ -140,7 +143,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
                 os
             );
             clientYamlTestClient = initClientYamlTestClient(restSpec, client(), hosts, esVersion, masterVersion, os);
-            restTestExecutionContext = new ClientYamlTestExecutionContext(testCandidate, clientYamlTestClient, randomizeContentType());
+            restTestExecutionContext = createRestTestExecutionContext(testCandidate, clientYamlTestClient);
             adminExecutionContext = new ClientYamlTestExecutionContext(testCandidate, clientYamlTestClient, false);
             final String[] blacklist = resolvePathsProperty(REST_TESTS_BLACKLIST, null);
             blacklistPathMatchers = new ArrayList<>();
@@ -160,6 +163,16 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         adminExecutionContext.clear();
 
         restTestExecutionContext.clear();
+    }
+
+    /**
+     * Create the test execution context. Can be overwritten in sub-implementations of the test if the context needs to be modified.
+     */
+    protected ClientYamlTestExecutionContext createRestTestExecutionContext(
+        ClientYamlTestCandidate clientYamlTestCandidate,
+        ClientYamlTestClient clientYamlTestClient
+    ) {
+        return new ClientYamlTestExecutionContext(clientYamlTestCandidate, clientYamlTestClient, randomizeContentType());
     }
 
     protected ClientYamlTestClient initClientYamlTestClient(
@@ -307,6 +320,10 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         return adminExecutionContext;
     }
 
+    static ClientYamlSuiteRestSpec getRestSpec() {
+        return restSpecification;
+    }
+
     private static void validateSpec(ClientYamlSuiteRestSpec restSpec) {
         boolean validateSpec = RandomizedTest.systemPropertyAsBoolean(REST_TESTS_VALIDATE_SPEC, true);
         if (validateSpec) {
@@ -331,7 +348,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         }
     }
 
-    private Tuple<Version, Version> readVersionsFromCatNodes(RestClient restClient) throws IOException {
+    Tuple<Version, Version> readVersionsFromCatNodes(RestClient restClient) throws IOException {
         // we simply go to the _cat/nodes API and parse all versions in the cluster
         final Request request = new Request("GET", "/_cat/nodes");
         request.addParameter("h", "version,master");
@@ -360,7 +377,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         return new Tuple<>(version, masterVersion);
     }
 
-    private String readOsFromNodesInfo(RestClient restClient) throws IOException {
+    String readOsFromNodesInfo(RestClient restClient) throws IOException {
         final Request request = new Request("GET", "/_nodes/os");
         Response response = restClient.performRequest(request);
         ClientYamlTestResponse restTestResponse = new ClientYamlTestResponse(response);

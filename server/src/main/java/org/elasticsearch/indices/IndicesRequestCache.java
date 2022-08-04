@@ -8,9 +8,6 @@
 
 package org.elasticsearch.indices;
 
-import com.carrotsearch.hppc.ObjectHashSet;
-import com.carrotsearch.hppc.ObjectSet;
-
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
@@ -34,6 +31,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Objects;
 import java.util.Set;
@@ -319,10 +317,8 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
     }
 
     synchronized void cleanCache() {
-        final ObjectSet<CleanupKey> currentKeysToClean = new ObjectHashSet<>();
-        final ObjectSet<Object> currentFullClean = new ObjectHashSet<>();
-        currentKeysToClean.clear();
-        currentFullClean.clear();
+        final Set<CleanupKey> currentKeysToClean = new HashSet<>();
+        final Set<Object> currentFullClean = new HashSet<>();
         for (Iterator<CleanupKey> iterator = keysToClean.iterator(); iterator.hasNext();) {
             CleanupKey cleanupKey = iterator.next();
             iterator.remove();

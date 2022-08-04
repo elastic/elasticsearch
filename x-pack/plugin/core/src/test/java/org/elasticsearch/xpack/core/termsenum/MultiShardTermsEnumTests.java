@@ -24,7 +24,7 @@ import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.termsenum.action.MultiShardTermsEnum;
 import org.elasticsearch.xpack.core.termsenum.action.SimpleTermCountEnum;

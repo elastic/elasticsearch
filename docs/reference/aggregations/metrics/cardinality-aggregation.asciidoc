@@ -158,10 +158,7 @@ remains very low (1-6% as seen in the above graph) even when counting millions o
 
 The HyperLogLog++ algorithm depends on the leading zeros of hashed
 values, the exact distributions of hashes in a dataset can affect the 
-accuracy of the cardinality.  
-
-Please also note that even with a threshold as low as 100, the error remains
-very low, even when counting millions of items.
+accuracy of the cardinality.
 
 ==== Pre-computed hashes
 
@@ -240,3 +237,24 @@ POST /sales/_search?size=0
 --------------------------------------------------
 // TEST[setup:sales]
 <1> Documents without a value in the `tag` field will fall into the same bucket as documents that have the value `N/A`.
+==== Execution Hint
+
+There are different mechanisms by which cardinality aggregations can be executed:
+
+ - by using field values directly (`direct`)
+ - by using global ordinals of the field and resolving those values after
+   finishing a shard (`global_ordinals`)
+ - by using segment ordinal values and resolving those values after each
+   segment (`segment_ordinals`)
+
+Additionally, there are two "heuristic based" modes.  These modes will cause
+Elasticsearch to use some data about the state of the index to choose an
+appropriate execution method.  The two heuristics are: 
+ - `save_time_heuristic` - this is the default in Elasticsearch 8.4 and later.
+ - `save_memory_heuristic` - this was the default in Elasticsearch 8.3 and
+   earlier
+
+When not specified, Elasticsearch will apply a heuristic to chose the
+appropriate mode.  Also note that some data (i.e. non-ordinal fields), `direct`
+is the only option, and the hint will be ignored in these cases.  Generally
+speaking, it should not be necessary to set this value.

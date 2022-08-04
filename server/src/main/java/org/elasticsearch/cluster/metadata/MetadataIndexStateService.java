@@ -433,7 +433,11 @@ public class MetadataIndexStateService {
             }
         }
 
-        logger.info("adding block {} to indices {}", block.name, blockedIndices.keySet().stream().map(Object::toString).toList());
+        logger.info(
+            "adding [index.blocks.{}] block to indices {}",
+            block.name,
+            blockedIndices.keySet().stream().map(Object::toString).toList()
+        );
         return Tuple.tuple(ClusterState.builder(currentState).blocks(blocks).metadata(metadata).build(), blockedIndices);
     }
 
@@ -1051,7 +1055,7 @@ public class MetadataIndexStateService {
                 logger.debug("index {} has been deleted since blocking it started, ignoring", index);
             }
         }
-        logger.info("completed adding block {} to indices {}", block.name, effectivelyBlockedIndices);
+        logger.info("completed adding [index.blocks.{}] block to indices {}", block.name, effectivelyBlockedIndices);
         return Tuple.tuple(ClusterState.builder(currentState).blocks(blocks).build(), List.copyOf(blockingResults.values()));
     }
 

@@ -121,7 +121,9 @@ setup:
 
 ---
 "Get simple field caps":
-
+  - skip:
+      version: " - 8.4.99"
+      reason: re-add support for fields in the request body in 8.5
   - do:
       field_caps:
         index: 'test1,test2,test3'

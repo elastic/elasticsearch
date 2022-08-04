@@ -62,6 +62,8 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.LineNumberReader;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.io.UncheckedIOException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
@@ -522,7 +524,10 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             logToProcessStdout("Failed (y) to create working directory for " + this);
             throw e;
         } catch (Throwable t) {
-            logToProcessStdout("Failed (z) to create working directory for " + this);
+            StringWriter sw = new StringWriter();
+            PrintWriter pw = new PrintWriter(sw);
+            t.printStackTrace(pw);
+            logToProcessStdout("Failed (z) to create working directory for " + this + ", with throwable: " + t + sw.toString());
             throw t;
         }
 

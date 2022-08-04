@@ -98,7 +98,12 @@ public class StandaloneRestIntegTestTask extends Test implements TestClustersAwa
     }
 
     public WorkResult delete(Object... objects) {
-        return getFileSystemOperations().delete(d -> d.delete(objects));
+        try {
+            return getFileSystemOperations().delete(d -> d.delete(objects));
+        } catch (Throwable t) {
+            Throwable throwable = new Throwable("Catch and rethrow", t);
+            throw t;
+        }
     }
 
     @Override

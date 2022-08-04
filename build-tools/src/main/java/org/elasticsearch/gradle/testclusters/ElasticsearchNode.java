@@ -515,12 +515,15 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             setupNodeDistribution(getExtractedDistributionDir());
             createWorkingDir();
         } catch (IOException e) {
-            String msg = "Failed to create working directory for " + this;
+            String msg = "Failed (x) to create working directory for " + this;
             logToProcessStdout(msg);
             throw new UncheckedIOException(msg, e);
         } catch (UncheckedIOException e) {
-            logToProcessStdout("Failed to create working directory for " + this);
+            logToProcessStdout("Failed (y) to create working directory for " + this);
             throw e;
+        } catch (Throwable t) {
+            logToProcessStdout("Failed (z) to create working directory for " + this);
+            throw t;
         }
 
         copyExtraJars();

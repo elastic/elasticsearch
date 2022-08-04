@@ -248,8 +248,8 @@ public class ZeroShotClassificationConfig implements NlpConfig {
         return hypothesisTemplate;
     }
 
-    public List<String> getLabels() {
-        return Optional.ofNullable(labels).orElse(List.of());
+    public Optional<List<String>> getLabels() {
+        return Optional.ofNullable(labels);
     }
 
     @Override

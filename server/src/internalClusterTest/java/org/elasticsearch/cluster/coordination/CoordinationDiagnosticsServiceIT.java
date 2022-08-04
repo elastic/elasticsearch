@@ -47,6 +47,7 @@ public class CoordinationDiagnosticsServiceIT extends ESIntegTestCase {
         assertThat(nodeNames, hasItem(master));
         String blockedNode = nodeNames.stream().filter(n -> n.equals(master) == false).findAny().get();
         assertNotNull(blockedNode);
+        ensureStableCluster(3);
 
         DiscoveryNodes discoveryNodes = internalCluster().getInstance(ClusterService.class, master).state().nodes();
         Set<DiscoveryNode> nodesWithoutBlockedNode = discoveryNodes.getNodes()

@@ -160,7 +160,7 @@ Ingests a single log into the `logs-myapp-default` data stream.
 [source,console]
 ------------------------------------------------------------
 POST _logs/myapp?service.name=myapp <1>
-{"@timestamp": 1463990734853, "message": "Hello World", "custom_field": "value"} <2>
+{"@timestamp": 1463990734853, "message": "Hello", "custom": "value"} <2>
 ------------------------------------------------------------
 
 <1> Provides global metadata that applies to all log events in the request via query parameters.
@@ -212,8 +212,8 @@ The API returns the following response:
         "_score": 1.0,
         "_source": {
           "@timestamp": 1463990734853,
-          "message": "Hello World",
-          "custom_field": "value",
+          "message": "Hello",
+          "custom": "value",
           "service": {
             "name": "myapp"
           },
@@ -259,9 +259,9 @@ Provides metadata via local metadata events.
 POST _logs
 {"_metadata": {"service.name": "myapp"}} <1>
 {"_metadata": {"data_stream.dataset": "myapp"}} <2>
-{"@timestamp": "2016-05-23T08:05:34.853Z", "message": "Hello app"} <3>
+{"@timestamp": "2016-05-23T08:05:34.853Z", "message": "hello app"} <3>
 {"_metadata": {"data_stream.dataset": "my_other_app"}} <4>
-{"@timestamp": "2016-05-23T08:05:34.853Z", "message": "Hello other app"} <5>
+{"@timestamp": "2016-05-23T08:05:34.853Z", "message": "other app"} <5>
 ------------------------------------------------------------
 
 <1> Provides global metadata that applies to all log events in the request via a global metadata event.

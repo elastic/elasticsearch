@@ -548,7 +548,7 @@ may help diagnose parse errors or accidental uploads of the wrong text.
 text begins with a byte order marker.
 <6> `format` is one of `ndjson`, `xml`, `delimited` or `semi_structured_text`.
 <7> `ecs_compatibility` is either `disabled` or `v1`, defaults to `disabled`.
-<7> The `timestamp_field` names the field considered most likely to be the
+<8> The `timestamp_field` names the field considered most likely to be the
 primary timestamp of each document.
 <9> `joda_timestamp_formats` are used to tell {ls} how to parse timestamps.
 <10> `java_timestamp_formats` are the Java time formats recognized in the time
@@ -1731,7 +1731,7 @@ this:
   "format" : "semi_structured_text",
   "multiline_start_pattern" : "^\\[\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
   "grok_pattern" : "\\[%{TIMESTAMP_ISO8601:timestamp}\\]\\[%{LOGLEVEL:loglevel} *\\]\\[%{JAVACLASS:class} *\\] \\[%{HOSTNAME:node}\\] %{JAVALOGMESSAGE:message}", <1>
-  "ecs_compatibility" : "disabled", <2> 
+  "ecs_compatibility" : "disabled", <2>
   "timestamp_field" : "timestamp",
   "joda_timestamp_formats" : [
     "ISO8601"

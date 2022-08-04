@@ -25,8 +25,9 @@ import java.util.function.Consumer;
 import static org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 
 /**
- * ShardSnapshotWorkers performs snapshotting tasks in the order dictated by the PriorityQueue of snapshot tasks.
- * Each enqueued shard to snapshot results in one @{@link ShardSnapshotTask} and zero or more @{@link FileSnapshotTask}.
+ * ShardSnapshotWorkers performs snapshotting tasks in the order dictated by the priority queue of the snapshot tasks,
+ * limiting max number of running snapshot tasks. Each enqueued shard to snapshot results in one @{@link ShardSnapshotTask}
+ * and zero or more @{@link FileSnapshotTask}.
  */
 public class ShardSnapshotWorkers {
     private static final Logger logger = LogManager.getLogger(ShardSnapshotWorkers.class);
@@ -84,17 +85,17 @@ public class ShardSnapshotWorkers {
 
     class FileSnapshotTask extends SnapshotTask {
         private final FileInfo fileInfo;
-        private final ActionListener<Void> fileUploadListener;
+        private final ActionListener<Void> fileSnapshotListener;
 
-        FileSnapshotTask(SnapshotShardContext context, FileInfo fileInfo, ActionListener<Void> fileUploadListener) {
+        FileSnapshotTask(SnapshotShardContext context, FileInfo fileInfo, ActionListener<Void> fileSnapshotListener) {
             super(context);
             this.fileInfo = fileInfo;
-            this.fileUploadListener = fileUploadListener;
+            this.fileSnapshotListener = fileSnapshotListener;
         }
 
         @Override
         public void run() {
-            ActionRunnable.run(fileUploadListener, () -> fileSnapshotter.accept(context, fileInfo)).run();
+            ActionRunnable.run(fileSnapshotListener, () -> fileSnapshotter.accept(context, fileInfo)).run();
         }
 
         @Override
@@ -122,7 +123,6 @@ public class ShardSnapshotWorkers {
         final CheckedBiConsumer<SnapshotShardContext, FileInfo, IOException> fileSnapshotter
     ) {
         assert maxRunningTasks > 0;
-        logger.info("starting shard snapshot worker pool of max size {}", maxRunningTasks);
         this.maxRunningTasks = maxRunningTasks;
         this.executor = executor;
         this.shardSnapshotter = shardSnapshotter;
@@ -136,12 +136,8 @@ public class ShardSnapshotWorkers {
         pollAndSpawn();
     }
 
-    public void enqueueFileSnapshot(
-        final SnapshotShardContext context,
-        final FileInfo fileInfo,
-        final ActionListener<Void> fileUploadListener
-    ) {
-        final FileSnapshotTask task = new FileSnapshotTask(context, fileInfo, fileUploadListener);
+    public void enqueueFileSnapshot(final SnapshotShardContext context, final FileInfo fileInfo, final ActionListener<Void> listener) {
+        final FileSnapshotTask task = new FileSnapshotTask(context, fileInfo, listener);
         logger.trace("enqueuing {}", task);
         snapshotTasks.add(task);
         pollAndSpawn();
@@ -154,14 +150,16 @@ public class ShardSnapshotWorkers {
                 logger.trace("snapshot task queue is empty");
                 int decremented = runningTasks.decrementAndGet();
                 assert decremented >= 0;
-                return;
+            } else {
+                executor.execute(() -> runTask(task));
             }
-            executor.execute(() -> runTask(task));
         }
     }
 
     private boolean incrementRunningTasks() {
-        return runningTasks.getAndUpdate(v -> v < maxRunningTasks ? v + 1 : v) < maxRunningTasks;
+        int updated = runningTasks.getAndUpdate(v -> v < maxRunningTasks ? v + 1 : v);
+        assert updated <= maxRunningTasks;
+        return updated < maxRunningTasks;
     }
 
     // for testing

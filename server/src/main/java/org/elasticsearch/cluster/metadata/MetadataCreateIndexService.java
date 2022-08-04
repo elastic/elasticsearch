@@ -452,7 +452,6 @@ public class MetadataCreateIndexService {
      *                            creates the index
      * @return a new cluster state with the index added
      */
-
     private ClusterState applyCreateIndexWithTemporaryService(
         final ClusterState currentState,
         final CreateIndexClusterStateUpdateRequest request,

@@ -182,7 +182,7 @@ POST logs-myapp-default/_refresh
 
 [source,console]
 ------------------------------------------------------------
-POST logs-myapp-default/_search?q=custom_field:value
+POST logs-myapp-default/_search?q=custom:value
 ------------------------------------------------------------
 // TEST[continued]
 

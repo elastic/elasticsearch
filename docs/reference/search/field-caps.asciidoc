@@ -138,7 +138,7 @@ field types are all described as the `keyword` type family.
 `time_series_dimension`::
   preview:[]
   Whether this field is used as a time series dimension on all indices.
-  For non-time-series indexes this field is always missing.
+  For non-time-series indices this field is not present.
 
 `time_series_metric`::
   preview:[]

@@ -114,8 +114,45 @@ PUT my-index-000001/_doc/1
 }
 --------------------------------------------------
 
-When multiple date formats are provided, only the format which matched the contents
-of one of the fields will actually be added to the allowed date formats.
+It is possible to provide multiple date formats. The format in the first 
+document with an unmapped date field will determine the mapping of that field:
+
+[source,console]
+--------------------------------------------------
+PUT my-index-000001
+{
+  "mappings": {
+    "dynamic_date_formats": [ "yyyy/MM", "MM/dd/yyyy"]
+  }
+}
+
+PUT my-index-000001/_doc/1
+{
+  "create_date": "09/25/2015"
+}
+--------------------------------------------------
+
+The resulting mapping will be:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "my-index-000001": {
+    "mappings": {
+      "dynamic_date_formats": [
+        "yyyy/MM",
+        "MM/dd/yyyy"
+      ],
+      "properties": {
+        "create_date": {
+          "type": "date",
+          "format": "MM/dd/yyyy"
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
 
 [[numeric-detection]]
 ==== Numeric detection

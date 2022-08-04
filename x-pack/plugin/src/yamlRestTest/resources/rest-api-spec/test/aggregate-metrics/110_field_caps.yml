@@ -1,0 +1,159 @@
+setup:
+  - skip:
+      version: " - 8.4.99"
+      reason: metric params only on time series indices introduced in 8.5.0
+
+  - do:
+      indices.create:
+        index: test_rollup
+        body:
+          settings:
+            index:
+              number_of_replicas: 0
+              number_of_shards: 2
+              mode: time_series
+              routing_path: [ metricset, k8s.pod.uid ]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              metricset:
+                type: keyword
+                time_series_dimension: true
+              metric:
+                type: aggregate_metric_double
+                metrics: [ min, max, sum, value_count ]
+                default_metric: max
+                time_series_metric: gauge
+
+  - do:
+      indices.create:
+        index: test_time_series
+        body:
+          settings:
+            index:
+              number_of_replicas: 0
+              number_of_shards: 2
+              mode: time_series
+              routing_path: [ metricset, k8s.pod.uid ]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              metricset:
+                type: keyword
+                time_series_dimension: true
+              metric:
+                type: double
+                time_series_metric: gauge
+
+  - do:
+      indices.create:
+        index: test_non_time_series
+        body:
+          settings:
+            index:
+              number_of_replicas: 0
+              number_of_shards: 2
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              metricset:
+                type: keyword
+                time_series_dimension: true
+              metric:
+                type: double
+                time_series_metric: gauge
+
+
+---
+# Test field_caps on a rollup index
+field caps on rollup indices:
+  - skip:
+      version: " - 8.4.99"
+      reason: metric params only on time series indices introduced in 8.5.0
+
+  - do:
+      field_caps:
+        index: test_rollup
+        fields: [ metric ]
+
+  - match: { fields.metric.aggregate_metric_double.type: aggregate_metric_double }
+  - match: { fields.metric.aggregate_metric_double.searchable: true }
+  - match: { fields.metric.aggregate_metric_double.aggregatable: true }
+  - match: { fields.metric.aggregate_metric_double.time_series_metric: gauge }
+  - is_false: fields.metric.aggregate_metric_double.indices
+  - is_false: fields.metric.aggregate_metric_double.non_searchable_indices
+  - is_false: fields.metric.aggregate_metric_double.non_aggregatable_indices
+  - is_false: fields.metric.aggregate_metric_double.metric_conflicts_indices
+  - is_false: fields.metric.double
+
+
+---
+# Test field_caps on time-series index (mix of raw and rollup indices)
+field caps on time series indices:
+  - skip:
+      version: " - 8.4.99"
+      reason: metric params only on time series indices introduced in 8.5.0
+
+  - do:
+      field_caps:
+        index: [ test_time_series, test_rollup ]
+        fields: [ metric ]
+
+  - match: { fields.metric.double.type: double }
+  - match: { fields.metric.double.searchable: true }
+  - match: { fields.metric.double.aggregatable: true }
+  - match: { fields.metric.double.time_series_metric: gauge }
+  - match: { fields.metric.double.indices: [ "test_time_series" ] }
+  - is_false: fields.metric.double.non_searchable_indices
+  - is_false: fields.metric.double.non_aggregatable_indices
+  - is_false: fields.metric.double.metric_conflicts_indices
+
+  - match: { fields.metric.aggregate_metric_double.type: aggregate_metric_double }
+  - match: { fields.metric.aggregate_metric_double.searchable: true }
+  - match: { fields.metric.aggregate_metric_double.aggregatable: true }
+  - match: { fields.metric.aggregate_metric_double.time_series_metric: gauge }
+  - match: { fields.metric.aggregate_metric_double.indices: [ "test_rollup" ] }
+
+  - is_false: fields.metric.aggregate_metric_double.non_searchable_indices
+  - is_false: fields.metric.aggregate_metric_double.non_aggregatable_indices
+  - is_false: fields.metric.aggregate_metric_double.metric_conflicts_indices
+
+---
+# Test field_caps on mixed standard and time-series (mix of raw and rollup) indices
+field caps on all indices:
+  - skip:
+      version: " - 8.4.99"
+      reason: metric params only on time series indices introduced in 8.5.0
+
+  - do:
+      field_caps:
+        index: [ test_time_series, test_rollup, test_non_time_series ]
+        fields: [ metric ]
+
+  - match: { fields.metric.double.type: double }
+  - match: { fields.metric.double.searchable: true }
+  - match: { fields.metric.double.aggregatable: true }
+  - match: { fields.metric.double.indices: [ "test_non_time_series", "test_time_series" ] }
+  - match: { fields.metric.double.metric_conflicts_indices: [ "test_non_time_series", "test_time_series" ] }
+  - is_false: fields.metric.double.non_searchable_indices
+  - is_false: fields.metric.double.non_aggregatable_indices
+  - is_false: fields.metric.double.time_series_metric
+
+  - match: { fields.metric.aggregate_metric_double.type: aggregate_metric_double }
+  - match: { fields.metric.aggregate_metric_double.searchable: true }
+  - match: { fields.metric.aggregate_metric_double.aggregatable: true }
+  - match: { fields.metric.aggregate_metric_double.time_series_metric: gauge }
+  - match: { fields.metric.aggregate_metric_double.indices: [ "test_rollup" ] }
+
+  - is_false: fields.metric.aggregate_metric_double.non_searchable_indices
+  - is_false: fields.metric.aggregate_metric_double.non_aggregatable_indices
+  - is_false: fields.metric.aggregate_metric_double.metric_conflicts_indices

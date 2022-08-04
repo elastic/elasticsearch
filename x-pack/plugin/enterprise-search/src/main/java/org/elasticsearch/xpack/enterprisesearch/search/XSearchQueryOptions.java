@@ -27,27 +27,31 @@ public class XSearchQueryOptions {
         DEFAULT_FIELD_WEIGHTS.put(".delimiter", 0.4f);
     }
 
-    private final String query;
-    private final Set<String> searchFields;
+    private String index;
+    private String query;
+    private Set<String> searchFields;
     private String minimumShouldMatch = "1<-1 3<49%";
 
-    public XSearchQueryOptions(String query, Collection<MappingMetadata> mappingsMetadata) {
+    public void setQuery(String query) {
         this.query = query;
-        this.searchFields = mappingsMetadata
-            .stream()
-            .flatMap(indexMetadata -> getSearchFieldsFromMetadata(indexMetadata).stream())
-            .collect(Collectors.toSet());
     }
 
     public String getQuery() {
         return query;
     }
 
+    public void setSearchFields(Collection<MappingMetadata> mappingsMetadata) {
+        this.searchFields = mappingsMetadata
+            .stream()
+            .flatMap(indexMetadata -> getSearchFieldsFromMetadata(indexMetadata).stream())
+            .collect(Collectors.toSet());
+    }
+
     public Float getBoostForField(String field) {
         int index = field.lastIndexOf('.');
         if (index != -1) {
             String suffix = field.substring(index);
-            return DEFAULT_FIELD_WEIGHTS.getOrDefault(suffix,1.0f);
+            return DEFAULT_FIELD_WEIGHTS.getOrDefault(suffix, 1.0f);
         }
 
         return 1.0f;
@@ -91,5 +95,13 @@ public class XSearchQueryOptions {
 
     public Set<String> getSearchFields() {
         return searchFields;
+    }
+
+    public String getIndex() {
+        return index;
+    }
+
+    public void setIndex(String index) {
+        this.index = index;
     }
 }

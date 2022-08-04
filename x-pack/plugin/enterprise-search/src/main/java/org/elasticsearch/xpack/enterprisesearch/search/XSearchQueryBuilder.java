@@ -9,15 +9,17 @@ package org.elasticsearch.xpack.enterprisesearch.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.query.MultiMatchQueryBuilder;
-import org.elasticsearch.xpack.core.ssl.RestrictedTrustManager;
 
 // It would be interesting if this implemented AbstractQueryBuilder here
-public class XSearchQueryBuilder {
+public final class XSearchQueryBuilder {
+
+    private XSearchQueryBuilder() {
+        throw new AssertionError("Class not meant for instantiation");
+    }
 
     private static final Logger logger = LogManager.getLogger(XSearchQueryBuilder.class);
 

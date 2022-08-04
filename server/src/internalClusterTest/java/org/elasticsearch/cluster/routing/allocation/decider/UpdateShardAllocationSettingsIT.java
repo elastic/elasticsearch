@@ -29,7 +29,7 @@ public class UpdateShardAllocationSettingsIT extends ESIntegTestCase {
     /**
      * Tests that updating the {@link EnableAllocationDecider} related settings works as expected.
      */
-    public void testEnableRebalance() throws InterruptedException {
+    public void testEnableRebalance() {
         final String firstNode = internalCluster().startNode();
         client().admin()
             .cluster()
@@ -142,6 +142,7 @@ public class UpdateShardAllocationSettingsIT extends ESIntegTestCase {
             .prepareUpdateSettings()
             .setPersistentSettings(Settings.builder().put(CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING.getKey(), false))
             .get();
+
         clusterState = client().admin().cluster().prepareState().get().getState();
         assertTrue(
             "all shards should be assigned",

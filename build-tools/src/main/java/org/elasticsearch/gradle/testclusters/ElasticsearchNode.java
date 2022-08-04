@@ -517,9 +517,15 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             }
             setupNodeDistribution(getExtractedDistributionDir());
             createWorkingDir();
-        } catch (IOException e) {
+        } catch (IOException | UncheckedIOException e) {
             logToProcessStdout("HEGO - start " + this + ", threw: " + e);
-            throw new UncheckedIOException("Failed to create working directory for " + this, e);
+            if (e instanceof IOException ioe) {
+                throw new UncheckedIOException("Failed to create working directory for " + this, ioe);
+            } else if (e instanceof UncheckedIOException ue) {
+                throw ue;
+            }
+        } catch (Throwable t) {
+            logToProcessStdout("HEGO 22 - start " + this + ", threw: " + t);
         }
 
         logToProcessStdout("HEGO - start copyExtraJars " + this);

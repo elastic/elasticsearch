@@ -41,7 +41,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
@@ -309,11 +308,11 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             Set<String> fieldsToLoad = new HashSet<>();
             Collections.addAll(fieldsToLoad, fields);
             if (fetchSourceContext.fetchSource()) {
-                loader.requiredStoredFields().forEach(fieldsToLoad::add);
+                fieldsToLoad.addAll(loader.requiredStoredFields());
             }
             return new CustomFieldsVisitor(fieldsToLoad, fetchSourceContext.fetchSource());
         }
-        Set<String> sourceFields = fetchSourceContext.fetchSource() ? loader.requiredStoredFields().collect(toSet()) : Set.of();
+        Set<String> sourceFields = fetchSourceContext.fetchSource() ? loader.requiredStoredFields() : Set.of();
         if (sourceFields.isEmpty()) {
             return fetchSourceContext.fetchSource() ? new FieldsVisitor(true) : null;
         }

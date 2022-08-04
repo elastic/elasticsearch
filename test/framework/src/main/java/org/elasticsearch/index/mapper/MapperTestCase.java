@@ -65,7 +65,6 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static java.util.stream.Collectors.toList;
-import static java.util.stream.Collectors.toSet;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -846,8 +845,9 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
                 int i = 0;
                 SourceLoader loader = mapper.sourceMapper().newSourceLoader(mapper.mapping());
-                Set<String> fields = loader.requiredStoredFields().collect(toSet());
-                FieldsVisitor visitor = fields.isEmpty() ? null : new CustomFieldsVisitor(fields, false);
+                FieldsVisitor visitor = loader.requiredStoredFields().isEmpty()
+                    ? null
+                    : new CustomFieldsVisitor(loader.requiredStoredFields(), false);
                 for (LeafReaderContext leaf : reader.leaves()) {
                     int[] docIds = IntStream.range(0, leaf.reader().maxDoc()).toArray();
                     SourceLoader.Leaf sourceLoaderLeaf = loader.leaf(leaf.reader(), docIds);

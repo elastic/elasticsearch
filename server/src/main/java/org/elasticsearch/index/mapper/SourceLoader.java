@@ -18,6 +18,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -39,7 +40,7 @@ public interface SourceLoader {
      * Stream containing all non-{@code _source} stored fields required
      * to build the {@code _source}.
      */
-    Stream<String> requiredStoredFields();  // TODO return Set?
+    Set<String> requiredStoredFields();
 
     /**
      * Loads {@code _source} from some segment.
@@ -76,8 +77,8 @@ public interface SourceLoader {
         }
 
         @Override
-        public Stream<String> requiredStoredFields() {
-            return Stream.empty();
+        public Set<String> requiredStoredFields() {
+            return Set.of();
         }
     };
 
@@ -99,8 +100,8 @@ public interface SourceLoader {
         }
 
         @Override
-        public Stream<String> requiredStoredFields() {
-            return storedFieldLoaders.keySet().stream();
+        public Set<String> requiredStoredFields() {
+            return storedFieldLoaders.keySet();
         }
 
         @Override

@@ -87,7 +87,6 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
-import static java.util.stream.Collectors.toSet;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 
@@ -704,11 +703,11 @@ public abstract class MapperServiceTestCase extends ESTestCase {
 
     protected static FieldsVisitor syntheticSourceStoredFieldsVisitor(DocumentMapper mapper, LeafReader leafReader, SourceLoader loader)
         throws IOException {
-        Set<String> fields = loader.requiredStoredFields().collect(toSet());
-        if (fields.isEmpty()) {
+        if (loader.requiredStoredFields().isEmpty()) {
             return null;
         }
-        FieldsVisitor fieldsVisitor = new CustomFieldsVisitor(fields, false);
+        FieldsVisitor fieldsVisitor = new CustomFieldsVisitor(loader.requiredStoredFields(), false);
+        fieldsVisitor.reset();
         leafReader.document(0, fieldsVisitor);
         fieldsVisitor.postProcess(mapper.mappers().fieldTypesLookup()::get);
         return fieldsVisitor;

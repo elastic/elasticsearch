@@ -56,7 +56,6 @@ import java.util.Set;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
-import static java.util.stream.Collectors.toSet;
 
 /**
  * Fetch phase of a search request, used to fetch the actual top matching documents to be returned to the client, identified
@@ -257,9 +256,8 @@ public class FetchPhase {
             }
             boolean loadSource = sourceRequired(context);
             if (loadSource) {
-                Set<String> fieldsToLoad = sourceLoader.requiredStoredFields().collect(toSet());
-                if (false == fieldsToLoad.isEmpty()) {
-                    return new CustomFieldsVisitor(fieldsToLoad, true);
+                if (false == sourceLoader.requiredStoredFields().isEmpty()) {
+                    return new CustomFieldsVisitor(sourceLoader.requiredStoredFields(), true);
                 }
             }
             return new FieldsVisitor(loadSource);

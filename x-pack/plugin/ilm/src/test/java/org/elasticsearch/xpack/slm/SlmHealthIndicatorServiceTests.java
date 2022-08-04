@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.HealthIndicatorImpact;
@@ -26,6 +27,7 @@ import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
 
+import java.time.ZoneOffset;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -45,6 +47,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class SlmHealthIndicatorServiceTests extends ESTestCase {
+
+    private static final DateFormatter FORMATTER = DateFormatter.forPattern("iso8601").withZone(ZoneOffset.UTC);
 
     public void testIsGreenWhenRunningAndPoliciesConfigured() {
         var clusterState = createClusterStateWith(new SnapshotLifecycleMetadata(createSlmPolicy(), RUNNING, null));
@@ -204,7 +208,18 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                             List.of(ImpactArea.BACKUP)
                         )
                     ),
-                    List.of(new Diagnosis(SlmHealthIndicatorService.ACTION_CHECK_RECENTLY_FAILED_SNAPSHOTS, List.of("test-policy")))
+                    List.of(
+                        new Diagnosis(
+                            SlmHealthIndicatorService.checkRecentlyFailedSnapshots(
+                                "An automated snapshot [test-policy] has not had ["
+                                    + failedInvocations
+                                    + "] successful executions since ["
+                                    + FORMATTER.formatMillis(execTime)
+                                    + "]"
+                            ),
+                            List.of("test-policy")
+                        )
+                    )
                 )
             )
         );

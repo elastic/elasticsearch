@@ -19,6 +19,19 @@ public class BertTokenizationTests extends AbstractBWCSerializationTestCase<Bert
 
     private boolean lenient;
 
+    public static BertTokenization mutateForVersion(BertTokenization instance, Version version) {
+        if (version.before(Version.V_8_2_0)) {
+            return new BertTokenization(
+                instance.doLowerCase,
+                instance.withSpecialTokens,
+                instance.maxSequenceLength,
+                instance.truncate,
+                null
+            );
+        }
+        return instance;
+    }
+
     @Before
     public void chooseStrictOrLenient() {
         lenient = randomBoolean();
@@ -41,7 +54,7 @@ public class BertTokenizationTests extends AbstractBWCSerializationTestCase<Bert
 
     @Override
     protected BertTokenization mutateInstanceForVersion(BertTokenization instance, Version version) {
-        return instance;
+        return mutateForVersion(instance, version);
     }
 
     public static BertTokenization createRandom() {

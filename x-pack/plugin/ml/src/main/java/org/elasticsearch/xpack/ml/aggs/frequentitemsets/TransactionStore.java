@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
+import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -86,6 +87,10 @@ abstract class TransactionStore implements Writeable, Releasable, Accountable {
             return new IdIterator(startIndex);
         }
 
+        public long getItemIdAt(long index) {
+            return sortedItems.get(index);
+        }
+
         public long size() {
             return sortedItems.size();
         }
@@ -132,6 +137,10 @@ abstract class TransactionStore implements Writeable, Releasable, Accountable {
 
         public long size() {
             return sortedTransactions.size();
+        }
+
+        public long getItemIdAt(long index) {
+            return sortedTransactions.get(index);
         }
 
         @Override
@@ -347,12 +356,42 @@ abstract class TransactionStore implements Writeable, Releasable, Accountable {
     }
 
     /**
-     * Get a traverser object to traverse top items
+     * Create a lookup table (bit matrix) containing a so-called "horizontal" representation of transactions to item ids.
      *
-     * @return a top item traverser
+     * A bit is set according to the position in topItems, if a transaction contains an item the bit is set.
+     * The lookup table rows correspond to the order in top transactions.
+     *
+     * @param topItems the top items
+     * @param topTransactions the top transactions
+     * @return a transaction lookup table
+     * @throws IOException
      */
-    public ItemSetTraverser getTopItemIdTraverser() {
-        return new ItemSetTraverser(getTopItemIds());
+    public TransactionsLookupTable createLookupTableByTopTransactions(TopItemIds topItems, TopTransactionIds topTransactions)
+        throws IOException {
+        try (IntArray positions = bigArrays.newIntArray(topItems.size())) {
+
+            // helper lookup table that maps an item id to the position in the top items vector
+            for (int i = 0; i < topItems.size(); ++i) {
+                positions.set(topItems.getItemIdAt(i), i);
+            }
+
+            BytesRefArray transactions = getTransactions();
+            TransactionsLookupTable lookupTable = new TransactionsLookupTable(transactions.size(), bigArrays);
+            ItemSetBitSet bitSet = new ItemSetBitSet();
+
+            for (Long id : topTransactions) {
+                bitSet.clear();
+                transactions.get(id, scratchBytesRef);
+                scratchByteArrayStreamInput.reset(scratchBytesRef.bytes, scratchBytesRef.offset, scratchBytesRef.length);
+
+                while (scratchByteArrayStreamInput.available() > 0) {
+                    // flip the bit according to the position in top items
+                    bitSet.set(1 + positions.get(scratchByteArrayStreamInput.readVLong()));
+                }
+                lookupTable.append(bitSet);
+            }
+            return lookupTable;
+        }
     }
 
     /**

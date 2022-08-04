@@ -64,7 +64,7 @@ public class FillMaskProcessorTests extends ESTestCase {
         String resultsField = randomAlphaOfLength(10);
         FillMaskResults result = (FillMaskResults) FillMaskProcessor.processResult(
             tokenization,
-            new PyTorchInferenceResult("1", scores, 0L, false),
+            new PyTorchInferenceResult(scores),
             tokenizer,
             4,
             resultsField
@@ -91,7 +91,7 @@ public class FillMaskProcessorTests extends ESTestCase {
             0
         );
 
-        PyTorchInferenceResult pyTorchResult = new PyTorchInferenceResult("1", new double[][][] { { {} } }, 0L, false);
+        PyTorchInferenceResult pyTorchResult = new PyTorchInferenceResult(new double[][][] { { {} } });
         expectThrows(
             ElasticsearchStatusException.class,
             () -> FillMaskProcessor.processResult(tokenization, pyTorchResult, tokenizer, 5, randomAlphaOfLength(10))

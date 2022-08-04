@@ -19,6 +19,7 @@ import java.io.IOException;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Executor;
 import java.util.concurrent.PriorityBlockingQueue;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
@@ -31,8 +32,7 @@ public class ShardSnapshotWorkers {
     private static final Logger logger = LogManager.getLogger(ShardSnapshotWorkers.class);
 
     private final int maxRunningTasks;
-    private final Object mutex = new Object();
-    private int runningTasksCount = 0;
+    private final AtomicInteger runningTasksCount = new AtomicInteger();
     private final BlockingQueue<SnapshotTask> snapshotTasks = new PriorityBlockingQueue<>();
     private final Executor executor;
     private final Consumer<SnapshotShardContext> shardSnapshotter;
@@ -106,7 +106,6 @@ public class ShardSnapshotWorkers {
         final CheckedBiConsumer<SnapshotShardContext, FileInfo, IOException> fileSnapshotter
     ) {
         assert maxRunningTasks > 0;
-
         logger.info("starting shard snapshot worker pool of max size {}", maxRunningTasks);
         this.maxRunningTasks = maxRunningTasks;
         this.executor = executor;
@@ -117,9 +116,7 @@ public class ShardSnapshotWorkers {
     public void enqueueShardSnapshot(final SnapshotShardContext context) {
         logger.trace("enqueuing shard snapshot task [snapshotID={}, indexID={}]", context.snapshotId(), context.indexId());
         snapshotTasks.add(new ShardSnapshotTask(context));
-        synchronized (mutex) {
-            spawnNewTasksIfPossible();
-        }
+        spawnNewTasksIfPossible();
     }
 
     public void enqueueFileSnapshot(
@@ -134,44 +131,37 @@ public class ShardSnapshotWorkers {
             fileInfo.name()
         );
         snapshotTasks.add(new FileSnapshotTask(context, fileInfo, fileUploadListener));
-        synchronized (mutex) {
-            spawnNewTasksIfPossible();
-        }
+        spawnNewTasksIfPossible();
     }
 
     private void spawnNewTasksIfPossible() {
-        assert Thread.holdsLock(mutex);
-
-        if (runningTasksCount < maxRunningTasks) {
-            SnapshotTask task = snapshotTasks.poll();
-            if (task == null) {
-                logger.trace("snapshot task queue is empty");
-                return;
-            }
-            runningTasksCount++;
-            executor.execute(() -> runOneTask(task));
+        final int count = runningTasksCount.incrementAndGet();
+        if (count > maxRunningTasks) {
+            runningTasksCount.decrementAndGet();
+            return;
         }
+        SnapshotTask task = snapshotTasks.poll();
+        if (task == null) {
+            logger.trace("snapshot task queue is empty");
+            runningTasksCount.decrementAndGet();
+            return;
+        }
+        executor.execute(() -> runTask(task));
     }
 
     // for testing
     int size() {
-        synchronized (mutex) {
-            return runningTasksCount;
-        }
+        return runningTasksCount.get();
     }
 
-    private void runOneTask(final SnapshotTask task) {
+    private void runTask(final SnapshotTask task) {
         try {
             logger.trace("running snapshot task {}", task); // TODO: toString()?
             task.run();
         } finally {
-            synchronized (mutex) {
-                assert runningTasksCount > 0;
-
-                runningTasksCount--;
-                spawnNewTasksIfPossible();
-            }
+            assert runningTasksCount.get() > 0;
+            runningTasksCount.decrementAndGet();
+            spawnNewTasksIfPossible();
         }
     }
-
 }

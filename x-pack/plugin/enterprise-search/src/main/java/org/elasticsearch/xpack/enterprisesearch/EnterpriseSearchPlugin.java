@@ -8,6 +8,8 @@
 
 package org.elasticsearch.xpack.enterprisesearch;
 
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -18,8 +20,12 @@ import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.xpack.enterprisesearch.action.EntSearchAction;
+import org.elasticsearch.xpack.enterprisesearch.action.RestEntSearchAction;
+import org.elasticsearch.xpack.enterprisesearch.action.TransportEntSearchAction;
 import org.elasticsearch.xpack.enterprisesearch.action.XSearchAction;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -36,6 +42,16 @@ public class EnterpriseSearchPlugin extends Plugin implements ActionPlugin {
                                              final IndexNameExpressionResolver indexNameExpressionResolver,
                                              final Supplier<DiscoveryNodes> nodesInCluster) {
 
-        return singletonList(new XSearchAction());
+        return Arrays.asList(
+            new XSearchAction(),
+            new RestEntSearchAction()
+        );
+    }
+
+    @Override
+    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+        return singletonList(
+            new ActionHandler<>(EntSearchAction.INSTANCE, TransportEntSearchAction.class)
+        );
     }
 }

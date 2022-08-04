@@ -13,6 +13,7 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.xpack.enterprisesearch.action.EntSearchRequest;
 
 // It would be interesting if this implemented AbstractQueryBuilder here
 public final class XSearchQueryBuilder {
@@ -30,6 +31,22 @@ public final class XSearchQueryBuilder {
         }
         multiMatchQueryBuilder
             .minimumShouldMatch(queryOptions.getMinimumShouldMatch())
+            .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS);
+
+        final BoolQueryBuilder queryBuilder = QueryBuilders.boolQuery().should(multiMatchQueryBuilder);
+
+        logger.info(queryBuilder.toString());
+
+        return queryBuilder;
+    }
+
+    public static QueryBuilder getQueryBuilder(EntSearchRequest entSearchRequest) {
+        MultiMatchQueryBuilder multiMatchQueryBuilder = QueryBuilders.multiMatchQuery(entSearchRequest.getQuery());
+        for (String searchField : entSearchRequest.getSearchFields()) {
+            multiMatchQueryBuilder.field(searchField, entSearchRequest.getBoostForField(searchField));
+        }
+        multiMatchQueryBuilder
+            .minimumShouldMatch(entSearchRequest.getMinimumShouldMatch())
             .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS);
 
         final BoolQueryBuilder queryBuilder = QueryBuilders.boolQuery().should(multiMatchQueryBuilder);

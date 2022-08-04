@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -104,6 +105,12 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
             response.results().get(policyName).requiredCapacity().node().storage().getBytes(),
             equalTo(maxShardSize + ReactiveStorageDeciderService.NODE_DISK_OVERHEAD + LOW_WATERMARK_BYTES)
         );
+        var reactiveReason = (ReactiveStorageDeciderService.ReactiveReason) response.results()
+            .get(policyName)
+            .results()
+            .get("reactive_storage")
+            .reason();
+        assertEquals(AllocationDecision.NO, reactiveReason.assignedShardAllocateDecision().getMoveDecision().getAllocationDecision());
     }
 
     public void testScaleFromEmptyWarmMove() throws Exception {

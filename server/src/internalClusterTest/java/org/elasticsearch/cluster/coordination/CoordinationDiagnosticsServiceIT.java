@@ -35,7 +35,6 @@ public class CoordinationDiagnosticsServiceIT extends ESIntegTestCase {
         internalCluster().setBootstrapMasterNodeIndex(0);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/89015")
     public void testBlockClusterStateProcessingOnOneNode() throws Exception {
         /*
          * This test picks a node that is not elected master, and then blocks cluster state processing on it. The reason is so that we
@@ -48,6 +47,7 @@ public class CoordinationDiagnosticsServiceIT extends ESIntegTestCase {
         assertThat(nodeNames, hasItem(master));
         String blockedNode = nodeNames.stream().filter(n -> n.equals(master) == false).findAny().get();
         assertNotNull(blockedNode);
+        ensureStableCluster(3);
 
         DiscoveryNodes discoveryNodes = internalCluster().getInstance(ClusterService.class, master).state().nodes();
         Set<DiscoveryNode> nodesWithoutBlockedNode = discoveryNodes.getNodes()

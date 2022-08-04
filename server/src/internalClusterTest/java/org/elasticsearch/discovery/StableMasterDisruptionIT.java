@@ -602,7 +602,8 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
                 HealthStatus.RED,
                 anyOf(
                     containsString("unable to form a quorum"),
-                    containsString("No master node observed in the last 1s") // happens if master node has not replied within 1s
+                    containsString("No master node observed in the last 1s, and the cause has not been determined.")
+                    // later happens if master node has not replied within 1s
                 )
             );
         }

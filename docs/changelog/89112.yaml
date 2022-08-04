@@ -3,4 +3,4 @@ summary: Make param check when create custom analyzer
 area: Search/Analysis
 type: enhancement
 issues:
- - 89112
+ - 85710

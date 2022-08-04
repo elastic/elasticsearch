@@ -36,8 +36,8 @@ public class FetchDocValuesContext {
         for (FieldAndFormat field : fieldPatterns) {
             Collection<String> fieldNames = searchExecutionContext.getMatchingFieldNames(field.field);
             for (String fieldName : fieldNames) {
-                // the first matching field wins
-                fieldToFormats.putIfAbsent(fieldName, new FieldAndFormat(fieldName, field.format, field.includeUnmapped));
+                // the last matching field wins
+                fieldToFormats.put(fieldName, new FieldAndFormat(fieldName, field.format, field.includeUnmapped));
             }
         }
         this.fields = fieldToFormats.values();

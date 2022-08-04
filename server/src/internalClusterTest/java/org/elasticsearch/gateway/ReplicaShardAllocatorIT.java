@@ -13,6 +13,8 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
@@ -371,9 +373,14 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
     /**
      * Make sure that we do not repeatedly cancel an ongoing recovery for a noop copy on a broken node.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86429")
     public void testDoNotCancelRecoveryForBrokenNode() throws Exception {
         internalCluster().startMasterOnlyNode();
+
+        assumeTrue(
+            "Other ShardsAllocator implementations might not retry allocation on other node",
+            internalCluster().getInstance(ShardsAllocator.class) instanceof BalancedShardsAllocator
+        );
+
         String nodeWithPrimary = internalCluster().startDataOnlyNode();
         String indexName = "test";
         assertAcked(

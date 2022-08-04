@@ -52,6 +52,8 @@ import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
@@ -898,9 +900,14 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         assertThat(recoveryState.getTranslog().recoveredOperations(), greaterThan(0));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86429")
     public void testDoNotInfinitelyWaitForMapping() {
         internalCluster().ensureAtLeastNumDataNodes(3);
+
+        assumeTrue(
+            "Other ShardsAllocator implementations might not retry allocation on other node",
+            internalCluster().getInstance(ShardsAllocator.class) instanceof BalancedShardsAllocator
+        );
+
         createIndex(
             "test",
             Settings.builder()

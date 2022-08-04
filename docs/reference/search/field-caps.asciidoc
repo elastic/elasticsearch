@@ -142,8 +142,8 @@ field types are all described as the `keyword` type family.
 
 `time_series_metric`::
   preview:[]
-  Contains metric type if this field is used as a time series metric on all indices, absent if the field is
-  not used as metric. For non-time-series indexes this field is always missing.
+  Contains the metric type if the field is used as a time series metric on all indices, absent if the field is
+  not used as a metric. For non-time-series indices this field is not included.
 
 `indices`::
   The list of indices where this field has the same type family, or null if all indices

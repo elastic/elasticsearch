@@ -17,6 +17,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -85,7 +86,8 @@ public class CompositeRuntimeField implements RuntimeField {
                 name,
                 lookup -> factory.newFactory(name, script.get().getParams(), lookup)
             );
-            Map<String, RuntimeField> runtimeFields = RuntimeField.parseRuntimeFields(fields.getValue(), parserContext, builder, false);
+            Map<String, RuntimeField> runtimeFields
+                = RuntimeField.parseRuntimeFields(new HashMap<>(fields.getValue()), parserContext, builder, false);
             return new CompositeRuntimeField(name, getParameters(), runtimeFields.values());
         }
     });

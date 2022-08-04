@@ -113,6 +113,7 @@ public class FsRepositoryTests extends ESTestCase {
                     snapshotStatus,
                     Version.CURRENT,
                     Collections.emptyMap(),
+                    randomMillisUpToYear9999(),
                     snapshot1Future
                 )
             );
@@ -155,6 +156,7 @@ public class FsRepositoryTests extends ESTestCase {
                     snapshotStatus2,
                     Version.CURRENT,
                     Collections.emptyMap(),
+                    randomMillisUpToYear9999(),
                     snapshot2future
                 )
             );

@@ -39,7 +39,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 
 public class ShardSnapshotWorkersTests extends ESTestCase {
@@ -90,7 +89,7 @@ public class ShardSnapshotWorkersTests extends ESTestCase {
                     filesToUpload
                 );
                 for (int i = 0; i < filesToUpload; i++) {
-                    workers.enqueueFileSnapshot(context, createDummyFileInfo(), uploadListener);
+                    workers.enqueueFileSnapshot(context, dummyFileInfo(), uploadListener);
                 }
             }
             finishedShardSnapshotTasks.incrementAndGet();
@@ -117,17 +116,17 @@ public class ShardSnapshotWorkersTests extends ESTestCase {
         }
     }
 
-    private static BlobStoreIndexShardSnapshot.FileInfo createDummyFileInfo() {
+    private static BlobStoreIndexShardSnapshot.FileInfo dummyFileInfo() {
         String filename = randomAlphaOfLength(10);
         StoreFileMetadata metadata = new StoreFileMetadata(filename, 10, "CHECKSUM", Version.CURRENT.luceneVersion.toString());
         return new BlobStoreIndexShardSnapshot.FileInfo(filename, metadata, null);
     }
 
-    private SnapshotShardContext createDummyContext() {
-        return createDummyContext(new SnapshotId(randomAlphaOfLength(10), UUIDs.randomBase64UUID()));
+    private SnapshotShardContext dummyContext() {
+        return dummyContext(new SnapshotId(randomAlphaOfLength(10), UUIDs.randomBase64UUID()), threadPool.absoluteTimeInMillis());
     }
 
-    private SnapshotShardContext createDummyContext(final SnapshotId snapshotId) {
+    private SnapshotShardContext dummyContext(final SnapshotId snapshotId, final long startTime) {
         IndexId indexId = new IndexId(randomAlphaOfLength(10), UUIDs.randomBase64UUID());
         ShardId shardId = new ShardId(indexId.getName(), indexId.getId(), 1);
         Settings settings = Settings.builder()
@@ -150,6 +149,7 @@ public class ShardSnapshotWorkersTests extends ESTestCase {
             IndexShardSnapshotStatus.newInitializing(null),
             Version.CURRENT,
             Collections.emptyMap(),
+            startTime,
             ActionListener.noop()
         );
     }
@@ -162,13 +162,13 @@ public class ShardSnapshotWorkersTests extends ESTestCase {
         repo.setWorkers(workers);
         int enqueuedSnapshots = maxSize - 1; // So that it is possible to create at least one more worker
         for (int i = 0; i < enqueuedSnapshots; i++) {
-            workers.enqueueShardSnapshot(createDummyContext());
+            workers.enqueueShardSnapshot(dummyContext());
         }
         assertBusy(() -> assertThat(workers.size(), equalTo(maxSize - 1)));
         // Adding at least one new shard snapshot would create a new worker
         int newTasks = randomIntBetween(1, 10);
         for (int i = 0; i < newTasks; i++) {
-            workers.enqueueShardSnapshot(createDummyContext());
+            workers.enqueueShardSnapshot(dummyContext());
         }
         enqueuedSnapshots += newTasks;
         assertThat(workers.size(), equalTo(maxSize));
@@ -182,27 +182,32 @@ public class ShardSnapshotWorkersTests extends ESTestCase {
 
     public void testCompareToShardSnapshotTask() {
         ShardSnapshotWorkers workers = new ShardSnapshotWorkers(1, executor, context -> {}, (context, fileInfo) -> {});
-        SnapshotId s1 = new SnapshotId("a", UUIDs.randomBase64UUID());
-        SnapshotId s2 = new SnapshotId("b", UUIDs.randomBase64UUID());
-        SnapshotId s3 = new SnapshotId("a", UUIDs.randomBase64UUID());
-        SnapshotShardContext s1Context = createDummyContext(s1);
-        SnapshotShardContext s2Context = createDummyContext(s2);
-        SnapshotShardContext s3Context = createDummyContext(s3);
-        // Two tasks with the same snapshot name and of the same type have the same priority
-        assertThat(workers.new ShardSnapshotTask(s1Context).compareTo(workers.new ShardSnapshotTask(s3Context)), equalTo(0));
-        // Within the same snapshot, shard snapshot has higher priority over file snapshot
+        SnapshotId s1 = new SnapshotId("s1", UUIDs.randomBase64UUID());
+        SnapshotId s2 = new SnapshotId("s2", UUIDs.randomBase64UUID());
+        SnapshotId s3 = new SnapshotId("s3", UUIDs.randomBase64UUID());
+        ActionListener<Void> listener = ActionListener.noop();
+        final long s1StartTime = threadPool.absoluteTimeInMillis();
+        final long s2StartTime = s1StartTime + randomLongBetween(1, 1000);
+        SnapshotShardContext s1Context = dummyContext(s1, s1StartTime);
+        SnapshotShardContext s2Context = dummyContext(s2, s2StartTime);
+        SnapshotShardContext s3Context = dummyContext(s3, s2StartTime);
+        // Two tasks with the same start time and of the same type have the same priority
+        assertThat(workers.new ShardSnapshotTask(s2Context).compareTo(workers.new ShardSnapshotTask(s3Context)), equalTo(0));
+        // Shard snapshot task always has a higher priority over file snapshot
         assertThat(
-            workers.new ShardSnapshotTask(s1Context).compareTo(
-                workers.new FileSnapshotTask(s1Context, createDummyFileInfo(), ActionListener.noop())
-            ),
+            workers.new ShardSnapshotTask(s1Context).compareTo(workers.new FileSnapshotTask(s1Context, dummyFileInfo(), listener)),
             lessThan(0)
         );
-        // Priority of task types matter only within the same snapshot
         assertThat(
-            workers.new ShardSnapshotTask(s2Context).compareTo(
-                workers.new FileSnapshotTask(s1Context, createDummyFileInfo(), ActionListener.noop())
+            workers.new ShardSnapshotTask(s2Context).compareTo(workers.new FileSnapshotTask(s1Context, dummyFileInfo(), listener)),
+            lessThan(0)
+        );
+        // File snapshots are prioritized by start time.
+        assertThat(
+            workers.new FileSnapshotTask(s1Context, dummyFileInfo(), listener).compareTo(
+                workers.new FileSnapshotTask(s2Context, dummyFileInfo(), listener)
             ),
-            greaterThan(0)
+            lessThan(0)
         );
     }
 }

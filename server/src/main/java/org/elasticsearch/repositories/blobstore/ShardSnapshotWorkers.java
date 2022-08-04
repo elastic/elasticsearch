@@ -53,11 +53,11 @@ public class ShardSnapshotWorkers {
 
         @Override
         public final int compareTo(SnapshotTask other) {
-            int res = context.snapshotId().compareTo(other.context.snapshotId());
+            int res = Integer.compare(priority(), other.priority());
             if (res != 0) {
                 return res;
             }
-            return Integer.compare(priority(), other.priority());
+            return Long.compare(context.snapshotStartTime(), other.context.snapshotStartTime());
         }
     }
 

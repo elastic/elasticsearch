@@ -19,10 +19,13 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.stream.Stream;
 
+/**
+ * Load {@code _source} fields from {@link SortedNumericDocValues}.
+ */
 public abstract class SortedNumericDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFieldLoader {
     private final String name;
     private final String simpleName;
-    private CheckedConsumer<XContentBuilder, IOException> writer = b ->{};
+    private CheckedConsumer<XContentBuilder, IOException> writer = b -> {};
 
     protected SortedNumericDocValuesSyntheticFieldLoader(String name, String simpleName) {
         this.name = name;

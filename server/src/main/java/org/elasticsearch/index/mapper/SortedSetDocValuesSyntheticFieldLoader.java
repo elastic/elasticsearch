@@ -23,12 +23,15 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.stream.Stream;
 
+/**
+ * Load {@code _source} fields from {@link SortedSetDocValues}.
+ */
 public abstract class SortedSetDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFieldLoader {
     private static final Logger logger = LogManager.getLogger(SortedSetDocValuesSyntheticFieldLoader.class);
 
     private final String name;
     private final String simpleName;
-    private CheckedConsumer<XContentBuilder, IOException> writer = b ->{};
+    private CheckedConsumer<XContentBuilder, IOException> writer = b -> {};
 
     public SortedSetDocValuesSyntheticFieldLoader(String name, String simpleName) {
         this.name = name;

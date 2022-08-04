@@ -268,12 +268,6 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         }
 
         @Override
-        public void visit(DocIdSetIterator iterator) throws IOException {
-            checkAndThrowWithSampling();
-            in.visit(iterator);
-        }
-
-        @Override
         public void visit(int docID, byte[] packedValue) throws IOException {
             checkAndThrowWithSampling();
             in.visit(docID, packedValue);

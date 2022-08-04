@@ -33,13 +33,13 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.SourceValueFetcherSortedNumericIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedDoublesIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
-import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.mapper.TimeSeriesParams.MetricType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.DoubleFieldScript;
@@ -1713,22 +1713,25 @@ public class NumberFieldMapper extends FieldMapper {
     public abstract static class NumericSyntheticFieldLoader implements SourceLoader.SyntheticFieldLoader {
         private final String name;
         private final String simpleName;
+        private CheckedConsumer<XContentBuilder, IOException> writer;
 
         protected NumericSyntheticFieldLoader(String name, String simpleName) {
             this.name = name;
             this.simpleName = simpleName;
         }
 
+        protected abstract void writeValue(XContentBuilder b, long value) throws IOException;
+
         @Override
-        public Stream<String> requiredStoredFields() {
-            return Stream.empty();
+        public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
+            return Stream.of();
         }
 
         @Override
         public DocValuesLoader docValuesLoader(LeafReader reader, int[] docIdsInLeaf) throws IOException {
             SortedNumericDocValues dv = docValuesOrNull(reader, name);
             if (dv == null) {
-                return SourceLoader.SyntheticFieldLoader.NOTHING_LEAF;
+                return null;
             }
             if (docIdsInLeaf.length > 1) {
                 /*
@@ -1738,31 +1741,31 @@ public class NumberFieldMapper extends FieldMapper {
                  */
                 NumericDocValues single = DocValues.unwrapSingleton(dv);
                 if (single != null) {
-                    return singletonLeaf(single, docIdsInLeaf);
+                    return buildSingletonDocValuesLoader(single, docIdsInLeaf);
                 }
             }
-            return new ImmediateLeaf(dv);
+            return new ImmediateDocValuesLoader(dv);
         }
 
-        private class ImmediateLeaf implements DocValuesLoader {
+        @Override
+        public void write(XContentBuilder b) throws IOException {
+            writer.accept(b);
+        }
+
+        private class ImmediateDocValuesLoader implements DocValuesLoader {
             private final SortedNumericDocValues dv;
             private boolean hasValue;
 
-            ImmediateLeaf(SortedNumericDocValues dv) {
+            ImmediateDocValuesLoader(SortedNumericDocValues dv) {
                 this.dv = dv;
+                NumericSyntheticFieldLoader.this.writer = this::write;
             }
 
             @Override
-            public boolean empty() {
-                return false;
-            }
-
-            @Override
-            public boolean advanceToDoc(FieldsVisitor fieldsVisitor, int docId) throws IOException {
+            public boolean advanceToDoc(int docId) throws IOException {
                 return hasValue = dv.advanceExact(docId);
             }
 
-            @Override
             public void write(XContentBuilder b) throws IOException {
                 if (false == hasValue) {
                     return;
@@ -1780,12 +1783,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
         }
 
-        /**
-         * Load all values for all docs up front. This should be much more
-         * disk and cpu-friendly than {@link ImmediateLeaf} because it resolves
-         * the values all at once, always scanning forwards on the disk.
-         */
-        private DocValuesLoader singletonLeaf(NumericDocValues singleton, int[] docIdsInLeaf) throws IOException {
+        private SingletonDocValuesLoader buildSingletonDocValuesLoader(NumericDocValues singleton, int[] docIdsInLeaf) throws IOException {
             long[] values = new long[docIdsInLeaf.length];
             boolean[] hasValue = new boolean[docIdsInLeaf.length];
             boolean found = false;
@@ -1799,36 +1797,48 @@ public class NumberFieldMapper extends FieldMapper {
                 found = true;
             }
             if (found == false) {
-                return SourceLoader.SyntheticFieldLoader.NOTHING_LEAF;
+                return null;
             }
-            return new DocValuesLoader() {
-                private int idx = -1;
+            return new SingletonDocValuesLoader(docIdsInLeaf, values, hasValue);
+        }
 
-                @Override
-                public boolean empty() {
-                    return false;
-                }
+        /**
+         * Load all values for all docs up front. This should be much more
+         * disk and cpu-friendly than {@link ImmediateDocValuesLoader} because
+         * it resolves the values all at once, always scanning forwards on
+         * the disk.
+         */
+        private class SingletonDocValuesLoader implements DocValuesLoader {
+            private final int[] docIdsInLeaf;
+            private final long[] values;
+            private final boolean[] hasValue;
+            private int idx = -1;
 
-                @Override
-                public boolean advanceToDoc(FieldsVisitor fieldsVisitor, int docId) throws IOException {
-                    idx++;
-                    if (docIdsInLeaf[idx] != docId) {
-                        throw new IllegalArgumentException(
-                            "expected to be called with [" + docIdsInLeaf[idx] + "] but was called with " + docId + " instead"
-                        );
-                    }
-                    return hasValue[idx];
-                }
+            private SingletonDocValuesLoader(int[] docIdsInLeaf, long[] values, boolean[] hasValue) {
+                this.docIdsInLeaf = docIdsInLeaf;
+                this.values = values;
+                this.hasValue = hasValue;
+                NumericSyntheticFieldLoader.this.writer = this::write;
+            }
 
-                @Override
-                public void write(XContentBuilder b) throws IOException {
-                    if (hasValue[idx] == false) {
-                        return;
-                    }
-                    b.field(simpleName);
-                    writeValue(b, values[idx]);
+            @Override
+            public boolean advanceToDoc(int docId) throws IOException {
+                idx++;
+                if (docIdsInLeaf[idx] != docId) {
+                    throw new IllegalArgumentException(
+                        "expected to be called with [" + docIdsInLeaf[idx] + "] but was called with " + docId + " instead"
+                    );
                 }
-            };
+                return hasValue[idx];
+            }
+
+            private void write(XContentBuilder b) throws IOException {
+                if (hasValue[idx] == false) {
+                    return;
+                }
+                b.field(simpleName);
+                writeValue(b, values[idx]);
+            }
         }
 
         /**
@@ -1848,7 +1858,5 @@ public class NumberFieldMapper extends FieldMapper {
             }
             return null;
         }
-
-        protected abstract void writeValue(XContentBuilder b, long value) throws IOException;
     }
 }

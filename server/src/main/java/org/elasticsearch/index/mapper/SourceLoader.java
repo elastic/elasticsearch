@@ -39,7 +39,7 @@ public interface SourceLoader {
      * Stream containing all non-{@code _source} stored fields required
      * to build the {@code _source}.
      */
-    Stream<String> requiredStoredFields();
+    Stream<String> requiredStoredFields();  // TODO return Set?
 
     /**
      * Loads {@code _source} from some segment.
@@ -86,13 +86,12 @@ public interface SourceLoader {
      */
     class Synthetic implements SourceLoader {
         private final SyntheticFieldLoader loader;
-        private final Map<String, SyntheticFieldLoader.StoredFieldLoader> storedFieldLeaves;
+        private final Map<String, SyntheticFieldLoader.StoredFieldLoader> storedFieldLoaders;
 
         public Synthetic(Mapping mapping) {
             loader = mapping.getRoot().syntheticFieldLoader();
-            storedFieldLeaves = Map.copyOf(
-                loader.storedFieldsLeaves().collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
-            ); // NOCOMMIT gotta be a better way to make the map
+            storedFieldLoaders = Map.copyOf(loader.storedFieldLoaders().collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
+            // NOCOMMIT gotta be a better way to make the map
         }
 
         @Override
@@ -102,28 +101,25 @@ public interface SourceLoader {
 
         @Override
         public Stream<String> requiredStoredFields() {
-            return loader.requiredStoredFields();
+            return storedFieldLoaders.keySet().stream();
         }
 
         @Override
         public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException {
             SyntheticFieldLoader.DocValuesLoader leaf = loader.docValuesLoader(reader, docIdsInLeaf);
-            // if (leaf.empty()) {
-            // return Leaf.EMPTY_OBJECT;
-            // }
             return (fieldsVisitor, docId) -> {
                 if (fieldsVisitor != null) {
                     for (Map.Entry<String, List<Object>> e : fieldsVisitor.fields().entrySet()) {
-                        SyntheticFieldLoader.StoredFieldLoader storedFieldLeaf = storedFieldLeaves.get(e.getKey());
-                        if (storedFieldLeaf != null) {
-                            storedFieldLeaf.loadedStoredField(e.getValue());
+                        SyntheticFieldLoader.StoredFieldLoader loader = storedFieldLoaders.get(e.getKey());
+                        if (loader != null) {
+                            loader.load(e.getValue());
                         }
                     }
                 }
                 // TODO accept a requested xcontent type
                 try (XContentBuilder b = new XContentBuilder(JsonXContent.jsonXContent, new ByteArrayOutputStream())) {
-                    if (leaf.advanceToDoc(fieldsVisitor, docId)) {
-                        leaf.write(b);
+                    if (leaf.advanceToDoc(docId)) {
+                        loader.write(b);
                     } else {
                         b.startObject().endObject();
                     }
@@ -140,79 +136,45 @@ public interface SourceLoader {
         /**
          * Load no values.
          */
-        DocValuesLoader NOTHING_LEAF = new DocValuesLoader() {
-            @Override
-            public boolean empty() {
-                return true;
-            }
-
-            @Override
-            public boolean advanceToDoc(FieldsVisitor fieldsVisitor, int docId) {
-                return false;
-            }
-
-            @Override
-            public void write(XContentBuilder b) {}
-        };
-
-        /**
-         * Load no values.
-         */
         SyntheticFieldLoader NOTHING = new SyntheticFieldLoader() {
             @Override
-            public Stream<String> requiredStoredFields() {
-                return Stream.empty();
+            public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
+                return Stream.of();
             }
 
             @Override
-            public DocValuesLoader docValuesLoader(LeafReader reader, int[] docIdsInLeaf) {
-                return NOTHING_LEAF;
+            public DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
+                return null;
             }
+
+            @Override
+            public void write(XContentBuilder b) throws IOException {}
         };
+
+        Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders();
 
         /**
          * Build a loader for this field in the provided segment.
          */
-        DocValuesLoader docValuesLoader(LeafReader reader, int[] docIdsInLeaf) throws IOException;
-
-        default Writer writer() {
-            return null;
-        }
+        DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException;
 
         /**
-         * Stream containing all non-{@code _source} stored fields required
-         * to build the {@code _source}.
+         * Write values for this document.
          */
-        Stream<String> requiredStoredFields();
+        void write(XContentBuilder b) throws IOException;
 
-        default Stream<Map.Entry<String, StoredFieldLoader>> storedFieldsLeaves() {
-            return Stream.empty();
+        interface StoredFieldLoader {
+            void load(List<Object> values);
         }
 
         /**
          * Loads values for a field in a particular leaf.
          */
-        interface DocValuesLoader extends Writer {
-            /**
-             * Is this entirely empty?
-             */
-            boolean empty();
-
+        interface DocValuesLoader {
             /**
              * Position the loader at a document.
              */
-            boolean advanceToDoc(FieldsVisitor fieldsVisitor, int docId) throws IOException;
-        }
-
-        interface StoredFieldLoader {
-            void loadedStoredField(List<Object> values);
-        }
-
-        interface Writer {
-            /**
-             * Write values for this document.
-             */
-            void write(XContentBuilder b) throws IOException;
+            boolean advanceToDoc(int docId) throws IOException;
         }
     }
 

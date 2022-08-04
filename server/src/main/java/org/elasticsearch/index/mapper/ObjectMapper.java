@@ -15,7 +15,6 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -31,8 +30,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Stream;
-
-import static java.util.stream.Collectors.toMap;
 
 public class ObjectMapper extends Mapper implements Cloneable {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ObjectMapper.class);
@@ -570,108 +567,49 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
     private class SyntheticSourceFieldLoader implements SourceLoader.SyntheticFieldLoader {
         private final List<SourceLoader.SyntheticFieldLoader> fields;
-        private final Map<String, StoredFieldLoader> storedFieldLoaders;
         private boolean hasValue;
 
         private SyntheticSourceFieldLoader(List<SourceLoader.SyntheticFieldLoader> fields) {
             this.fields = fields;
-            this.storedFieldLoaders = fields.stream()
-                .flatMap(SourceLoader.SyntheticFieldLoader::storedFieldsLeaves)
-                .collect(toMap(Map.Entry::getKey, e -> values -> {
-                    hasValue = true;
-                    e.getValue().loadedStoredField(values);
-                }));
         }
 
         @Override
-        public Stream<String> requiredStoredFields() {
-            return fields.stream().flatMap(SourceLoader.SyntheticFieldLoader::requiredStoredFields);
+        public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
+            return fields.stream().flatMap(SourceLoader.SyntheticFieldLoader::storedFieldLoaders).map(e -> Map.entry(e.getKey(), values -> {
+                hasValue = true;
+                e.getValue().load(values);
+            }));
         }
 
         @Override
-        public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldsLeaves() {
-            return storedFieldLoaders.entrySet().stream();
-        }
-
-        @Override
-        public DocValuesLoader docValuesLoader(LeafReader reader, int[] docIdsInLeaf) throws IOException {
-            return new SyntheticSourceFieldLoaderLeaf(this, reader, docIdsInLeaf);
-        }
-
-        @Override public Writer writer() {
-            List<Writer> fieldWriters = new ArrayList<>();
+        public DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
+            List<SourceLoader.SyntheticFieldLoader.DocValuesLoader> loaders = new ArrayList<>();
             for (SourceLoader.SyntheticFieldLoader field : fields) {
-                Writer fieldWriter = field.writer();
-                if (fieldWriter != null) {
-                    fieldWriters.add(fieldWriter);
+                SourceLoader.SyntheticFieldLoader.DocValuesLoader loader = field.docValuesLoader(leafReader, docIdsInLeaf);
+                if (loader != null) {
+                    loaders.add(loader);
                 }
             }
-            return b -> {
-                if (hasValue == false) {
-                    return;
+            return docId -> {
+                for (SourceLoader.SyntheticFieldLoader.DocValuesLoader docValueLoader : loaders) {
+                    boolean leafHasValue = docValueLoader.advanceToDoc(docId);
+                    hasValue |= leafHasValue;
                 }
-                startSyntheticField(b);
-                for (Writer fieldWriter : fieldWriters) {
-                    fieldWriter.write(b);
-                }
-                b.endObject();
-                hasValue = false;
+                return hasValue;
             };
-        }
-    }
-
-    private class SyntheticSourceFieldLoaderLeaf implements SourceLoader.SyntheticFieldLoader.DocValuesLoader {
-        private final SyntheticSourceFieldLoader parent;
-        private final SourceLoader.SyntheticFieldLoader.Writer[] fieldWriters;
-        private final SourceLoader.SyntheticFieldLoader.DocValuesLoader[] docValueLoaders;
-
-        private SyntheticSourceFieldLoaderLeaf(SyntheticSourceFieldLoader parent, LeafReader reader, int[] docIdsInLeaf)
-            throws IOException {
-
-            this.parent = parent;
-            List<SourceLoader.SyntheticFieldLoader.Writer> fieldWriters = new ArrayList<>();
-            List<SourceLoader.SyntheticFieldLoader.DocValuesLoader> docValueLoaders = new ArrayList<>();
-            for (SourceLoader.SyntheticFieldLoader field : parent.fields) {
-                SourceLoader.SyntheticFieldLoader.DocValuesLoader leaf = field.docValuesLoader(reader, docIdsInLeaf);
-                if (false == leaf.empty()) {
-                    docValueLoaders.add(leaf);
-                    fieldWriters.add(leaf);
-                    continue;
-                }
-                SourceLoader.SyntheticFieldLoader.Writer fieldWriter = field.writer();
-                if (fieldWriter != null) {
-                    fieldWriters.add(fieldWriter);
-                }
-            }
-            this.fieldWriters = fieldWriters.toArray(SourceLoader.SyntheticFieldLoader.Writer[]::new);
-            this.docValueLoaders = docValueLoaders.toArray(SourceLoader.SyntheticFieldLoader.DocValuesLoader[]::new);
-        }
-
-        @Override
-        public boolean empty() {
-            return docValueLoaders.length == 0;
-        }
-
-        @Override
-        public boolean advanceToDoc(FieldsVisitor fieldsVisitor, int docId) throws IOException {
-            for (SourceLoader.SyntheticFieldLoader.DocValuesLoader docValueLoader : docValueLoaders) {
-                boolean leafHasValue = docValueLoader.advanceToDoc(fieldsVisitor, docId);
-                parent.hasValue |= leafHasValue;
-            }
-            return parent.hasValue;
         }
 
         @Override
         public void write(XContentBuilder b) throws IOException {
-            if (parent.hasValue == false) {
+            if (hasValue == false) {
                 return;
             }
             startSyntheticField(b);
-            for (SourceLoader.SyntheticFieldLoader.Writer fieldWriter : fieldWriters) {
-                fieldWriter.write(b);
+            for (SourceLoader.SyntheticFieldLoader field : fields) {
+                field.write(b);
             }
             b.endObject();
-            parent.hasValue = false;
+            hasValue = false;
         }
     }
 

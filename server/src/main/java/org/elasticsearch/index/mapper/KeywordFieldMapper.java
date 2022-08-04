@@ -42,6 +42,7 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -50,7 +51,6 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.SourceValueFetcherSortedBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
-import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.script.Script;
@@ -1113,6 +1113,7 @@ public final class KeywordFieldMapper extends FieldMapper {
     public abstract static class SortedSetDocValuesFieldLoader implements SourceLoader.SyntheticFieldLoader {
         private final String name;
         private final String simpleName;
+        private CheckedConsumer<XContentBuilder, IOException> writer;
 
         public SortedSetDocValuesFieldLoader(String name, String simpleName) {
             this.name = name;
@@ -1120,15 +1121,15 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Stream<String> requiredStoredFields() {
-            return Stream.empty();
+        public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
+            return Stream.of();
         }
 
         @Override
         public DocValuesLoader docValuesLoader(LeafReader reader, int[] docIdsInLeaf) throws IOException {
             SortedSetDocValues dv = DocValues.getSortedSet(reader, name);
             if (dv.getValueCount() == 0) {
-                return SourceLoader.SyntheticFieldLoader.NOTHING_LEAF;
+                return null;
             }
             if (docIdsInLeaf.length == 1) {
                 /*
@@ -1136,117 +1137,38 @@ public final class KeywordFieldMapper extends FieldMapper {
                  * in sorted order and doesn't buy anything if there is only a single
                  * document.
                  */
-                return new ImmediateLeaf(dv);
+                return new ImmediateDocValuesLoader(dv);
             }
             SortedDocValues singleton = DocValues.unwrapSingleton(dv);
             if (singleton != null) {
-                return singletonLeaf(singleton, docIdsInLeaf);
+                return buildSingletonDocValuesLoader(singleton, docIdsInLeaf);
             }
-            return new ImmediateLeaf(dv);
+            return new ImmediateDocValuesLoader(dv);
         }
 
-        /**
-         * Load all ordinals for all docs up front and resolve to their string
-         * values in order. This should be much more disk-friendly than
-         * {@link ImmediateLeaf} because it resolves the ordinals in order and
-         * marginally more cpu friendly because it resolves the ordinals one time.
-         */
-        private DocValuesLoader singletonLeaf(SortedDocValues singleton, int[] docIdsInLeaf) throws IOException {
-            int[] ords = new int[docIdsInLeaf.length];
-            int found = 0;
-            for (int d = 0; d < docIdsInLeaf.length; d++) {
-                if (false == singleton.advanceExact(docIdsInLeaf[d])) {
-                    ords[d] = -1;
-                    continue;
-                }
-                ords[d] = singleton.ordValue();
-                found++;
-            }
-            if (found == 0) {
-                return SourceLoader.SyntheticFieldLoader.NOTHING_LEAF;
-            }
-            int[] sortedOrds = ords.clone();
-            Arrays.sort(sortedOrds);
-            int unique = 0;
-            int prev = -1;
-            for (int ord : sortedOrds) {
-                if (ord != prev) {
-                    prev = ord;
-                    unique++;
-                }
-            }
-            int[] uniqueOrds = new int[unique];
-            BytesRef[] converted = new BytesRef[unique];
-            unique = 0;
-            prev = -1;
-            for (int ord : sortedOrds) {
-                if (ord != prev) {
-                    prev = ord;
-                    uniqueOrds[unique] = ord;
-                    converted[unique] = preserve(convert(singleton.lookupOrd(ord)));
-                    unique++;
-                }
-            }
-            logger.debug("loading [{}] on [{}] docs covering [{}] ords", name, docIdsInLeaf.length, uniqueOrds.length);
-            return new DocValuesLoader() {
-                private int idx = -1;
-
-                @Override
-                public boolean empty() {
-                    return false;
-                }
-
-                @Override
-                public boolean advanceToDoc(FieldsVisitor fieldsVisitor, int docId) throws IOException {
-                    idx++;
-                    if (docIdsInLeaf[idx] != docId) {
-                        throw new IllegalArgumentException(
-                            "expected to be called with [" + docIdsInLeaf[idx] + "] but was called with " + docId + " instead"
-                        );
-                    }
-                    return ords[idx] >= 0;
-                }
-
-                @Override
-                public void write(XContentBuilder b) throws IOException {
-                    if (ords[idx] < 0) {
-                        return;
-                    }
-                    int convertedIdx = Arrays.binarySearch(uniqueOrds, ords[idx]);
-                    if (convertedIdx < 0) {
-                        throw new IllegalStateException(
-                            "received unexpected ord [" + ords[idx] + "]. Expected " + Arrays.toString(uniqueOrds)
-                        );
-                    }
-                    BytesRef c = converted[convertedIdx];
-                    b.field(simpleName).utf8Value(c.bytes, c.offset, c.length);
-                }
-            };
+        @Override
+        public void write(XContentBuilder b) throws IOException {
+            writer.accept(b);
         }
 
         /**
          * Load ordinals in line with populating the doc and immediately
          * convert from ordinals into {@link BytesRef}s.
          */
-        private class ImmediateLeaf implements DocValuesLoader {
+        private class ImmediateDocValuesLoader implements DocValuesLoader {
             private final SortedSetDocValues dv;
             private boolean hasValue;
 
-            ImmediateLeaf(SortedSetDocValues dv) {
+            ImmediateDocValuesLoader(SortedSetDocValues dv) {
                 this.dv = dv;
+                SortedSetDocValuesFieldLoader.this.writer = this::write;
             }
 
             @Override
-            public boolean empty() {
-                return false;
-            }
-
-            @Override
-            public boolean advanceToDoc(FieldsVisitor fieldsVisitor, int docId) throws IOException {
+            public boolean advanceToDoc(int docId) throws IOException {
                 return hasValue = dv.advanceExact(docId);
             }
 
-            @Override
             public void write(XContentBuilder b) throws IOException {
                 if (false == hasValue) {
                     return;
@@ -1272,6 +1194,92 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         /**
+         * Load all ordinals for all docs up front and resolve to their string
+         * values in order. This should be much more disk-friendly than
+         * {@link ImmediateDocValuesLoader} because it resolves the ordinals in order and
+         * marginally more cpu friendly because it resolves the ordinals one time.
+         */
+        private DocValuesLoader buildSingletonDocValuesLoader(SortedDocValues singleton, int[] docIdsInLeaf) throws IOException {
+            int[] ords = new int[docIdsInLeaf.length];
+            int found = 0;
+            for (int d = 0; d < docIdsInLeaf.length; d++) {
+                if (false == singleton.advanceExact(docIdsInLeaf[d])) {
+                    ords[d] = -1;
+                    continue;
+                }
+                ords[d] = singleton.ordValue();
+                found++;
+            }
+            if (found == 0) {
+                return null;
+            }
+            int[] sortedOrds = ords.clone();
+            Arrays.sort(sortedOrds);
+            int unique = 0;
+            int prev = -1;
+            for (int ord : sortedOrds) {
+                if (ord != prev) {
+                    prev = ord;
+                    unique++;
+                }
+            }
+            int[] uniqueOrds = new int[unique];
+            BytesRef[] converted = new BytesRef[unique];
+            unique = 0;
+            prev = -1;
+            for (int ord : sortedOrds) {
+                if (ord != prev) {
+                    prev = ord;
+                    uniqueOrds[unique] = ord;
+                    converted[unique] = preserve(convert(singleton.lookupOrd(ord)));
+                    unique++;
+                }
+            }
+            logger.debug("loading [{}] on [{}] docs covering [{}] ords", name, docIdsInLeaf.length, uniqueOrds.length);
+            return new SingletonDocValuesLoader(docIdsInLeaf, ords, uniqueOrds, converted);
+        }
+
+        private class SingletonDocValuesLoader implements DocValuesLoader {
+            private final int[] docIdsInLeaf;
+            private final int[] ords;
+            private final int[] uniqueOrds;
+            private final BytesRef[] converted;
+
+            private int idx = -1;
+
+            private SingletonDocValuesLoader(int[] docIdsInLeaf, int[] ords, int[] uniqueOrds, BytesRef[] converted) {
+                this.docIdsInLeaf = docIdsInLeaf;
+                this.ords = ords;
+                this.uniqueOrds = uniqueOrds;
+                this.converted = converted;
+                SortedSetDocValuesFieldLoader.this.writer = this::write;
+            }
+
+            @Override
+            public boolean advanceToDoc(int docId) throws IOException {
+                idx++;
+                if (docIdsInLeaf[idx] != docId) {
+                    throw new IllegalArgumentException(
+                        "expected to be called with [" + docIdsInLeaf[idx] + "] but was called with " + docId + " instead"
+                    );
+                }
+                return ords[idx] >= 0;
+            }
+
+            private void write(XContentBuilder b) throws IOException {
+                if (ords[idx] < 0) {
+                    return;
+                }
+                int convertedIdx = Arrays.binarySearch(uniqueOrds, ords[idx]);
+                if (convertedIdx < 0) {
+                    throw new IllegalStateException("received unexpected ord [" + ords[idx] + "]. Expected " + Arrays.toString(uniqueOrds));
+                }
+                BytesRef c = converted[convertedIdx];
+                b.field(simpleName).utf8Value(c.bytes, c.offset, c.length);
+            }
+        }
+
+        /**
          * Convert a {@link BytesRef} read from the source into bytes to write
          * to the xcontent. This shouldn't make a deep copy if the conversion
          * process itself doesn't require one.
@@ -1289,7 +1297,7 @@ public final class KeywordFieldMapper extends FieldMapper {
     public static class StoredFieldFieldLoader
         implements
             SourceLoader.SyntheticFieldLoader,
-            SourceLoader.SyntheticFieldLoader.StoredFieldLoader, SourceLoader.SyntheticFieldLoader.Writer {
+            SourceLoader.SyntheticFieldLoader.StoredFieldLoader {
         private final String name;
         private final String simpleName;
         private List<Object> values;
@@ -1300,22 +1308,12 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public final Stream<String> requiredStoredFields() {
-            return Stream.of(name);
-        }
-
-        @Override
-        public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldsLeaves() {
+        public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
             return Stream.of(Map.entry(name, this));
         }
 
         @Override
-        public Writer writer() {
-            return this;
-        }
-
-        @Override
-        public void loadedStoredField(List<Object> values) {
+        public void load(List<Object> values) {
             this.values = values;
         }
 
@@ -1339,40 +1337,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         @Override
         public final DocValuesLoader docValuesLoader(LeafReader reader, int[] docIdsInLeaf) throws IOException {
-            return StoredFieldFieldLoader.NOTHING_LEAF;
-            // return new SourceLoader.SyntheticFieldLoader.Leaf() {
-            // List<Object> values = null;
-            //
-            // @Override
-            // public boolean empty() {
-            // return false; // TODO this could be quite inefficient if there are many of these
-            // }
-            //
-            // @Override
-            // public boolean advanceToDoc(FieldsVisitor fieldsVisitor, int docId) {
-            // values = fieldsVisitor.fields().get(name);
-            // org.elasticsearch.logging.LogManager.getLogger(FieldsVisitor.class)
-            // .error("ADFADFDF from map {} {}", name, values, new Exception());
-            // return values != null && false == values.isEmpty();
-            // }
-            //
-            // @Override
-            // public void write(XContentBuilder b) throws IOException {
-            // if (values == null || values.isEmpty()) {
-            // return;
-            // }
-            // org.elasticsearch.logging.LogManager.getLogger(FieldsVisitor.class).error("ADFADFDF load {} {}", name, values);
-            // if (values.size() == 1) {
-            // b.field(simpleName, values.get(0).toString());
-            // return;
-            // }
-            // b.startArray(simpleName);
-            // for (Object value : values) {
-            // b.value(value.toString());
-            // }
-            // b.endArray();
-            // }
-            // };
+            return null;
         }
     }
 }

@@ -9,10 +9,14 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.CharArraySet;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.BeforeClass;
 
 import java.io.BufferedWriter;
 import java.io.FileNotFoundException;
@@ -27,9 +31,18 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 
+import static org.elasticsearch.index.analysis.AnalyzerComponents.createComponents;
 import static org.hamcrest.Matchers.is;
 
 public class AnalysisTests extends ESTestCase {
+    private static TestAnalysis testAnalysis;
+    private static Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
+
+    @BeforeClass
+    public static void setup() throws IOException {
+        testAnalysis = createTestAnalysis(new Index("test", "_na_"), settings);
+    }
+
     public void testParseStemExclusion() {
         /* Comma separated list */
         Settings settings = Settings.builder().put("stem_exclusion", "foo,bar").build();
@@ -102,5 +115,16 @@ public class AnalysisTests extends ESTestCase {
         Environment env = TestEnvironment.newEnvironment(nodeSettings);
         List<String> wordList = Analysis.getWordList(env, nodeSettings, "foo.bar");
         assertEquals(Arrays.asList("hello", "world"), wordList);
+    }
+
+    public void testCustomAnalyzerWithNotSupportKey() {
+        Settings analyzerSettings = Settings.builder().put("tokenizer", "standard").put("foo", "bar").put("type", "custom").build();
+
+        try {
+            createComponents("my_analyzer", analyzerSettings, testAnalysis.tokenizer, testAnalysis.charFilter, testAnalysis.tokenFilter);
+            fail("expected failure");
+        } catch (IllegalArgumentException e) {
+            assertEquals(e.getMessage(), "Custom Analyzer not support [foo] now");
+        }
     }
 }

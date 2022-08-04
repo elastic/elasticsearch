@@ -15,6 +15,7 @@ import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
+import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
@@ -36,7 +37,7 @@ import static org.elasticsearch.server.cli.ProcessUtil.nonInterruptible;
 /**
  * A helper to control a {@link Process} running the main Elasticsearch server.
  *
- * <p> The process can be started by calling {@link #start(Terminal, ProcessInfo, ServerArgs, Path)}.
+ * <p> The process can be started by calling {@link #start(Terminal, ProcessInfo, ServerArgs, KeyStoreWrapper)}.
  * The process is controlled by internally sending arguments and control signals on stdin,
  * and receiving control signals on stderr. The start method does not return until the
  * server is ready to process requests and has exited the bootstrap thread.
@@ -66,8 +67,8 @@ public class ServerProcess {
 
     // this allows mocking the process building by tests
     interface OptionsBuilder {
-        List<String> getJvmOptions(Path configDir, Path pluginsDir, Path tmpDir, String envOptions) throws InterruptedException,
-            IOException, UserException;
+        List<String> getJvmOptions(ServerArgs args, KeyStoreWrapper keyStoreWrapper, Path configDir, Path tmpDir, String envOptions)
+            throws InterruptedException, IOException, UserException;
     }
 
     // this allows mocking the process building by tests
@@ -78,15 +79,16 @@ public class ServerProcess {
     /**
      * Start a server in a new process.
      *
-     * @param terminal A terminal to connect the standard inputs and outputs to for the new process.
-     * @param processInfo Info about the current process, for passing through to the subprocess.
-     * @param args Arguments to the server process.
-     * @param pluginsDir The directory in which plugins can be found
+     * @param terminal        A terminal to connect the standard inputs and outputs to for the new process.
+     * @param processInfo     Info about the current process, for passing through to the subprocess.
+     * @param args            Arguments to the server process.
+     * @param keystore        A keystore for accessing secrets.
      * @return A running server process that is ready for requests
      * @throws UserException If the process failed during bootstrap
      */
-    public static ServerProcess start(Terminal terminal, ProcessInfo processInfo, ServerArgs args, Path pluginsDir) throws UserException {
-        return start(terminal, processInfo, args, pluginsDir, JvmOptionsParser::determineJvmOptions, ProcessBuilder::start);
+    public static ServerProcess start(Terminal terminal, ProcessInfo processInfo, ServerArgs args, KeyStoreWrapper keystore)
+        throws UserException {
+        return start(terminal, processInfo, args, keystore, JvmOptionsParser::determineJvmOptions, ProcessBuilder::start);
     }
 
     // package private so tests can mock options building and process starting
@@ -94,7 +96,7 @@ public class ServerProcess {
         Terminal terminal,
         ProcessInfo processInfo,
         ServerArgs args,
-        Path pluginsDir,
+        KeyStoreWrapper keystore,
         OptionsBuilder optionsBuilder,
         ProcessStarter processStarter
     ) throws UserException {
@@ -103,7 +105,7 @@ public class ServerProcess {
 
         boolean success = false;
         try {
-            jvmProcess = createProcess(processInfo, args.configDir(), pluginsDir, optionsBuilder, processStarter);
+            jvmProcess = createProcess(args, keystore, processInfo, args.configDir(), optionsBuilder, processStarter);
             errorPump = new ErrorPumpThread(terminal.getErrorWriter(), jvmProcess.getErrorStream());
             errorPump.start();
             sendArgs(args, jvmProcess.getOutputStream());
@@ -138,7 +140,7 @@ public class ServerProcess {
     /**
      * Detaches the server process from the current process, enabling the current process to exit.
      *
-     * @throws IOException If an I/O error occured while reading stderr or closing any of the standard streams
+     * @throws IOException If an I/O error occurred while reading stderr or closing any of the standard streams
      */
     public synchronized void detach() throws IOException {
         errorPump.drain();
@@ -178,7 +180,7 @@ public class ServerProcess {
             args.writeTo(out);
             out.flush();
         } catch (IOException ignore) {
-            // A failure to write here means the process has problems, and it will die anyways. We let this fall through
+            // A failure to write here means the process has problems, and it will die anyway. We let this fall through
             // so the pump thread can complete, writing out the actual error. All we get here is the failure to write to
             // the process pipe, which isn't helpful to print.
         }
@@ -196,9 +198,10 @@ public class ServerProcess {
     }
 
     private static Process createProcess(
+        ServerArgs args,
+        KeyStoreWrapper keystore,
         ProcessInfo processInfo,
         Path configDir,
-        Path pluginsDir,
         OptionsBuilder optionsBuilder,
         ProcessStarter processStarter
     ) throws InterruptedException, IOException, UserException {
@@ -208,7 +211,7 @@ public class ServerProcess {
             envVars.put("LIBFFI_TMPDIR", tempDir.toString());
         }
 
-        List<String> jvmOptions = optionsBuilder.getJvmOptions(configDir, pluginsDir, tempDir, envVars.remove("ES_JAVA_OPTS"));
+        List<String> jvmOptions = optionsBuilder.getJvmOptions(args, keystore, configDir, tempDir, envVars.remove("ES_JAVA_OPTS"));
         // also pass through distribution type
         jvmOptions.add("-Des.distribution.type=" + processInfo.sysprops().get("es.distribution.type"));
 
@@ -220,6 +223,7 @@ public class ServerProcess {
         command.addAll(jvmOptions);
         command.add("--module-path");
         command.add(esHome.resolve("lib").toString());
+        command.add("--add-modules=jdk.net"); // very special circumstance; explicit modules should typically not be added here
         command.add("-m");
         command.add("org.elasticsearch.server/org.elasticsearch.bootstrap.Elasticsearch");
 
@@ -233,7 +237,7 @@ public class ServerProcess {
     /**
      * Returns the java.io.tmpdir Elasticsearch should use, creating it if necessary.
      *
-     * <p> On non-Windows OS, this will be created as a sub-directory of the default temporary directory.
+     * <p> On non-Windows OS, this will be created as a subdirectory of the default temporary directory.
      * Note that this causes the created temporary directory to be a private temporary directory.
      */
     private static Path setupTempDir(ProcessInfo processInfo, String tmpDirOverride) throws UserException, IOException {

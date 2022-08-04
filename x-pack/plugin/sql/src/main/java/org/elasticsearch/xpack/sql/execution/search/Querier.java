@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.ReferenceInput;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
 import org.elasticsearch.xpack.ql.type.Schema;
+import org.elasticsearch.xpack.ql.util.Holder;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
@@ -535,14 +536,14 @@ public class Querier {
             List<QueryContainer.FieldInfo> refs = query.fields();
 
             List<BucketExtractor> exts = new ArrayList<>(refs.size());
-            ConstantExtractor totalCount = new ConstantExtractor(response.getHits().getTotalHits().value);
+            Holder<ConstantExtractor> totalCountHolder = new Holder<>();
             for (QueryContainer.FieldInfo ref : refs) {
-                exts.add(createExtractor(ref.extraction(), totalCount));
+                exts.add(createExtractor(ref.extraction(), totalCountHolder, response));
             }
             return exts;
         }
 
-        private BucketExtractor createExtractor(FieldExtraction ref, BucketExtractor totalCount) {
+        private BucketExtractor createExtractor(FieldExtraction ref, Holder<ConstantExtractor> totalCountHolder, SearchResponse response) {
             if (ref instanceof GroupByRef r) {
                 return new CompositeKeyExtractor(r.key(), r.property(), cfg.zoneId(), r.dataType());
             }
@@ -556,11 +557,18 @@ public class Querier {
             }
 
             if (ref instanceof PivotColumnRef r) {
-                return new PivotExtractor(createExtractor(r.pivot(), totalCount), createExtractor(r.agg(), totalCount), r.value());
+                return new PivotExtractor(
+                    createExtractor(r.pivot(), totalCountHolder, response),
+                    createExtractor(r.agg(), totalCountHolder, response),
+                    r.value()
+                );
             }
 
             if (ref == GlobalCountRef.INSTANCE) {
-                return totalCount;
+                if (totalCountHolder.get() == null) {
+                    totalCountHolder.set(new ConstantExtractor(response.getHits().getTotalHits().value));
+                }
+                return totalCountHolder.get();
             }
 
             if (ref instanceof ComputedRef computedRef) {
@@ -568,7 +576,7 @@ public class Querier {
 
                 // wrap only agg inputs
                 proc = proc.transformDown(AggPathInput.class, l -> {
-                    BucketExtractor be = createExtractor(l.context(), totalCount);
+                    BucketExtractor be = createExtractor(l.context(), totalCountHolder, response);
                     return new AggExtractorInput(l.source(), l.expression(), l.action(), be);
                 });
 

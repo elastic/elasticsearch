@@ -448,7 +448,6 @@ PUT _ml/anomaly_detectors/test-job1?pretty
   }
 }
 --------------------------------------------------
-// TEST[skip:setup Kibana sample data]
 
 The API returns the following results:
 
@@ -537,3 +536,4 @@ The API returns the following results:
 ----
 // TESTRESPONSE[s/"job_version" : "8.4.0"/"job_version" : $body.job_version/]
 // TESTRESPONSE[s/1656087283340/$body.$_path/]
+// TESTRESPONSE[s/"authorization" : \{[^}]*\},//]

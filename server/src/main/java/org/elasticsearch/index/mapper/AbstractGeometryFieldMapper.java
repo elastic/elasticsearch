@@ -24,6 +24,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -115,6 +116,18 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             Function<List<T>, List<Object>> formatter = getFormatter(format != null ? format : GeometryFormatterFactory.GEOJSON);
             return new ArraySourceValueFetcher(name(), context) {
+                @Override
+                protected Object parseSourceValue(Object value) {
+                    final List<T> values = new ArrayList<>();
+                    geometryParser.fetchFromSource(value, values::add);
+                    return formatter.apply(values);
+                }
+            };
+        }
+
+        public ValueFetcher valueFetcher(Set<String> sourcePaths, Object nullValue, String format) {
+            Function<List<T>, List<Object>> formatter = getFormatter(format != null ? format : GeometryFormatterFactory.GEOJSON);
+            return new ArraySourceValueFetcher(sourcePaths, nullValue) {
                 @Override
                 protected Object parseSourceValue(Object value) {
                     final List<T> values = new ArrayList<>();

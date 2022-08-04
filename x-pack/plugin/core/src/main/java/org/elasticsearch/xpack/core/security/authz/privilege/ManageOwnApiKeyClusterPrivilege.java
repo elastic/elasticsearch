@@ -9,11 +9,13 @@ package org.elasticsearch.xpack.core.security.authz.privilege;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.UpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.RealmDomain;
@@ -60,6 +62,12 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
         @Override
         protected boolean extendedCheck(String action, TransportRequest request, Authentication authentication) {
             if (request instanceof CreateApiKeyRequest) {
+                return true;
+            } else if (request instanceof UpdateApiKeyRequest || request instanceof BulkUpdateApiKeyRequest) {
+                // Note: we return `true` here even if the authenticated entity is an API key. API keys *cannot* update themselves,
+                // however this is a business logic restriction, rather than one driven solely by privileges. We therefore enforce this
+                // limitation at the transport layer, in `TransportBaseUpdateApiKeyAction`.
+                // Ownership of an API key, for regular users, is enforced at the service layer.
                 return true;
             } else if (request instanceof final GetApiKeyRequest getApiKeyRequest) {
                 return checkIfUserIsOwnerOfApiKeys(

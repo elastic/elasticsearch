@@ -24,7 +24,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
@@ -87,7 +89,7 @@ public abstract class TransportTasksAction<
         new AsyncAction(task, request, listener).start();
     }
 
-    private void nodeOperation(NodeTaskRequest nodeTaskRequest, ActionListener<NodeTasksResponse> listener) {
+    private void nodeOperation(Task task, NodeTaskRequest nodeTaskRequest, ActionListener<NodeTasksResponse> listener) {
         TasksRequest request = nodeTaskRequest.tasksRequest;
         List<OperationTask> tasks = new ArrayList<>();
         processTasks(request, tasks::add);
@@ -133,7 +135,7 @@ public abstract class TransportTasksAction<
                 }
             };
             try {
-                taskOperation(request, tasks.get(taskIndex), taskListener);
+                taskOperation(task, request, tasks.get(taskIndex), taskListener);
             } catch (Exception e) {
                 taskListener.onFailure(e);
             }
@@ -206,8 +208,12 @@ public abstract class TransportTasksAction<
 
     /**
      * Perform the required operation on the task. It is OK start an asynchronous operation or to throw an exception but not both.
+     * @param actionTask The related transport action task. Can be used to create a task ID to handle upstream transport cancellations.
+     * @param request the original transport request
+     * @param task the task on which the operation is taking place
+     * @param listener the listener to signal.
      */
-    protected abstract void taskOperation(TasksRequest request, OperationTask task, ActionListener<TaskResponse> listener);
+    protected abstract void taskOperation(Task actionTask, TasksRequest request, OperationTask task, ActionListener<TaskResponse> listener);
 
     private class AsyncAction {
 
@@ -303,6 +309,9 @@ public abstract class TransportTasksAction<
         }
 
         private void finishHim() {
+            if ((task instanceof CancellableTask t) && t.notifyIfCancelled(listener)) {
+                return;
+            }
             TasksResponse finalResponse;
             try {
                 finalResponse = newResponse(request, responses);
@@ -319,7 +328,7 @@ public abstract class TransportTasksAction<
 
         @Override
         public void messageReceived(final NodeTaskRequest request, final TransportChannel channel, Task task) throws Exception {
-            nodeOperation(request, ActionListener.wrap(channel::sendResponse, e -> {
+            nodeOperation(task, request, ActionListener.wrap(channel::sendResponse, e -> {
                 try {
                     channel.sendResponse(e);
                 } catch (IOException e1) {
@@ -331,7 +340,7 @@ public abstract class TransportTasksAction<
     }
 
     private class NodeTaskRequest extends TransportRequest {
-        private TasksRequest tasksRequest;
+        private final TasksRequest tasksRequest;
 
         protected NodeTaskRequest(StreamInput in) throws IOException {
             super(in);
@@ -347,6 +356,11 @@ public abstract class TransportTasksAction<
         protected NodeTaskRequest(TasksRequest tasksRequest) {
             super();
             this.tasksRequest = tasksRequest;
+        }
+
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers);
         }
 
     }

@@ -53,6 +53,7 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -118,7 +119,8 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin {
         NodeEnvironment nodeEnvironment,
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier
+        Supplier<RepositoriesService> repositoriesServiceSupplier,
+        Tracer tracer
     ) {
         if (IndexSettings.isTimeSeriesModeEnabled() == false) {
             return List.of();
@@ -151,10 +153,12 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin {
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        indexScopedSettings.addSettingsUpdateConsumer(LOOK_AHEAD_TIME, value -> {
-            TimeValue timeSeriesPollInterval = service.get().pollInterval;
-            additionalLookAheadTimeValidation(value, timeSeriesPollInterval);
-        });
+        if (IndexSettings.isTimeSeriesModeEnabled()) {
+            indexScopedSettings.addSettingsUpdateConsumer(LOOK_AHEAD_TIME, value -> {
+                TimeValue timeSeriesPollInterval = service.get().pollInterval;
+                additionalLookAheadTimeValidation(value, timeSeriesPollInterval);
+            });
+        }
 
         var createDsAction = new RestCreateDataStreamAction();
         var deleteDsAction = new RestDeleteDataStreamAction();

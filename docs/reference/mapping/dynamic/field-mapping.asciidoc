@@ -139,6 +139,14 @@ PUT my-index-000001/_doc/1
 
 The resulting mapping will be:
 
+////
+[source,console]
+----
+GET my-index-000001/_mapping
+----
+//TEST[continued]
+////
+
 [source,console-result]
 --------------------------------------------------
 {
@@ -179,6 +187,14 @@ PUT my-index-000001/_doc/1
 --------------------------------------------------
 
 The resulting mapping will be:
+
+////
+[source,console]
+----
+GET my-index-000001/_mapping
+----
+//TEST[continued]
+////
 
 [source,console-result]
 --------------------------------------------------

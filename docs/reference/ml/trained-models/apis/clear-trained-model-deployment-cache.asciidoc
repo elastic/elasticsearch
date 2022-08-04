@@ -17,6 +17,7 @@ preview::[]
 
 [[clear-trained-model-deployment-cache-prereq]]
 == {api-prereq-title}
+
 Requires the `manage_ml` cluster privilege. This privilege is included in the
 `machine_learning_admin` built-in role.
 

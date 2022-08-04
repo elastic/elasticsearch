@@ -17,6 +17,7 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.suggest.document.CompletionTerms;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
@@ -267,9 +268,21 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         }
 
         @Override
+        public void visit(DocIdSetIterator iterator) throws IOException {
+            checkAndThrowWithSampling();
+            in.visit(iterator);
+        }
+
+        @Override
         public void visit(int docID, byte[] packedValue) throws IOException {
             checkAndThrowWithSampling();
             in.visit(docID, packedValue);
+        }
+
+        @Override
+        public void visit(DocIdSetIterator iterator, byte[] packedValue) throws IOException {
+            checkAndThrowWithSampling();
+            in.visit(iterator, packedValue);
         }
 
         @Override

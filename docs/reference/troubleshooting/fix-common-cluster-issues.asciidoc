@@ -32,6 +32,14 @@ When {es} rejects a request, it stops the operation and returns an error with a
 A backlogged task queue can prevent tasks from completing and put the cluster 
 into an unhealthy state. 
 
+<<diagnose-unassigned-shards,Diagnose unassigned shards>>::
+There are multiple reasons why shards might get unassigned, ranging from 
+misconfigured allocation settings to lack of disk space.
+
+<<cluster-fault-detection-troubleshooting,Troubleshooting an unstable cluster>>::
+A cluster in which nodes leave unexpectedly is unstable and can create several 
+issues.
+
 include::common-issues/disk-usage-exceeded.asciidoc[]
 include::common-issues/circuit-breaker-errors.asciidoc[]
 include::common-issues/high-cpu-usage.asciidoc[]
@@ -39,3 +47,4 @@ include::common-issues/high-jvm-memory-pressure.asciidoc[]
 include::common-issues/red-yellow-cluster-status.asciidoc[]
 include::common-issues/rejected-requests.asciidoc[]
 include::common-issues/task-queue-backlog.asciidoc[]
+include::common-issues/diagnose-unassigned-shards.asciidoc[]

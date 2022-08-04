@@ -92,9 +92,9 @@ public class ClusterGetSettingsAction extends ActionType<ClusterGetSettingsActio
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             assert out.getVersion().onOrAfter(Version.V_8_3_0);
-            Settings.writeSettingsToStream(persistentSettings, out);
-            Settings.writeSettingsToStream(transientSettings, out);
-            Settings.writeSettingsToStream(settings, out);
+            persistentSettings.writeTo(out);
+            transientSettings.writeTo(out);
+            settings.writeTo(out);
         }
 
         public Settings persistentSettings() {

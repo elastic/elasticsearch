@@ -28,7 +28,6 @@ import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
-import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -314,30 +313,30 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
         return new SourceLoader.SyntheticFieldLoader() {
             @Override
-            public Stream<String> requiredStoredFields() {
-                return Stream.empty();
+            public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
+                return Stream.of();
             }
 
             @Override
-            public DocValuesLoader docValuesLoader(LeafReader reader, int[] docIdsInLeaf) throws IOException {
-                return new DocValuesLoader() {
-                    @Override
-                    public boolean empty() {
-                        return fieldType().value == null;
-                    }
+            public DocValuesLoader docValuesLoader(LeafReader reader, int[] docIdsInLeaf) {
+                /*
+                 * If there is a value we need to enable objects containing these
+                 * fields. We could build something special for fields that are
+                 * always "on", but constant_keyword fields are rare enough that
+                 * having an extra doc values loader that always returns `true`
+                 * isn't a big performance hit and gets the job done.
+                 */
+                if (fieldType().value == null) {
+                    return null;
+                }
+                return docId -> true;
+            }
 
-                    @Override
-                    public boolean advanceToDoc(FieldsVisitor fieldsVisitor, int docId) throws IOException {
-                        return fieldType().value != null;
-                    }
-
-                    @Override
-                    public void write(XContentBuilder b) throws IOException {
-                        if (fieldType().value != null) {
-                            b.field(simpleName(), fieldType().value);
-                        }
-                    }
-                };
+            @Override
+            public void write(XContentBuilder b) throws IOException {
+                if (fieldType().value != null) {
+                    b.field(simpleName(), fieldType().value);
+                }
             }
         };
     }

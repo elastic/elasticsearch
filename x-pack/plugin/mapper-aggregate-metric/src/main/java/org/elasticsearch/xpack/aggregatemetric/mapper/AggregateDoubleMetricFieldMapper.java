@@ -26,7 +26,6 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues.DoublesSupplier;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -694,6 +693,8 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         private final String name;
         private final String simpleName;
         private final EnumSet<Metric> metrics;
+        private final Map<Metric, SortedNumericDocValues> metricDocValues = new EnumMap<>(Metric.class);
+        private final Set<Metric> metricHasValue = EnumSet.noneOf(Metric.class);
 
         protected AggregateMetricSyntheticFieldLoader(String name, String simpleName, EnumSet<Metric> metrics) {
             this.name = name;
@@ -702,13 +703,13 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Stream<String> requiredStoredFields() {
-            return Stream.empty();
+        public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
+            return Stream.of();
         }
 
         @Override
         public DocValuesLoader docValuesLoader(LeafReader reader, int[] docIdsInLeaf) throws IOException {
-            Map<Metric, SortedNumericDocValues> metricDocValues = new EnumMap<>(Metric.class);
+            metricDocValues.clear();
             for (Metric m : metrics) {
                 String fieldName = subfieldName(name, m);
                 SortedNumericDocValues dv = SortedNumericDocValuesSyntheticFieldLoader.docValuesOrNull(reader, fieldName);
@@ -718,28 +719,35 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
             }
 
             if (metricDocValues.isEmpty()) {
-                return SourceLoader.SyntheticFieldLoader.NOTHING_LEAF;
+                return null;
             }
 
-            return new AggregateMetricSyntheticFieldLoader.ImmediateLeaf(metricDocValues);
+            return new AggregateDocValuesLoader();
         }
 
-        private class ImmediateLeaf implements DocValuesLoader {
-            private final Map<Metric, SortedNumericDocValues> metricDocValues;
-            private final Set<Metric> metricHasValue = EnumSet.noneOf(Metric.class);
-
-            ImmediateLeaf(Map<Metric, SortedNumericDocValues> metricDocValues) {
-                assert metricDocValues.isEmpty() == false : "doc_values for metrics cannot be empty";
-                this.metricDocValues = metricDocValues;
+        @Override
+        public void write(XContentBuilder b) throws IOException {
+            if (metricHasValue.isEmpty()) {
+                return;
             }
-
-            @Override
-            public boolean empty() {
-                return false;
+            b.startObject(simpleName);
+            for (Map.Entry<Metric, SortedNumericDocValues> entry : metricDocValues.entrySet()) {
+                if (metricHasValue.contains(entry.getKey())) {
+                    String metricName = entry.getKey().name();
+                    long value = entry.getValue().nextValue();
+                    if (entry.getKey() == Metric.value_count) {
+                        b.field(metricName, value);
+                    } else {
+                        b.field(metricName, NumericUtils.sortableLongToDouble(value));
+                    }
+                }
             }
+            b.endObject();
+        }
 
+        private class AggregateDocValuesLoader implements DocValuesLoader {
             @Override
-            public boolean advanceToDoc(FieldsVisitor fieldsVisitor, int docId) throws IOException {
+            public boolean advanceToDoc(int docId) throws IOException {
                 // It is required that all defined metrics must exist. In this case
                 // it is enough to check for the first docValue. However, in the future
                 // we may relax the requirement of all metrics existing. In this case
@@ -752,26 +760,6 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                 }
 
                 return metricHasValue.isEmpty() == false;
-            }
-
-            @Override
-            public void write(XContentBuilder b) throws IOException {
-                if (metricHasValue.isEmpty()) {
-                    return;
-                }
-                b.startObject(simpleName);
-                for (Map.Entry<Metric, SortedNumericDocValues> entry : metricDocValues.entrySet()) {
-                    if (metricHasValue.contains(entry.getKey())) {
-                        String metricName = entry.getKey().name();
-                        long value = entry.getValue().nextValue();
-                        if (entry.getKey() == Metric.value_count) {
-                            b.field(metricName, value);
-                        } else {
-                            b.field(metricName, NumericUtils.sortableLongToDouble(value));
-                        }
-                    }
-                }
-                b.endObject();
             }
         }
     }

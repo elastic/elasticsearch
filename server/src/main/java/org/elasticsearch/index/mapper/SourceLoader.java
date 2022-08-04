@@ -91,7 +91,6 @@ public interface SourceLoader {
         public Synthetic(Mapping mapping) {
             loader = mapping.getRoot().syntheticFieldLoader();
             storedFieldLoaders = Map.copyOf(loader.storedFieldLoaders().collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
-            // NOCOMMIT gotta be a better way to make the map
         }
 
         @Override

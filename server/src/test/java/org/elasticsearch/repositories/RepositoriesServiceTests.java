@@ -30,6 +30,7 @@ import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
@@ -39,7 +40,6 @@ import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotDeleteListener;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
@@ -53,6 +53,7 @@ import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.isA;
 import static org.mockito.Mockito.mock;
@@ -61,12 +62,13 @@ import static org.mockito.Mockito.when;
 public class RepositoriesServiceTests extends ESTestCase {
 
     private RepositoriesService repositoriesService;
-    private ThreadPool threadPool;
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        threadPool = new TestThreadPool("test");
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.getThreadContext()).thenReturn(threadContext);
         final TransportService transportService = new TransportService(
             Settings.EMPTY,
             mock(Transport.class),
@@ -100,12 +102,6 @@ public class RepositoriesServiceTests extends ESTestCase {
             List.of()
         );
         repositoriesService.start();
-    }
-
-    @Override
-    public void tearDown() throws Exception {
-        super.tearDown();
-        terminate(threadPool);
     }
 
     public void testRegisterInternalRepository() {

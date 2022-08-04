@@ -109,36 +109,38 @@ public class CoordinationDiagnosticsServiceIT extends ESIntegTestCase {
          * case because since there is no elected master, clusterChanged() is never called (which is what usually kicks off the polling
          * that drives the quorum check).
          */
-        final List<String> nodeNames = internalCluster().startMasterOnlyNodes(
+        final List<String> masterNodeNames = internalCluster().startMasterOnlyNodes(
             3,
             Settings.builder().put(Node.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s").build()
         );
         ensureStableCluster(3);
-        String randomNodeName = internalCluster().getRandomNodeName();
-        nodeNames.stream().filter(nodeName -> nodeName.equals(randomNodeName) == false).forEach(nodeName -> {
+        String randomMasterNodeName = internalCluster().getRandomNodeName();
+        masterNodeNames.stream().filter(nodeName -> nodeName.equals(randomMasterNodeName) == false).forEach(nodeName -> {
             try {
                 internalCluster().stopNode(nodeName);
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
         });
-        internalCluster().restartNode(randomNodeName, new InternalTestCluster.RestartCallback() {
+        internalCluster().restartNode(randomMasterNodeName, new InternalTestCluster.RestartCallback() {
             public boolean validateClusterForming() {
                 return false;
             }
         });
 
-        CoordinationDiagnosticsService diagnosticsOnBlockedNode = internalCluster().getInstance(
-            CoordinationDiagnosticsService.class,
-            randomNodeName
-        );
         try {
-            diagnosticsOnBlockedNode.remoteRequestInitialDelay = TimeValue.ZERO;
-            CoordinationDiagnosticsService.CoordinationDiagnosticsResult result = diagnosticsOnBlockedNode.diagnoseMasterStability(true);
+            CoordinationDiagnosticsService diagnosticsOnMasterEligibleNode = internalCluster().getInstance(
+                CoordinationDiagnosticsService.class,
+                randomMasterNodeName
+            );
+            diagnosticsOnMasterEligibleNode.remoteRequestInitialDelay = TimeValue.ZERO;
+            CoordinationDiagnosticsService.CoordinationDiagnosticsResult result = diagnosticsOnMasterEligibleNode.diagnoseMasterStability(
+                true
+            );
             assertThat(result.status(), equalTo(CoordinationDiagnosticsService.CoordinationDiagnosticsStatus.RED));
             assertThat(result.summary(), containsString("the master eligible nodes are unable to form a quorum"));
         } finally {
-            internalCluster().stopNode(randomNodeName); // This is needed for the test to clean itself up happily
+            internalCluster().stopNode(randomMasterNodeName); // This is needed for the test to clean itself up happily
         }
     }
 }

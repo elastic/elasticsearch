@@ -130,6 +130,10 @@ public class TextStructure implements ToXContentObject, Writeable {
         PARSER.declareStringArray(Builder::setExplanation, EXPLANATION);
     }
 
+    private static String getNonNullEcsCompatibilityString(String ecsCompatibility) {
+        return (ecsCompatibility == null || ecsCompatibility.isEmpty()) ? Grok.ECS_COMPATIBILITY_MODES[0] : ecsCompatibility;
+    }
+
     private final int numLinesAnalyzed;
     private final int numMessagesAnalyzed;
     private final String sampleStart;
@@ -194,7 +198,7 @@ public class TextStructure implements ToXContentObject, Writeable {
         this.quote = quote;
         this.shouldTrimFields = shouldTrimFields;
         this.grokPattern = grokPattern;
-        this.ecsCompatibility = ecsCompatibility;
+        this.ecsCompatibility = getNonNullEcsCompatibilityString(ecsCompatibility);
         this.timestampField = timestampField;
         this.jodaTimestampFormats = (jodaTimestampFormats == null) ? null : List.copyOf(jodaTimestampFormats);
         this.javaTimestampFormats = (javaTimestampFormats == null) ? null : List.copyOf(javaTimestampFormats);
@@ -221,7 +225,7 @@ public class TextStructure implements ToXContentObject, Writeable {
         shouldTrimFields = in.readOptionalBoolean();
         grokPattern = in.readOptionalString();
         if (in.getVersion().onOrAfter(Version.V_8_5_0)) {
-            ecsCompatibility = in.readOptionalString();
+            ecsCompatibility = getNonNullEcsCompatibilityString(in.readOptionalString());
         } else {
             ecsCompatibility = null;
         }
@@ -624,7 +628,7 @@ public class TextStructure implements ToXContentObject, Writeable {
         }
 
         public Builder setEcsCompatibility(String ecsCompatibility) {
-            this.ecsCompatibility = ecsCompatibility;
+            this.ecsCompatibility = TextStructure.getNonNullEcsCompatibilityString(ecsCompatibility);
             return this;
         }
 
@@ -717,9 +721,6 @@ public class TextStructure implements ToXContentObject, Writeable {
                     if (grokPattern != null) {
                         throw new IllegalArgumentException("Grok pattern may not be specified for [" + format + "] structures.");
                     }
-                    if (ecsCompatibility != null) {
-                        throw new IllegalArgumentException("ECS compatibility may not be specified for [" + format + "] structures.");
-                    }
                     break;
                 case DELIMITED:
                     if (columnNames == null || columnNames.isEmpty()) {
@@ -733,9 +734,6 @@ public class TextStructure implements ToXContentObject, Writeable {
                     }
                     if (grokPattern != null) {
                         throw new IllegalArgumentException("Grok pattern may not be specified for [" + format + "] structures.");
-                    }
-                    if (ecsCompatibility != null) {
-                        throw new IllegalArgumentException("ECS compatibility may not be specified for [" + format + "] structures.");
                     }
                     break;
                 case SEMI_STRUCTURED_TEXT:
@@ -759,12 +757,12 @@ public class TextStructure implements ToXContentObject, Writeable {
                     }
                     if (ecsCompatibility != null
                         && ecsCompatibility.isEmpty() == false
-                        && Grok.isValidEcsCompatibilityMode(ecsCompatibility)) {
+                        && Grok.isValidEcsCompatibilityMode(ecsCompatibility) == false) {
                         throw new IllegalArgumentException(
-                            "ECS compatibility mode must be either "
-                                + Grok.ECS_COMPATIBILITY_MODES[0]
-                                + " or "
-                                + Grok.ECS_COMPATIBILITY_MODES[1]
+                            ECS_COMPATIBILITY.getPreferredName()
+                                + "] must be one of ["
+                                + String.join(", ", Grok.ECS_COMPATIBILITY_MODES)
+                                + "] if specified"
                         );
                     }
                     break;

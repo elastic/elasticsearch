@@ -171,7 +171,7 @@ public class FindTextStructureActionRequestTests extends AbstractWireSerializing
         if (FindStructureAction.ECS_COMPATIBILITY_DISABLED.equalsIgnoreCase(ecsCompatibility) == false) {
             assertNotNull(e);
             assertThat(e.getMessage(), startsWith("Validation Failed: "));
-            assertThat(e.getMessage(), containsString(" [ecs_compatibility] must either [v1] or [disabled] if specified"));
+            assertThat(e.getMessage(), containsString(" [ecs_compatibility] must be one of [disabled, v1] if specified"));
         } else {
             assertNull(e);
         }

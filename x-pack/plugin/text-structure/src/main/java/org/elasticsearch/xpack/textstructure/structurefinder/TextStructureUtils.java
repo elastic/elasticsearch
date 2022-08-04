@@ -529,7 +529,10 @@ public final class TextStructureUtils {
             if (customGrokPatternDefinitions.isEmpty() == false) {
                 grokProcessorSettings.put("pattern_definitions", customGrokPatternDefinitions);
             }
-            grokProcessorSettings.put("ecs_compatibility", ecsCompatibility);
+            grokProcessorSettings.put(
+                "ecs_compatibility",
+                (ecsCompatibility == null || ecsCompatibility.isEmpty()) ? Grok.ECS_COMPATIBILITY_MODES[0] : ecsCompatibility
+            );
             processors.add(Collections.singletonMap("grok", grokProcessorSettings));
         } else {
             assert customGrokPatternDefinitions.isEmpty();

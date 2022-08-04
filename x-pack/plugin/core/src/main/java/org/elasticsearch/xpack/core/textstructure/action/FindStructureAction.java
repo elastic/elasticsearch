@@ -32,8 +32,8 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public class FindStructureAction extends ActionType<FindStructureAction.Response> {
-    public static final String ECS_COMPATIBILITY_DISABLED = "disabled";
-    public static final String ECS_COMPATIBILITY_V1 = "v1";
+    public static final String ECS_COMPATIBILITY_DISABLED = Grok.ECS_COMPATIBILITY_MODES[0];
+    public static final String ECS_COMPATIBILITY_V1 = Grok.ECS_COMPATIBILITY_MODES[1];
 
     public static final FindStructureAction INSTANCE = new FindStructureAction();
     public static final String NAME = "cluster:monitor/text_structure/findstructure";
@@ -279,9 +279,7 @@ public class FindStructureAction extends ActionType<FindStructureAction.Response
         }
 
         public void setEcsCompatibility(String ecsCompatibility) {
-            this.ecsCompatibility = (ecsCompatibility == null || ecsCompatibility.isEmpty())
-                ? ECS_COMPATIBILITY_DISABLED
-                : ecsCompatibility;
+            this.ecsCompatibility = (ecsCompatibility == null || ecsCompatibility.isEmpty()) ? null : ecsCompatibility;
         }
 
         public String getTimestampFormat() {
@@ -361,16 +359,12 @@ public class FindStructureAction extends ActionType<FindStructureAction.Response
                 }
             }
 
-            if (ecsCompatibility != null
-                && ecsCompatibility.isEmpty() == false
-                && Grok.isValidEcsCompatibilityMode(ecsCompatibility) == false) {
+            if (ecsCompatibility != null && Grok.isValidEcsCompatibilityMode(ecsCompatibility) == false) {
                 validationException = addValidationError(
                     "["
                         + ECS_COMPATIBILITY.getPreferredName()
-                        + "] must either ["
-                        + ECS_COMPATIBILITY_V1
-                        + "] or ["
-                        + ECS_COMPATIBILITY_DISABLED
+                        + "] must be one of ["
+                        + String.join(", ", Grok.ECS_COMPATIBILITY_MODES)
                         + "] if specified",
                     validationException
                 );

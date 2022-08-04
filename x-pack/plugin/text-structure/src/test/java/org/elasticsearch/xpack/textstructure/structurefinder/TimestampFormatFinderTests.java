@@ -18,13 +18,20 @@ import java.time.temporal.TemporalAccessor;
 import java.time.temporal.TemporalQueries;
 import java.util.Arrays;
 import java.util.BitSet;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.regex.Pattern;
 
 public class TimestampFormatFinderTests extends TextStructureTestCase {
+    private static final boolean ECS_COMPATIBILITY_DISABLED = false;
+    private static final boolean ECS_COMPATIBILITY_ENABLED = true;
+
+    private static final Collection<Boolean> ecsCompatibilityModes = Arrays.asList(ECS_COMPATIBILITY_ENABLED, ECS_COMPATIBILITY_DISABLED);
+
     @SuppressWarnings("checkstyle:linelength")
     private static final String EXCEPTION_TRACE_SAMPLE =
         """
@@ -136,59 +143,72 @@ public class TimestampFormatFinderTests extends TextStructureTestCase {
 
     public void testMakeCandidateFromOverrideFormat() {
 
-        // Override is a special format
-        assertSame(
-            TimestampFormatFinder.ISO8601_CANDIDATE_FORMAT,
-            TimestampFormatFinder.makeCandidateFromOverrideFormat("ISO8601", NOOP_TIMEOUT_CHECKER)
-        );
-        assertSame(
-            TimestampFormatFinder.UNIX_MS_CANDIDATE_FORMAT,
-            TimestampFormatFinder.makeCandidateFromOverrideFormat("UNIX_MS", NOOP_TIMEOUT_CHECKER)
-        );
-        assertSame(
-            TimestampFormatFinder.UNIX_CANDIDATE_FORMAT,
-            TimestampFormatFinder.makeCandidateFromOverrideFormat("UNIX", NOOP_TIMEOUT_CHECKER)
-        );
-        assertSame(
-            TimestampFormatFinder.TAI64N_CANDIDATE_FORMAT,
-            TimestampFormatFinder.makeCandidateFromOverrideFormat("TAI64N", NOOP_TIMEOUT_CHECKER)
-        );
+        Consumer<Boolean> testMakeCandidateFromOverrideFormatGivenEcsCompatibility = (ecsCompatibility) -> {
+            // Override is a special format
+            assertSame(
+                TimestampFormatFinder.ISO8601_CANDIDATE_FORMAT,
+                TimestampFormatFinder.makeCandidateFromOverrideFormat("ISO8601", NOOP_TIMEOUT_CHECKER, ecsCompatibility)
+            );
+            assertSame(
+                TimestampFormatFinder.UNIX_MS_CANDIDATE_FORMAT,
+                TimestampFormatFinder.makeCandidateFromOverrideFormat("UNIX_MS", NOOP_TIMEOUT_CHECKER, ecsCompatibility)
+            );
+            assertSame(
+                TimestampFormatFinder.UNIX_CANDIDATE_FORMAT,
+                TimestampFormatFinder.makeCandidateFromOverrideFormat("UNIX", NOOP_TIMEOUT_CHECKER, ecsCompatibility)
+            );
+            assertSame(
+                TimestampFormatFinder.TAI64N_CANDIDATE_FORMAT,
+                TimestampFormatFinder.makeCandidateFromOverrideFormat("TAI64N", NOOP_TIMEOUT_CHECKER, ecsCompatibility)
+            );
 
-        // Override is covered by a built-in format
-        TimestampFormatFinder.CandidateTimestampFormat candidate = TimestampFormatFinder.makeCandidateFromOverrideFormat(
-            "yyyy-MM-dd'T'HH:mm:ss.SSS",
-            NOOP_TIMEOUT_CHECKER
-        );
-        assertEquals(TimestampFormatFinder.ISO8601_CANDIDATE_FORMAT.outputGrokPatternName, candidate.outputGrokPatternName);
-        assertEquals(TimestampFormatFinder.ISO8601_CANDIDATE_FORMAT.strictGrokPattern, candidate.strictGrokPattern);
-        // Can't compare Grok objects as Grok doesn't implement equals()
-        assertEquals(TimestampFormatFinder.ISO8601_CANDIDATE_FORMAT.simplePattern.pattern(), candidate.simplePattern.pattern());
-        // Exact format supplied is returned if it matches
-        assertEquals(
-            Collections.singletonList("yyyy-MM-dd'T'HH:mm:ss.SSS"),
-            candidate.javaTimestampFormatSupplier.apply("2018-05-15T16:14:56.374")
-        );
-        // Other supported formats are returned if exact format doesn't match
-        assertEquals(Collections.singletonList("ISO8601"), candidate.javaTimestampFormatSupplier.apply("2018-05-15T16:14:56,374"));
+            // Override is covered by a built-in format
+            TimestampFormatFinder.CandidateTimestampFormat candidate = TimestampFormatFinder.makeCandidateFromOverrideFormat(
+                "yyyy-MM-dd'T'HH:mm:ss.SSS",
+                NOOP_TIMEOUT_CHECKER,
+                ecsCompatibility
+            );
+            assertEquals(TimestampFormatFinder.ISO8601_CANDIDATE_FORMAT.outputGrokPatternName, candidate.outputGrokPatternName);
+            assertEquals(TimestampFormatFinder.ISO8601_CANDIDATE_FORMAT.strictGrokPattern, candidate.strictGrokPattern);
+            // Can't compare Grok objects as Grok doesn't implement equals()
+            assertEquals(TimestampFormatFinder.ISO8601_CANDIDATE_FORMAT.simplePattern.pattern(), candidate.simplePattern.pattern());
+            // Exact format supplied is returned if it matches
+            assertEquals(
+                Collections.singletonList("yyyy-MM-dd'T'HH:mm:ss.SSS"),
+                candidate.javaTimestampFormatSupplier.apply("2018-05-15T16:14:56.374")
+            );
+            // Other supported formats are returned if exact format doesn't match
+            assertEquals(Collections.singletonList("ISO8601"), candidate.javaTimestampFormatSupplier.apply("2018-05-15T16:14:56,374"));
 
-        // Override is supported but not covered by any built-in format
-        candidate = TimestampFormatFinder.makeCandidateFromOverrideFormat("MM/dd/yyyy H:mm:ss zzz", NOOP_TIMEOUT_CHECKER);
-        assertEquals(TimestampFormatFinder.CUSTOM_TIMESTAMP_GROK_NAME, candidate.outputGrokPatternName);
-        assertEquals("%{MONTHNUM2}/%{MONTHDAY}/%{YEAR} %{HOUR}:%{MINUTE}:%{SECOND} %{TZ}", candidate.strictGrokPattern);
-        assertEquals("\\b\\d{2}/\\d{2}/\\d{4} \\d{1,2}:\\d{2}:\\d{2} [A-Z]{3}\\b", candidate.simplePattern.pattern());
-        assertEquals(
-            Collections.singletonList("MM/dd/yyyy H:mm:ss zzz"),
-            candidate.javaTimestampFormatSupplier.apply("05/15/2018 16:14:56 UTC")
-        );
+            // Override is supported but not covered by any built-in format
+            candidate = TimestampFormatFinder.makeCandidateFromOverrideFormat(
+                "MM/dd/yyyy H:mm:ss zzz",
+                NOOP_TIMEOUT_CHECKER,
+                ecsCompatibility
+            );
+            assertEquals(TimestampFormatFinder.CUSTOM_TIMESTAMP_GROK_NAME, candidate.outputGrokPatternName);
+            assertEquals("%{MONTHNUM2}/%{MONTHDAY}/%{YEAR} %{HOUR}:%{MINUTE}:%{SECOND} %{TZ}", candidate.strictGrokPattern);
+            assertEquals("\\b\\d{2}/\\d{2}/\\d{4} \\d{1,2}:\\d{2}:\\d{2} [A-Z]{3}\\b", candidate.simplePattern.pattern());
+            assertEquals(
+                Collections.singletonList("MM/dd/yyyy H:mm:ss zzz"),
+                candidate.javaTimestampFormatSupplier.apply("05/15/2018 16:14:56 UTC")
+            );
 
-        candidate = TimestampFormatFinder.makeCandidateFromOverrideFormat("M/d/yyyy H:mm:ss zzz", NOOP_TIMEOUT_CHECKER);
-        assertEquals(TimestampFormatFinder.CUSTOM_TIMESTAMP_GROK_NAME, candidate.outputGrokPatternName);
-        assertEquals("%{MONTHNUM}/%{MONTHDAY}/%{YEAR} %{HOUR}:%{MINUTE}:%{SECOND} %{TZ}", candidate.strictGrokPattern);
-        assertEquals("\\b\\d{1,2}/\\d{1,2}/\\d{4} \\d{1,2}:\\d{2}:\\d{2} [A-Z]{3}\\b", candidate.simplePattern.pattern());
-        assertEquals(
-            Collections.singletonList("M/d/yyyy H:mm:ss zzz"),
-            candidate.javaTimestampFormatSupplier.apply("5/15/2018 16:14:56 UTC")
-        );
+            candidate = TimestampFormatFinder.makeCandidateFromOverrideFormat(
+                "M/d/yyyy H:mm:ss zzz",
+                NOOP_TIMEOUT_CHECKER,
+                ecsCompatibility
+            );
+            assertEquals(TimestampFormatFinder.CUSTOM_TIMESTAMP_GROK_NAME, candidate.outputGrokPatternName);
+            assertEquals("%{MONTHNUM}/%{MONTHDAY}/%{YEAR} %{HOUR}:%{MINUTE}:%{SECOND} %{TZ}", candidate.strictGrokPattern);
+            assertEquals("\\b\\d{1,2}/\\d{1,2}/\\d{4} \\d{1,2}:\\d{2}:\\d{2} [A-Z]{3}\\b", candidate.simplePattern.pattern());
+            assertEquals(
+                Collections.singletonList("M/d/yyyy H:mm:ss zzz"),
+                candidate.javaTimestampFormatSupplier.apply("5/15/2018 16:14:56 UTC")
+            );
+        };
+
+        ecsCompatibilityModes.forEach(testMakeCandidateFromOverrideFormatGivenEcsCompatibility);
     }
 
     public void testRequiresTimezoneDependentParsing() {
@@ -1206,36 +1226,42 @@ public class TimestampFormatFinderTests extends TextStructureTestCase {
         String expectedSimpleRegex = "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}";
         String expectedGrokPatternName = "TIMESTAMP_ISO8601";
 
-        TimestampFormatFinder strictTimestampFormatFinder = new TimestampFormatFinder(
-            explanation,
-            overrideFormat,
-            true,
-            true,
-            true,
-            NOOP_TIMEOUT_CHECKER
-        );
-        strictTimestampFormatFinder.addSample(text);
-        assertEquals(expectedGrokPatternName, strictTimestampFormatFinder.getGrokPatternName());
-        assertEquals(Collections.emptyMap(), strictTimestampFormatFinder.getCustomGrokPatternDefinitions());
-        assertEquals(expectedSimpleRegex, strictTimestampFormatFinder.getSimplePattern().pattern());
-        assertEquals(Collections.singletonList(overrideFormat), strictTimestampFormatFinder.getJavaTimestampFormats());
-        assertEquals(1, strictTimestampFormatFinder.getNumMatchedFormats());
+        Consumer<Boolean> testCustomOverrideMatchingBuiltInFormatGivenEcsCompatibility = (ecsCompatibility) -> {
+            TimestampFormatFinder strictTimestampFormatFinder = new TimestampFormatFinder(
+                explanation,
+                overrideFormat,
+                true,
+                true,
+                true,
+                NOOP_TIMEOUT_CHECKER,
+                ecsCompatibility
+            );
+            strictTimestampFormatFinder.addSample(text);
+            assertEquals(expectedGrokPatternName, strictTimestampFormatFinder.getGrokPatternName());
+            assertEquals(Collections.emptyMap(), strictTimestampFormatFinder.getCustomGrokPatternDefinitions());
+            assertEquals(expectedSimpleRegex, strictTimestampFormatFinder.getSimplePattern().pattern());
+            assertEquals(Collections.singletonList(overrideFormat), strictTimestampFormatFinder.getJavaTimestampFormats());
+            assertEquals(1, strictTimestampFormatFinder.getNumMatchedFormats());
 
-        TimestampFormatFinder lenientTimestampFormatFinder = new TimestampFormatFinder(
-            explanation,
-            overrideFormat,
-            false,
-            false,
-            false,
-            NOOP_TIMEOUT_CHECKER
-        );
-        lenientTimestampFormatFinder.addSample(text);
-        lenientTimestampFormatFinder.selectBestMatch();
-        assertEquals(expectedGrokPatternName, lenientTimestampFormatFinder.getGrokPatternName());
-        assertEquals(Collections.emptyMap(), lenientTimestampFormatFinder.getCustomGrokPatternDefinitions());
-        assertEquals(expectedSimpleRegex, lenientTimestampFormatFinder.getSimplePattern().pattern());
-        assertEquals(Collections.singletonList(overrideFormat), lenientTimestampFormatFinder.getJavaTimestampFormats());
-        assertEquals(1, lenientTimestampFormatFinder.getNumMatchedFormats());
+            TimestampFormatFinder lenientTimestampFormatFinder = new TimestampFormatFinder(
+                explanation,
+                overrideFormat,
+                false,
+                false,
+                false,
+                NOOP_TIMEOUT_CHECKER,
+                ecsCompatibility
+            );
+            lenientTimestampFormatFinder.addSample(text);
+            lenientTimestampFormatFinder.selectBestMatch();
+            assertEquals(expectedGrokPatternName, lenientTimestampFormatFinder.getGrokPatternName());
+            assertEquals(Collections.emptyMap(), lenientTimestampFormatFinder.getCustomGrokPatternDefinitions());
+            assertEquals(expectedSimpleRegex, lenientTimestampFormatFinder.getSimplePattern().pattern());
+            assertEquals(Collections.singletonList(overrideFormat), lenientTimestampFormatFinder.getJavaTimestampFormats());
+            assertEquals(1, lenientTimestampFormatFinder.getNumMatchedFormats());
+        };
+
+        ecsCompatibilityModes.forEach(testCustomOverrideMatchingBuiltInFormatGivenEcsCompatibility);
     }
 
     public void testCustomOverridesNotMatchingBuiltInFormat() {
@@ -1295,36 +1321,42 @@ public class TimestampFormatFinderTests extends TextStructureTestCase {
         String expectedGrokPatternName,
         Map<String, String> expectedCustomGrokPatternDefinitions
     ) {
-        TimestampFormatFinder strictTimestampFormatFinder = new TimestampFormatFinder(
-            explanation,
-            overrideFormat,
-            true,
-            true,
-            true,
-            NOOP_TIMEOUT_CHECKER
-        );
-        strictTimestampFormatFinder.addSample(text);
-        assertEquals(expectedGrokPatternName, strictTimestampFormatFinder.getGrokPatternName());
-        assertEquals(expectedCustomGrokPatternDefinitions, strictTimestampFormatFinder.getCustomGrokPatternDefinitions());
-        assertEquals(expectedSimpleRegex, strictTimestampFormatFinder.getSimplePattern().pattern());
-        assertEquals(Collections.singletonList(overrideFormat), strictTimestampFormatFinder.getJavaTimestampFormats());
-        assertEquals(1, strictTimestampFormatFinder.getNumMatchedFormats());
+        Consumer<Boolean> validateCustomOverrideNotMatchingBuiltInFormatGivenEcsCompatibility = (ecsCompatibility) -> {
+            TimestampFormatFinder strictTimestampFormatFinder = new TimestampFormatFinder(
+                explanation,
+                overrideFormat,
+                true,
+                true,
+                true,
+                NOOP_TIMEOUT_CHECKER,
+                ecsCompatibility
+            );
+            strictTimestampFormatFinder.addSample(text);
+            assertEquals(expectedGrokPatternName, strictTimestampFormatFinder.getGrokPatternName());
+            assertEquals(expectedCustomGrokPatternDefinitions, strictTimestampFormatFinder.getCustomGrokPatternDefinitions());
+            assertEquals(expectedSimpleRegex, strictTimestampFormatFinder.getSimplePattern().pattern());
+            assertEquals(Collections.singletonList(overrideFormat), strictTimestampFormatFinder.getJavaTimestampFormats());
+            assertEquals(1, strictTimestampFormatFinder.getNumMatchedFormats());
 
-        TimestampFormatFinder lenientTimestampFormatFinder = new TimestampFormatFinder(
-            explanation,
-            overrideFormat,
-            false,
-            false,
-            false,
-            NOOP_TIMEOUT_CHECKER
-        );
-        lenientTimestampFormatFinder.addSample(text);
-        lenientTimestampFormatFinder.selectBestMatch();
-        assertEquals(expectedGrokPatternName, lenientTimestampFormatFinder.getGrokPatternName());
-        assertEquals(expectedCustomGrokPatternDefinitions, lenientTimestampFormatFinder.getCustomGrokPatternDefinitions());
-        assertEquals(expectedSimpleRegex, lenientTimestampFormatFinder.getSimplePattern().pattern());
-        assertEquals(Collections.singletonList(overrideFormat), lenientTimestampFormatFinder.getJavaTimestampFormats());
-        assertEquals(1, lenientTimestampFormatFinder.getNumMatchedFormats());
+            TimestampFormatFinder lenientTimestampFormatFinder = new TimestampFormatFinder(
+                explanation,
+                overrideFormat,
+                false,
+                false,
+                false,
+                NOOP_TIMEOUT_CHECKER,
+                ecsCompatibility
+            );
+            lenientTimestampFormatFinder.addSample(text);
+            lenientTimestampFormatFinder.selectBestMatch();
+            assertEquals(expectedGrokPatternName, lenientTimestampFormatFinder.getGrokPatternName());
+            assertEquals(expectedCustomGrokPatternDefinitions, lenientTimestampFormatFinder.getCustomGrokPatternDefinitions());
+            assertEquals(expectedSimpleRegex, lenientTimestampFormatFinder.getSimplePattern().pattern());
+            assertEquals(Collections.singletonList(overrideFormat), lenientTimestampFormatFinder.getJavaTimestampFormats());
+            assertEquals(1, lenientTimestampFormatFinder.getNumMatchedFormats());
+        };
+
+        ecsCompatibilityModes.forEach(validateCustomOverrideNotMatchingBuiltInFormatGivenEcsCompatibility);
     }
 
     public void testFindFormatGivenRealLogMessages() {
@@ -1350,7 +1382,7 @@ public class TimestampFormatFinderTests extends TextStructureTestCase {
         validateFindInFullMessage(
             "Aug 29, 2009 12:03:57 AM org.apache.tomcat.util.http.Parameters processParameters",
             "",
-            "CATALINA_DATESTAMP",
+            "CATALINA7_DATESTAMP",
             "\\b[A-Z]\\S{2} \\d{2}, \\d{4} \\d{1,2}:\\d{2}:\\d{2} [AP]M\\b",
             "MMM dd, yyyy h:mm:ss a"
         );
@@ -1410,21 +1442,27 @@ public class TimestampFormatFinderTests extends TextStructureTestCase {
             "yyyy-MM-dd HH:mm:ss.SSSSSS"
         );
 
-        // Non-matching required format specified
-        TimestampFormatFinder timestampFormatFinder = new TimestampFormatFinder(
-            explanation,
-            randomFrom("UNIX", "EEE MMM dd yyyy HH:mm zzz"),
-            false,
-            false,
-            false,
-            NOOP_TIMEOUT_CHECKER
-        );
-        timestampFormatFinder.addSample(
-            "2018-01-06 19:22:20.106822|INFO    |VirtualServer |1  |client "
-                + " 'User1'(id:2) was added to channelgroup 'Channel Admin'(id:5) by client 'User1'(id:2) in channel '3er Instanz'(id:2)"
-        );
-        assertEquals(Collections.emptyList(), timestampFormatFinder.getJavaTimestampFormats());
-        assertEquals(0, timestampFormatFinder.getNumMatchedFormats());
+        Consumer<Boolean> testFindFormatWithNonMatchingRequiredFormatGivenEcsCompatibility = (ecsCompatibility) -> {
+            // Non-matching required format specified
+            TimestampFormatFinder timestampFormatFinder = new TimestampFormatFinder(
+                explanation,
+                randomFrom("UNIX", "EEE MMM dd yyyy HH:mm zzz"),
+                false,
+                false,
+                false,
+                NOOP_TIMEOUT_CHECKER,
+                ecsCompatibility
+            );
+            timestampFormatFinder.addSample(
+                "2018-01-06 19:22:20.106822|INFO    |VirtualServer |1  |client "
+                    + " 'User1'(id:2) was added to channelgroup 'Channel Admin'(id:5)"
+                    + " by client 'User1'(id:2) in channel '3er Instanz'(id:2)"
+            );
+            assertEquals(Collections.emptyList(), timestampFormatFinder.getJavaTimestampFormats());
+            assertEquals(0, timestampFormatFinder.getNumMatchedFormats());
+        };
+
+        ecsCompatibilityModes.forEach(testFindFormatWithNonMatchingRequiredFormatGivenEcsCompatibility);
     }
 
     public void testSelectBestMatchGivenAllSame() {
@@ -1666,24 +1704,35 @@ public class TimestampFormatFinderTests extends TextStructureTestCase {
         List<String> expectedJavaTimestampFormats
     ) {
 
-        Pattern expectedSimplePattern = Pattern.compile(expectedSimpleRegex);
-        assertTrue(expectedSimplePattern.matcher(message).find());
+        Consumer<Boolean> validateFindInFullMessageGivenEcsCompatibility = (ecsCompatibility) -> {
+            Pattern expectedSimplePattern = Pattern.compile(expectedSimpleRegex);
+            assertTrue(expectedSimplePattern.matcher(message).find());
 
-        TimestampFormatFinder timestampFormatFinder = new TimestampFormatFinder(
-            explanation,
-            timestampFormatOverride,
-            false,
-            false,
-            false,
-            NOOP_TIMEOUT_CHECKER
-        );
-        timestampFormatFinder.addSample(message);
-        timestampFormatFinder.selectBestMatch();
-        assertEquals(expectedGrokPatternName, timestampFormatFinder.getGrokPatternName());
-        assertEquals(expectedSimplePattern.pattern(), timestampFormatFinder.getSimplePattern().pattern());
-        assertEquals(expectedJavaTimestampFormats, timestampFormatFinder.getJavaTimestampFormats());
-        assertEquals(Collections.singletonList(expectedPreface), timestampFormatFinder.getPrefaces());
-        assertEquals(1, timestampFormatFinder.getNumMatchedFormats());
+            TimestampFormatFinder timestampFormatFinder = new TimestampFormatFinder(
+                explanation,
+                timestampFormatOverride,
+                false,
+                false,
+                false,
+                NOOP_TIMEOUT_CHECKER,
+                ecsCompatibility
+            );
+            timestampFormatFinder.addSample(message);
+            timestampFormatFinder.selectBestMatch();
+            if ("CATALINA7_DATESTAMP".equals(expectedGrokPatternName)) {
+                if (ecsCompatibility) {
+                    assertEquals(expectedGrokPatternName, timestampFormatFinder.getGrokPatternName());
+                } else {
+                    assertEquals("CATALINA_DATESTAMP", timestampFormatFinder.getGrokPatternName());
+                }
+            }
+            assertEquals(expectedSimplePattern.pattern(), timestampFormatFinder.getSimplePattern().pattern());
+            assertEquals(expectedJavaTimestampFormats, timestampFormatFinder.getJavaTimestampFormats());
+            assertEquals(Collections.singletonList(expectedPreface), timestampFormatFinder.getPrefaces());
+            assertEquals(1, timestampFormatFinder.getNumMatchedFormats());
+        };
+
+        ecsCompatibilityModes.forEach(validateFindInFullMessageGivenEcsCompatibility);
     }
 
     private void validateJavaTimestampFormats(List<String> javaTimestampFormats, String text, long expectedEpochMs) {
